@@ -68,7 +68,9 @@ export default function LogsPage() {
         const how = b.verified_on === 'hash-only' ? t('op.manage.attest.how.hash') : t('op.manage.attest.how.run', { engine: String(b.verified_on ?? 'prototype') });
         // accuracy is only meaningful for verifications that executed the benchmark; integrity-only checks carry no score
         const sc = b.score && typeof b.score === 'object' ? (b.score as Record<string, unknown>) : null;
-        const score = b.verified_on !== 'hash-only' && sc ? String(sc.free_generation ?? sc.free_generation_vllm ?? sc.chat_60 ?? Object.values(sc)[0] ?? '—') : '—';
+        // "26/26, 1/8" = accuracy with the knowledge loaded, then the same questions before loading (pre_apply)
+        const main = sc ? sc.free_generation ?? sc.free_generation_vllm ?? sc.chat_60 ?? Object.entries(sc).find(([k]) => k !== 'pre_apply')?.[1] : undefined;
+        const score = b.verified_on !== 'hash-only' && sc ? [main, sc.pre_apply].filter((v) => v !== undefined && v !== null && v !== '').map(String).join(', ') || '—' : '—';
         return t('op.logs.d.attest', { verifier: who(b.verifier_name ?? b.verifier ?? r.author), result: b.passed === false ? t('op.manage.attest.fail') : t('op.manage.attest.pass'), how, score });
       }
       case 'settle': {

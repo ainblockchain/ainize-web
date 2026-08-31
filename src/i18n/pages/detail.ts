@@ -205,7 +205,7 @@ export const detailPatch: Dict = {
   'detail.buy.step.quorum': { ko: '검증 완료 확인', en: 'verification confirmed' },
   'detail.buy.step.pay': { ko: '자동 결제', en: 'paid' },
   'detail.buy.step.free': { ko: '무료 — 결제 생략', en: 'free — no payment' },
-  'detail.buy.step.receipt': { ko: '파일 정보 수신', en: 'manifest received' },
+  'detail.buy.step.receipt': { ko: '접근 영수증을 공개 기록에 남김', en: 'access receipt recorded on the ledger' },
   'detail.buy.step.download': { ko: '내려받기·위변조 확인', en: 'downloaded & verified' },
   'detail.buy.step.apply': { ko: '모델에 넣기', en: 'loaded into model' },
   'detail.buy.step.settled': { ko: '정산 기록', en: 'settlement recorded' },

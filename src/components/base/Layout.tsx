@@ -16,8 +16,15 @@ const Content = styled.main`
   width: 100%; flex: 1; display: flex; flex-direction: column; align-items: center;
 `;
 
+/**
+ * Every route change (push, Back and Forward alike) starts at the top of the page.
+ * Chrome re-applies a history entry's saved scroll offset as soon as the freshly rendered page grows tall enough,
+ * which happened after this effect had already run (data arrives → the list grows → the browser jumps back down).
+ * Taking over scroll restoration makes the effect the only thing that positions the page.
+ */
 export function ScrollToTop() {
   const { pathname } = useLocation();
+  useEffect(() => { if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'; }, []);
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 }

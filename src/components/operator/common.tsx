@@ -132,8 +132,13 @@ export function useMoney() {
     if (n === 0) return t('common.free');
     return `${n.toLocaleString('en-US', { maximumFractionDigits: 6 })} ${unit(currency)}`.trim();
   };
+  /** Earned amounts: a zero reads "0 AIN", never "Free" (that word belongs to prices). */
+  const revenue = (amount?: string | number | null, currency?: string | null): string => {
+    const n = Number(amount ?? 0);
+    return !Number.isFinite(n) || n <= 0 ? `0 ${unit(currency)}`.trim() : fmt(n, currency);
+  };
   const note = (currency?: string | null): string => (currency === 'AIN' ? t('price.ain_note') : currency === 'CREDIT' ? t('price.credit_note') : '');
-  return { unit, fmt, note };
+  return { unit, fmt, revenue, note };
 }
 
 /** Locale-aware "n minutes ago" (utils/format.elapsed is English-only). */

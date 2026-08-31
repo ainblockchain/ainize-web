@@ -1,14 +1,25 @@
 import styled from 'styled-components';
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 
-/** MUI "standard" text field look used across ainize-web: underline input, 14px. */
-export const Field = styled.label`
+/**
+ * MUI "standard" text field look used across ainize-web: underline input, 14px.
+ * The label is tied to the control with htmlFor and the helper line with aria-describedby, so a field's accessible
+ * name is exactly its label ("Question", "facts covered (Facts covered)") and never includes the helper sentence.
+ */
+export const Field = styled.div`
   display: flex; flex-direction: column; gap: 6px; width: 100%;
 `;
 
-export const FieldLabel = styled.span`
+export const FieldLabel = styled.label`
   font-size: 12px; font-weight: 500; color: ${(p) => p.theme.color.GREY};
 `;
+
+/** Stable ids for one field: the control id (caller's `id` wins) and the helper-text id. */
+function useFieldIds(id?: string) {
+  const auto = useId();
+  const controlId = id ?? `f${auto}`;
+  return { controlId, helperId: `${controlId}-helper` };
+}
 
 export const inputBase = `
   width: 100%;
@@ -42,32 +53,35 @@ export const HelperText = styled.span<{ $error?: boolean }>`
   font-size: 12px; color: ${(p) => (p.$error ? p.theme.color.ERROR : p.theme.color.GREY)};
 `;
 
-export function TextField({ label, helper, error, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label?: ReactNode; helper?: ReactNode; error?: boolean }) {
+export function TextField({ label, helper, error, id, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label?: ReactNode; helper?: ReactNode; error?: boolean }) {
+  const { controlId, helperId } = useFieldIds(id);
   return (
     <Field>
-      {label && <FieldLabel>{label}</FieldLabel>}
-      <Input {...rest} />
-      {helper && <HelperText $error={error}>{helper}</HelperText>}
+      {label && <FieldLabel htmlFor={controlId}>{label}</FieldLabel>}
+      <Input id={controlId} aria-describedby={helper ? helperId : undefined} {...rest} />
+      {helper && <HelperText id={helperId} $error={error}>{helper}</HelperText>}
     </Field>
   );
 }
 
-export function TextArea({ label, helper, error, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: ReactNode; helper?: ReactNode; error?: boolean }) {
+export function TextArea({ label, helper, error, id, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: ReactNode; helper?: ReactNode; error?: boolean }) {
+  const { controlId, helperId } = useFieldIds(id);
   return (
     <Field>
-      {label && <FieldLabel>{label}</FieldLabel>}
-      <Textarea {...rest} />
-      {helper && <HelperText $error={error}>{helper}</HelperText>}
+      {label && <FieldLabel htmlFor={controlId}>{label}</FieldLabel>}
+      <Textarea id={controlId} aria-describedby={helper ? helperId : undefined} {...rest} />
+      {helper && <HelperText id={helperId} $error={error}>{helper}</HelperText>}
     </Field>
   );
 }
 
-export function SelectField({ label, helper, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { label?: ReactNode; helper?: ReactNode }) {
+export function SelectField({ label, helper, children, id, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { label?: ReactNode; helper?: ReactNode }) {
+  const { controlId, helperId } = useFieldIds(id);
   return (
     <Field>
-      {label && <FieldLabel>{label}</FieldLabel>}
-      <Select {...rest}>{children}</Select>
-      {helper && <HelperText>{helper}</HelperText>}
+      {label && <FieldLabel htmlFor={controlId}>{label}</FieldLabel>}
+      <Select id={controlId} aria-describedby={helper ? helperId : undefined} {...rest}>{children}</Select>
+      {helper && <HelperText id={helperId}>{helper}</HelperText>}
     </Field>
   );
 }

@@ -86,7 +86,7 @@ export default function DashboardPage() {
   };
   const run = async (fn: () => Promise<unknown>) => { setActionError(null); try { await fn(); } catch (err) { setActionError(errorMessage(err)); } };
 
-  const salesText = (e: CatalogEntry) => t('op.dash.sales.cell', { n: num(e.downloads), revenue: money.fmt(Number(e.revenue) > 0 ? e.revenue : 0, e.anchor.currency || currency) });
+  const salesText = (e: CatalogEntry) => t('op.dash.sales.cell', { n: num(e.downloads), revenue: money.revenue(e.revenue, e.anchor.currency || currency) });
   const schemeText = (scheme: string) => (scheme === 'ain-transfer' ? t('op.dash.purchases.scheme.ain') : scheme === 'local-credit' ? t('op.dash.purchases.scheme.credit') : scheme);
 
   const HEADERS: { key: string; label: string; tip?: string }[] = [
