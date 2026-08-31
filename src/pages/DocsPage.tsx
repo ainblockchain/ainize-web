@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useDocsQuery } from '@/api/api';
 import type { OpenApiOperation } from '@/api/types';
@@ -98,6 +99,13 @@ export default function DocsPage() {
           <CmdRow><Cmd>{cli.oneLiners.test.cmd}</Cmd><CopyButton text={cli.oneLiners.test.cmd} label={t('docs.copy')} /></CmdRow>
           <p>{t('docs.oneline.test.help')}</p>
         </OneLine>
+        {cli.oneLiners.teach && (
+          <OneLine>
+            <h3>{t('docs.oneline.teach')}</h3>
+            <CmdRow><Cmd>{cli.oneLiners.teach.cmd.split('#')[0].trim()}</Cmd><CopyButton text={cli.oneLiners.teach.cmd.split('#')[0].trim()} label={t('docs.copy')} /></CmdRow>
+            <p>{t('docs.oneline.teach.help')} <Link to="/chat?teach=1">{t('docs.oneline.teach.cta')}</Link></p>
+          </OneLine>
+        )}
       </OneLineGrid>
       <SubTitle $mt={24}>{t('docs.install')}</SubTitle>
       <Cmd style={{ marginTop: 10 }}>{cli.install.join('\n')}</Cmd>
