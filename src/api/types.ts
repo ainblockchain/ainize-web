@@ -34,7 +34,7 @@ export interface InfoResponse {
   quorum: number;
   currency: 'AIN' | 'CREDIT' | 'USDC';
   peers: number;
-  counts: { patches: number; listed: number };
+  counts: { patches: number; listed: number; verifying?: number; superseded?: number; rejected?: number };
 }
 
 export interface CatalogResponse { total: number; items: CatalogEntry[]; models: string[]; schemas: string[]; }

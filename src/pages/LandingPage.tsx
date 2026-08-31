@@ -238,7 +238,7 @@ export default function LandingPage() {
   const { data: trending, isLoading } = useCatalogQuery({ status: 'LISTED', sort: 'popular', limit: 6 });
   const year = new Date().getFullYear();
   const listed = info?.counts.listed;
-  const verifying = info ? Math.max(0, info.counts.patches - info.counts.listed) : undefined;
+  const verifying = info ? (info.counts.verifying ?? Math.max(0, info.counts.patches - info.counts.listed - (info.counts.superseded ?? 0) - (info.counts.rejected ?? 0))) : undefined;
 
   const user = audience('user');
   const creator = audience('creator');
