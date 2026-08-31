@@ -7,7 +7,12 @@ import type {
   AuthMe, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, Settings, DocsResponse,
+  CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
 } from './types';
+import { teachAuthHeader } from '@/lib/teacherKey';
+
+/** Endpoints that carry the visitor's signed `x-ngram-auth: <address>:<ts>:<sig over "teach:<ts>">` when this browser has a teaching key (spec §6.1). */
+const SIGNED_ENDPOINTS = new Set(['chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishTeachJob', 'saveTeachJob']);
 
 export interface CatalogQuery {
   sort?: 'latest' | 'popular' | 'price' | 'rows';
@@ -24,8 +29,14 @@ const toQuery = (params: Record<string, unknown>) => {
 
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({ baseUrl: '/', credentials: 'include' }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat'],
+  baseQuery: fetchBaseQuery({
+    baseUrl: '/', credentials: 'include',
+    prepareHeaders: (headers, { endpoint }) => {
+      if (SIGNED_ENDPOINTS.has(endpoint)) { const h = teachAuthHeader(); if (h) headers.set('x-ngram-auth', h); }
+      return headers;
+    },
+  }),
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'Teacher'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
@@ -80,6 +91,24 @@ export const api = createApi({
     // operator settings (persisted on the node)
     settings: b.query<{ settings: Settings }, void>({ query: () => 'api/me/settings', providesTags: ['Settings'] }),
     updateSettings: b.mutation<{ settings: Settings }, Partial<Settings>>({ query: (body) => ({ url: 'api/me/settings', method: 'PATCH', body }), invalidatesTags: ['Settings', 'Me', 'Info'] }),
+
+    // Teach mode (spec §6.2) — visitor routes signed with the browser's teaching key; poll a job every 5 s (call site: pollingInterval)
+    teachPolicy: b.query<TeachPolicy, void>({ query: () => 'api/teach/policy', providesTags: ['Teach'] }),
+    teachPreflight: b.mutation<PreflightResponse, { patch_ids: string[]; facts: TeachFactInput[] }>({ query: (body) => ({ url: 'api/teach/preflight', method: 'POST', body }) }),
+    createTeachJob: b.mutation<CreateTeachJobResponse, { patch_ids: string[]; builds_on_context: boolean; facts: TeachFactInput[]; contributor?: { name?: string }; name?: string }>({
+      query: (body) => ({ url: 'api/teach/jobs', method: 'POST', body }), invalidatesTags: ['Teach'],
+    }),
+    teachJob: b.query<{ job: TeachJob | TeachJobPublic }, string>({ query: (id) => `api/teach/jobs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Teach', id }] }),
+    myTeachJobs: b.query<{ items: TeachJob[] }, void>({ query: () => 'api/teach/jobs?mine=1', providesTags: ['Teach'] }),
+    cancelTeachJob: b.mutation<{ ok: boolean; status: 'CANCELLED' }, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, id) => [{ type: 'Teach', id }, 'Teach', 'Chat'] }),
+    retryTeachJob: b.mutation<CreateTeachJobResponse, { id: string; facts: TeachFactInput[]; name?: string }>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/retry`, method: 'POST', body }), invalidatesTags: ['Teach'] }),
+    recheckTeachJob: b.mutation<{ ok: boolean; status: 'EXPORTED' }, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/recheck`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Teach', id }, 'Teach'] }),
+    publishChallenge: b.mutation<PublishChallenge, { id: string; payout_address?: string | null }>({
+      query: ({ id, payout_address }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish-challenge${toQuery({ payout_address: payout_address === null ? 'none' : payout_address })}`, method: 'GET' }),
+    }),
+    publishTeachJob: b.mutation<PublishResponse, { id: string } & PublishRequest>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Teach', id: a.id }, 'Teach', 'Chat', 'Catalog', 'Teacher'] }),
+    saveTeachJob: b.mutation<TeachSaveResponse, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/save`, method: 'POST' }) }),
+    teacher: b.query<TeacherProfile, string>({ query: (address) => `api/teacher/${encodeURIComponent(address)}`, providesTags: (_r, _e, address) => [{ type: 'Teacher', id: address.toLowerCase() }, 'Teacher'] }),
   }),
 });
 
@@ -91,6 +120,8 @@ export const {
   useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
+  useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
+  useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
 } = api;
 
 /** Extract a human message from an RTK Query error. */

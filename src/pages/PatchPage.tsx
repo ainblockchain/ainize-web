@@ -27,6 +27,11 @@ const IdLine = styled.div`
   code { font-family: ${(p) => p.theme.font.mono}; color: #1b73e8; word-break: break-all; }
 `;
 const Branch = styled.div`margin-top: 6px; font-size: 13px; color: ${(p) => p.theme.color.GREY};`;
+const TaughtLine = styled.div`
+  margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY};
+  button { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; } }
+`;
+const TaughtChip = styled.span`display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; background: #e1eef3; color: #0b5468;`;
 const HeadRight = styled.div`display: flex; flex-direction: column; align-items: flex-end; gap: 8px;`;
 const LiveTestLink = styled(Link)`
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px 26px; border-radius: 4px; text-decoration: none;
@@ -133,6 +138,9 @@ export default function PatchPage() {
   const authorSlug = decodeURIComponent(author) === a.author ? author : encodeURIComponent(a.author);
   const score = scoreOf(data);
   const when = data.status === 'LISTED' ? t('detail.patch.listed_when', { ago: f.ago(data.listed_at ?? a.created_at) }) : t('detail.patch.registered_when', { ago: f.ago(a.created_at) });
+  const provider = a.contributors?.find((c) => c.role === 'data_provider');
+  const taught = a.origin === 'teach' || !!provider;
+  const providerName = provider?.name ?? t('detail.taught_by_anon');
   const tabs = [
     { id: 'overview', label: t('detail.tab.overview') },
     { id: 'verification', label: t('detail.tab.verification') },
@@ -149,6 +157,14 @@ export default function PatchPage() {
             <PatchTitle>{a.name}</PatchTitle>
             <IdLine><span>{t('detail.patch.id')} <code>{a.id}</code></span><span>{t('common.author')}: <b title={a.author}>{authorLabel}</b></span></IdLine>
             <Branch title={`${tech('branch')} · topic_path`}>{t('detail.patch.track_topic', { branch: a.branch ?? (data.branches[0]?.name ?? 'main'), topic: a.topic_path })}</Branch>
+            {taught && (
+              <TaughtLine data-testid="taught-by">
+                <TaughtChip>{t('detail.taught_badge')}</TaughtChip>
+                <span>{provider ? t('detail.people', { author_name: authorLabel, name: provider.name ?? t('detail.taught_by_anon'), share: Math.round(provider.share * 100) }) : t('detail.published_by', { name: providerName, node: authorLabel })}</span>
+                {provider && <StyledLink to={`/teacher/${encodeURIComponent(provider.signer ?? provider.address)}`} title={provider.address}>{t('detail.teacher_page')} →</StyledLink>}
+                <button type="button" onClick={() => setTab('buy')}>{t('detail.use_yourself')} →</button>
+              </TaughtLine>
+            )}
           </HeadLeft>
           <HeadRight>
             <LiveTestLink to={`/chat/${encodeURIComponent(a.id)}`} title={`${help('liveTest')} (${tech('liveTest')})`}>

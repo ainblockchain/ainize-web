@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test --import tsx test/*.test.ts"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "@noble/secp256k1": "^2.3.0",
     "@reduxjs/toolkit": "^2.12.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -19,10 +22,11 @@
     "styled-components": "^6.5.3"
   },
   "devDependencies": {
+    "@ngram/core": "0.1.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",
-    "vite": "^8.2.2",
-    "@ngram/core": "0.1.0"
+    "tsx": "^4.23.13",
+    "vite": "^8.2.2"
   }
 }

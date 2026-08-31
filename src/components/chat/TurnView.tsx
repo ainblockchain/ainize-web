@@ -73,8 +73,12 @@ const MiniHit = styled.span<{ $ok: boolean }>`
   code { font-family: inherit; font-weight: 500; }
 `;
 const ErrRow = styled.div`display: flex; flex-direction: column; gap: 8px; align-items: flex-start;`;
+const TeachBtn = styled.button`
+  align-self: flex-start; margin-top: 2px; padding: 3px 10px; border-radius: 12px; border: 1px dashed ${(p) => p.theme.color.PRIMARY}; background: #fff; color: ${(p) => p.theme.color.PRIMARY}; font-size: 12px; font-weight: 600; cursor: pointer;
+  &:hover { background: ${(p) => p.theme.color.PALE_GREY}; }
+`;
 
-function AnswerBubble({ kind, result, turn, hit }: { kind: 'base' | 'patched'; result: ChatResult | null | undefined; turn: Turn; hit: boolean | null | undefined }) {
+function AnswerBubble({ kind, result, turn, hit, onTeach }: { kind: 'base' | 'patched'; result: ChatResult | null | undefined; turn: Turn; hit: boolean | null | undefined; onTeach?: (answer: string) => void }) {
   const { t, help, locale } = useT();
   const pending = turn.status === 'pending';
   const applied = kind === 'patched' && turn.response ? turn.response.applied_ms : null;
@@ -121,13 +125,14 @@ function AnswerBubble({ kind, result, turn, hit }: { kind: 'base' | 'patched'; r
         <>
           <Answer>{result?.content?.trim() ? result.content.trim() : <EmptyAnswer>{t('chat.bubble.empty_answer')}</EmptyAnswer>}</Answer>
           {result?.reasoning && (<Reasoning><summary>{t('chat.bubble.reasoning')}</summary><pre>{result.reasoning}</pre></Reasoning>)}
+          {onTeach && result && <TeachBtn type="button" onClick={() => onTeach(result.content?.trim() ?? '')} data-testid={`teach-${kind}`}>{t('chat.turn.teach')}</TeachBtn>}
         </>
       )}
     </Bubble>
   );
 }
 
-export function TurnView({ turn, onRetry }: { turn: Turn; onRetry?: (turn: Turn) => void }) {
+export function TurnView({ turn, onRetry, onTeach }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void }) {
   const { t } = useT();
   const showBase = turn.mode === 'compare' || turn.mode === 'base';
   const showPatched = turn.mode === 'compare' || turn.mode === 'patched';
@@ -143,8 +148,8 @@ export function TurnView({ turn, onRetry }: { turn: Turn; onRetry?: (turn: Turn)
         </ErrRow>
       ) : (
         <Pair $cols={showBase && showPatched ? 2 : 1}>
-          {showBase && <AnswerBubble kind="base" result={r?.base} turn={turn} hit={turn.expect ? turn.baseHit : null} />}
-          {showPatched && <AnswerBubble kind="patched" result={r?.patched} turn={turn} hit={patchedHit} />}
+          {showBase && <AnswerBubble kind="base" result={r?.base} turn={turn} hit={turn.expect ? turn.baseHit : null} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined} />}
+          {showPatched && <AnswerBubble kind="patched" result={r?.patched} turn={turn} hit={patchedHit} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined} />}
         </Pair>
       )}
     </Wrap>

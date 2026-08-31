@@ -128,3 +128,73 @@ export interface CliReference {
   benchmarkExample: unknown;
 }
 export interface DocsResponse { openapi: OpenApiDoc; cli: CliReference; node: string }
+
+// ------------------------------------------------------------------ teach mode (spec §6.2 / §6.5; server types in packages/node/src/teach.ts)
+export type TeachStatus = 'QUEUED' | 'PREFLIGHT' | 'LOADING' | 'TRAINING' | 'EXPORTED' | 'CHECKING' | 'READY' | 'NEEDS_MORE'
+  | 'FAILED' | 'CANCELLED' | 'PENDING_REVIEW' | 'REJECTED' | 'ANNOUNCED' | 'EXPIRED';
+export interface TeachFact { prompt: string; answer: string; alt_prompt?: string; base_answer?: string; after_answer?: string; hit?: boolean; heldout_hit?: boolean }
+export interface TeachProgress { step: number; max_steps: number; loss?: number; hits: number; total: number; load_s?: number; avg_step_s?: number; started_at?: number }
+export interface TeachChecks {
+  /** false when the model server stayed down for the whole grace period — nothing measured, publish gated */
+  executed: boolean;
+  taught: { hits: number; total: number };
+  heldout: { hits: number; total: number };
+  parent_regression: { ok: boolean; hit: number; total: number };
+  locality: { ok: boolean; same: number; total: number };
+  reverted_and_reapplied: boolean;
+  /** hard publish gate */
+  ok: boolean;
+  note?: string;
+}
+export interface TeachJob {
+  id: string;
+  status: TeachStatus;
+  contributor: { address: string; name?: string };
+  context_patch_ids: string[];
+  builds_on_context: boolean;
+  facts: TeachFact[];
+  name?: string;
+  position?: number;
+  eta_s?: number | null;
+  /** why a QUEUED / EXPORTED job is waiting: 'slot' (trainer booked), 'lock' (model server busy), 'runtime' (model server down) */
+  blocked?: string | null;
+  progress?: TeachProgress;
+  checks?: TeachChecks;
+  result?: { sha256: string; rows: number; size_bytes: number };
+  draft_id?: string; patch_id?: string;
+  publish_status: 'none' | 'pending_review' | 'rejected' | 'announced' | 'listed';
+  reject_reason?: string; error?: string; parent_job?: string;
+  created_at: number; updated_at: number; started_at?: number; finished_at?: number; expires_at?: number;
+}
+/** What strangers get for a job they do not own. */
+export type TeachJobPublic = Pick<TeachJob, 'id' | 'status' | 'position' | 'eta_s'>;
+export interface TeachPolicy {
+  enabled: boolean;
+  publish: 'review' | 'auto' | 'never';
+  trainer: 'ready' | 'busy' | 'paused';
+  paused_reason?: string;
+  backend: 'gradient' | 'stub';
+  queue: { depth: number; max: number; position_eta_s?: number | null };
+  limits: { facts_per_job: number; jobs_per_key_per_day: number; jobs_per_ip_per_day: number; prompt_max: number; answer_max: number };
+  timing: { p50_s: number | null; p90_s: number | null; samples: number };
+  shares: { contributor: number; lineage: number };
+  model: { id_M: string | null };
+  applied: string[];
+  draft_ttl_days: number;
+}
+export interface TeachQuota { key_remaining: number; ip_remaining: number }
+export interface TeachFactInput { prompt: string; answer: string; alt_prompt?: string; base_answer?: string }
+export interface PreflightFact { index: number; status: 'will_train' | 'already_known' | 'overlaps_listing' | 'invalid'; base_answer?: string; detail?: string }
+export interface PreflightResponse { facts: PreflightFact[]; trainable: number; quota: TeachQuota }
+export interface TeachJobResponse { job: TeachJob }
+export interface CreateTeachJobResponse { job: TeachJob; quota: TeachQuota }
+export interface TeachSaveResponse { download: { npz_url: string; recipe_url: string; readme_url: string; expires_at: number }; sha256: string; rows: number; size_bytes: number; filename: string }
+export interface PublishChallenge { patch_sha256: string; benchmark_hash: string; address: string; signer: string; share: number; claim: string }
+export interface PublishRequest { name: string; description?: string; price?: string; license?: string; payout_address?: string | null; claim_sig: string; consent: { permanent: boolean; rights: boolean } }
+export type PublishResponse = { status: 'PENDING_REVIEW' } | { status: 'ANNOUNCED'; patch_id: string; url: string };
+export interface TeacherLesson { id: string; name: string; status: string; verified: boolean; downloads: number; revenue: string }
+export interface TeacherEarningItem { patch_id: string; seller: string; settle_hash: string; amount: string; currency: string; scheme: string; status: 'paid' | 'pending' | 'failed'; tx_hash?: string; attempts?: number; created_at: number; paid_at?: number }
+export interface TeacherProfile {
+  address: string; name?: string; hidden: boolean; lessons: TeacherLesson[];
+  earnings: { currency: string; owed: string; paid: string; pending: string; failed: string; sales: number; items: TeacherEarningItem[] };
+}

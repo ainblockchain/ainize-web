@@ -28,6 +28,7 @@ const AccountPage = lazy(() => import('./pages/AccountPage'));
 const DrivePage = lazy(() => import('./pages/DrivePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const DocsPage = lazy(() => import('./pages/DocsPage'));
+const TeacherPage = lazy(() => import('./pages/TeacherPage'));
 
 const fallback = <CenterProgress />;
 
@@ -53,6 +54,9 @@ export default function App() {
                 <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
                 <Route path="/chat" element={<Layout><ChatPage /></Layout>} />
                 <Route path="/chat/:patchId" element={<Layout><ChatPage /></Layout>} />
+                {/* Teach mode: "My lessons" alias and the public data-provider page (spec §11) */}
+                <Route path="/teach" element={<Navigate to="/chat?mine=1" replace />} />
+                <Route path="/teacher/:address" element={<Layout><TeacherPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />
                 <Route path="/:author/:patchId" element={<Layout><PatchPage /></Layout>} />

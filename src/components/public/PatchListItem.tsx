@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import type { CatalogEntry } from '@/api/types';
 import { Certified, StatusChip } from '@/components/ui/Misc';
@@ -95,6 +95,12 @@ const Meta = styled.div<{ $mt?: number }>`
 `;
 
 const Good = styled.span`color: ${(p) => p.theme.color.SUCCESS}; font-weight: 600;`;
+const TaughtChip = styled.span`
+  display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; background: #e1eef3; color: #0b5468; margin-right: 6px;
+`;
+const UseBtn = styled.button`
+  background: none; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; }
+`;
 const Soft = styled.span`color: ${(p) => p.theme.color.GREY};`;
 
 const Desc = styled.div`
@@ -117,6 +123,9 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
   const acc = executedAccuracy(entry);
   const p = priceLabel(a.price, a.currency ?? currency);
   const author = a.author_name ?? shortAddr(a.author);
+  const navigate = useNavigate();
+  const provider = a.contributors?.find((c) => c.role === 'data_provider');
+  const taught = a.origin === 'teach' || !!provider;
 
   return (
     <Wrapper to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}`}>
@@ -128,6 +137,14 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
           <StatusChip status={entry.status} />
         </NameRow>
         <Ident>{author} / {a.id}</Ident>
+        {taught && (
+          <Meta $mt={6} data-testid="taught-chip">
+            <TaughtChip>{t('detail.taught_badge')}</TaughtChip>
+            {provider?.name ? t('detail.taught_by', { name: provider.name }) : t('detail.taught_by_anon')}
+            {' · '}
+            <UseBtn type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/chat/${encodeURIComponent(a.id)}`); }}>{t('detail.use_yourself')} →</UseBtn>
+          </Meta>
+        )}
 
         <Meta $mt={12}>
           <b>{t('common.author')}:</b> {author} · <b>{t('common.model')}:</b> {a.model.id_M}

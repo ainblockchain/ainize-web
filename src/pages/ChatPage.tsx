@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useChatMutation, useChatPatchesQuery } from '@/api/api';
-import type { ChatMessage } from '@/api/types';
+import { errorMessage, useChatMutation, useChatPatchesQuery, useInfoQuery, useTeachPolicyQuery } from '@/api/api';
+import type { ChatMessage, TeachJob } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
 import { MAX_HISTORY, answerHits, matchSampleAny, parseSelection, selectionPath, MAX_CHAT_PATCHES, type ChatModeKind } from '@/components/chat/util';
+import { TeachDrawer } from '@/components/chat/TeachDrawer';
+import { LessonBasket } from '@/components/chat/LessonBasket';
+import { CreditSheet } from '@/components/chat/CreditSheet';
+import { PreflightSheet } from '@/components/chat/PreflightList';
+import { LessonCard } from '@/components/chat/LessonCard';
+import { PublishSheet } from '@/components/chat/PublishSheet';
+import { KeepPrivateSheet } from '@/components/chat/KeepPrivateSheet';
+import { MyKnowledgePanel } from '@/components/chat/MyKnowledgePanel';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
+import { bannerDismissed, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, MAX_FACTS, type Basket } from '@/lib/teachStore';
 import { num } from '@/utils/format';
 
 /* ---------------------------------------------------------------- layout */
@@ -19,6 +29,7 @@ const Grid = styled.div`
   display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 24px;
   @media (max-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: 1fr; }
 `;
+const Side = styled.div`display: flex; flex-direction: column; gap: 20px; min-width: 0;`;
 const Main = styled.section`
   display: flex; flex-direction: column; min-width: 0; background: #fafafa; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
   min-height: 560px; max-height: calc(100vh - 200px);
@@ -51,6 +62,11 @@ const DevNote = styled.section`
 const CancelRow = styled.div`
   display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; background: #fff; border-top: 1px dashed ${(p) => p.theme.color.LIGHT_GREY};
   font-size: 12px; color: ${(p) => p.theme.color.GREY};
+`;
+const TeachBanner = styled(Alert)`
+  margin-top: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  span { flex: 1; min-width: 240px; }
+  button.x { background: none; border: 0; font: inherit; font-size: 12px; color: inherit; opacity: 0.8; cursor: pointer; text-decoration: underline; }
 `;
 
 /* ---------------------------------------------------------------- helpers */
@@ -93,18 +109,26 @@ function buildHistory(prior: Turn[], text: string): ChatMessage[] {
   return capped;
 }
 
+type SheetKind = 'credit' | 'preflight' | 'publish' | 'keep' | null;
+
 /* ---------------------------------------------------------------- page */
 export default function ChatPage() {
   const { t, help, tech, audience } = useT();
   const { patchId } = useParams<{ patchId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isSignedIn } = useAuth();
-  const { data, isLoading, error } = useChatPatchesQuery(undefined, { pollingInterval: 20_000 });
+  const { data, isLoading, error, refetch } = useChatPatchesQuery(undefined, { pollingInterval: 20_000 });
+  const { data: info } = useInfoQuery();
+  // Teach mode: policy is public and cached 10 s on the node; a pre-teach node answers 404 → the teach UI stays hidden.
+  const { data: policy } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
   const [sendChat, { isLoading: busy }] = useChatMutation();
   const inflight = useRef<{ abort: () => void } | null>(null);
 
   const items = useMemo(() => data?.items ?? [], [data]);
-  const lessons = useMemo(() => data?.lessons ?? [], [data]);
+  /** The visitor's own lessons; a published one is already a public item, so it is listed once (under the public list). */
+  const lessons = useMemo(() => (data?.lessons ?? []).filter((l) => !(data?.items ?? []).some((e) => e.anchor.id === l.anchor.id)), [data]);
   const pickable = useMemo(() => [...lessons, ...items], [lessons, items]);
   /** Route `/chat/a,b,c` = ordered selection (tick order = load order). */
   const routeIds = useMemo(() => parseSelection(patchId), [patchId]);
@@ -115,6 +139,8 @@ export default function ChatPage() {
   const selected = selectedList[0];
   const runtimeOff = !!data && !data.runtime.available;
   const userCleared = useRef(false);
+  /** Navigate to a selection path while keeping the teach-mode query params (?teach / ?lesson / ?mine). */
+  const go = useCallback((path: string, replace = false) => navigate({ pathname: path, search: location.search }, { replace }), [navigate, location.search]);
 
   const [mode, setMode] = useState<ChatModeKind>('compare');
   const [thinking, setThinking] = useState(false);
@@ -125,6 +151,34 @@ export default function ChatPage() {
   const [exhausted, setExhausted] = useState(false);
   const [missingId, setMissingId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** Optimistic selection: the route update is a React transition, so the checkboxes flip from this state first. */
+  const [pendingIds, setPendingIds] = useState<string[] | null>(null);
+  useEffect(() => { setPendingIds(null); }, [patchId]);
+  const shownIds = pendingIds ?? selectedIds;
+
+  // ---------------------------------------------------------------- teach-mode state (spec §4, §7.7)
+  const teachParam = searchParams.get('teach') === '1';
+  const lessonParam = searchParams.get('lesson');
+  const mineParam = searchParams.get('mine') === '1';
+  const teachOn = !!policy?.enabled;
+  const setParam = useCallback((key: string, value: string | null) => {
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); if (value === null) next.delete(key); else next.set(key, value); return next; }, { replace: true });
+  }, [setSearchParams]);
+  const [teacherKey, setTeacherKey] = useState<TeacherKey | null>(() => currentTeacherKey());
+  useEffect(() => onTeacherKeyChange(() => { setTeacherKey(currentTeacherKey()); void refetch(); }), [refetch]);
+  const [basket, setBasket] = useState<Basket>(() => loadBasket([]));
+  useEffect(() => { setBasket(loadBasket(selectedIds)); }, [selectionKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(selectedIds, next); return next; }); }, [selectedIds]);
+  const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || loadBasket(parseSelection(patchId)).facts.length > 0);
+  const [drawer, setDrawer] = useState<{ question: string; answer: string } | null>(null);
+  const [sheet, setSheet] = useState<SheetKind>(null);
+  const [sheetJob, setSheetJob] = useState<TeachJob | null>(null);
+  const [cardJobId, setCardJobId] = useState<string | null>(() => lessonParam ?? loadJobs()[0]?.id ?? null);
+  const [cardHidden, setCardHidden] = useState(false);
+  const [bannerOff, setBannerOff] = useState<boolean>(() => bannerDismissed());
+  useEffect(() => { if (lessonParam) { setCardJobId(lessonParam); setCardHidden(false); } }, [lessonParam]);
+  useEffect(() => { if (teachParam) setBasketOpen(true); }, [teachParam]);
+  const showBanner = teachOn && (teachParam || !bannerOff);
 
   // Preselect from the route; fall back to the first testable knowledge (and remember what the route asked for).
   // Ids the route names but this node cannot test are dropped from the address (and reported once).
@@ -133,11 +187,11 @@ export default function ChatPage() {
     const missing = routeIds.filter((id) => !selectedIds.includes(id));
     if (missing.length > 0) {
       setMissingId(missing.join(', '));
-      navigate(selectedIds.length ? selectionPath(selectedIds) : '/chat', { replace: true });
+      go(selectedIds.length ? selectionPath(selectedIds) : '/chat', true);
       return;
     }
-    if (selectedIds.length === 0 && !userCleared.current) navigate(selectionPath([items[0].anchor.id]), { replace: true });
-  }, [data, items, routeIds, selectedIds, navigate]);
+    if (selectedIds.length === 0 && !userCleared.current) go(selectionPath([items[0].anchor.id]), true);
+  }, [data, items, routeIds, selectedIds, go]);
 
   // Abort any in-flight request when leaving the page.
   useEffect(() => () => { inflight.current?.abort(); }, []);
@@ -192,11 +246,13 @@ export default function ChatPage() {
   const toggle = useCallback((id: string) => {
     setMissingId(null);
     userCleared.current = false;
-    const next = selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : selectedIds.length >= MAX_CHAT_PATCHES ? selectedIds : [...selectedIds, id];
+    const cur = shownIds;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_CHAT_PATCHES ? cur : [...cur, id];
     if (next.length === 0) userCleared.current = true;
-    navigate(next.length ? selectionPath(next) : '/chat');
-  }, [selectedIds, navigate]);
-  const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); navigate('/chat'); }, [navigate]);
+    setPendingIds(next);
+    go(next.length ? selectionPath(next) : '/chat');
+  }, [shownIds, go]);
+  const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); setPendingIds([]); go('/chat'); }, [go]);
   /** Sample questions of every selected knowledge (deduplicated by prompt), in load order. */
   const samples = useMemo(() => {
     const seen = new Set<string>();
@@ -204,6 +260,33 @@ export default function ChatPage() {
     for (const e of selectedList) for (const s of e.anchor.benchmark.samples ?? []) { const k = s.prompt.trim(); if (!seen.has(k)) { seen.add(k); out.push(s); } }
     return out;
   }, [selectedList]);
+
+  // ---------------------------------------------------------------- teach-mode handlers
+  const onTeach = useCallback((turn: Turn, answer: string) => { setDrawer({ question: turn.prompt, answer }); }, []);
+  const addCorrection = useCallback((c: { prompt: string; answer: string; alt_prompt?: string; model_answer?: string }) => {
+    updateBasket((b) => (b.facts.length >= MAX_FACTS ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
+    setDrawer(null); setBasketOpen(true);
+  }, [updateBasket]);
+  const onTrain = useCallback(() => { setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey]);
+  const onQueued = useCallback((job: TeachJob) => {
+    rememberJob({ id: job.id, name: job.name, created_at: job.created_at });
+    clearBasket(selectedIds); setBasket({ facts: [], builds_on: false });
+    setSheet(null); setCardJobId(job.id); setCardHidden(false); setParam('lesson', job.id);
+  }, [selectedIds, setParam]);
+  const onTry = useCallback(async (job: TeachJob) => {
+    const id = job.draft_id ?? job.patch_id; if (!id) return;
+    await refetch();   // the draft must be in `lessons` before the route names it (otherwise it is dropped as untestable)
+    userCleared.current = false;
+    const next = selectedIds.includes(id) ? selectedIds : selectedIds.length >= MAX_CHAT_PATCHES ? [...selectedIds.slice(0, MAX_CHAT_PATCHES - 1), id] : [...selectedIds, id];
+    navigate({ pathname: selectionPath(next), search: `?lesson=${encodeURIComponent(job.id)}` });
+  }, [refetch, selectedIds, navigate]);
+  const onImprove = useCallback((job: TeachJob) => {
+    updateBasket(() => ({ facts: job.facts.map((f) => ({ prompt: f.prompt, answer: f.answer, ...(f.alt_prompt ? { alt_prompt: f.alt_prompt } : {}), ...(f.base_answer ? { model_answer: f.base_answer } : {}), id: newCorrectionId(), added_at: Date.now() })), builds_on: job.builds_on_context, retry_of: job.id }));
+    setBasketOpen(true);
+  }, [updateBasket]);
+  const openSheet = useCallback((kind: SheetKind, job: TeachJob | null) => { setSheetJob(job); setSheet(kind); }, []);
+  const hideCard = useCallback(() => { setCardHidden(true); setParam('lesson', null); }, [setParam]);
+  const closeMine = useCallback(() => setParam('mine', null), [setParam]);
 
   const quotaText = isSignedIn || quota === null
     ? t('chat.quota.operator')
@@ -213,6 +296,7 @@ export default function ChatPage() {
 
   const composerDisabled = selectedIds.length === 0 || runtimeOff || (exhausted && !isSignedIn);
   const disabledReason = selectedIds.length === 0 ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : exhausted && !isSignedIn ? t('chat.quota.none') : undefined;
+  const keyLabel = teacherKey ? t('teach.key.chip', { name: teacherKey.name ?? t('teach.key.anon'), short: shortKey(teacherKey.address) }) : undefined;
 
   return (
     <PageWrapper $wide>
@@ -231,11 +315,24 @@ export default function ChatPage() {
 
       {data && (
         <>
+          {showBanner && (
+            <TeachBanner $tone="info" role="status" data-testid="teach-banner">
+              <span>{t('chat.banner.teach')}</span>
+              <button type="button" className="x" onClick={() => { dismissBanner(); setBannerOff(true); if (teachParam) setParam('teach', null); }}>{t('chat.banner.dismiss')}</button>
+            </TeachBanner>
+          )}
           {missingId && <Alert $tone="warning" style={{ marginTop: 16 }}>{t('chat.picker.route_missing', { id: missingId })}</Alert>}
           {exhausted && !isSignedIn && <Alert $tone="warning" style={{ marginTop: 16 }} role="status">{t('chat.quota.none')}</Alert>}
           <Grid>
-            <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} selectedIds={selectedIds}
-              onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
+            <Side>
+              <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} selectedIds={shownIds}
+                onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
+              {policy && (
+                <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
+                  onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
+                  onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
+              )}
+            </Side>
 
             <Main aria-live="polite">
               {selected && selectedList.length === 1 && (
@@ -266,10 +363,14 @@ export default function ChatPage() {
                   </HeadList>
                 </>
               )}
+              {policy && cardJobId && !cardHidden && (
+                <LessonCard key={cardJobId} jobId={cardJobId} policy={policy} nodeAddress={info?.node.address} teacherAddress={teacherKey?.address}
+                  onTry={(j) => { void onTry(j); }} onPublish={(j) => openSheet('publish', j)} onKeep={(j) => openSheet('keep', j)} onImprove={onImprove} onHide={hideCard} />
+              )}
               <Transcript ref={scrollRef}>
                 {turns.length === 0 ? (
                   <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
-                ) : turns.map((turn) => <TurnView key={turn.id} turn={turn} onRetry={retry} />)}
+                ) : turns.map((turn) => <TurnView key={turn.id} turn={turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} />)}
               </Transcript>
               {busy && (
                 <CancelRow role="status">
@@ -292,6 +393,26 @@ export default function ChatPage() {
             {t('chat.dev.body')}
           </DevNote>
         </>
+      )}
+
+      {/* ------------------------------------------------------------ teach-mode overlays */}
+      {drawer && (
+        <TeachDrawer question={drawer.question} modelAnswer={drawer.answer} full={basket.facts.length >= MAX_FACTS} limits={policy?.limits}
+          onAdd={addCorrection} onClose={() => setDrawer(null)} />
+      )}
+      {sheet === 'credit' && <CreditSheet onDone={(k) => { setTeacherKey(k); setSheet('preflight'); }} onClose={() => setSheet(null)} />}
+      {sheet === 'preflight' && policy && (
+        <PreflightSheet patchIds={selectedIds} basket={basket} policy={policy} contributorName={teacherKey?.name} onQueued={onQueued} onClose={() => setSheet(null)} />
+      )}
+      {sheet === 'publish' && sheetJob && policy && teacherKey && (
+        <PublishSheet job={sheetJob} policy={policy} teacherKey={teacherKey} onClose={() => setSheet(null)} onPublished={() => undefined} />
+      )}
+      {sheet === 'keep' && sheetJob && policy && (
+        <KeepPrivateSheet job={sheetJob} policy={policy} onClose={() => setSheet(null)} onPublishLater={() => setSheet('publish')} onDeleted={() => setSheet(null)} />
+      )}
+      {mineParam && (
+        <MyKnowledgePanel teacherKey={teacherKey} lessonEntries={lessons} onKeyChanged={() => setTeacherKey(currentTeacherKey())}
+          onOpenLesson={(j) => { setCardJobId(j.id); setCardHidden(false); setSearchParams({ lesson: j.id }, { replace: true }); }} onClose={closeMine} />
       )}
     </PageWrapper>
   );

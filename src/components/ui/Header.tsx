@@ -23,6 +23,12 @@ const NavItem = styled(NavLink)`
   &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; }
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 16px 8px; font-size: 14px; }
 `;
+/** Same look as NavItem but never "active" (it points at /chat?teach=1, which would otherwise light up together with Live test). */
+const NavPlain = styled(Link)`
+  display: flex; align-items: center; height: 100%; padding: 16px 16px; font-size: 16px; font-weight: 500; color: ${(p) => p.theme.color.BLACK}; text-decoration: none; white-space: nowrap;
+  &:hover { color: ${(p) => p.theme.color.HOVER}; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 16px 8px; font-size: 14px; }
+`;
 const UserMenuButton = styled.button`
   padding: 16px 12px 16px 20px; border: 0; background: transparent; font-size: 16px; color: ${(p) => p.theme.color.BLACK}; cursor: pointer; white-space: nowrap;
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
@@ -75,6 +81,7 @@ export function Header() {
         <Nav>
           <NavItem to="/explore">{t('nav.explore')}</NavItem>
           <NavItem to="/chat">{t('nav.chat')}</NavItem>
+          {info?.accepts_contributions && <NavPlain to="/chat?teach=1" data-testid="nav-teach">{t('nav.teach')}</NavPlain>}
           <NavItem to="/network">{t('nav.network')}</NavItem>
           <NavItem to="/ledger">{t('nav.ledger')}</NavItem>
           <NavItem to="/docs">{t('nav.docs')}</NavItem>
