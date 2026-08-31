@@ -85,9 +85,31 @@ export function signMessage(message: string, privHex: string): string {
   return `0x${hex(h)}${hex(sig.toCompactRawBytes())}${(27 + sig.recovery).toString(16).padStart(2, '0')}`;
 }
 
-/** `x-ngram-auth: <address>:<ts>:<sig over "<purpose>:<ts>">` — verified by the node's verifyAuthHeader (5-min skew). */
+/**
+ * Legacy `x-ngram-auth: <address>:<ts>:<sig over "<purpose>:<ts>">` — verified by the node's verifyAuthHeader (5-min skew).
+ * Not bound to a route: the node refuses an exact replay but the same header would verify on another route, so the
+ * API layer sends the request-bound v2 form (`authHeaderV2`) and keeps this only as a fallback when the node address
+ * is unknown.
+ */
 export function authHeader(privHex: string, address: string, purpose = 'teach', ts = Date.now()): string {
   return `${address}:${ts}:${signMessage(`${purpose}:${ts}`, privHex)}`;
+}
+
+/** What one v2 request signs — mirrors packages/node/src/teach-auth.ts `teachAuthMessage`. */
+export interface TeachAuthTarget { node: string; method: string; path: string; body?: string | Uint8Array | null; purpose?: string }
+
+export function teachAuthMessage(t: TeachAuthTarget & { ts: number }): string {
+  const parts = [t.purpose ?? 'teach', t.node, t.method.toUpperCase(), t.path, String(t.ts)];
+  if (t.body !== undefined && t.body !== null && t.body.length > 0) parts.push(hex(sha256(typeof t.body === 'string' ? utf8(t.body) : t.body)));
+  return parts.join(':');
+}
+
+/**
+ * v2 `x-ngram-auth: <address>:<ts>:<sig>:v2`, sig over `teach:<nodeAddress>:<METHOD>:<path+query>:<ts>[:<sha256(body)>]`.
+ * Single-use on the node and bound to node / route / body, so a captured header cannot be replayed elsewhere.
+ */
+export function authHeaderV2(privHex: string, address: string, t: TeachAuthTarget, ts = Date.now()): string {
+  return `${address}:${ts}:${signMessage(teachAuthMessage({ ...t, ts }), privHex)}:v2`;
 }
 
 // ------------------------------------------------------------------ browser storage (spec §7.7)
@@ -166,10 +188,16 @@ export function teacherKeyBackup(key: TeacherKey): string {
 
 export function teacherKeyBackupName(key: TeacherKey): string { return `ainize-teaching-key-${key.address.slice(2, 10).toLowerCase()}.json`; }
 
-/** Signed header for the current key, or null when this browser has no key yet. */
+/** Legacy signed header for the current key, or null when this browser has no key yet (fallback when the node address is unknown). */
 export function teachAuthHeader(purpose = 'teach'): string | null {
   const k = currentTeacherKey();
   return k ? authHeader(k.privateKey, k.address, purpose) : null;
+}
+
+/** Request-bound v2 header for the current key, or null when this browser has no key yet. */
+export function teachAuthHeaderFor(t: TeachAuthTarget): string | null {
+  const k = currentTeacherKey();
+  return k ? authHeaderV2(k.privateKey, k.address, t) : null;
 }
 
 /** Subscribe to key changes (created / imported / forgotten) in this tab. */

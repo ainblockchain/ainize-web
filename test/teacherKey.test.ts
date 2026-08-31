@@ -9,7 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createIdentity, identityFromPrivateKey, signMessage as coreSign, verifyMessage, hashCanonical } from '@ngram/core';
 import { verifyAuthHeader } from '../../node/dist/p2p.js';
-import { addressOf, authHeader, hashMessage, parseTeacherKeyBackup, signMessage, teacherKeyBackup, toChecksumAddress } from '../src/lib/teacherKey.ts';
+import { TeachAuth, teachAuthHeaderFor as nodeTeachAuthHeaderFor } from '../../node/dist/teach-auth.js';
+import { addressOf, authHeader, authHeaderV2, hashMessage, teachAuthMessage, parseTeacherKeyBackup, signMessage, teacherKeyBackup, toChecksumAddress } from '../src/lib/teacherKey.ts';
 
 // ain-util internals, only to cross-check the message hash and address derivation directly
 import { createRequire } from 'node:module';
@@ -55,6 +56,26 @@ test('x-ngram-auth header from the browser key passes node verifyAuthHeader("tea
   assert.equal(verifyAuthHeader(old, 'teach'), null);           // 5-min skew
   const tampered = h.replace(/:(\d+):/, (_, ts) => `:${Number(ts) + 1}:`);
   assert.equal(verifyAuthHeader(tampered, 'teach'), null);
+});
+
+test('v2 x-ngram-auth from the browser key is byte-identical to the node builder and passes TeachAuth.verify (route + body bound, single use)', () => {
+  const id = createIdentity(); const node = createIdentity().address;
+  const body = JSON.stringify({ patch_id: 'x', messages: [{ role: 'user', content: '픽셀플러스?' }] });
+  const ts = Date.now();
+  const t = { node, method: 'POST', path: '/api/chat', body };
+  assert.equal(authHeaderV2(id.privateKey, id.address, t, ts), nodeTeachAuthHeaderFor(id, t, ts));
+  assert.equal(teachAuthMessage({ ...t, ts }).split(':').length, 6);
+  const auth = new TeachAuth(node);
+  const req = (h: string, method = 'POST', url = '/api/chat', raw: string | null = body) => ({ header: (n: string) => (n === 'x-ngram-auth' ? h : undefined), method, originalUrl: url, url, rawBody: raw === null ? undefined : Buffer.from(raw) }) as never;
+  const h = authHeaderV2(id.privateKey, id.address, t, ts);
+  assert.equal(auth.verify(req(h)), id.address);
+  assert.equal(auth.verify(req(h)), null, 'single use');
+  const h2 = authHeaderV2(id.privateKey, id.address, t);
+  assert.equal(auth.verify(req(h2, 'POST', '/api/teach/preflight')), null, 'bound to the route');
+  assert.equal(auth.verify(req(h2, 'POST', '/api/chat', '{"tampered":1}')), null, 'bound to the body');
+  assert.equal(new TeachAuth(createIdentity().address).verify(req(h2)), null, 'bound to the node');
+  const g = authHeaderV2(id.privateKey, id.address, { node, method: 'GET', path: '/api/teach/jobs?x=1' });
+  assert.equal(auth.verify(req(g, 'GET', '/api/teach/jobs?x=1', null)), id.address);
 });
 
 test('backup round-trip keeps the key and re-derives the address', () => {

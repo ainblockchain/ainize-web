@@ -10,10 +10,47 @@ import type {
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
 } from './types';
-import { teachAuthHeader } from '@/lib/teacherKey';
+import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
 
-/** Endpoints that carry the visitor's signed `x-ngram-auth: <address>:<ts>:<sig over "teach:<ts>">` when this browser has a teaching key (spec §6.1). */
-const SIGNED_ENDPOINTS = new Set(['chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishTeachJob', 'saveTeachJob']);
+/**
+ * Endpoints that carry the visitor's signed `x-ngram-auth` when this browser has a teaching key (spec §6.1).
+ * `chat` is included because a private draft (a taught lesson before publishing) can be live-tested only by its owner.
+ */
+const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishTeachJob', 'saveTeachJob']);
+/** Internal marker set by prepareHeaders and consumed by `signedFetch` (never sent). */
+const SIGN_MARKER = 'x-ngram-sign';
+
+let nodeAddressPromise: Promise<string | null> | null = null;
+/** This node's address (signed into every v2 header), fetched once from /api/info. */
+const nodeAddress = (): Promise<string | null> => {
+  nodeAddressPromise ??= fetch('/api/info', { credentials: 'include' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j: { node?: { address?: string } } | null) => j?.node?.address ?? null)
+    .catch(() => null)
+    .then((a) => { if (!a) nodeAddressPromise = null; return a; });
+  return nodeAddressPromise;
+};
+
+/**
+ * fetch with the request-bound v2 `x-ngram-auth` (`teach:<node>:<METHOD>:<path+query>:<ts>[:<sha256 body>]`) on marked
+ * requests — single-use on the node and bound to route + body, so a captured header cannot be replayed elsewhere.
+ * Falls back to the legacy `teach:<ts>` header only when the node address cannot be read.
+ */
+const signedFetch: typeof fetch = async (input, init) => {
+  const req = input instanceof Request ? input : new Request(input, init);
+  if (!req.headers.has(SIGN_MARKER)) return fetch(req);
+  const headers = new Headers(req.headers);
+  headers.delete(SIGN_MARKER);
+  if (currentTeacherKey()) {
+    const node = await nodeAddress();
+    const method = req.method.toUpperCase();
+    const body = method === 'GET' || method === 'HEAD' ? null : await req.clone().text();
+    const u = new URL(req.url);
+    const h = node ? teachAuthHeaderFor({ node, method, path: `${u.pathname}${u.search}`, body }) : teachAuthHeader();
+    if (h) headers.set('x-ngram-auth', h);
+  }
+  return fetch(new Request(req, { headers }));
+};
 
 export interface CatalogQuery {
   sort?: 'latest' | 'popular' | 'price' | 'rows';
@@ -31,9 +68,9 @@ const toQuery = (params: Record<string, unknown>) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
-    baseUrl: '/', credentials: 'include',
+    baseUrl: '/', credentials: 'include', fetchFn: signedFetch,
     prepareHeaders: (headers, { endpoint }) => {
-      if (SIGNED_ENDPOINTS.has(endpoint)) { const h = teachAuthHeader(); if (h) headers.set('x-ngram-auth', h); }
+      if (SIGNED_ENDPOINTS.has(endpoint)) headers.set(SIGN_MARKER, '1');
       return headers;
     },
   }),

@@ -77,14 +77,22 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   const full = isFullJob(job) ? job : null;
   const status = job?.status;
   const lastStatus = useRef<string | undefined>(undefined);
+  const cardRef = useRef<HTMLElement>(null);
 
   // 5 s while the lesson moves, 30 s afterwards (review → announced, verification); refresh the picker once a draft exists.
+  // On every status change bring the card into view: it is the first block of a transcript that auto-scrolls to the
+  // newest reply, so a lesson queued after a long answer would otherwise turn READY out of sight.
   useEffect(() => {
     if (!status) return;
     setPoll(ACTIVE.has(status) ? 5000 : 30_000);
     if (lastStatus.current !== status) {
       lastStatus.current = status;
       if (['READY', 'NEEDS_MORE', 'ANNOUNCED', 'CANCELLED', 'EXPIRED', 'PENDING_REVIEW'].includes(status)) dispatch(api.util.invalidateTags(['Chat', 'Teach']));
+      const el = cardRef.current;
+      if (el && typeof el.scrollIntoView === 'function') {
+        const r = el.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
   }, [status, dispatch]);
 
@@ -166,7 +174,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   const pageLink = j.patch_id && nodeAddress ? `/${encodeURIComponent(nodeAddress)}/${encodeURIComponent(j.patch_id)}` : null;
 
   return (
-    <Card $tone={tone} data-testid="lesson-card" data-status={j.status} aria-live="polite">
+    <Card ref={cardRef} $tone={tone} data-testid="lesson-card" data-status={j.status} aria-live="polite">
       <Head>
         <h3>{t('teach.card.title', { name })}</h3>
         <State $tone={tone} data-testid="lesson-status">{t(cardStatusKey(j.status, j.publish_status))}</State>
