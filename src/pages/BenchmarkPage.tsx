@@ -4,31 +4,34 @@ import styled from 'styled-components';
 import { useBenchmarkQuery, useInfoQuery } from '@/api/api';
 import { PatchListItem } from '@/components/public/PatchListItem';
 import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
+import { useT } from '@/i18n';
 import { num } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
 
-const SORT_OPTIONS = [
-  { value: 'popular', label: 'Popular' },
-  { value: 'latest', label: 'Latest' },
-  { value: 'rows', label: 'Rows' },
-];
+type Sort = 'popular' | 'latest' | 'rows';
+const SORTS: Sort[] = ['popular', 'latest', 'rows'];
 const ITEM_LIMIT = 10;
 
 const Schema = styled.span`
   font-family: ${(p) => p.theme.font.mono}; color: ${(p) => p.theme.color.PRIMARY};
 `;
 const Stats = styled(Description)`
+  margin: 0 0 8px;
+`;
+const Explain = styled(Description)`
   margin: 0 0 24px;
 `;
 
-/** Ported from ainize-web DeploymentsPage.js ("all deployments of a GitHub repo") → all patches sharing a benchmark schema. */
+/** All knowledge that shares one topic (benchmark schema) — comparable because it is scored with the same question set. */
 export default function BenchmarkPage() {
   const { schema = '' } = useParams();
-  const [sort, setSort] = useState('popular');
+  const { t, help, tech } = useT();
+  const [sort, setSort] = useState<Sort>('popular');
   const [page, setPage] = useState(1);
   const { data: info } = useInfoQuery();
   const { data, isLoading, error } = useBenchmarkQuery(schema);
 
+  const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
   const items = useMemo(() => {
     const list = [...(data?.items ?? [])];
     if (sort === 'latest') list.sort((a, b) => b.anchor.created_at - a.anchor.created_at);
@@ -38,7 +41,7 @@ export default function BenchmarkPage() {
   }, [data, sort]);
 
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (error || !data) return <NotFoundPage message={`No patches are registered for benchmark schema "${schema}".`} />;
+  if (error || !data) return <NotFoundPage message={t('bench.notfound', { schema })} />;
 
   const pageCount = Math.max(1, Math.ceil(items.length / ITEM_LIMIT));
   const current = Math.min(page, pageCount);
@@ -49,18 +52,17 @@ export default function BenchmarkPage() {
   return (
     <PageWrapper>
       <TitleRow>
-        <Title>Patches for benchmark <Schema>{data.schema}</Schema></Title>
-        <SelectBox options={SORT_OPTIONS} value={sort} onChange={(v) => { setSort(v); setPage(1); }} />
+        <Title>{t('bench.title')} <Schema title={t('explore.filter.schema_help')}>{data.schema}</Schema></Title>
+        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); setPage(1); }} />
       </TitleRow>
-      <Stats>
-        {num(items.length)} patch{items.length === 1 ? '' : 'es'} · {num(listed)} listed · models: {models.join(', ') || '—'}.
-        Patches on the same benchmark schema compete on the same questions; when their address sets overlap the newer listing supersedes the older one.
-        {' '}<StyledLink to="/explore">Back to Explore</StyledLink>
-      </Stats>
+      <Stats>{t('bench.stats', { total: num(items.length), listed: num(listed), models: models.join(', ') || '—' })}</Stats>
+      <Explain title={`${help('superseded')} (${tech('superseded')})`}>
+        {t('bench.explain')}{' '}<StyledLink to="/explore">{t('bench.back')}</StyledLink>
+      </Explain>
       <div>
         {visible.map((e) => <PatchListItem key={e.anchor.id} entry={e} currency={info?.currency} />)}
       </div>
-      {items.length === 0 && <Empty>No patches for this benchmark.</Empty>}
+      {items.length === 0 && <Empty>{t('bench.empty')}</Empty>}
       {items.length > 0 && <Pagination page={current} pageCount={pageCount} onChange={setPage} />}
     </PageWrapper>
   );

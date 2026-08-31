@@ -2,27 +2,19 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useGraphQuery, useLedgerQuery, useLedgerVerifyQuery } from '@/api/api';
-import type { GraphResponse, LedgerRecord } from '@/api/types';
+import type { GraphResponse } from '@/api/types';
 import { STATUS_META } from '@/theme/theme';
-import { CenterProgress, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, SelectBox, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
+import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, SelectBox, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
-import { dateTime, elapsed, num, shortAddr, shortHash } from '@/utils/format';
+import { useT } from '@/i18n';
+import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
+import { useDetailFormat } from './detail/recordText';
 
-const KIND_OPTIONS = [
-  { value: '', label: 'All records' },
-  { value: 'anchor', label: 'anchor' },
-  { value: 'attest', label: 'attest' },
-  { value: 'settle', label: 'settle' },
-  { value: 'branch', label: 'branch' },
-  { value: 'node', label: 'node' },
-  { value: 'supersede', label: 'supersede' },
-  { value: 'subscribe', label: 'subscribe' },
-  { value: 'challenge', label: 'challenge' },
-];
+const KINDS = ['anchor', 'attest', 'settle', 'branch', 'node', 'supersede', 'subscribe', 'challenge'];
 const PAGE = 20;
 
 const InfoCard = styled.div`
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: ${(p) => p.theme.color.LIGHT_GREY}; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; margin-bottom: 24px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: ${(p) => p.theme.color.LIGHT_GREY}; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; margin: 16px 0 24px;
 `;
 const InfoCell = styled.div`
   background: #fff; padding: 14px 18px;
@@ -35,7 +27,7 @@ const Verify = styled.span<{ $ok: boolean | undefined }>`
   &::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 `;
 const KindChip = styled.span<{ $kind: string }>`
-  display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap;
   background: ${(p) => ({ anchor: '#e8f0fe', attest: '#e6f4ea', settle: '#f5eefc', supersede: '#fff3e0', challenge: '#fde8ec', branch: '#e1eef3', node: '#f2f2f2', subscribe: '#e1eef3' } as Record<string, string>)[p.$kind] ?? '#f2f2f2'};
   color: ${(p) => ({ anchor: '#1b73e8', attest: '#1e6b36', settle: '#5b1ca8', supersede: '#8a4b00', challenge: '#a0102c', branch: '#0b5468', node: '#555', subscribe: '#0b5468' } as Record<string, string>)[p.$kind] ?? '#555'};
 `;
@@ -49,22 +41,7 @@ const Legend = styled.div`
 `;
 const Errors = styled.ul`margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: ${(p) => p.theme.color.ERROR};`;
 
-function summary(r: LedgerRecord): string {
-  const b = r.body as Record<string, unknown>;
-  switch (r.kind) {
-    case 'anchor': return `anchor ${String(b.id)} · ${String(b.name ?? '')}`.trim();
-    case 'attest': return `attest ${String(b.patch_id ?? b.id)} ${b.passed === false ? 'FAIL' : 'PASS'} by ${String(b.verifier_name ?? shortAddr(String(b.verifier)))}`;
-    case 'settle': return `settle ${String(b.patch_id ?? b.resource)} · ${String(b.amount)} ${String(b.currency ?? '')}`.trim();
-    case 'branch': return `branch ${String(b.name)} (${(b.patch_ids as string[] | undefined)?.length ?? 0} patches)`;
-    case 'node': return `node ${String(b.name)} @ ${String(b.endpoint)} [${((b.roles as string[]) ?? []).join(',')}]`;
-    case 'supersede': return `${String(b.new_patch_id)} supersedes ${String(b.old_patch_id)} (${String(b.overlap_rows)} rows)`;
-    case 'subscribe': return `${String(b.action)} ${String(b.branch)} by ${shortAddr(String(b.node))}`;
-    case 'challenge': return `challenge ${String(b.patch_id)}: ${String(b.reason)}`;
-    default: return r.kind;
-  }
-}
-
-/* ---------------------------------------------------------------- knowledge graph (SVG DAG by generation) */
+/* ---------------------------------------------------------------- 원본→파생 관계도 (SVG DAG by generation) */
 interface Placed { id: string; x: number; y: number; status: string; name: string; model: string; author: string; }
 
 function layout(g: GraphResponse): { nodes: Placed[]; edges: { from: Placed; to: Placed; type: string }[]; w: number; h: number } {
@@ -100,13 +77,15 @@ function layout(g: GraphResponse): { nodes: Placed[]; edges: { from: Placed; to:
 }
 
 function KnowledgeGraph({ g }: { g: GraphResponse }) {
+  const { t } = useT();
   const L = useMemo(() => layout(g), [g]);
   const BW = 170, BH = 40;
-  if (!L.nodes.length) return <Empty>No patches on the ledger yet.</Empty>;
+  if (!L.nodes.length) return <Empty style={{ marginTop: 16 }}>{t('detail.ledger.graph_empty')}</Empty>;
+  const statusLabel = (s: string) => { const k = t(`status.${s}`); return k === `status.${s}` ? (STATUS_META[s]?.label ?? s) : k; };
   return (
     <>
       <GraphBox>
-        <svg width={L.w} height={L.h} role="img" aria-label="knowledge patch lineage graph" style={{ display: 'block', minWidth: L.w }}>
+        <svg width={L.w} height={L.h} role="img" aria-label={t('detail.ledger.graph_aria')} style={{ display: 'block', minWidth: L.w }}>
           <defs>
             <marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8d8d8f" /></marker>
             <marker id="arr2" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#f6981d" /></marker>
@@ -120,14 +99,15 @@ function KnowledgeGraph({ g }: { g: GraphResponse }) {
           })}
           {L.nodes.map((n) => {
             const m = STATUS_META[n.status] ?? { color: '#8d8d8f', bg: '#f2f2f2', label: n.status, hint: '' };
+            const label = statusLabel(n.status);
             return (
               <Link key={n.id} to={`/${encodeURIComponent(n.author)}/${encodeURIComponent(n.id)}`}>
                 <g transform={`translate(${n.x} ${n.y})`}>
-                  <title>{`${n.name}\n${n.model} · ${m.label}`}</title>
+                  <title>{`${n.name}\n${n.id} · ${n.model} · ${label}`}</title>
                   <rect width={BW} height={BH} rx={4} fill="#fff" stroke={m.color} strokeWidth={1.5} />
                   <rect x={0} y={0} width={4} height={BH} rx={2} fill={m.color} />
                   <text x={12} y={17} fontSize={12} fontFamily="Inconsolata, monospace" fill="#303133">{n.id.length > 22 ? `${n.id.slice(0, 21)}…` : n.id}</text>
-                  <text x={12} y={31} fontSize={10} fill="#8d8d8f">{m.label} · {n.model.length > 16 ? `${n.model.slice(0, 15)}…` : n.model}</text>
+                  <text x={12} y={31} fontSize={10} fill="#8d8d8f">{label} · {n.model.length > 16 ? `${n.model.slice(0, 15)}…` : n.model}</text>
                 </g>
               </Link>
             );
@@ -135,9 +115,9 @@ function KnowledgeGraph({ g }: { g: GraphResponse }) {
         </svg>
       </GraphBox>
       <Legend>
-        <span><i style={{ borderColor: '#8d8d8f' }} /> extends (lineage → royalty)</span>
-        <span><i style={{ borderColor: '#f6981d', borderTopStyle: 'dashed' }} /> supersedes (same benchmark, overlapping rows)</span>
-        <span>columns = generation from root patches</span>
+        <span><i style={{ borderColor: '#8d8d8f' }} /> {t('detail.ledger.legend_extends')}</span>
+        <span><i style={{ borderColor: '#f6981d', borderTopStyle: 'dashed' }} /> {t('detail.ledger.legend_supersedes')}</span>
+        <span>{t('detail.ledger.legend_columns')}</span>
       </Legend>
     </>
   );
@@ -145,12 +125,15 @@ function KnowledgeGraph({ g }: { g: GraphResponse }) {
 
 /* ---------------------------------------------------------------- page */
 export default function LedgerPage() {
+  const { t, help, tech } = useT();
+  const f = useDetailFormat();
   const [kind, setKind] = useState('');
   const [page, setPage] = useState(1);
   const { data, isLoading } = useLedgerQuery({ kind: kind || undefined, limit: 1000 }, { pollingInterval: 10_000 });
   const { data: verify } = useLedgerVerifyQuery(undefined, { pollingInterval: 30_000 });
   const { data: graph } = useGraphQuery(undefined, { pollingInterval: 20_000 });
 
+  const kindOptions = useMemo(() => [{ value: '', label: t('detail.kind.all') }, ...KINDS.map((k) => ({ value: k, label: f.kindLabel(k) }))], [t, f]);
   const records = data?.records ?? [];   // API already returns newest first
   const pageCount = Math.max(1, Math.ceil(records.length / PAGE));
   const current = Math.min(page, pageCount);
@@ -161,50 +144,54 @@ export default function LedgerPage() {
   return (
     <PageWrapper $wide>
       <TitleRow>
-        <Title>Ledger</Title>
-        <SelectBox options={KIND_OPTIONS} value={kind} onChange={(v) => { setKind(v); setPage(1); }} />
+        <Title title={tech('ledger')}>{t('detail.ledger.title')}</Title>
+        <SelectBox options={kindOptions} value={kind} onChange={(v) => { setKind(v); setPage(1); }} />
       </TitleRow>
+      <Description style={{ marginTop: -12 }}>{help('ledger')}</Description>
 
       <InfoCard>
-        <InfoCell><div className="k">Kind</div><div className="v">{info ? (ain ? 'AIN blockchain' : 'Local P2P DAG') : '—'}</div></InfoCell>
-        <InfoCell><div className="k">Network</div><div className="v small">{info?.network ?? '—'}</div></InfoCell>
-        <InfoCell><div className="k">Records</div><div className="v">{num(info?.records)}</div></InfoCell>
-        <InfoCell><div className="k">{ain ? 'Block height' : 'Sequence'}</div><div className="v">{num(info?.height)}</div></InfoCell>
-        <InfoCell><div className="k">{ain ? 'Provider' : 'Head'}</div><div className="v small">{ain ? info?.provider : shortHash(info?.head, 16)}</div></InfoCell>
+        <InfoCell><div className="k">{t('detail.ledger.kind')}</div><div className="v">{info ? (ain ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local')) : '—'}</div></InfoCell>
+        <InfoCell><div className="k">{t('detail.ledger.network')}</div><div className="v small">{info?.network ?? '—'}</div></InfoCell>
+        <InfoCell><div className="k">{t('detail.ledger.records')}</div><div className="v">{num(info?.records)}</div></InfoCell>
+        <InfoCell><div className="k">{ain ? t('detail.ledger.height') : t('detail.ledger.sequence')}</div><div className="v">{num(info?.height)}</div></InfoCell>
+        <InfoCell><div className="k">{ain ? t('detail.ledger.provider') : t('detail.ledger.head')}</div><div className="v small">{ain ? info?.provider : shortHash(info?.head, 16)}</div></InfoCell>
         <InfoCell>
-          <div className="k">Integrity</div>
-          <div className="v"><Verify $ok={verify?.valid}>{verify ? (verify.valid ? `valid · ${num(verify.checked)} checked` : `invalid (${verify.errors.length})`) : 'checking…'}</Verify></div>
+          <div className="k">{t('detail.ledger.integrity')}</div>
+          <div className="v"><Verify $ok={verify?.valid}>{verify ? (verify.valid ? t('detail.ledger.valid', { n: num(verify.checked) }) : t('detail.ledger.invalid', { n: verify.errors.length })) : t('detail.ledger.checking')}</Verify></div>
           {verify && !verify.valid && <Errors>{verify.errors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}</Errors>}
         </InfoCell>
       </InfoCard>
       {ain && info?.app && (
         <KeyValue style={{ margin: '-8px 0 24px' }}>
-          <dt>App path</dt><dd><Mono>{info.app}</Mono> — anchors are ain-js <Mono>knowledge.explore()</Mono> entries; attestations/settlements/branches live under <Mono>{info.app}/market</Mono> with per-address write rules.</dd>
-          <dt>Explorer</dt><dd><ExternalLink href={`${info.provider}/get_value?ref=${encodeURIComponent(info.app)}`} target="_blank" rel="noopener noreferrer">{info.provider}/get_value?ref={info.app}</ExternalLink></dd>
+          <dt title={t('detail.tech.app_path', { app: info.app })}>{t('detail.ledger.app_path')}</dt><dd><span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#8d8d8f', marginRight: 8 }}>{t('detail.ledger.dev_title')}</span><Mono>{info.app}</Mono> — {t('detail.ledger.app_note', { app: info.app })}</dd>
+          <dt>{t('detail.ledger.explorer')}</dt><dd><ExternalLink href={`${info.provider}/get_value?ref=${encodeURIComponent(info.app)}`} target="_blank" rel="noopener noreferrer">{info.provider}/get_value?ref={info.app}</ExternalLink></dd>
         </KeyValue>
       )}
 
       {isLoading && <CenterProgress />}
-      {!isLoading && records.length === 0 && <Empty>No records{kind ? ` of kind ${kind}` : ''} yet.</Empty>}
+      {!isLoading && records.length === 0 && <Empty>{kind ? t('detail.ledger.empty_kind', { kind: f.kindLabel(kind) }) : t('detail.ledger.empty')}</Empty>}
       {records.length > 0 && (
         <>
           <TableWrapper style={{ background: '#fff', border: '1px solid #dadada' }}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead $align="left" $padding="0 0 0 24px">Time</TableHead><TableHead $align="left">Kind</TableHead><TableHead $align="left">Summary</TableHead><TableHead>Author</TableHead><TableHead $align="right" $padding="0 24px 0 8px">Hash / tx</TableHead>
+                  <TableHead $align="left" $padding="0 0 0 24px">{t('detail.ledger.h.time')}</TableHead><TableHead $align="left">{t('detail.ledger.h.kind')}</TableHead><TableHead $align="left">{t('detail.ledger.h.summary')}</TableHead><TableHead>{t('detail.ledger.h.author')}</TableHead><TableHead $align="right" $padding="0 24px 0 8px">{t('detail.ledger.h.hash')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((r) => (
-                  <TableRow key={r.hash}>
-                    <TableData $align="left" $padding="0 0 0 24px" title={dateTime(r.ts)} $maxWidth="140px">{r.ts ? elapsed(r.ts) : '—'}</TableData>
-                    <TableData $align="left" $maxWidth="110px"><KindChip $kind={r.kind}>{r.kind}</KindChip></TableData>
-                    <TableData $align="left" $maxWidth="480px" title={summary(r)}>{summary(r)}</TableData>
-                    <TableData $mono title={r.author}>{r.author.startsWith('prototype') ? 'prototype' : shortAddr(r.author, 6)}</TableData>
-                    <TableData $align="right" $padding="0 24px 0 8px" $mono title={r.sig && r.sig.startsWith('0x') ? `tx ${r.sig}` : r.hash}>{shortHash(r.sig && r.sig.startsWith('0x') ? r.sig : r.hash, 14)}</TableData>
-                  </TableRow>
-                ))}
+                {visible.map((r) => {
+                  const s = f.recordSummary(r);
+                  return (
+                    <TableRow key={r.hash}>
+                      <TableData $align="left" $padding="0 0 0 24px" title={dateTime(r.ts)} $maxWidth="140px">{f.ago(r.ts)}</TableData>
+                      <TableData $align="left" $maxWidth="130px"><KindChip $kind={r.kind} title={r.kind}>{f.kindLabel(r.kind)}</KindChip></TableData>
+                      <TableData $align="left" $maxWidth="480px" title={s}>{s}</TableData>
+                      <TableData $mono title={r.author}>{r.author.startsWith('prototype') ? 'prototype' : shortAddr(r.author, 6)}</TableData>
+                      <TableData $align="right" $padding="0 24px 0 8px" $mono title={r.sig && r.sig.startsWith('0x') ? `tx ${r.sig}` : r.hash}>{shortHash(r.sig && r.sig.startsWith('0x') ? r.sig : r.hash, 14)}</TableData>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableWrapper>
@@ -212,7 +199,8 @@ export default function LedgerPage() {
         </>
       )}
 
-      <SubTitle $mt={40}>Knowledge graph</SubTitle>
+      <SubTitle $mt={40} title={tech('lineage')}>{t('detail.ledger.graph_title')}</SubTitle>
+      <Description>{t('detail.ledger.graph_note')}</Description>
       {!graph && <CenterProgress />}
       {graph && <KnowledgeGraph g={graph} />}
     </PageWrapper>

@@ -43,6 +43,7 @@ const CliTable = styled.table`
   td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
   td:first-child { font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; white-space: pre-wrap; width: 52%; color: ${(p) => p.theme.color.BLACK}; }
   td:last-child { color: ${(p) => p.theme.color.GREY}; }
+  th { text-align: left; padding: 6px 10px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: ${(p) => p.theme.color.GREY}; border-bottom: 1px solid rgba(0, 0, 0, 0.1); }
 `;
 const SchemaBox = styled.details`
   margin-top: 8px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fff;
@@ -111,7 +112,7 @@ export default function DocsPage() {
           {cli.groups.map((g) => (
             <div key={g.name}>
               <GroupTitle>{g.name}</GroupTitle>
-              <CliTable><tbody>{g.commands.map((c) => <tr key={c.cmd}><td>{c.cmd}</td><td>{c.desc}</td></tr>)}</tbody></CliTable>
+              <CliTable><thead><tr><th>{t('docs.cli.col_cmd')}</th><th>{t('docs.cli.col_desc')}</th></tr></thead><tbody>{g.commands.map((c) => <tr key={c.cmd}><td>{c.cmd}</td><td>{c.desc}</td></tr>)}</tbody></CliTable>
             </div>
           ))}
           <SubTitle $mt={32}>{t('docs.bench.title')}</SubTitle>

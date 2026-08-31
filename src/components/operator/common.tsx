@@ -1,5 +1,5 @@
 import styled, { keyframes } from 'styled-components';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useT } from '@/i18n';
 
 /** Small inline spinner (ainize used MUI CircularProgress size=16 next to "Deploying…"). */
@@ -100,7 +100,7 @@ const DevBoxTitle = styled.div`
   display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: ${(p) => p.theme.color.GREY};
   &::before { content: '</>'; font-family: ${(p) => p.theme.font.mono}; font-size: 11px; padding: 1px 6px; border-radius: 3px; background: #ececef; color: #5b1ca8; }
 `;
-export function DevBox({ title, children, style }: { title?: ReactNode; children: ReactNode; style?: React.CSSProperties }) {
+export function DevBox({ title, children, style }: { title?: ReactNode; children: ReactNode; style?: CSSProperties }) {
   const { audience } = useT();
   return (
     <DevBoxWrap style={style}>

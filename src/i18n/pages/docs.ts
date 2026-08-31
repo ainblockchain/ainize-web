@@ -13,6 +13,8 @@ export const docs: Dict = {
   'docs.install': { ko: '설치', en: 'Install' },
   'docs.cli.title': { ko: 'CLI 사용법 (ainize)', en: 'CLI reference (ainize)' },
   'docs.cli.lede': { ko: '2019년 ainize-cli가 저장소를 AI 서비스로 만들었듯, 지금의 ainize는 지식을 모델에 넣습니다. 모든 명령은 --help 를 지원하고 --json 으로 기계가 읽을 수 있는 출력을 냅니다.', en: 'Like the 2019 ainize-cli turned repos into AI services, today\'s ainize puts knowledge into models. Every command supports --help and --json.' },
+  'docs.cli.col_cmd': { ko: '명령', en: 'Command' },
+  'docs.cli.col_desc': { ko: '설명', en: 'What it does' },
   'docs.bench.title': { ko: '검증 질문 파일(bench.json) 예시', en: 'Benchmark file (bench.json) example' },
   'docs.bench.help': { ko: 'schema는 주제 이름(같은 주제의 지식끼리 비교·대체 판정에 쓰임), queries는 담긴 사실 수, samples는 검증 노드가 실제 모델에 던질 질문과 정답입니다.', en: 'schema names the subject (used to compare/supersede knowledge on the same subject), queries is the number of facts, samples are the prompts and answers verifiers run on the real model.' },
   'docs.api.title': { ko: 'REST API', en: 'REST API' },

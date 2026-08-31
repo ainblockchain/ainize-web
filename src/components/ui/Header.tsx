@@ -70,7 +70,7 @@ export function Header() {
       <Content>
         <Home to="/" aria-label="Ainize home" title={help('brand')}>
           <Logo src="/static/images/asset-logo.png" srcSet="/static/images/asset-logo@2x.png 2x, /static/images/asset-logo@3x.png 3x" alt="Ainize" />
-          {info && <LedgerBadge $ain={ain} title={ain ? `${help('ledger')} · AI Network (${info.ledger.provider})` : `${help('ledger')} · ${locale === 'ko' ? '로컬 P2P 기록' : 'local P2P record'}`}>{ain ? 'AI Network' : 'P2P'}</LedgerBadge>}
+          {info && <LedgerBadge $ain={ain} title={`${help('ledger')} · ${ain ? t('nav.ledger_ain', { provider: info.ledger.provider ?? '' }) : t('nav.ledger_local')}`}>{ain ? 'AI Network' : 'P2P'}</LedgerBadge>}
         </Home>
         <Nav>
           <NavItem to="/explore">{t('nav.explore')}</NavItem>

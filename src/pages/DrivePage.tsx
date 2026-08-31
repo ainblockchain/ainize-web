@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useDriveActionMutation, useDriveChangesQuery, useDriveQuery } from '@/api/api';
 import type { DriveChange } from '@/api/types';
+import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, ExternalLink, KeyValue, Mono, PageWrapper, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
-import { MonoBox, Muted, Pre, Row } from '@/components/operator/common';
-import { bytes, dateTime, elapsed, shortHash } from '@/utils/format';
+import { DevBox, MonoBox, Muted, Pre, Row, useElapsed } from '@/components/operator/common';
+import { bytes, dateTime, shortHash } from '@/utils/format';
 
 const Status = styled.div<{ $ok: boolean }>`
   display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: ${(p) => (p.$ok ? p.theme.color.SUCCESS : p.theme.color.GREY)};
@@ -64,6 +65,7 @@ function lineDiff(a: string, b: string): { tag: ' ' | '+' | '-'; line: string }[
 }
 
 function Diff({ prev, next }: { prev: string; next: string }) {
+  const { t } = useT();
   const rows = useMemo(() => lineDiff(prev, next), [prev, next]);
   const changed = rows.filter((r) => r.tag !== ' ').length;
   // collapse long unchanged runs
@@ -73,19 +75,21 @@ function Diff({ prev, next }: { prev: string; next: string }) {
     const r = rows[k];
     const nearChange = rows.slice(Math.max(0, k - 2), k + 3).some((x) => x.tag !== ' ');
     if (r.tag === ' ' && !nearChange) { run++; continue; }
-    if (run > 0) { shown.push({ tag: '…', line: `… ${run} unchanged line(s)` }); run = 0; }
+    if (run > 0) { shown.push({ tag: '…', line: t('op.drive.diff.unchanged', { n: run }) }); run = 0; }
     shown.push(r);
   }
-  if (run > 0) shown.push({ tag: '…', line: `… ${run} unchanged line(s)` });
+  if (run > 0) shown.push({ tag: '…', line: t('op.drive.diff.unchanged', { n: run }) });
   return (
     <DiffPre>
-      <span className="ctx">{changed} changed line(s)</span>
+      <span className="ctx">{t('op.drive.diff.changed', { n: changed })}</span>
       {shown.map((r, k) => <span key={k} className={r.tag === '+' ? 'add' : r.tag === '-' ? 'del' : 'ctx'}>{r.tag === '…' ? '  ' : r.tag + ' '}{r.line}</span>)}
     </DiffPre>
   );
 }
 
 export default function DrivePage() {
+  const { t } = useT();
+  const elapsed = useElapsed();
   const params = useParams();
   const selected = params['*'] ? decodeURIComponent(params['*']) : '';
   const navigate = useNavigate();
@@ -98,7 +102,10 @@ export default function DrivePage() {
 
   const run = async (action: 'up' | 'stop' | 'sync' | 'login') => {
     setError(null); setNotice(null);
-    try { const r = (await act({ action }).unwrap()) as { message?: string; written?: number }; setNotice(r?.message ?? (r?.written !== undefined ? `Synced — ${r.written} file(s) rewritten.` : 'Done.')); } catch (err) { setError(errorMessage(err)); }
+    try {
+      const r = (await act({ action }).unwrap()) as { message?: string; written?: number };
+      setNotice(r?.message ?? (r?.written !== undefined ? t('op.drive.synced', { n: r.written }) : t('op.done')));
+    } catch (err) { setError(errorMessage(err)); }
   };
 
   const groups = useMemo(() => {
@@ -113,57 +120,60 @@ export default function DrivePage() {
 
   const d = drive.data;
   const textVersions = useMemo(() => (changes.data?.changes ?? []).filter((c): c is DriveChange & { text: string } => typeof c.text === 'string'), [changes.data]);
+  const [descBefore, descAfter] = t('op.drive.desc', { aindrive: '|' }).split('|');
 
   return (
     <PageWrapper $wide>
       <TitleRow>
-        <Title>Files &amp; changes</Title>
+        <Title>{t('op.drive.title')}</Title>
         {d && (
           <Row $gap={8}>
-            <Button size="small" onClick={() => run('sync')} loading={actState.isLoading && actState.originalArgs?.action === 'sync'}>Sync</Button>
+            <Button size="small" onClick={() => run('sync')} loading={actState.isLoading && actState.originalArgs?.action === 'sync'}>{t('op.drive.sync')}</Button>
             {d.running
-              ? <Button size="small" color="secondary" onClick={() => run('stop')} loading={actState.isLoading && actState.originalArgs?.action === 'stop'}>Stop agent</Button>
-              : <Button size="small" variant="contained" disabled={!d.configured} onClick={() => run('up')} loading={actState.isLoading && actState.originalArgs?.action === 'up'}>Start agent</Button>}
-            {d.url && <ExternalLink href={d.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 500 }}>Open in aindrive ↗</ExternalLink>}
+              ? <Button size="small" color="secondary" onClick={() => run('stop')} loading={actState.isLoading && actState.originalArgs?.action === 'stop'}>{t('op.drive.stop')}</Button>
+              : <Button size="small" variant="contained" disabled={!d.configured} onClick={() => run('up')} loading={actState.isLoading && actState.originalArgs?.action === 'up'}>{t('op.drive.start')}</Button>}
+            {d.url && <ExternalLink href={d.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 500 }}>{t('op.drive.open')}</ExternalLink>}
           </Row>
         )}
       </TitleRow>
       <Description>
-        The node mirrors its market state into a drive folder — manifests, benchmarks, attestations, change logs, ledger export and the patch bodies — and serves it with
-        <ExternalLink href="https://github.com/ainetwork-ai/aindrive" target="_blank" rel="noopener noreferrer"> aindrive</ExternalLink>: an outbound WebSocket to the aindrive web server, no inbound port,
-        capability-based (Meadowcap) share links and x402 paid access. Every save is a Willow-store entry, so each file carries its own change history — humans and MCP agents can edit benchmarks collaboratively.
+        {descBefore}<ExternalLink href="https://github.com/ainetwork-ai/aindrive" target="_blank" rel="noopener noreferrer">aindrive</ExternalLink>{descAfter}
       </Description>
       {error && <Alert $tone="error" style={{ marginTop: 16 }}>{error}</Alert>}
       {notice && <Alert $tone="success" style={{ marginTop: 16 }}>{notice}</Alert>}
 
       {drive.isLoading ? <CenterProgress /> : drive.isError ? (
-        <Alert $tone="warning" style={{ marginTop: 16 }}>Drive API unavailable on this node: {errorMessage(drive.error)}</Alert>
+        <Alert $tone="warning" style={{ marginTop: 16 }}>{t('op.drive.unavailable', { message: errorMessage(drive.error) })}</Alert>
       ) : d && (
         <>
           <KeyValue>
-            <dt>Agent</dt><dd><Status $ok={d.running}>{d.running ? `running (pid ${d.pid})` : 'stopped'}</Status></dd>
-            <dt>Paired</dt><dd>{d.configured ? <>yes · drive <Mono>{d.drive_id}</Mono></> : 'not yet'}</dd>
-            <dt>Server</dt><dd><Mono>{d.server ?? '—'}</Mono></dd>
-            <dt>Folder</dt><dd><Mono>{d.folder}</Mono></dd>
-            <dt>Files</dt><dd>{d.files.length}</dd>
+            <dt>{t('op.drive.agent')}</dt><dd><Status $ok={d.running}>{d.running ? t('op.drive.running', { pid: d.pid ?? '?' }) : t('op.drive.stopped')}</Status></dd>
+            <dt>{t('op.drive.paired')}</dt><dd>{d.configured ? <>{t('op.drive.paired.yes', { id: '' })}<Mono>{d.drive_id}</Mono></> : t('op.drive.paired.no')}</dd>
+            <dt>{t('op.drive.server')}</dt><dd><Mono>{d.server ?? '—'}</Mono></dd>
+            <dt>{t('op.drive.folder')}</dt><dd><Mono>{d.folder}</Mono></dd>
+            <dt>{t('op.drive.files')}</dt><dd>{d.files.length}</dd>
           </KeyValue>
           {!d.configured && (
             <div style={{ marginTop: 16, maxWidth: 760 }}>
-              <strong style={{ fontSize: 14 }}>Pair this folder once (browser sign-in), then start the agent here:</strong>
-              <Row $gap={12} $align="flex-start" style={{ marginTop: 8 }}>
-                <MonoBox style={{ flex: 1 }}>{d.login_hint}</MonoBox>
-                <CopyButton text={d.login_hint} label="Copy" />
-              </Row>
-              <Muted style={{ display: 'block', marginTop: 8 }}>The pairing link is single-use and expires in 10 minutes; credentials stay in ~/.aindrive and the folder&apos;s .aindrive/config.json.</Muted>
+              <strong style={{ fontSize: 14 }}>{t('op.drive.pair.title')}</strong>
+              <Description style={{ marginTop: 6 }}>{t('op.drive.pair.desc')}</Description>
+              <DevBox style={{ marginTop: 12 }}>
+                <Muted style={{ display: 'block', marginBottom: 6 }}>{t('op.drive.dev.pair')}</Muted>
+                <Row $gap={12} $align="flex-start">
+                  <MonoBox style={{ flex: 1 }}>{d.login_hint}</MonoBox>
+                  <CopyButton text={d.login_hint} label={t('common.copy')} />
+                </Row>
+                <Muted style={{ display: 'block', marginTop: 8 }}>{t('op.drive.pair.note')}</Muted>
+              </DevBox>
             </div>
           )}
 
-          <SubTitle $mt={40}>Drive contents</SubTitle>
+          <SubTitle $mt={40}>{t('op.drive.contents')}</SubTitle>
           <Split>
             <Tree>
               {groups.map(([folder, files]) => (
                 <div key={folder}>
-                  <Folder>{folder}</Folder>
+                  <Folder>{folder === '(root)' ? t('op.drive.root') : folder}</Folder>
                   {files.map((f) => {
                     const isText = TEXT_EXT.test(f.path);
                     return (
@@ -177,23 +187,23 @@ export default function DrivePage() {
                   })}
                 </div>
               ))}
-              {groups.length === 0 && <div style={{ padding: 24, color: '#8d8d8f', fontSize: 14 }}>The drive folder is empty — press Sync to mirror the catalog.</div>}
+              {groups.length === 0 && <div style={{ padding: 24, color: '#8d8d8f', fontSize: 14 }}>{t('op.drive.empty')}</div>}
             </Tree>
 
             <Detail>
-              {!selected && <Muted>Select a text file (json / md / jsonl) to see its content and change history.</Muted>}
+              {!selected && <Muted>{t('op.drive.pick')}</Muted>}
               {selected && changes.isLoading && <CenterProgress />}
               {selected && changes.data && (
                 <>
                   <Row $gap={12} $justify="space-between">
                     <strong style={{ fontSize: 14, wordBreak: 'break-all' }}><Mono>{changes.data.path}</Mono></strong>
-                    {changes.data.current !== null && <CopyButton text={changes.data.current} label="Copy content" />}
+                    {changes.data.current !== null && <CopyButton text={changes.data.current} label={t('op.drive.copy_content')} />}
                   </Row>
-                  <Muted style={{ display: 'block', marginTop: 4 }}>doc id {changes.data.doc_id ? <Mono>{changes.data.doc_id}</Mono> : '— (drive not paired; no Willow history yet)'} · {changes.data.changes.length} Willow entr{changes.data.changes.length === 1 ? 'y' : 'ies'}</Muted>
-                  <Pre style={{ marginTop: 12 }}>{changes.data.current ?? '(binary or too large to display)'}</Pre>
+                  <Muted style={{ display: 'block', marginTop: 4 }}>{t('op.drive.docid')} {changes.data.doc_id ? <Mono>{changes.data.doc_id}</Mono> : t('op.drive.docid.none')} · {t('op.drive.versions', { n: changes.data.changes.length })}</Muted>
+                  <Pre style={{ marginTop: 12 }}>{changes.data.current ?? t('op.drive.binary')}</Pre>
 
-                  <SubTitle $mt={32}>Change history</SubTitle>
-                  <Description>Entries from <Mono>.aindrive/willow.db</Mono> — each Y.Doc update aindrive stored for this file (updates are compacted into snapshots). Expand an entry to diff it against the previous decoded version.</Description>
+                  <SubTitle $mt={32}>{t('op.drive.history')}</SubTitle>
+                  <Description>{t('op.drive.history.desc')}</Description>
                   <History>
                     {changes.data.changes.map((c, idx) => {
                       const prevText = textVersions.slice(0, textVersions.findIndex((v) => v.seq === c.seq)).slice(-1)[0]?.text ?? '';
@@ -202,24 +212,26 @@ export default function DrivePage() {
                         <Change key={c.seq} $open={isOpen}>
                           <ChangeHead onClick={() => setOpen(isOpen ? null : c.seq)} aria-expanded={isOpen}>
                             <span>#{c.seq}</span>
-                            <Kind $snap={c.kind === 'snapshot'}>{c.kind}</Kind>
-                            <span title={c.digest}>digest {shortHash(c.digest, 14)}</span>
+                            <Kind $snap={c.kind === 'snapshot'} title={c.kind}>{c.kind === 'snapshot' ? t('op.drive.kind.snapshot') : t('op.drive.kind.update')}</Kind>
+                            <span title={c.digest}>{t('op.drive.digest', { d: shortHash(c.digest, 14) })}</span>
                             <span>{bytes(c.bytes)}</span>
                             <span title={dateTime(c.created_at)}>{elapsed(c.created_at)}</span>
                           </ChangeHead>
                           {isOpen && (typeof c.text === 'string'
                             ? <Diff prev={idx === 0 ? '' : prevText} next={c.text} />
-                            : <DiffPre><span className="ctx">payload not decodable as text (binary Y.Doc delta) — {bytes(c.bytes)}</span></DiffPre>)}
+                            : <DiffPre><span className="ctx">{t('op.drive.undecodable', { size: bytes(c.bytes) })}</span></DiffPre>)}
                         </Change>
                       );
                     })}
-                    {changes.data.changes.length === 0 && <li><Muted>No Willow entries yet — history appears once the file is edited through aindrive (web editor or MCP).</Muted></li>}
+                    {changes.data.changes.length === 0 && <li><Muted>{t('op.drive.history.empty')}</Muted></li>}
                   </History>
                 </>
               )}
               {selected && changes.isError && <Alert $tone="error">{errorMessage(changes.error)}</Alert>}
             </Detail>
           </Split>
+
+          <DevBox><Muted>{t('op.drive.dev.note')}</Muted></DevBox>
         </>
       )}
     </PageWrapper>

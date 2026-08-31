@@ -7,18 +7,21 @@ import {
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
+import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Select, TextField } from '@/components/ui/Form';
 import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
 import { CenterProgress, PageWrapper, StatusChip, SubTitle, Title, TitleRow, Description } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
-import { IconButton, Row, SmallSpinner, Stack, StatusText, isInFlight } from '@/components/operator/common';
-import { dateTime, num, price, shortAddr, shortHash } from '@/utils/format';
+import { IconButton, LiveTestIcon, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { num, shortAddr, shortHash } from '@/utils/format';
 
 const NameLink = styled(Link)`
   font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { text-decoration: underline; }
 `;
-const HEADERS = ['Name', 'Status', 'Verifications', 'Sales', 'Logs', 'Gateway', 'Manage'];
+const IconLink = styled(Link)`
+  display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 4px; &:hover { background: #f5eefc; }
+`;
 const BranchCard = styled.div`
   padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; display: flex; flex-direction: column; gap: 8px;
 `;
@@ -30,8 +33,11 @@ const ContextRow = styled.div`display: grid; grid-template-columns: 1fr 1fr auto
 const Tag = styled.span`
   display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #f5eefc; color: #5b1ca8; font-family: ${(p) => p.theme.font.mono};
 `;
+const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
 
 export default function DashboardPage() {
+  const { t, term, help, tech } = useT();
+  const money = useMoney();
   const { address } = useAuth();
   const navigate = useNavigate();
   const { data: info } = useInfoQuery();
@@ -80,23 +86,39 @@ export default function DashboardPage() {
   };
   const run = async (fn: () => Promise<unknown>) => { setActionError(null); try { await fn(); } catch (err) { setActionError(errorMessage(err)); } };
 
-  const salesText = (e: CatalogEntry) => `${num(e.downloads)} · ${Number(e.revenue) > 0 ? price(e.revenue, e.anchor.currency || currency) : `0 ${e.anchor.currency || currency}`}`;
+  const salesText = (e: CatalogEntry) => t('op.dash.sales.cell', { n: num(e.downloads), revenue: money.fmt(Number(e.revenue) > 0 ? e.revenue : 0, e.anchor.currency || currency) });
+  const schemeText = (scheme: string) => (scheme === 'ain-transfer' ? t('op.dash.purchases.scheme.ain') : scheme === 'local-credit' ? t('op.dash.purchases.scheme.credit') : scheme);
+
+  const HEADERS: { key: string; label: string; tip?: string }[] = [
+    { key: 'name', label: t('op.dash.col.name') },
+    { key: 'status', label: t('op.dash.col.status') },
+    { key: 'verif', label: t('op.dash.col.verif'), tip: `${help('verified')} · ${tech('verified')}` },
+    { key: 'sales', label: t('op.dash.col.sales'), tip: t('op.dash.sales.hint') },
+    { key: 'logs', label: t('op.dash.col.logs') },
+    { key: 'gateway', label: t('op.dash.col.gateway'), tip: `${t('op.term.gateway.help')} · ${tech('autoPay')}` },
+    { key: 'test', label: t('op.dash.col.test'), tip: help('liveTest') },
+    { key: 'manage', label: t('op.dash.col.manage') },
+  ];
 
   return (
     <PageWrapper $wide>
       <TitleRow>
-        <Title>Dashboard</Title>
-        <Button variant="outlined" color="primary" onClick={() => navigate('/new-patch')}>Add new patch</Button>
+        <Title>{t('op.dash.title')}</Title>
+        <Button variant="outlined" color="primary" onClick={() => navigate('/new-patch')}>{t('op.dash.register')}</Button>
       </TitleRow>
       {actionError && <Alert $tone="error" style={{ marginBottom: 16 }}>{actionError}</Alert>}
 
-      {/* ---------------------------------------------------------------- my patches */}
+      {/* ---------------------------------------------------------------- my knowledge */}
       {patches.isLoading ? <CenterProgress /> : (
         <TableWrapper>
           <Table>
             <TableHeader>
               <TableRow>
-                {HEADERS.map((h, i) => <TableHead key={h} $align={i === 0 ? 'left' : 'center'} $padding={i === 0 ? '0 0 0 32px' : undefined}>{h}</TableHead>)}
+                {HEADERS.map((h, i) => (
+                  <TableHead key={h.key} $align={i === 0 ? 'left' : 'center'} $padding={i === 0 ? '0 0 0 32px' : undefined}>
+                    {h.tip ? <Tip tech={h.tip}>{h.label}</Tip> : h.label}
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -106,8 +128,8 @@ export default function DashboardPage() {
                 return (
                   <TableRow key={a.id}>
                     <TableData $align="left" $padding="8px 0 8px 32px" $maxWidth="360px">
-                      <NameLink to={`/${author}/${a.id}`}>{a.id}</NameLink>
-                      <SubText title={a.name}>{a.model.id_M} · {a.benchmark.schema}</SubText>
+                      <NameLink to={`/${author}/${a.id}`}>{a.name || a.id}</NameLink>
+                      <SubText title={a.id}>{a.id} · {a.model.id_M} · {t('units.facts', { n: num(a.benchmark.queries) })}</SubText>
                     </TableData>
                     <TableData>
                       <StatusText style={{ justifyContent: 'center' }}>
@@ -115,77 +137,86 @@ export default function DashboardPage() {
                         <StatusChip status={e.status} />
                       </StatusText>
                     </TableData>
-                    <TableData>{e.passed}/{e.quorum}</TableData>
-                    <TableData title="downloads · revenue">{salesText(e)}</TableData>
+                    <TableData title={`${t('op.term.executed')}: ${t('op.term.executed.help')}\n${t('op.term.integrity')}: ${t('op.term.integrity.help')}`}>
+                      <div>{t('op.term.executed')} {e.passed}/{e.quorum}</div>
+                      <SubText>{t('op.term.integrity')} {e.integrity_checks}</SubText>
+                    </TableData>
+                    <TableData title={t('op.dash.sales.hint')}>{salesText(e)}</TableData>
                     <TableData>
-                      <IconButton aria-label="logs" onClick={() => navigate(`/project/${author}/${a.id}/logs`)}><LogIcon /></IconButton>
+                      <IconButton aria-label={t('op.dash.col.logs')} title={t('op.dash.col.logs')} onClick={() => navigate(`/project/${author}/${a.id}/logs`)}><LogIcon /></IconButton>
                     </TableData>
                     <TableData>
                       {a.gateway_url ? (
-                        <a href={a.gateway_url} target="_blank" rel="noopener noreferrer" aria-label="x402 gateway" title={a.gateway_url} style={{ display: 'inline-flex', padding: 6 }}><OpenWindowIcon /></a>
+                        <a href={a.gateway_url} target="_blank" rel="noopener noreferrer" aria-label={t('op.term.gateway')} title={`${t('op.term.gateway')} · ${a.gateway_url}`} style={{ display: 'inline-flex', padding: 6 }}><OpenWindowIcon /></a>
                       ) : <span style={{ color: '#dadada' }}>—</span>}
                     </TableData>
                     <TableData>
-                      <IconButton aria-label="manage" onClick={() => navigate(`/project/${author}/${a.id}`)}><ManageIcon /></IconButton>
+                      <IconLink to={`/chat/${encodeURIComponent(a.id)}`} aria-label={t('op.livetest')} title={`${t('op.livetest')} — ${t('op.livetest.hint')}`}><LiveTestIcon /></IconLink>
+                    </TableData>
+                    <TableData>
+                      <IconButton aria-label={t('op.dash.col.manage')} title={t('op.dash.col.manage')} onClick={() => navigate(`/project/${author}/${a.id}`)}><ManageIcon /></IconButton>
                     </TableData>
                   </TableRow>
                 );
               })}
-              {items.length === 0 && <TableRowEmpty $height={160}><td colSpan={HEADERS.length}>No patches yet — add your first knowledge patch.</td></TableRowEmpty>}
+              {items.length === 0 && <TableRowEmpty $height={160}><td colSpan={HEADERS.length}>{t('op.dash.empty')}</td></TableRowEmpty>}
             </TableBody>
           </Table>
         </TableWrapper>
       )}
 
       {/* ---------------------------------------------------------------- purchases */}
-      <SubTitle $mt={56}>Purchases</SubTitle>
-      <Description>Patches this node bought through the HTTP 402 flow. Bodies are stored locally and can be applied to the serving runtime.</Description>
+      <SubTitle $mt={56}>{t('op.dash.purchases.title')}</SubTitle>
+      <Description title={tech('autoPay')}>{t('op.dash.purchases.desc')}</Description>
       <TableWrapper style={{ marginTop: 16 }}>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead $align="left" $padding="0 0 0 32px">Patch</TableHead>
-              <TableHead>Paid</TableHead>
-              <TableHead>Tx</TableHead>
-              <TableHead>Downloaded</TableHead>
-              <TableHead>Applied</TableHead>
-              <TableHead>Runtime</TableHead>
+              <TableHead $align="left" $padding="0 0 0 32px">{t('op.knowledge')}</TableHead>
+              <TableHead>{t('op.dash.purchases.col.paid')}</TableHead>
+              <TableHead>{t('op.dash.purchases.col.tx')}</TableHead>
+              <TableHead>{t('op.dash.purchases.col.file')}</TableHead>
+              <TableHead>{t('op.dash.purchases.col.loaded')}</TableHead>
+              <TableHead><Tip tech={`${tech('apply')} / ${tech('remove')}`}>{t('op.dash.purchases.col.actions')}</Tip></TableHead>
+              <TableHead>{t('op.livetest')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(purchases.data?.items ?? []).map((p) => {
               const author = p.entry?.anchor.author;
+              const cur = p.entry?.anchor.currency ?? currency;
               const busy = (applyState.isLoading && applyState.originalArgs === p.patch_id) || (removeState.isLoading && removeState.originalArgs === p.patch_id);
               return (
                 <TableRow key={p.patch_id}>
                   <TableData $align="left" $padding="8px 0 8px 32px" $maxWidth="320px">
-                    {author ? <NameLink to={`/${author}/${p.patch_id}`}>{p.patch_id}</NameLink> : <strong>{p.patch_id}</strong>}
-                    <SubText>{p.entry?.anchor.name ?? shortHash(p.sha256, 16)}</SubText>
+                    {author ? <NameLink to={`/${author}/${p.patch_id}`}>{p.entry?.anchor.name ?? p.patch_id}</NameLink> : <strong>{p.patch_id}</strong>}
+                    <SubText>{p.entry ? p.patch_id : shortHash(p.sha256, 16)}</SubText>
                   </TableData>
-                  <TableData>{price(p.amount, p.entry?.anchor.currency ?? currency)} <SubText style={{ display: 'inline' }}>({p.scheme})</SubText></TableData>
+                  <TableData title={money.note(cur)}>{money.fmt(p.amount, cur)} <SubText style={{ display: 'inline' }}>({schemeText(p.scheme)})</SubText></TableData>
                   <TableData $mono title={p.tx_hash}>{shortHash(p.tx_hash, 12)}</TableData>
                   <TableData $mono title={p.path ?? ''}>{p.path ? `…/${p.path.split('/').slice(-1)[0].slice(0, 18)}` : '—'}</TableData>
-                  <TableData>{p.applied ? <span style={{ color: '#44a45f', fontWeight: 600 }}>yes</span> : 'no'}</TableData>
+                  <TableData>{p.applied ? <span style={{ color: '#44a45f', fontWeight: 600 }}>{t('op.yes')}</span> : t('op.no')}</TableData>
                   <TableData>
                     <Row $gap={6} $justify="center">
-                      <Button size="small" disabled={!runtime.data?.available || busy || p.applied} loading={busy && !p.applied} onClick={() => run(() => apply(p.patch_id).unwrap())}>Apply</Button>
-                      <Button size="small" color="secondary" disabled={!runtime.data?.available || busy || !p.applied} loading={busy && p.applied} onClick={() => run(() => remove(p.patch_id).unwrap())}>Remove</Button>
+                      <Button size="small" title={help('apply')} disabled={!runtime.data?.available || busy || p.applied} loading={busy && !p.applied} onClick={() => run(() => apply(p.patch_id).unwrap())}>{term('apply')}</Button>
+                      <Button size="small" color="secondary" title={help('remove')} disabled={!runtime.data?.available || busy || !p.applied} loading={busy && p.applied} onClick={() => run(() => remove(p.patch_id).unwrap())}>{term('remove')}</Button>
                     </Row>
+                  </TableData>
+                  <TableData>
+                    <IconLink to={`/chat/${encodeURIComponent(p.patch_id)}`} aria-label={t('op.livetest')} title={`${t('op.livetest')} — ${t('op.livetest.hint')}`}><LiveTestIcon /></IconLink>
                   </TableData>
                 </TableRow>
               );
             })}
-            {(purchases.data?.items ?? []).length === 0 && <TableRowEmpty $height={120}><td colSpan={6}>No purchases yet — explore the catalog and buy a listed patch.</td></TableRowEmpty>}
+            {(purchases.data?.items ?? []).length === 0 && <TableRowEmpty $height={120}><td colSpan={7}>{t('op.dash.purchases.empty')}</td></TableRowEmpty>}
           </TableBody>
         </Table>
       </TableWrapper>
-      {runtime.data && !runtime.data.available && <StatusText style={{ marginTop: 8 }}>Runtime unavailable: {runtime.data.error ?? 'no serving API'} — apply/remove disabled.</StatusText>}
+      {runtime.data && !runtime.data.available && <StatusText style={{ marginTop: 8 }}>{t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}</StatusText>}
 
-      {/* ---------------------------------------------------------------- branches */}
-      <SubTitle $mt={56}>Subscriptions &amp; branches</SubTitle>
-      <Description>
-        Branches keep contradictory knowledge in parallel (e.g. law/KR vs law/US). Subscribing makes this node acquire and apply every patch of the branch; the gateway routes requests by branch context.
-      </Description>
+      {/* ---------------------------------------------------------------- knowledge tracks (branches) */}
+      <SubTitle $mt={56}><Tip tech={tech('branch')}>{t('op.dash.branches.title')}</Tip></SubTitle>
+      <Description>{t('op.dash.branches.desc')}</Description>
       {branches.isLoading ? <CenterProgress /> : (
         <BranchGrid>
           {(branches.data?.branches ?? []).map((b) => {
@@ -195,65 +226,65 @@ export default function DashboardPage() {
               <BranchCard key={b.name}>
                 <Row $justify="space-between">
                   <strong>{b.name}</strong>
-                  {mine && <Tag>subscribed</Tag>}
+                  {mine && <Tag>{t('op.dash.branches.subscribed')}</Tag>}
                 </Row>
-                <span style={{ fontSize: 13, color: '#8d8d8f' }}>{b.description || 'no description'}</span>
-                <Row $gap={6}>{Object.entries(b.context).map(([k, v]) => <Tag key={k}>{k}={v}</Tag>)}{Object.keys(b.context).length === 0 && <Tag>no context</Tag>}</Row>
-                <span style={{ fontSize: 12, color: '#8d8d8f' }}>{b.patch_ids.length} patch(es) · {b.subscribers.length} subscriber(s) · owner {shortAddr(b.owner)}</span>
+                <span style={{ fontSize: 13, color: '#8d8d8f' }}>{b.description || t('op.dash.branches.nodesc')}</span>
+                <Row $gap={6}>{Object.entries(b.context).map(([k, v]) => <Tag key={k}>{k}={v}</Tag>)}{Object.keys(b.context).length === 0 && <Tag>{t('op.dash.branches.noctx')}</Tag>}</Row>
+                <span style={{ fontSize: 12, color: '#8d8d8f' }}>{t('op.dash.branches.meta', { patches: b.patch_ids.length, subs: b.subscribers.length, owner: shortAddr(b.owner) })}</span>
                 <Row $gap={8}>
                   {mine
-                    ? <Button size="small" color="secondary" loading={busy} onClick={() => run(() => subscribe({ name: b.name, action: 'unsubscribe' }).unwrap())}>Unsubscribe</Button>
-                    : <Button size="small" loading={busy} onClick={() => run(() => subscribe({ name: b.name, action: 'subscribe' }).unwrap())}>Subscribe</Button>}
+                    ? <Button size="small" color="secondary" loading={busy} onClick={() => run(() => subscribe({ name: b.name, action: 'unsubscribe' }).unwrap())}>{t('op.dash.branches.unsubscribe')}</Button>
+                    : <Button size="small" loading={busy} onClick={() => run(() => subscribe({ name: b.name, action: 'subscribe' }).unwrap())}>{t('op.dash.branches.subscribe')}</Button>}
                 </Row>
               </BranchCard>
             );
           })}
-          {(branches.data?.branches ?? []).length === 0 && <span style={{ color: '#8d8d8f', fontSize: 14 }}>No branches yet.</span>}
+          {(branches.data?.branches ?? []).length === 0 && <span style={{ color: '#8d8d8f', fontSize: 14 }}>{t('op.dash.branches.empty')}</span>}
         </BranchGrid>
       )}
 
       <MiniForm onSubmit={onCreateBranch}>
-        <strong style={{ fontSize: 14 }}>Create a branch</strong>
-        <TextField label="Name" placeholder="law/KR" value={bName} onChange={(e) => setBName(e.target.value)} required />
-        <TextField label="Description" placeholder="대한민국 관할 법률 지식 브랜치" value={bDesc} onChange={(e) => setBDesc(e.target.value)} />
+        <strong style={{ fontSize: 14 }}>{t('op.dash.branch.create')}</strong>
+        <TextField label={t('op.dash.branch.name')} placeholder="law/KR" value={bName} onChange={(e) => setBName(e.target.value)} required />
+        <TextField label={t('op.dash.branch.desc')} placeholder={t('op.dash.branch.desc.ph')} value={bDesc} onChange={(e) => setBDesc(e.target.value)} />
         <Stack $gap={8}>
-          <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}>Context attributes (used by the gateway router)</span>
+          <FieldLabel title={t('op.tech.context')}>{t('op.dash.branch.ctx')}</FieldLabel>
           {ctx.map((c, i) => (
             <ContextRow key={i}>
-              <TextField placeholder="key (e.g. jurisdiction)" value={c.k} onChange={(e) => setCtx(ctx.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))} />
-              <TextField placeholder="value (e.g. KR)" value={c.v} onChange={(e) => setCtx(ctx.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))} />
-              <Button type="button" size="small" variant="text" color="default" onClick={() => setCtx(ctx.filter((_, j) => j !== i))} disabled={ctx.length === 1}>Remove</Button>
+              <TextField placeholder={t('op.dash.branch.ctx.k')} value={c.k} onChange={(e) => setCtx(ctx.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))} />
+              <TextField placeholder={t('op.dash.branch.ctx.v')} value={c.v} onChange={(e) => setCtx(ctx.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))} />
+              <Button type="button" size="small" variant="text" color="default" onClick={() => setCtx(ctx.filter((_, j) => j !== i))} disabled={ctx.length === 1}>{t('op.remove')}</Button>
             </ContextRow>
           ))}
-          <div><Button type="button" size="small" variant="text" onClick={() => setCtx([...ctx, { k: '', v: '' }])}>+ attribute</Button></div>
+          <div><Button type="button" size="small" variant="text" onClick={() => setCtx([...ctx, { k: '', v: '' }])}>{t('op.dash.branch.ctx.add')}</Button></div>
         </Stack>
         {listedMine.length > 0 && (
           <Stack $gap={6}>
-            <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}>Initial patches (your listed patches)</span>
+            <FieldLabel>{t('op.dash.branch.initial')}</FieldLabel>
             {listedMine.map((e) => (
-              <Checkbox key={e.anchor.id} label={<span>{e.anchor.id} <span style={{ color: '#8d8d8f' }}>· {e.anchor.name}</span></span>} checked={bPatches.includes(e.anchor.id)}
+              <Checkbox key={e.anchor.id} label={<span>{e.anchor.name || e.anchor.id} <span style={{ color: '#8d8d8f' }}>· {e.anchor.id}</span></span>} checked={bPatches.includes(e.anchor.id)}
                 onChange={(ev) => setBPatches(ev.target.checked ? [...bPatches, e.anchor.id] : bPatches.filter((x) => x !== e.anchor.id))} />
             ))}
           </Stack>
         )}
-        <div><Button type="submit" loading={createState.isLoading} loadingText="Creating…">Create branch</Button></div>
+        <div><Button type="submit" loading={createState.isLoading} loadingText={t('op.dash.branch.creating')}>{t('op.dash.branch.submit')}</Button></div>
       </MiniForm>
 
       {ownedBranches.length > 0 && (
         <MiniForm onSubmit={onAddToBranch}>
-          <strong style={{ fontSize: 14 }}>Add a patch to one of your branches</strong>
+          <strong style={{ fontSize: 14 }}>{t('op.dash.branch.addto')}</strong>
           <ContextRow style={{ gridTemplateColumns: '1fr 1fr auto' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}>Branch</span>
+              <FieldLabel>{t('op.dash.branch.pick')}</FieldLabel>
               <Select value={addBranch} onChange={(e) => setAddBranch(e.target.value)} required>
-                <option value="">select…</option>
+                <option value="">{t('op.select')}</option>
                 {ownedBranches.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
               </Select>
             </label>
-            <TextField label="Patch id" placeholder="krx-all-2761" value={addPatch} onChange={(e) => setAddPatch(e.target.value)} required />
-            <Button type="submit" loading={addState.isLoading}>Add</Button>
+            <TextField label={t('op.dash.branch.patchid')} placeholder="krx-all-2761" value={addPatch} onChange={(e) => setAddPatch(e.target.value)} required />
+            <Button type="submit" loading={addState.isLoading}>{t('op.add')}</Button>
           </ContextRow>
-          <span style={{ fontSize: 12, color: '#8d8d8f' }}>Latest branch write wins on the ledger — only the branch owner can add patches. {dateTime(Date.now()).slice(0, 0)}</span>
+          <span style={{ fontSize: 12, color: '#8d8d8f' }}>{t('op.dash.branch.owner_note')}</span>
         </MiniForm>
       )}
     </PageWrapper>

@@ -173,14 +173,15 @@ const PagBtn = styled.button<{ $active?: boolean }>`
 const PagText = styled.div`width: 96px; margin: 0 20px; font-size: 14px; text-align: center; color: ${(p) => p.theme.color.GREY};`;
 
 export function Pagination({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (p: number) => void }) {
+  const { t } = useT();
   const total = Math.max(1, pageCount);
   return (
     <PagWrap>
-      <PagBtn $active={page > 1} disabled={page <= 1} onClick={() => onChange(1)} style={{ padding: '0 10px' }}>First</PagBtn>
+      <PagBtn $active={page > 1} disabled={page <= 1} onClick={() => onChange(1)} style={{ padding: '0 10px' }}>{t('common.first')}</PagBtn>
       <PagBtn $active={page > 1} disabled={page <= 1} onClick={() => onChange(page - 1)} aria-label="previous"><ArrowLeftIcon fill={page > 1 ? '#303133' : '#dadada'} /></PagBtn>
       <PagText>{page} / {total}</PagText>
       <PagBtn $active={page < total} disabled={page >= total} onClick={() => onChange(page + 1)} aria-label="next"><ArrowRightIcon fill={page < total ? '#303133' : '#dadada'} /></PagBtn>
-      <PagBtn $active={page < total} disabled={page >= total} onClick={() => onChange(total)} style={{ padding: '0 10px' }}>Last</PagBtn>
+      <PagBtn $active={page < total} disabled={page >= total} onClick={() => onChange(total)} style={{ padding: '0 10px' }}>{t('common.last')}</PagBtn>
     </PagWrap>
   );
 }
@@ -197,11 +198,12 @@ export function Tabs({ tabs, value, onChange }: { tabs: { id: string; label: Rea
 }
 
 // ------------------------------------------------------------------ copy button
-export function CopyButton({ text, label = 'Copy to clipboard' }: { text: string; label?: string }) {
+export function CopyButton({ text, label }: { text: string; label?: string }) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   return (
     <CopyBtn type="button" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ } }}>
-      {copied ? 'Copied' : label}
+      {copied ? t('common.copied') : (label ?? t('common.copy_clipboard'))}
     </CopyBtn>
   );
 }

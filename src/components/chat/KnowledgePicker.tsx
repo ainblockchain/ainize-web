@@ -3,8 +3,8 @@ import type { CatalogEntry, RuntimeStatus } from '@/api/types';
 import { useT } from '@/i18n';
 import { StatusChip } from '@/components/ui/Misc';
 import { Alert } from '@/components/ui/Form';
-import { elapsed, num, shortAddr } from '@/utils/format';
-import { executedAccuracy } from './util';
+import { num, shortAddr } from '@/utils/format';
+import { executedAccuracy, lockOwnerLabel } from './util';
 
 const Panel = styled.aside`
   display: flex; flex-direction: column; gap: 12px; min-width: 0;
@@ -32,6 +32,19 @@ const Accuracy = styled.span<{ $known: boolean }>`
 const Price = styled.span`font-weight: 600; color: ${(p) => p.theme.color.PRIMARY};`;
 const ChipRow = styled.span`display: flex; flex-wrap: wrap; gap: 6px; align-items: center;`;
 const Small = styled.div`font-size: 12px; line-height: 1.5; margin-top: 4px; opacity: 0.9;`;
+const PriceNote = styled.span`display: block; width: 100%; font-size: 11px; line-height: 1.4; color: ${(p) => p.theme.color.GREY};`;
+
+/** Locale-aware "started n minutes ago" for the lock banner. */
+function useSince() {
+  const { t } = useT();
+  return (ts: number): string => {
+    const s = Math.floor(Math.max(0, Date.now() - ts) / 1000);
+    if (s < 60) return t('chat.time.s', { n: s });
+    const m = Math.floor(s / 60);
+    if (m < 60) return t('chat.time.m', { n: m });
+    return t('chat.time.h', { n: Math.floor(m / 60) });
+  };
+}
 
 export interface KnowledgePickerProps {
   items: CatalogEntry[];
@@ -43,6 +56,7 @@ export interface KnowledgePickerProps {
 
 export function KnowledgePicker({ items, runtime, lock, selectedId, onSelect }: KnowledgePickerProps) {
   const { t, term, help, tech, locale } = useT();
+  const since = useSince();
   const runtimeOff = !!runtime && !runtime.available;
   const priceLabel = (e: CatalogEntry) => {
     const n = Number(e.anchor.price);
@@ -66,7 +80,7 @@ export function KnowledgePicker({ items, runtime, lock, selectedId, onSelect }: 
       {lock && (
         <Alert $tone="info" role="status" title={help('liveTest')}>
           {t('chat.lock.busy')}
-          <Small>{t('chat.lock.holder', { label: lock.label, owner: shortAddr(lock.owner), since: elapsed(lock.since) })}</Small>
+          <Small>{t('chat.lock.holder', { pid: lockOwnerLabel(lock.owner), since: since(lock.since) })}</Small>
           <Small>{t('chat.lock.help')}</Small>
         </Alert>
       )}
@@ -91,6 +105,7 @@ export function KnowledgePicker({ items, runtime, lock, selectedId, onSelect }: 
                       {acc ? (acc.pct !== null ? t('chat.picker.accuracy', { pct: acc.pct }) : t('chat.picker.accuracy_raw', { score: acc.raw })) : t('chat.picker.not_scored')}
                     </Accuracy>
                     <Price title={priceNote(e)}>{priceLabel(e)}</Price>
+                    {priceNote(e) && Number(a.price) > 0 && <PriceNote>{priceNote(e)}</PriceNote>}
                   </MetaRow>
                   <ChipRow>
                     <StatusChip status={e.status} />

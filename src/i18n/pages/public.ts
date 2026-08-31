@@ -22,6 +22,14 @@ export const landing: Dict = {
   'landing.hero.note': { ko: '회원가입 없음 · 결제는 지갑(AIN) 또는 노드 크레딧으로 자동 처리 · 언제든 뺄 수 있음', en: 'No sign-up · pays automatically with a wallet (AIN) or node credit · removable any time' },
 
   // audience
+  'landing.oneline.title': { ko: '한 줄이면 됩니다', en: 'One line is enough' },
+  'landing.oneline.sub': { ko: '터미널이 편하시면 — 지식을 올리는 것도, 쓰는 것도 명령 한 줄입니다.', en: 'If you prefer the terminal — publishing knowledge and using it are each a single command.' },
+  'landing.oneline.publish.who': { ko: '지식을 올리는 분', en: 'Publish knowledge' },
+  'landing.oneline.publish.help': { ko: '학습된 지식 파일과 검증 질문 몇 개를 주면 등록과 공표가 끝납니다. 검증은 네트워크가 실제 모델에서 대신 하고, 팔릴 때마다 자동으로 정산됩니다.', en: 'Give it the learned knowledge file and a few benchmark questions — registration and announcement are done. The network verifies it on the real model and you are paid on every sale.' },
+  'landing.oneline.use.who': { ko: '지식을 쓰는 분', en: 'Use knowledge' },
+  'landing.oneline.use.help': { ko: '검증 완료를 확인하고, 자동 결제하고, 내려받아 내 모델에 넣는 것까지 한 번에 합니다. 회원가입 없이 지갑(AIN) 또는 노드 크레딧으로 결제됩니다.', en: 'Checks verification, pays automatically, downloads and loads it into your model in one go. No sign-up — a wallet (AIN) or node credit pays.' },
+  'landing.oneline.caption': { ko: '웹으로도 똑같이 할 수 있습니다 — 위의 "지식 둘러보기"와 "라이브 테스트"부터 시작하세요.', en: 'You can do all of this on the web too — start with "Explore knowledge" and "Live test" above.' },
+  'landing.oneline.more': { ko: '자세한 API·CLI 문서', en: 'Full API & CLI reference' },
   'landing.audience.title': { ko: '어떤 분이신가요?', en: 'Which one are you?' },
   'landing.audience.sub': { ko: 'Ainize는 지식을 쓰는 사람, 만드는 사람, 네트워크를 돌리는 사람이 함께 씁니다.', en: 'Ainize is used by people who use knowledge, people who make it, and people who run the network.' },
   'landing.audience.user.s1': { ko: '주제·모델별로 검증된 지식을 찾습니다.', en: 'Find knowledge verified for your topic and model.' },
@@ -80,10 +88,10 @@ export const landing: Dict = {
 
 export const listing: Dict = {
   // sort
-  'sort.popular': { ko: '인기순', en: 'Most popular' },
-  'sort.latest': { ko: '최신순', en: 'Newest' },
-  'sort.price': { ko: '가격순', en: 'Price' },
-  'sort.rows': { ko: '지식 크기순', en: 'Knowledge size' },
+  'explore.sort.popular': { ko: '인기순', en: 'Most popular' },
+  'explore.sort.latest': { ko: '최신순', en: 'Newest' },
+  'explore.sort.price': { ko: '가격순', en: 'Price' },
+  'explore.sort.rows': { ko: '지식 크기순', en: 'Knowledge size' },
 
   // explore
   'explore.title': { ko: '지식 둘러보기', en: 'Explore knowledge' },

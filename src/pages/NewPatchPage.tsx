@@ -1,12 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useCreatePatchMutation, useInfoQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
+import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, Select, TextArea, TextField } from '@/components/ui/Form';
 import { Description, PageWrapper, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
-import { Muted, Row, Stack } from '@/components/operator/common';
+import { DevBox, Muted, Row, Stack, Tip, useMoney } from '@/components/operator/common';
 
 const Form = styled.form`display: flex; flex-direction: column; gap: 24px; max-width: 760px;`;
 const Textarea = styled.textarea`
@@ -22,11 +23,15 @@ const ChoiceCard = styled.label<{ $active: boolean }>`
   input[type='radio'] { accent-color: #8b3eeb; }
 `;
 const FileInput = styled.input`font-size: 13px;`;
+const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
 
 interface Sample { prompt: string; expect: string }
-const DEFAULT_BENCH = { schema: '', queries: 0, format: ['template'], collateral_bound_nat: 0.1, samples: [{ prompt: '', expect: '' }] as Sample[] };
+interface Bench { schema: string; queries: number; format: string[]; collateral_bound_nat?: number; samples: Sample[]; [k: string]: unknown }
+const DEFAULT_BENCH: Bench = { schema: '', queries: 0, format: ['template'], collateral_bound_nat: 0.1, samples: [{ prompt: '', expect: '' }] };
 
 export default function NewPatchPage() {
+  const { t, term, help, tech } = useT();
+  const money = useMoney();
   const navigate = useNavigate();
   const { address } = useAuth();
   const { data: info } = useInfoQuery();
@@ -36,15 +41,16 @@ export default function NewPatchPage() {
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [description, setDescription] = useState('');
-  const [modelId, setModelId] = useState('Qwen3.8-Flash-Next');
+  const [modelId, setModelId] = useState(info?.runtime.model ?? 'Qwen3.8-Flash-Next');
   const [priceV, setPriceV] = useState('0.1');
   const [billing, setBilling] = useState('per_download');
   const [license, setLicense] = useState('');
   const [parents, setParents] = useState('');
   const [branch, setBranch] = useState('');
   const [topic, setTopic] = useState('');
+  // benchmark: `bench` is the source of truth for the plain fields; `benchText` is the developer JSON view kept in sync both ways.
+  const [bench, setBench] = useState<Bench>(DEFAULT_BENCH);
   const [benchText, setBenchText] = useState(JSON.stringify(DEFAULT_BENCH, null, 2));
-  const [samples, setSamples] = useState<Sample[]>(DEFAULT_BENCH.samples);
   const [benchError, setBenchError] = useState<string | null>(null);
   const [source, setSource] = useState<'upload' | 'path'>('upload');
   const [file, setFile] = useState<File | null>(null);
@@ -52,36 +58,36 @@ export default function NewPatchPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // samples editor ⇄ JSON sync (samples → JSON)
-  const syncSamplesIntoJson = (next: Sample[]) => {
-    setSamples(next);
-    try {
-      const bench = JSON.parse(benchText) as typeof DEFAULT_BENCH;
-      bench.samples = next;
-      if (!bench.queries || bench.queries < next.length) bench.queries = next.filter((s) => s.prompt).length;
-      setBenchText(JSON.stringify(bench, null, 2));
-      setBenchError(null);
-    } catch { /* keep JSON as typed */ }
+  const updateBench = (patch: Partial<Bench>) => {
+    const next: Bench = { ...bench, ...patch };
+    const filled = next.samples.filter((s) => s.prompt).length;
+    if (!next.queries || next.queries < filled) next.queries = filled;
+    setBench(next); setBenchText(JSON.stringify(next, null, 2)); setBenchError(null);
   };
-  // JSON → samples (when valid)
-  useEffect(() => {
+  const onJson = (text: string) => {
+    setBenchText(text);
     try {
-      const bench = JSON.parse(benchText) as { samples?: Sample[] };
-      if (Array.isArray(bench.samples)) setSamples(bench.samples.map((s) => ({ prompt: String(s.prompt ?? ''), expect: String(s.expect ?? '') })));
+      const parsed = JSON.parse(text) as Partial<Bench>;
+      const samples = Array.isArray(parsed.samples) ? parsed.samples.map((s) => ({ prompt: String(s.prompt ?? ''), expect: String(s.expect ?? '') })) : [];
+      setBench({ ...DEFAULT_BENCH, ...parsed, schema: String(parsed.schema ?? ''), queries: Number(parsed.queries ?? 0) || 0, samples: samples.length ? samples : [{ prompt: '', expect: '' }] });
       setBenchError(null);
-    } catch (e) { setBenchError(`Invalid JSON: ${(e as Error).message}`); }
-  }, [benchText]);
+    } catch (e) { setBenchError(t('op.manage.bench.invalid', { message: (e as Error).message })); }
+  };
+  const samples = bench.samples;
+  const setSamples = (next: Sample[]) => updateBench({ samples: next });
 
   const slugPreview = (id || name).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  const mb = (f: File) => (f.size / 1e6).toFixed(1);
+  const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    let bench: Record<string, unknown>;
-    try { bench = JSON.parse(benchText); } catch (err) { setError(`Benchmark JSON is invalid: ${(err as Error).message}`); return; }
-    if (!bench.schema) { setError('Benchmark schema is required (e.g. "krx-ticker-codes").'); return; }
-    if (source === 'upload' && !file) { setError('Choose a .npz file to upload.'); return; }
-    if (source === 'path' && !path.trim()) { setError('Give the path of the .npz on the node.'); return; }
+    let parsed: Record<string, unknown>;
+    try { parsed = JSON.parse(benchText); } catch (err) { setError(t('op.new.err.json', { message: (err as Error).message })); return; }
+    if (!parsed.schema) { setError(t('op.new.err.schema')); return; }
+    if (source === 'upload' && !file) { setError(t('op.new.err.file')); return; }
+    if (source === 'path' && !path.trim()) { setError(t('op.new.err.path')); return; }
     const fd = new FormData();
     fd.set('name', name.trim());
     if (id.trim()) fd.set('id', id.trim());
@@ -93,7 +99,7 @@ export default function NewPatchPage() {
     if (parents.trim()) fd.set('parents', parents.trim());
     if (branch.trim()) fd.set('branch', branch.trim());
     if (topic.trim()) fd.set('topic_path', topic.trim());
-    fd.set('benchmark', JSON.stringify(bench));
+    fd.set('benchmark', JSON.stringify(parsed));
     if (source === 'upload' && file) fd.set('file', file); else fd.set('path', path.trim());
     setSubmitting(true);
     try {
@@ -108,75 +114,82 @@ export default function NewPatchPage() {
 
   return (
     <PageWrapper>
-      <TitleRow><Title>New patch</Title></TitleRow>
-      <Description>
-        A knowledge patch is a set of rows (address, before, after) of the model&apos;s n-gram memory table, paired with the benchmark that proves what it knows.
-        Register the body here as a <strong>draft</strong>; announce it from the manage page once the checklist is green. Nothing reaches the network until you announce.
-      </Description>
+      <TitleRow><Title>{t('op.new.title')}</Title></TitleRow>
+      <Description title={tech('patch')}>{t('op.new.desc')}</Description>
 
       <Form onSubmit={onSubmit}>
-        <SubTitle $mt={32}>Identity</SubTitle>
+        <SubTitle $mt={32}>{t('op.new.sec.basic')}</SubTitle>
         <FormRow>
-          <TextField label="Name" placeholder="한국 상장사 전 종목 종목코드 (2,761)" value={name} onChange={(e) => setName(e.target.value)} required />
-          <TextField label="Id (optional slug)" placeholder="krx-all-2761" value={id} onChange={(e) => setId(e.target.value)} helper={slugPreview ? `will be published as ${slugPreview}` : 'derived from the name if empty'} />
+          <TextField label={t('op.new.name')} placeholder={t('op.new.name.ph')} value={name} onChange={(e) => setName(e.target.value)} required />
+          <TextField label={t('op.new.id')} placeholder="krx-all-2761" value={id} onChange={(e) => setId(e.target.value)} helper={slugPreview ? t('op.new.id.helper.preview', { slug: slugPreview }) : t('op.new.id.helper.empty')} />
         </FormRow>
-        <TextArea label="Description" placeholder="What knowledge is inside, how it was trained, what the benchmark measured…" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <TextArea label={t('op.new.description')} placeholder={t('op.new.description.ph')} value={description} onChange={(e) => setDescription(e.target.value)} />
         <FormRow>
-          <TextField label="Model (id_M)" value={modelId} onChange={(e) => setModelId(e.target.value)} required helper="target backbone + tokenizer; patches are bound to it" />
-          <TextField label="Topic path" placeholder="finance/krx" value={topic} onChange={(e) => setTopic(e.target.value)} helper="knowledge-graph topic (ain-js); defaults to patches/<model>" />
+          <TextField label={<Tip tech="model.id_M — target backbone + tokenizer">{t('op.new.model')}</Tip>} value={modelId} onChange={(e) => setModelId(e.target.value)} required helper={t('op.new.model.helper')} />
+          <TextField label={<Tip tech="topic_path (ain-js knowledge graph)">{t('op.new.topic')}</Tip>} placeholder="finance/krx" value={topic} onChange={(e) => setTopic(e.target.value)} helper={t('op.new.topic.helper')} />
         </FormRow>
 
-        <SubTitle $mt={24}>Pricing &amp; lineage</SubTitle>
+        <SubTitle $mt={24}>{t('op.new.sec.price')}</SubTitle>
         <FormRow>
-          <TextField label={`Price (${currency})`} type="number" min={0} step="0.000001" value={priceV} onChange={(e) => setPriceV(e.target.value)} />
+          <TextField label={<Tip tech={tech('autoPay')}>{t('op.new.price', { unit: money.unit(currency) })}</Tip>} type="number" min={0} step="0.000001" value={priceV} onChange={(e) => setPriceV(e.target.value)}
+            helper={<>{t('op.new.price.helper')} <br />{money.note(currency)}</>} />
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}>Billing</span>
+            <FieldLabel>{t('op.new.billing')}</FieldLabel>
             <Select value={billing} onChange={(e) => setBilling(e.target.value)}>
-              <option value="per_download">per download</option><option value="per_apply_hour">per apply-hour</option><option value="per_hit">per hit</option>
+              {['per_download', 'per_apply_hour', 'per_hit'].map((b) => <option key={b} value={b}>{billingLabel(b)}</option>)}
             </Select>
           </label>
-          <TextField label="License" placeholder="CC-BY-4.0" value={license} onChange={(e) => setLicense(e.target.value)} />
+          <TextField label={t('op.new.license')} placeholder="CC-BY-4.0" value={license} onChange={(e) => setLicense(e.target.value)} />
         </FormRow>
         <FormRow>
-          <TextField label="Parents" placeholder="pixelplus-087600, law-common-base" value={parents} onChange={(e) => setParents(e.target.value)} helper="comma-separated ids of patches this one derives from — their authors receive lineage royalties on every sale" />
-          <TextField label="Branch" placeholder="law/KR" value={branch} onChange={(e) => setBranch(e.target.value)} helper="optional knowledge branch (contradictory knowledge lives on separate branches)" />
+          <TextField label={<Tip tech={tech('lineage')}>{t('op.new.parents')}</Tip>} placeholder="pixelplus-087600, krx-all-2761" value={parents} onChange={(e) => setParents(e.target.value)} helper={t('op.new.parents.helper')} />
+          <TextField label={<Tip tech={tech('branch')}>{t('op.new.branch')}</Tip>} placeholder="law/KR" value={branch} onChange={(e) => setBranch(e.target.value)} helper={t('op.new.branch.helper')} />
         </FormRow>
 
-        <SubTitle $mt={24}>Benchmark</SubTitle>
-        <Description>Verifiers replay these samples on the live model (apply → score → restore). Edit rows below or the JSON directly — they stay in sync.</Description>
+        <SubTitle $mt={24}>{t('op.new.sec.bench')}</SubTitle>
+        <Description>{t('op.new.bench.desc')}</Description>
+        <FormRow>
+          <TextField label={<Tip tech="benchmark.schema">{t('op.new.schema')}</Tip>} placeholder="krx-ticker-codes" value={bench.schema} onChange={(e) => updateBench({ schema: e.target.value })} required helper={t('op.new.schema.helper')} />
+          <TextField label={<Tip tech={tech('facts')}>{term('facts')} ({t('op.new.queries')})</Tip>} type="number" min={0} step={1} value={bench.queries} onChange={(e) => updateBench({ queries: Math.max(0, Number(e.target.value) || 0) })} helper={t('op.new.queries.helper')} />
+        </FormRow>
         <Stack $gap={10}>
+          <FieldLabel title={help('accuracy')}>{t('op.new.samples')}</FieldLabel>
           {samples.map((s, i) => (
             <SampleRow key={i}>
-              <TextField label={i === 0 ? 'Prompt' : undefined} placeholder="종목코드 픽셀플러스 " value={s.prompt} onChange={(e) => syncSamplesIntoJson(samples.map((x, j) => (j === i ? { ...x, prompt: e.target.value } : x)))} />
-              <TextField label={i === 0 ? 'Expected prefix' : undefined} placeholder="087600" value={s.expect} onChange={(e) => syncSamplesIntoJson(samples.map((x, j) => (j === i ? { ...x, expect: e.target.value } : x)))} />
-              <Button type="button" size="small" variant="text" color="default" disabled={samples.length === 1} onClick={() => syncSamplesIntoJson(samples.filter((_, j) => j !== i))}>Remove</Button>
+              <TextField label={i === 0 ? t('op.new.sample.prompt') : undefined} placeholder={t('op.new.sample.prompt.ph')} value={s.prompt} onChange={(e) => setSamples(samples.map((x, j) => (j === i ? { ...x, prompt: e.target.value } : x)))} />
+              <TextField label={i === 0 ? t('op.new.sample.expect') : undefined} placeholder="087600" value={s.expect} onChange={(e) => setSamples(samples.map((x, j) => (j === i ? { ...x, expect: e.target.value } : x)))} />
+              <Button type="button" size="small" variant="text" color="default" disabled={samples.length === 1} onClick={() => setSamples(samples.filter((_, j) => j !== i))}>{t('op.remove')}</Button>
             </SampleRow>
           ))}
-          <div><Button type="button" size="small" variant="text" onClick={() => syncSamplesIntoJson([...samples, { prompt: '', expect: '' }])}>+ sample</Button></div>
+          <div><Button type="button" size="small" variant="text" onClick={() => setSamples([...samples, { prompt: '', expect: '' }])}>{t('op.new.sample.add')}</Button></div>
         </Stack>
-        <Textarea value={benchText} onChange={(e) => setBenchText(e.target.value)} spellCheck={false} />
-        {benchError && <Alert $tone="warning">{benchError}</Alert>}
+        <DevBox style={{ marginTop: 0 }}>
+          <Muted style={{ display: 'block', marginBottom: 8 }}>{t('op.new.bench.json')}</Muted>
+          <Textarea value={benchText} onChange={(e) => onJson(e.target.value)} spellCheck={false} />
+          {benchError && <Alert $tone="warning" style={{ marginTop: 8 }}>{benchError}</Alert>}
+        </DevBox>
 
-        <SubTitle $mt={24}>Patch body (.npz)</SubTitle>
-        <Description>Arrays <code>addrs</code> (int64), <code>before</code> and <code>after</code> (float32 rows). The node computes the sha256, row count and the address set for conflict checks.</Description>
+        <SubTitle $mt={24}>{t('op.new.sec.file')}</SubTitle>
+        <Description title={tech('rows')}>{t('op.new.file.desc')}</Description>
         <Choice>
           <ChoiceCard $active={source === 'upload'}>
-            <Row $gap={8}><input type="radio" name="source" checked={source === 'upload'} onChange={() => setSource('upload')} /><strong>Upload a file</strong></Row>
+            <Row $gap={8}><input type="radio" name="source" checked={source === 'upload'} onChange={() => setSource('upload')} /><strong>{t('op.new.file.upload')}</strong></Row>
             <FileInput type="file" accept=".npz,application/octet-stream" disabled={source !== 'upload'} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            <Muted>{file ? `${file.name} · ${(file.size / 1e6).toFixed(1)} MB` : 'copied into the node blob store'}</Muted>
+            <Muted>{file ? t('op.new.file.size', { name: file.name, mb: mb(file) }) : t('op.new.file.upload.note')}</Muted>
           </ChoiceCard>
           <ChoiceCard $active={source === 'path'}>
-            <Row $gap={8}><input type="radio" name="source" checked={source === 'path'} onChange={() => setSource('path')} /><strong>Path on node</strong></Row>
+            <Row $gap={8}><input type="radio" name="source" checked={source === 'path'} onChange={() => setSource('path')} /><strong>{t('op.new.file.path')}</strong></Row>
             <TextField placeholder="/mnt/newdata/qwen3.8/results/train-fact/픽셀플러스.npz" value={path} onChange={(e) => setPath(e.target.value)} disabled={source !== 'path'} />
-            <Muted>referenced in place — no copy (large training outputs)</Muted>
+            <Muted>{t('op.new.file.path.note')}</Muted>
           </ChoiceCard>
         </Choice>
+        <DevBox style={{ marginTop: 0 }}><Muted>{t('op.new.dev.npz')}</Muted></DevBox>
 
         {error && <Alert $tone="error">{error}</Alert>}
-        {submitting && source === 'upload' && file && <Alert $tone="info">Uploading {file.name} ({(file.size / 1e6).toFixed(1)} MB) and hashing the body…</Alert>}
+        {submitting && source === 'upload' && file && <Alert $tone="info">{t('op.new.uploading', { name: file.name, mb: mb(file) })}</Alert>}
         <Row $gap={16}>
-          <Button type="submit" variant="contained" size="large" loading={submitting || state.isLoading} loadingText="Creating draft…">Create draft</Button>
-          <Button type="button" variant="text" color="default" onClick={() => navigate('/dashboard')}>Cancel</Button>
+          <Button type="submit" variant="contained" size="large" loading={submitting || state.isLoading} loadingText={t('op.new.submitting')}>{t('op.new.submit')}</Button>
+          <Button type="button" variant="text" color="default" onClick={() => navigate('/dashboard')}>{t('common.cancel')}</Button>
         </Row>
       </Form>
     </PageWrapper>

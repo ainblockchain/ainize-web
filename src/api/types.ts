@@ -84,6 +84,8 @@ export interface ChatResult { content: string; reasoning?: string | null; usage?
 export interface ChatResponse {
   patch_id: string; mode: 'base' | 'patched' | 'compare'; base: ChatResult | null; patched: ChatResult | null;
   applied_ms: number | null; was_applied: boolean; model: string | null; benchmark_hit?: boolean | null; remaining_quota: number | null;
+  /** Hourly free-trial limit for visitors (null/undefined = unlimited or not reported). */
+  quota_limit?: number | null;
 }
 export interface ChatPatchesResponse { items: CatalogEntry[]; runtime: RuntimeStatus; lock: { owner: string; label: string; since: number } | null }
 export interface Settings { notifications: 'all' | 'sales' | 'none'; display_name: string; payout_address: string }

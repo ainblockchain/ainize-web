@@ -3,14 +3,12 @@ import styled from 'styled-components';
 import { useCatalogQuery, useInfoQuery, errorMessage } from '@/api/api';
 import { PatchListItem } from '@/components/public/PatchListItem';
 import { Alert, Input } from '@/components/ui/Form';
-import { CenterProgress, Empty, PageWrapper, Pagination, SelectBox, Title, TitleRow } from '@/components/ui/Misc';
+import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox, Title, TitleRow } from '@/components/ui/Misc';
+import { useT } from '@/i18n';
+import { num } from '@/utils/format';
 
-const SORT_OPTIONS = [
-  { value: 'popular', label: 'Popular' },
-  { value: 'latest', label: 'Latest' },
-  { value: 'price', label: 'Price' },
-  { value: 'rows', label: 'Rows' },
-];
+type Sort = 'popular' | 'latest' | 'price' | 'rows';
+const SORTS: Sort[] = ['popular', 'latest', 'price', 'rows'];
 const ITEM_LIMIT = 10;
 
 const Filters = styled.div`
@@ -18,7 +16,7 @@ const Filters = styled.div`
 `;
 const FilterGroup = styled.div`
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  span.label { font-size: 12px; color: ${(p) => p.theme.color.GREY}; margin-right: 2px; }
+  span.label { font-size: 12px; color: ${(p) => p.theme.color.GREY}; margin-right: 2px; cursor: default; }
 `;
 const Chip = styled.button<{ $active: boolean }>`
   padding: 3px 12px; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;
@@ -34,9 +32,11 @@ const Search = styled(Input)`
 const Count = styled.div`
   font-size: 12px; color: ${(p) => p.theme.color.GREY}; padding-bottom: 12px;
 `;
+const Intro = styled(Description)`margin: 0 0 24px;`;
 
 export default function ExplorePage() {
-  const [sort, setSort] = useState<'popular' | 'latest' | 'price' | 'rows'>('popular');
+  const { t, tech, help } = useT();
+  const [sort, setSort] = useState<Sort>('popular');
   const [model, setModel] = useState('');
   const [schema, setSchema] = useState('');
   const [q, setQ] = useState('');
@@ -44,6 +44,7 @@ export default function ExplorePage() {
   const { data: info } = useInfoQuery();
   const { data, isLoading, isFetching, error } = useCatalogQuery({ sort, model: model || undefined, schema: schema || undefined, q: q || undefined, limit: 200 });
 
+  const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
   const items = data?.items ?? [];
   const pageCount = Math.max(1, Math.ceil(items.length / ITEM_LIMIT));
   const current = Math.min(page, pageCount);
@@ -54,37 +55,38 @@ export default function ExplorePage() {
   return (
     <PageWrapper>
       <TitleRow>
-        <Title>Explore</Title>
-        <SelectBox options={SORT_OPTIONS} value={sort} onChange={(v) => { setSort(v as typeof sort); reset(); }} />
+        <Title>{t('explore.title')}</Title>
+        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} />
       </TitleRow>
+      <Intro title={help('liveTest')}>{t('explore.sub')}</Intro>
 
       <Filters>
         {!!data?.models.length && (
           <FilterGroup>
-            <span className="label">Model</span>
-            <Chip $active={!model} onClick={() => { setModel(''); reset(); }}>All</Chip>
+            <span className="label">{t('explore.filter.model')}</span>
+            <Chip $active={!model} onClick={() => { setModel(''); reset(); }}>{t('explore.filter.all')}</Chip>
             {data.models.map((m) => <Chip key={m} $active={model === m} onClick={() => { setModel(model === m ? '' : m); reset(); }}>{m}</Chip>)}
           </FilterGroup>
         )}
         {!!data?.schemas.length && (
           <FilterGroup>
-            <span className="label">Benchmark</span>
-            <Chip $active={!schema} onClick={() => { setSchema(''); reset(); }}>All</Chip>
+            <span className="label" title={`${t('explore.filter.schema_help')} (${tech('facts')})`}>{t('explore.filter.schema')}</span>
+            <Chip $active={!schema} onClick={() => { setSchema(''); reset(); }}>{t('explore.filter.all')}</Chip>
             {data.schemas.map((s) => <Chip key={s} $active={schema === s} onClick={() => { setSchema(schema === s ? '' : s); reset(); }}>{s}</Chip>)}
           </FilterGroup>
         )}
-        <Search placeholder="Search patches…" value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label="search" />
+        <Search placeholder={t('explore.search')} value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label={t('explore.search')} />
       </Filters>
 
-      {error && <Alert $tone="error">{errorMessage(error)}</Alert>}
+      {error && <Alert $tone="error">{t('common.error', { message: errorMessage(error) })}</Alert>}
       {isLoading && <CenterProgress />}
       {!isLoading && data && (
         <>
-          <Count>{data.total} patch{data.total === 1 ? '' : 'es'}{isFetching ? ' · updating…' : ''}</Count>
+          <Count>{t('explore.count', { n: num(data.total) })}{isFetching ? ` · ${t('explore.updating')}` : ''}</Count>
           <div>
             {visible.map((e) => <PatchListItem key={e.anchor.id} entry={e} currency={info?.currency} />)}
           </div>
-          {items.length === 0 && <Empty>No patches match. Try another model, benchmark or search term.</Empty>}
+          {items.length === 0 && <Empty>{t('explore.empty')}</Empty>}
           {items.length > 0 && <Pagination page={current} pageCount={pageCount} onChange={setPage} />}
         </>
       )}

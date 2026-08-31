@@ -22,11 +22,16 @@ export const chat: Dict = {
   'chat.runtime.off': { ko: '지금은 모델 서버가 꺼져 있어 테스트할 수 없습니다.', en: 'The model server is off right now, so testing is unavailable.' },
   'chat.runtime.off_detail': { ko: '노드 운영자가 모델 서버를 켜면 다시 사용할 수 있습니다.', en: 'It comes back once the node operator starts the model server.' },
   'chat.lock.busy': { ko: '다른 테스트가 진행 중 — 잠시 후 다시 시도하세요.', en: 'Another test is running — try again in a moment.' },
-  'chat.lock.holder': { ko: '진행 중: {label} ({owner}, {since}부터)', en: 'In progress: {label} ({owner}, since {since})' },
+  'chat.lock.holder': { ko: '다른 테스트 진행 중 (노드 프로세스 {pid}) — {since}', en: 'Another test in progress (node process {pid}) — {since}' },
+  'chat.time.s': { ko: '{n}초 전 시작', en: 'started {n}s ago' },
+  'chat.time.m': { ko: '{n}분 전 시작', en: 'started {n}m ago' },
+  'chat.time.h': { ko: '{n}시간 전 시작', en: 'started {n}h ago' },
+  'chat.price_note': { ko: '{note}', en: '{note}' },
   'chat.lock.help': { ko: '모델은 한 번에 하나의 지식만 넣었다 뺄 수 있어 테스트가 순서대로 실행됩니다.', en: 'The model loads and unloads one knowledge at a time, so tests run one after another.' },
 
   // quota
   'chat.quota.left': { ko: '이 시간 무료 체험 {n}회 남음', en: '{n} free tries left this hour' },
+  'chat.quota.left_of': { ko: '무료 체험 {n}/{limit} 남음 (이 시간)', en: 'Free trial {n}/{limit} left this hour' },
   'chat.quota.none': { ko: '이 시간 무료 체험을 모두 사용했습니다. 한 시간 뒤 다시 시도하거나 지식을 구매하세요.', en: 'You used all free tries for this hour. Try again in an hour or buy the knowledge.' },
   'chat.quota.visitor': { ko: '무료 체험은 시간당 횟수가 제한됩니다. 로그인 없이 바로 써 볼 수 있습니다.', en: 'Free tries are limited per hour. No sign-in needed.' },
   'chat.quota.operator': { ko: '이 노드의 운영자로 로그인되어 있어 횟수 제한 없이 테스트할 수 있습니다.', en: 'You are signed in as this node’s operator — unlimited tests.' },
@@ -55,6 +60,8 @@ export const chat: Dict = {
   'chat.input.sending': { ko: '답변 기다리는 중…', en: 'Waiting for the answer…' },
   'chat.input.clear': { ko: '대화 지우기', en: 'Clear conversation' },
   'chat.input.pick_first': { ko: '먼저 왼쪽에서 테스트할 지식을 고르세요.', en: 'Pick the knowledge to test on the left first.' },
+  'chat.input.cancel': { ko: '취소', en: 'Cancel' },
+  'chat.input.in_flight': { ko: '답을 기다리는 중입니다. 오래 걸리면 취소할 수 있습니다.', en: 'Waiting for the answer — you can cancel if it takes too long.' },
 
   // transcript
   'chat.empty.title': { ko: '아직 질문이 없습니다', en: 'No questions yet' },
@@ -87,6 +94,8 @@ export const chat: Dict = {
   'chat.err.network': { ko: '노드에 연결할 수 없습니다. 네트워크 상태를 확인하고 다시 시도하세요.', en: 'Could not reach the node. Check your connection and try again.' },
   'chat.err.timeout': { ko: '답을 기다리다 시간이 초과되었습니다. 생각 과정을 끄거나 잠시 후 다시 시도하세요.', en: 'Timed out waiting for the answer. Turn thinking off or try again shortly.' },
   'chat.err.generic': { ko: '테스트 중 문제가 생겼습니다: {message}', en: 'Something went wrong during the test: {message}' },
+  'chat.err.cancelled': { ko: '요청을 취소했습니다.', en: 'Request cancelled.' },
+  'chat.err.too_long': { ko: '요청이 너무 길거나 형식이 맞지 않습니다. 대화를 지우고 다시 시도하세요.', en: 'The request was too long or malformed. Clear the conversation and try again.' },
 
   // developer note
   'chat.dev.title': { ko: '노드 운영자·개발자', en: 'Node operators & developers' },
