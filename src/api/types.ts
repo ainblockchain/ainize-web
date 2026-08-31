@@ -76,7 +76,11 @@ export interface ChainResponse extends LedgerInfo { address: string; balance: nu
 
 export interface AuthMe { signedIn: boolean; address: string; name: string; roles: string[]; needsSetup: boolean; }
 export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string; scheme: string; amount: string; manifest: PatchManifest | null; path: string | null; created_at: number; entry: CatalogEntry | null; applied: boolean; }
-export interface WalletResponse extends ChainResponse { sales: Settlement[]; royalties: { patch_id: string; amount: string; created_at: number }[]; purchases: number; }
+/** One royalty transfer the node owes (node `payouts` table, spec §7.5): pending → paid (tx_hash) | failed (last_error, retried every 60 s up to 20 times). */
+export interface PayoutRow { id: number; patch_id: string; settle_hash: string; address: string; amount: string; currency: string; status: 'pending' | 'paid' | 'failed'; tx_hash: string | null; attempts: number; last_error: string | null; created_at: number; updated_at: number }
+export interface PayoutSummary { pending: number; failed: number; paid: number }
+export interface PayoutsResponse { items: PayoutRow[]; summary: PayoutSummary; max_attempts: number; retry_ms: number; wallet: boolean }
+export interface WalletResponse extends ChainResponse { sales: Settlement[]; royalties: { patch_id: string; amount: string; created_at: number }[]; purchases: number; payouts?: PayoutSummary & { items: PayoutRow[] }; }
 export interface PurchaseResult { patch_id: string; steps: { step: string; detail: string; at: number }[]; manifest: PatchManifest; path: string; tx_hash: string; amount: string; scheme: string; }
 export interface RuntimeResponse extends Omit<RuntimeStatus, 'applied'> { applied: { patch_id: string; sha256: string; applied_at: number; reason: string }[]; }
 export interface DriveResponse {
