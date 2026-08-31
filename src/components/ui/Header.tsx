@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
-import { useLogoutMutation, useInfoQuery } from '@/api/api';
+import { useInfoQuery } from '@/api/api';
 import { useLocale, useT } from '@/i18n';
 import { shortAddr } from '@/utils/format';
 
@@ -69,9 +69,8 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, name, address } = useAuth();
+  const { isSignedIn, name, address, signOut } = useAuth();
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
-  const [logout] = useLogoutMutation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -108,7 +107,13 @@ export function Header() {
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/account'); }}>{t('nav.account')}</MenuItem>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/drive'); }}>{t('nav.files')}</MenuItem>
-                <MenuItem role="menuitem" onClick={async () => { setOpen(false); await logout(); navigate('/'); }}>{t('nav.logout')}</MenuItem>
+                <MenuItem role="menuitem" onClick={() => {
+                  setOpen(false);
+                  // signOut() flips isSignedIn to false synchronously and navigate('/') lands in the same render, so neither the landing guard (→ /dashboard) nor the dashboard guard (→ /signing) fires.
+                  // flushSync: commit the location change now instead of in a transition — otherwise a cold-cache landing chunk keeps the /dashboard guard mounted until the sign-out settles.
+                  void signOut();
+                  navigate('/', { flushSync: true });
+                }}>{t('nav.logout')}</MenuItem>
               </Menu>
             </div>
           )}

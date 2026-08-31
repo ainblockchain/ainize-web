@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
@@ -16,8 +16,15 @@ const Content = styled.main`
   width: 100%; flex: 1; display: flex; flex-direction: column; align-items: center;
 `;
 
+/**
+ * Every route change (push, Back and Forward alike) starts at the top of the page.
+ * Chrome re-applies a history entry's saved scroll offset as soon as the freshly rendered page grows tall enough,
+ * which happened after this effect had already run (data arrives → the list grows → the browser jumps back down).
+ * Taking over scroll restoration makes the effect the only thing that positions the page.
+ */
 export function ScrollToTop() {
   const { pathname } = useLocation();
+  useEffect(() => { if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'; }, []);
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 }
@@ -40,9 +47,15 @@ export function Layout({ children }: { children: ReactNode }) {
 
 /** ainize-web base/SigningCheckLayout.js: redirect to sign-in when the operator is not logged in. */
 export function SigningCheckLayout({ children }: { children: ReactNode }) {
-  const { isSignedIn, loading } = useAuth();
+  const { isSignedIn, loading, signingOut } = useAuth();
   const { pathname } = useLocation();
+  // Remember that this guard witnessed a deliberate sign-out. react-router wraps navigate('/') in a transition, so on a cold cache
+  // (landing chunk still downloading) this guard is still mounted when /api/auth/me settles to signed-out — it must rest on /, not /signing?next=.
+  const [sawSignOut, setSawSignOut] = useState(false);
+  useEffect(() => { if (signingOut) setSawSignOut(true); }, [signingOut]);
   if (loading) return <Layout><CenterProgress /></Layout>;
+  // A deliberate sign-out rests on the landing page; only an expired/missing session asks to sign in again (and remembers where to return).
+  if (signingOut || (sawSignOut && !isSignedIn)) return <Navigate to="/" replace />;
   if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(pathname)}`} replace />;
   return <Layout>{children}</Layout>;
 }

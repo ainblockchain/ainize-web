@@ -27,7 +27,7 @@ export default function AccountPage() {
   const { data: me } = useMeQuery();
   const { data: info } = useInfoQuery();
   const wallet = useWalletQuery();
-  const nodes = useNodesQuery();
+  const nodes = useNodesQuery(undefined, { pollingInterval: 15_000 });
   const runtime = useRuntimeQuery();
   const settings = useSettingsQuery();
   const [updateSettings, settingsState] = useUpdateSettingsMutation();

@@ -183,7 +183,7 @@ export default function PatchPage() {
               {t('detail.patch.verified_executed', { passed: data.passed, quorum: data.quorum })}{data.quorum_ok ? ` · ${term('verified')}` : ''}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
             </Quorum>
-            {data.owned && <ManageMenu to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.patch.manage')} <img src="/static/images/ic-openwindow.svg" alt="" /></ManageMenu>}
+            {isSignedIn && data.owned && <ManageMenu to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.patch.manage')} <img src="/static/images/ic-openwindow.svg" alt="" /></ManageMenu>}
           </NameRow>
           <Info>
             {t('detail.patch.meta', { author: authorLabel, model: a.model.id_M, when })}
