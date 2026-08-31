@@ -66,7 +66,9 @@ export default function LogsPage() {
       case 'anchor': return t('op.logs.d.anchor', { author: who(b.author_name ?? b.author ?? r.author), sha: shortHash(String(b.patch_sha256 ?? ''), 12), price: money.fmt(String(b.price ?? ''), String(b.currency ?? '')) });
       case 'attest': {
         const how = b.verified_on === 'hash-only' ? t('op.manage.attest.how.hash') : t('op.manage.attest.how.run', { engine: String(b.verified_on ?? 'prototype') });
-        const score = b.score && typeof b.score === 'object' ? Object.values(b.score as Record<string, unknown>).map(String).join(', ') || '—' : '—';
+        // accuracy is only meaningful for verifications that executed the benchmark; integrity-only checks carry no score
+        const sc = b.score && typeof b.score === 'object' ? (b.score as Record<string, unknown>) : null;
+        const score = b.verified_on !== 'hash-only' && sc ? String(sc.free_generation ?? sc.free_generation_vllm ?? sc.chat_60 ?? Object.values(sc)[0] ?? '—') : '—';
         return t('op.logs.d.attest', { verifier: who(b.verifier_name ?? b.verifier ?? r.author), result: b.passed === false ? t('op.manage.attest.fail') : t('op.manage.attest.pass'), how, score });
       }
       case 'settle': {
