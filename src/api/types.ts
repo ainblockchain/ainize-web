@@ -34,6 +34,13 @@ export interface InfoResponse {
   quorum: number;
   currency: 'AIN' | 'CREDIT' | 'USDC';
   peers: number;
+  initial_credit?: string;
+  /** Lineage share of each sale distributed to source creators. */
+  royalty_share?: number;
+  /** Visitors may teach and publish knowledge through this node as data providers (teach mode). */
+  accepts_contributions?: boolean;
+  /** Default data-provider share of the seller remainder. */
+  contributor_share?: number;
   counts: { patches: number; listed: number; verifying?: number; superseded?: number; rejected?: number };
 }
 
