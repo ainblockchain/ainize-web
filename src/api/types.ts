@@ -87,3 +87,13 @@ export interface ChatResponse {
 }
 export interface ChatPatchesResponse { items: CatalogEntry[]; runtime: RuntimeStatus; lock: { owner: string; label: string; since: number } | null }
 export interface Settings { notifications: 'all' | 'sales' | 'none'; display_name: string; payout_address: string }
+
+export interface OpenApiOperation { tags?: string[]; summary?: string; description?: string; parameters?: { name: string; in: string; required?: boolean; description?: string; schema?: { type?: string; enum?: string[]; default?: unknown } }[]; requestBody?: { content: Record<string, { schema: unknown }> }; responses?: Record<string, { description: string }>; security?: unknown[] }
+export interface OpenApiDoc { openapi: string; info: { title: string; version: string; description: string }; servers: { url: string }[]; tags: { name: string; description: string }[]; paths: Record<string, Record<string, OpenApiOperation>>; components: { schemas: Record<string, unknown> } }
+export interface CliReference {
+  install: string[];
+  oneLiners: Record<string, { ko: string; en: string; cmd: string }>;
+  groups: { name: string; commands: { cmd: string; desc: string }[] }[];
+  benchmarkExample: unknown;
+}
+export interface DocsResponse { openapi: OpenApiDoc; cli: CliReference; node: string }

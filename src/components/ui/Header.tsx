@@ -77,6 +77,7 @@ export function Header() {
           <NavItem to="/chat">{t('nav.chat')}</NavItem>
           <NavItem to="/network">{t('nav.network')}</NavItem>
           <NavItem to="/ledger">{t('nav.ledger')}</NavItem>
+          <NavItem to="/docs">{t('nav.docs')}</NavItem>
           {isSignedIn && <NavItem to="/dashboard">{t('nav.dashboard')}</NavItem>}
           {!isSignedIn && <NavItem to="/signing">{t('nav.signin')}</NavItem>}
           {isSignedIn && (

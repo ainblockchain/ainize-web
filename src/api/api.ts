@@ -6,7 +6,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
   AuthMe, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
-  ChatMessage, ChatPatchesResponse, ChatResponse, Settings,
+  ChatMessage, ChatPatchesResponse, ChatResponse, Settings, DocsResponse,
 } from './types';
 
 export interface CatalogQuery {
@@ -44,6 +44,7 @@ export const api = createApi({
     runtime: b.query<RuntimeResponse, void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
     drive: b.query<DriveResponse, void>({ query: () => 'api/drive', providesTags: ['Drive'] }),
     driveChanges: b.query<DriveChangesResponse, string>({ query: (path) => `api/drive/changes${toQuery({ path })}`, providesTags: ['Drive'] }),
+    docs: b.query<DocsResponse, void>({ query: () => 'api/docs' }),
 
     // auth
     me: b.query<AuthMe, void>({ query: () => 'api/auth/me', providesTags: ['Me'] }),
@@ -89,7 +90,7 @@ export const {
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
-  useChatPatchesQuery, useChatMutation, useSettingsQuery, useUpdateSettingsMutation,
+  useChatPatchesQuery, useChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
 } = api;
 
 /** Extract a human message from an RTK Query error. */

@@ -27,6 +27,7 @@ const NewPatchPage = lazy(() => import('./pages/NewPatchPage'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
 const DrivePage = lazy(() => import('./pages/DrivePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
+const DocsPage = lazy(() => import('./pages/DocsPage'));
 
 const fallback = <CenterProgress />;
 
@@ -49,6 +50,7 @@ export default function App() {
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />
                 <Route path="/terms" element={<Layout><TermsPage /></Layout>} />
                 <Route path="/signing" element={<Layout><SigningPage /></Layout>} />
+                <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
                 <Route path="/chat" element={<Layout><ChatPage /></Layout>} />
                 <Route path="/chat/:patchId" element={<Layout><ChatPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
