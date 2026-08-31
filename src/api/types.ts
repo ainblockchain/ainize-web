@@ -13,6 +13,7 @@ export interface CatalogEntry {
   status: PatchStatus;
   attestations: Attestation[];
   passed: number;
+  integrity_checks: number;
   quorum: number;
   quorum_ok: boolean;
   settlements: Settlement[];
