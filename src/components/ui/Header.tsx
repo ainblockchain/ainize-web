@@ -14,18 +14,27 @@ const Wrapper = styled.header`
 const Content = styled.div`
   width: calc(100% - 32px); height: 81px; display: flex; flex-direction: row; align-items: center;
   @media (min-width: ${(p) => p.theme.layout.maxWidth}) { width: ${(p) => p.theme.layout.maxWidth}; }
+  /* narrow screens: logo row on top, nav wraps underneath — the header must never push the body wider than the viewport */
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { height: auto; min-height: 81px; flex-direction: column; align-items: stretch; padding: 8px 0; }
 `;
-const Home = styled(Link)`flex: 1; text-decoration: none; display: flex; align-items: center; gap: 10px;`;
+const Home = styled(Link)`
+  flex: 1; min-width: 0; text-decoration: none; display: flex; align-items: center; gap: 10px;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: none; min-height: 48px; }
+`;
 const Logo = styled.img`width: 121px; object-fit: contain;`;
-const Nav = styled.nav`display: flex; flex-direction: row; align-items: center;`;
+const Nav = styled.nav`
+  display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; min-width: 0;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { justify-content: center; }
+`;
 const NavItem = styled(NavLink)`
   display: flex; align-items: center; height: 100%; padding: 16px 16px; font-size: 16px; font-weight: 500; color: ${(p) => p.theme.color.BLACK}; text-decoration: none; white-space: nowrap;
   &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; }
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 16px 8px; font-size: 14px; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 12px 8px; font-size: 14px; }
 `;
 const UserMenuButton = styled.button`
   padding: 16px 12px 16px 20px; border: 0; background: transparent; font-size: 16px; color: ${(p) => p.theme.color.BLACK}; cursor: pointer; white-space: nowrap;
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 12px 8px; font-size: 14px; }
 `;
 const Menu = styled.div<{ $open: boolean }>`
   position: absolute; right: 0; top: 100%; min-width: 220px; padding: 4px; background: #fff; border-radius: 4px;
@@ -50,7 +59,7 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, name, address } = useAuth();
+  const { isSignedIn, name, address, refresh } = useAuth();
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
   const [logout] = useLogoutMutation();
   const [open, setOpen] = useState(false);
@@ -87,7 +96,13 @@ export function Header() {
                 <MenuInfo title={address ?? ''}>{shortAddr(address, 8)}</MenuInfo>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/account'); }}>{t('nav.account')}</MenuItem>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/drive'); }}>{t('nav.files')}</MenuItem>
-                <MenuItem role="menuitem" onClick={async () => { setOpen(false); await logout(); navigate('/'); }}>{t('nav.logout')}</MenuItem>
+                <MenuItem role="menuitem" onClick={async () => {
+                  setOpen(false);
+                  // Wait until /api/auth/me reports signed-out before moving, otherwise the landing guard still sees the stale session and bounces to /dashboard → /signing.
+                  try { await logout().unwrap(); } catch { /* cookie may already be gone */ }
+                  await refresh();
+                  navigate('/');
+                }}>{t('nav.logout')}</MenuItem>
               </Menu>
             </div>
           )}

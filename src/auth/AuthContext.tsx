@@ -8,10 +8,11 @@ export interface AuthState {
   address: string | null;
   name: string | null;
   roles: string[];
-  refresh: () => void;
+  /** Re-read /api/auth/me; resolves once the fresh state is in the store. */
+  refresh: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthState>({ loading: true, isSignedIn: false, needsSetup: false, address: null, name: null, roles: [], refresh: () => undefined });
+const AuthContext = createContext<AuthState>({ loading: true, isSignedIn: false, needsSetup: false, address: null, name: null, roles: [], refresh: async () => undefined });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, refetch } = useMeQuery(undefined, { pollingInterval: 60_000 });
@@ -22,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     address: data?.address ?? null,
     name: data?.name ?? null,
     roles: data?.roles ?? [],
-    refresh: () => { void refetch(); },
+    refresh: async () => { try { await refetch().unwrap(); } catch { /* the query state carries the error */ } },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
