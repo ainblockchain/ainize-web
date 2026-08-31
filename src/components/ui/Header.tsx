@@ -98,8 +98,9 @@ export function Header() {
                 <MenuItem role="menuitem" onClick={() => {
                   setOpen(false);
                   // signOut() flips isSignedIn to false synchronously and navigate('/') lands in the same render, so neither the landing guard (→ /dashboard) nor the dashboard guard (→ /signing) fires.
+                  // flushSync: commit the location change now instead of in a transition — otherwise a cold-cache landing chunk keeps the /dashboard guard mounted until the sign-out settles.
                   void signOut();
-                  navigate('/');
+                  navigate('/', { flushSync: true });
                 }}>{t('nav.logout')}</MenuItem>
               </Menu>
             </div>

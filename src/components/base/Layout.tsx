@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
@@ -42,9 +42,13 @@ export function Layout({ children }: { children: ReactNode }) {
 export function SigningCheckLayout({ children }: { children: ReactNode }) {
   const { isSignedIn, loading, signingOut } = useAuth();
   const { pathname } = useLocation();
+  // Remember that this guard witnessed a deliberate sign-out. react-router wraps navigate('/') in a transition, so on a cold cache
+  // (landing chunk still downloading) this guard is still mounted when /api/auth/me settles to signed-out — it must rest on /, not /signing?next=.
+  const [sawSignOut, setSawSignOut] = useState(false);
+  useEffect(() => { if (signingOut) setSawSignOut(true); }, [signingOut]);
   if (loading) return <Layout><CenterProgress /></Layout>;
   // A deliberate sign-out rests on the landing page; only an expired/missing session asks to sign in again (and remembers where to return).
-  if (signingOut) return <Navigate to="/" replace />;
+  if (signingOut || (sawSignOut && !isSignedIn)) return <Navigate to="/" replace />;
   if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(pathname)}`} replace />;
   return <Layout>{children}</Layout>;
 }
