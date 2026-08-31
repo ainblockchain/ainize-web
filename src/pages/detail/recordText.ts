@@ -36,6 +36,12 @@ export function useDetailFormat() {
       const unit = currency === 'CREDIT' ? term('credit') : currency;
       return `${n.toLocaleString('en-US', { maximumFractionDigits: 6 })} ${unit}`.trim();
     };
+    /** Earned amounts (revenue): a zero reads "0 AIN", never "Free" — that word belongs to prices. */
+    const revenueLabel = (amount?: string | number | null, currency = ''): string => {
+      const n = Number(amount ?? 0);
+      const unit = currency === 'CREDIT' ? term('credit') : currency;
+      return !Number.isFinite(n) || n <= 0 ? `0 ${unit}`.trim() : priceLabel(n, currency);
+    };
     /** One-line note explaining what the currency is. */
     const priceNote = (currency?: string): string => (currency === 'CREDIT' ? t('price.credit_note') : currency === 'AIN' ? t('price.ain_note') : '');
     const kindLabel = (kind: string): string => { const k = t(`detail.kind.${kind}`); return k === `detail.kind.${kind}` ? kind : k; };
@@ -70,6 +76,6 @@ export function useDetailFormat() {
           return kindLabel(r.kind);
       }
     };
-    return { ago, priceLabel, priceNote, kindLabel, howLabel, roleLabel, billingLabel, recordSummary, locale };
+    return { ago, priceLabel, revenueLabel, priceNote, kindLabel, howLabel, roleLabel, billingLabel, recordSummary, locale };
   }, [t, term, locale]);
 }

@@ -197,7 +197,7 @@ export default function PatchPage() {
             <Stat><StatValue>{num(a.benchmark.queries)}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
             <Stat><StatValue>{bytes(a.size_bytes)}</StatValue><StatName>{t('detail.stat.size')}</StatName></Stat>
             <Stat><StatValue>{f.priceLabel(a.price, a.currency)}</StatValue><StatName>{t('detail.stat.price')}</StatName>{Number(a.price) > 0 && <StatNote>{f.priceNote(a.currency)}</StatNote>}</Stat>
-            <Stat><StatValue>{f.priceLabel(data.revenue, a.currency)}</StatValue><StatName>{t('detail.stat.revenue')}</StatName></Stat>
+            <Stat><StatValue>{f.revenueLabel(data.revenue, a.currency)}</StatValue><StatName>{t('detail.stat.revenue')}</StatName></Stat>
           </Stats>
 
           <TabBar><Tabs tabs={tabs} value={tab} onChange={setTab} /></TabBar>

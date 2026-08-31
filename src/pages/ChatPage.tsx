@@ -84,7 +84,7 @@ function mapChatError(err: unknown, t: Tr): string {
   if (m.includes('does not hold the patch body')) return t('chat.err.no_body');
   if (e?.status === 429 || m.includes('quota')) return t('chat.err.quota');
   if (m.includes('runtime busy')) return t('chat.err.busy');
-  if (m.includes('runtime unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not available') || m.includes('not responding')) return t('chat.err.runtime');
+  if (e?.status === 503 || m.includes('runtime unavailable') || m.includes('model unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not available') || m.includes('not responding')) return t('chat.err.runtime');
   if (m.includes('patch targets')) return t('chat.err.model');
   if (m.includes('patch not found')) return t('chat.err.not_found');
   if (m.includes('at most') && m.includes('together')) return t('chat.picker.max');
@@ -234,6 +234,8 @@ export default function ChatPage() {
     const target = ids.length === 1 ? { patch_id: ids[0] } : { patch_ids: ids };
     const request = sendChat({ ...target, mode: useMode, messages: history, thinking: useThinking });
     inflight.current = request;
+    // show the shared-model lock (held by this very request, or by someone ahead of it) right away instead of on the next 20 s poll
+    const lockPeek = setTimeout(() => { void refetch(); }, 800);
     try {
       const res = await request.unwrap();
       setQuota(res.remaining_quota);
@@ -246,9 +248,11 @@ export default function ChatPage() {
       const msg = mapChatError(err, t);
       patchTurns(pid, (prev) => prev.map((x) => (x.id === id ? { ...x, status: 'error', error: msg } : x)));
     } finally {
+      clearTimeout(lockPeek);
       if (inflight.current === request) inflight.current = null;
+      void refetch();   // lock released (or still queued) — refresh the banner without waiting for the poll
     }
-  }, [selectedIds, selectedList, selectionKey, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, t]);
+  }, [selectedIds, selectedList, selectionKey, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, refetch, t]);
 
   const cancel = useCallback(() => { inflight.current?.abort(); }, []);
   const retry = useCallback((turn: Turn) => { void send(turn.prompt, { mode: turn.mode, thinking: turn.thinking, replaceId: turn.id }); }, [send]);
