@@ -17,6 +17,24 @@ export const chat: Dict = {
   'chat.picker.not_scored_help': { ko: '검증 노드가 실제 모델에 넣어 채점하기 전입니다. 라이브 테스트로 직접 확인해 보세요.', en: 'Verifier nodes have not scored it on the real model yet. Try it live yourself.' },
   'chat.picker.selected': { ko: '선택됨', en: 'Selected' },
   'chat.picker.route_missing': { ko: '주소에 적힌 지식({id})은 이 노드에서 테스트할 수 없어 목록의 첫 번째 지식을 골랐습니다.', en: 'The knowledge in the address ({id}) cannot be tested on this node, so the first one in the list was chosen.' },
+  // multi-knowledge (spec §5.3 — kept in chat.ts because the picker owns them)
+  'chat.picker.multi_title': { ko: '넣을 지식 (최대 3개)', en: 'Knowledge to load (pick up to 3)' },
+  'chat.picker.multi_help': { ko: '체크한 순서대로 넣습니다. 겹치면 나중에 체크한 쪽이 이깁니다.', en: 'They load in the order you tick them. If two overlap, the one ticked last wins.' },
+  'chat.picker.overlap': { ko: '이 둘은 메모리 항목 {n}개가 겹칩니다.', en: 'These two overlap on {n} memory entries.' },
+  'chat.picker.overlap_pair': { ko: '{a}와(과) {b}: 메모리 항목 {n}개가 겹칩니다 — 나중에 체크한 {winner}이(가) 이깁니다.', en: '{a} and {b} overlap on {n} memory entries — {winner}, ticked last, wins.' },
+  'chat.picker.contaminated': { ko: '이 노드에는 {names}이(가) 항상 넣어져 있어 "넣기 전"에도 포함됩니다.', en: 'This node also has {names} loaded for everyone, so "Before loading" already includes it.' },
+  'chat.picker.mine': { ko: '내 수업', en: 'Your lessons' },
+  'chat.picker.max': { ko: '최대 3개까지입니다. 하나를 해제한 뒤 고르세요.', en: 'Up to 3 — untick one first.' },
+  'chat.picker.order': { ko: '{n}번째로 넣음', en: 'Loads {n}.' },
+  'chat.picker.order_help': { ko: '체크한 순서입니다. 같은 항목이 겹치면 번호가 큰 쪽이 이깁니다.', en: 'Tick order. Where entries overlap, the higher number wins.' },
+  'chat.picker.always_loaded': { ko: '항상 넣어져 있음', en: 'Always loaded' },
+  'chat.picker.pick_none': { ko: '모두 해제', en: 'Clear selection' },
+  'chat.picker.count': { ko: '{n}/3 선택', en: '{n}/3 selected' },
+  'chat.head.multi': { ko: '지식 {n}개 함께 넣음', en: '{n} knowledges loaded together' },
+  'chat.head.multi_help': { ko: '왼쪽 순서대로 넣습니다. 겹치는 항목은 마지막 지식이 이깁니다.', en: 'Loaded in the order on the left; the last one wins on overlapping entries.' },
+  'chat.bubble.patched_multi': { ko: '지식 {n}개 넣은 후', en: 'After loading {n}' },
+  'chat.hit.per_patch': { ko: '{id}의 검증 문제', en: 'benchmark item of {id}' },
+  'chat.samples.from': { ko: '{id}의 예시', en: 'from {id}' },
 
   // runtime / lock
   'chat.runtime.off': { ko: '지금은 모델 서버가 꺼져 있어 테스트할 수 없습니다.', en: 'The model server is off right now, so testing is unavailable.' },
@@ -27,7 +45,7 @@ export const chat: Dict = {
   'chat.time.m': { ko: '{n}분 전 시작', en: 'started {n}m ago' },
   'chat.time.h': { ko: '{n}시간 전 시작', en: 'started {n}h ago' },
   'chat.price_note': { ko: '{note}', en: '{note}' },
-  'chat.lock.help': { ko: '모델은 한 번에 하나의 지식만 넣었다 뺄 수 있어 테스트가 순서대로 실행됩니다.', en: 'The model loads and unloads one knowledge at a time, so tests run one after another.' },
+  'chat.lock.help': { ko: '공유 모델은 한 번에 하나의 테스트만 넣었다 뺄 수 있어 테스트가 순서대로 실행됩니다.', en: 'The shared model runs one test at a time, so tests queue up one after another.' },
 
   // quota
   'chat.quota.left': { ko: '이 시간 무료 체험 {n}회 남음', en: '{n} free tries left this hour' },
@@ -99,5 +117,5 @@ export const chat: Dict = {
 
   // developer note
   'chat.dev.title': { ko: '노드 운영자·개발자', en: 'Node operators & developers' },
-  'chat.dev.body': { ko: '이 화면은 노드의 POST /api/chat을 호출합니다. 요청마다 공유 모델 잠금 아래에서 [지식 빼기 → 넣기 전 답] → [지식 넣기 → 넣은 후 답] → 원상 복구 순으로 실행되며, 넣은 후 답변은 사용 기록(hit)으로 계량됩니다.', en: 'This page calls the node’s POST /api/chat. Each request runs under the shared runtime lock: [unload → base answer] → [load → patched answer] → restore, and every patched answer is metered as a usage hit.' },
+  'chat.dev.body': { ko: '이 화면은 노드의 POST /api/chat을 호출합니다(patch_id 또는 patch_ids[1..3]). 요청마다 공유 모델 잠금 아래에서 [지식 빼기 → 넣기 전 답] → [체크한 순서대로 넣기 → 넣은 후 답] → 역순으로 원상 복구 순으로 실행되며, 넣은 후 답변은 지식마다 하나씩 사용 기록(hit)으로 계량됩니다. 운영자가 항상 넣어 둔 지식은 GET /api/chat/patches의 applied[]에 나옵니다.', en: 'This page calls the node’s POST /api/chat (patch_id or patch_ids[1..3]). Each request runs under the shared runtime lock: [unload → base answer] → [load in tick order → patched answer] → restore in reverse, and every patched answer is metered as one usage hit per knowledge. Knowledge the operator keeps loaded is listed in GET /api/chat/patches applied[].' },
 };

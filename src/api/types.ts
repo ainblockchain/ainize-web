@@ -88,13 +88,31 @@ export interface DriveChangesResponse { path: string; doc_id: string | null; cha
 
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
 export interface ChatResult { content: string; reasoning?: string | null; usage?: Record<string, unknown>; latency_ms: number; model: string }
+export interface ChatApplied { patch_id: string; applied_ms: number | null; was_applied: boolean }
 export interface ChatResponse {
-  patch_id: string; mode: 'base' | 'patched' | 'compare'; base: ChatResult | null; patched: ChatResult | null;
-  applied_ms: number | null; was_applied: boolean; model: string | null; benchmark_hit?: boolean | null; remaining_quota: number | null;
+  /** first knowledge (kept for old clients); `patch_ids` lists every knowledge loaded, in load order */
+  patch_id: string; patch_ids?: string[]; mode: 'base' | 'patched' | 'compare'; base: ChatResult | null; patched: ChatResult | null;
+  /** sum over all loaded knowledges */
+  applied_ms: number | null; was_applied: boolean; model: string | null;
+  /** OR over `benchmark_hits` */
+  benchmark_hit?: boolean | null; applied?: ChatApplied[]; benchmark_hits?: Record<string, boolean | null>;
+  remaining_quota: number | null;
   /** Hourly free-trial limit for visitors (null/undefined = unlimited or not reported). */
   quota_limit?: number | null;
 }
-export interface ChatPatchesResponse { items: CatalogEntry[]; runtime: RuntimeStatus; lock: { owner: string; label: string; since: number } | null }
+/** Two testable knowledges that share `rows` memory entries (the one loaded last wins on those). */
+export interface ChatOverlap { a: string; b: string; rows: number }
+export interface ChatPatchesResponse {
+  items: CatalogEntry[]; runtime: RuntimeStatus; lock: { owner: string; label: string; since: number } | null;
+  /** knowledge the operator keeps loaded for everyone — it is part of every "before" answer (contamination banner) */
+  applied?: string[];
+  overlaps?: ChatOverlap[];
+  /** the caller's private lessons (only with a verified teach signature; filled by teach mode) */
+  lessons?: CatalogEntry[];
+  teacher?: string;
+}
+/** Body of POST /api/chat — exactly one of patch_id / patch_ids. */
+export interface ChatRequest { patch_id?: string; patch_ids?: string[]; mode?: 'base' | 'patched' | 'compare'; messages: ChatMessage[]; max_tokens?: number; thinking?: boolean }
 export interface Settings { notifications: 'all' | 'sales' | 'none'; display_name: string; payout_address: string }
 
 export interface OpenApiOperation { tags?: string[]; summary?: string; description?: string; parameters?: { name: string; in: string; required?: boolean; description?: string; schema?: { type?: string; enum?: string[]; default?: unknown } }[]; requestBody?: { content: Record<string, { schema: unknown }> }; responses?: Record<string, { description: string }>; security?: unknown[] }

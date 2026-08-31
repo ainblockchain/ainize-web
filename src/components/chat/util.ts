@@ -19,6 +19,21 @@ export function matchSample(entry: CatalogEntry | undefined, prompt: string): { 
   return entry.anchor.benchmark.samples?.find((x) => p.includes(x.prompt.trim()) || x.prompt.includes(p));
 }
 
+/** First matching sample across several selected knowledges (the node scores each one separately in benchmark_hits). */
+export function matchSampleAny(entries: CatalogEntry[], prompt: string): { prompt: string; expect: string; patch_id: string } | undefined {
+  for (const e of entries) { const s = matchSample(e, prompt); if (s) return { ...s, patch_id: e.anchor.id }; }
+  return undefined;
+}
+
+/** Up to 3 knowledges per live test (server limit, spec §6.3). */
+export const MAX_CHAT_PATCHES = 3;
+/** Route param `/chat/a,b,c` ↔ ordered id list (ids never contain a comma: slug = [a-z0-9._-]). */
+export const SEL_SEP = ',';
+export function parseSelection(param: string | undefined): string[] {
+  return [...new Set((param ?? '').split(SEL_SEP).map((s) => s.trim()).filter(Boolean))].slice(0, MAX_CHAT_PATCHES);
+}
+export function selectionPath(ids: string[]): string { return `/chat/${ids.map((id) => encodeURIComponent(id)).join(SEL_SEP)}`; }
+
 /** Client-side check identical to the node's: answer (whitespace removed) contains the expected string. */
 export function answerHits(content: string | undefined, expect: string | undefined): boolean | null {
   if (!content || !expect) return null;

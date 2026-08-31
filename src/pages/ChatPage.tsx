@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
-import { MAX_HISTORY, answerHits, matchSample, type ChatModeKind } from '@/components/chat/util';
+import { MAX_HISTORY, answerHits, matchSampleAny, parseSelection, selectionPath, MAX_CHAT_PATCHES, type ChatModeKind } from '@/components/chat/util';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -27,6 +27,11 @@ const MainHead = styled.div`
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 16px; background: #fff; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
   h2 { margin: 0; font-size: 15px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
   small { font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
+`;
+const HeadList = styled.ol`
+  display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 0; padding: 8px 16px 10px; list-style: none; background: #fff; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY};
+  li { display: inline-flex; align-items: center; gap: 6px; }
+  b { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: ${(p) => p.theme.color.PRIMARY}; color: #fff; font-size: 11px; }
 `;
 const Transcript = styled.div`
   flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px;
@@ -65,6 +70,7 @@ function mapChatError(err: unknown, t: Tr): string {
   if (m.includes('runtime unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not available') || m.includes('not responding')) return t('chat.err.runtime');
   if (m.includes('patch targets')) return t('chat.err.model');
   if (m.includes('patch not found')) return t('chat.err.not_found');
+  if (m.includes('at most') && m.includes('together')) return t('chat.picker.max');
   if (e?.status === 400) return t('chat.err.too_long');
   return t('chat.err.generic', { message: raw });
 }
@@ -98,8 +104,17 @@ export default function ChatPage() {
   const inflight = useRef<{ abort: () => void } | null>(null);
 
   const items = useMemo(() => data?.items ?? [], [data]);
-  const selected = useMemo(() => items.find((e) => e.anchor.id === patchId), [items, patchId]);
+  const lessons = useMemo(() => data?.lessons ?? [], [data]);
+  const pickable = useMemo(() => [...lessons, ...items], [lessons, items]);
+  /** Route `/chat/a,b,c` = ordered selection (tick order = load order). */
+  const routeIds = useMemo(() => parseSelection(patchId), [patchId]);
+  const selectedList = useMemo(() => routeIds.map((id) => pickable.find((e) => e.anchor.id === id)).filter((e): e is NonNullable<typeof e> => !!e), [routeIds, pickable]);
+  const selectedIds = useMemo(() => selectedList.map((e) => e.anchor.id), [selectedList]);
+  const selectionKey = selectedIds.join(',');
+  /** First selected knowledge — the one whose name heads the transcript and whose details link is shown alone. */
+  const selected = selectedList[0];
   const runtimeOff = !!data && !data.runtime.available;
+  const userCleared = useRef(false);
 
   const [mode, setMode] = useState<ChatModeKind>('compare');
   const [thinking, setThinking] = useState(false);
@@ -112,16 +127,22 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Preselect from the route; fall back to the first testable knowledge (and remember what the route asked for).
+  // Ids the route names but this node cannot test are dropped from the address (and reported once).
   useEffect(() => {
-    if (!data || selected || items.length === 0) return;
-    if (patchId) setMissingId(patchId);
-    navigate(`/chat/${encodeURIComponent(items[0].anchor.id)}`, { replace: true });
-  }, [data, selected, items, patchId, navigate]);
+    if (!data || items.length === 0) return;
+    const missing = routeIds.filter((id) => !selectedIds.includes(id));
+    if (missing.length > 0) {
+      setMissingId(missing.join(', '));
+      navigate(selectedIds.length ? selectionPath(selectedIds) : '/chat', { replace: true });
+      return;
+    }
+    if (selectedIds.length === 0 && !userCleared.current) navigate(selectionPath([items[0].anchor.id]), { replace: true });
+  }, [data, items, routeIds, selectedIds, navigate]);
 
   // Abort any in-flight request when leaving the page.
   useEffect(() => () => { inflight.current?.abort(); }, []);
 
-  const turns = useMemo(() => (selected ? transcripts[selected.anchor.id] ?? [] : []), [transcripts, selected]);
+  const turns = useMemo(() => (selectionKey ? transcripts[selectionKey] ?? [] : []), [transcripts, selectionKey]);
   const lastStatus = turns[turns.length - 1]?.status;
   useEffect(() => {
     const el = scrollRef.current;
@@ -133,18 +154,21 @@ export default function ChatPage() {
   }, []);
 
   const send = useCallback(async (text: string, opts?: { mode?: ChatModeKind; thinking?: boolean; replaceId?: string }) => {
-    if (!selected || busy || exhausted) return;
-    const pid = selected.anchor.id;
+    if (selectedIds.length === 0 || busy || exhausted) return;
+    const pid = selectionKey;
+    const ids = selectedIds;
     const useMode = opts?.mode ?? mode;
     const useThinking = opts?.thinking ?? thinking;
-    const sample = matchSample(selected, text);
+    const sample = matchSampleAny(selectedList, text);
     const id = newId();
     const prior = (transcripts[pid] ?? []).filter((x) => x.id !== opts?.replaceId);
     const history = buildHistory(prior, text);
 
-    const turn: Turn = { id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect };
+    const turn: Turn = { id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect, patchIds: ids };
     patchTurns(pid, (prev) => [...prev.filter((x) => x.id !== opts?.replaceId), turn]);
-    const request = sendChat({ patch_id: pid, mode: useMode, messages: history, thinking: useThinking });
+    // one knowledge → patch_id (works on every node); several → patch_ids (teach-mode nodes)
+    const target = ids.length === 1 ? { patch_id: ids[0] } : { patch_ids: ids };
+    const request = sendChat({ ...target, mode: useMode, messages: history, thinking: useThinking });
     inflight.current = request;
     try {
       const res = await request.unwrap();
@@ -160,11 +184,26 @@ export default function ChatPage() {
     } finally {
       if (inflight.current === request) inflight.current = null;
     }
-  }, [selected, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, t]);
+  }, [selectedIds, selectedList, selectionKey, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, t]);
 
   const cancel = useCallback(() => { inflight.current?.abort(); }, []);
   const retry = useCallback((turn: Turn) => { void send(turn.prompt, { mode: turn.mode, thinking: turn.thinking, replaceId: turn.id }); }, [send]);
-  const clear = useCallback(() => { if (selected) patchTurns(selected.anchor.id, () => []); }, [selected, patchTurns]);
+  const clear = useCallback(() => { if (selectionKey) patchTurns(selectionKey, () => []); }, [selectionKey, patchTurns]);
+  const toggle = useCallback((id: string) => {
+    setMissingId(null);
+    userCleared.current = false;
+    const next = selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : selectedIds.length >= MAX_CHAT_PATCHES ? selectedIds : [...selectedIds, id];
+    if (next.length === 0) userCleared.current = true;
+    navigate(next.length ? selectionPath(next) : '/chat');
+  }, [selectedIds, navigate]);
+  const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); navigate('/chat'); }, [navigate]);
+  /** Sample questions of every selected knowledge (deduplicated by prompt), in load order. */
+  const samples = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { prompt: string; expect: string }[] = [];
+    for (const e of selectedList) for (const s of e.anchor.benchmark.samples ?? []) { const k = s.prompt.trim(); if (!seen.has(k)) { seen.add(k); out.push(s); } }
+    return out;
+  }, [selectedList]);
 
   const quotaText = isSignedIn || quota === null
     ? t('chat.quota.operator')
@@ -172,8 +211,8 @@ export default function ChatPage() {
       : exhausted || quota <= 0 ? t('chat.quota.none')
         : quotaLimit ? t('chat.quota.left_of', { n: quota, limit: quotaLimit }) : t('chat.quota.left', { n: quota });
 
-  const composerDisabled = !selected || runtimeOff || (exhausted && !isSignedIn);
-  const disabledReason = !selected ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : exhausted && !isSignedIn ? t('chat.quota.none') : undefined;
+  const composerDisabled = selectedIds.length === 0 || runtimeOff || (exhausted && !isSignedIn);
+  const disabledReason = selectedIds.length === 0 ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : exhausted && !isSignedIn ? t('chat.quota.none') : undefined;
 
   return (
     <PageWrapper $wide>
@@ -195,11 +234,11 @@ export default function ChatPage() {
           {missingId && <Alert $tone="warning" style={{ marginTop: 16 }}>{t('chat.picker.route_missing', { id: missingId })}</Alert>}
           {exhausted && !isSignedIn && <Alert $tone="warning" style={{ marginTop: 16 }} role="status">{t('chat.quota.none')}</Alert>}
           <Grid>
-            <KnowledgePicker items={items} runtime={data.runtime} lock={data.lock} selectedId={selected?.anchor.id ?? null}
-              onSelect={(id) => { setMissingId(null); navigate(`/chat/${encodeURIComponent(id)}`); }} />
+            <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} selectedIds={selectedIds}
+              onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
 
             <Main aria-live="polite">
-              {selected && (
+              {selected && selectedList.length === 1 && (
                 <MainHead>
                   <h2>{selected.anchor.name}</h2>
                   <StatusChip status={selected.status} />
@@ -208,6 +247,24 @@ export default function ChatPage() {
                     <StyledLink to={`/${encodeURIComponent(selected.anchor.author)}/${encodeURIComponent(selected.anchor.id)}`}>{t('common.details')} →</StyledLink>
                   </small>
                 </MainHead>
+              )}
+              {selectedList.length > 1 && (
+                <>
+                  <MainHead>
+                    <h2 title={t('chat.head.multi_help')}>{t('chat.head.multi', { n: selectedList.length })}</h2>
+                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)) })}</small>
+                    <small style={{ marginLeft: 'auto' }}>{t('chat.head.multi_help')}</small>
+                  </MainHead>
+                  <HeadList aria-label={t('chat.head.multi', { n: selectedList.length })}>
+                    {selectedList.map((e, i) => (
+                      <li key={e.anchor.id}>
+                        <b>{i + 1}</b>
+                        <StyledLink to={`/${encodeURIComponent(e.anchor.author)}/${encodeURIComponent(e.anchor.id)}`} title={t('common.details')}>{e.anchor.name}</StyledLink>
+                        <StatusChip status={e.status} />
+                      </li>
+                    ))}
+                  </HeadList>
+                </>
               )}
               <Transcript ref={scrollRef}>
                 {turns.length === 0 ? (
@@ -223,7 +280,7 @@ export default function ChatPage() {
               <ChatComposer
                 disabled={composerDisabled} disabledReason={disabledReason} busy={busy}
                 mode={mode} onMode={setMode} thinking={thinking} onThinking={setThinking}
-                samples={selected?.anchor.benchmark.samples ?? []}
+                samples={samples}
                 onSend={(text) => { void send(text); }} onClear={clear} canClear={turns.length > 0}
                 footer={quotaText}
               />

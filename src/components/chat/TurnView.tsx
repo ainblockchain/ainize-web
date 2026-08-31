@@ -16,6 +16,8 @@ export interface Turn {
   /** Benchmark sample matched to this prompt (client-side), used to label ✓/✗ and the base bubble. */
   expect?: string;
   baseHit?: boolean | null;
+  /** Knowledge loaded for this turn, in load order (mirrors the request; the response repeats it as patch_ids). */
+  patchIds?: string[];
 }
 
 const Wrap = styled.article`display: flex; flex-direction: column; gap: 10px;`;
@@ -60,16 +62,32 @@ const Dots = styled.span`
   i:nth-child(2) { animation-delay: 0.15s; } i:nth-child(3) { animation-delay: 0.3s; }
 `;
 const PendingNote = styled.span`font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
+const LoadList = styled.ol`
+  margin: 0; padding: 0 0 0 18px; font-size: 11px; line-height: 1.5; color: ${(p) => p.theme.color.GREY}; font-variant-numeric: tabular-nums;
+  code { font-family: ${(p) => p.theme.font.mono}; color: ${(p) => p.theme.color.DARK_GREY}; }
+`;
+const HitRow = styled.div`display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11px; color: ${(p) => p.theme.color.GREY};`;
+const MiniHit = styled.span<{ $ok: boolean }>`
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 8px;
+  color: ${(p) => (p.$ok ? '#1e6b36' : '#a0102c')}; background: ${(p) => (p.$ok ? '#e6f4ea' : '#fde8ec')};
+  code { font-family: inherit; font-weight: 500; }
+`;
 const ErrRow = styled.div`display: flex; flex-direction: column; gap: 8px; align-items: flex-start;`;
 
 function AnswerBubble({ kind, result, turn, hit }: { kind: 'base' | 'patched'; result: ChatResult | null | undefined; turn: Turn; hit: boolean | null | undefined }) {
   const { t, help, locale } = useT();
   const pending = turn.status === 'pending';
   const applied = kind === 'patched' && turn.response ? turn.response.applied_ms : null;
+  const ids = turn.response?.patch_ids?.length ? turn.response.patch_ids : turn.patchIds ?? [];
+  const multi = ids.length > 1;
+  const perPatch = multi ? turn.response?.applied ?? [] : [];
+  const hits = multi ? turn.response?.benchmark_hits ?? {} : {};
+  const scored = Object.entries(hits).filter(([, h]) => h === true || h === false) as [string, boolean][];
+  const patchedLabel = multi ? t('chat.bubble.patched_multi', { n: ids.length }) : t('chat.bubble.patched');
   return (
     <Bubble $kind={kind} aria-busy={pending}>
       <BubbleHead>
-        <Label $kind={kind} title={kind === 'patched' ? t('chat.bubble.patched_help') : t('chat.bubble.base_help')}>{kind === 'patched' ? t('chat.bubble.patched') : t('chat.bubble.base')}</Label>
+        <Label $kind={kind} title={kind === 'patched' ? t('chat.bubble.patched_help') : t('chat.bubble.base_help')}>{kind === 'patched' ? patchedLabel : t('chat.bubble.base')}</Label>
         {result && <Meta>{t('chat.bubble.latency', { ms: fmtMs(result.latency_ms, locale) })}</Meta>}
         {kind === 'patched' && turn.response && (applied !== null
           ? <Meta title={help('apply')}>· {t('chat.bubble.applied', { ms: fmtMs(applied, locale) })}</Meta>
@@ -78,6 +96,22 @@ function AnswerBubble({ kind, result, turn, hit }: { kind: 'base' | 'patched'; r
           ? <Hit $ok={hit} title={t('chat.hit.help', { expect: turn.expect ?? '' })}>{hit ? '✓' : '✗'} {hit ? t('chat.hit.yes') : t('chat.hit.no')}</Hit>
           : <Unknown>{t('chat.hit.unknown')}</Unknown>)}
       </BubbleHead>
+      {kind === 'patched' && !pending && perPatch.length > 0 && (
+        <LoadList title={t('chat.head.multi_help')}>
+          {perPatch.map((x) => (
+            <li key={x.patch_id}>
+              <code>{x.patch_id}</code>: {x.applied_ms !== null ? t('chat.bubble.applied', { ms: fmtMs(x.applied_ms, locale) }) : x.was_applied ? t('chat.bubble.already_applied') : '—'}
+            </li>
+          ))}
+        </LoadList>
+      )}
+      {kind === 'patched' && !pending && scored.length > 0 && (
+        <HitRow>
+          {scored.map(([id, ok]) => (
+            <MiniHit key={id} $ok={ok} title={t('chat.hit.per_patch', { id })}><code>{id}</code> {ok ? '✓' : '✗'} {ok ? t('chat.hit.yes') : t('chat.hit.no')}</MiniHit>
+          ))}
+        </HitRow>
+      )}
       {pending ? (
         <>
           <Dots aria-label={t('chat.bubble.thinking_pending')}><i /><i /><i /></Dots>
