@@ -77,3 +77,12 @@ export interface DriveResponse {
 }
 export interface DriveChange { seq: number; digest: string; created_at: number; kind: 'update' | 'snapshot'; bytes: number; text?: string | null; }
 export interface DriveChangesResponse { path: string; doc_id: string | null; changes: DriveChange[]; current: string | null; }
+
+export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
+export interface ChatResult { content: string; reasoning?: string | null; usage?: Record<string, unknown>; latency_ms: number; model: string }
+export interface ChatResponse {
+  patch_id: string; mode: 'base' | 'patched' | 'compare'; base: ChatResult | null; patched: ChatResult | null;
+  applied_ms: number | null; was_applied: boolean; model: string | null; benchmark_hit?: boolean | null; remaining_quota: number | null;
+}
+export interface ChatPatchesResponse { items: CatalogEntry[]; runtime: RuntimeStatus; lock: { owner: string; label: string; since: number } | null }
+export interface Settings { notifications: 'all' | 'sales' | 'none'; display_name: string; payout_address: string }

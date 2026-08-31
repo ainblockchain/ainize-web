@@ -6,6 +6,7 @@ import { store } from './store';
 import { theme } from './theme/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { AuthProvider } from './auth/AuthContext';
+import { LocaleProvider } from './i18n';
 import { FullScreenLayout, Layout, SigningCheckLayout } from './components/base/Layout';
 import { CenterProgress } from './components/ui/Misc';
 
@@ -25,6 +26,7 @@ const LogsPage = lazy(() => import('./pages/LogsPage'));
 const NewPatchPage = lazy(() => import('./pages/NewPatchPage'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
 const DrivePage = lazy(() => import('./pages/DrivePage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
 
 const fallback = <CenterProgress />;
 
@@ -33,6 +35,7 @@ export default function App() {
     <Provider store={store}>
       <ThemeProvider theme={theme}>
         <GlobalStyle />
+        <LocaleProvider>
         <AuthProvider>
           <BrowserRouter>
             <Suspense fallback={fallback}>
@@ -46,6 +49,8 @@ export default function App() {
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />
                 <Route path="/terms" element={<Layout><TermsPage /></Layout>} />
                 <Route path="/signing" element={<Layout><SigningPage /></Layout>} />
+                <Route path="/chat" element={<Layout><ChatPage /></Layout>} />
+                <Route path="/chat/:patchId" element={<Layout><ChatPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />
                 <Route path="/:author/:patchId" element={<Layout><PatchPage /></Layout>} />
@@ -64,6 +69,7 @@ export default function App() {
             </Suspense>
           </BrowserRouter>
         </AuthProvider>
+        </LocaleProvider>
       </ThemeProvider>
     </Provider>
   );

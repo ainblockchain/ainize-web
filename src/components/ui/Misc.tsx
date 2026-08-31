@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import { STATUS_META } from '@/theme/theme';
+import { useT } from '@/i18n';
 import { ArrowLeftIcon, ArrowRightIcon, CertifiedIcon } from './Icons';
 
 // ------------------------------------------------------------------ page scaffolding
@@ -71,8 +72,11 @@ const Dot = styled.span<{ $color: string; $pulse?: boolean }>`
 `;
 
 export function StatusChip({ status, title }: { status: string; title?: string }) {
+  const { t, help } = useT();
   const m = STATUS_META[status] ?? { label: status, color: '#8d8d8f', bg: '#f2f2f2', hint: '' };
-  return (<Chip $color={m.color} $bg={m.bg} title={title ?? m.hint}><Dot $color={m.color} $pulse={status === 'VERIFYING' || status === 'ANNOUNCED'} />{m.label}</Chip>);
+  const label = t(`status.${status}`) === `status.${status}` ? m.label : t(`status.${status}`);
+  const hint = status === 'LISTED' ? help('verified') : status === 'VERIFYING' || status === 'ANNOUNCED' ? help('verifying') : status === 'SUPERSEDED' ? help('superseded') : m.hint;
+  return (<Chip $color={m.color} $bg={m.bg} title={title ?? hint}><Dot $color={m.color} $pulse={status === 'VERIFYING' || status === 'ANNOUNCED'} />{label}</Chip>);
 }
 
 export function Certified({ label = 'Verified' }: { label?: string }) {

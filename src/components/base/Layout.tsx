@@ -6,6 +6,7 @@ import { Banner } from '@/components/ui/Banner';
 import { Footer } from '@/components/ui/Footer';
 import { Header } from '@/components/ui/Header';
 import { CenterProgress } from '@/components/ui/Misc';
+import { useT } from '@/i18n';
 
 /** ainize-web base/Layout.js: header + centered content column + footer. */
 const Wrapper = styled.div`
@@ -23,11 +24,12 @@ export function ScrollToTop() {
 
 export function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const { t } = useT();
   return (
     <Wrapper>
       <ScrollToTop />
       {pathname === '/dashboard' && (
-        <Banner title="Knowledge patches are P2P now — run your own node" buttonTitle="Node setup guide" buttonHref="/network" secondaryTitle="What's new" secondaryHref="https://github.com/ainblockchain/ain-js" />
+        <Banner title={t('banner.p2p')} buttonTitle={t('banner.guide')} buttonHref="/network" secondaryTitle={t('banner.new')} secondaryHref="https://github.com/ainblockchain/ain-js" />
       )}
       <Header />
       <Content>{children}</Content>

@@ -6,6 +6,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
   AuthMe, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
+  ChatMessage, ChatPatchesResponse, ChatResponse, Settings,
 } from './types';
 
 export interface CatalogQuery {
@@ -24,7 +25,7 @@ const toQuery = (params: Record<string, unknown>) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({ baseUrl: '/', credentials: 'include' }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
@@ -71,6 +72,13 @@ export const api = createApi({
     removePeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'DELETE', body }), invalidatesTags: ['Nodes', 'Info'] }),
     chainSetup: b.mutation<unknown, void>({ query: () => ({ url: 'api/chain/setup', method: 'POST' }), invalidatesTags: ['Info', 'Ledger'] }),
     driveAction: b.mutation<unknown, { action: 'up' | 'stop' | 'sync' | 'login'; server?: string }>({ query: (body) => ({ url: 'api/drive', method: 'POST', body }), invalidatesTags: ['Drive'] }),
+
+    // ChatMode (live test)
+    chatPatches: b.query<ChatPatchesResponse, void>({ query: () => 'api/chat/patches', providesTags: ['Chat', 'Catalog', 'Runtime'] }),
+    chat: b.mutation<ChatResponse, { patch_id: string; mode?: 'base' | 'patched' | 'compare'; messages: ChatMessage[]; max_tokens?: number; thinking?: boolean }>({ query: (body) => ({ url: 'api/chat', method: 'POST', body }), invalidatesTags: ['Events'] }),
+    // operator settings (persisted on the node)
+    settings: b.query<{ settings: Settings }, void>({ query: () => 'api/me/settings', providesTags: ['Settings'] }),
+    updateSettings: b.mutation<{ settings: Settings }, Partial<Settings>>({ query: (body) => ({ url: 'api/me/settings', method: 'PATCH', body }), invalidatesTags: ['Settings', 'Me', 'Info'] }),
   }),
 });
 
@@ -81,6 +89,7 @@ export const {
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
+  useChatPatchesQuery, useChatMutation, useSettingsQuery, useUpdateSettingsMutation,
 } = api;
 
 /** Extract a human message from an RTK Query error. */

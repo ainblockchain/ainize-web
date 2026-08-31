@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import styled from 'styled-components';
+import { useT } from '@/i18n';
 
 /** Ported from ainize-web Footer.js — dark purple bar, 62px. */
 const Wrapper = styled.footer`
@@ -15,14 +16,15 @@ const ALink = styled.a`font-size: 12px; color: #ffffff; text-decoration: none; &
 
 export function Footer() {
   const year = new Date().getFullYear();
+  const { t } = useT();
   return (
     <Wrapper>
       <Content>
-        <Copyright>ⓒ {year} Common Computer Inc. · Knowledge Market node</Copyright>
-        <FLink to="/terms">Terms and Policies</FLink>
+        <Copyright>{t('footer.copyright', { year })}</Copyright>
+        <FLink to="/terms">{t('footer.terms')}</FLink>
         <ALink href="https://github.com/ainblockchain/ain-js" target="_blank" rel="noopener noreferrer">ain-js</ALink>
         <ALink href="https://github.com/ainetwork-ai/aindrive" target="_blank" rel="noopener noreferrer">aindrive</ALink>
-        <ALink href="mailto:support@ainize.ai?subject=[Knowledge Market] ">Contact Us</ALink>
+        <ALink href="mailto:support@ainize.ai?subject=[Ainize] ">{t('footer.contact')}</ALink>
       </Content>
     </Wrapper>
   );
