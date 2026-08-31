@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
-import { useLogoutMutation, useInfoQuery } from '@/api/api';
+import { useInfoQuery } from '@/api/api';
 import { useLocale, useT } from '@/i18n';
 import { shortAddr } from '@/utils/format';
 
@@ -59,9 +59,8 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, name, address, refresh } = useAuth();
+  const { isSignedIn, name, address, signOut } = useAuth();
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
-  const [logout] = useLogoutMutation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -96,11 +95,10 @@ export function Header() {
                 <MenuInfo title={address ?? ''}>{shortAddr(address, 8)}</MenuInfo>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/account'); }}>{t('nav.account')}</MenuItem>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/drive'); }}>{t('nav.files')}</MenuItem>
-                <MenuItem role="menuitem" onClick={async () => {
+                <MenuItem role="menuitem" onClick={() => {
                   setOpen(false);
-                  // Wait until /api/auth/me reports signed-out before moving, otherwise the landing guard still sees the stale session and bounces to /dashboard → /signing.
-                  try { await logout().unwrap(); } catch { /* cookie may already be gone */ }
-                  await refresh();
+                  // signOut() flips isSignedIn to false synchronously and navigate('/') lands in the same render, so neither the landing guard (→ /dashboard) nor the dashboard guard (→ /signing) fires.
+                  void signOut();
                   navigate('/');
                 }}>{t('nav.logout')}</MenuItem>
               </Menu>
