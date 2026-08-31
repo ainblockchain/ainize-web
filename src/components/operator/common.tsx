@@ -136,21 +136,5 @@ export function useMoney() {
   return { unit, fmt, note };
 }
 
-/** Locale-aware "n minutes ago" (utils/format.elapsed is English-only). */
-export function useElapsed() {
-  const { t } = useT();
-  return (ts?: number | null): string => {
-    if (!ts) return '—';
-    const s = Math.floor(Math.max(0, Date.now() - ts) / 1000);
-    if (s < 60) return t('op.time.s', { n: s });
-    const m = Math.floor(s / 60);
-    if (m < 60) return t('op.time.m', { n: m });
-    const h = Math.floor(m / 60);
-    if (h < 24) return t('op.time.h', { n: h });
-    const d = Math.floor(h / 24);
-    if (d < 30) return t('op.time.d', { n: d });
-    const mo = Math.floor(d / 30);
-    if (mo < 12) return t('op.time.mo', { n: mo });
-    return t('op.time.y', { n: Math.floor(mo / 12) });
-  };
-}
+/** Locale-aware "n minutes ago" — shared implementation lives in utils/useFormat (also used by the visitor teach UI). */
+export { useElapsed } from '@/utils/useFormat';

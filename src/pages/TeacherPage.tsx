@@ -6,7 +6,8 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, Empty, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { currentTeacherKey, isAddress, shortKey } from '@/lib/teacherKey';
-import { dateTime, elapsed, num, shortAddr, shortHash } from '@/utils/format';
+import { num, shortAddr, shortHash } from '@/utils/format';
+import { useDateTime, useElapsed } from '@/utils/useFormat';
 
 const Stats = styled.div`margin-top: 16px; display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};`;
 const Stat = styled.div<{ $tone?: string }>`
@@ -21,6 +22,8 @@ const Pay = styled.span<{ $s: string }>`font-weight: 600; color: ${(p) => (p.$s 
 export default function TeacherPage() {
   const { address = '' } = useParams<{ address: string }>();
   const { t } = useT();
+  const elapsed = useElapsed();
+  const dateTime = useDateTime();
   const valid = isAddress(address);
   const { data, error, isLoading } = useTeacherQuery(address, { skip: !valid, pollingInterval: 15_000 });
   const mine = currentTeacherKey()?.address.toLowerCase() === address.toLowerCase();
@@ -49,7 +52,7 @@ export default function TeacherPage() {
         <Stat><b>{e.paid} {cur}</b><span>{t('teacher.paid')}</span></Stat>
         <Stat $tone={Number(e.pending) > 0 ? 'warn' : undefined}><b>{e.pending} {cur}</b><span>{t('teacher.pending')}</span></Stat>
         {Number(e.failed) > 0 && <Stat $tone="bad"><b>{e.failed} {cur}</b><span>{t('teacher.failed')}</span></Stat>}
-        <Stat><b>{num(e.sales)}</b><span>{t('teacher.sales', { n: e.sales })}</span></Stat>
+        <Stat><b>{num(e.sales)}</b><span>{t('teacher.sales')}</span></Stat>
       </Stats>
       <Description style={{ marginTop: 8 }}>{t('teach.mine.pending_hint')}</Description>
 
@@ -86,7 +89,7 @@ export default function TeacherPage() {
                   <TableData $align="left">
                     <Pay $s={it.status}>{it.status === 'paid' ? t('teacher.item.paid') : it.status === 'failed' ? t('teacher.item.failed', { seller: shortAddr(it.seller, 6) }) : t('teacher.item.pending')}</Pay>
                     <div style={{ fontSize: 11, color: '#8d8d8f' }}>
-                      {it.tx_hash ? t('teacher.item.tx', { tx: shortHash(it.tx_hash, 14) }) : it.attempts !== undefined ? t('teacher.item.attempts', { n: it.attempts }) : it.status === 'pending' && it.scheme !== 'local-credit' ? t('teacher.item.other_node', { seller: shortAddr(it.seller, 6), hash: shortHash(it.settle_hash, 12) }) : it.scheme}
+                      {it.tx_hash ? t('teacher.item.tx', { tx: shortHash(it.tx_hash, 14) }) : it.attempts !== undefined ? t('teacher.item.attempts', { n: it.attempts }) : it.status === 'pending' && it.scheme !== 'local-credit' ? t('teacher.item.other_node', { seller: shortAddr(it.seller, 6), hash: shortHash(it.settle_hash, 12) }) : it.scheme === 'local-credit' ? t('teacher.item.scheme_local') : it.scheme === 'ain-transfer' ? t('teacher.item.scheme_ain') : ''}
                     </div>
                   </TableData>
                   <TableData $align="right" $padding="0 16px 0 8px" title={dateTime(it.created_at)}>{elapsed(it.created_at)}</TableData>

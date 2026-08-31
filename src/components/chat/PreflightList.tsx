@@ -83,7 +83,7 @@ export function PreflightSheet({ patchIds, basket, policy, contributorName, onQu
   return (
     <Sheet title={t('teach.pre.title')} sub={t('teach.pre.running')} onClose={onClose} width={620} testId="preflight-sheet">
       {isLoading && <Spinner label={t('teach.pre.title')} />}
-      {!!error && <Alert $tone="error" role="alert">{mapTeachError(error, t)} <Button size="small" onClick={run} style={{ marginLeft: 8 }}>{t('teach.pre.retry')}</Button></Alert>}
+      {!!error && <Alert $tone="error" role="alert">{mapTeachError(error, t, { stage: 'preflight' })} <Button size="small" onClick={run} style={{ marginLeft: 8 }}>{t('teach.pre.retry')}</Button></Alert>}
       {data && <PreflightList facts={basket.facts} result={data} />}
       {data && trainable.length === 0 && <Alert $tone="info" role="status" data-testid="preflight-none">{t('teach.pre.none')}</Alert>}
       {queueError && <Alert $tone="error" role="alert">{queueError}</Alert>}

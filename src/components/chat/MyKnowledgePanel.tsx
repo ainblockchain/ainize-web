@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { Mono, StyledLink } from '@/components/ui/Misc';
 import { forgetTeacherKey, shortKey, teacherKeyBackup, teacherKeyBackupName, type TeacherKey } from '@/lib/teacherKey';
-import { elapsed } from '@/utils/format';
+import { useElapsed } from '@/utils/useFormat';
 import { KeyImport } from './CreditSheet';
 import { Sheet, SheetNote } from './Sheet';
 import { downloadText, mapTeachError, mineStatusKey } from './teachUtil';
@@ -44,6 +44,7 @@ export interface MyKnowledgePanelProps {
 /** §5.11 — lessons with state, earnings, key backup / restore / forget (/chat?mine=1). */
 export function MyKnowledgePanel({ teacherKey, lessonEntries, onOpenLesson, onKeyChanged, onClose }: MyKnowledgePanelProps) {
   const { t } = useT();
+  const elapsed = useElapsed();
   const [restoring, setRestoring] = useState(false);
   const { data, error, isLoading } = useMyTeachJobsQuery(undefined, { skip: !teacherKey, pollingInterval: 10_000 });
   const { data: profile } = useTeacherQuery(teacherKey?.address ?? '', { skip: !teacherKey, pollingInterval: 30_000 });

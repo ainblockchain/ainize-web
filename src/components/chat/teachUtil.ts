@@ -8,10 +8,12 @@ import type { CatalogEntry, TeachJob, TeachJobPublic, TeachPolicy } from '@/api/
 type Tr = (key: string, vars?: Record<string, string | number>) => string;
 
 /** Same style as mapChatError: machine-readable code = message prefix (spec §5.14), transport errors get their own line. */
-export function mapTeachError(err: unknown, t: Tr): string {
+export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } = {}): string {
   const e = err as { status?: number | string; name?: string } | undefined;
   const raw = errorMessage(err);
   const m = raw.toLowerCase();
+  /** at pre-flight no lesson exists yet, so "the lesson will continue automatically" would be untrue */
+  const runtimeKey = ctx.stage === 'preflight' ? 'teach.pre.err_runtime' : 'teach.err.runtime';
   if (e?.status === 'FETCH_ERROR') return t('teach.err.network');
   const code = /^([a-z_]+)\s*:/.exec(m)?.[1] ?? '';
   switch (code) {
@@ -33,8 +35,35 @@ export function mapTeachError(err: unknown, t: Tr): string {
   }
   if (e?.status === 429 || m.includes('quota')) return t('teach.err.quota');
   if (m.includes('runtime busy') || m.includes('shared runtime busy')) return t('teach.err.busy');
-  if (m.includes('runtime unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not responding') || (e?.status === 503 && m.includes('model server'))) return t('teach.err.runtime');
+  if (m.includes('runtime unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not responding') || (e?.status === 503 && m.includes('model server'))) return t(runtimeKey);
   return t('teach.err.generic', { message: raw });
+}
+
+/** Visitor-facing sentence for a FAILED lesson (the raw trainer error stays behind a "technical details" disclosure). */
+export function failedKey(error: string | undefined): string {
+  const e = (error ?? '').toLowerCase();
+  if (/^already_known/.test(e)) return 'teach.card.failed_known';
+  if (e.includes('node restarted') || e.includes('node stopping')) return 'teach.card.failed_restart';
+  if (e.includes('out of memory') || e.includes('outofmemoryerror') || e.includes('cuda oom')) return 'teach.card.failed_memory';
+  return 'teach.card.failed';
+}
+
+/** Lesson-card status pill (§3: never a raw enum in the UI). Same vocabulary as the Your-knowledge panel. */
+export function cardStatusKey(status: string, publishStatus?: string): string {
+  switch (status) {
+    case 'QUEUED': case 'PREFLIGHT': return 'teach.mine.status.queued';
+    case 'LOADING': case 'TRAINING': return 'teach.mine.status.training';
+    case 'EXPORTED': case 'CHECKING': return 'teach.mine.status.checking';
+    case 'READY': return 'teach.mine.status.ready';
+    case 'NEEDS_MORE': return 'teach.mine.status.needs_more';
+    case 'PENDING_REVIEW': return 'teach.mine.status.review';
+    case 'ANNOUNCED': return publishStatus === 'listed' ? 'teach.mine.status.on_sale' : 'teach.mine.status.verifying';
+    case 'REJECTED': return 'teach.mine.status.declined';
+    case 'FAILED': return 'teach.mine.status.failed';
+    case 'EXPIRED': return 'teach.mine.status.expired';
+    case 'CANCELLED': return 'teach.mine.status.cancelled';
+    default: return 'teach.mine.status.training';
+  }
 }
 
 export function isFullJob(j: TeachJob | TeachJobPublic | undefined): j is TeachJob { return !!j && 'facts' in j; }
@@ -65,11 +94,26 @@ export function policyLine(policy: TeachPolicy | undefined, t: Tr): { text: stri
   if (!policy) return { text: '', ok: false };
   if (!policy.enabled) return { text: t('teach.basket.policy_off'), ok: false };
   if (policy.trainer === 'paused') return { text: t('teach.basket.policy_paused', { reason: policy.paused_reason ?? '' }).trim(), ok: false };
+  // §8.4: only measured p50/p90 from ≥ 3 samples; never "1–1 min" — equal minutes collapse to "about N min", sub-minute lessons say so.
   if (policy.timing.samples >= 3 && policy.timing.p50_s !== null) {
-    const min = (s: number | null) => Math.max(1, Math.round((s ?? 0) / 60));
-    return { text: t('teach.basket.policy_open', { q: policy.queue.depth, p50: min(policy.timing.p50_s), p90: min(policy.timing.p90_s ?? policy.timing.p50_s) }), ok: true };
+    const p50s = policy.timing.p50_s;
+    const p90s = policy.timing.p90_s ?? p50s;
+    const q = policy.queue.depth;
+    if (p90s < 60) return { text: t('teach.basket.policy_open_fast', { q }), ok: true };
+    const min = (s: number) => Math.max(1, Math.round(s / 60));
+    const p50 = min(p50s);
+    const p90 = min(p90s);
+    if (p50 === p90) return { text: t('teach.basket.policy_open_about', { q, p50 }), ok: true };
+    return { text: t('teach.basket.policy_open', { q, p50, p90 }), ok: true };
   }
   return { text: t('teach.basket.policy_untimed'), ok: true };
+}
+
+/** QUEUED-card ETA under the same §8.4 rule (the node may send eta_s from fewer samples). */
+export function etaText(etaS: number | null | undefined, policy: TeachPolicy | undefined, t: Tr): string | null {
+  if (!etaS || !policy || policy.timing.samples < 3) return null;
+  if (etaS < 90) return t('teach.card.eta_soon');
+  return t('teach.card.eta', { min: Math.max(1, Math.round(etaS / 60)) });
 }
 
 /** Save a text blob from the browser (key backup, copied commands). */
@@ -83,13 +127,17 @@ export function downloadText(filename: string, text: string, type = 'application
   } catch { /* ignore */ }
 }
 
-/** Naive "suggest phrasings" (v1: templates; model-generated phrasings are a follow-up). */
+/**
+ * Naive "suggest phrasings" (v1: templates; model-generated phrasings are a follow-up).
+ * Korean templates wrap the whole question instead of appending a verb to it: a stem that already ends in a particle
+ * or a request ("…종목코드는", "…알려줘") stays grammatical, whereas "…종목코드는 알려줘." did not.
+ */
 export function suggestPhrasings(question: string, locale: 'ko' | 'en'): string[] {
-  const q = question.trim().replace(/[?？.。!]+$/, '');
+  const q = question.trim().replace(/[\s?？.。!！]+$/, '');
   if (!q) return [];
   const hasKorean = /[ㄱ-힝]/.test(q);
   const out = (hasKorean || locale === 'ko')
-    ? [`${q} 알려줘.`, `${q} 숫자나 이름만 답해줘.`, `질문: ${q}? 답:`]
+    ? [`질문: ${q}? 답:`, `다음 질문에 짧게 답해줘: ${q}?`, `다음 질문에 숫자나 이름만으로 답해줘: ${q}?`]
     : [`Tell me: ${q}?`, `Answer briefly: ${q}?`, `Question: ${q}? Answer:`];
   return out.filter((s) => s.trim() !== question.trim());
 }

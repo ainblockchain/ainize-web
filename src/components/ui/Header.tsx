@@ -11,27 +11,40 @@ const Wrapper = styled.header`
   width: 100%; display: flex; flex-direction: column; align-items: center;
   box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.1); background-color: #ffffff; z-index: 5; position: relative;
 `;
+/**
+ * Desktop: one 81 px row (logo left, nav right). Phones (≤ breakpoint.sm): the nav wraps under the logo and its items
+ * wrap onto as many lines as they need, so the page is never wider than the viewport (the review measured a 607–927 px
+ * layout viewport at 360 px before this).
+ */
 const Content = styled.div`
-  width: calc(100% - 32px); height: 81px; display: flex; flex-direction: row; align-items: center;
+  width: calc(100% - 32px); min-height: 81px; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap;
   @media (min-width: ${(p) => p.theme.layout.maxWidth}) { width: ${(p) => p.theme.layout.maxWidth}; }
 `;
-const Home = styled(Link)`flex: 1; text-decoration: none; display: flex; align-items: center; gap: 10px;`;
+const Home = styled(Link)`
+  flex: 1; min-width: 0; text-decoration: none; display: flex; align-items: center; gap: 10px;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 0 100%; padding: 12px 0 2px; }
+`;
 const Logo = styled.img`width: 121px; object-fit: contain;`;
-const Nav = styled.nav`display: flex; flex-direction: row; align-items: center;`;
+const Nav = styled.nav`
+  display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; min-width: 0;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 0 100%; justify-content: flex-start; padding: 0 0 8px; margin-left: -8px; }
+`;
+const navItemCss = `display: flex; align-items: center; height: 100%; padding: 16px 16px; font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap;`;
 const NavItem = styled(NavLink)`
-  display: flex; align-items: center; height: 100%; padding: 16px 16px; font-size: 16px; font-weight: 500; color: ${(p) => p.theme.color.BLACK}; text-decoration: none; white-space: nowrap;
+  ${navItemCss} color: ${(p) => p.theme.color.BLACK};
   &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; }
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 16px 8px; font-size: 14px; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
 /** Same look as NavItem but never "active" (it points at /chat?teach=1, which would otherwise light up together with Live test). */
 const NavPlain = styled(Link)`
-  display: flex; align-items: center; height: 100%; padding: 16px 16px; font-size: 16px; font-weight: 500; color: ${(p) => p.theme.color.BLACK}; text-decoration: none; white-space: nowrap;
+  ${navItemCss} color: ${(p) => p.theme.color.BLACK};
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 16px 8px; font-size: 14px; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
 const UserMenuButton = styled.button`
   padding: 16px 12px 16px 20px; border: 0; background: transparent; font-size: 16px; color: ${(p) => p.theme.color.BLACK}; cursor: pointer; white-space: nowrap;
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
 const Menu = styled.div<{ $open: boolean }>`
   position: absolute; right: 0; top: 100%; min-width: 220px; padding: 4px; background: #fff; border-radius: 4px;

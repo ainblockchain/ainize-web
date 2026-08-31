@@ -45,10 +45,11 @@ const HeadList = styled.ol`
   b { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: ${(p) => p.theme.color.PRIMARY}; color: #fff; font-size: 11px; }
 `;
 const Transcript = styled.div`
-  flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px;
+  flex: 1; min-height: 200px; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px;
 `;
+/** centred in whatever space the lesson card (first block of the transcript) leaves; never hidden under it */
 const EmptyState = styled.div`
-  margin: auto; max-width: 48ch; text-align: center; color: ${(p) => p.theme.color.GREY}; font-size: 14px; line-height: 1.6;
+  margin: auto; padding: 24px 0; max-width: 48ch; text-align: center; color: ${(p) => p.theme.color.GREY}; font-size: 14px; line-height: 1.6;
   b { display: block; color: ${(p) => p.theme.color.BLACK}; font-size: 16px; margin-bottom: 6px; }
 `;
 const ModelChip = styled.span`
@@ -170,6 +171,15 @@ export default function ChatPage() {
   useEffect(() => { setBasket(loadBasket(selectedIds)); }, [selectionKey]);   // eslint-disable-line react-hooks/exhaustive-deps
   const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(selectedIds, next); return next; }); }, [selectedIds]);
   const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || loadBasket(parseSelection(patchId)).facts.length > 0);
+  /** the basket panel — scrolled into view on ?teach=1 and after "Add to lesson" so the visitor sees where the correction went */
+  const basketRef = useRef<HTMLDivElement>(null);
+  const [basketNudge, setBasketNudge] = useState(0);
+  useEffect(() => {
+    if (!basketNudge || !basketRef.current) return;
+    const el = basketRef.current;
+    const r = el.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [basketNudge]);
   const [drawer, setDrawer] = useState<{ question: string; answer: string } | null>(null);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [sheetJob, setSheetJob] = useState<TeachJob | null>(null);
@@ -177,7 +187,7 @@ export default function ChatPage() {
   const [cardHidden, setCardHidden] = useState(false);
   const [bannerOff, setBannerOff] = useState<boolean>(() => bannerDismissed());
   useEffect(() => { if (lessonParam) { setCardJobId(lessonParam); setCardHidden(false); } }, [lessonParam]);
-  useEffect(() => { if (teachParam) setBasketOpen(true); }, [teachParam]);
+  useEffect(() => { if (teachParam && policy) { setBasketOpen(true); setBasketNudge((n) => n + 1); } }, [teachParam, !!policy]);   // eslint-disable-line react-hooks/exhaustive-deps
   const showBanner = teachOn && (teachParam || !bannerOff);
 
   // Preselect from the route; fall back to the first testable knowledge (and remember what the route asked for).
@@ -265,7 +275,7 @@ export default function ChatPage() {
   const onTeach = useCallback((turn: Turn, answer: string) => { setDrawer({ question: turn.prompt, answer }); }, []);
   const addCorrection = useCallback((c: { prompt: string; answer: string; alt_prompt?: string; model_answer?: string }) => {
     updateBasket((b) => (b.facts.length >= MAX_FACTS ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
-    setDrawer(null); setBasketOpen(true);
+    setDrawer(null); setBasketOpen(true); setBasketNudge((n) => n + 1);
   }, [updateBasket]);
   const onTrain = useCallback(() => { setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey]);
   const onQueued = useCallback((job: TeachJob) => {
@@ -296,7 +306,9 @@ export default function ChatPage() {
 
   const composerDisabled = selectedIds.length === 0 || runtimeOff || (exhausted && !isSignedIn);
   const disabledReason = selectedIds.length === 0 ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : exhausted && !isSignedIn ? t('chat.quota.none') : undefined;
-  const keyLabel = teacherKey ? t('teach.key.chip', { name: teacherKey.name ?? t('teach.key.anon'), short: shortKey(teacherKey.address) }) : undefined;
+  const keyLabel = !teacherKey ? undefined
+    : teacherKey.name ? t('teach.key.chip', { name: teacherKey.name, short: shortKey(teacherKey.address) })
+      : t('teach.key.chip_anon', { short: shortKey(teacherKey.address) });
 
   return (
     <PageWrapper $wide>
@@ -325,12 +337,22 @@ export default function ChatPage() {
           {exhausted && !isSignedIn && <Alert $tone="warning" style={{ marginTop: 16 }} role="status">{t('chat.quota.none')}</Alert>}
           <Grid>
             <Side>
+              {/* The basket heads the column when this node teaches (§5.5: the visitor must see it without scrolling past every knowledge card); a node that does not accept lessons shows the "does not accept" line under the picker instead. */}
+              {policy && teachOn && (
+                <div ref={basketRef}>
+                  <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
+                    onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
+                    onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
+                </div>
+              )}
               <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} selectedIds={shownIds}
                 onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
-              {policy && (
-                <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
-                  onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
-                  onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
+              {policy && !teachOn && (
+                <div ref={basketRef}>
+                  <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
+                    onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
+                    onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
+                </div>
               )}
             </Side>
 
@@ -363,11 +385,11 @@ export default function ChatPage() {
                   </HeadList>
                 </>
               )}
-              {policy && cardJobId && !cardHidden && (
-                <LessonCard key={cardJobId} jobId={cardJobId} policy={policy} nodeAddress={info?.node.address} teacherAddress={teacherKey?.address}
-                  onTry={(j) => { void onTry(j); }} onPublish={(j) => openSheet('publish', j)} onKeep={(j) => openSheet('keep', j)} onImprove={onImprove} onHide={hideCard} />
-              )}
               <Transcript ref={scrollRef}>
+                {policy && cardJobId && !cardHidden && (
+                  <LessonCard key={cardJobId} jobId={cardJobId} policy={policy} nodeAddress={info?.node.address} teacherAddress={teacherKey?.address}
+                    onTry={(j) => { void onTry(j); }} onPublish={(j) => openSheet('publish', j)} onKeep={(j) => openSheet('keep', j)} onImprove={onImprove} onHide={hideCard} />
+                )}
                 {turns.length === 0 ? (
                   <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
                 ) : turns.map((turn) => <TurnView key={turn.id} turn={turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} />)}
@@ -408,7 +430,7 @@ export default function ChatPage() {
         <PublishSheet job={sheetJob} policy={policy} teacherKey={teacherKey} onClose={() => setSheet(null)} onPublished={() => undefined} />
       )}
       {sheet === 'keep' && sheetJob && policy && (
-        <KeepPrivateSheet job={sheetJob} policy={policy} onClose={() => setSheet(null)} onPublishLater={() => setSheet('publish')} onDeleted={() => setSheet(null)} />
+        <KeepPrivateSheet job={sheetJob} policy={policy} runtimeModel={data?.runtime.model ?? info?.node.model} onClose={() => setSheet(null)} onPublishLater={() => setSheet('publish')} onDeleted={() => setSheet(null)} />
       )}
       {mineParam && (
         <MyKnowledgePanel teacherKey={teacherKey} lessonEntries={lessons} onKeyChanged={() => setTeacherKey(currentTeacherKey())}
