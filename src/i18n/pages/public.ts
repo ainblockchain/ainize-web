@@ -8,6 +8,7 @@ export const landing: Dict = {
   // nav
   'landing.nav.explore': { ko: '지식 둘러보기', en: 'Explore knowledge' },
   'landing.nav.chat': { ko: '라이브 테스트', en: 'Live test' },
+  'landing.nav.teach': { ko: '가르치기', en: 'Teach' },
   'landing.nav.signin': { ko: '노드 로그인', en: 'Node sign-in' },
   'landing.nav.signin_help': { ko: '노드 운영자·개발자용 콘솔입니다. 지식을 사서 쓰는 데는 로그인이 필요 없습니다.', en: 'Console for node operators and developers. You do not need to sign in to use knowledge.' },
 
@@ -36,10 +37,14 @@ export const landing: Dict = {
   'landing.audience.user.s2': { ko: '같은 질문을 넣기 전/후 모델에 물어 답이 달라지는지 직접 봅니다.', en: 'Ask the same question before and after loading it and see the answer change.' },
   'landing.audience.user.s3': { ko: '마음에 들면 결제 후 몇 초 만에 모델에 넣고, 언제든 뺍니다.', en: 'If you like it, pay and load it in seconds — unload any time.' },
   'landing.audience.user.cta': { ko: '지식 둘러보기', en: 'Explore knowledge' },
-  'landing.audience.creator.s1': { ko: '내가 만든 지식을 등록합니다(라이브 테스트용 질문 묶음 포함).', en: 'Register the knowledge you made, with the questions it should answer.' },
-  'landing.audience.creator.s2': { ko: '네트워크의 독립 검증 노드들이 실제 모델에 넣어 정답률과 부작용을 확인합니다.', en: 'Independent verifier nodes load it into the real model and check accuracy and side effects.' },
-  'landing.audience.creator.s3': { ko: '팔릴 때마다 바로 정산되고, 내 지식을 바탕으로 만든 지식이 팔려도 수익이 나뉩니다.', en: 'You get paid on every sale — and a share when knowledge built on yours sells.' },
-  'landing.audience.creator.cta': { ko: '지식 등록하러 가기', en: 'Register knowledge' },
+  // creator card = teach mode (spec §5.1): the visitor teaches the model in Live test; registering a file is the operator's route
+  'landing.audience.creator.title': { ko: '모델에게 가르치고 싶어요', en: 'I want to teach the model something' },
+  'landing.audience.creator.s1': { ko: '라이브 테스트에서 물어보고, 틀리면 바로잡습니다.', en: 'Ask the model in Live test and correct it when it is wrong.' },
+  'landing.audience.creator.s2': { ko: '이 노드가 내 바로잡기를 지식으로 학습합니다. 로그인도 내 서버도 필요 없습니다.', en: 'This node trains your corrections into knowledge — no sign-in, no server of your own.' },
+  'landing.audience.creator.s3': { ko: '나만 쓰거나, 공개해서 팔릴 때마다 정산받습니다.', en: 'Keep it private, or publish it and get paid on every sale.' },
+  'landing.audience.creator.cta': { ko: '모델 가르치기', en: 'Teach the model' },
+  'landing.audience.creator.operator_link': { ko: '이미 지식 파일(.npz)이 있고 노드를 운영하나요? 파일 등록 →', en: 'Already have a knowledge file (.npz) and run a node? Register a file →' },
+  'landing.audience.creator.off': { ko: '이 노드는 지금 수업을 받지 않습니다. 라이브 테스트는 그대로 쓸 수 있습니다.', en: 'This node is not accepting lessons right now. Live test still works.' },
   'landing.audience.operator.s1': { ko: '노드를 띄워 지식을 팔고 검증에 참여합니다.', en: 'Run a node to sell knowledge and take part in verification.' },
   'landing.audience.operator.s2': { ko: '올바른 검증에는 보상이, 잘못된 검증에는 보증금 손실이 따릅니다.', en: 'Correct verification is rewarded; wrong verification costs the deposit.' },
   'landing.audience.operator.s3': { ko: 'HTTP API로 AI 에이전트가 지식을 직접 사고 넣도록 자동화합니다.', en: 'Automate with the HTTP API so AI agents buy and load knowledge themselves.' },

@@ -37,6 +37,6 @@ export type TermKey = keyof typeof GLOSSARY;
 /** Audience split for the landing page (users who buy/use knowledge vs people who run nodes). */
 export const AUDIENCE = {
   user: { ko: '지식을 사서 쓰는 분', en: 'I want to use knowledge', help_ko: '검증된 지식을 찾아 라이브 테스트하고 내 모델에 넣습니다.', help_en: 'Find verified knowledge, test it live, load it into your model.' },
-  creator: { ko: '지식을 만들어 파는 분', en: 'I want to sell knowledge', help_ko: '지식을 등록하면 네트워크가 검증하고, 팔릴 때마다 정산됩니다.', help_en: 'Register knowledge; the network verifies it and you get paid per sale.' },
+  creator: { ko: '모델에게 가르치고 싶어요', en: 'I want to teach the model something', help_ko: '라이브 테스트에서 틀린 답을 바로잡으면 이 노드가 지식으로 학습합니다. 나만 쓰거나 공개해서 정산받습니다.', help_en: 'Correct a wrong answer in Live test and this node trains it into knowledge — keep it private or publish it and get paid.' },
   operator: { ko: '노드 운영자·개발자', en: 'Node operators & developers', help_ko: 'CLI로 노드를 띄워 검증에 참여하고 API/에이전트로 자동화합니다.', help_en: 'Run a node from the CLI, take part in verification, automate with the API and agents.' },
 } as const;

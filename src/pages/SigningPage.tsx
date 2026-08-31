@@ -17,6 +17,15 @@ const ConfirmButton = styled.button`
   font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.2s ease;
   &:hover { background: ${(p) => p.theme.color.HOVER}; } &:disabled { background: ${(p) => p.theme.color.PRESSED}; cursor: not-allowed; }
 `;
+/** Visitors land here by mistake (old bookmarks, the operator link on the landing page): tell them teaching / testing needs no sign-in (spec §5.2). */
+const VisitorNotice = styled.div`
+  margin-top: 28px; padding: 14px 18px; max-width: 560px; border: 1px solid #e4ddff; border-radius: 6px; background: #faf7ff; font-size: 14px; line-height: 1.6; color: #333; word-break: keep-all;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+`;
+const VisitorCta = styled(Link)`
+  font-weight: 700; color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; white-space: nowrap; &:hover { text-decoration: underline; }
+`;
+const SubTitleText = styled.p`margin: 6px 0 0; font-size: 14px; color: #8d8d8f;`;
 const NodeBox = styled.div`
   margin-top: 40px; padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fafafa; max-width: 560px;
 `;
@@ -78,6 +87,7 @@ export default function SigningPage() {
       ) : (
         <form onSubmit={onLogin}>
           <Title>{t('op.sign.login.title')}</Title>
+          <SubTitleText data-testid="sign-subtitle">{t('op.sign.login.subtitle')}</SubTitleText>
           <Description>{t('op.sign.login.desc')}</Description>
           <OptionContainer>
             <TextField type="password" label={t('op.sign.login.password')} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
@@ -86,6 +96,11 @@ export default function SigningPage() {
           </OptionContainer>
         </form>
       )}
+
+      <VisitorNotice role="note" data-testid="visitor-notice">
+        <span>{t('op.sign.visitor_notice')}</span>
+        <VisitorCta to="/chat">{t('op.sign.visitor_cta')} →</VisitorCta>
+      </VisitorNotice>
 
       {me && (
         <NodeBox>

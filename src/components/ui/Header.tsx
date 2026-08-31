@@ -92,6 +92,7 @@ export function Header() {
               <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{name ?? 'operator'} ▾</UserMenuButton>
               <Menu $open={open} role="menu">
                 <MenuInfo title={address ?? ''}>{shortAddr(address, 8)}</MenuInfo>
+                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/account'); }}>{t('nav.account')}</MenuItem>
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/drive'); }}>{t('nav.files')}</MenuItem>
                 <MenuItem role="menuitem" onClick={async () => { setOpen(false); await logout(); navigate('/'); }}>{t('nav.logout')}</MenuItem>

@@ -8,6 +8,7 @@ export const common: Dict = {
   'nav.ledger': { ko: '공개 기록', en: 'Public record' },
   'nav.docs': { ko: '문서·API', en: 'Docs & API' },
   'nav.dashboard': { ko: '내 지식', en: 'My knowledge' },
+  'nav.register': { ko: '지식 파일 등록', en: 'Register a knowledge file' },
   'nav.signin': { ko: '로그인', en: 'Sign in' },
   'nav.account': { ko: '계정 설정', en: 'Account settings' },
   'nav.files': { ko: '파일과 변경 이력', en: 'Files & changes' },

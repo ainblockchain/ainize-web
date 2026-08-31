@@ -116,6 +116,12 @@ const AudienceCta = styled(Link)<{ $dev?: boolean }>`
   background: ${(p) => (p.$dev ? '#ffffff' : '#8c6cff')}; color: ${(p) => (p.$dev ? '#333333' : '#ffffff')};
   &:hover { opacity: 0.9; }
 `;
+/** Secondary route on the creator card: node operators who already have a knowledge file go to the (sign-in walled) register form. */
+const AudienceAlt = styled(Link)`
+  margin-top: 14px; font-size: 13px; line-height: 1.5; color: #5b1ca8; text-decoration: none; word-break: keep-all;
+  &:hover { text-decoration: underline; }
+`;
+const AudienceOff = styled.p`margin: 14px 0 0; font-size: 13px; line-height: 1.5; color: #8d8d8f; word-break: keep-all;`;
 const DevLabel = styled.div`
   margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #c9b8ff; cursor: help;
   &::before { content: '</>'; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; padding: 2px 6px; border-radius: 4px; background: #3f3f3f; color: #ffffff; letter-spacing: 0; }
@@ -253,6 +259,7 @@ export default function LandingPage() {
             <NavLinks>
               <NavLink to="/explore">{t('landing.nav.explore')}</NavLink>
               <NavLink to="/chat">{t('landing.nav.chat')}</NavLink>
+              {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
               <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>
               <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
             </NavLinks>
@@ -296,15 +303,18 @@ export default function LandingPage() {
               <AudienceCta to="/explore">{t('landing.audience.user.cta')}</AudienceCta>
             </AudienceCard>
 
-            <AudienceCard>
-              <AudienceTitle>{creator.title}</AudienceTitle>
+            {/* creator card = teach mode (spec §5.1 / §11): CTA → Live test with the teach banner; the register form stays an operator route */}
+            <AudienceCard data-testid="landing-creator-card">
+              <AudienceTitle>{t('landing.audience.creator.title')}</AudienceTitle>
               <AudienceHelp>{creator.help}</AudienceHelp>
               <Steps>
-                <li><b>1</b><span>{t('landing.audience.creator.s1')}</span></li>
-                <li><b>2</b><span title={`${help('stake')} (${tech('stake')})`}>{t('landing.audience.creator.s2')}</span></li>
+                <li><b>1</b><span title={help('liveTest')}>{t('landing.audience.creator.s1')}</span></li>
+                <li><b>2</b><span>{t('landing.audience.creator.s2')}</span></li>
                 <li><b>3</b><span title={`${term('lineage')}: ${help('lineage')} (${tech('lineage')})`}>{t('landing.audience.creator.s3')}</span></li>
               </Steps>
-              <AudienceCta to="/signing?next=%2Fnew-patch">{t('landing.audience.creator.cta')}</AudienceCta>
+              <AudienceCta to="/chat?teach=1" data-testid="landing-teach-cta">{t('landing.audience.creator.cta')}</AudienceCta>
+              {info && !info.accepts_contributions && <AudienceOff>{t('landing.audience.creator.off')}</AudienceOff>}
+              <AudienceAlt to="/signing?next=%2Fnew-patch" data-testid="landing-register-link">{t('landing.audience.creator.operator_link')}</AudienceAlt>
             </AudienceCard>
 
             <AudienceCard $dev>

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
@@ -44,6 +44,18 @@ export function SigningCheckLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   if (loading) return <Layout><CenterProgress /></Layout>;
   if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(pathname)}`} replace />;
+  return <Layout>{children}</Layout>;
+}
+
+/**
+ * /new-patch (spec §5.2 / §11): signed-out visitors get the public two-way pre-screen (teach in chat vs. sign in and upload a file)
+ * instead of being bounced to the sign-in wall; operators see the form as before.
+ */
+const NewPatchPreScreen = lazy(() => import('@/components/operator/NewPatchPreScreen'));
+export function NewPatchGate({ children }: { children: ReactNode }) {
+  const { isSignedIn, loading } = useAuth();
+  if (loading) return <Layout><CenterProgress /></Layout>;
+  if (!isSignedIn) return <Layout><Suspense fallback={<CenterProgress />}><NewPatchPreScreen /></Suspense></Layout>;
   return <Layout>{children}</Layout>;
 }
 

@@ -69,6 +69,7 @@ export default function AccountPage() {
   const roleLabel = (r: string) => { const k = `op.role.${r}`; const v = t(k); return v === k ? r : v; };
   const [peersBefore, peersAfter] = t('op.account.peers.desc', { link: '|' }).split('|');
   const [tryBefore, tryAfter] = t('op.account.runtime.try.desc', { link: '|' }).split('|');
+  const [teachBefore, teachAfter] = t('op.account.teach.desc', { link: '|' }).split('|');
 
   return (
     <PageWrapper>
@@ -117,6 +118,10 @@ export default function AccountPage() {
           </Row>
         </SettingsForm>
       )}
+
+      {/* ------------------------------------------------------------ teaching (settings live on My knowledge → Teaching, spec §5.13) */}
+      <SubTitle $mt={56}>{t('op.account.teach.title')}</SubTitle>
+      <Description data-testid="account-teach">{teachBefore}<StyledLink to="/dashboard?tab=teaching">{t('op.account.teach.link')}</StyledLink>{teachAfter}</Description>
 
       {/* ------------------------------------------------------------ wallet */}
       <SubTitle $mt={56}>{t('op.account.wallet')}</SubTitle>

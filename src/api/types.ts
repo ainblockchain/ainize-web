@@ -198,3 +198,23 @@ export interface TeacherProfile {
   address: string; name?: string; hidden: boolean; lessons: TeacherLesson[];
   earnings: { currency: string; owed: string; paid: string; pending: string; failed: string; sales: number; items: TeacherEarningItem[] };
 }
+
+// ------------------------------------------------------------------ teach mode — operator (spec §6.4; PR-7 Teaching tab)
+/** kv overrides the operator saved (unset = config.json default). */
+export interface TeachSettings {
+  enabled?: boolean; publish?: 'review' | 'auto' | 'never'; factsPerJob?: number; jobsPerKeyPerDay?: number; jobsPerIpPerDay?: number;
+  queueMax?: number; contributorShare?: number; draftTtlDays?: number; pausedReason?: string | null; blockedTopics?: string | null;
+}
+/** Effective config (config.json ← kv overrides). */
+export interface TeachEffective extends Required<Omit<TeachSettings, 'pausedReason' | 'blockedTopics'>> {
+  backend: 'gradient' | 'stub'; stubOffline?: boolean; pausedReason?: string | null; blockedTopics?: string | null;
+  trainer: { container: string; script: string; gpus: string; maxSteps: number; timeoutMs: number };
+}
+export interface TeachPolicyAdmin { policy: TeachSettings; effective: TeachEffective; trainer: { state: 'ready' | 'busy' | 'paused'; reason?: string } }
+export interface TeachPolicyPatch {
+  enabled?: boolean; publish?: 'review' | 'auto' | 'never'; facts_per_job?: number; jobs_per_key_per_day?: number; jobs_per_ip_per_day?: number;
+  queue_max?: number; contributor_share?: number; draft_ttl_days?: number; paused_reason?: string | null; blocked_topics?: string | null;
+}
+export type TeachJobAdmin = TeachJob & { ip: string | null };
+export interface ContributorRow { address: string; name: string | null; payout_address: string | null; first_seen: number; last_seen: number; jobs: number; published: number; hidden: boolean; note: string | null }
+export interface BanRow { id: number; kind: 'address' | 'ip'; value: string; reason: string | null; ts: number }

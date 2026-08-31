@@ -7,7 +7,7 @@ import { theme } from './theme/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { AuthProvider } from './auth/AuthContext';
 import { LocaleProvider } from './i18n';
-import { FullScreenLayout, Layout, SigningCheckLayout } from './components/base/Layout';
+import { FullScreenLayout, Layout, NewPatchGate, SigningCheckLayout } from './components/base/Layout';
 import { CenterProgress } from './components/ui/Misc';
 
 // Pages are code-split like ainize-web did with @loadable/component.
@@ -63,7 +63,8 @@ export default function App() {
 
                 {/* Operator pages (SigningCheckLayout) */}
                 <Route path="/dashboard" element={<SigningCheckLayout><DashboardPage /></SigningCheckLayout>} />
-                <Route path="/new-patch" element={<SigningCheckLayout><NewPatchPage /></SigningCheckLayout>} />
+                {/* signed out → public pre-screen (spec §5.2); signed in → the register form */}
+                <Route path="/new-patch" element={<NewPatchGate><NewPatchPage /></NewPatchGate>} />
                 <Route path="/project/:author/:patchId/logs" element={<SigningCheckLayout><LogsPage /></SigningCheckLayout>} />
                 <Route path="/project/:author/:patchId" element={<SigningCheckLayout><ManagePage /></SigningCheckLayout>} />
                 <Route path="/account" element={<SigningCheckLayout><AccountPage /></SigningCheckLayout>} />

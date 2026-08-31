@@ -8,6 +8,7 @@ import type {
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, Settings, DocsResponse,
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
+  BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
 } from './types';
 import { teachAuthHeader } from '@/lib/teacherKey';
 
@@ -36,7 +37,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'Teacher'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'Teacher', 'TeachAdmin', 'Payouts'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
@@ -109,6 +110,21 @@ export const api = createApi({
     publishTeachJob: b.mutation<PublishResponse, { id: string } & PublishRequest>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Teach', id: a.id }, 'Teach', 'Chat', 'Catalog', 'Teacher'] }),
     saveTeachJob: b.mutation<TeachSaveResponse, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/save`, method: 'POST' }) }),
     teacher: b.query<TeacherProfile, string>({ query: (address) => `api/teacher/${encodeURIComponent(address)}`, providesTags: (_r, _e, address) => [{ type: 'Teacher', id: address.toLowerCase() }, 'Teacher'] }),
+
+    // Teach mode — operator (spec §6.4): policy, review queue, contributors, bans, payouts (Teaching tab on My knowledge)
+    teachAdminPolicy: b.query<TeachPolicyAdmin, void>({ query: () => 'api/me/teach/policy', providesTags: ['TeachAdmin'] }),
+    updateTeachAdminPolicy: b.mutation<TeachPolicyAdmin, TeachPolicyPatch>({ query: (body) => ({ url: 'api/me/teach/policy', method: 'PATCH', body }), invalidatesTags: ['TeachAdmin', 'Teach', 'Info'] }),
+    teachAdminJobs: b.query<{ items: TeachJobAdmin[] }, void>({ query: () => 'api/me/teach/jobs', providesTags: ['TeachAdmin'] }),
+    approveTeachJob: b.mutation<{ status: 'ANNOUNCED'; patch_id: string; url: string }, string>({ query: (id) => ({ url: `api/me/teach/jobs/${encodeURIComponent(id)}/approve`, method: 'POST' }), invalidatesTags: ['TeachAdmin', 'Teach', 'Catalog', 'Me', 'Ledger', 'Events'] }),
+    rejectTeachJob: b.mutation<{ ok: boolean; status: 'REJECTED' }, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/me/teach/jobs/${encodeURIComponent(id)}/reject`, method: 'POST', body: { reason } }), invalidatesTags: ['TeachAdmin', 'Teach'] }),
+    cancelTeachJobAdmin: b.mutation<{ ok: boolean; status: 'CANCELLED' }, string>({ query: (id) => ({ url: `api/me/teach/jobs/${encodeURIComponent(id)}/cancel`, method: 'POST' }), invalidatesTags: ['TeachAdmin', 'Teach'] }),
+    teachContributors: b.query<{ items: ContributorRow[] }, void>({ query: () => 'api/me/teach/contributors', providesTags: ['TeachAdmin'] }),
+    setContributorHidden: b.mutation<{ ok: boolean; contributor: ContributorRow }, { address: string; hidden: boolean }>({ query: ({ address, hidden }) => ({ url: `api/me/teach/contributors/${encodeURIComponent(address)}`, method: 'POST', body: { hidden } }), invalidatesTags: ['TeachAdmin', 'Catalog', 'Teacher'] }),
+    teachBans: b.query<{ items: BanRow[] }, void>({ query: () => 'api/me/teach/bans', providesTags: ['TeachAdmin'] }),
+    addTeachBan: b.mutation<{ ban: BanRow }, { kind: 'address' | 'ip'; value: string; reason?: string }>({ query: (body) => ({ url: 'api/me/teach/bans', method: 'POST', body }), invalidatesTags: ['TeachAdmin'] }),
+    deleteTeachBan: b.mutation<{ ok: boolean }, number>({ query: (id) => ({ url: `api/me/teach/bans/${id}`, method: 'DELETE' }), invalidatesTags: ['TeachAdmin'] }),
+    payouts: b.query<PayoutsResponse, { status?: 'pending' | 'paid' | 'failed'; limit?: number } | void>({ query: (q) => `api/me/payouts${toQuery({ ...(q ?? {}) })}`, providesTags: ['Payouts'] }),
+    retryPayout: b.mutation<{ payout: PayoutRow }, number>({ query: (id) => ({ url: `api/me/payouts/${id}/retry`, method: 'POST' }), invalidatesTags: ['Payouts', 'Me', 'Teacher'] }),
   }),
 });
 
@@ -122,6 +138,8 @@ export const {
   useChatPatchesQuery, useChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
+  useTeachAdminPolicyQuery, useUpdateTeachAdminPolicyMutation, useTeachAdminJobsQuery, useApproveTeachJobMutation, useRejectTeachJobMutation, useCancelTeachJobAdminMutation,
+  useTeachContributorsQuery, useSetContributorHiddenMutation, useTeachBansQuery, useAddTeachBanMutation, useDeleteTeachBanMutation, usePayoutsQuery, useRetryPayoutMutation,
 } = api;
 
 /** Extract a human message from an RTK Query error. */

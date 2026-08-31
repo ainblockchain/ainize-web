@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
   errorMessage, useAddToBranchMutation, useApplyMutation, useBranchesQuery, useCreateBranchMutation, useInfoQuery, useMyPatchesQuery, useMyPurchasesQuery,
@@ -11,7 +11,7 @@ import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Select, TextField } from '@/components/ui/Form';
 import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
-import { CenterProgress, PageWrapper, StatusChip, SubTitle, Title, TitleRow, Description } from '@/components/ui/Misc';
+import { CenterProgress, PageWrapper, StatusChip, SubTitle, Tabs, Title, TitleRow, Description } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { IconButton, LiveTestIcon, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
 import { num, shortAddr, shortHash } from '@/utils/format';
@@ -35,11 +35,17 @@ const Tag = styled.span`
 `;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
 
+/** Teaching tab (spec §5.13) is code-split: most operators open My knowledge far more often than the teach queue. */
+const TeachingTab = lazy(() => import('@/components/operator/TeachingTab'));
+
 export default function DashboardPage() {
   const { t, term, help, tech } = useT();
   const money = useMoney();
   const { address } = useAuth();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const tab: 'knowledge' | 'teaching' = params.get('tab') === 'teaching' ? 'teaching' : 'knowledge';
+  const setTab = (id: string) => { const next = new URLSearchParams(params); if (id === 'teaching') next.set('tab', 'teaching'); else next.delete('tab'); setParams(next, { replace: true }); };
   const { data: info } = useInfoQuery();
   const currency = info?.currency ?? '';
   const [inFlight, setInFlight] = useState(false);
@@ -104,8 +110,13 @@ export default function DashboardPage() {
     <PageWrapper $wide>
       <TitleRow>
         <Title>{t('op.dash.title')}</Title>
-        <Button variant="outlined" color="primary" onClick={() => navigate('/new-patch')}>{t('op.dash.register')}</Button>
+        {tab === 'knowledge' && <Button variant="outlined" color="primary" onClick={() => navigate('/new-patch')}>{t('op.dash.register')}</Button>}
       </TitleRow>
+      <div style={{ marginBottom: 24 }}>
+        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'knowledge', label: t('op.dash.tab.knowledge') }, { id: 'teaching', label: t('op.dash.tab.teaching') }]} />
+      </div>
+      {tab === 'teaching' && <Suspense fallback={<CenterProgress />}><TeachingTab /></Suspense>}
+      {tab === 'knowledge' && (<>
       {actionError && <Alert $tone="error" style={{ marginBottom: 16 }}>{actionError}</Alert>}
 
       {/* ---------------------------------------------------------------- my knowledge */}
@@ -287,6 +298,7 @@ export default function DashboardPage() {
           <span style={{ fontSize: 12, color: '#8d8d8f' }}>{t('op.dash.branch.owner_note')}</span>
         </MiniForm>
       )}
+      </>)}
     </PageWrapper>
   );
 }
