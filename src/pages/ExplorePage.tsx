@@ -5,6 +5,7 @@ import { PatchListItem } from '@/components/public/PatchListItem';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { num } from '@/utils/format';
 
 type Sort = 'popular' | 'latest' | 'price' | 'rows';
@@ -36,6 +37,7 @@ const Intro = styled(Description)`margin: 0 0 24px;`;
 
 export default function ExplorePage() {
   const { t, tech, help } = useT();
+  useTitle(t('explore.title'));
   const [sort, setSort] = useState<Sort>('popular');
   const [model, setModel] = useState('');
   const [schema, setSchema] = useState('');

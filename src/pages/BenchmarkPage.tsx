@@ -5,6 +5,7 @@ import { useBenchmarkQuery, useInfoQuery } from '@/api/api';
 import { PatchListItem } from '@/components/public/PatchListItem';
 import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { num } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
 
@@ -30,6 +31,7 @@ export default function BenchmarkPage() {
   const [page, setPage] = useState(1);
   const { data: info } = useInfoQuery();
   const { data, isLoading, error } = useBenchmarkQuery(schema);
+  useTitle(`${t('bench.title')} ${schema}`);
 
   const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
   const items = useMemo(() => {

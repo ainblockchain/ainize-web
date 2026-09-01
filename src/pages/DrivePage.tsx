@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { errorMessage, useDriveActionMutation, useDriveChangesQuery, useDriveQuery } from '@/api/api';
 import type { DriveChange } from '@/api/types';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, ExternalLink, KeyValue, Mono, PageWrapper, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
@@ -89,6 +90,7 @@ function Diff({ prev, next }: { prev: string; next: string }) {
 
 export default function DrivePage() {
   const { t } = useT();
+  useTitle(t('op.drive.title'));
   const elapsed = useElapsed();
   const params = useParams();
   const selected = params['*'] ? decodeURIComponent(params['*']) : '';

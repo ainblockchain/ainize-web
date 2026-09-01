@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 import { PageWrapper, StyledLink, Title } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 
 /** Ported from ainize-web NotFoundPage.js */
 const Desc = styled.p`
@@ -15,6 +16,7 @@ const Image = styled.img`
 
 export default function NotFoundPage({ message }: { message?: string }) {
   const { t } = useT();
+  useTitle(t('notfound.title'));
   return (
     <PageWrapper>
       <Title>{t('notfound.title')}</Title>

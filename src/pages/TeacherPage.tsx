@@ -2,6 +2,7 @@ import { useParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useTeacherQuery } from '@/api/api';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, Empty, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
@@ -27,6 +28,7 @@ export default function TeacherPage() {
   const valid = isAddress(address);
   const { data, error, isLoading } = useTeacherQuery(address, { skip: !valid, pollingInterval: 15_000 });
   const mine = currentTeacherKey()?.address.toLowerCase() === address.toLowerCase();
+  useTitle(data?.name ? `${t('teacher.title')} · ${data.name}` : t('teacher.title'));
 
   if (!valid) return <PageWrapper><Alert $tone="error">{t('teacher.not_found')}</Alert></PageWrapper>;
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;

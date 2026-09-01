@@ -8,6 +8,7 @@ import {
 import type { CatalogEntry } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Select, TextField } from '@/components/ui/Form';
 import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
@@ -40,6 +41,7 @@ const TeachingTab = lazy(() => import('@/components/operator/TeachingTab'));
 
 export default function DashboardPage() {
   const { t, term, help, tech } = useT();
+  useTitle(t('op.dash.title'));
   const money = useMoney();
   const { address } = useAuth();
   const navigate = useNavigate();

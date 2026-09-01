@@ -6,6 +6,7 @@ import type { OpenApiOperation } from '@/api/types';
 import { Card, CenterProgress, CopyButton, Description, Empty, ExternalLink, PageWrapper, SubTitle, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { Alert } from '@/components/ui/Form';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 
 /* ------------------------------------------------------------------ styles */
 const Lede = styled.p`margin: 0 0 8px; font-size: 15px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; max-width: 76ch;`;
@@ -56,6 +57,7 @@ const METHODS = ['get', 'post', 'patch', 'delete'] as const;
 
 export default function DocsPage() {
   const { t, locale } = useT();
+  useTitle(t('docs.title'));
   const { data, isLoading, isError } = useDocsQuery();
   const [tab, setTab] = useState<'cli' | 'api'>('cli');
   const grouped = useMemo(() => {

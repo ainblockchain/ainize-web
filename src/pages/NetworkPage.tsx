@@ -6,6 +6,7 @@ import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { num, shortAddr } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 
@@ -42,6 +43,7 @@ const DevBox = styled.details`
 
 export default function NetworkPage() {
   const { t, term, help, tech } = useT();
+  useTitle(t('detail.net.title'));
   const f = useDetailFormat();
   const { data: info, isLoading } = useInfoQuery(undefined, { pollingInterval: 15_000 });
   const { data: nodes } = useNodesQuery(undefined, { pollingInterval: 15_000 });

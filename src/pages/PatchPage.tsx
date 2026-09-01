@@ -9,6 +9,7 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Divider, Empty, ExternalLink, KeyValue, Mono, ScoreBar, StatusChip, StyledLink, Tabs } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { bytes, dateTime, num, pct, scoreText, shortAddr, shortHash } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
 import { isExecuted, useDetailFormat } from './detail/recordText';
@@ -129,6 +130,8 @@ export default function PatchPage() {
   const f = useDetailFormat();
   const { data, isLoading, error } = usePatchQuery(patchId, { pollingInterval: 10_000 });
   const [tab, setTab] = useState('overview');
+  // before the early returns: the tab is named after the knowledge as soon as the node answers
+  useTitle(data ? data.anchor.name || data.anchor.id : undefined);
 
   if (isLoading) return <Wrapper><CenterProgress /></Wrapper>;
   if (error || !data) return <NotFoundPage message={t('detail.patch.not_found', { id: patchId })} />;

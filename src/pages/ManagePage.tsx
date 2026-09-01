@@ -8,6 +8,7 @@ import {
 import type { PatchAnchor } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, Select, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
@@ -39,6 +40,7 @@ export default function ManagePage() {
   const inFlight = !!p && isInFlight(p.status);
   useEffect(() => { setPoll(inFlight); }, [inFlight]);
   const runtime = useRuntimeQuery();
+  useTitle(p ? p.anchor.name || p.anchor.id : undefined);
 
   const [update, updateState] = useUpdatePatchMutation();
   const [announce, announceState] = useAnnounceMutation();

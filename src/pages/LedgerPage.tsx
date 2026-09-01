@@ -7,6 +7,7 @@ import { STATUS_META } from '@/theme/theme';
 import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, SelectBox, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 
@@ -126,6 +127,7 @@ function KnowledgeGraph({ g }: { g: GraphResponse }) {
 /* ---------------------------------------------------------------- page */
 export default function LedgerPage() {
   const { t, help, tech } = useT();
+  useTitle(t('detail.ledger.title'));
   const f = useDetailFormat();
   const [kind, setKind] = useState('');
   const [page, setPage] = useState(1);

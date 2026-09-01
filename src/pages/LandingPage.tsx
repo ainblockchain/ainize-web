@@ -5,6 +5,7 @@ import { useCatalogQuery, useInfoQuery } from '@/api/api';
 import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
 import { CopyButton, ScoreBar, Shimmer } from '@/components/ui/Misc';
 import { useLocale, useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { num, shortAddr } from '@/utils/format';
 
 /* ---------------------------------------------------------------- hero (dark, original Ainize white logo) */
@@ -231,6 +232,7 @@ const ONE_LINE_USE = 'ainize use krx-all-2761';
 
 export default function LandingPage() {
   const { t, term, help, tech, audience } = useT();
+  useTitle(t('landing.hero.title'));
   const { locale, setLocale } = useLocale();
   const priceLabel = usePriceLabel();
   const verification = useVerificationLabel();

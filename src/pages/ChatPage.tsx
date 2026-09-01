@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
 import { bannerDismissed, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, MAX_FACTS, type Basket } from '@/lib/teachStore';
 import { num } from '@/utils/format';
@@ -123,6 +124,7 @@ type SheetKind = 'credit' | 'preflight' | 'publish' | 'keep' | null;
 /* ---------------------------------------------------------------- page */
 export default function ChatPage() {
   const { t, help, tech, audience } = useT();
+  useTitle(t('chat.title'));
   const { patchId } = useParams<{ patchId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
