@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useChatMutation, useChatPatchesQuery, useInfoQuery, useTeachPolicyQuery } from '@/api/api';
+import { errorMessage, useCancelChatMutation, useChatMutation, useChatPatchesQuery, useChatStatusQuery, useInfoQuery, useTeachPolicyQuery } from '@/api/api';
 import type { ChatMessage, TeachJob } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
-import { MAX_HISTORY, answerHits, matchSampleAny, parseSelection, selectionPath, MAX_CHAT_PATCHES, type ChatModeKind } from '@/components/chat/util';
+import { MAX_HISTORY, answerHits, matchSampleAny, parseSelection, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
 import { TeachDrawer } from '@/components/chat/TeachDrawer';
 import { LessonBasket } from '@/components/chat/LessonBasket';
 import { CreditSheet } from '@/components/chat/CreditSheet';
@@ -78,6 +78,7 @@ function mapChatError(err: unknown, t: Tr): string {
   const e = err as { status?: number | string; name?: string } | undefined;
   const raw = errorMessage(err);
   const m = raw.toLowerCase();
+  if (e?.status === 499 || m.includes('cancelled while it was still queued')) return t('chat.queue.cancelled');
   if (e?.name === 'AbortError' || m.includes('aborted')) return t('chat.err.cancelled');
   if (e?.status === 'FETCH_ERROR') return t('chat.err.network');
   if (e?.status === 'TIMEOUT_ERROR' || m.includes('timeout') || m.includes('timed out')) return t('chat.err.timeout');
@@ -125,7 +126,10 @@ export default function ChatPage() {
   // Teach mode: policy is public and cached 10 s on the node; a pre-teach node answers 404 → the teach UI stays hidden.
   const { data: policy } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
   const [sendChat, { isLoading: busy }] = useChatMutation();
+  const [cancelChat] = useCancelChatMutation();
   const inflight = useRef<{ abort: () => void } | null>(null);
+  /** Set by cancel() so the aborted request reports what actually happened (and whether a try was charged). */
+  const cancelNote = useRef<string | null>(null);
 
   const items = useMemo(() => data?.items ?? [], [data]);
   /** The visitor's own lessons; a published one is already a public item, so it is listed once (under the public list). */
@@ -212,6 +216,27 @@ export default function ChatPage() {
 
   const turns = useMemo(() => (selectionKey ? transcripts[selectionKey] ?? [] : []), [transcripts, selectionKey]);
   const lastStatus = turns[turns.length - 1]?.status;
+
+  // ---------------------------------------------------------------- D3: where is this request in the queue?
+  // While a turn is pending the node is asked every 1.5 s whether it is still queued behind the shared model,
+  // who holds it and since when. The counters tick on the client between polls (anchored to the node's own
+  // measurement via fulfilledTimeStamp) so a wait never looks frozen — and never looks like a silent failure.
+  const pending = useMemo(() => turns.find((x) => x.status === 'pending'), [turns]);
+  const pendingId = pending?.requestId;
+  const pendingRef = useRef<string | null>(null);
+  useEffect(() => { pendingRef.current = pendingId ?? null; }, [pendingId]);
+  const { data: qs, fulfilledTimeStamp: qsAt } = useChatStatusQuery(pendingId ?? '', { skip: !pendingId, pollingInterval: 1500 });
+  useTicker(!!pending);
+  const lockSkew = qs?.now ? (qsAt ?? Date.now()) - qs.now : data?.now ? Date.now() - data.now : 0;
+  const since = useSince(lockSkew);
+  const queue: ChatQueueView | undefined = !pending || !qs || qs.state === 'gone' ? undefined : {
+    state: qs.state,
+    waited_ms: qs.queued_ms + (qsAt ? Math.max(0, Date.now() - qsAt) : 0),
+    position: qs.position,
+    // our own request is the one waiting, so a live holder is by definition someone else's test
+    holder: qs.state === 'queued' && qs.lock && qs.lock.alive && !qs.lock.stale ? { label: qs.lock.label, since: since(qs.lock.since) } : null,
+  };
+  const queuedNow = queue?.state === 'queued';
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
@@ -232,11 +257,14 @@ export default function ChatPage() {
     const prior = (transcripts[pid] ?? []).filter((x) => x.id !== opts?.replaceId);
     const history = buildHistory(prior, text);
 
-    const turn: Turn = { id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect, patchIds: ids };
+    // D3: the node registers this id the moment the request arrives, so GET /api/chat/status can answer
+    // "queued" (and a give-up while queued costs nothing) long before the answer exists.
+    const requestId = newId();
+    const turn: Turn = { id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect, patchIds: ids, requestId };
     patchTurns(pid, (prev) => [...prev.filter((x) => x.id !== opts?.replaceId), turn]);
     // one knowledge → patch_id (works on every node); several → patch_ids (teach-mode nodes)
     const target = ids.length === 1 ? { patch_id: ids[0] } : { patch_ids: ids };
-    const request = sendChat({ ...target, mode: useMode, messages: history, thinking: useThinking });
+    const request = sendChat({ ...target, mode: useMode, messages: history, thinking: useThinking, request_id: requestId });
     inflight.current = request;
     // show the shared-model lock (held by this very request, or by someone ahead of it) right away instead of on the next 20 s poll
     const lockPeek = setTimeout(refreshPatches, 800);
@@ -249,7 +277,8 @@ export default function ChatPage() {
     } catch (err) {
       const e = err as { status?: number | string } | undefined;
       if (e?.status === 429) { setQuota(0); setExhausted(true); }
-      const msg = mapChatError(err, t);
+      const msg = cancelNote.current ?? mapChatError(err, t);
+      cancelNote.current = null;
       patchTurns(pid, (prev) => prev.map((x) => (x.id === id ? { ...x, status: 'error', error: msg } : x)));
     } finally {
       clearTimeout(lockPeek);
@@ -258,7 +287,19 @@ export default function ChatPage() {
     }
   }, [selectedIds, selectedList, selectionKey, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, refreshPatches, t]);
 
-  const cancel = useCallback(() => { inflight.current?.abort(); }, []);
+  /**
+   * D3 — "Stop waiting". While the request is still queued the node drops it before touching the model and no free
+   * try is spent; once it is running the work (and the charge) stands. Either way the transcript SAYS which
+   * happened instead of leaving a silently cancelled turn behind.
+   */
+  const cancel = useCallback(async () => {
+    const id = pendingRef.current;
+    if (id) {
+      const out = await cancelChat(id).unwrap().catch(() => null);
+      cancelNote.current = out?.cancelled ? t('chat.queue.cancelled') : out?.reason === 'already_running' ? t('chat.queue.cancelled_late') : t('chat.err.cancelled');
+    }
+    inflight.current?.abort();
+  }, [cancelChat, t]);
   const retry = useCallback((turn: Turn) => { void send(turn.prompt, { mode: turn.mode, thinking: turn.thinking, replaceId: turn.id }); }, [send]);
   const clear = useCallback(() => { if (selectionKey) patchTurns(selectionKey, () => []); }, [selectionKey, patchTurns]);
   const toggle = useCallback((id: string) => {
@@ -271,11 +312,14 @@ export default function ChatPage() {
     go(next.length ? selectionPath(next) : '/chat');
   }, [shownIds, go]);
   const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); setPendingIds([]); go('/chat'); }, [go]);
+  /** Selected knowledge whose benchmark format has no chat form — the live test asks through the chat template. */
+  const templateOnly = useMemo(() => selectedList.filter((e) => { const f = e.anchor.benchmark.format ?? []; return f.length > 0 && !f.includes('chat') && !f.includes('natural'); }), [selectedList]);
   /** Sample questions of every selected knowledge (deduplicated by prompt), in load order. */
   const samples = useMemo(() => {
     const seen = new Set<string>();
     const out: { prompt: string; expect: string }[] = [];
-    for (const e of selectedList) for (const s of e.anchor.benchmark.samples ?? []) { const k = s.prompt.trim(); if (!seen.has(k)) { seen.add(k); out.push(s); } }
+    // dedupe on the exact prompt: two samples that differ only by the trained trailing space are different prompts
+    for (const e of selectedList) for (const s of e.anchor.benchmark.samples ?? []) { if (!seen.has(s.prompt)) { seen.add(s.prompt); out.push(s); } }
     return out;
   }, [selectedList]);
 
@@ -353,7 +397,8 @@ export default function ChatPage() {
                     onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
                 </div>
               )}
-              <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} selectedIds={shownIds}
+              <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} clockSkewMs={lockSkew}
+                lockIsMine={qs?.state === 'running'} selectedIds={shownIds}
                 onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
               {policy && !teachOn && (
                 <div ref={basketRef}>
@@ -393,6 +438,13 @@ export default function ChatPage() {
                   </HeadList>
                 </>
               )}
+              {/* D2: a knowledge trained and verified only in the completion form answers a chat-format question
+                  less well (measured 6/6 vs 4/6). Say so rather than silently switching the live test's form. */}
+              {templateOnly.length > 0 && (
+                <Alert $tone="info" role="status" style={{ marginBottom: 12 }} data-testid="chat-format-note">
+                  {t('chat.samples.format_note')}
+                </Alert>
+              )}
               <Transcript ref={scrollRef}>
                 {policy && cardJobId && !cardHidden && (
                   <LessonCard key={cardJobId} jobId={cardJobId} policy={policy} nodeAddress={info?.node.address} teacherAddress={teacherKey?.address}
@@ -400,12 +452,12 @@ export default function ChatPage() {
                 )}
                 {turns.length === 0 ? (
                   <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
-                ) : turns.map((turn) => <TurnView key={turn.id} turn={turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} />)}
+                ) : turns.map((turn) => <TurnView key={turn.id} turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} />)}
               </Transcript>
               {busy && (
                 <CancelRow role="status">
-                  <span>{t('chat.input.in_flight')}</span>
-                  <Button size="small" color="secondary" onClick={cancel}>{t('chat.input.cancel')}</Button>
+                  <span>{queuedNow ? t('chat.queue.waiting') : t('chat.input.in_flight')}</span>
+                  <Button size="small" color="secondary" onClick={() => { void cancel(); }}>{queuedNow ? t('chat.queue.stop_waiting') : t('chat.input.cancel')}</Button>
                 </CancelRow>
               )}
               <ChatComposer

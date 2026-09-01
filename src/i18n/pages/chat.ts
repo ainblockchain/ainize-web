@@ -39,13 +39,28 @@ export const chat: Dict = {
   // runtime / lock
   'chat.runtime.off': { ko: '지금은 모델 서버가 꺼져 있어 테스트할 수 없습니다.', en: 'The model server is off right now, so testing is unavailable.' },
   'chat.runtime.off_detail': { ko: '노드 운영자가 모델 서버를 켜면 다시 사용할 수 있습니다.', en: 'It comes back once the node operator starts the model server.' },
-  'chat.lock.busy': { ko: '다른 테스트가 진행 중 — 잠시 후 다시 시도하세요.', en: 'Another test is running — try again in a moment.' },
-  'chat.lock.holder': { ko: '다른 테스트 진행 중 (노드 프로세스 {pid}) — {since}', en: 'Another test in progress (node process {pid}) — {since}' },
+  // "try again in a moment" is deliberately gone: the request is queued and will be answered, so retry language
+  // made a wait read as a rejection (D3). A queued request gets its own live line in the transcript (chat.queue.*).
+  'chat.lock.busy': { ko: '지금 다른 사람이 공유 모델에서 테스트 중입니다.', en: 'Someone else is testing on the shared model right now.' },
+  'chat.lock.holder': { ko: '다른 테스트 진행 중 ({label}, 노드 프로세스 {pid}) — {since}', en: 'Another test in progress ({label}, node process {pid}) — {since}' },
+  'chat.lock.mine': { ko: '지금은 이 테스트가 공유 모델을 쓰고 있습니다 — {since}', en: 'Your test has the shared model — {since}' },
+  'chat.lock.stale': { ko: '이전 테스트가 공유 모델을 사용 중으로 남겨 두었습니다. 다음 테스트가 자동으로 정리합니다.', en: 'A previous test left the shared model marked as busy; the next test clears it automatically.' },
   'chat.time.s': { ko: '{n}초 전 시작', en: 'started {n}s ago' },
   'chat.time.m': { ko: '{n}분 전 시작', en: 'started {n}m ago' },
   'chat.time.h': { ko: '{n}시간 전 시작', en: 'started {n}h ago' },
   'chat.price_note': { ko: '{note}', en: '{note}' },
-  'chat.lock.help': { ko: '공유 모델은 한 번에 하나의 테스트만 넣었다 뺄 수 있어 테스트가 순서대로 실행됩니다.', en: 'The shared model runs one test at a time, so tests queue up one after another.' },
+  'chat.lock.help': { ko: '모델은 한 번에 하나의 지식만 넣었다 뺄 수 있어 테스트가 순서대로 실행됩니다.', en: 'The model loads and unloads one knowledge at a time, so tests run one after another.' },
+
+  // queue (D3) — what the transcript says while a request waits behind the shared model
+  'chat.queue.waiting': { ko: '다른 테스트 뒤에서 순서를 기다리는 중입니다 — 질문은 사라지지 않았습니다.', en: 'Queued behind another test — your question has not been lost.' },
+  'chat.queue.holder': { ko: '다른 사람이 공유 모델을 쓰고 있습니다({label}, {since}).', en: 'Someone else has the shared model ({label}, {since}).' },
+  'chat.queue.mine': { ko: '지금은 이 테스트가 공유 모델을 쓰고 있습니다 — 곧 답이 나옵니다.', en: 'Your test has the shared model now — the answer is on its way.' },
+  'chat.queue.position': { ko: '대기 순서 {n}번입니다.', en: 'You are number {n} in line.' },
+  'chat.queue.elapsed': { ko: '{n}초째 대기', en: 'waiting {n}s' },
+  'chat.queue.long': { ko: '{n}분째 대기 중입니다 — 공유 모델이 평소보다 오래 잡혀 있습니다. 계속 기다리거나 그만둘 수 있습니다.', en: 'Still queued after {n} minutes — the shared model is busy for longer than usual. You can keep waiting or stop.' },
+  'chat.queue.stop_waiting': { ko: '기다리지 않기', en: 'Stop waiting' },
+  'chat.queue.cancelled': { ko: '기다리기를 그만두었습니다. 노드가 아직 테스트를 시작하지 않아 무료 체험 횟수는 차감되지 않았습니다.', en: 'You stopped waiting. The node had not started this test yet, so no free try was used.' },
+  'chat.queue.cancelled_late': { ko: '기다리기를 그만두었지만 공유 모델에서 이미 테스트가 시작되어 무료 체험 1회로 계산됩니다.', en: 'You stopped waiting, but the test had already started on the shared model, so it still counts as one free try.' },
 
   // quota
   'chat.quota.left': { ko: '이 시간 무료 체험 {n}회 남음', en: '{n} free tries left this hour' },
@@ -70,6 +85,11 @@ export const chat: Dict = {
   'chat.samples.title': { ko: '이 지식이 답할 수 있는 질문 예시', en: 'Sample questions this knowledge answers' },
   'chat.samples.help': { ko: '누르면 입력창에 들어갑니다. 보내기 전에 고쳐도 됩니다.', en: 'Click to put it in the box. You can edit before sending.' },
   'chat.samples.expect': { ko: '기대 답: {expect}', en: 'Expected: {expect}' },
+  // D2: the trained prompt ends with a space, and that space is part of what was trained. The chip shows a ␣
+  // marker and sends the text exactly as trained (its accessible name stays the plain prompt).
+  'chat.samples.trailing_space': { ko: '끝의 공백까지가 학습된 프롬프트입니다 — 누르면 공백을 포함해 그대로 입력되고 그대로 전송됩니다.', en: 'The trailing space is part of the trained prompt — clicking inserts it, and it is sent, exactly as trained.' },
+  'chat.samples.verbatim': { ko: '예시는 학습된 그대로(끝 공백 포함) 전송됩니다.', en: 'Samples are sent exactly as trained, trailing space included.' },
+  'chat.samples.format_note': { ko: '이 지식은 완성형(예: "종목코드 회사명 ")으로 학습되고 검증되었습니다. 라이브 테스트는 채팅 형식으로 물어보기 때문에 검증 점수와 답이 다를 수 있습니다.', en: 'This knowledge was trained and verified in the completion form (e.g. "종목코드 <company> "). The live test asks through the chat format, so the answer can differ from its verified score.' },
   'chat.samples.more': { ko: '예시 {n}개 더 보기', en: 'Show {n} more' },
   'chat.samples.less': { ko: '접기', en: 'Show less' },
   'chat.input.placeholder': { ko: '질문을 입력하고 Enter를 누르세요 (줄바꿈은 Shift+Enter)', en: 'Type a question and press Enter (Shift+Enter for a new line)' },
@@ -95,6 +115,13 @@ export const chat: Dict = {
   'chat.bubble.thinking_pending': { ko: '답변 생성 중…', en: 'Generating…' },
   'chat.bubble.compare_pending': { ko: '지식을 넣었다 빼는 과정이 포함되어 수십 초 걸릴 수 있습니다.', en: 'Includes loading and unloading — this can take tens of seconds.' },
   'chat.bubble.empty_answer': { ko: '(빈 답변)', en: '(empty answer)' },
+  // D1 — what the visitor is told when the guard cut a runaway answer
+  'chat.trunc.repetition': { ko: '모델이 같은 말을 반복하기 시작해서 답을 여기서 잘랐습니다. 보통은 이 지식이 다루지 않는 질문일 때 이렇게 됩니다.', en: 'The model started repeating itself, so the answer is cut off here — that usually means the question is outside what this knowledge covers.' },
+  'chat.trunc.length': { ko: '길이 제한에 걸려 답이 끝나기 전에 멈췄습니다.', en: 'The answer stopped at the length limit before it was finished.' },
+  'chat.trunc.empty': { ko: '모델이 생각하는 데 길이를 다 써서 답이 비어 있습니다. 생각 과정을 끄고 다시 물어보세요.', en: 'The model spent its whole length limit thinking, so the answer came back empty. Turn thinking off and ask again.' },
+  'chat.trunc.show_raw': { ko: '원본 답변 보기 ({raw}자 전체)', en: 'Show the raw answer (all {raw} characters)' },
+  'chat.trunc.hide_raw': { ko: '원본 답변 숨기기', en: 'Hide the raw answer' },
+  'chat.trunc.shown': { ko: '{raw}자 중 {shown}자를 보여 줍니다', en: 'showing {shown} of {raw} characters' },
   'chat.bubble.reasoning': { ko: '생각 과정 보기', en: 'Show thinking' },
   'chat.hit.yes': { ko: '정답', en: 'Correct' },
   'chat.hit.no': { ko: '오답', en: 'Wrong' },
@@ -105,7 +132,7 @@ export const chat: Dict = {
   // errors (plain Korean; server messages are mapped in ChatPage)
   'chat.err.no_body': { ko: '이 노드에 지식 본문이 없습니다. 판매 노드에서 테스트하거나 먼저 구매하세요.', en: 'This node does not have the knowledge body. Test it on the seller’s node or buy it first.' },
   'chat.err.quota': { ko: '이 시간 무료 체험 횟수를 모두 사용했습니다. 한 시간 뒤 다시 시도하거나 지식을 구매해 내 노드에서 제한 없이 쓰세요.', en: 'You used all free tries for this hour. Try again in an hour, or buy the knowledge and use it without limits on your own node.' },
-  'chat.err.busy': { ko: '다른 테스트가 진행 중이라 이번 요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.', en: 'Another test was running so this request could not be handled. Try again in a moment.' },
+  'chat.err.busy': { ko: '공유 모델이 오래 잡혀 있어 기다리다 포기했습니다. 잠시 후 다시 시도하세요.', en: 'The shared model stayed busy for too long, so this request gave up waiting. Try again in a moment.' },
   'chat.err.runtime': { ko: '모델 서버가 꺼져 있거나 응답하지 않습니다. 잠시 후 다시 시도하세요.', en: 'The model server is off or not responding. Try again in a moment.' },
   'chat.err.model': { ko: '이 지식은 이 노드가 서비스하는 모델과 다른 모델용이라 테스트할 수 없습니다.', en: 'This knowledge targets a different model than the one this node serves.' },
   'chat.err.not_found': { ko: '해당 지식을 찾을 수 없습니다. 목록에서 다시 골라 주세요.', en: 'That knowledge could not be found. Pick one from the list again.' },

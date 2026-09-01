@@ -26,6 +26,8 @@ const ChipBtn = styled.button`
   &:disabled { cursor: not-allowed; opacity: 0.5; }
 `;
 const MoreBtn = styled(ChipBtn)`color: ${(p) => p.theme.color.PRIMARY}; border-style: dashed; background: #fff;`;
+/** Visible marker for the trained trailing space — the chip's accessible name stays the plain prompt. */
+const Space = styled.span`opacity: 0.55; font-family: ${(p) => p.theme.font.mono}; margin-left: 1px;`;
 const InputRow = styled.div`display: flex; gap: 10px; align-items: flex-end;`;
 const Box = styled.textarea`
   flex: 1; min-height: 44px; max-height: 160px; resize: none; padding: 10px 12px; font-size: 14px; line-height: 1.5; border-radius: 4px;
@@ -67,16 +69,19 @@ export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinkin
   }, [text]);
 
   const submit = () => {
-    const v = text.trim();
-    if (!v || locked) return;
-    onSend(v);
+    // D2: send exactly what is in the box. This knowledge is trained on prompts that END WITH A SPACE
+    // ("종목코드 픽셀플러스 "), and trimming here silently sent a prompt the knowledge was never trained on.
+    if (!text.trim() || locked) return;
+    onSend(text);
     setText('');
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
   };
-  const insert = (p: string) => { setText(p.trim()); ref.current?.focus(); };
+  /** The sample goes into the box verbatim (trailing space included) — the chip only *shows* it trimmed. */
+  const insert = (p: string) => { setText(p); ref.current?.focus(); };
   const visible = showAll ? samples : samples.slice(0, INITIAL_CHIPS);
+  const anyTrailing = samples.some((s) => /\s$/.test(s.prompt));
   const modes: { id: ChatModeKind; label: string; help: string }[] = [
     { id: 'compare', label: t('chat.mode.compare'), help: t('chat.mode.compare_help') },
     { id: 'patched', label: t('chat.mode.patched'), help: t('chat.mode.patched_help') },
@@ -87,11 +92,20 @@ export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinkin
     <Wrap>
       {samples.length > 0 && (
         <div>
-          <SamplesTitle>{t('chat.samples.title')}<span>{t('chat.samples.help')}</span></SamplesTitle>
+          <SamplesTitle>{t('chat.samples.title')}<span>{t('chat.samples.help')}{anyTrailing ? ` ${t('chat.samples.verbatim')}` : ''}</span></SamplesTitle>
           <Chips style={{ marginTop: 6 }}>
-            {visible.map((s, i) => (
-              <ChipBtn key={`${i}-${s.prompt}`} type="button" disabled={locked} onClick={() => insert(s.prompt)} title={t('chat.samples.expect', { expect: s.expect })}>{s.prompt.trim()}</ChipBtn>
-            ))}
+            {visible.map((s, i) => {
+              const label = s.prompt.trim();
+              const trailing = s.prompt !== s.prompt.replace(/\s+$/, '');
+              return (
+                // aria-label keeps the plain prompt: the ␣ marker is decoration, not part of the name.
+                // `title` stays "Expected: …" (it is the chip's documented tooltip); the ␣ marker carries its own.
+                <ChipBtn key={`${i}-${s.prompt}`} type="button" disabled={locked} onClick={() => insert(s.prompt)} aria-label={label}
+                  title={t('chat.samples.expect', { expect: s.expect })}>
+                  {label}{trailing && <Space aria-hidden="true" title={t('chat.samples.trailing_space')}>␣</Space>}
+                </ChipBtn>
+              );
+            })}
             {samples.length > INITIAL_CHIPS && (
               <MoreBtn type="button" onClick={() => setShowAll((v) => !v)}>{showAll ? t('chat.samples.less') : t('chat.samples.more', { n: samples.length - INITIAL_CHIPS })}</MoreBtn>
             )}

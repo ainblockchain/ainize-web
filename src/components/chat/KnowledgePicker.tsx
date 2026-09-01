@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import styled from 'styled-components';
-import type { CatalogEntry, ChatOverlap, RuntimeStatus } from '@/api/types';
+import type { CatalogEntry, ChatLock, ChatOverlap, RuntimeStatus } from '@/api/types';
 import { useT } from '@/i18n';
 import { StatusChip } from '@/components/ui/Misc';
 import { Alert } from '@/components/ui/Form';
 import { num, shortAddr } from '@/utils/format';
-import { MAX_CHAT_PATCHES, executedAccuracy, lockOwnerLabel } from './util';
+import { MAX_CHAT_PATCHES, executedAccuracy, lockKind, lockOwnerLabel, useSince, useTicker } from './util';
 
 const Panel = styled.aside`
   display: flex; flex-direction: column; gap: 12px; min-width: 0;
@@ -50,22 +50,14 @@ const Pinned = styled.span`
 `;
 const Section = styled.h3`margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: ${(p) => p.theme.color.DARK_GREY};`;
 
-/** Locale-aware "started n minutes ago" for the lock banner. */
-function useSince() {
-  const { t } = useT();
-  return (ts: number): string => {
-    const s = Math.floor(Math.max(0, Date.now() - ts) / 1000);
-    if (s < 60) return t('chat.time.s', { n: s });
-    const m = Math.floor(s / 60);
-    if (m < 60) return t('chat.time.m', { n: m });
-    return t('chat.time.h', { n: Math.floor(m / 60) });
-  };
-}
-
 export interface KnowledgePickerProps {
   items: CatalogEntry[];
   runtime: RuntimeStatus | undefined;
-  lock: { owner: string; label: string; since: number } | null | undefined;
+  lock: ChatLock | null | undefined;
+  /** Browser clock minus node clock at the last poll — elapsed times are then measured against the node's clock. */
+  clockSkewMs?: number;
+  /** True while THIS tab's own live test holds the shared model (the banner then says so instead of blaming a stranger). */
+  lockIsMine?: boolean;
   /** Selected ids in tick order (= load order). */
   selectedIds: string[];
   onToggle: (id: string) => void;
@@ -77,9 +69,12 @@ export interface KnowledgePickerProps {
   lessons?: CatalogEntry[];
 }
 
-export function KnowledgePicker({ items, runtime, lock, selectedIds, onToggle, onClear, applied = [], overlaps = [], lessons = [] }: KnowledgePickerProps) {
+export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsMine = false, selectedIds, onToggle, onClear, applied = [], overlaps = [], lessons = [] }: KnowledgePickerProps) {
   const { t, term, help, tech, locale } = useT();
-  const since = useSince();
+  const kind = lockKind(lock, lockIsMine);
+  // the banner's clock ticks every second instead of freezing until the next 20 s poll
+  useTicker(kind !== 'none');
+  const since = useSince(clockSkewMs);
   const runtimeOff = !!runtime && !runtime.available;
   const full = selectedIds.length >= MAX_CHAT_PATCHES;
   const nameOf = useMemo(() => {
@@ -151,12 +146,24 @@ export function KnowledgePicker({ items, runtime, lock, selectedIds, onToggle, o
           <Small>{t('chat.runtime.off_detail')}</Small>
         </Alert>
       )}
-      {lock && (
-        <Alert $tone="info" role="status" title={help('liveTest')}>
+      {/* D3: a lock whose holder process is gone (or whose lease expired) is broken by the very next request —
+          reporting it as "another test in progress" made the banner permanent on an idle node. And when the
+          holder is this node's own request, say so instead of blaming a stranger. */}
+      {kind === 'other' && lock && (
+        <Alert $tone="info" role="status" title={help('liveTest')} data-testid="chat-lock">
           {t('chat.lock.busy')}
-          <Small>{t('chat.lock.holder', { pid: lockOwnerLabel(lock.owner), since: since(lock.since) })}</Small>
+          <Small>{t('chat.lock.holder', { label: lock.label, pid: lockOwnerLabel(lock.owner), since: since(lock.since) })}</Small>
           <Small>{t('chat.lock.help')}</Small>
         </Alert>
+      )}
+      {kind === 'mine' && lock && (
+        <Alert $tone="info" role="status" title={help('liveTest')} data-testid="chat-lock-mine">
+          {t('chat.lock.mine', { since: since(lock.since) })}
+          <Small>{t('chat.lock.help')}</Small>
+        </Alert>
+      )}
+      {kind === 'stale' && (
+        <Alert $tone="warning" role="status" data-testid="chat-lock-stale">{t('chat.lock.stale')}</Alert>
       )}
       {applied.length > 0 && (
         <Alert $tone="warning" role="status" data-testid="chat-contaminated">

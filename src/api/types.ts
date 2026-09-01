@@ -91,7 +91,19 @@ export interface DriveChange { seq: number; digest: string; created_at: number; 
 export interface DriveChangesResponse { path: string; doc_id: string | null; changes: DriveChange[]; current: string | null; }
 
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
-export interface ChatResult { content: string; reasoning?: string | null; usage?: Record<string, unknown>; latency_ms: number; model: string }
+export interface ChatResult {
+  /** The answer to show: cut at the point the model started repeating itself when `truncated === 'repetition'`. */
+  content: string;
+  reasoning?: string | null; usage?: Record<string, unknown>; latency_ms: number; model: string;
+  /** Upstream finish_reason ("stop" | "length" | …). */
+  finish_reason?: string | null;
+  /** D1 — why the shown answer is shorter than what the model produced (null = nothing was cut). */
+  truncated?: 'repetition' | 'length' | null;
+  shown_chars?: number;
+  raw_chars?: number;
+  /** The model's full output — present only when it was cut, for the "show the raw answer" toggle. */
+  raw_content?: string;
+}
 export interface ChatApplied { patch_id: string; applied_ms: number | null; was_applied: boolean }
 export interface ChatResponse {
   /** first knowledge (kept for old clients); `patch_ids` lists every knowledge loaded, in load order */
@@ -106,8 +118,18 @@ export interface ChatResponse {
 }
 /** Two testable knowledges that share `rows` memory entries (the one loaded last wins on those). */
 export interface ChatOverlap { a: string; b: string; rows: number }
+/**
+ * Who holds the one shared serving model. `alive` is the node's own liveness probe of the holder process and
+ * `stale` its 15-minute lease check — a lock file left behind by a killed node has alive:false and must not be
+ * shown as "someone is testing". `mine` = this node's own request holds it.
+ */
+export interface ChatLock { owner: string; label: string; since: number; alive: boolean; stale: boolean; mine: boolean }
 export interface ChatPatchesResponse {
-  items: CatalogEntry[]; runtime: RuntimeStatus; lock: { owner: string; label: string; since: number } | null;
+  items: CatalogEntry[]; runtime: RuntimeStatus; lock: ChatLock | null;
+  /** The node's clock, so elapsed times are measured against it rather than the browser's. */
+  now?: number;
+  /** What the shared model is doing and how many live tests of this node are waiting behind it. */
+  queue?: { running: { label: string; since: number } | null; waiting: number };
   /** knowledge the operator keeps loaded for everyone — it is part of every "before" answer (contamination banner) */
   applied?: string[];
   overlaps?: ChatOverlap[];
@@ -116,7 +138,23 @@ export interface ChatPatchesResponse {
   teacher?: string;
 }
 /** Body of POST /api/chat — exactly one of patch_id / patch_ids. */
-export interface ChatRequest { patch_id?: string; patch_ids?: string[]; mode?: 'base' | 'patched' | 'compare'; messages: ChatMessage[]; max_tokens?: number; thinking?: boolean }
+export interface ChatRequest { patch_id?: string; patch_ids?: string[]; mode?: 'base' | 'patched' | 'compare'; messages: ChatMessage[]; max_tokens?: number; thinking?: boolean;
+  /** D3 — the client's id for this live test, so it can ask GET /api/chat/status and cancel while queued. */
+  request_id?: string }
+/** GET /api/chat/status?request_id= — where one live test is in the queue behind the shared model. */
+export interface ChatStatusResponse {
+  state: 'queued' | 'running' | 'gone';
+  queued_ms: number; running_ms: number;
+  /** 1 = next in line; 0 once running. */
+  position: number;
+  cancelled: boolean;
+  lock: ChatLock | null;
+  running: { label: string; since: number } | null;
+  waiting: number;
+  now: number;
+}
+/** POST /api/chat/cancel — `charged` says plainly whether the free try was spent. */
+export interface ChatCancelResponse { cancelled: boolean; reason: 'queued' | 'already_running' | 'gone'; charged: boolean }
 export interface Settings { notifications: 'all' | 'sales' | 'none'; display_name: string; payout_address: string }
 
 export interface OpenApiOperation { tags?: string[]; summary?: string; description?: string; parameters?: { name: string; in: string; required?: boolean; description?: string; schema?: { type?: string; enum?: string[]; default?: unknown } }[]; requestBody?: { content: Record<string, { schema: unknown }> }; responses?: Record<string, { description: string }>; security?: unknown[] }
