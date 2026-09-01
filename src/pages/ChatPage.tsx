@@ -203,8 +203,12 @@ export default function ChatPage() {
     if (selectedIds.length === 0 && !userCleared.current) go(selectionPath([items[0].anchor.id]), true);
   }, [data, items, routeIds, selectedIds, go]);
 
-  // Abort any in-flight request when leaving the page.
-  useEffect(() => () => { inflight.current?.abort(); }, []);
+  // Abort any in-flight request when leaving the page. `alive` guards the refreshes that outlive the page: a
+  // request aborted by this cleanup settles one microtask later, and RTK Query's refetch() throws
+  // ("Cannot refetch a query that has not been started yet") once the hook's own cleanup has run.
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; inflight.current?.abort(); }, []);
+  const refreshPatches = useCallback(() => { if (alive.current) void refetch(); }, [refetch]);
 
   const turns = useMemo(() => (selectionKey ? transcripts[selectionKey] ?? [] : []), [transcripts, selectionKey]);
   const lastStatus = turns[turns.length - 1]?.status;
@@ -235,7 +239,7 @@ export default function ChatPage() {
     const request = sendChat({ ...target, mode: useMode, messages: history, thinking: useThinking });
     inflight.current = request;
     // show the shared-model lock (held by this very request, or by someone ahead of it) right away instead of on the next 20 s poll
-    const lockPeek = setTimeout(() => { void refetch(); }, 800);
+    const lockPeek = setTimeout(refreshPatches, 800);
     try {
       const res = await request.unwrap();
       setQuota(res.remaining_quota);
@@ -250,9 +254,9 @@ export default function ChatPage() {
     } finally {
       clearTimeout(lockPeek);
       if (inflight.current === request) inflight.current = null;
-      void refetch();   // lock released (or still queued) — refresh the banner without waiting for the poll
+      refreshPatches();   // lock released (or still queued) — refresh the banner without waiting for the poll
     }
-  }, [selectedIds, selectedList, selectionKey, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, refetch, t]);
+  }, [selectedIds, selectedList, selectionKey, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, refreshPatches, t]);
 
   const cancel = useCallback(() => { inflight.current?.abort(); }, []);
   const retry = useCallback((turn: Turn) => { void send(turn.prompt, { mode: turn.mode, thinking: turn.thinking, replaceId: turn.id }); }, [send]);
