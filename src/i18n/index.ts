@@ -34,9 +34,13 @@ export function useT() {
   const { locale } = useLocale();
   return useMemo(() => ({
     locale,
-    /** page string: t('explore.title') */
-    t: (key: string, vars?: Record<string, string | number>): string => {
-      const e = PAGES[key];
+    /**
+     * Page string: t('explore.title'). Pass `count` for a countable noun — when the dictionary carries a
+     * `<key>_one` entry it is used for exactly one, so English never reads "1 corrections". Korean has no
+     * plural marking, so a `_one` entry there is normally the same sentence.
+     */
+    t: (key: string, vars?: Record<string, string | number>, count?: number): string => {
+      const e = (count === 1 ? PAGES[`${key}_one`] : undefined) ?? PAGES[key];
       if (!e) return key;
       return fmt(e[locale] ?? e.en, vars);
     },

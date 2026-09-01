@@ -90,7 +90,7 @@ export default function LogsPage() {
     <PageWrapper $wide>
       <TitleRow>
         <Title>{t('op.logs.title', { id: patchId })}</Title>
-        <SelectBox options={LEVELS} value={level} onChange={setLevel} />
+        <SelectBox options={LEVELS} value={level} onChange={setLevel} label={t('common.level_aria')} />
       </TitleRow>
       <Description>{t('op.logs.desc')} <StyledLink to={`/project/${author}/${patchId}`}>{t('op.logs.back')}</StyledLink></Description>
 

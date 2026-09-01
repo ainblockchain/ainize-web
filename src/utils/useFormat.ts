@@ -22,6 +22,14 @@ export function useElapsed() {
   };
 }
 
+/** Locale-aware digit grouping — the teach UI must not hardcode 'en-US' the way utils/format does. */
+export function useNumber() {
+  const { locale } = useT();
+  return (n: number): string => {
+    try { return n.toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US'); } catch { return String(n); }
+  };
+}
+
 /** "2026. 8. 31. 오후 2:02" in Korean, "Aug 31, 2026, 2:02 PM" in English. */
 export function useDateTime() {
   const { locale } = useT();

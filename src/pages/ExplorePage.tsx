@@ -56,7 +56,7 @@ export default function ExplorePage() {
     <PageWrapper>
       <TitleRow>
         <Title>{t('explore.title')}</Title>
-        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} />
+        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} />
       </TitleRow>
       <Intro title={help('liveTest')}>{t('explore.sub')}</Intro>
 

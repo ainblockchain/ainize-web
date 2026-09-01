@@ -144,6 +144,8 @@ export interface TeachChecks {
   reverted_and_reapplied: boolean;
   /** hard publish gate */
   ok: boolean;
+  /** the node measured nothing: a stub backend without a model server made these numbers up */
+  simulated?: boolean;
   note?: string;
 }
 export interface TeachJob {
@@ -181,6 +183,8 @@ export interface TeachPolicy {
   model: { id_M: string | null };
   applied: string[];
   draft_ttl_days: number;
+  /** true when this node's checks are simulated (stub backend without a model server) — never claim a live-model verification */
+  simulated_checks: boolean;
 }
 export interface TeachQuota { key_remaining: number; ip_remaining: number }
 export interface TeachFactInput { prompt: string; answer: string; alt_prompt?: string; base_answer?: string }
