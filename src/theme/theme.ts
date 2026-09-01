@@ -59,7 +59,7 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
   DRAFT: { label: 'Draft', color: '#8d8d8f', bg: '#f2f2f2', hint: 'Local draft — not yet announced to the network' },
   ANNOUNCED: { label: 'Announced', color: '#1b73e8', bg: '#e8f0fe', hint: 'Anchor recorded on the ledger, waiting for verifiers' },
   VERIFYING: { label: 'Verifying', color: '#f6981d', bg: '#fff3e0', hint: 'Attestations arriving — quorum not yet reached' },
-  LISTED: { label: 'Listed', color: '#44a45f', bg: '#e6f4ea', hint: 'Verification quorum reached — tradeable' },
+  LISTED: { label: 'For sale', color: '#44a45f', bg: '#e6f4ea', hint: 'Verification quorum reached — the current version, on sale' },
   REJECTED: { label: 'Rejected', color: '#e6173e', bg: '#fde8ec', hint: 'Failed verification quorum' },
   CHALLENGED: { label: 'Challenged', color: '#d14737', bg: '#fdecea', hint: 'A re-verification challenge is open' },
   // Warning palette (the one KindChip already uses for a supersede record): #8a4b00 on #fff3e0 is 6.4:1, where the

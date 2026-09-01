@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router';
-import styled from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import type { CatalogEntry } from '@/api/types';
 import { Certified, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
@@ -71,8 +71,18 @@ const Wrapper = styled(Link)`
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 16px; }
 `;
 
-const Icon = styled.img`
+/**
+ * The seal is the biggest thing on the card, so it must MEAN something (finding 56). It is drawn only for an item
+ * that passed the verifier quorum: full colour while it is the current version, greyed for a retired one, and
+ * pulsing (the same treatment StatusChip uses) while verification is still arriving. An item that never reached
+ * quorum — REJECTED, DRAFT, a card of a failed announce — gets no seal, and the 56 px go back to the content.
+ */
+const sealPulse = keyframes`0%, 100% { opacity: 0.55; } 50% { opacity: 1; }`;
+const Icon = styled.img<{ $tone: 'sealed' | 'retired' | 'pending' }>`
   width: 56px; height: 56px; flex: none; object-fit: contain;
+  filter: ${(p) => (p.$tone === 'retired' ? 'grayscale(1)' : 'none')};
+  opacity: ${(p) => (p.$tone === 'retired' ? 0.45 : 1)};
+  ${(p) => (p.$tone === 'pending' ? css`animation: ${sealPulse} 1.6s ease-in-out infinite;` : '')}
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: 40px; height: 40px; }
 `;
 
@@ -130,10 +140,15 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
   const navigate = useNavigate();
   const provider = a.contributors?.find((c) => c.role === 'data_provider');
   const taught = a.origin === 'teach' || !!provider;
+  const seal: 'sealed' | 'retired' | 'pending' | null = entry.quorum_ok
+    ? (entry.status === 'LISTED' ? 'sealed' : entry.status === 'SUPERSEDED' ? 'retired' : null)
+    : (entry.status === 'VERIFYING' || entry.status === 'ANNOUNCED' ? 'pending' : null);
+  /** How the verifiers asked their questions — two knowledges scored on different forms are different exams. */
+  const formats = a.benchmark.format?.length ? a.benchmark.format.join(' + ') : null;
 
   return (
     <Wrapper to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}`}>
-      <Icon src="/static/images/ic-certified.svg" alt="" />
+      {seal && <Icon src="/static/images/ic-certified.svg" alt="" data-testid={`seal-${seal}`} title={t(`item.seal_${seal}`)} $tone={seal} />}
       <Info>
         <NameRow>
           <Name>{a.name || a.id}</Name>
@@ -164,6 +179,8 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
           <abbr title={`${help('verified')} (${tech('verified')})`}>{entry.quorum_ok ? <Good>{verification(entry)}</Good> : verification(entry)}</abbr>
           {entry.integrity_checks > 0 && <>{' · '}<Soft><abbr title={t('item.integrity_help')}>{t('item.integrity_only', { n: entry.integrity_checks })}</abbr></Soft></>}
           {acc && <>{' · '}<abbr title={`${t('item.accuracy_raw', { raw: acc.raw })} — ${help('accuracy')}`}><Good>{t('item.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</Good></abbr></>}
+          {/* Finding 24: an accuracy is only comparable with one measured on the same question set, in the same form. */}
+          {formats && <>{' · '}<Soft data-testid="item-format"><abbr title={t('item.format_help')}>{t('item.format', { formats })}</abbr></Soft></>}
         </Meta>
         {a.description && <Desc>{a.description}</Desc>}
       </Info>

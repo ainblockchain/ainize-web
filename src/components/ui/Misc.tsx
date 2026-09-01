@@ -78,7 +78,9 @@ export function StatusChip({ status, title, supersededBy }: { status: string; ti
   const label = status === 'SUPERSEDED' && supersededBy
     ? t('status.SUPERSEDED_by', { id: supersededBy })
     : t(`status.${status}`) === `status.${status}` ? m.label : t(`status.${status}`);
-  const hint = status === 'LISTED' ? help('verified') : status === 'VERIFYING' || status === 'ANNOUNCED' ? help('verifying') : status === 'SUPERSEDED' ? help('superseded') : m.hint;
+  // LISTED is a LISTING state ("the current version, on sale"), not the verification badge beside it — the tooltip
+  // says both so the two words on one row cannot be read as a duplicate (finding 29).
+  const hint = status === 'LISTED' ? t('status.LISTED_help') : status === 'VERIFYING' || status === 'ANNOUNCED' ? help('verifying') : status === 'SUPERSEDED' ? help('superseded') : m.hint;
   return (<Chip $color={m.color} $bg={m.bg} title={title ?? hint}><Dot $color={m.color} $pulse={status === 'VERIFYING' || status === 'ANNOUNCED'} />{label}</Chip>);
 }
 

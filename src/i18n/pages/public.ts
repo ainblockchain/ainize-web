@@ -121,8 +121,22 @@ export const listing: Dict = {
 
   // benchmark (same-topic) page
   'bench.title': { ko: '같은 주제의 지식', en: 'Knowledge on this topic' },
-  'bench.stats': { ko: '지식 {total}개 · 검증 완료 {listed}개 · 대상 모델: {models}', en: '{total} knowledge · {listed} verified · models: {models}' },
-  'bench.explain': { ko: '같은 주제의 지식은 같은 질문 묶음으로 채점되어 서로 비교할 수 있습니다. 내용이 겹치면 더 새로운 검증 완료 지식이 이전 것을 대체합니다("최신 버전 있음").', en: 'Knowledge on the same topic is scored with the same question set, so it can be compared. When contents overlap, the newer verified knowledge replaces the older one ("Newer version available").' },
+  // Finding 24 — the form the questions were asked in is part of what the score means
+  'item.format': { ko: '문항 형식 {formats}', en: 'asked as {formats}' },
+  'item.format_help': { ko: '검증 질문을 어떤 형식으로 물었는지입니다. 형식이 다르면 같은 지식이라도 다른 시험이라 점수를 나란히 비교할 수 없습니다.', en: 'The form the benchmark questions were asked in. A different form is a different exam, so the scores cannot be lined up side by side.' },
+  'item.seal_sealed': { ko: '검증 정족수를 채운 현재 버전입니다.', en: 'Passed the verifier quorum and is the current version.' },
+  'item.seal_retired': { ko: '검증은 통과했지만 최신 버전으로 대체된 지식입니다.', en: 'Passed verification, but a newer version has replaced it.' },
+  'item.seal_pending': { ko: '검증이 아직 진행 중입니다.', en: 'Verification is still arriving.' },
+  // Finding 29: "{listed} verified" next to four cards each labelled "Verified" read as "three failed verification".
+  // These are the current versions on sale; verification is what the badge on each card says.
+  'bench.stats': { ko: '지식 {total}개 · 현재 버전 {listed}개 · 문제 묶음 {sets}개 · 대상 모델: {models}', en: '{total} knowledge · {listed} current version(s) · {sets} question set(s) · models: {models}' },
+  // Finding 24: the four items here carry three different benchmark_hashes, so the old promise ("scored with the
+  // same question set, so it can be compared") was not true of the list it sat above.
+  'bench.explain': { ko: '점수는 같은 문제 묶음 안에서만 비교할 수 있습니다. 아래는 검증에 쓰인 문제 묶음별로 묶어 놓았습니다 — 묶음이 다르면 시험이 다른 것이라 점수를 나란히 비교할 수 없습니다. 내용이 겹치면 더 새로운 검증 완료 지식이 이전 것을 대체합니다("최신 버전 있음").', en: 'Scores are comparable only within one question set. The list below is grouped by the question set the verifiers used — a different set is a different exam, and those numbers cannot be lined up against each other. When contents overlap, the newer verified knowledge replaces the older one ("Newer version available").' },
+  'bench.group.title': { ko: '문제 묶음 · {format} · 질문 {n}개', en: 'Question set · {format} · {n} questions' },
+  'bench.group.title_noformat': { ko: '문제 묶음 · 질문 {n}개', en: 'Question set · {n} questions' },
+  'bench.group.note': { ko: '이 {n}개는 같은 문제 묶음으로 채점돼 서로 비교할 수 있습니다.', en: 'These {n} were scored on this same question set, so they can be compared with each other.' },
+  'bench.group.alone': { ko: '이 문제 묶음으로 채점된 지식은 이것뿐이라 비교 대상이 없습니다.', en: 'The only knowledge scored on this question set — nothing here to compare it with.' },
   'bench.back': { ko: '지식 둘러보기로 돌아가기', en: 'Back to Explore' },
   'bench.empty': { ko: '이 주제의 지식이 아직 없습니다.', en: 'No knowledge on this topic yet.' },
   'bench.notfound': { ko: '"{schema}" 주제로 등록된 지식이 없습니다.', en: 'No knowledge is registered under the topic "{schema}".' },

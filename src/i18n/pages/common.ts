@@ -46,7 +46,10 @@ export const common: Dict = {
   'status.DRAFT': { ko: '작성 중', en: 'Draft' },
   'status.ANNOUNCED': { ko: '등록됨 · 검증 대기', en: 'Registered · awaiting verification' },
   'status.VERIFYING': { ko: '검증 중', en: 'Verifying' },
-  'status.LISTED': { ko: '검증 완료', en: 'Verified' },
+  // "Verified" is the attestation badge (quorum reached). This chip is about the LISTING: the knowledge is current
+  // and on sale. Printing "Verified · Verified" on one row made the word mean two things at once (finding 29).
+  'status.LISTED': { ko: '판매 중', en: 'For sale' },
+  'status.LISTED_help': { ko: '이 주제의 현재 버전으로 판매 중입니다. 검증 자체는 옆의 "검증 완료" 배지가 말합니다.', en: 'On sale as the current version for this topic. Whether it passed verification is what the "Verified" badge beside it says.' },
   'status.REJECTED': { ko: '검증 실패', en: 'Failed verification' },
   'status.CHALLENGED': { ko: '재검증 요청됨', en: 'Re-verification requested' },
   'status.SUPERSEDED': { ko: '최신 버전 있음', en: 'Newer version available' },
