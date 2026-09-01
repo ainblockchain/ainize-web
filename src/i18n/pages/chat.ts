@@ -103,6 +103,9 @@ export const chat: Dict = {
   'chat.input.cancel': { ko: '취소', en: 'Cancel' },
   'chat.input.in_flight': { ko: '답을 기다리는 중입니다. 오래 걸리면 취소할 수 있습니다.', en: 'Waiting for the answer — you can cancel if it takes too long.' },
 
+  // follow-up questions: each column replays its own earlier answers (never the other's)
+  'chat.history.split': { ko: '이어지는 질문에서 각 열은 자기가 한 답만 다시 보게 됩니다 — "넣기 전" 모델에는 지식이 낸 답을 알려주지 않습니다.', en: 'On follow-up questions each column replays only its own earlier answers — the "Before loading" model is never shown what the knowledge answered.' },
+
   // transcript
   'chat.empty.title': { ko: '아직 질문이 없습니다', en: 'No questions yet' },
   'chat.empty.body': { ko: '아래 예시 질문을 누르거나 직접 질문을 입력해 보세요. 답은 "지식 넣기 전"과 "지식 넣은 후" 두 개가 나란히 나옵니다.', en: 'Click a sample question below or type your own. You get two answers side by side: before and after loading the knowledge.' },

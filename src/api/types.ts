@@ -115,6 +115,8 @@ export interface ChatResponse {
   remaining_quota: number | null;
   /** Hourly free-trial limit for visitors (null/undefined = unlimited or not reported). */
   quota_limit?: number | null;
+  /** How many messages each column was sent, and whether the two conversations differed (split histories). */
+  history?: { base: number; patched: number; split: boolean };
 }
 /** Two testable knowledges that share `rows` memory entries (the one loaded last wins on those). */
 export interface ChatOverlap { a: string; b: string; rows: number }
@@ -138,7 +140,15 @@ export interface ChatPatchesResponse {
   teacher?: string;
 }
 /** Body of POST /api/chat — exactly one of patch_id / patch_ids. */
-export interface ChatRequest { patch_id?: string; patch_ids?: string[]; mode?: 'base' | 'patched' | 'compare'; messages: ChatMessage[]; max_tokens?: number; thinking?: boolean;
+export interface ChatRequest { patch_id?: string; patch_ids?: string[]; mode?: 'base' | 'patched' | 'compare'; messages: ChatMessage[];
+  /**
+   * Compare mode with a history: one conversation per column — `messages_base` replays the answers the BASE model
+   * gave, `messages_patched` the ones the patched model gave. Both must end with the same (new) question; a column
+   * without its own array falls back to `messages`. Without the split the base column is told it previously
+   * produced the knowledge's answer and simply repeats it.
+   */
+  messages_base?: ChatMessage[]; messages_patched?: ChatMessage[];
+  max_tokens?: number; thinking?: boolean;
   /** D3 — the client's id for this live test, so it can ask GET /api/chat/status and cancel while queued. */
   request_id?: string }
 /** GET /api/chat/status?request_id= — where one live test is in the queue behind the shared model. */

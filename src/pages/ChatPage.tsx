@@ -68,6 +68,11 @@ const DevNote = styled.section`
   margin-top: 32px; padding: 16px 20px; background: #fff; border: 1px dashed ${(p) => p.theme.color.LIGHT_GREY}; font-size: 12px; line-height: 1.6; color: ${(p) => p.theme.color.GREY};
   h3 { margin: 0 0 4px; font-size: 12px; font-weight: 700; color: ${(p) => p.theme.color.DARK_GREY}; letter-spacing: 0.04em; text-transform: uppercase; }
 `;
+/** Compare mode, second turn on: the one line that says the two columns do not share a conversation. */
+const SplitNote = styled.p`
+  margin: 0; padding: 8px 16px; background: #fff; border-top: 1px dashed ${(p) => p.theme.color.LIGHT_GREY};
+  font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY};
+`;
 const CancelRow = styled.div`
   display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; background: #fff; border-top: 1px dashed ${(p) => p.theme.color.LIGHT_GREY};
   font-size: 12px; color: ${(p) => p.theme.color.GREY};
@@ -103,13 +108,20 @@ function mapChatError(err: unknown, t: Tr): string {
 
 const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-/** Build the outgoing history: only completed turns with a NON-EMPTY answer, capped to the server limit. */
-function buildHistory(prior: Turn[], text: string): ChatMessage[] {
+/**
+ * Build ONE column's outgoing history: only completed turns whose own column produced a NON-EMPTY answer, capped to
+ * the server limit, plus the new question.
+ *
+ * `column` is what makes the comparison honest. Replaying the patched answer to the un-patched model tells it that
+ * it already produced the knowledge's answer, so from turn 2 the "Before loading" column repeats it and the live
+ * test disproves the very thing it exists to show. A turn the other column never answered (mode 'base' / 'patched'
+ * only, or an empty answer) is left out of this column's conversation rather than faked.
+ */
+function buildHistory(prior: Turn[], text: string, column: 'base' | 'patched'): ChatMessage[] {
   const history: ChatMessage[] = [];
   for (const tr of prior) {
     if (tr.status !== 'done' || !tr.response) continue;
-    const a = tr.response.patched ?? tr.response.base;
-    const answer = a?.content?.trim();
+    const answer = tr.response[column]?.content?.trim();
     if (!answer) continue;                 // empty answers stay visible in the UI but never go back to the model
     history.push({ role: 'user', content: tr.prompt });
     history.push({ role: 'assistant', content: answer });
@@ -264,7 +276,12 @@ export default function ChatPage() {
     const sample = matchSampleAny(selectedList, text);
     const id = newId();
     const prior = (transcripts[pid] ?? []).filter((x) => x.id !== opts?.replaceId);
-    const history = buildHistory(prior, text);
+    // One conversation per column. In compare mode both go on the wire (messages = the patched one, so a client or
+    // node that ignores the split behaves exactly as before); a single-column mode sends only its own.
+    const basePast = buildHistory(prior, text, 'base');
+    const patchedPast = buildHistory(prior, text, 'patched');
+    const history = useMode === 'base' ? basePast : patchedPast;
+    const split = useMode === 'compare' ? { messages_base: basePast, messages_patched: patchedPast } : {};
 
     // D3: the node registers this id the moment the request arrives, so GET /api/chat/status can answer
     // "queued" (and a give-up while queued costs nothing) long before the answer exists.
@@ -273,7 +290,7 @@ export default function ChatPage() {
     patchTurns(pid, (prev) => [...prev.filter((x) => x.id !== opts?.replaceId), turn]);
     // one knowledge → patch_id (works on every node); several → patch_ids (teach-mode nodes)
     const target = ids.length === 1 ? { patch_id: ids[0] } : { patch_ids: ids };
-    const request = sendChat({ ...target, mode: useMode, messages: history, thinking: useThinking, request_id: requestId });
+    const request = sendChat({ ...target, mode: useMode, messages: history, ...split, thinking: useThinking, request_id: requestId });
     inflight.current = request;
     // show the shared-model lock (held by this very request, or by someone ahead of it) right away instead of on the next 20 s poll
     const lockPeek = setTimeout(refreshPatches, 800);
@@ -477,6 +494,13 @@ export default function ChatPage() {
                   <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
                 ) : turns.map((turn) => <TurnView key={turn.id} turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} />)}
               </Transcript>
+              {/*
+                * Finding 1: from turn 2 the two columns are two different conversations — the base call replays base
+                * answers, the patched call patched ones (buildHistory above). Say it where the follow-up is typed.
+                */}
+              {mode === 'compare' && turns.some((x) => x.status === 'done') && (
+                <SplitNote role="note" data-testid="chat-split-history">{t('chat.history.split')}</SplitNote>
+              )}
               {busy && (
                 <CancelRow role="status">
                   <span>{queuedNow ? t('chat.queue.waiting') : t('chat.input.in_flight')}</span>
