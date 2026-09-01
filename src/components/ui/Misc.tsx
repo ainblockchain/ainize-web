@@ -71,10 +71,13 @@ const Dot = styled.span<{ $color: string; $pulse?: boolean }>`
   @keyframes kmPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 `;
 
-export function StatusChip({ status, title }: { status: string; title?: string }) {
+/** `supersededBy` names the successor in the chip itself ("Newer version: krx-all-2761") instead of the bare "Newer version available". */
+export function StatusChip({ status, title, supersededBy }: { status: string; title?: string; supersededBy?: string }) {
   const { t, help } = useT();
   const m = STATUS_META[status] ?? { label: status, color: '#8d8d8f', bg: '#f2f2f2', hint: '' };
-  const label = t(`status.${status}`) === `status.${status}` ? m.label : t(`status.${status}`);
+  const label = status === 'SUPERSEDED' && supersededBy
+    ? t('status.SUPERSEDED_by', { id: supersededBy })
+    : t(`status.${status}`) === `status.${status}` ? m.label : t(`status.${status}`);
   const hint = status === 'LISTED' ? help('verified') : status === 'VERIFYING' || status === 'ANNOUNCED' ? help('verifying') : status === 'SUPERSEDED' ? help('superseded') : m.hint;
   return (<Chip $color={m.color} $bg={m.bg} title={title ?? hint}><Dot $color={m.color} $pulse={status === 'VERIFYING' || status === 'ANNOUNCED'} />{label}</Chip>);
 }

@@ -134,7 +134,7 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
         <NameRow>
           <Name>{a.name || a.id}</Name>
           {entry.quorum_ok && <Certified label={term('verified')} />}
-          <StatusChip status={entry.status} />
+          <StatusChip status={entry.status} supersededBy={entry.superseded_by[0]} />
         </NameRow>
         <Ident>{author} / {a.id}</Ident>
         {taught && (

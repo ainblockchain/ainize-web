@@ -181,7 +181,7 @@ export default function PatchPage() {
       <Content>
         <ContentInner>
           <NameRow>
-            <StatusChip status={data.status} />
+            <StatusChip status={data.status} supersededBy={data.superseded_by[0]} />
             <Quorum title={`${t('detail.patch.quorum_help', { quorum: data.quorum })} (${tech('verified')})`}>
               {t('detail.patch.verified_executed', { passed: data.passed, quorum: data.quorum })}{data.quorum_ok ? ` · ${term('verified')}` : ''}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}

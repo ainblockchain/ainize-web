@@ -50,6 +50,7 @@ export const common: Dict = {
   'status.REJECTED': { ko: '검증 실패', en: 'Failed verification' },
   'status.CHALLENGED': { ko: '재검증 요청됨', en: 'Re-verification requested' },
   'status.SUPERSEDED': { ko: '최신 버전 있음', en: 'Newer version available' },
+  'status.SUPERSEDED_by': { ko: '최신 버전: {id}', en: 'Newer version: {id}' },
   'price.credit_note': { ko: '노드 크레딧 = 개발용 가상 화폐 (실제 가치 없음)', en: 'node credit = development play money (no real value)' },
   'price.ain_note': { ko: 'AIN = AI Network 토큰 (이 데모는 로컬 개발 체인)', en: 'AIN = AI Network token (this demo runs a local dev chain)' },
   'units.rows': { ko: '기억 항목 {n}개', en: '{n} memory entries' },
