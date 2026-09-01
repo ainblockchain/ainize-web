@@ -8,6 +8,7 @@ import type {
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, Settings, DocsResponse,
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
+  DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
 } from './types';
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
@@ -16,7 +17,12 @@ import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/te
  * Endpoints that carry the visitor's signed `x-ngram-auth` when this browser has a teaching key (spec §6.1).
  * `chat` is included because a private draft (a taught lesson before publishing) can be live-tested only by its owner.
  */
-const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishTeachJob', 'saveTeachJob']);
+const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishTeachJob', 'saveTeachJob',
+  // teach mode v2 — the dataset routes (design §7)
+  'teachDatasets', 'teachDataset', 'teachDatasetRows', 'createTeachDataset', 'uploadTeachDataset', 'reparseTeachDataset', 'patchTeachDataset', 'forkTeachDataset', 'deleteTeachDataset',
+  'retrainTeachJob', 'teachJobEvents']);
+/** Header that carries the sha256 of a multipart upload — it is what the v2 signature covers (design §D14). */
+export const DATASET_SHA_HEADER = 'x-ngram-dataset-sha256';
 /** Internal marker set by prepareHeaders and consumed by `signedFetch` (never sent). */
 const SIGN_MARKER = 'x-ngram-sign';
 
@@ -44,13 +50,19 @@ const signedFetch: typeof fetch = async (input, init) => {
   if (currentTeacherKey()) {
     const node = await nodeAddress();
     const method = req.method.toUpperCase();
-    const body = method === 'GET' || method === 'HEAD' ? null : await req.clone().text();
+    // A multipart body is never captured as `rawBody` on the node, so the client signs the value of
+    // `x-ngram-dataset-sha256` instead and the node re-hashes the stored file against it (design §D14).
+    const declared = headers.get(DATASET_SHA_HEADER);
+    const body = declared ?? (method === 'GET' || method === 'HEAD' ? null : await req.clone().text());
     const u = new URL(req.url);
     const h = node ? teachAuthHeaderFor({ node, method, path: `${u.pathname}${u.search}`, body }) : teachAuthHeader();
     if (h) headers.set('x-ngram-auth', h);
   }
   return fetch(new Request(req, { headers }));
 };
+
+/** This node's address, for requests signed outside RTK Query (authenticated downloads). */
+export const nodeAddressOnce = (): Promise<string | null> => nodeAddress();
 
 export interface CatalogQuery {
   sort?: 'latest' | 'popular' | 'price' | 'rows';
@@ -74,7 +86,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'Teacher', 'TeachAdmin', 'Payouts'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
@@ -132,9 +144,13 @@ export const api = createApi({
 
     // Teach mode (spec §6.2) — visitor routes signed with the browser's teaching key; poll a job every 5 s (call site: pollingInterval)
     teachPolicy: b.query<TeachPolicy, void>({ query: () => 'api/teach/policy', providesTags: ['Teach'] }),
-    teachPreflight: b.mutation<PreflightResponse, { patch_ids: string[]; facts: TeachFactInput[] }>({ query: (body) => ({ url: 'api/teach/preflight', method: 'POST', body }) }),
-    createTeachJob: b.mutation<CreateTeachJobResponse, { patch_ids: string[]; builds_on_context: boolean; facts: TeachFactInput[]; contributor?: { name?: string }; name?: string }>({
-      query: (body) => ({ url: 'api/teach/jobs', method: 'POST', body }), invalidatesTags: ['Teach'],
+    teachPreflight: b.mutation<PreflightResponse, { patch_ids: string[]; facts?: TeachFactInput[]; dataset_id?: string; offset?: number; limit?: number }>({ query: (body) => ({ url: 'api/teach/preflight', method: 'POST', body }) }),
+    createTeachJob: b.mutation<CreateTeachJobResponse, {
+      patch_ids: string[]; builds_on_context: boolean; facts?: TeachFactInput[];
+      dataset_id?: string; selected_indexes?: number[]; training?: Partial<TeachTrainingSpec>;
+      contributor?: { name?: string }; name?: string;
+    }>({
+      query: (body) => ({ url: 'api/teach/jobs', method: 'POST', body }), invalidatesTags: ['Teach', 'TeachDataset'],
     }),
     teachJob: b.query<{ job: TeachJob | TeachJobPublic }, string>({ query: (id) => `api/teach/jobs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Teach', id }] }),
     myTeachJobs: b.query<{ items: TeachJob[] }, void>({ query: () => 'api/teach/jobs?mine=1', providesTags: ['Teach'] }),
@@ -146,6 +162,51 @@ export const api = createApi({
     }),
     publishTeachJob: b.mutation<PublishResponse, { id: string } & PublishRequest>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Teach', id: a.id }, 'Teach', 'Chat', 'Catalog', 'Teacher'] }),
     saveTeachJob: b.mutation<TeachSaveResponse, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/save`, method: 'POST' }) }),
+    // Teach mode v2 — datasets (design §7.1-§7.2). One pipeline, two doors: both produce a TeachDataset.
+    teachDatasets: b.query<{ items: TeachDataset[] }, void>({ query: () => 'api/teach/datasets', providesTags: ['TeachDataset'] }),
+    teachDataset: b.query<{ dataset: TeachDataset }, string>({ query: (id) => `api/teach/datasets/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'TeachDataset', id }] }),
+    teachDatasetRows: b.query<DatasetRowsPage, { id: string; offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected' }>({
+      query: ({ id, ...q }) => `api/teach/datasets/${encodeURIComponent(id)}/rows${toQuery({ ...q })}`,
+      providesTags: (_r, _e, a) => [{ type: 'TeachDataset', id: a.id }],
+    }),
+    /** The chat door and the paste box: already-canonical questions, no file. */
+    createTeachDataset: b.mutation<DatasetResult, { source?: 'chat' | 'inline' | 'sample'; rows?: DatasetRowInput[]; sample?: string; name?: string; retention?: 'keep' | 'delete_after_training' }>({
+      query: (body) => ({ url: 'api/teach/datasets', method: 'POST', body }), invalidatesTags: ['TeachDataset'],
+    }),
+    /** The file door. `sha256` is signed as the body and re-checked against the stored bytes by the node (§D14). */
+    uploadTeachDataset: b.mutation<DatasetResult, { file: File; sha256: string; name?: string; retention?: 'keep' | 'delete_after_training'; parse?: DatasetParseOptions }>({
+      query: ({ file, sha256, name, retention, parse }) => {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        if (name) form.append('name', name);
+        if (retention) form.append('retention', retention);
+        for (const [k, v] of Object.entries(parse ?? {})) if (v !== undefined) form.append(k === 'has_header' ? 'has_header' : k, k === 'columns' ? JSON.stringify(v) : String(v));
+        return { url: 'api/teach/datasets', method: 'POST', body: form, headers: { [DATASET_SHA_HEADER]: sha256 } };
+      },
+      invalidatesTags: ['TeachDataset'],
+    }),
+    reparseTeachDataset: b.mutation<DatasetResult, { id: string } & DatasetParseOptions>({
+      query: ({ id, ...body }) => ({ url: `api/teach/datasets/${encodeURIComponent(id)}/reparse`, method: 'POST', body }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'TeachDataset', id: a.id }, 'TeachDataset'],
+    }),
+    patchTeachDataset: b.mutation<DatasetResult, { id: string; name?: string; retention?: 'keep' | 'delete_after_training'; rows_op?: DatasetRowsOp }>({
+      query: ({ id, ...body }) => ({ url: `api/teach/datasets/${encodeURIComponent(id)}`, method: 'PATCH', body }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'TeachDataset', id: a.id }, 'TeachDataset'],
+    }),
+    forkTeachDataset: b.mutation<DatasetResult, { id: string; name?: string; rows_op?: DatasetRowsOp }>({
+      query: ({ id, ...body }) => ({ url: `api/teach/datasets/${encodeURIComponent(id)}/fork`, method: 'POST', body }), invalidatesTags: ['TeachDataset'],
+    }),
+    deleteTeachDataset: b.mutation<{ ok: boolean; status: 'deleted' }, string>({
+      query: (id) => ({ url: `api/teach/datasets/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['TeachDataset', 'Teach'],
+    }),
+    teachSamples: b.query<{ samples: DatasetSample[] }, void>({ query: () => 'api/teach/samples' }),
+    /** Same dataset, another attempt (design §11): effort bumped, `parent_job` set, quota re-charged. */
+    retrainTeachJob: b.mutation<CreateTeachJobResponse, { id: string; dataset_id?: string; selected_indexes?: number[]; training?: Partial<TeachTrainingSpec>; name?: string }>({
+      query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/retrain`, method: 'POST', body }), invalidatesTags: ['Teach', 'TeachDataset'],
+    }),
+    teachJobEvents: b.query<{ events: TeachEventRow[]; cursor: number }, { id: string; since?: number }>({
+      query: ({ id, since }) => `api/teach/jobs/${encodeURIComponent(id)}/events${toQuery({ since })}`,
+    }),
     teacher: b.query<TeacherProfile, string>({ query: (address) => `api/teacher/${encodeURIComponent(address)}`, providesTags: (_r, _e, address) => [{ type: 'Teacher', id: address.toLowerCase() }, 'Teacher'] }),
 
     // Teach mode — operator (spec §6.4): policy, review queue, contributors, bans, payouts (Teaching tab on My knowledge)
@@ -175,6 +236,8 @@ export const {
   useChatPatchesQuery, useChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
+  useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,
+  usePatchTeachDatasetMutation, useForkTeachDatasetMutation, useDeleteTeachDatasetMutation, useTeachSamplesQuery, useRetrainTeachJobMutation, useTeachJobEventsQuery,
   useTeachAdminPolicyQuery, useUpdateTeachAdminPolicyMutation, useTeachAdminJobsQuery, useApproveTeachJobMutation, useRejectTeachJobMutation, useCancelTeachJobAdminMutation,
   useTeachContributorsQuery, useSetContributorHiddenMutation, useTeachBansQuery, useAddTeachBanMutation, useDeleteTeachBanMutation, usePayoutsQuery, useRetryPayoutMutation,
 } = api;

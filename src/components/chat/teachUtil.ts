@@ -7,6 +7,12 @@ import type { CatalogEntry, TeachJob, TeachJobPublic, TeachPolicy } from '@/api/
 
 type Tr = (key: string, vars?: Record<string, string | number>) => string;
 
+/** A number the node put in `TeachError.details` (v2), with a fallback so the sentence is never left with a hole. */
+function detailNumber(err: unknown, key: string, fallback: number): number {
+  const v = (err as { data?: Record<string, unknown> } | undefined)?.data?.[key];
+  return typeof v === 'number' ? v : fallback;
+}
+
 /** Same style as mapChatError: machine-readable code = message prefix (spec §5.14), transport errors get their own line. */
 export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } = {}): string {
   const e = err as { status?: number | string; name?: string } | undefined;
@@ -31,8 +37,21 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } 
     case 'published_immutable': return t('teach.err.published_immutable');
     case 'publish_disabled': return t('teach.pub.off');
     case 'rate_limited': return t('teach.err.rate_limited');
+    // teach mode v2 — the dataset codes (design §5.11). `details` carries the numbers the sentence needs.
+    case 'dataset_too_large': return t('teach.err.dataset_too_large', { mb: detailNumber(err, 'max_bytes', 4_000_000) / 1e6 });
+    case 'dataset_empty': return t('teach.err.dataset_empty');
+    case 'dataset_format': return t('teach.err.dataset_format');
+    case 'dataset_not_found': return t('teach.err.dataset_not_found');
+    case 'dataset_in_use': return t('teach.err.dataset_in_use');
+    case 'dataset_hash': return t('teach.err.dataset_hash');
+    case 'quota_dataset': return t('teach.err.quota_dataset');
+    case 'quota_rows': return t('teach.err.quota_rows');
+    case 'quota_bytes': return t('teach.err.quota_bytes');
+    case 'dataset_declaration': return t('teach.err.dataset_declaration', { n: detailNumber(err, 'rows', 100) });
     default: break;
   }
+  // v1 shape: a missing job answers 404 with a bare sentence and no machine code
+  if (e?.status === 404 && m.includes('lesson not found')) return t('teach.err.lesson_not_found');
   if (e?.status === 429 || m.includes('quota')) return t('teach.err.quota');
   if (m.includes('runtime busy') || m.includes('shared runtime busy')) return t('teach.err.busy');
   if (m.includes('runtime unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not responding') || (e?.status === 503 && m.includes('model server'))) return t(runtimeKey);

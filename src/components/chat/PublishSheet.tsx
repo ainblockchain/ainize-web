@@ -38,6 +38,8 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
   const [wallet, setWallet] = useState(teacherKey.payout_address ?? '');
   const [consentPermanent, setConsentPermanent] = useState(false);
   const [consentRights, setConsentRights] = useState(false);
+  // v2 §12.2: a big dataset is plausibly someone else's database, and the marketplace pays the uploader for it
+  const [consentData, setConsentData] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PublishResponse | null>(null);
@@ -47,7 +49,9 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
   const nameBad = name.trim().length < 2 || name.trim().length > 80;
   const priceBad = !/^\d+(\.\d+)?$/.test(price.trim());
   const walletBad = payoutMode === 'wallet' && !isAddress(wallet.trim());
-  const consentBad = !consentPermanent || !consentRights;
+  const declarationRows = policy.limits?.declaration_rows ?? 100;
+  const needsDeclaration = (job.dataset?.rows ?? job.facts.length) >= declarationRows;
+  const consentBad = !consentPermanent || !consentRights || (needsDeclaration && !consentData);
   const disabled = nameBad || priceBad || walletBad || consentBad || busy;
 
   const submit = async () => {
@@ -116,6 +120,12 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
       <Consents>
         <Checkbox checked={consentPermanent} onChange={(e) => setConsentPermanent(e.target.checked)} label={t('teach.pub.consent_permanent')} data-testid="consent-permanent" />
         <Checkbox checked={consentRights} onChange={(e) => setConsentRights(e.target.checked)} label={t('teach.pub.consent_rights')} data-testid="consent-rights" />
+        {needsDeclaration && (
+          <Checkbox
+            checked={consentData} onChange={(e) => setConsentData(e.target.checked)} data-testid="consent-declaration"
+            label={t('teach.pub.declaration', { n: job.dataset?.rows ?? job.facts.length })}
+          />
+        )}
       </Consents>
       {error && <Alert $tone="error" role="alert">{error}</Alert>}
       <SheetFooter>

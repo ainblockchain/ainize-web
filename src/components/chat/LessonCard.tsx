@@ -7,6 +7,7 @@ import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { StyledLink } from '@/components/ui/Misc';
+import { basketFilename } from '@/lib/teachDataset';
 import { ACTIVE, cardStatusKey, etaText, failedKey, isFullJob, mapTeachError } from './teachUtil';
 
 const Card = styled.section<{ $tone: 'busy' | 'ok' | 'warn' | 'bad' | 'muted' }>`
@@ -182,6 +183,19 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
         <button type="button" className="x" onClick={onHide}>{t('teach.card.hide')}</button>
       </Head>
       <div data-testid="lesson-body">{body}</div>
+      {/* v2 §5.9: the chat basket really did become a file — say so, and link to it (the receipt the owner asked for). */}
+      {j.dataset?.id && j.dataset.source === 'chat' && (
+        <Tip data-testid="freeze-note">
+          {t('teach.basket.freeze_note', { n: j.dataset.rows, filename: basketFilename(j.created_at) })}{' '}
+          <StyledLink to={`/teach/dataset/${j.dataset.id}`}>{t('teach.basket.view')}</StyledLink>
+        </Tip>
+      )}
+      {/* never a whole-dataset claim from a sampled check (v2 §5.12); counts are per QUESTION, from `facts` */}
+      {showChecks && c?.taught.sampled && (
+        <Tip data-testid="lesson-sampled">{t('teach.res.checked_sample', {
+          k: j.facts.filter((f) => f.hit !== undefined).length, n: j.facts.length, hits: j.facts.filter((f) => f.hit === true).length,
+        })}</Tip>
+      )}
       {simulated && showChecks && <Tip data-testid="lesson-simulated">{t('teach.card.simulated')}</Tip>}
       {c?.reverted_and_reapplied && <Tip>{t('teach.card.revert_note')}</Tip>}
       {showChecks && (

@@ -93,7 +93,8 @@ export function Header() {
         <Nav>
           <NavItem to="/explore">{t('nav.explore')}</NavItem>
           <NavItem to="/chat">{t('nav.chat')}</NavItem>
-          {info?.accepts_contributions && <NavPlain to="/chat?teach=1" data-testid="nav-teach">{t('nav.teach')}</NavPlain>}
+          {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}
+          {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach">{t('nav.teach')}</NavPlain>}
           <NavItem to="/network">{t('nav.network')}</NavItem>
           <NavItem to="/ledger">{t('nav.ledger')}</NavItem>
           <NavItem to="/docs">{t('nav.docs')}</NavItem>

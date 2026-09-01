@@ -1,0 +1,167 @@
+import { useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import styled from 'styled-components';
+import { useCreateTeachJobMutation, useTeachDatasetQuery, useTeachDatasetRowsQuery, useTeachPolicyQuery } from '@/api/api';
+import type { TeachEffort } from '@/api/types';
+import { useT } from '@/i18n';
+import { Button } from '@/components/ui/Button';
+import { Alert, Checkbox, HelperText, TextField } from '@/components/ui/Form';
+import { CenterProgress, Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
+import { mapTeachError } from '@/components/chat/teachUtil';
+import { EffortCards } from '@/components/teach/EffortCards';
+import { Stepper } from '@/components/teach/Stepper';
+import { effortLabelKey, effortTime, presetOf, rowsPerJob } from '@/components/teach/util';
+import { loadSelection, shortSha } from '@/lib/teachDataset';
+import { rememberJob } from '@/lib/teachStore';
+
+/**
+ * `/teach/dataset/:dsId/settings` — step 3 (design §5.5). Exactly four things a non-expert can judge: a name, how hard
+ * to try, whether to measure side effects (locked on where publishing is possible, because it is the publish gate) and
+ * whether to hold the "another way to ask" column out of training. Everything with a number in it — the per-lesson
+ * question cap, the presets, the queue — comes from the node's policy; nothing here is hard-coded.
+ */
+const Block = styled.section`
+  display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #f0f0f0;
+  h2 { margin: 0; font-size: 15px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
+  p.hint { margin: 0; font-size: 13px; line-height: 1.55; color: ${(p) => p.theme.color.GREY}; }
+`;
+const Advanced = styled.details`
+  margin-top: 12px; font-size: 12.5px; color: ${(p) => p.theme.color.GREY};
+  summary { cursor: pointer; }
+  p { margin: 8px 0 0; line-height: 1.55; }
+`;
+const Sticky = styled.div`
+  position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 12px 0; margin-top: 8px; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff;
+  p { margin: 0; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY}; }
+`;
+
+export default function TeachSettingsPage() {
+  const { dsId = '' } = useParams<{ dsId: string }>();
+  const { t } = useT();
+  const navigate = useNavigate();
+  const { data: policy } = useTeachPolicyQuery();
+  const { data: dsData, isLoading } = useTeachDatasetQuery(dsId, { skip: !dsId });
+  const dataset = dsData?.dataset;
+  const cap = rowsPerJob(policy);
+  const selection = useMemo(() => loadSelection(dsId), [dsId]);
+  // the questions this lesson will actually train: the visitor's pick, else the first `cap` accepted ones
+  const trained = Math.min(selection?.length ?? dataset?.rows ?? 0, cap);
+  const { data: page } = useTeachDatasetRowsQuery({ id: dsId, offset: 0, limit: 200, status: 'ok' }, { skip: !dsId });
+  const altCount = useMemo(() => {
+    const picked = page?.items?.filter((r) => r.index !== null && (!selection || selection.includes(r.index))) ?? [];
+    return picked.slice(0, cap).filter((r) => !!r.alt_prompt).length;
+  }, [page, selection, cap]);
+
+  const [create, { isLoading: sending }] = useCreateTeachJobMutation();
+  const [name, setName] = useState('');
+  const [effort, setEffort] = useState<TeachEffort>('balanced');
+  const [side, setSide] = useState(true);
+  const [useAlt, setUseAlt] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const publishable = policy?.publish !== 'never';
+  const sideLocked = publishable;           // the side-effect check IS the publish gate (§12.6)
+  const sideOn = sideLocked ? true : side;
+  const altOn = altCount > 0 && useAlt;
+  const preset = presetOf(policy, effort);
+  const timeText = effortTime(policy, effort, trained, t);
+
+  const start = async () => {
+    setError(null);
+    try {
+      const out = await create({
+        patch_ids: [], builds_on_context: false, dataset_id: dsId,
+        ...(selection?.length ? { selected_indexes: selection.slice(0, cap) } : {}),
+        training: { effort, check_side_effects: sideOn, use_alt: altOn },
+        ...(name.trim() ? { name: name.trim() } : {}),
+      }).unwrap();
+      rememberJob({ id: out.job.id, name: out.job.name, created_at: Date.now() });
+      navigate(`/teach/lesson/${out.job.id}`);
+    } catch (e) { setError(mapTeachError(e, t)); }
+  };
+
+  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!dataset) {
+    return (
+      <PageWrapper data-testid="teach-settings">
+        <Stepper current={3} />
+        <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('teach.err.dataset_not_found')}</Alert>
+      </PageWrapper>
+    );
+  }
+
+  return (
+    <PageWrapper data-testid="teach-settings">
+      <Stepper current={3} />
+      <TitleRow style={{ paddingTop: 16 }}><Title>{t('teach.set.title')}</Title></TitleRow>
+      <Description>{t('teach.set.sub')}</Description>
+      <Description style={{ marginTop: 6 }} data-testid="settings-dataset">
+        {t('teach.set.dataset', { name: dataset.name, n: dataset.rows, short: shortSha(dataset.sha256) })}
+      </Description>
+
+      {dataset.rows > cap && (
+        <Alert $tone="info" style={{ marginTop: 12 }} data-testid="rows-cap">
+          {t('teach.set.rows_cap', { max: cap, n: trained, total: dataset.rows })}
+          {policy?.limits?.rows_per_job_source === 'default' ? ` ${t('teach.set.rows_cap_unmeasured')}` : ''}
+        </Alert>
+      )}
+
+      <Block>
+        <TextField
+          label={t('teach.set.name')} value={name} onChange={(e) => setName(e.target.value)} maxLength={80}
+          placeholder={dataset.name} helper={t('teach.set.name_hint')} data-testid="lesson-name"
+        />
+      </Block>
+
+      <Block>
+        <h2>{t('teach.set.effort')}</h2>
+        <p className="hint">{t('teach.set.effort_hint')}</p>
+        <EffortCards value={effort} onChange={setEffort} policy={policy} rows={trained} />
+      </Block>
+
+      <Block>
+        <h2>{t('teach.set.side')}</h2>
+        <Checkbox
+          checked={sideOn} disabled={sideLocked} onChange={(e) => setSide(e.target.checked)} data-testid="check-side"
+          label={<span style={{ fontSize: 14 }}>{t('teach.set.side')}</span>}
+        />
+        <p className="hint">{t('teach.set.side_hint')}</p>
+        {sideLocked && <HelperText>{t('teach.set.side_required')}</HelperText>}
+      </Block>
+
+      <Block>
+        <h2>{t('teach.set.alt')}</h2>
+        <Checkbox
+          checked={altOn} disabled={altCount === 0} onChange={(e) => setUseAlt(e.target.checked)} data-testid="check-alt"
+          label={<span style={{ fontSize: 14 }}>{t('teach.set.alt')}</span>}
+        />
+        <p className="hint">{altCount === 0 ? t('teach.set.alt_none') : t('teach.set.alt_hint', { n: altCount })}</p>
+      </Block>
+
+      <Advanced data-testid="advanced">
+        <summary>{t('teach.set.advanced')}</summary>
+        <p>{t('teach.set.advanced_body', { effort: t(effortLabelKey(effort)), steps: preset.max_steps, eval: preset.eval_every, lr: '2e-3' })}</p>
+      </Advanced>
+
+      {!!policy?.queue?.depth && (
+        <Alert $tone="info" style={{ marginTop: 12 }} data-testid="queue-note">
+          {t('teach.set.queue_rows', { n: policy.queue.depth, q: policy.queue.queued_rows ?? 0 })} {t('teach.set.queue_note')}
+        </Alert>
+      )}
+      {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }} data-testid="settings-error">{error}</Alert>}
+
+      <Sticky>
+        <p data-testid="settings-summary">
+          {t('teach.set.summary_short', {
+            n: trained, effort: t(effortLabelKey(effort)),
+            checks: sideOn ? t('teach.set.summary_checks_on') : t('teach.set.summary_checks_off'),
+          })} · {timeText}
+        </p>
+        <Button variant="contained" size="large" onClick={() => void start()} loading={sending} loadingText={t('teach.set.sending')} data-testid="train-lesson">
+          {t('teach.set.train', { n: trained })}
+        </Button>
+      </Sticky>
+    </PageWrapper>
+  );
+}

@@ -29,6 +29,13 @@ const DrivePage = lazy(() => import('./pages/DrivePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const DocsPage = lazy(() => import('./pages/DocsPage'));
 const TeacherPage = lazy(() => import('./pages/TeacherPage'));
+// Teach mode v2 — the dataset wizard (docs/teachable-dataset-design.md §5.1). One pipeline, two doors.
+const TeachPage = lazy(() => import('./pages/TeachPage'));
+const TeachUploadPage = lazy(() => import('./pages/TeachUploadPage'));
+const TeachDatasetPage = lazy(() => import('./pages/TeachDatasetPage'));
+const TeachSettingsPage = lazy(() => import('./pages/TeachSettingsPage'));
+const TeachLessonPage = lazy(() => import('./pages/TeachLessonPage'));
+const TeachMinePage = lazy(() => import('./pages/TeachMinePage'));
 
 const fallback = <CenterProgress />;
 
@@ -54,8 +61,13 @@ export default function App() {
                 <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
                 <Route path="/chat" element={<Layout><ChatPage /></Layout>} />
                 <Route path="/chat/:patchId" element={<Layout><ChatPage /></Layout>} />
-                {/* Teach mode: "My lessons" alias and the public data-provider page (spec §11) */}
-                <Route path="/teach" element={<Navigate to="/chat?mine=1" replace />} />
+                {/* Teach mode: the entry choice, the dataset wizard, and the public data-provider page (spec §11) */}
+                <Route path="/teach" element={<Layout><TeachPage /></Layout>} />
+                <Route path="/teach/upload" element={<Layout><TeachUploadPage /></Layout>} />
+                <Route path="/teach/dataset/:dsId" element={<Layout><TeachDatasetPage /></Layout>} />
+                <Route path="/teach/dataset/:dsId/settings" element={<Layout><TeachSettingsPage /></Layout>} />
+                <Route path="/teach/lesson/:jobId" element={<Layout><TeachLessonPage /></Layout>} />
+                <Route path="/teach/mine" element={<Layout><TeachMinePage /></Layout>} />
                 <Route path="/teacher/:address" element={<Layout><TeacherPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />

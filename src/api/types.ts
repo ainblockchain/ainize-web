@@ -4,9 +4,12 @@
  */
 import type {
   Attestation, BranchInfo, Challenge, LedgerInfo, LedgerRecord, PatchAnchor, PatchManifest, PatchStatus, PeerInfo, RuntimeStatus, Settlement,
+  TeachDataset, TeachDatasetFormat, TeachDatasetLang, TeachDatasetRef, TeachDatasetRow, TeachDatasetSource, TeachDatasetStatus, TeachDatasetSummary, TeachEffort, TeachRowStatus, TeachTrainingSpec,
 } from '@ngram/core';
 
 export type { Attestation, BranchInfo, Challenge, LedgerInfo, LedgerRecord, PatchAnchor, PatchManifest, PatchStatus, PeerInfo, RuntimeStatus, Settlement };
+/** teach mode v2 — the dataset is a first-class object (design docs/teachable-dataset-design.md §6.3). */
+export type { TeachDataset, TeachDatasetFormat, TeachDatasetLang, TeachDatasetRef, TeachDatasetRow, TeachDatasetSource, TeachDatasetStatus, TeachDatasetSummary, TeachEffort, TeachRowStatus, TeachTrainingSpec };
 
 export interface CatalogEntry {
   anchor: PatchAnchor & { entry_id?: string; node_id?: string; gateway_url?: string };
@@ -133,11 +136,22 @@ export interface DocsResponse { openapi: OpenApiDoc; cli: CliReference; node: st
 export type TeachStatus = 'QUEUED' | 'PREFLIGHT' | 'LOADING' | 'TRAINING' | 'EXPORTED' | 'CHECKING' | 'READY' | 'NEEDS_MORE'
   | 'FAILED' | 'CANCELLED' | 'PENDING_REVIEW' | 'REJECTED' | 'ANNOUNCED' | 'EXPIRED';
 export interface TeachFact { prompt: string; answer: string; alt_prompt?: string; base_answer?: string; after_answer?: string; hit?: boolean; heldout_hit?: boolean }
-export interface TeachProgress { step: number; max_steps: number; loss?: number; hits: number; total: number; load_s?: number; avg_step_s?: number; started_at?: number }
+export interface TeachProgress {
+  step: number; max_steps: number; loss?: number; hits: number; total: number; load_s?: number; avg_step_s?: number; started_at?: number;
+  /** Which stage the rail is on. The big bar stays the real `step / max_steps` — never a computed percent (design §D5). */
+  phase?: 'load' | 'train' | 'check';
+  /** Stage-weighted and monotonic, for compact surfaces only. NOT a time estimate; no surface may label it as one. */
+  percent?: number;
+  rows_total?: number; rows_touched?: number;
+  /** How many questions the trainer probed at the last evaluation, of how many trained. */
+  eval_sample?: { n: number; of: number };
+  elapsed_s?: number;
+}
 export interface TeachChecks {
   /** false when the model server stayed down for the whole grace period — nothing measured, publish gated */
   executed: boolean;
-  taught: { hits: number; total: number };
+  /** `sampled` is present when the dataset was too big to check whole — never make a whole-dataset claim from it. */
+  taught: { hits: number; total: number; sampled?: { checked: number; of: number } };
   heldout: { hits: number; total: number };
   parent_regression: { ok: boolean; hit: number; total: number };
   locality: { ok: boolean; same: number; total: number };
@@ -145,6 +159,10 @@ export interface TeachChecks {
   /** hard publish gate */
   ok: boolean;
   note?: string;
+  /** true on a demo node without a model server: the numbers were simulated, nothing was measured. */
+  simulated?: boolean;
+  /** The visitor turned the side-effect check off — publish stays gated until a recheck measures it. */
+  skipped?: true;
 }
 export interface TeachJob {
   id: string;
@@ -164,6 +182,9 @@ export interface TeachJob {
   draft_id?: string; patch_id?: string;
   publish_status: 'none' | 'pending_review' | 'rejected' | 'announced' | 'listed';
   reject_reason?: string; error?: string; parent_job?: string;
+  /** What this lesson was trained from. A v1 job renders `{id: null, source: 'derived', rows: facts.length}`. */
+  dataset?: TeachDatasetRef;
+  training?: TeachTrainingSpec;
   created_at: number; updated_at: number; started_at?: number; finished_at?: number; expires_at?: number;
 }
 /** What strangers get for a job they do not own. */
@@ -174,24 +195,49 @@ export interface TeachPolicy {
   trainer: 'ready' | 'busy' | 'paused';
   paused_reason?: string;
   backend: 'gradient' | 'stub';
-  queue: { depth: number; max: number; position_eta_s?: number | null };
-  limits: { facts_per_job: number; jobs_per_key_per_day: number; jobs_per_ip_per_day: number; prompt_max: number; answer_max: number };
-  timing: { p50_s: number | null; p90_s: number | null; samples: number };
+  queue: { depth: number; max: number; position_eta_s?: number | null; queued_rows?: number; queued_rows_max?: number };
+  limits: {
+    facts_per_job: number; jobs_per_key_per_day: number; jobs_per_ip_per_day: number; prompt_max: number; answer_max: number;
+    /** v2 (design §9) — every limit the UI shows comes from here; nothing may be hard-coded in the bundle. */
+    dataset_max_bytes?: number; dataset_max_rows?: number; dataset_max_source_lines?: number;
+    rows_per_job?: number; rows_per_job_source?: 'default' | 'measured' | 'operator';
+    rows_per_key_per_day?: number; rows_per_ip_per_day?: number; datasets_per_key_per_day?: number; dataset_ttl_days?: number;
+    formats?: string[]; declaration_rows?: number;
+  };
+  /** Every field is null until >= 3 lessons were measured with `backend: 'gradient'`; a stub node reports `simulated`. */
+  timing: { p50_s: number | null; p90_s: number | null; samples: number; backend?: 'gradient' | 'stub'; simulated?: boolean; load_s_p50?: number | null; s_per_row_p50?: number | null; s_per_row_p90?: number | null };
+  effort?: { id: TeachEffort; max_steps: number; eval_every: number }[];
+  samples?: { kind: string; name: string; rows: number }[];
+  /** true when this node's checks are simulated — the UI must not claim a live-model verification. */
+  simulated_checks?: boolean;
   shares: { contributor: number; lineage: number };
   model: { id_M: string | null };
   applied: string[];
   draft_ttl_days: number;
 }
-export interface TeachQuota { key_remaining: number; ip_remaining: number }
+export interface TeachQuota { key_remaining: number; ip_remaining: number; rows_remaining?: number; rows_ip_remaining?: number }
 export interface TeachFactInput { prompt: string; answer: string; alt_prompt?: string; base_answer?: string }
 export interface PreflightFact { index: number; status: 'will_train' | 'already_known' | 'overlaps_listing' | 'invalid'; base_answer?: string; detail?: string }
-export interface PreflightResponse { facts: PreflightFact[]; trainable: number; quota: TeachQuota }
+export interface PreflightResponse { facts: PreflightFact[]; trainable: number; quota: TeachQuota; sampled?: { checked: number; of: number } }
 export interface TeachJobResponse { job: TeachJob }
 export interface CreateTeachJobResponse { job: TeachJob; quota: TeachQuota }
 export interface TeachSaveResponse { download: { npz_url: string; recipe_url: string; readme_url: string; expires_at: number }; sha256: string; rows: number; size_bytes: number; filename: string }
 export interface PublishChallenge { patch_sha256: string; benchmark_hash: string; address: string; signer: string; share: number; claim: string }
 export interface PublishRequest { name: string; description?: string; price?: string; license?: string; payout_address?: string | null; claim_sig: string; consent: { permanent: boolean; rights: boolean } }
 export type PublishResponse = { status: 'PENDING_REVIEW' } | { status: 'ANNOUNCED'; patch_id: string; url: string };
+// ---------------- teach mode v2: dataset requests and responses (design §7)
+export interface DatasetReport { summary: TeachDatasetSummary; rows: TeachDatasetRow[] }
+export interface DatasetResult { dataset: TeachDataset; report: DatasetReport; created: boolean }
+export interface DatasetRowsPage { total: number; source_rows: number; offset: number; limit: number; summary: TeachDatasetSummary; items: TeachDatasetRow[] }
+export interface DatasetSample { kind: string; name: string; description?: string; rows: number; sha256: string; preview: TeachDatasetRow[]; download_url: string }
+export interface DatasetParseOptions { format?: TeachDatasetFormat; delimiter?: string; has_header?: boolean; encoding?: string; layout?: string; columns?: Record<string, string | number> }
+export type DatasetRowInput = { prompt: string; answer: string; alt_prompt?: string; note?: string };
+export type DatasetRowsOp =
+  | { op: 'remove'; indexes: number[] }
+  | { op: 'append'; rows: DatasetRowInput[] }
+  | { op: 'replace'; index: number; row: DatasetRowInput };
+export interface TeachEventRow { seq: number; ts: number; level: string; message: string; data: unknown }
+
 export interface TeacherLesson { id: string; name: string; status: string; verified: boolean; downloads: number; revenue: string }
 export interface TeacherEarningItem { patch_id: string; seller: string; settle_hash: string; amount: string; currency: string; scheme: string; status: 'paid' | 'pending' | 'failed'; tx_hash?: string; attempts?: number; created_at: number; paid_at?: number }
 export interface TeacherProfile {
