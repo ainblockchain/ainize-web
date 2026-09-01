@@ -103,7 +103,7 @@ export default function DocsPage() {
           <OneLine>
             <h3>{t('docs.oneline.teach')}</h3>
             <CmdRow><Cmd>{cli.oneLiners.teach.cmd.split('#')[0].trim()}</Cmd><CopyButton text={cli.oneLiners.teach.cmd.split('#')[0].trim()} label={t('docs.copy')} /></CmdRow>
-            <p>{t('docs.oneline.teach.help')} <Link to="/chat?teach=1">{t('docs.oneline.teach.cta')}</Link></p>
+            <p>{t('docs.oneline.teach.help')} <Link to="/teach">{t('docs.oneline.teach.cta')}</Link></p>
           </OneLine>
         )}
       </OneLineGrid>
