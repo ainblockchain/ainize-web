@@ -61,6 +61,12 @@ const Choice = styled.div<{ $primary?: boolean }>`
   b { font-size: 14px; color: ${(p) => p.theme.color.BLACK}; }
   span { font-size: 13px; line-height: 1.55; color: ${(p) => p.theme.color.DARK_GREY}; flex: 1; }
 `;
+/** Demo node: publishing is still reachable, but as a labelled link under the cards — never the loudest button. */
+const DemoPublish = styled.p`
+  margin: 12px 0 0; font-size: 12.5px; line-height: 1.6; color: ${(p) => p.theme.color.GREY};
+  button { background: none; border: 0; padding: 0; margin-left: 6px; font: inherit; color: ${(p) => p.theme.color.PRIMARY}; text-decoration: underline; cursor: pointer; }
+  button:disabled { color: ${(p) => p.theme.color.GREY}; cursor: not-allowed; text-decoration: none; }
+`;
 const Log = styled.details`
   font-size: 12px; color: ${(p) => p.theme.color.GREY};
   summary { cursor: pointer; }
@@ -218,8 +224,14 @@ export default function TeachLessonPage() {
     <PageWrapper data-testid="teach-lesson" data-status={j.status}>
       <Stepper current={5} />
       <TitleRow style={{ paddingTop: 16 }}>
-        <Title>{j.status === 'READY' || j.status === 'ANNOUNCED' || j.status === 'PENDING_REVIEW' ? t('teach.res.title') : failedTone ? t('teach.card.title', { name }) : t('teach.res.title_partial')}</Title>
+        {/* A demo node trained nothing. "Your lesson is ready" in display type above a pale "no training happened"
+            box is two sentences that cannot both be true, and the visitor reads the big one — so the headline
+            itself says what this run was, and the admission comes first and in the warning tone. */}
+        <Title data-testid="result-title">{demo && !failedTone ? t('teach.res.title_demo')
+          : j.status === 'READY' || j.status === 'ANNOUNCED' || j.status === 'PENDING_REVIEW' ? t('teach.res.title')
+            : failedTone ? t('teach.card.title', { name }) : t('teach.res.title_partial')}</Title>
       </TitleRow>
+      {demo && !failedTone && <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="simulated">{t(simulated ? 'teach.res.simulated' : 'teach.res.stub_only')}</Alert>}
       {failedTone ? (
         <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="result-failed">
           {j.status === 'CANCELLED' ? t('teach.card.cancelled') : j.status === 'EXPIRED' ? t('teach.card.expired') : j.status === 'REJECTED' ? t('teach.pub.rejected', { reason: j.reject_reason ?? '' }) : t(failedKey(j.error))}
@@ -227,12 +239,11 @@ export default function TeachLessonPage() {
       ) : (
         <Description data-testid="result-learned">
           {measured === 0 ? t('teach.card.ready_unchecked')
-            : measured < totalQ ? t('teach.res.checked_sample', { k: measured, n: totalQ, hits: learned.length })
-              : learned.length === totalQ ? t('teach.res.learned_all', { total: totalQ })
-                : t('teach.res.learned', { hits: learned.length, total: totalQ })}
+            : measured < totalQ ? t(simulated ? 'teach.res.checked_sample_demo' : 'teach.res.checked_sample', { k: measured, n: totalQ, hits: learned.length })
+              : learned.length === totalQ ? t(simulated ? 'teach.res.learned_all_demo' : 'teach.res.learned_all', { total: totalQ })
+                : t(simulated ? 'teach.res.learned_demo' : 'teach.res.learned', { hits: learned.length, total: totalQ })}
         </Description>
       )}
-      {demo && !failedTone && <Alert $tone="info" style={{ marginTop: 10 }} data-testid="simulated">{t(simulated ? 'teach.res.simulated' : 'teach.res.stub_only')}</Alert>}
       {/* a deleted dataset keeps its line below, but neither control is rendered: both can now only answer 404 */}
       {j.dataset?.id && !j.dataset.deleted && (
         <Description>
@@ -322,21 +333,26 @@ export default function TeachLessonPage() {
       <Panel>
         <h2>{t('teach.res.next')}</h2>
         <Cards>
-          <Choice $primary>
-            <b>{t('teach.res.publish_title')}</b>
-            <span>{t('teach.res.publish_body', { share: Math.round((policy?.shares?.contributor ?? 0.7) * 100) })}</span>
-            <Button
-              variant="contained" onClick={() => setSheet('publish')} data-testid="go-publish"
-              disabled={publishOff || gated || !teacherKey || j.status !== 'READY'}
-            >{t('teach.card.publish')}</Button>
-            {gated && <span style={{ fontSize: 12 }}>{t('teach.card.publish_gated')}</span>}
-          </Choice>
-          <Choice>
+          {/* On a demo node the loudest button used to offer to put a placeholder file on a public marketplace under
+              the visitor's name. Keeping it private is the honest first choice here; publishing stays reachable (this
+              node exists to demonstrate the whole flow) but as a plain link that says what would be published. */}
+          {!demo && (
+            <Choice $primary>
+              <b>{t('teach.res.publish_title')}</b>
+              <span>{t('teach.res.publish_body', { share: Math.round((policy?.shares?.contributor ?? 0.7) * 100) })}</span>
+              <Button
+                variant="contained" onClick={() => setSheet('publish')} data-testid="go-publish"
+                disabled={publishOff || gated || !teacherKey || j.status !== 'READY'}
+              >{t('teach.card.publish')}</Button>
+              {gated && <span style={{ fontSize: 12 }}>{t('teach.card.publish_gated')}</span>}
+            </Choice>
+          )}
+          <Choice $primary={demo}>
             <b>{t('teach.res.keep_title')}</b>
             <span>{t('teach.res.keep_body')}</span>
             {/* a declined lesson still has its knowledge file, and `save()` only needs that — refusing here would
                 contradict the sentence above it ("Your file is still available to download.") */}
-            <Button onClick={() => setSheet('keep')} disabled={!['READY', 'NEEDS_MORE', 'REJECTED'].includes(j.status)} data-testid="go-keep">{t('teach.card.keep')}</Button>
+            <Button variant={demo ? 'contained' : undefined} onClick={() => setSheet('keep')} disabled={!['READY', 'NEEDS_MORE', 'REJECTED'].includes(j.status)} data-testid="go-keep">{t('teach.card.keep')}</Button>
           </Choice>
           <Choice>
             <b>{t('teach.res.again_title')}</b>
@@ -344,6 +360,13 @@ export default function TeachLessonPage() {
             <Button onClick={doRetrain} loading={retraining} data-testid="go-retrain">{t('teach.res.again_cta')}</Button>
           </Choice>
         </Cards>
+        {demo && (
+          <DemoPublish data-testid="publish-demo">
+            <span>{t('teach.res.publish_demo')}</span>
+            <button type="button" onClick={() => setSheet('publish')} data-testid="go-publish" disabled={publishOff || gated || !teacherKey || j.status !== 'READY'}>{t('teach.res.publish_demo_cta')}</button>
+            {gated && <span>{t('teach.card.publish_gated')}</span>}
+          </DemoPublish>
+        )}
       </Panel>
 
       {/* the same log the progress screen shows: its last lines ("exported …", "READY: taught …") are written after

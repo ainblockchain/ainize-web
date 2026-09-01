@@ -42,7 +42,10 @@ const Pill = styled.span<{ $tone: Tone }>`
   color: ${(p) => (p.$tone === 'ok' ? '#1e6b36' : p.$tone === 'bad' ? '#a0102c' : p.$tone === 'warn' ? '#8a4b00' : '#555')};
   background: ${(p) => (p.$tone === 'ok' ? '#e6f4ea' : p.$tone === 'bad' ? '#fde8ec' : p.$tone === 'warn' ? '#fff3e0' : '#f2f2f2')};
 `;
-const Help = styled.span`display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.5; color: ${(p) => p.theme.color.GREY};`;
+const Help = styled.span<{ $warn?: boolean }>`
+  display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.5;
+  color: ${(p) => (p.$warn ? '#8a4b00' : p.theme.color.GREY)};
+`;
 const RowActions = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end;
   button { background: none; border: 0; padding: 4px 2px; font: inherit; font-size: 12px; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; min-height: 32px; &:hover { text-decoration: underline; } }
@@ -65,10 +68,12 @@ export interface DatasetTableProps {
   onKeep?: (row: TeachDatasetRow) => void;
   /** after an edit the numbers are positions in the dataset, not lines of the file the visitor uploaded */
   positions?: boolean;
+  /** this node's checks are simulated (policy.simulated_checks): the quoted answer is not a model's */
+  simulated?: boolean;
   busy?: boolean;
 }
 
-export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onEdit, onRemove, onKeep, positions, busy }: DatasetTableProps) {
+export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onEdit, onRemove, onKeep, positions, simulated, busy }: DatasetTableProps) {
   const { t } = useT();
   const nHead = t(positions ? 'teach.rows.h.pos' : 'teach.rows.h.n');
   return (
@@ -89,7 +94,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
         <tbody>
           {rows.map((row) => {
             const file = fileStatus(row, t, limits);
-            const model = row.index !== null ? modelStatus(preflight?.[row.index], t) : null;
+            const model = row.index !== null ? modelStatus(preflight?.[row.index], t, simulated) : null;
             const advisory = sharedEnding(row, t);
             const trains = row.status === 'ok' || row.status === 'fixed';
             const view = trains && model ? model : file;
@@ -113,7 +118,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                 <td className="alt" data-label={t('teach.rows.h.alt')}>{row.alt_prompt ?? ''}</td>
                 <td data-label={t('teach.rows.h.status')}>
                   <Pill $tone={view.tone}>{view.text}</Pill>
-                  {view.help && <Help>{view.help}</Help>}
+                  {view.help && <Help $warn={view.helpTone === 'warn'} data-testid={view.helpTone === 'warn' ? 'row-simulated' : undefined}>{view.help}</Help>}
                   {trains && !model && <Help>{t('teach.rows.status.unchecked')}</Help>}
                   {advisory && <Help data-testid="advisory">{advisory}</Help>}
                 </td>

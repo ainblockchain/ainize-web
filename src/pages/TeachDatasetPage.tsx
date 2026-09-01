@@ -85,6 +85,12 @@ export default function TeachDatasetPage() {
   const cap = rowsPerJob(policy);
   const overCap = !!dataset && dataset.rows > cap;
   const limits = policy?.limits;
+  /**
+   * This node answers the pre-flight itself instead of asking a serving model (stub backend, no model server). The
+   * check is the evidence the visitor keeps or drops questions on, so every sentence about it says it was simulated
+   * — before the button is pressed, in the result line, and on every quoted answer.
+   */
+  const simulated = policy?.simulated_checks === true;
 
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
   // a fresh revision (edit / reparse) invalidates every model-side answer that was measured against the old text
@@ -213,9 +219,9 @@ export default function TeachDatasetPage() {
       {!!summary?.over_cap && <Note data-testid="over-cap-note">{t('teach.up.err_many', { n: (summary.accepted ?? 0) + summary.over_cap, max: policy?.limits?.dataset_max_rows ?? dataset.rows })}</Note>}
       {sampled && (
         <Note data-testid="checked-note">
-          {partial ? t('teach.rows.checked_partial', { k: sampled.checked })
-            : sampled.checked < sampled.of ? t('teach.rows.checked_sample', { k: sampled.checked, n: sampled.of })
-              : t('teach.rows.checked', { train: willTrain, n: sampled.of })}
+          {partial ? t(simulated ? 'teach.rows.checked_partial_sim' : 'teach.rows.checked_partial', { k: sampled.checked })
+            : sampled.checked < sampled.of ? t(simulated ? 'teach.rows.checked_sample_sim' : 'teach.rows.checked_sample', { k: sampled.checked, n: sampled.of })
+              : t(simulated ? 'teach.rows.checked_sim' : 'teach.rows.checked', { train: willTrain, n: sampled.of })}
         </Note>
       )}
       {sampled && willTrain === 0 && known > 0 && <Alert $tone="warning" style={{ marginTop: 10 }}>{t('teach.rows.none')}</Alert>}
@@ -230,15 +236,21 @@ export default function TeachDatasetPage() {
 
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }} data-testid="dataset-error">{error}</Alert>}
 
+      {simulated && (
+        <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="checks-simulated">{t('teach.card.simulated')}</Alert>
+      )}
+
       <Actions>
-        <Button variant="contained" onClick={check} loading={checking} data-testid="run-check">{checking ? t('teach.rows.checking') : t('teach.rows.check')}</Button>
+        <Button variant="contained" onClick={check} loading={checking} data-testid="run-check">
+          {checking ? t(simulated ? 'teach.rows.checking_sim' : 'teach.rows.checking') : t(simulated ? 'teach.rows.check_sim' : 'teach.rows.check')}
+        </Button>
         <Button onClick={() => setEditing('new')} disabled={patching} data-testid="add-row">{t('teach.rows.add')}</Button>
         <Button onClick={() => void run(() => signedDownload(`/api/teach/datasets/${dsId}/download`, filename))} data-testid="download-dataset">{t('teach.rows.download')}</Button>
         {dataset.status === 'staged' && <Button color="secondary" onClick={() => setReparseOpen(true)} data-testid="open-reparse">{t('teach.rows.reparse')}</Button>}
       </Actions>
 
       <DatasetTable
-        rows={parsedRows} limits={limits} preflight={flight} busy={patching} positions={dataset.revision > 1}
+        rows={parsedRows} limits={limits} preflight={flight} busy={patching} positions={dataset.revision > 1} simulated={simulated}
         selectable={picking} selected={selected} onToggle={toggle}
         onEdit={(r) => setEditing(r)} onRemove={removeRow}
         onKeep={keepAnswer}

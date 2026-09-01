@@ -12,7 +12,7 @@ import type { PreflightFact, TeachDatasetRow, TeachEffort, TeachJob, TeachPolicy
 type Tr = (key: string, vars?: Record<string, string | number>) => string;
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'muted' | 'info';
-export interface StatusView { text: string; tone: Tone; help?: string }
+export interface StatusView { text: string; tone: Tone; help?: string; /** tone of the help line (default: muted grey) */ helpTone?: Tone }
 
 export const EFFORTS: TeachEffort[] = ['quick', 'balanced', 'thorough'];
 export const effortLabelKey = (e: TeachEffort) => `teach.set.effort_${e}`;
@@ -92,12 +92,19 @@ export function sharedEnding(row: TeachDatasetRow, t: Tr): string | null {
   return t('teach.rows.status.shared_end', { n: Math.max(1, group - 1) });
 }
 
-/** Model-side status: filled only after the live pre-flight ran, and cleared the moment the visitor edits the row. */
-export function modelStatus(f: PreflightFact | undefined, t: Tr): StatusView | null {
+/**
+ * Model-side status: filled only after the pre-flight ran, and cleared the moment the visitor edits the row.
+ *
+ * `simulated` is the node's own `policy.simulated_checks`: on a stub node without a model server nothing was asked of
+ * any model, so the quoted answer is a made-up one. It is still shown — it is what the node will act on — but it says
+ * so and is drawn in the warning tone, because the visitor keeps or drops questions on the strength of it.
+ */
+export function modelStatus(f: PreflightFact | undefined, t: Tr, simulated = false): StatusView | null {
   if (!f) return null;
+  const said = (answer: string) => ({ help: t(simulated ? 'teach.rows.model_said_sim' : 'teach.rows.model_said', { answer }), ...(simulated ? { helpTone: 'warn' as Tone } : {}) });
   switch (f.status) {
-    case 'will_train': return { text: t('teach.rows.status.new'), tone: 'ok', ...(f.base_answer ? { help: t('teach.rows.model_said', { answer: f.base_answer }) } : {}) };
-    case 'already_known': return { text: t('teach.rows.status.known'), tone: 'muted', ...(f.base_answer ? { help: t('teach.rows.model_said', { answer: f.base_answer }) } : {}) };
+    case 'will_train': return { text: t('teach.rows.status.new'), tone: 'ok', ...(f.base_answer ? said(f.base_answer) : {}) };
+    case 'already_known': return { text: t('teach.rows.status.known'), tone: 'muted', ...(f.base_answer ? said(f.base_answer) : {}) };
     case 'overlaps_listing': return { text: t('teach.rows.status.overlap', { name: f.detail ?? '' }), tone: 'muted' };
     default: return { text: t('teach.rows.status.unchecked'), tone: 'muted' };
   }
