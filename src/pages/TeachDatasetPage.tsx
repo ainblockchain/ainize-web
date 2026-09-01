@@ -10,7 +10,7 @@ import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
-import { mapTeachError } from '@/components/chat/teachUtil';
+import { isQuotaError, mapTeachError } from '@/components/chat/teachUtil';
 import { DatasetTable } from '@/components/teach/DatasetTable';
 import { ReparseSheet } from '@/components/teach/ReparseSheet';
 import { RowEditSheet } from '@/components/teach/RowEditSheet';
@@ -69,6 +69,7 @@ export default function TeachDatasetPage() {
 
   const [flight, setFlight] = useState<Record<number, PreflightFact>>({});
   const [sampled, setSampled] = useState<{ checked: number; of: number } | null>(null);
+  const [partial, setPartial] = useState(false);
   const [editing, setEditing] = useState<TeachDatasetRow | 'new' | null>(null);
   const [reparseOpen, setReparseOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export default function TeachDatasetPage() {
   // a fresh revision (edit / reparse) invalidates every model-side answer that was measured against the old text
   const revision = dataset?.revision;
   // …and every question index it was measured against: a replaced or removed question renumbers the file.
-  useEffect(() => { setFlight({}); setSampled(null); setSelected(new Set()); }, [revision]);
+  useEffect(() => { setFlight({}); setSampled(null); setPartial(false); setSelected(new Set()); }, [revision]);
 
   const toast = (row: DatasetRowInput, label: string) => {
     setUndo({ row, label });
@@ -96,9 +97,9 @@ export default function TeachDatasetPage() {
     undoTimer.current = setTimeout(() => setUndo(null), 8000);
   };
 
-  const run = useCallback(async (fn: () => Promise<unknown>) => {
+  const run = useCallback(async (fn: () => Promise<unknown>, ctx: { stage?: 'preflight' } = {}) => {
     setError(null);
-    try { await fn(); } catch (e) { setError(mapTeachError(e, t)); }
+    try { await fn(); } catch (e) { setError(mapTeachError(e, t, ctx)); }
   }, [t]);
 
   const removeRow = (row: TeachDatasetRow) => {
@@ -121,20 +122,35 @@ export default function TeachDatasetPage() {
     });
   };
 
-  /** Run the v1 pre-flight over a deterministic head of the dataset, in the node's own per-call batches. */
+  /**
+   * Run the v1 pre-flight over a deterministic head of the dataset, in the node's own per-call batches.
+   *
+   * The pre-flight spends the same hourly free-try budget as the live test, so a big dataset can run out halfway. That
+   * is not an error the visitor caused: the batches that DID land are kept, `sampled` says how far it got, and the
+   * partial note explains it — losing 16 measured answers to a red box would be the worse outcome.
+   */
   const check = () => void run(async () => {
     const total = dataset?.rows ?? 0;
     const want = Math.min(24, total);
     const next: Record<number, PreflightFact> = {};
     let seen: { checked: number; of: number } | null = null;
+    let done = 0;
+    let ranOut = false;
     for (let at = 0; at < want; at += 8) {
-      const out = await preflight({ patch_ids: [], dataset_id: dsId, offset: at, limit: 8 }).unwrap();
-      for (const f of out.facts) next[at + f.index] = f;
-      if (out.sampled) seen = out.sampled;
-      setFlight({ ...next });
+      try {
+        const out = await preflight({ patch_ids: [], dataset_id: dsId, offset: at, limit: 8 }).unwrap();
+        for (const f of out.facts) next[at + f.index] = f;
+        done += out.facts.length;
+        if (out.sampled) seen = out.sampled;
+        setFlight({ ...next });
+      } catch (e) {
+        if (done && isQuotaError(e)) { ranOut = true; break; }
+        throw e;
+      }
     }
-    setSampled(seen ?? { checked: Math.min(want, total), of: total });
-  });
+    setPartial(ranOut);
+    setSampled(ranOut ? { checked: done, of: total } : (seen ?? { checked: Math.min(want, total), of: total }));
+  }, { stage: 'preflight' });
 
   const toggle = (index: number) => setSelected((prev) => {
     const next = new Set(prev);
@@ -182,11 +198,18 @@ export default function TeachDatasetPage() {
         <span>{t('teach.rows.saved_note', { filename })}</span>
       </Bar>
 
-      <Pills data-testid="row-counts">{t('teach.rows.counts', { train: willTrain || dataset.rows, known, dupe: summary?.duplicates ?? 0, bad })}</Pills>
+      {/* dataset-wide, always: a check that sampled 24 of 40 must not silently restate "40 will train" as "24". */}
+      <Pills data-testid="row-counts">{t('teach.rows.counts', { train: Math.max(0, dataset.rows - known), known, dupe: summary?.duplicates ?? 0, bad })}</Pills>
       {!!summary?.fixed && <Note data-testid="fixed-note">{t('teach.rows.fixed', { n: summary.fixed })}</Note>}
       {!!dataset.encoding && dataset.encoding !== 'utf-8' && <Note data-testid="encoding-note">{t('teach.up.encoding', { encoding: dataset.encoding })}</Note>}
-      {!!summary?.over_cap && <Note>{t('teach.up.err_many', { n: (summary.accepted ?? 0) + summary.over_cap, max: policy?.limits?.dataset_max_rows ?? dataset.rows })}</Note>}
-      {sampled && <Note data-testid="checked-note">{sampled.checked < sampled.of ? t('teach.rows.checked_sample', { k: sampled.checked, n: sampled.of }) : t('teach.rows.checked', { train: willTrain, n: sampled.of })}</Note>}
+      {!!summary?.over_cap && <Note data-testid="over-cap-note">{t('teach.up.err_many', { n: (summary.accepted ?? 0) + summary.over_cap, max: policy?.limits?.dataset_max_rows ?? dataset.rows })}</Note>}
+      {sampled && (
+        <Note data-testid="checked-note">
+          {partial ? t('teach.rows.checked_partial', { k: sampled.checked })
+            : sampled.checked < sampled.of ? t('teach.rows.checked_sample', { k: sampled.checked, n: sampled.of })
+              : t('teach.rows.checked', { train: willTrain, n: sampled.of })}
+        </Note>
+      )}
       {sampled && willTrain === 0 && known > 0 && <Alert $tone="warning" style={{ marginTop: 10 }}>{t('teach.rows.none')}</Alert>}
 
       {overCap && (

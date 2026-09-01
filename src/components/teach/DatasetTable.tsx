@@ -31,7 +31,8 @@ const Table = styled.table`
     td { display: block; border: 0; padding: 3px 0; }
     td.act { text-align: left; width: auto; }
     td::before { content: attr(data-label) ': '; font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
-    td.q::before, td.n::before { content: none; }
+    td.q::before { content: none; }
+    /* the number IS the line in the visitor's file — on a phone the column heading is gone, so it must carry its label */
     td.n { display: inline-block; margin-right: 8px; }
     td:empty { display: none; }
   }

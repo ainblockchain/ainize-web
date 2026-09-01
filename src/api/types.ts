@@ -154,7 +154,8 @@ export interface TeachChecks {
   taught: { hits: number; total: number; sampled?: { checked: number; of: number } };
   heldout: { hits: number; total: number };
   parent_regression: { ok: boolean; hit: number; total: number };
-  locality: { ok: boolean; same: number; total: number };
+  /** `total` counts only the prompts whose own baseline repeated; `unstable` is how many were left out of the gate. */
+  locality: { ok: boolean; same: number; total: number; unstable?: number };
   reverted_and_reapplied: boolean;
   /** hard publish gate */
   ok: boolean;
@@ -184,6 +185,8 @@ export interface TeachJob {
   reject_reason?: string; error?: string; parent_job?: string;
   /** What this lesson was trained from. A v1 job renders `{id: null, source: 'derived', rows: facts.length}`. */
   dataset?: TeachDatasetRef;
+  /** the worker's pre-training pass: `known` questions were dropped because the model already answered them */
+  preflight?: { checked: number; of: number; known: number; overlaps?: number };
   training?: TeachTrainingSpec;
   created_at: number; updated_at: number; started_at?: number; finished_at?: number; expires_at?: number;
 }

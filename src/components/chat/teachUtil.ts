@@ -13,6 +13,12 @@ function detailNumber(err: unknown, key: string, fallback: number): number {
   return typeof v === 'number' ? v : fallback;
 }
 
+/** True for the two "you ran out of free tries this hour" answers — the caller may want to keep what it already has. */
+export function isQuotaError(err: unknown): boolean {
+  const e = err as { status?: number | string } | undefined;
+  return e?.status === 429 || /^(quota_chat|rate_limited)\s*:/.test(errorMessage(err).toLowerCase());
+}
+
 /** Same style as mapChatError: machine-readable code = message prefix (spec §5.14), transport errors get their own line. */
 export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } = {}): string {
   const e = err as { status?: number | string; name?: string } | undefined;
@@ -26,7 +32,8 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } 
     case 'teaching_disabled': return t('teach.err.teaching_disabled');
     case 'trainer_paused': return t('teach.err.trainer_paused');
     case 'quota_key': case 'quota_ip': return t('teach.err.quota');
-    case 'quota_chat': return t('chat.err.quota');
+    // `chat.err.quota` ends with "buy the knowledge" — nonsense when you are the one MAKING the knowledge.
+    case 'quota_chat': return t(ctx.stage === 'preflight' ? 'teach.err.quota_check' : 'chat.err.quota');
     case 'banned': return t('teach.err.banned');
     case 'already_known': return t('teach.err.already_known');
     case 'overlaps_listing': return t('teach.err.overlaps_listing');

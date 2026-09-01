@@ -115,7 +115,10 @@ export default function TeachLessonPage() {
   const p = j.progress;
   const c = j.checks;
   const stub = policy?.backend === 'stub';
-  const simulated = stub || !!c?.simulated;
+  // Two different admissions, and conflating them is a lie in one direction or the other: `simulated` means the CHECKS
+  // were made up (no model server); a stub node with a live model really measured them — only the TRAINING was fake.
+  const simulated = !!c?.simulated;
+  const demo = stub || simulated;
   const name = (j.name ?? '').replace(/^Lesson:\s*/, '') || j.dataset?.name || j.facts[0]?.prompt || j.id.slice(0, 8);
   const elapsed = j.started_at ? Math.round((Date.now() - j.started_at) / 1000) : (p?.elapsed_s ?? 0);
   const trained = j.facts.length;
@@ -214,7 +217,7 @@ export default function TeachLessonPage() {
                 : t('teach.res.learned', { hits: learned.length, total: totalQ })}
         </Description>
       )}
-      {simulated && <Alert $tone="info" style={{ marginTop: 10 }} data-testid="simulated">{t('teach.res.simulated')}</Alert>}
+      {demo && !failedTone && <Alert $tone="info" style={{ marginTop: 10 }} data-testid="simulated">{t(simulated ? 'teach.res.simulated' : 'teach.res.stub_only')}</Alert>}
       {j.dataset?.id && (
         <Description>
           <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.dataset_link', { name: j.dataset.name ?? '', n: j.dataset.rows })}</Link>
@@ -226,10 +229,19 @@ export default function TeachLessonPage() {
           >{t('teach.res.dataset_download')}</button>
         </Description>
       )}
+      {/* the node drops questions the model already answers; without this line 24 of 40 simply vanish */}
+      {!!j.preflight?.known && (
+        <Description data-testid="skipped-known">{t('teach.res.skipped_known', { n: j.preflight.known, of: j.preflight.of })}</Description>
+      )}
+      {!!j.preflight?.overlaps && (
+        <Description data-testid="skipped-overlap">{t('teach.res.skipped_overlap', { n: j.preflight.overlaps })}</Description>
+      )}
       {j.dataset?.deleted && <Description data-testid="dataset-gone">{t('teach.data.gone')}</Description>}
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}
 
-      {!!learned.length && (
+      {/* A cancelled / failed / expired lesson has no result to report: the rows below would describe a lesson that
+          does not exist, next to the sentence saying it was stopped. */}
+      {!failedTone && !!learned.length && (
         <Panel data-testid="learned-block">
           <h2>{t('teach.res.learned_title')}</h2>
           <FactTable>
@@ -247,7 +259,7 @@ export default function TeachLessonPage() {
           </FactTable>
         </Panel>
       )}
-      {!!missed.length && (
+      {!failedTone && !!missed.length && (
         <Panel data-testid="missed-block">
           <h2>{t('teach.res.not_learned')}</h2>
           <p>{t('teach.res.partial_hint')}</p>
@@ -262,7 +274,7 @@ export default function TeachLessonPage() {
         </Panel>
       )}
 
-      {c && (
+      {c && !failedTone && (
         <Panel data-testid="side-effects">
           <h2>{t('teach.res.side_title')}</h2>
           {c.skipped ? <p>{t('teach.res.side_off')}</p>
@@ -273,13 +285,16 @@ export default function TeachLessonPage() {
                   ? t('teach.res.side_ok', { m: c.locality.same, n: c.locality.total, p: c.parent_regression.hit, q: c.parent_regression.total })
                   : t('teach.card.check_locality', { m: c.locality.same, n: c.locality.total })}</p>
                 : <p data-testid="side-bad">{t('teach.res.side_bad', { n: Math.max(0, c.locality.total - c.locality.same) })}</p>}
+          {c.executed && !c.skipped && !!c.locality.unstable && (
+            <p style={{ fontSize: 12 }} data-testid="side-unstable">{t(c.locality.unstable === 1 ? 'teach.res.side_unstable_one' : 'teach.res.side_unstable', { n: c.locality.unstable })}</p>
+          )}
           {(c.skipped || !c.executed) && (
             <div><Button size="small" onClick={() => void recheck(j.id).unwrap().catch((e: unknown) => setError(mapTeachError(e, t)))} loading={rechecking} data-testid="run-check-now">{t('teach.res.side_run')}</Button></div>
           )}
         </Panel>
       )}
 
-      {j.draft_id && (
+      {j.draft_id && !failedTone && (
         <Panel data-testid="try-block">
           <h2>{t('teach.res.try_title')}</h2>
           <LiveTestBox draftId={j.draft_id} />
@@ -311,8 +326,10 @@ export default function TeachLessonPage() {
         </Cards>
       </Panel>
 
+      {/* The sheet OWNS the success state — announced / in review, the public page, the earnings page. Closing it on
+          success threw away the only confirmation the visitor ever gets that publishing worked (ChatPage keeps it). */}
       {sheet === 'publish' && policy && teacherKey && (
-        <PublishSheet job={j} policy={policy} teacherKey={teacherKey} onClose={() => setSheet(null)} onPublished={() => setSheet(null)} />
+        <PublishSheet job={j} policy={policy} teacherKey={teacherKey} onClose={() => setSheet(null)} onPublished={() => undefined} />
       )}
       {sheet === 'keep' && policy && (
         <KeepPrivateSheet

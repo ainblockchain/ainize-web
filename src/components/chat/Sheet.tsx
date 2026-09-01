@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { useT } from '@/i18n';
 
@@ -32,17 +32,42 @@ export interface SheetProps {
   title: ReactNode; sub?: ReactNode; onClose: () => void; children: ReactNode; side?: boolean; width?: number; testId?: string;
 }
 
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])';
+
 export function Sheet({ title, sub, onClose, children, side, width = 560, testId }: SheetProps) {
   const { t } = useT();
+  const panel = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow; document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
   }, [onClose]);
+  /**
+   * `aria-modal` promises the rest of the page is out of reach, and this dialog was not keeping that promise: focus
+   * stayed on the button behind it, Tab walked back out into the page, and closing left focus nowhere. Move focus in,
+   * keep Tab inside, and give it back to whatever opened the sheet.
+   */
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const first = panel.current?.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? panel.current)?.focus();
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !panel.current) return;
+      const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (!items.length) return;
+      const edge = e.shiftKey ? items[0] : items[items.length - 1];
+      if (document.activeElement === edge || !panel.current.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? items[items.length - 1] : items[0]).focus();
+      }
+    };
+    document.addEventListener('keydown', onTab);
+    return () => { document.removeEventListener('keydown', onTab); if (opener?.isConnected) opener.focus(); };
+  }, []);
   return (
     <Backdrop onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <Panel role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} $side={side} $width={width} data-testid={testId}>
+      <Panel ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} $side={side} $width={width} data-testid={testId}>
         <Head>
           <div><h2>{title}</h2>{sub && <p>{sub}</p>}</div>
           <CloseBtn type="button" onClick={onClose} aria-label={t('teach.drawer.close')}>×</CloseBtn>

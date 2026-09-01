@@ -114,8 +114,9 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   const gated = !!c && (!c.ok || !c.executed);
   const publishOff = policy?.publish === 'never';
   const stub = policy?.backend === 'stub';
-  /** checks were simulated (stub backend / offline stub): never say "in the live model" */
-  const simulated = stub || !!(c?.note && /simulat|stub/i.test(c.note));
+  /** checks were SIMULATED (no model server): never say "in the live model". A stub node with a live model measured
+   *  them for real — only the training was fake, which is `stub` alone. */
+  const simulated = !!(c?.note && /simulat/i.test(c.note));
   const doCancel = async () => { setActionError(null); try { await cancel(j.id).unwrap(); } catch (e) { setActionError(mapTeachError(e, t)); } };
   const doRecheck = async () => { setActionError(null); try { await recheck(j.id).unwrap(); } catch (e) { setActionError(mapTeachError(e, t)); } };
   const eta = etaText(j.eta_s, policy, t);
@@ -143,7 +144,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
     case 'READY':
       body = c && !c.executed
         ? <Alert $tone="warning">{t('teach.card.ready_unchecked')} <Button size="small" onClick={() => { void doRecheck(); }} loading={rechecking} style={{ marginLeft: 8 }}>{t('teach.card.check_again')}</Button></Alert>
-        : <b style={{ color: '#1e6b36' }}>{t(simulated ? 'teach.card.ready_sim' : 'teach.card.ready', { hits: c?.taught.hits ?? 0, total: c?.taught.total ?? 0 })}</b>;
+        : <b style={{ color: '#1e6b36' }}>{t(simulated || stub ? 'teach.card.ready_sim' : 'teach.card.ready', { hits: c?.taught.hits ?? 0, total: c?.taught.total ?? 0 })}</b>;
       break;
     case 'NEEDS_MORE':
       body = t('teach.card.needs_more', { hits: c?.taught.hits ?? 0, total: c?.taught.total ?? 0 }); break;
@@ -196,7 +197,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
           k: j.facts.filter((f) => f.hit !== undefined).length, n: j.facts.length, hits: j.facts.filter((f) => f.hit === true).length,
         })}</Tip>
       )}
-      {simulated && showChecks && <Tip data-testid="lesson-simulated">{t('teach.card.simulated')}</Tip>}
+      {(simulated || stub) && showChecks && <Tip data-testid="lesson-simulated">{t(simulated ? 'teach.card.simulated' : 'teach.card.stub_only')}</Tip>}
       {c?.reverted_and_reapplied && <Tip>{t('teach.card.revert_note')}</Tip>}
       {showChecks && (
         <Checks>

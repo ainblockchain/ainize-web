@@ -210,7 +210,9 @@ export default function ChatPage() {
   useEffect(() => () => { alive.current = false; inflight.current?.abort(); }, []);
   const refreshPatches = useCallback(() => { if (alive.current) void refetch(); }, [refetch]);
 
-  const turns = useMemo(() => (selectionKey ? transcripts[selectionKey] ?? [] : []), [transcripts, selectionKey]);
+  // '' is a real transcript key: teaching with nothing loaded. Treating it as "no selection → no turns" threw away
+  // every answer the conversational door produced on a node with an empty catalog.
+  const turns = useMemo(() => transcripts[selectionKey] ?? [], [transcripts, selectionKey]);
   const lastStatus = turns[turns.length - 1]?.status;
   useEffect(() => {
     const el = scrollRef.current;
@@ -222,10 +224,12 @@ export default function ChatPage() {
   }, []);
 
   const send = useCallback(async (text: string, opts?: { mode?: ChatModeKind; thinking?: boolean; replaceId?: string }) => {
-    if (selectedIds.length === 0 || busy || exhausted) return;
+    // An empty selection is allowed while teaching: you are correcting the model itself, and a node with an empty
+    // catalog has nothing to pick. There is no "with knowledge" side then, so the turn is base-only.
+    if ((selectedIds.length === 0 && !teachOn) || busy || exhausted) return;
     const pid = selectionKey;
     const ids = selectedIds;
-    const useMode = opts?.mode ?? mode;
+    const useMode: ChatModeKind = selectedIds.length === 0 ? 'base' : (opts?.mode ?? mode);
     const useThinking = opts?.thinking ?? thinking;
     const sample = matchSampleAny(selectedList, text);
     const id = newId();
@@ -256,7 +260,7 @@ export default function ChatPage() {
       if (inflight.current === request) inflight.current = null;
       refreshPatches();   // lock released (or still queued) — refresh the banner without waiting for the poll
     }
-  }, [selectedIds, selectedList, selectionKey, busy, exhausted, mode, thinking, transcripts, patchTurns, sendChat, refreshPatches, t]);
+  }, [selectedIds, selectedList, selectionKey, busy, exhausted, teachOn, mode, thinking, transcripts, patchTurns, sendChat, refreshPatches, t]);
 
   const cancel = useCallback(() => { inflight.current?.abort(); }, []);
   const retry = useCallback((turn: Turn) => { void send(turn.prompt, { mode: turn.mode, thinking: turn.thinking, replaceId: turn.id }); }, [send]);
@@ -312,8 +316,8 @@ export default function ChatPage() {
       : exhausted || quota <= 0 ? t('chat.quota.none')
         : quotaLimit ? t('chat.quota.left_of', { n: quota, limit: quotaLimit }) : t('chat.quota.left', { n: quota });
 
-  const composerDisabled = selectedIds.length === 0 || runtimeOff || (exhausted && !isSignedIn);
-  const disabledReason = selectedIds.length === 0 ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : exhausted && !isSignedIn ? t('chat.quota.none') : undefined;
+  const composerDisabled = (selectedIds.length === 0 && !teachOn) || runtimeOff || (exhausted && !isSignedIn);
+  const disabledReason = selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : exhausted && !isSignedIn ? t('chat.quota.none') : undefined;
   const keyLabel = !teacherKey ? undefined
     : teacherKey.name ? t('teach.key.chip', { name: teacherKey.name, short: shortKey(teacherKey.address) })
       : t('teach.key.chip_anon', { short: shortKey(teacherKey.address) });
