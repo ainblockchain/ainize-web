@@ -61,7 +61,13 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
       const payout_address = payoutMode === 'none' ? null : payoutMode === 'wallet' ? wallet.trim() : undefined;
       const ch = await challenge({ id: job.id, payout_address }).unwrap();
       const claim_sig = signMessage(ch.claim, teacherKey.privateKey);
-      const res = await publish({ id: job.id, name: name.trim(), description: description.trim() || undefined, price: price.trim(), license, payout_address, claim_sig, consent: { permanent: true, rights: true } }).unwrap();
+      const res = await publish({
+        id: job.id, name: name.trim(), description: description.trim() || undefined, price: price.trim(), license, payout_address, claim_sig,
+        consent: { permanent: true, rights: true },
+        // "Shown as" falls back to this browser's key name when the job carries none; sending it is what makes the
+        // public record agree with what the sheet just promised (design §9.3)
+        ...(!job.contributor.name && teacherKey.name ? { contributor: { name: teacherKey.name } } : {}),
+      }).unwrap();
       setResult(res); onPublished(res);
     } catch (e) { setError(mapTeachError(e, t)); } finally { setBusy(false); }
   };

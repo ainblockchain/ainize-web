@@ -9,6 +9,7 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Divider, Empty, ExternalLink, KeyValue, Mono, ScoreBar, StatusChip, StyledLink, Tabs } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
+import { sourceKind } from '@/components/teach/util';
 import { bytes, dateTime, num, pct, scoreText, shortAddr, shortHash } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
 import { isExecuted, useDetailFormat } from './detail/recordText';
@@ -225,6 +226,20 @@ function Overview({ d, score }: { d: PatchDetail; score: Score }) {
         <P>{a.description || t('detail.ov.no_description')}</P>
         {score.pct !== null && <div style={{ marginTop: 16, maxWidth: 360 }}><ScoreBar pct={score.pct} /><Quorum>{t('detail.ov.accuracy_line', { score: `${score.pct}% (${score.text})`, facts: num(a.benchmark.queries) })}</Quorum></div>}
       </Section>
+      {/* Taught knowledge carries hash-only provenance (design §D12): enough for a buyer to verify a re-train used the
+          same input, never enough to read the teacher's questions — which is exactly what the note says. */}
+      {a.dataset && (
+        <Section data-testid="dataset-provenance">
+          <H3>{t('detail.ov.dataset')}</H3>
+          <Note>{t('detail.ov.dataset_note')}</Note>
+          <KeyValue style={{ marginTop: 0 }}>
+            <dt>{t('detail.ov.dataset_fingerprint')}</dt>
+            <dd><Mono data-testid="dataset-sha">{a.dataset.sha256.slice(0, 12)}</Mono><CopyButton text={a.dataset.sha256} label={t('common.copy')} /></dd>
+            <dt>{t('detail.ov.dataset_rows')}</dt><dd>{t('teach.data.count', { n: a.dataset.rows })}</dd>
+            <dt>{t('teach.data.h.source')}</dt><dd data-testid="dataset-source">{sourceKind(a.dataset.source, t)}</dd>
+          </KeyValue>
+        </Section>
+      )}
       <Section>
         <H3 title={t('detail.tech.model_identity')}>{t('detail.ov.model')}</H3>
         <Note>{t('detail.ov.model_note')}</Note>

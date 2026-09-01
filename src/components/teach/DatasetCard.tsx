@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useDateTime } from '@/utils/useFormat';
 import { mineStatusKey } from '@/components/chat/teachUtil';
 import { shortSha } from '@/lib/teachDataset';
-import { sourceLabel } from './util';
+import { sourceKind } from './util';
 
 /**
  * One dataset and the lessons trained from it (design §5.8). Dataset-first, because the dataset is the durable object
@@ -52,6 +52,9 @@ export function DatasetCard({ dataset, lessons, ttlDays, onRetrain, onContinue, 
   const { t } = useT();
   const dateTime = useDateTime();
   const deleted = !!dataset.deleted_at;
+  // `delete_after_training` really removed the questions: the row survives (name, fingerprint, lessons) but every
+  // action that needs the file would now answer 404, so the card says so instead of offering them (design §11).
+  const fileGone = !deleted && dataset.size_bytes === 0 && dataset.rows > 0;
   return (
     <Card data-testid="dataset-card" data-id={dataset.id}>
       <Head>
@@ -60,14 +63,21 @@ export function DatasetCard({ dataset, lessons, ttlDays, onRetrain, onContinue, 
         <span>{t('teach.data.fingerprint', { short: shortSha(dataset.sha256) })}</span>
       </Head>
       <Meta>
-        <div><dt>{t('teach.data.h.source')}</dt><dd>{sourceLabel(dataset.source, dataset.source_name, t)}</dd></div>
+        <div><dt>{t('teach.data.h.source')}</dt><dd data-testid="ds-source">{sourceKind(dataset.source, t)}</dd></div>
         <div><dt>{t('teach.data.h.created')}</dt><dd>{dateTime(dataset.created_at)}</dd></div>
         <div>
-          <dt>{t('teach.data.h.name')}</dt>
+          <dt>{t('teach.data.h.retention')}</dt>
           <dd>{dataset.retention === 'delete_after_training' ? t('teach.data.retention_delete') : dataset.expires_at ? t('teach.data.retention', { date: dateTime(dataset.expires_at) }) : ttlDays ? t('teach.data.expires', { days: ttlDays }) : '—'}</dd>
         </div>
       </Meta>
-      {deleted ? <Gone data-testid="dataset-gone">{t('teach.data.gone')}</Gone> : (
+      {deleted ? <Gone data-testid="dataset-gone">{t('teach.data.gone')}</Gone> : fileGone ? (
+        <>
+          <Gone data-testid="dataset-file-gone">{t('teach.data.file_gone')}</Gone>
+          <Actions>
+            <Button size="small" color="secondary" onClick={onDelete} disabled={busy} data-testid="ds-delete">{t('teach.data.delete')}</Button>
+          </Actions>
+        </>
+      ) : (
         <Actions>
           <Button size="small" onClick={onRetrain} disabled={busy} data-testid="ds-retrain">{t('teach.data.retrain')}</Button>
           <Button size="small" onClick={onContinue} disabled={busy} data-testid="ds-continue">{t('teach.data.continue')}</Button>

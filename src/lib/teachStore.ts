@@ -8,7 +8,10 @@ import type { TeachFactInput } from '@/api/types';
 export const BASKET_PREFIX = 'ainize.teach.basket.';
 export const JOBS_KEY = 'ainize.teach.jobs';
 export const BANNER_KEY = 'ainize.teach.banner_dismissed';
-export const MAX_FACTS = 8;
+/** Last-resort cap for what a browser will hold; the REAL per-lesson cap is the node's `limits.facts_per_job`. */
+export const MAX_FACTS = 64;
+/** What the UI promises before the node's policy has loaded (the shipped default of `facts_per_job`). */
+export const DEFAULT_FACTS_PER_JOB = 8;
 
 export interface Correction extends TeachFactInput { id: string; model_answer?: string; added_at: number }
 export interface Basket { facts: Correction[]; builds_on: boolean; /** set by "Improve & retry": the next training call goes through POST …/retry with this parent job */ retry_of?: string }

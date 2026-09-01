@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { useCreateTeachJobMutation, useTeachDatasetQuery, useTeachDatasetRowsQuery, useTeachPolicyQuery } from '@/api/api';
+import { useCreateTeachJobMutation, useRetrainTeachJobMutation, useTeachDatasetQuery, useTeachDatasetRowsQuery, useTeachPolicyQuery } from '@/api/api';
 import type { TeachEffort } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
@@ -11,8 +11,9 @@ import { mapTeachError } from '@/components/chat/teachUtil';
 import { EffortCards } from '@/components/teach/EffortCards';
 import { Stepper } from '@/components/teach/Stepper';
 import { effortLabelKey, effortTime, presetOf, rowsPerJob } from '@/components/teach/util';
-import { loadSelection, shortSha } from '@/lib/teachDataset';
+import { clearKnown, loadKnown, loadSelection, shortSha } from '@/lib/teachDataset';
 import { rememberJob } from '@/lib/teachStore';
+import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
  * `/teach/dataset/:dsId/settings` — step 3 (design §5.5). Exactly four things a non-expert can judge: a name, how hard
@@ -36,10 +37,17 @@ const Sticky = styled.div`
   p { margin: 0; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY}; }
 `;
 
+const EFFORTS = ['quick', 'balanced', 'thorough'] as const;
+
 export default function TeachSettingsPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
   const { t } = useT();
   const navigate = useNavigate();
+  // "Change settings and re-train" lands here with the bumped effort pre-selected and the lesson it continues, so the
+  // button keeps its promise: the visitor sees the settings before anything runs (design §5.7).
+  const [params] = useSearchParams();
+  const retrainOf = params.get('retrain') ?? '';
+  const asked = params.get('effort');
   const { data: policy } = useTeachPolicyQuery();
   const { data: dsData, isLoading } = useTeachDatasetQuery(dsId, { skip: !dsId });
   const dataset = dsData?.dataset;
@@ -54,12 +62,19 @@ export default function TeachSettingsPage() {
   }, [page, selection, cap]);
 
   const [create, { isLoading: sending }] = useCreateTeachJobMutation();
+  const [again, { isLoading: resending }] = useRetrainTeachJobMutation();
   const [name, setName] = useState('');
-  const [effort, setEffort] = useState<TeachEffort>('balanced');
+  const [effort, setEffort] = useState<TeachEffort>(EFFORTS.includes(asked as TeachEffort) ? (asked as TeachEffort) : 'balanced');
   const [side, setSide] = useState(true);
   const [useAlt, setUseAlt] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const teacher = currentTeacherKey();
+  // measured on the preview screen, and only while it is still about THESE bytes (a new revision clears it)
+  const known = useMemo(() => {
+    const all = loadKnown(dsId, dataset?.revision ?? 0);
+    return selection?.length ? all.filter((k) => selection.includes(k.index)) : all;
+  }, [dsId, dataset?.revision, selection]);
   const publishable = policy?.publish !== 'never';
   const sideLocked = publishable;           // the side-effect check IS the publish gate (§12.6)
   const sideOn = sideLocked ? true : side;
@@ -70,12 +85,22 @@ export default function TeachSettingsPage() {
   const start = async () => {
     setError(null);
     try {
-      const out = await create({
-        patch_ids: [], builds_on_context: false, dataset_id: dsId,
+      const body = {
+        dataset_id: dsId,
         ...(selection?.length ? { selected_indexes: selection.slice(0, cap) } : {}),
         training: { effort, check_side_effects: sideOn, use_alt: altOn },
         ...(name.trim() ? { name: name.trim() } : {}),
-      }).unwrap();
+      };
+      const out = retrainOf
+        ? await again({ id: retrainOf, ...body }).unwrap()
+        : await create({
+          patch_ids: [], builds_on_context: false, ...body,
+          // what the preview measured in the live model, so the lesson can record the questions it leaves out (§5.5)
+          ...(known.length ? { known } : {}),
+          // the file door credits its teacher exactly like the chat door: without this the anchor is anonymous (§9.3)
+          ...(teacher?.name ? { contributor: { name: teacher.name } } : {}),
+        }).unwrap();
+      clearKnown(dsId);
       rememberJob({ id: out.job.id, name: out.job.name, created_at: Date.now() });
       navigate(`/teach/lesson/${out.job.id}`);
     } catch (e) { setError(mapTeachError(e, t)); }
@@ -158,7 +183,7 @@ export default function TeachSettingsPage() {
             checks: sideOn ? t('teach.set.summary_checks_on') : t('teach.set.summary_checks_off'),
           })} · {timeText}
         </p>
-        <Button variant="contained" size="large" onClick={() => void start()} loading={sending} loadingText={t('teach.set.sending')} data-testid="train-lesson">
+        <Button variant="contained" size="large" onClick={() => void start()} loading={sending || resending} loadingText={t('teach.set.sending')} data-testid="train-lesson">
           {t('teach.set.train', { n: trained })}
         </Button>
       </Sticky>

@@ -148,6 +148,8 @@ export const api = createApi({
     createTeachJob: b.mutation<CreateTeachJobResponse, {
       patch_ids: string[]; builds_on_context: boolean; facts?: TeachFactInput[];
       dataset_id?: string; selected_indexes?: number[]; training?: Partial<TeachTrainingSpec>;
+      /** what the preview's live pre-flight measured on those dataset rows (design §5.5) */
+      known?: { index: number; base_answer: string }[];
       contributor?: { name?: string }; name?: string;
     }>({
       query: (body) => ({ url: 'api/teach/jobs', method: 'POST', body }), invalidatesTags: ['Teach', 'TeachDataset'],

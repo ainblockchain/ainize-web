@@ -21,7 +21,7 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
-import { bannerDismissed, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, MAX_FACTS, type Basket } from '@/lib/teachStore';
+import { bannerDismissed, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
 import { num } from '@/utils/format';
 
 /* ---------------------------------------------------------------- layout */
@@ -124,6 +124,8 @@ export default function ChatPage() {
   const { data: info } = useInfoQuery();
   // Teach mode: policy is public and cached 10 s on the node; a pre-teach node answers 404 → the teach UI stays hidden.
   const { data: policy } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
+  // how many corrections one lesson holds is THIS node's answer, not a constant in the bundle (design §D1)
+  const factsPerJob = policy?.limits?.facts_per_job ?? DEFAULT_FACTS_PER_JOB;
   const [sendChat, { isLoading: busy }] = useChatMutation();
   const inflight = useRef<{ abort: () => void } | null>(null);
 
@@ -286,9 +288,9 @@ export default function ChatPage() {
   // ---------------------------------------------------------------- teach-mode handlers
   const onTeach = useCallback((turn: Turn, answer: string) => { setDrawer({ question: turn.prompt, answer }); }, []);
   const addCorrection = useCallback((c: { prompt: string; answer: string; alt_prompt?: string; model_answer?: string }) => {
-    updateBasket((b) => (b.facts.length >= MAX_FACTS ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
+    updateBasket((b) => (b.facts.length >= factsPerJob ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
     setDrawer(null); setBasketOpen(true); setBasketNudge((n) => n + 1);
-  }, [updateBasket]);
+  }, [updateBasket, factsPerJob]);
   const onTrain = useCallback(() => { setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey]);
   const onQueued = useCallback((job: TeachJob) => {
     rememberJob({ id: job.id, name: job.name, created_at: job.created_at });
@@ -431,7 +433,7 @@ export default function ChatPage() {
 
       {/* ------------------------------------------------------------ teach-mode overlays */}
       {drawer && (
-        <TeachDrawer question={drawer.question} modelAnswer={drawer.answer} full={basket.facts.length >= MAX_FACTS} limits={policy?.limits}
+        <TeachDrawer question={drawer.question} modelAnswer={drawer.answer} full={basket.facts.length >= factsPerJob} max={factsPerJob} limits={policy?.limits}
           onAdd={addCorrection} onClose={() => setDrawer(null)} />
       )}
       {sheet === 'credit' && <CreditSheet onDone={(k) => { setTeacherKey(k); setSheet('preflight'); }} onClose={() => setSheet(null)} />}

@@ -126,6 +126,32 @@ export function loadSelection(datasetId: string): number[] | null {
   } catch { return null; }
 }
 
+/**
+ * What the live pre-flight measured on the preview screen, carried to the settings screen so the promise there ("Train
+ * this lesson (N questions)") matches what the worker will really teach — and so the lesson can record what it left
+ * out. Tied to the dataset REVISION: one edit and every measured answer is about text that no longer exists.
+ */
+const KNOWN_KEY = 'ainize.teach.known';
+export interface KnownQuestion { index: number; base_answer: string }
+export function saveKnown(datasetId: string, revision: number, known: KnownQuestion[]) {
+  try {
+    const key = `${KNOWN_KEY}.${datasetId}`;
+    if (!known.length) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify({ revision, known }));
+  } catch { /* storage unavailable */ }
+}
+export function loadKnown(datasetId: string, revision: number): KnownQuestion[] {
+  try {
+    const raw = sessionStorage.getItem(`${KNOWN_KEY}.${datasetId}`);
+    const v = raw ? (JSON.parse(raw) as { revision?: number; known?: KnownQuestion[] }) : null;
+    if (!v || v.revision !== revision || !Array.isArray(v.known)) return [];
+    return v.known.filter((k) => typeof k?.index === 'number');
+  } catch { return []; }
+}
+export function clearKnown(datasetId: string) {
+  try { sessionStorage.removeItem(`${KNOWN_KEY}.${datasetId}`); } catch { /* ignore */ }
+}
+
 /** `id → name` for anonymous browsers, mirroring `ainize.teach.jobs` (§6.6). */
 const DATASETS_KEY = 'ainize.teach.datasets';
 export function rememberDataset(id: string, name: string) {

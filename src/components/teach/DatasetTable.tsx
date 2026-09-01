@@ -63,11 +63,14 @@ export interface DatasetTableProps {
   onRemove?: (row: TeachDatasetRow) => void;
   /** a contradictory question: put THIS answer back as the one to learn */
   onKeep?: (row: TeachDatasetRow) => void;
+  /** after an edit the numbers are positions in the dataset, not lines of the file the visitor uploaded */
+  positions?: boolean;
   busy?: boolean;
 }
 
-export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onEdit, onRemove, onKeep, busy }: DatasetTableProps) {
+export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onEdit, onRemove, onKeep, positions, busy }: DatasetTableProps) {
   const { t } = useT();
+  const nHead = t(positions ? 'teach.rows.h.pos' : 'teach.rows.h.n');
   return (
     <Wrap>
       <Table data-testid="dataset-table">
@@ -75,7 +78,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
           <tr>
             {/* the selection column has no heading of its own; every checkbox carries its own label */}
             {selectable && <th className="pick" scope="col" />}
-            <th className="n" scope="col">{t('teach.rows.h.n')}</th>
+            <th className="n" scope="col">{nHead}</th>
             <th scope="col">{t('teach.rows.h.q')}</th>
             <th scope="col">{t('teach.rows.h.a')}</th>
             <th scope="col">{t('teach.rows.h.alt')}</th>
@@ -94,7 +97,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
             return (
               <tr key={`${row.line}-${row.index ?? 'x'}`} data-bad={file.tone === 'bad' ? '1' : '0'} data-testid="dataset-row" data-status={row.status}>
                 {selectable && (
-                  <td className="pick" data-label={t('teach.rows.h.n')}>
+                  <td className="pick" data-label={nHead}>
                     {row.index !== null && (
                       <input
                         type="checkbox" checked={!!picked} disabled={busy}
@@ -104,7 +107,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                     )}
                   </td>
                 )}
-                <td className="n" data-label={t('teach.rows.h.n')}>{row.line}</td>
+                <td className="n" data-label={nHead}>{row.line}</td>
                 <td className="q" data-label={t('teach.rows.h.q')}>{row.prompt ?? (row.raw ? row.raw.slice(0, 120) : '—')}</td>
                 <td className="a" data-label={t('teach.rows.h.a')}>{row.answer ?? '—'}</td>
                 <td className="alt" data-label={t('teach.rows.h.alt')}>{row.alt_prompt ?? ''}</td>

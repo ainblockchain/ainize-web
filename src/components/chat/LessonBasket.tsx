@@ -8,7 +8,7 @@ import { Alert, Checkbox } from '@/components/ui/Form';
 import { DatasetTable } from '@/components/teach/DatasetTable';
 import { basketFilename, canonicalJsonl, downloadBytes } from '@/lib/teachDataset';
 import type { Basket } from '@/lib/teachStore';
-import { MAX_FACTS } from '@/lib/teachStore';
+import { DEFAULT_FACTS_PER_JOB } from '@/lib/teachStore';
 import { Sheet } from './Sheet';
 import { policyLine } from './teachUtil';
 
@@ -66,6 +66,8 @@ export function LessonBasket({ basket, policy, stackNames, expanded, onToggle, o
   const { t } = useT();
   const [viewing, setViewing] = useState(false);
   const n = basket.facts.length;
+  // the per-lesson cap is the NODE's (design §D1); the shipped default only stands in while the policy loads
+  const max = policy?.limits?.facts_per_job ?? DEFAULT_FACTS_PER_JOB;
   /** the design's string is "{n} questions"; one question is the only case where that reads wrong */
   const heading = n === 1 ? t('teach.basket.title_one') : t('teach.basket.title_ds', { n });
   const pol = policyLine(policy, t);
@@ -109,7 +111,7 @@ export function LessonBasket({ basket, policy, stackNames, expanded, onToggle, o
           {stackNames.length > 0 && (
             <Checkbox checked={basket.builds_on} onChange={(e) => onBuildsOn(e.target.checked)} label={<span style={{ fontSize: 13 }}>{t('teach.basket.builds_on')}</span>} />
           )}
-          {n >= MAX_FACTS && <Alert $tone="info">{t('teach.drawer.v_full')}</Alert>}
+          {n >= max && <Alert $tone="info">{t('teach.drawer.v_full', { n: max })}</Alert>}
           <Button variant="contained" fullWidth disabled={!canTrain} onClick={onTrain} data-testid="train-lesson">{t('teach.basket.train_ds', { n })}</Button>
           {keyLabel && <KeyChip title={t('teach.key.address')}>{keyLabel}</KeyChip>}
         </>

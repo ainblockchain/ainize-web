@@ -20,7 +20,7 @@ export function isQuotaError(err: unknown): boolean {
 }
 
 /** Same style as mapChatError: machine-readable code = message prefix (spec §5.14), transport errors get their own line. */
-export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } = {}): string {
+export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' | 'remove' } = {}): string {
   const e = err as { status?: number | string; name?: string } | undefined;
   const raw = errorMessage(err);
   const m = raw.toLowerCase();
@@ -33,7 +33,9 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } 
     case 'trainer_paused': return t('teach.err.trainer_paused');
     case 'quota_key': case 'quota_ip': return t('teach.err.quota');
     // `chat.err.quota` ends with "buy the knowledge" — nonsense when you are the one MAKING the knowledge.
-    case 'quota_chat': return t(ctx.stage === 'preflight' ? 'teach.err.quota_check' : 'chat.err.quota');
+    // an HOURLY live-test budget, never the daily lesson limit: "come back tomorrow" would send the visitor away for
+    // 23 hours too long, and "buy the knowledge" is nonsense when they are the one making it
+    case 'quota_chat': return t(ctx.stage === 'preflight' ? 'teach.err.quota_check' : 'teach.err.quota_try');
     case 'banned': return t('teach.err.banned');
     case 'already_known': return t('teach.err.already_known');
     case 'overlaps_listing': return t('teach.err.overlaps_listing');
@@ -46,7 +48,7 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } 
     case 'rate_limited': return t('teach.err.rate_limited');
     // teach mode v2 — the dataset codes (design §5.11). `details` carries the numbers the sentence needs.
     case 'dataset_too_large': return t('teach.err.dataset_too_large', { mb: detailNumber(err, 'max_bytes', 4_000_000) / 1e6 });
-    case 'dataset_empty': return t('teach.err.dataset_empty');
+    case 'dataset_empty': return t(ctx.stage === 'remove' ? 'teach.err.dataset_empty_remove' : 'teach.err.dataset_empty');
     case 'dataset_format': return t('teach.err.dataset_format');
     case 'dataset_not_found': return t('teach.err.dataset_not_found');
     case 'dataset_in_use': return t('teach.err.dataset_in_use');
@@ -59,6 +61,8 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' } 
   }
   // v1 shape: a missing job answers 404 with a bare sentence and no machine code
   if (e?.status === 404 && m.includes('lesson not found')) return t('teach.err.lesson_not_found');
+  // an older node answers the live test with a bare sentence and no code — it is still the hourly budget, not the daily one
+  if (m.includes('live-test quota')) return t(ctx.stage === 'preflight' ? 'teach.err.quota_check' : 'teach.err.quota_try');
   if (e?.status === 429 || m.includes('quota')) return t('teach.err.quota');
   if (m.includes('runtime busy') || m.includes('shared runtime busy')) return t('teach.err.busy');
   if (m.includes('runtime unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not responding') || (e?.status === 503 && m.includes('model server'))) return t(runtimeKey);

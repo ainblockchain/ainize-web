@@ -226,7 +226,7 @@ export interface TeachJobResponse { job: TeachJob }
 export interface CreateTeachJobResponse { job: TeachJob; quota: TeachQuota }
 export interface TeachSaveResponse { download: { npz_url: string; recipe_url: string; readme_url: string; expires_at: number }; sha256: string; rows: number; size_bytes: number; filename: string }
 export interface PublishChallenge { patch_sha256: string; benchmark_hash: string; address: string; signer: string; share: number; claim: string }
-export interface PublishRequest { name: string; description?: string; price?: string; license?: string; payout_address?: string | null; claim_sig: string; consent: { permanent: boolean; rights: boolean } }
+export interface PublishRequest { name: string; description?: string; price?: string; license?: string; payout_address?: string | null; claim_sig: string; consent: { permanent: boolean; rights: boolean }; contributor?: { name?: string } }
 export type PublishResponse = { status: 'PENDING_REVIEW' } | { status: 'ANNOUNCED'; patch_id: string; url: string };
 // ---------------- teach mode v2: dataset requests and responses (design §7)
 export interface DatasetReport { summary: TeachDatasetSummary; rows: TeachDatasetRow[] }

@@ -81,11 +81,15 @@ export function fileStatus(row: TeachDatasetRow, t: Tr, limits?: { prompt_max: n
   }
 }
 
-/** The advisory line (never blocks): questions that end the same way are very likely to be learned as one (§8.5). */
+/**
+ * The advisory line (never blocks): questions that end the same way are very likely to be learned as one (§8.5).
+ * The node's detail sentence counts the GROUP ('3 questions in this dataset end the same way'); this row is one of
+ * them, so the line it prints must name the OTHERS — a group of three is "the same as 2 others", never 3.
+ */
 export function sharedEnding(row: TeachDatasetRow, t: Tr): string | null {
   if (!row.advisory?.includes('shared_ending')) return null;
-  const n = firstNumber(row.detail) ?? 3;
-  return t('teach.rows.status.shared_end', { n });
+  const group = firstNumber(row.detail) ?? 3;
+  return t('teach.rows.status.shared_end', { n: Math.max(1, group - 1) });
 }
 
 /** Model-side status: filled only after the live pre-flight ran, and cleared the moment the visitor edits the row. */
@@ -134,12 +138,28 @@ export function etaLine(job: TeachJob, policy: TeachPolicy | undefined, t: Tr): 
   return eta < 90 ? t('teach.run.eta_soon') : t('teach.run.eta', { min: Math.max(1, Math.round(eta / 60)) });
 }
 
-/** Where a dataset came from, for the preview subtitle and the My-datasets list. */
+/**
+ * Where a dataset came from, as the OBJECT of a sentence ("3 questions from az-facts.jsonl."). A frozen chat basket
+ * is a file too (§5.9), so it names its file when the caller knows it; every fallback is sentence-shaped.
+ */
 export function sourceLabel(source: string | undefined, name: string | undefined, t: Tr): string {
   switch (source) {
-    case 'upload': return name ? t('teach.rows.source_file', { name }) : t('teach.data.source.upload');
-    case 'chat': return t('teach.rows.source_chat');
+    case 'upload': return name ? t('teach.rows.source_file', { name }) : t('teach.rows.source_upload');
+    case 'chat': return name ? t('teach.rows.source_file', { name }) : t('teach.rows.source_chat');
     case 'sample': return t('teach.rows.source_sample');
-    default: return name ? t('teach.rows.source_file', { name }) : t('teach.data.source.derived');
+    default: return name ? t('teach.rows.source_file', { name }) : t('teach.rows.source_derived');
+  }
+}
+
+/**
+ * The same fact as a LABEL, for the "Where it came from" cell of a dataset card: the category, never the filename —
+ * the card is already headed by the file's name, so repeating it there says nothing (design §5.8).
+ */
+export function sourceKind(source: string | undefined, t: Tr): string {
+  switch (source) {
+    case 'upload': return t('teach.data.source.upload');
+    case 'chat': return t('teach.data.source.chat');
+    case 'sample': return t('teach.data.source.sample');
+    default: return t('teach.data.source.derived');
   }
 }

@@ -66,6 +66,9 @@ const Log = styled.details`
   summary { cursor: pointer; }
   pre { margin: 8px 0 0; padding: 8px 10px; max-height: 200px; overflow: auto; background: #f7f7f7; border-radius: 4px; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 `;
+const ShownNote = styled.p`margin: 0; font-size: 12.5px; color: ${(p) => p.theme.color.GREY}; a { color: ${(p) => p.theme.color.PRIMARY}; }`;
+/** The learned / missed tables are sliced; the slice is stated on screen, never silent (design §5.12). */
+const ROWS_SHOWN = 50;
 const Confirm = styled.div`
   display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px; border-radius: 6px; background: #fff3e0; color: #8a4b00; font-size: 13px;
 `;
@@ -112,6 +115,14 @@ export default function TeachLessonPage() {
   }
 
   const j: TeachJob = full;
+  // The trainer's last two lines ("exported N memory entries…", "READY: taught …") only exist once the lesson has
+  // STOPPED, so the log belongs to the result screen just as much as to the progress screen.
+  const log = (
+    <Log data-testid="event-log">
+      <summary>{t('teach.run.log')}</summary>
+      <pre>{events?.events?.length ? events.events.map((e) => `${new Date(e.ts).toLocaleTimeString()}  ${e.message}`).join('\n') : t('teach.run.log_empty')}</pre>
+    </Log>
+  );
   const p = j.progress;
   const c = j.checks;
   const stub = policy?.backend === 'stub';
@@ -128,10 +139,17 @@ export default function TeachLessonPage() {
     setError(null);
     try { await cancel(j.id).unwrap(); setConfirm(false); } catch (e) { setError(mapTeachError(e, t)); }
   })();
+  /**
+   * "Change settings and re-train" must show the settings: the effort is bumped one step and pre-selected there, and
+   * pressing Train on that screen is what sends POST …/retrain (same dataset, `parent_job` set). A lesson with no
+   * dataset of its own has no settings screen to open, so it re-trains directly — the node writes it a dataset first.
+   */
   const doRetrain = () => void (async () => {
     setError(null);
+    const effort = nextEffort((j.training?.effort ?? 'balanced') as TeachEffort);
+    if (j.dataset?.id && !j.dataset.deleted) { navigate(`/teach/dataset/${j.dataset.id}/settings?retrain=${encodeURIComponent(j.id)}&effort=${effort}`); return; }
     try {
-      const out = await retrain({ id: j.id, training: { effort: nextEffort((j.training?.effort ?? 'balanced') as TeachEffort) } }).unwrap();
+      const out = await retrain({ id: j.id, training: { effort } }).unwrap();
       navigate(`/teach/lesson/${out.job.id}`);
     } catch (e) { setError(mapTeachError(e, t)); }
   })();
@@ -177,10 +195,7 @@ export default function TeachLessonPage() {
           ) : (
             <div><Button size="small" color="secondary" onClick={() => setConfirm(true)} data-testid="cancel-training">{t('teach.run.cancel')}</Button></div>
           )}
-          <Log data-testid="event-log">
-            <summary>{t('teach.run.log')}</summary>
-            <pre>{events?.events?.length ? events.events.map((e) => `${new Date(e.ts).toLocaleTimeString()}  ${e.message}`).join('\n') : t('teach.run.log_empty')}</pre>
-          </Log>
+          {log}
         </Panel>
       </PageWrapper>
     );
@@ -207,7 +222,7 @@ export default function TeachLessonPage() {
       </TitleRow>
       {failedTone ? (
         <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="result-failed">
-          {j.status === 'CANCELLED' ? t('teach.card.cancelled') : j.status === 'EXPIRED' ? t('teach.card.expired') : j.status === 'REJECTED' ? t('teach.card.rejected', { reason: j.reject_reason ?? '' }) : t(failedKey(j.error))}
+          {j.status === 'CANCELLED' ? t('teach.card.cancelled') : j.status === 'EXPIRED' ? t('teach.card.expired') : j.status === 'REJECTED' ? t('teach.pub.rejected', { reason: j.reject_reason ?? '' }) : t(failedKey(j.error))}
         </Alert>
       ) : (
         <Description data-testid="result-learned">
@@ -218,7 +233,8 @@ export default function TeachLessonPage() {
         </Description>
       )}
       {demo && !failedTone && <Alert $tone="info" style={{ marginTop: 10 }} data-testid="simulated">{t(simulated ? 'teach.res.simulated' : 'teach.res.stub_only')}</Alert>}
-      {j.dataset?.id && (
+      {/* a deleted dataset keeps its line below, but neither control is rendered: both can now only answer 404 */}
+      {j.dataset?.id && !j.dataset.deleted && (
         <Description>
           <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.dataset_link', { name: j.dataset.name ?? '', n: j.dataset.rows })}</Link>
           {' · '}
@@ -247,7 +263,7 @@ export default function TeachLessonPage() {
           <FactTable>
             <thead><tr><th>{t('teach.res.h.q')}</th><th>{t('teach.res.h.before')}</th><th>{t('teach.res.h.after')}</th><th>{t('teach.res.h.other')}</th></tr></thead>
             <tbody>
-              {learned.slice(0, 50).map((f, i) => (
+              {learned.slice(0, ROWS_SHOWN).map((f, i) => (
                 <tr key={`l${i}`}>
                   <td className="q" data-label={t('teach.res.h.q')}>{f.prompt}</td>
                   <td data-label={t('teach.res.h.before')}>{f.base_answer ?? '—'}</td>
@@ -257,6 +273,7 @@ export default function TeachLessonPage() {
               ))}
             </tbody>
           </FactTable>
+          {learned.length > ROWS_SHOWN && <ShownNote data-testid="learned-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: learned.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
         </Panel>
       )}
       {!failedTone && !!missed.length && (
@@ -266,11 +283,12 @@ export default function TeachLessonPage() {
           <FactTable>
             <thead><tr><th>{t('teach.res.h.q')}</th><th>{t('teach.res.h.after')}</th></tr></thead>
             <tbody>
-              {missed.slice(0, 50).map((f, i) => (
+              {missed.slice(0, ROWS_SHOWN).map((f, i) => (
                 <tr key={`m${i}`}><td className="q" data-label={t('teach.res.h.q')}>{f.prompt}</td><td data-label={t('teach.res.h.after')}>{f.after_answer ?? '—'}</td></tr>
               ))}
             </tbody>
           </FactTable>
+          {missed.length > ROWS_SHOWN && <ShownNote data-testid="missed-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: missed.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
         </Panel>
       )}
 
@@ -316,7 +334,9 @@ export default function TeachLessonPage() {
           <Choice>
             <b>{t('teach.res.keep_title')}</b>
             <span>{t('teach.res.keep_body')}</span>
-            <Button onClick={() => setSheet('keep')} disabled={!['READY', 'NEEDS_MORE'].includes(j.status)} data-testid="go-keep">{t('teach.card.keep')}</Button>
+            {/* a declined lesson still has its knowledge file, and `save()` only needs that — refusing here would
+                contradict the sentence above it ("Your file is still available to download.") */}
+            <Button onClick={() => setSheet('keep')} disabled={!['READY', 'NEEDS_MORE', 'REJECTED'].includes(j.status)} data-testid="go-keep">{t('teach.card.keep')}</Button>
           </Choice>
           <Choice>
             <b>{t('teach.res.again_title')}</b>
@@ -325,6 +345,10 @@ export default function TeachLessonPage() {
           </Choice>
         </Cards>
       </Panel>
+
+      {/* the same log the progress screen shows: its last lines ("exported …", "READY: taught …") are written after
+          the lesson stops, so this is the only screen they can ever be read on */}
+      <Panel data-testid="result-log">{log}</Panel>
 
       {/* The sheet OWNS the success state — announced / in review, the public page, the earnings page. Closing it on
           success threw away the only confirmation the visitor ever gets that publishing worked (ChatPage keeps it). */}

@@ -16,15 +16,17 @@ const Count = styled.span<{ $over: boolean }>`font-variant-numeric: tabular-nums
 export interface TeachDrawerProps {
   question: string;
   modelAnswer: string;
-  /** the basket already holds 8 corrections */
+  /** the basket already holds this node's per-lesson maximum */
   full: boolean;
+  /** `limits.facts_per_job` — the sentence names the node's number, not a constant */
+  max: number;
   limits?: { prompt_max: number; answer_max: number };
   onAdd: (c: { prompt: string; answer: string; alt_prompt?: string; model_answer?: string }) => void;
   onClose: () => void;
 }
 
 /** §5.4 — opened from "Teach the right answer" under a reply; question prefilled, the model's answer read-only. */
-export function TeachDrawer({ question, modelAnswer, full, limits, onAdd, onClose }: TeachDrawerProps) {
+export function TeachDrawer({ question, modelAnswer, full, max, limits, onAdd, onClose }: TeachDrawerProps) {
   const { t, locale } = useT();
   const promptMax = limits?.prompt_max ?? 400;
   const answerMax = limits?.answer_max ?? 200;
@@ -40,7 +42,7 @@ export function TeachDrawer({ question, modelAnswer, full, limits, onAdd, onClos
     if (!a) { setError(t('teach.drawer.v_answer')); return; }
     if (a.length > answerMax) { setError(t('teach.drawer.v_long')); return; }
     if (!p || p.length > promptMax) { setError(t('teach.drawer.v_question_long')); return; }
-    if (full) { setError(t('teach.drawer.v_full')); return; }
+    if (full) { setError(t('teach.drawer.v_full', { n: max })); return; }
     onAdd({ prompt: p, answer: a, ...(alt.trim() ? { alt_prompt: alt.trim().slice(0, promptMax) } : {}), ...(modelAnswer ? { model_answer: modelAnswer } : {}) });
   };
   const suggest = () => {
@@ -75,7 +77,7 @@ export function TeachDrawer({ question, modelAnswer, full, limits, onAdd, onClos
         </Field>
         <Button size="small" color="secondary" type="button" onClick={suggest}>{t('teach.drawer.suggest')}</Button>
       </AltRow>
-      {full && <Alert $tone="warning">{t('teach.drawer.v_full')}</Alert>}
+      {full && <Alert $tone="warning">{t('teach.drawer.v_full', { n: max })}</Alert>}
       {error && <Alert $tone="error" role="alert">{error}</Alert>}
       <SheetFooter>
         <SheetNote style={{ marginRight: 'auto' }}>{t('teach.drawer.storage')}</SheetNote>

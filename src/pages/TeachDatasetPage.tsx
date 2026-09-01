@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
   usePatchTeachDatasetMutation, useReparseTeachDatasetMutation, useTeachDatasetQuery, useTeachDatasetRowsQuery,
@@ -16,7 +16,7 @@ import { ReparseSheet } from '@/components/teach/ReparseSheet';
 import { RowEditSheet } from '@/components/teach/RowEditSheet';
 import { Stepper } from '@/components/teach/Stepper';
 import { rowsPerJob, sourceLabel } from '@/components/teach/util';
-import { saveSelection, shortSha, signedDownload } from '@/lib/teachDataset';
+import { saveKnown, saveSelection, shortSha, signedDownload } from '@/lib/teachDataset';
 
 /**
  * `/teach/dataset/:dsId` — step 2 (design §5.4): the preview, the per-question validation and the live pre-flight.
@@ -59,6 +59,7 @@ export default function TeachDatasetPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
   const { t } = useT();
   const navigate = useNavigate();
+  const { search } = useLocation();          // a re-train carries `?retrain=<job>&effort=…` through to the settings screen
   const { data: policy } = useTeachPolicyQuery();
   const { data: dsData, isLoading, error: loadError } = useTeachDatasetQuery(dsId, { skip: !dsId });
   const [offset, setOffset] = useState(0);
@@ -97,7 +98,7 @@ export default function TeachDatasetPage() {
     undoTimer.current = setTimeout(() => setUndo(null), 8000);
   };
 
-  const run = useCallback(async (fn: () => Promise<unknown>, ctx: { stage?: 'preflight' } = {}) => {
+  const run = useCallback(async (fn: () => Promise<unknown>, ctx: { stage?: 'preflight' | 'remove' } = {}) => {
     setError(null);
     try { await fn(); } catch (e) { setError(mapTeachError(e, t, ctx)); }
   }, [t]);
@@ -109,7 +110,7 @@ export default function TeachDatasetPage() {
       await patch({ id: dsId, rows_op: { op: 'remove', indexes: [row.index as number] } }).unwrap();
       setFlight({});
       toast(copy, t('teach.rows.removed', { q: (row.prompt ?? '').slice(0, 40) }));
-    });
+    }, { stage: 'remove' });
   };
 
   const saveRow = (input: DatasetRowInput) => {
@@ -167,7 +168,12 @@ export default function TeachDatasetPage() {
 
   const goSettings = () => {
     saveSelection(dsId, picking && selected.size ? [...selected].sort((a, b) => a - b) : null);
-    navigate(`/teach/dataset/${dsId}/settings`);
+    // What the pre-flight measured travels with the visitor: the settings screen must not promise to train a question
+    // the worker is about to drop as already known, and the lesson has to record the ones it left out (design §5.5).
+    saveKnown(dsId, revision ?? 1, Object.entries(flight)
+      .filter(([, f]) => f.status === 'already_known')
+      .map(([index, f]) => ({ index: Number(index), base_answer: f.base_answer ?? '' })));
+    navigate(`/teach/dataset/${dsId}/settings${search}`);
   };
 
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
@@ -192,10 +198,12 @@ export default function TeachDatasetPage() {
     <PageWrapper $wide data-testid="teach-dataset">
       <Stepper current={2} />
       <TitleRow style={{ paddingTop: 16 }}><Title>{t('teach.rows.title')}</Title></TitleRow>
-      <Description>{t('teach.rows.sub', { n: dataset.rows, source: sourceLabel(dataset.source, dataset.source_name, t) })}</Description>
+      <Description>{t('teach.rows.sub', { n: dataset.rows, source: sourceLabel(dataset.source, dataset.source === 'chat' ? filename : dataset.source_name, t) })}</Description>
       <Bar>
         <span>{t('teach.data.fingerprint', { short: shortSha(dataset.sha256) })}</span>
-        <span>{t('teach.rows.saved_note', { filename })}</span>
+        {/* after an edit the stored questions are no longer the bytes the visitor uploaded — naming their file here
+            (and numbering the rows as its lines) would be a claim about a file that no longer matches. */}
+        <span data-testid="saved-note">{dataset.revision > 1 ? t('teach.rows.saved_note_edited') : t('teach.rows.saved_note', { filename })}</span>
       </Bar>
 
       {/* dataset-wide, always: a check that sampled 24 of 40 must not silently restate "40 will train" as "24". */}
@@ -230,7 +238,7 @@ export default function TeachDatasetPage() {
       </Actions>
 
       <DatasetTable
-        rows={parsedRows} limits={limits} preflight={flight} busy={patching}
+        rows={parsedRows} limits={limits} preflight={flight} busy={patching} positions={dataset.revision > 1}
         selectable={picking} selected={selected} onToggle={toggle}
         onEdit={(r) => setEditing(r)} onRemove={removeRow}
         onKeep={keepAnswer}
