@@ -32,7 +32,11 @@ const GroupNote = styled(Description)`
   margin: 0 0 12px; font-size: 12px;
 `;
 
-/** All knowledge that shares one topic (benchmark schema) — comparable because it is scored with the same question set. */
+/**
+ * All knowledge that shares one topic (benchmark schema). A topic is NOT one exam: items on it can carry different
+ * benchmark hashes, and two scores from different question sets cannot be compared — so the list is grouped by
+ * question set and each group says what it can be compared with.
+ */
 export default function BenchmarkPage() {
   const { schema = '' } = useParams();
   const { t, help, tech } = useT();
