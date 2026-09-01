@@ -261,6 +261,7 @@ export const detailLedger: Dict = {
   'detail.ledger.explorer': { ko: '탐색기에서 보기', en: 'Open in explorer' },
   'detail.ledger.empty': { ko: '아직 기록이 없습니다.', en: 'No records yet.' },
   'detail.ledger.empty_kind': { ko: '"{kind}" 종류의 기록이 아직 없습니다.', en: 'No "{kind}" records yet.' },
+  'detail.ledger.window': { ko: '기록 {total}건 중 최근 {shown}건을 보여 주고 있습니다 — 노드는 한 번에 이만큼만 돌려주고 더 과거로는 넘길 수 없습니다.', en: 'Showing the most recent {shown} of {total} records — the node returns this many at a time and cannot page further back.' },
   'detail.ledger.h.time': { ko: '시각', en: 'Time' },
   'detail.ledger.h.kind': { ko: '종류', en: 'Kind' },
   'detail.ledger.h.summary': { ko: '내용', en: 'What happened' },

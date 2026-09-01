@@ -172,6 +172,14 @@ export default function LedgerPage() {
 
       {isLoading && <CenterProgress />}
       {!isLoading && records.length === 0 && <Empty>{kind ? t('detail.ledger.empty_kind', { kind: f.kindLabel(kind) }) : t('detail.ledger.empty')}</Empty>}
+      {/*
+        * The node returns the NEWEST `limit` records and cannot page further back. With an unfiltered view the card
+        * above says how many records exist, so a table that can only ever hold 1,000 of them has to say which part
+        * of the record it is showing instead of letting the two numbers contradict each other.
+        */}
+      {!kind && records.length > 0 && (info?.records ?? 0) > records.length && (
+        <Description data-testid="ledger-window">{t('detail.ledger.window', { shown: num(records.length), total: num(info?.records) })}</Description>
+      )}
       {records.length > 0 && (
         <>
           <TableWrapper style={{ background: '#fff', border: '1px solid #dadada' }}>
