@@ -404,8 +404,13 @@ export default function ChatPage() {
                     onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
                 </div>
               )}
+              {/* D3: "your test" is driven by THIS TAB's in-flight request, so it must read `queue`, not `qs`.
+                  RTK Query keeps `data` from the last fetch after the query is skipped, so once a visitor had run
+                  one live test `qs.state` stayed 'running' for ever and every later holder — another visitor, a
+                  verifier, another node — was announced as "Your test has the shared model". `queue` is undefined
+                  unless a turn of this tab is actually pending, which is exactly the condition wanted here. */}
               <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} clockSkewMs={lockSkew}
-                lockIsMine={qs?.state === 'running'} selectedIds={shownIds}
+                lockIsMine={queue?.state === 'running'} selectedIds={shownIds}
                 onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
               {policy && !teachOn && (
                 <div ref={basketRef}>
