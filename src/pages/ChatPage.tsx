@@ -284,11 +284,20 @@ export default function ChatPage() {
       if (res.remaining_quota !== null && res.remaining_quota <= 0) setExhausted(true);
       patchTurns(pid, (prev) => prev.map((x) => (x.id === id ? { ...x, status: 'done', response: res, baseHit: answerHits(res.base?.content, sample?.expect) } : x)));
     } catch (err) {
-      const e = err as { status?: number | string } | undefined;
-      if (e?.status === 429) { setQuota(0); setExhausted(true); }
+      const e = err as { status?: number | string; name?: string; data?: { quota_reset?: number | null } } | undefined;
+      const quotaHit = e?.status === 429;
+      if (quotaHit) { setQuota(0); setExhausted(true); }
       const msg = cancelNote.current ?? mapChatError(err, t);
       cancelNote.current = null;
-      patchTurns(pid, (prev) => prev.map((x) => (x.id === id ? { ...x, status: 'error', error: msg } : x)));
+      // A Retry button is only offered where send() would actually send. On a 429 it would not: send() returns at the
+      // `exhausted` guard, so the click was measured as zero requests. A cancel (499 / AbortError) leaves `busy` and
+      // `exhausted` false and its Retry does issue a real request — AZ-089/AZ-093 press it and get a completed turn —
+      // so that one stays.
+      const first = selectedList[0]?.anchor;
+      const quota = quotaHit
+        ? { resetAt: e?.data?.quota_reset ?? null, buyHref: first ? `/${encodeURIComponent(first.author)}/${encodeURIComponent(first.id)}` : null }
+        : undefined;
+      patchTurns(pid, (prev) => prev.map((x) => (x.id === id ? { ...x, status: 'error', error: msg, retryable: !quotaHit, quota } : x)));
     } finally {
       clearTimeout(lockPeek);
       if (inflight.current === request) inflight.current = null;

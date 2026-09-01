@@ -70,15 +70,6 @@ const Expected = styled.div`
   align-self: flex-end; margin-top: -2px; font-size: 11px; line-height: 1.4; color: ${(p) => p.theme.color.GREY};
   b { font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; font-family: ${(p) => p.theme.font.mono}; }
 `;
-/**
- * The benchmark's expected answer, in text, under the verdict chip. The tick and the cross are a claim about an
- * answer nobody could read: the expectation used to live only in a `title` attribute, so on a phone or a tablet the
- * justification for "✗ Wrong" simply did not exist. The tooltip keeps the longer sentence.
- */
-const Expected = styled.div`
-  align-self: flex-end; margin-top: -2px; font-size: 11px; line-height: 1.4; color: ${(p) => p.theme.color.GREY};
-  b { font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; font-family: ${(p) => p.theme.font.mono}; }
-`;
 const Answer = styled.div`font-size: 14px; line-height: 1.6; color: ${(p) => p.theme.color.BLACK}; white-space: pre-wrap; word-break: break-word;`;
 const EmptyAnswer = styled.span`color: ${(p) => p.theme.color.GREY}; font-style: italic;`;
 const Reasoning = styled.details`
@@ -206,9 +197,6 @@ function AnswerBubble({ kind, result, turn, hit, onTeach }: { kind: 'base' | 'pa
           ? <Hit $ok={hit} title={t('chat.hit.help', { expect: turn.expect ?? '' })}>{hit ? '✓' : '✗'} {hit ? t('chat.hit.yes') : t('chat.hit.no')}</Hit>
           : <Unknown>{t('chat.hit.unknown')}</Unknown>)}
       </BubbleHead>
-      {!pending && result && turn.expect && (hit === true || hit === false) && (
-        <Expected data-testid={`chat-expected-${kind}`}>{t('chat.hit.expected')} <b>{turn.expect}</b></Expected>
-      )}
       {!pending && result && turn.expect && (hit === true || hit === false) && (
         <Expected data-testid={`chat-expected-${kind}`}>{t('chat.hit.expected')} <b>{turn.expect}</b></Expected>
       )}
