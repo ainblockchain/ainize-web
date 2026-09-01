@@ -72,6 +72,18 @@ export function scoreText(score: Record<string, string | number> | undefined): s
   return first ? `${first[0]}: ${first[1]}` : '—';
 }
 
+/**
+ * The baseline the same verifier measured BEFORE the knowledge was loaded (`pre_apply`, e.g. "1/8").
+ *
+ * Every attestation of every demo item carries it and nothing rendered it: "100%" alone cannot tell a buyer whether
+ * the model already knew the answers. Returns null when the verifier did not report one, so the caller says so
+ * instead of printing a zero it did not measure.
+ */
+export function preApplyText(score: Record<string, string | number> | undefined): string | null {
+  const pre = score?.pre_apply ?? score?.pre_apply_vllm;
+  return pre === undefined || pre === null || pre === '' ? null : String(pre);
+}
+
 /** The denominator of an "N/M" score ("26/26" → 26) — how many questions were actually put to the model. */
 export function denominator(scoreStr: string | number | undefined): number | null {
   if (scoreStr === undefined) return null;
