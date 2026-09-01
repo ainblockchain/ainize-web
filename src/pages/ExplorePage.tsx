@@ -41,7 +41,7 @@ const Count = styled.div`
 `;
 const Hidden = styled.div`
   margin-top: -6px; padding-bottom: 12px; font-size: 12px; color: ${(p) => p.theme.color.GREY};
-  button { margin-left: 6px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; text-decoration: underline; }
+  button { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; text-decoration: underline; }
 `;
 const Intro = styled(Description)`margin: 0 0 24px;`;
 
@@ -108,7 +108,7 @@ export default function ExplorePage() {
           <Count>{t('explore.count', { n: num(data.total) })}{isFetching ? ` · ${t('explore.updating')}` : ''}</Count>
           {hidden > 0 && (
             <Hidden data-testid="explore-hidden" title={t('explore.filter.show_help')}>
-              {t('explore.hidden', { n: num(hidden) }, hidden)}
+              {t('explore.hidden', { n: num(hidden) }, hidden)}{' · '}
               <button type="button" onClick={() => { setShowAll(true); reset(); }}>{t('explore.hidden_show')}</button>
             </Hidden>
           )}
