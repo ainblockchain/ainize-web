@@ -33,6 +33,13 @@ const Side = styled.div`display: flex; flex-direction: column; gap: 20px; min-wi
 const Main = styled.section`
   display: flex; flex-direction: column; min-width: 0; background: #fafafa; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
   min-height: 560px; max-height: calc(100vh - 200px);
+  /*
+   * Single column (mobile): let the panel grow and the PAGE scroll. Clamping it to the viewport here only made
+   * its own children overflow the box — at 360 px the composer, the quota footer and the D3 "Stop waiting" row
+   * were drawn 230 px below the panel, on top of the developer note, and a tap on the question box landed on
+   * that note instead of the textarea.
+   */
+  @media (max-width: ${(p) => p.theme.breakpoint.md}px) { max-height: none; }
 `;
 const MainHead = styled.div`
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 16px; background: #fff; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY};

@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Form';
 import type { ChatModeKind } from './util';
 
-const Wrap = styled.div`display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #fff; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY};`;
+/** `flex: none` — the composer is the one part of the panel that must never be squeezed or overflow it. */
+const Wrap = styled.div`flex: none; display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #fff; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY};`;
 const Controls = styled.div`display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;`;
 const Seg = styled.div`display: inline-flex; border: 1px solid ${(p) => p.theme.color.PRIMARY}80; border-radius: 4px; overflow: hidden;`;
 const SegBtn = styled.button<{ $active: boolean }>`
@@ -28,9 +29,11 @@ const ChipBtn = styled.button`
 const MoreBtn = styled(ChipBtn)`color: ${(p) => p.theme.color.PRIMARY}; border-style: dashed; background: #fff;`;
 /** Visible marker for the trained trailing space — the chip's accessible name stays the plain prompt. */
 const Space = styled.span`opacity: 0.55; font-family: ${(p) => p.theme.font.mono}; margin-left: 1px;`;
-const InputRow = styled.div`display: flex; gap: 10px; align-items: flex-end;`;
+/* `flex-wrap` + a real basis on the box: while a request is in flight the Send button's label grows to
+   "Waiting for the answer…", which at 360 px squeezed the question box down to one word per line. */
+const InputRow = styled.div`display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;`;
 const Box = styled.textarea`
-  flex: 1; min-height: 44px; max-height: 160px; resize: none; padding: 10px 12px; font-size: 14px; line-height: 1.5; border-radius: 4px;
+  flex: 1 1 200px; min-width: 0; min-height: 44px; max-height: 160px; resize: none; padding: 10px 12px; font-size: 14px; line-height: 1.5; border-radius: 4px;
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; color: ${(p) => p.theme.color.BLACK};
   &:focus { outline: none; border-color: ${(p) => p.theme.color.PRIMARY}; box-shadow: 0 0 0 3px ${(p) => p.theme.color.PALE_GREY}; }
   &:disabled { background: #f7f7f7; color: ${(p) => p.theme.color.GREY}; cursor: not-allowed; }
