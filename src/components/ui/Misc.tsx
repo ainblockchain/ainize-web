@@ -139,7 +139,8 @@ const SelOption = styled.button<{ $active?: boolean }>`
   &:disabled { color: ${(p) => p.theme.color.GREY}; background: ${(p) => p.theme.color.LIGHT_GREY}; cursor: not-allowed; }
 `;
 
-export function SelectBox({ options, value, onChange, prefix }: { options: SelectOption[]; value: string; onChange: (v: string) => void; prefix?: string }) {
+/** `label` names the popup listbox for screen readers (axe `aria-input-field-name`); the button keeps its visible text as its name. */
+export function SelectBox({ options, value, onChange, prefix, label }: { options: SelectOption[]; value: string; onChange: (v: string) => void; prefix?: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -153,7 +154,7 @@ export function SelectBox({ options, value, onChange, prefix }: { options: Selec
       <SelButton type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
         {prefix && <span>{prefix}</span>}{current?.label}<img src="/static/images/arrow-down.svg" alt="" />
       </SelButton>
-      <SelMenu $open={open} role="listbox">
+      <SelMenu $open={open} role="listbox" aria-label={label ?? prefix}>
         {options.map((o) => (
           <SelOption key={o.value} type="button" role="option" aria-selected={o.value === value} disabled={o.disabled} $active={o.value === value}
             onClick={() => { onChange(o.value); setOpen(false); }}>{o.label}</SelOption>

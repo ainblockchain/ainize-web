@@ -113,8 +113,8 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   const gated = !!c && (!c.ok || !c.executed);
   const publishOff = policy?.publish === 'never';
   const stub = policy?.backend === 'stub';
-  /** checks were simulated (stub backend / offline stub): never say "in the live model" */
-  const simulated = stub || !!(c?.note && /simulat|stub/i.test(c.note));
+  /** the node's own flag: only an offline stub simulates the checks — a stub trainer still measures in the live model */
+  const simulated = !!c?.simulated || !!policy?.simulated_checks;
   const doCancel = async () => { setActionError(null); try { await cancel(j.id).unwrap(); } catch (e) { setActionError(mapTeachError(e, t)); } };
   const doRecheck = async () => { setActionError(null); try { await recheck(j.id).unwrap(); } catch (e) { setActionError(mapTeachError(e, t)); } };
   const eta = etaText(j.eta_s, policy, t);
@@ -123,7 +123,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   let body: React.ReactNode = null;
   switch (j.status) {
     case 'QUEUED':
-      body = j.blocked === 'slot' ? t('teach.card.blocked') : j.blocked === 'lock' ? t('teach.card.lock') : <>{t('teach.card.queued', { n: j.position ?? 0 })}{eta ? ` · ${eta}` : ''}</>;
+      body = j.blocked === 'slot' ? t('teach.card.blocked') : j.blocked === 'lock' ? t('teach.card.lock') : <>{t('teach.card.queued', { n: j.position ?? 0 }, j.position ?? 0)}{eta ? ` · ${eta}` : ''}</>;
       break;
     case 'PREFLIGHT': case 'LOADING':
       body = warming; break;

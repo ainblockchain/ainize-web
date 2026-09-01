@@ -53,7 +53,7 @@ export default function BenchmarkPage() {
     <PageWrapper>
       <TitleRow>
         <Title>{t('bench.title')} <Schema title={t('explore.filter.schema_help')}>{data.schema}</Schema></Title>
-        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); setPage(1); }} />
+        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); setPage(1); }} label={t('common.sort_aria')} />
       </TitleRow>
       <Stats>{t('bench.stats', { total: num(items.length), listed: num(listed), models: models.join(', ') || '—' })}</Stats>
       <Explain title={`${help('superseded')} (${tech('superseded')})`}>

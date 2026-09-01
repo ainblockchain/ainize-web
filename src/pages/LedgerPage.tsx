@@ -145,7 +145,7 @@ export default function LedgerPage() {
     <PageWrapper $wide>
       <TitleRow>
         <Title title={tech('ledger')}>{t('detail.ledger.title')}</Title>
-        <SelectBox options={kindOptions} value={kind} onChange={(v) => { setKind(v); setPage(1); }} />
+        <SelectBox options={kindOptions} value={kind} onChange={(v) => { setKind(v); setPage(1); }} label={t('common.kind_aria')} />
       </TitleRow>
       <Description style={{ marginTop: -12 }}>{help('ledger')}</Description>
 

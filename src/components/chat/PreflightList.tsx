@@ -91,7 +91,7 @@ export function PreflightSheet({ patchIds, basket, policy, contributorName, onQu
         <SheetFooter>
           <SheetNote style={{ marginRight: 'auto' }} data-testid="preflight-quota">{t('teach.pre.quota', { n: data.quota.key_remaining, limit: policy.limits.jobs_per_key_per_day })}</SheetNote>
           <Button variant="contained" onClick={() => { void queue(); }} disabled={trainable.length === 0 || data.quota.key_remaining <= 0} loading={queueing || retrying} loadingText={t('teach.pre.queueing')} data-testid="queue-training">
-            {t('teach.pre.queue', { k: trainable.length })}
+            {t('teach.pre.queue', { k: trainable.length }, trainable.length)}
           </Button>
         </SheetFooter>
       )}
