@@ -69,6 +69,8 @@ export const landing: Dict = {
   'landing.trending.empty_count': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge currently being verified' },
   'landing.trending.more': { ko: '더 보기', en: 'See all' },
   'landing.trending.accuracy_pending': { ko: '정답률 채점 전', en: 'Accuracy not scored yet' },
+  'landing.trending.accuracy_sample': { ko: '{pct}% — {facts}문항 중 {tested}문항 표본', en: '{pct}% on a {tested}-question sample of {facts}' },
+  'landing.trending.accuracy_checked': { ko: '{pct}% ({raw} 채점)', en: '{pct}% ({raw} checked)' },
 
   // why
   'landing.why.title': { ko: '왜 Ainize인가', en: 'Why Ainize' },
@@ -124,6 +126,9 @@ export const listing: Dict = {
   'item.integrity_only': { ko: '무결성만 확인 {n}', en: 'integrity-only checks: {n}' },
   'item.integrity_help': { ko: '파일이 손상되지 않았는지만 확인한 검증입니다. 정답률을 재지 않았으므로 검증 완료 수에 넣지 않습니다.', en: 'Checked only that the file is intact — no accuracy was measured, so it does not count toward verification.' },
   'item.accuracy': { ko: '정답률 {pct}%', en: '{pct}% accuracy' },
+  // The denominator is the attestation's own ('26/26'), never the anchor's benchmark.queries — the verifiers
+  // scored 26 questions, not the 2,761 the knowledge covers.
+  'item.accuracy_checked': { ko: '정답률 {pct}% ({raw} 채점)', en: '{pct}% ({raw} checked)' },
   'item.accuracy_raw': { ko: '검증 질문 {raw} 정답', en: '{raw} benchmark questions correct' },
   'item.downloads': { ko: '내려받기 {n}회', en: '{n} downloads' },
   'item.size': { ko: '크기 {size}', en: 'Size {size}' },

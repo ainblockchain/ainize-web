@@ -93,7 +93,8 @@ export const detailPatch: Dict = {
 
   'detail.ov.description': { ko: '설명', en: 'Description' },
   'detail.ov.no_description': { ko: '설명이 없습니다.', en: 'No description.' },
-  'detail.ov.accuracy_line': { ko: '정답률 {score} — 검증 질문 {facts}건 기준', en: 'Accuracy {score} — over {facts} benchmark questions' },
+  'detail.ov.accuracy_line': { ko: '정답률 {score} — 검증 노드가 검증 질문 {facts}건 중 {tested}건을 채점했습니다', en: 'Accuracy {score} on {tested} of {facts} questions checked by verifiers' },
+  'detail.ov.accuracy_line_all': { ko: '정답률 {score} — 검증 노드가 검증 질문 {facts}건을 모두 채점했습니다', en: 'Accuracy {score} on all {facts} questions checked by verifiers' },
   'detail.ov.model': { ko: '대상 모델', en: 'Target model' },
   'detail.ov.model_note': { ko: '이 지식은 아래 모델에서만 동작합니다. 다른 모델에는 아래 "만드는 방법"을 이용해 다시 만들 수 있습니다.', en: 'This knowledge works only on the model below. For other models it can be rebuilt from the recipe below.' },
   'detail.ov.model_name': { ko: '모델', en: 'Model' },

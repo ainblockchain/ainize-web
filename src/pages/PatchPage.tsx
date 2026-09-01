@@ -10,7 +10,7 @@ import { CenterProgress, CopyButton, Divider, Empty, ExternalLink, KeyValue, Mon
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { bytes, dateTime, num, pct, scoreText, shortAddr, shortHash } from '@/utils/format';
+import { bytes, dateTime, denominator, num, pct, scoreText, shortAddr, shortHash } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
 import { isExecuted, useDetailFormat } from './detail/recordText';
 
@@ -113,14 +113,15 @@ const TreeNode = styled(Link)<{ $me?: boolean }>`
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
 `;
 
-type Score = { text: string; pct: number | null };
+type Score = { text: string; pct: number | null; tested: number | null };
 
 /** Accuracy shown in the header comes only from attestations that ran the real model — never from integrity-only checks. */
 function scoreOf(d: PatchDetail): Score {
   const real = d.attestations.filter((a) => a.passed && isExecuted(a.verified_on));
-  if (!real.length) return { text: '—', pct: null };
+  if (!real.length) return { text: '—', pct: null, tested: null };
   const s = real[real.length - 1].score;
-  return { text: scoreText(s), pct: pct(s.free_generation ?? s.free_generation_vllm ?? s.chat_60) };
+  const raw = s.free_generation ?? s.free_generation_vllm ?? s.chat_60;
+  return { text: scoreText(s), pct: pct(raw), tested: denominator(raw) };
 }
 
 export default function PatchPage() {
@@ -226,7 +227,11 @@ function Overview({ d, score }: { d: PatchDetail; score: Score }) {
       <Section>
         <H3>{t('detail.ov.description')}</H3>
         <P>{a.description || t('detail.ov.no_description')}</P>
-        {score.pct !== null && <div style={{ marginTop: 16, maxWidth: 360 }}><ScoreBar pct={score.pct} /><Quorum>{t('detail.ov.accuracy_line', { score: `${score.pct}% (${score.text})`, facts: num(a.benchmark.queries) })}</Quorum></div>}
+        {/* The denominator under the bar is the attestation's own ("26 of 2,761 checked"), never the anchor's
+            benchmark.queries alone — "over 2,761 benchmark questions" claimed an audit 100× the size of the real one. */}
+        {score.pct !== null && <div style={{ marginTop: 16, maxWidth: 360 }}><ScoreBar pct={score.pct} /><Quorum>{score.tested !== null && score.tested < a.benchmark.queries
+          ? t('detail.ov.accuracy_line', { score: `${score.pct}%`, tested: num(score.tested), facts: num(a.benchmark.queries) })
+          : t('detail.ov.accuracy_line_all', { score: `${score.pct}%`, facts: num(a.benchmark.queries) })}</Quorum></div>}
       </Section>
       <Section>
         <H3 title={t('detail.tech.model_identity')}>{t('detail.ov.model')}</H3>

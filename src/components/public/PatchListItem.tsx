@@ -3,15 +3,19 @@ import styled from 'styled-components';
 import type { CatalogEntry } from '@/api/types';
 import { Certified, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { bytes, num, pct, shortAddr } from '@/utils/format';
+import { bytes, denominator, num, pct, shortAddr } from '@/utils/format';
 
 /* ------------------------------------------------------------------ shared helpers (used by landing / explore / benchmark) */
 
 /**
  * Accuracy is shown ONLY when an executed (non hash-only) passing attestation exists.
  * Returns null otherwise — callers must not print a number in that case.
+ *
+ * `tested` is the attestation's OWN denominator (the 26 of "26/26"), which is the only denominator this percentage
+ * was ever measured against. The anchor's benchmark.queries (2,761) is what the knowledge claims to cover, not what
+ * the verifiers scored, and printing the two together read as an exhaustive audit of 2,761 questions.
  */
-export function executedAccuracy(entry: CatalogEntry): { pct: number; raw: string } | null {
+export function executedAccuracy(entry: CatalogEntry): { pct: number; raw: string; tested: number | null } | null {
   const executed = entry.attestations.filter((a) => a.passed && a.verified_on !== 'hash-only');
   if (!executed.length) return null;
   const s = executed[executed.length - 1].score;
@@ -19,7 +23,7 @@ export function executedAccuracy(entry: CatalogEntry): { pct: number; raw: strin
   if (raw === undefined) return null;
   const p = pct(raw);
   if (p === null) return null;
-  return { pct: p, raw: String(raw) };
+  return { pct: p, raw: String(raw), tested: denominator(raw) };
 }
 
 /** "25 AIN" / "3 노드 크레딧" / "무료" + a one-line note explaining the unit. Never a bare "2.5 CREDIT". */
@@ -159,7 +163,7 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
         <Meta>
           <abbr title={`${help('verified')} (${tech('verified')})`}>{entry.quorum_ok ? <Good>{verification(entry)}</Good> : verification(entry)}</abbr>
           {entry.integrity_checks > 0 && <>{' · '}<Soft><abbr title={t('item.integrity_help')}>{t('item.integrity_only', { n: entry.integrity_checks })}</abbr></Soft></>}
-          {acc && <>{' · '}<abbr title={`${t('item.accuracy_raw', { raw: acc.raw })} — ${help('accuracy')}`}><Good>{t('item.accuracy', { pct: acc.pct })}</Good></abbr></>}
+          {acc && <>{' · '}<abbr title={`${t('item.accuracy_raw', { raw: acc.raw })} — ${help('accuracy')}`}><Good>{t('item.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</Good></abbr></>}
         </Meta>
         {a.description && <Desc>{a.description}</Desc>}
       </Info>

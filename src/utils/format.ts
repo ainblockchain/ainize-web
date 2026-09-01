@@ -72,6 +72,13 @@ export function scoreText(score: Record<string, string | number> | undefined): s
   return first ? `${first[0]}: ${first[1]}` : '—';
 }
 
+/** The denominator of an "N/M" score ("26/26" → 26) — how many questions were actually put to the model. */
+export function denominator(scoreStr: string | number | undefined): number | null {
+  if (scoreStr === undefined) return null;
+  const m = /^(\d+)\s*\/\s*(\d+)$/.exec(String(scoreStr));
+  return m ? Number(m[2]) : null;
+}
+
 export function pct(scoreStr: string | number | undefined): number | null {
   if (scoreStr === undefined) return null;
   const m = /^(\d+)\s*\/\s*(\d+)$/.exec(String(scoreStr));
