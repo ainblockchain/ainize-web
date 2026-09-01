@@ -21,10 +21,17 @@ const ThinkHelp = styled.span`font-size: 12px; color: ${(p) => p.theme.color.GRE
 const SamplesTitle = styled.div`font-size: 12px; font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; span { font-weight: 400; color: ${(p) => p.theme.color.GREY}; margin-left: 6px; }`;
 const Chips = styled.div`display: flex; flex-wrap: wrap; gap: 6px;`;
 const ChipBtn = styled.button`
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left;
   padding: 4px 10px; border-radius: 14px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fafafa; font-size: 12px; color: ${(p) => p.theme.color.BLACK}; cursor: pointer;
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 100%; overflow: hidden;
+  .q { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &:hover:not(:disabled) { border-color: ${(p) => p.theme.color.PRIMARY}; background: ${(p) => p.theme.color.PALE_GREY}; }
   &:disabled { cursor: not-allowed; opacity: 0.5; }
+`;
+/** The expected answer, in text, on the chip's second line — a tooltip is a fact only a mouse can reach. */
+const ChipExpect = styled.span`
+  font-size: 11px; line-height: 1.3; color: ${(p) => p.theme.color.GREY};
+  b { font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; font-family: ${(p) => p.theme.font.mono}; }
 `;
 const MoreBtn = styled(ChipBtn)`color: ${(p) => p.theme.color.PRIMARY}; border-style: dashed; background: #fff;`;
 /** Visible marker for the trained trailing space — the chip's accessible name stays the plain prompt. */
@@ -105,7 +112,8 @@ export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinkin
                 // `title` stays "Expected: …" (it is the chip's documented tooltip); the ␣ marker carries its own.
                 <ChipBtn key={`${i}-${s.prompt}`} type="button" disabled={locked} onClick={() => insert(s.prompt)} aria-label={label}
                   title={t('chat.samples.expect', { expect: s.expect })}>
-                  {label}{trailing && <Space aria-hidden="true" title={t('chat.samples.trailing_space')}>␣</Space>}
+                  <span className="q">{label}{trailing && <Space aria-hidden="true" title={t('chat.samples.trailing_space')}>␣</Space>}</span>
+                  <ChipExpect>{t('chat.hit.expected')} <b>{s.expect}</b></ChipExpect>
                 </ChipBtn>
               );
             })}

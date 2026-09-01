@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import type { ChatResponse, ChatResult } from '@/api/types';
 import { useT } from '@/i18n';
@@ -22,6 +23,14 @@ export interface Turn {
   /** D3 — the id this turn was sent with, and where it is in the queue behind the shared model. */
   requestId?: string;
   queue?: ChatQueueView;
+  /**
+   * Can this failure be retried at all? False for the quota 429, where send() returns at the `exhausted` guard and
+   * the click issues no request whatsoever. Undefined means "yes" — every transport, runtime and cancelled turn,
+   * whose Retry does send.
+   */
+  retryable?: boolean;
+  /** Quota exhausted (429): what CAN be done instead of retrying — buy the knowledge, or wait out the measured hour. */
+  quota?: { resetAt: number | null; buyHref: string | null };
 }
 
 const Wrap = styled.article`display: flex; flex-direction: column; gap: 10px;`;
@@ -52,6 +61,24 @@ const Hit = styled.span<{ $ok: boolean }>`
   color: ${(p) => (p.$ok ? '#1e6b36' : '#a0102c')}; background: ${(p) => (p.$ok ? '#e6f4ea' : '#fde8ec')};
 `;
 const Unknown = styled.span`margin-left: auto; font-size: 11px; color: ${(p) => p.theme.color.GREY};`;
+/**
+ * The benchmark's expected answer, in text, under the verdict chip. The tick and the cross are a claim about an
+ * answer nobody could read: the expectation used to live only in a `title` attribute, so on a phone or a tablet the
+ * justification for "✗ Wrong" simply did not exist. The tooltip keeps the longer sentence.
+ */
+const Expected = styled.div`
+  align-self: flex-end; margin-top: -2px; font-size: 11px; line-height: 1.4; color: ${(p) => p.theme.color.GREY};
+  b { font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; font-family: ${(p) => p.theme.font.mono}; }
+`;
+/**
+ * The benchmark's expected answer, in text, under the verdict chip. The tick and the cross are a claim about an
+ * answer nobody could read: the expectation used to live only in a `title` attribute, so on a phone or a tablet the
+ * justification for "✗ Wrong" simply did not exist. The tooltip keeps the longer sentence.
+ */
+const Expected = styled.div`
+  align-self: flex-end; margin-top: -2px; font-size: 11px; line-height: 1.4; color: ${(p) => p.theme.color.GREY};
+  b { font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; font-family: ${(p) => p.theme.font.mono}; }
+`;
 const Answer = styled.div`font-size: 14px; line-height: 1.6; color: ${(p) => p.theme.color.BLACK}; white-space: pre-wrap; word-break: break-word;`;
 const EmptyAnswer = styled.span`color: ${(p) => p.theme.color.GREY}; font-style: italic;`;
 const Reasoning = styled.details`
@@ -91,6 +118,11 @@ const MiniHit = styled.span<{ $ok: boolean }>`
   code { font-family: inherit; font-weight: 500; }
 `;
 const ErrRow = styled.div`display: flex; flex-direction: column; gap: 8px; align-items: flex-start;`;
+/** What replaces Retry on a quota error: the way out (buy) and the measured instant the free hour resets. */
+const QuotaRow = styled.div`
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font-size: 12px; color: ${(p) => p.theme.color.GREY};
+  a { color: ${(p) => p.theme.color.PRIMARY}; font-weight: 600; text-decoration: none; &:hover { text-decoration: underline; } }
+`;
 const TeachBtn = styled.button`
   align-self: flex-start; margin-top: 2px; padding: 3px 10px; border-radius: 12px; border: 1px dashed ${(p) => p.theme.color.PRIMARY}; background: #fff; color: ${(p) => p.theme.color.PRIMARY}; font-size: 12px; font-weight: 600; cursor: pointer;
   &:hover { background: ${(p) => p.theme.color.PALE_GREY}; }
@@ -174,6 +206,12 @@ function AnswerBubble({ kind, result, turn, hit, onTeach }: { kind: 'base' | 'pa
           ? <Hit $ok={hit} title={t('chat.hit.help', { expect: turn.expect ?? '' })}>{hit ? '✓' : '✗'} {hit ? t('chat.hit.yes') : t('chat.hit.no')}</Hit>
           : <Unknown>{t('chat.hit.unknown')}</Unknown>)}
       </BubbleHead>
+      {!pending && result && turn.expect && (hit === true || hit === false) && (
+        <Expected data-testid={`chat-expected-${kind}`}>{t('chat.hit.expected')} <b>{turn.expect}</b></Expected>
+      )}
+      {!pending && result && turn.expect && (hit === true || hit === false) && (
+        <Expected data-testid={`chat-expected-${kind}`}>{t('chat.hit.expected')} <b>{turn.expect}</b></Expected>
+      )}
       {kind === 'patched' && !pending && perPatch.length > 0 && (
         <LoadList title={t('chat.head.multi_help')}>
           {perPatch.map((x) => (
@@ -208,7 +246,7 @@ function AnswerBubble({ kind, result, turn, hit, onTeach }: { kind: 'base' | 'pa
 }
 
 export function TurnView({ turn, onRetry, onTeach }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const showBase = turn.mode === 'compare' || turn.mode === 'base';
   const showPatched = turn.mode === 'compare' || turn.mode === 'patched';
   const r = turn.response;
@@ -219,7 +257,12 @@ export function TurnView({ turn, onRetry, onTeach }: { turn: Turn; onRetry?: (tu
       {turn.status === 'error' ? (
         <ErrRow>
           <Alert $tone="error" role="alert">{turn.error}</Alert>
-          {onRetry && <Button size="small" onClick={() => onRetry(turn)}>{t('chat.turn.retry')}</Button>}
+          {turn.quota ? (
+            <QuotaRow data-testid="chat-quota-actions">
+              {turn.quota.buyHref && <Link to={turn.quota.buyHref}>{t('chat.quota.buy')}</Link>}
+              {turn.quota.resetAt !== null && <span>{t('chat.quota.resets_at', { time: new Date(turn.quota.resetAt).toLocaleTimeString(locale === 'ko' ? 'ko-KR' : 'en-US', { hour: '2-digit', minute: '2-digit' }) })}</span>}
+            </QuotaRow>
+          ) : onRetry && turn.retryable !== false && <Button size="small" onClick={() => onRetry(turn)}>{t('chat.turn.retry')}</Button>}
         </ErrRow>
       ) : (
         <Pair $cols={showBase && showPatched ? 2 : 1}>

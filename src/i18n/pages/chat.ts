@@ -126,6 +126,7 @@ export const chat: Dict = {
   'chat.hit.yes': { ko: '정답', en: 'Correct' },
   'chat.hit.no': { ko: '오답', en: 'Wrong' },
   'chat.hit.help': { ko: '이 질문은 이 지식의 검증 문제 중 하나라 기대 답과 자동으로 비교했습니다. 기대 답: {expect}', en: 'This question is one of the knowledge’s benchmark items, so the answer was checked automatically. Expected: {expect}' },
+  'chat.hit.expected': { ko: '기대 답:', en: 'Expected:' },
   'chat.hit.unknown': { ko: '자유 질문 — 자동 채점 없음', en: 'Free question — not auto-scored' },
   'chat.turn.retry': { ko: '다시 시도', en: 'Retry' },
 
