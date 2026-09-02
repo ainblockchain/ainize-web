@@ -17,8 +17,13 @@ export interface CatalogEntry {
   attestations: Attestation[];
   passed: number;
   integrity_checks: number;
+  /** Attestations by the anchor's own author — shown, never counted (see catalog.ts). */
+  self_checks: number;
   quorum: number;
   quorum_ok: boolean;
+  /** Quorum met AND no open challenge: the only flag that means "buyable". */
+  sellable: boolean;
+  open_challenge?: Challenge;
   settlements: Settlement[];
   downloads: number;
   revenue: string;

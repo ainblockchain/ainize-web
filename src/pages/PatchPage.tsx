@@ -192,11 +192,21 @@ export default function PatchPage() {
           <NameRow>
             <StatusChip status={data.status} supersededBy={data.superseded_by[0]} />
             <Quorum title={`${t('detail.patch.quorum_help', { quorum: data.quorum })} (${tech('verified')})`}>
-              {t('detail.patch.verified_executed', { passed: data.passed, quorum: data.quorum })}{data.quorum_ok ? ` · ${term('verified')}` : ''}
+              {/* Item 146: the numerator is clamped to the quorum — `3/2` is not a fraction a reader can use —
+                  and the extra independent attestations are stated instead of being folded into the ratio. */}
+              {t('detail.patch.verified_executed', { passed: Math.min(data.passed, data.quorum), quorum: data.quorum })}{data.quorum_ok ? ` · ${term('verified')}` : ''}
+              {data.passed > data.quorum && <> · {t('detail.patch.extra_n', { n: data.passed - data.quorum })}</>}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
+              {data.self_checks > 0 && <> · {t('detail.patch.self_n', { n: data.self_checks })}</>}
             </Quorum>
             {isSignedIn && data.owned && <ManageMenu to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.patch.manage')} <img src="/static/images/ic-openwindow.svg" alt="" /></ManageMenu>}
           </NameRow>
+          {data.open_challenge && (
+            <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="challenge-banner">
+              {t('detail.challenge.banner', { who: shortAddr(data.open_challenge.challenger, 8), reason: data.open_challenge.reason, when: f.ago(data.open_challenge.created_at) })}
+              {' '}{t('detail.challenge.what_next')}
+            </Alert>
+          )}
           <Info>
             {t('detail.patch.meta', { author: authorLabel, model: a.model.id_M, when })}
             {data.superseded_by.length > 0 && <> ∙ <StyledLink to={`/${authorSlug}/${encodeURIComponent(data.superseded_by[0])}`} title={help('superseded')}>{t('detail.patch.newer_version', { id: data.superseded_by[0] })}</StyledLink></>}
@@ -359,10 +369,12 @@ function Verification({ d }: { d: PatchDetail }) {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const bound = d.anchor.benchmark.collateral_bound_nat;
+  // `self_checks` is the number of the author's own attestations this node EXCLUDED (0 when a dev node counts them).
+  const self = (at: Attestation) => d.self_checks > 0 && at.verifier.toLowerCase() === d.anchor.author.toLowerCase();
   return (
     <Section style={{ padding: 0 }}>
       <SummaryRow>
-        <div title={tech('verified')}><span className="k">{t('detail.ver.summary_executed')}</span><span className="v">{d.passed}/{d.quorum}</span></div>
+        <div title={tech('verified')}><span className="k">{t('detail.ver.summary_executed')}</span><span className="v">{Math.min(d.passed, d.quorum)}/{d.quorum}</span></div>
         <div title="verified_on = hash-only"><span className="k">{t('detail.ver.summary_integrity')}</span><span className="v">{num(d.integrity_checks)}</span></div>
         <div><span className="k">{t('detail.ver.summary_status')}</span><span className="v"><StatusChip status={d.status} /></span></div>
       </SummaryRow>
@@ -379,7 +391,7 @@ function Verification({ d }: { d: PatchDetail }) {
                 <TableHead>{t('detail.ver.h.accuracy')}</TableHead>
                 <TableHead>{t('detail.ver.h.side')}</TableHead>
                 <TableHead>{t('detail.ver.h.restarts')}</TableHead>
-                <TableHead>{t('detail.ver.h.stake')}</TableHead>
+                <TableHead title={tech('signedResult')}>{t('detail.ver.h.counts')}</TableHead>
                 <TableHead>{t('detail.ver.h.result')}</TableHead>
                 <TableHead $align="right" $padding="0 32px 0 8px">{t('detail.ver.h.time')}</TableHead>
               </TableRow>
@@ -396,7 +408,8 @@ function Verification({ d }: { d: PatchDetail }) {
                     <TableData $mono data-testid="ver-after" title={executed ? JSON.stringify(at.score) : t('detail.how.integrity')}>{executed ? scoreText(at.score) : '—'}</TableData>
                     <TableData $color={side.ok === null ? undefined : side.ok ? '#44a45f' : '#e6173e'} title={side.detail ? `${side.detail} — ${help('sideEffects')} (${tech('sideEffects')})` : `${help('sideEffects')} (${tech('sideEffects')})`}>{side.text}</TableData>
                     <TableData title="restarts_detected">{at.restarts_detected === undefined ? '—' : at.restarts_detected === 0 ? t('detail.none') : t('detail.ver.restarts_n', { n: at.restarts_detected })}</TableData>
-                    <TableData title={`${help('stake')} (${tech('stake')})${f.priceNote(d.anchor.currency) ? ` · ${f.priceNote(d.anchor.currency)}` : ''}`}>{f.priceLabel(at.stake, d.anchor.currency)}</TableData>
+                    {/* Item 146: an attestation by the author is shown but marked as not counting; item 127: no deposit column, because no deposit exists. */}
+                    <TableData $color={self(at) ? '#8a4b00' : undefined} title={`${help('signedResult')} (${tech('signedResult')})`}>{self(at) ? t('detail.ver.counts_self') : t('detail.ver.counts_yes')}</TableData>
                     <TableData $color={at.passed ? '#44a45f' : '#e6173e'} $weight={600}>{at.passed ? t('detail.pass') : t('detail.fail')}</TableData>
                     <TableData $align="right" $padding="0 32px 0 8px" title={dateTime(at.created_at)}>{f.ago(at.created_at)}</TableData>
                   </TableRow>
@@ -410,7 +423,8 @@ function Verification({ d }: { d: PatchDetail }) {
         <Note title={tech('verified')}><b>{term('verified')}</b> — {t('detail.ver.explain_count', { passed: d.passed, quorum: d.quorum, integrity: d.integrity_checks })}</Note>
         <Note>{t('detail.ver.explain_before')}</Note>
         <Note>{t('detail.ver.explain_restart')}</Note>
-        <Note style={{ margin: 0 }} title={tech('stake')}>{t('detail.ver.explain_stake')}</Note>
+        {d.self_checks > 0 && <Note>{t('detail.ver.explain_self', { n: d.self_checks })}</Note>}
+        <Note style={{ margin: 0 }} title={tech('signedResult')}>{t('detail.ver.explain_backing')}</Note>
       </div>
     </Section>
   );
@@ -475,7 +489,8 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const [buy, { data: result, isLoading, error, reset }] = useBuyMutation();
   const gw = d.gateway_url ?? `${window.location.origin}/x402/patch/${d.anchor.id}`;
   const a = d.anchor;
-  const canBuy = d.quorum_ok && !d.owned;
+  // Item 153: `sellable` is quorum met AND no open challenge — a disputed knowledge is off sale, not discounted.
+  const canBuy = d.sellable && !d.owned;
   const priceText = f.priceLabel(a.price, a.currency);
   const note = f.priceNote(a.currency);
   return (
@@ -503,6 +518,11 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         {isOperator && d.owned && <P>{t('detail.buy.owned')}<StyledLink to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.buy.owned_manage')}</StyledLink></P>}
         {isOperator && !d.owned && d.purchased && <Alert $tone="success">{t('detail.buy.purchased', { applied: d.applied ? t('detail.buy.purchased_applied') : '', stored: d.has_body ? t('detail.buy.stored_yes') : t('detail.buy.stored_no') })}</Alert>}
         {isOperator && !d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
+        {!d.owned && d.quorum_ok && !d.sellable && (
+          <Alert $tone="warning" data-testid="buy-challenged">
+            {t('detail.buy.challenged')}{d.open_challenge ? ` ${t('detail.challenge.banner', { who: shortAddr(d.open_challenge.challenger, 8), reason: d.open_challenge.reason, when: f.ago(d.open_challenge.created_at) })}` : ''}
+          </Alert>
+        )}
         {isOperator && canBuy && (
           <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button variant="contained" loading={isLoading} loadingText={t('detail.buy.paying')} onClick={() => { reset(); void buy({ id: a.id }); }} title={help('autoPay')}>

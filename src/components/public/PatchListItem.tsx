@@ -47,8 +47,11 @@ export function usePriceLabel() {
 /** "검증 완료 (독립 검증 N/M)" or "검증 중 (독립 검증 N/M)". */
 export function useVerificationLabel() {
   const { t } = useT();
+  // Item 146: never render `3/2` — the numerator is clamped to the quorum; self-checks by the author are already
+  // out of `passed`, and any extra independent attestations are said in words, not folded into the fraction.
   return (entry: CatalogEntry): string =>
-    t(entry.quorum_ok ? 'item.verified_by' : 'item.verifying_by', { passed: entry.passed, quorum: entry.quorum });
+    t(entry.quorum_ok ? 'item.verified_by' : 'item.verifying_by', { passed: Math.min(entry.passed, entry.quorum), quorum: entry.quorum })
+    + (entry.passed > entry.quorum ? ` ${t('item.verified_extra', { n: entry.passed - entry.quorum })}` : '');
 }
 
 /* ------------------------------------------------------------------ list item */

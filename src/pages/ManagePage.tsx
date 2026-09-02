@@ -73,7 +73,10 @@ export default function ManagePage() {
   const isDraft = p?.status === 'DRAFT';
   const isVerifier = roles.includes('verifier');
   const alreadyAttested = !!p && !!address && p.attestations.some((a) => a.verifier === address);
-  const canVerify = isVerifier && !!p && !isDraft && !alreadyAttested && p.status !== 'REJECTED';
+  // Item 146: this is the author's own manage page — a "verify" here would be a self-attestation, which the node
+  // now refuses to write and the catalogue never counts. The button is gone and the reason is on the page.
+  const isMine = !!p && !!address && p.anchor.author.toLowerCase() === address.toLowerCase();
+  const canVerify = isVerifier && !!p && !isDraft && !alreadyAttested && !isMine && p.status !== 'REJECTED';
   const snippet = useMemo(() => {
     if (!p) return '';
     const gw = p.gateway_url ?? `${window.location.origin}/x402/patch/${p.anchor.id}`;
@@ -109,6 +112,9 @@ export default function ManagePage() {
   const sameSchemaOverlaps = p.conflicts.filter((c) => c.same_schema).length;
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
 
+  // An attestation this node wrote on its own anchor and excluded from the count (item 146).
+  const selfCheck = (at: { verifier: string }) => p.self_checks > 0 && at.verifier.toLowerCase() === a.author.toLowerCase();
+
   const saveFields = () => run(() => update({ id: a.id, patch: { description: desc, price: priceV, branch: branch || undefined, license: license || undefined, billing } }).unwrap(), t('op.saved'));
   const saveBench = () => {
     setBenchError(null);
@@ -127,13 +133,20 @@ export default function ManagePage() {
       <ExternalRow><ExternalTitle>{term('liveTest')}</ExternalTitle><StyledLink to={`/chat/${encodeURIComponent(a.id)}`} title={help('liveTest')}>{t('op.manage.runtime.try')} →</StyledLink></ExternalRow>
       {error && <Alert $tone="error" style={{ marginTop: 16 }}>{error}</Alert>}
       {notice && <Alert $tone="success" style={{ marginTop: 16 }}>{notice}</Alert>}
+      {/* Item 153/156: the author is told a challenge exists, who wrote it, why, and what happens next. */}
+      {p.open_challenge && (
+        <Alert $tone="warning" style={{ marginTop: 16 }} title={t('op.manage.challenged.title')} data-testid="challenged-banner">
+          <b>{t('op.manage.challenged.title')}</b> — {t('op.manage.challenged.body', { who: p.open_challenge.challenger, when: dateTime(p.open_challenge.created_at), reason: p.open_challenge.reason })}
+        </Alert>
+      )}
 
       {/* ------------------------------------------------------------ status */}
       <SubTitle $mt={56}>{t('op.manage.status')}</SubTitle>
       <KeyValue>
         <dt><Tip tech={tech('verified')}>{t('op.manage.verifs')}</Tip></dt>
         <dd title={`${t('op.term.executed')}: ${t('op.term.executed.help')}\n${t('op.term.integrity')}: ${t('op.term.integrity.help')}`}>
-          {t('op.manage.verifs.value', { passed: p.passed, quorum: p.quorum, integrity: p.integrity_checks, n: p.attestations.length })}
+          {t('op.manage.verifs.value', { passed: Math.min(p.passed, p.quorum), quorum: p.quorum, integrity: p.integrity_checks, n: p.attestations.length })}
+          {p.self_checks > 0 && <> · {t('op.manage.verifs.self', { n: p.self_checks })}</>}
           {inFlight && <> <SmallSpinner style={{ verticalAlign: 'middle', marginLeft: 6 }} /></>}
         </dd>
         <dt>{t('op.manage.file')}</dt>
@@ -167,6 +180,7 @@ export default function ManagePage() {
           <Row $gap={12}>
             {canVerify && <Button loading={verifyState.isLoading} loadingText={t('op.manage.verifying')} onClick={() => run(() => verify(a.id).unwrap(), t('op.manage.verified_ok'))}>{t('op.manage.verify_now')}</Button>}
             {alreadyAttested && <Muted>{t('op.manage.already')}</Muted>}
+            {isMine && !alreadyAttested && <Muted data-testid="self-verify-note">{t('op.manage.self_verify')}</Muted>}
           </Row>
           <Stack $gap={8} style={{ marginTop: 16, maxWidth: 560 }}>
             <TextField label={t('op.manage.challenge')} placeholder={t('op.manage.challenge.ph')} value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -186,7 +200,7 @@ export default function ManagePage() {
             <TableHead><Tip tech={tech('accuracy')}>{t('op.manage.attest.score')}</Tip></TableHead>
             <TableHead><Tip tech="verified_on: vllm | hook | hash-only">{t('op.manage.attest.how')}</Tip></TableHead>
             <TableHead><Tip tech="restarts_detected — reversions detected & re-applied during verification">{t('op.manage.attest.restarts')}</Tip></TableHead>
-            <TableHead><Tip tech={tech('stake')}>{t('op.manage.attest.stake')}</Tip></TableHead>
+            <TableHead><Tip tech={tech('signedResult')}>{t('op.manage.attest.counts')}</Tip></TableHead>
             <TableHead>{t('op.when')}</TableHead>
           </TableRow></TableHeader>
           <TableBody>
@@ -197,7 +211,7 @@ export default function ManagePage() {
                 <TableData title={at.verified_on !== 'hash-only' ? JSON.stringify(at.score) : t('op.term.integrity')}>{at.verified_on !== 'hash-only' ? scoreText(at.score) : '—'}</TableData>
                 <TableData title={at.verified_on}>{at.verified_on === 'hash-only' ? t('op.manage.attest.how.hash') : t('op.manage.attest.how.run', { engine: at.verified_on })}</TableData>
                 <TableData>{at.restarts_detected ?? 0}</TableData>
-                <TableData title={money.note(a.currency)}>{money.fmt(at.stake, a.currency)}</TableData>
+                <TableData $color={selfCheck(at) ? '#8a4b00' : undefined} title={help('signedResult')}>{selfCheck(at) ? t('op.manage.attest.counts_self') : t('op.manage.attest.counts_yes')}</TableData>
                 <TableData>{at.created_at ? dateTime(at.created_at) : '—'}</TableData>
               </TableRow>
             ))}

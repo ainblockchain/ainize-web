@@ -324,7 +324,7 @@ export default function LandingPage() {
               <AudienceHelp>{operator.help}</AudienceHelp>
               <Steps>
                 <li><b>1</b><span title={help('node')}>{t('landing.audience.operator.s1')}</span></li>
-                <li><b>2</b><span title={`${help('stake')} (${tech('stake')})`}>{t('landing.audience.operator.s2')}</span></li>
+                <li><b>2</b><span title={`${help('signedResult')} (${tech('signedResult')})`}>{t('landing.audience.operator.s2')}</span></li>
                 <li><b>3</b><span title={`${help('autoPay')} (${tech('autoPay')})`}>{t('landing.audience.operator.s3')}</span></li>
               </Steps>
               <DevLabel title={t('landing.audience.operator.dev_help')}>{t('landing.audience.operator.dev_label')}</DevLabel>
