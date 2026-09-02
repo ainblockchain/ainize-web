@@ -144,6 +144,7 @@ export const listing: Dict = {
   // list item
   'item.verified_by': { ko: '검증 완료 (독립 검증 {passed}/{quorum})', en: 'Verified ({passed}/{quorum} independent verifiers)' },
   'item.verified_extra': { ko: '(+{n}건 더)', en: '(+{n} more)' },
+  'item.verified_challenged': { ko: '검증 {passed}/{quorum} — 이의 제기됨, 재검증 대기', en: 'Verified {passed}/{quorum} — challenged, re-verification pending' },
   'item.verifying_by': { ko: '검증 중 (독립 검증 {passed}/{quorum})', en: 'Verifying ({passed}/{quorum} independent verifiers)' },
   'item.integrity_only': { ko: '무결성만 확인 {n}', en: 'integrity-only checks: {n}' },
   'item.integrity_help': { ko: '파일이 손상되지 않았는지만 확인한 검증입니다. 정답률을 재지 않았으므로 검증 완료 수에 넣지 않습니다.', en: 'Checked only that the file is intact — no accuracy was measured, so it does not count toward verification.' },
