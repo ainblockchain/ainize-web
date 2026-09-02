@@ -173,7 +173,7 @@ export const operatorManage: Dict = {
   'op.manage.attest.restarts': { ko: '재시작 감지', en: 'Restarts' },
   'op.manage.self_verify': { ko: '내 지식은 내가 검증할 수 없습니다. 검증 완료는 다른 노드가 실제 모델에 넣어 채점해야 붙습니다.', en: 'You cannot verify your own knowledge. Verified means other nodes ran it on a real model — an attestation by this node would not count.' },
   'op.manage.challenged.title': { ko: '이의 제기됨 — 판매 중단', en: 'Challenged — sale stopped' },
-  'op.manage.challenged.body': { ko: '{who}이(가) {when}에 이의를 제기했습니다: "{reason}" 재검증으로 해소될 때까지 이 지식은 팔리지 않습니다. 검증 노드들이 자동으로 다시 채점하며, 다시 정족수를 채우면 판매가 재개됩니다.', en: '{who} challenged this knowledge {when}: "{reason}" It is not for sale until the challenge is cleared. Verifier nodes re-score it automatically; if it passes the quorum again, the sale resumes.' },
+  'op.manage.challenged.body': { ko: '{who}이(가) {when}에 이의를 제기했습니다 — "{reason}". 재검증으로 해소될 때까지 이 지식은 팔리지 않습니다. 검증 노드들이 자동으로 다시 채점하며, 다시 정족수를 채우면 판매가 재개됩니다.', en: '{who} challenged this knowledge {when} — "{reason}". It is not for sale until the challenge is cleared. Verifier nodes re-score it automatically; if it passes the quorum again, the sale resumes.' },
   'op.manage.attest.counts': { ko: '집계', en: 'Counts' },
   'op.manage.attest.counts_yes': { ko: '독립 검증', en: 'independent' },
   'op.manage.attest.counts_self': { ko: '집계 제외 — 본인', en: 'no — yours' },
