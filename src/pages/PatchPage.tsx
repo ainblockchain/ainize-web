@@ -194,7 +194,7 @@ export default function PatchPage() {
             <Quorum title={`${t('detail.patch.quorum_help', { quorum: data.quorum })} (${tech('verified')})`}>
               {/* Item 146: the numerator is clamped to the quorum — `3/2` is not a fraction a reader can use —
                   and the extra independent attestations are stated instead of being folded into the ratio. */}
-              {t('detail.patch.verified_executed', { passed: Math.min(data.passed, data.quorum), quorum: data.quorum })}{data.quorum_ok ? ` · ${term('verified')}` : ''}
+              {t('detail.patch.verified_executed', { passed: Math.min(data.passed, data.quorum), quorum: data.quorum })}{data.sellable ? ` · ${term('verified')}` : ''}
               {data.passed > data.quorum && <> · {t('detail.patch.extra_n', { n: data.passed - data.quorum })}</>}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
               {data.self_checks > 0 && <> · {t('detail.patch.self_n', { n: data.self_checks })}</>}

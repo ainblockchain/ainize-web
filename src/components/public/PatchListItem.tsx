@@ -155,7 +155,10 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
       <Info>
         <NameRow>
           <Name>{a.name || a.id}</Name>
-          {entry.quorum_ok && <Certified label={term('verified')} />}
+          {/* Item 153: no green "Verified" badge while a verifier's challenge is open — the chip beside it says
+              "Re-verification requested", and the two together would read as a bug. `sellable` is undefined on a node
+              running an older build, which keeps the old behaviour there. */}
+          {entry.quorum_ok && entry.sellable !== false && <Certified label={term('verified')} />}
           <StatusChip status={entry.status} supersededBy={entry.superseded_by[0]} />
         </NameRow>
         <Ident>{author} / {a.id}</Ident>
@@ -179,7 +182,7 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
           {' · '}{t('item.downloads', { n: num(entry.downloads) })}
         </Meta>
         <Meta>
-          <abbr title={`${help('verified')} (${tech('verified')})`}>{entry.quorum_ok ? <Good>{verification(entry)}</Good> : verification(entry)}</abbr>
+          <abbr title={`${help('verified')} (${tech('verified')})`}>{entry.quorum_ok && entry.sellable !== false ? <Good>{verification(entry)}</Good> : verification(entry)}</abbr>
           {entry.integrity_checks > 0 && <>{' · '}<Soft><abbr title={t('item.integrity_help')}>{t('item.integrity_only', { n: entry.integrity_checks })}</abbr></Soft></>}
           {acc && <>{' · '}<abbr title={`${t('item.accuracy_raw', { raw: acc.raw })} — ${help('accuracy')}`}><Good>{t('item.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</Good></abbr></>}
           {/* Finding 24: an accuracy is only comparable with one measured on the same question set, in the same form. */}
