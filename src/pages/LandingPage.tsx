@@ -5,6 +5,7 @@ import { useCatalogQuery, useInfoQuery } from '@/api/api';
 import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
 import { CopyButton, ScoreBar, Shimmer } from '@/components/ui/Misc';
 import { useLocale, useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { num, shortAddr } from '@/utils/format';
 
 /* ---------------------------------------------------------------- hero (dark, original Ainize white logo) */
@@ -231,6 +232,7 @@ const ONE_LINE_USE = 'ainize use krx-all-2761';
 
 export default function LandingPage() {
   const { t, term, help, tech, audience } = useT();
+  useTitle(t('landing.hero.title'));
   const { locale, setLocale } = useLocale();
   const priceLabel = usePriceLabel();
   const verification = useVerificationLabel();
@@ -404,7 +406,11 @@ export default function LandingPage() {
                     <TrendLine title={help('facts')}>{term('facts')} <span className="v">{t('units.facts', { n: num(a.benchmark.queries) })}</span></TrendLine>
                     <TrendLine title={help('accuracy')}>
                       {term('accuracy')}
-                      {acc ? <span className="v ok">{acc.pct}% <small>({acc.raw})</small></span> : <span className="muted">{t('landing.trending.accuracy_pending')}</span>}
+                      {/* The sample line names BOTH numbers: what the verifiers scored and what the knowledge covers.
+                          "100%" stacked directly under "facts covered 2,761" read as 2,761 questions audited. */}
+                      {acc ? <span className="v ok">{acc.tested !== null && acc.tested < a.benchmark.queries
+                        ? t('landing.trending.accuracy_sample', { pct: acc.pct, tested: num(acc.tested), facts: num(a.benchmark.queries) })
+                        : t('landing.trending.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</span> : <span className="muted">{t('landing.trending.accuracy_pending')}</span>}
                     </TrendLine>
                     {acc && <ScoreBar pct={acc.pct} />}
                     <TrendLine title={`${help('verified')} (${tech('verified')})`}>{term('verified')} <span className="v">{verification(e)}</span></TrendLine>

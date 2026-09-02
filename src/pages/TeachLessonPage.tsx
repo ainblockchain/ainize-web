@@ -7,6 +7,7 @@ import {
 } from '@/api/api';
 import type { TeachEffort, TeachJob } from '@/api/types';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
@@ -103,6 +104,11 @@ export default function TeachLessonPage() {
   useEffect(() => { if (!active) return; const h = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(h); }, [active]);
   const { data: events } = useTeachJobEventsQuery({ id: jobId }, { skip: !jobId || !full, pollingInterval: active ? 5000 : 0 });
 
+  // Computed before the early returns so the tab can be named like every other page's; `undefined` until the lesson
+  // is known keeps the previous title rather than flashing a placeholder.
+  const name = full ? (full.name ?? '').replace(/^Lesson:\s*/, '') || full.dataset?.name || full.facts[0]?.prompt || full.id.slice(0, 8) : '';
+  useTitle(name ? t('teach.run.title', { name }) : undefined);
+
   if (!job) {
     return (
       <PageWrapper data-testid="teach-lesson">
@@ -136,7 +142,6 @@ export default function TeachLessonPage() {
   // were made up (no model server); a stub node with a live model really measured them — only the TRAINING was fake.
   const simulated = !!c?.simulated;
   const demo = stub || simulated;
-  const name = (j.name ?? '').replace(/^Lesson:\s*/, '') || j.dataset?.name || j.facts[0]?.prompt || j.id.slice(0, 8);
   const elapsed = j.started_at ? Math.round((Date.now() - j.started_at) / 1000) : (p?.elapsed_s ?? 0);
   const trained = j.facts.length;
   const rowsTotal = j.dataset?.rows ?? trained;

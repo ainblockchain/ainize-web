@@ -6,6 +6,7 @@ import {
 } from '@/api/api';
 import type { Settings } from '@/api/types';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
@@ -22,6 +23,7 @@ const NOTIF: Settings['notifications'][] = ['all', 'sales', 'none'];
 
 export default function AccountPage() {
   const { t, term, help, tech } = useT();
+  useTitle(t('op.account.title'));
   const money = useMoney();
   const elapsed = useElapsed();
   const { data: me } = useMeQuery();

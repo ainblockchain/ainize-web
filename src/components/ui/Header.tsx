@@ -20,16 +20,28 @@ const Content = styled.div`
   width: calc(100% - 32px); min-height: 81px; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap;
   @media (min-width: ${(p) => p.theme.layout.maxWidth}) { width: ${(p) => p.theme.layout.maxWidth}; }
 `;
+/**
+ * `flex: 0 0 auto` — Home holds a 121 px logo and a `white-space: nowrap` ledger badge, neither of which can shrink.
+ * While it was `flex: 1; min-width: 0` the box was smaller than its content at every desktop width and the badge
+ * spilled 65 px over the first nav link ("AI N[Explore knowledge]"). Nav takes the slack instead.
+ */
 const Home = styled(Link)`
-  flex: 1; min-width: 0; text-decoration: none; display: flex; align-items: center; gap: 10px;
+  flex: 0 0 auto; text-decoration: none; display: flex; align-items: center; gap: 10px;
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 0 100%; padding: 12px 0 2px; }
 `;
 const Logo = styled.img`width: 121px; object-fit: contain;`;
+/** Takes the whole slack and right-aligns inside it, so the row's spare width lives between the logo and the links. */
 const Nav = styled.nav`
-  display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; min-width: 0;
+  flex: 1 1 auto; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; min-width: 0;
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 0 100%; justify-content: flex-start; padding: 0 0 8px; margin-left: -8px; }
 `;
-const navItemCss = `display: flex; align-items: center; height: 100%; padding: 16px 16px; font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap;`;
+/**
+ * 10 px of horizontal padding, not 16. Home (121 px logo + 75 px badge, neither shrinkable) and the seven English
+ * nav labels wanted 1,005 px inside a 944 px bar, and the 61 px deficit is what used to be paid for by painting
+ * the badge over the first link. At 10 px the row needs 715 px of the 738 px it has and everything fits on one
+ * 81 px line; when it still cannot (a signed-in operator, a 900 px window) the bar wraps cleanly instead.
+ */
+const navItemCss = `display: flex; align-items: center; height: 100%; padding: 16px 10px; font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap;`;
 const NavItem = styled(NavLink)`
   ${navItemCss} color: ${(p) => p.theme.color.BLACK};
   &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; }

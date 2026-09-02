@@ -42,10 +42,13 @@ export const theme = {
     maxWidthLanding: '1440px',
   },
   breakpoint: { xs: 0, sm: 600, md: 960, lg: 1280, xl: 1920 },
+  // Every stack ends in the Hangul fallbacks index.html already downloads (Noto Sans KR). Mulish and Inconsolata
+  // carry no Hangul, so on a host without a system Korean face the landing headings and both hero CTA labels
+  // rendered blank while /explore (font.body) was perfect — the stacks, not the webfont, were the gap.
   font: {
     body: "'Roboto', -apple-system, 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
-    display: "'Mulish', 'Muli', 'Roboto', sans-serif",
-    mono: "'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace",
+    display: "'Mulish', 'Muli', 'Roboto', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+    mono: "'Inconsolata', ui-monospace, SFMono-Regular, Menlo, 'Noto Sans KR', monospace",
   },
 } as const;
 
@@ -56,8 +59,11 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
   DRAFT: { label: 'Draft', color: '#8d8d8f', bg: '#f2f2f2', hint: 'Local draft — not yet announced to the network' },
   ANNOUNCED: { label: 'Announced', color: '#1b73e8', bg: '#e8f0fe', hint: 'Anchor recorded on the ledger, waiting for verifiers' },
   VERIFYING: { label: 'Verifying', color: '#f6981d', bg: '#fff3e0', hint: 'Attestations arriving — quorum not yet reached' },
-  LISTED: { label: 'Listed', color: '#44a45f', bg: '#e6f4ea', hint: 'Verification quorum reached — tradeable' },
+  LISTED: { label: 'For sale', color: '#44a45f', bg: '#e6f4ea', hint: 'Verification quorum reached — the current version, on sale' },
   REJECTED: { label: 'Rejected', color: '#e6173e', bg: '#fde8ec', hint: 'Failed verification quorum' },
   CHALLENGED: { label: 'Challenged', color: '#d14737', bg: '#fdecea', hint: 'A re-verification challenge is open' },
-  SUPERSEDED: { label: 'Superseded', color: '#8d8d8f', bg: '#f2f2f2', hint: 'A newer patch on the same benchmark replaced this one' },
+  // Warning palette (the one KindChip already uses for a supersede record): #8a4b00 on #fff3e0 is 6.4:1, where the
+  // old grey-on-grey was 2.96:1 — under AA for 11 px text, and quieter than the green Verified label beside it,
+  // so a retired item read as endorsed.
+  SUPERSEDED: { label: 'Superseded', color: '#8a4b00', bg: '#fff3e0', hint: 'A newer patch on the same benchmark replaced this one' },
 };

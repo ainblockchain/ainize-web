@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { errorMessage, useCreatePatchMutation, useInfoQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, Select, TextArea, TextField } from '@/components/ui/Form';
 import { Description, PageWrapper, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
@@ -31,6 +32,7 @@ const DEFAULT_BENCH: Bench = { schema: '', queries: 0, format: ['template'], col
 
 export default function NewPatchPage() {
   const { t, term, help, tech } = useT();
+  useTitle(t('op.new.title'));
   const money = useMoney();
   const navigate = useNavigate();
   const { address } = useAuth();

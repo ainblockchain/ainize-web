@@ -82,6 +82,7 @@ export const teach: Dict = {
   'teach.pre.invalid': { ko: '넣을 수 없음 — {detail}', en: 'Cannot be taught — {detail}' },
   'teach.pre.none': { ko: '가르칠 것이 없습니다. 모델이 이미 모두 맞게 답합니다.', en: 'Nothing to teach: the model already answers all of this correctly.' },
   'teach.pre.queue': { ko: '학습 대기열에 넣기 (바로잡기 {k}개)', en: 'Queue training ({k} corrections)' },
+  'teach.pre.queue_one': { ko: '학습 대기열에 넣기 (바로잡기 {k}개)', en: 'Queue training ({k} correction)' },
   'teach.pre.quota': { ko: '이 키로 오늘 남은 수업 {n}/{limit}', en: '{n} of {limit} lessons left today for this key' },
   'teach.pre.model_said': { ko: '모델의 답: {answer}', en: 'Model said: {answer}' },
   'teach.pre.retry': { ko: '다시 확인', en: 'Check again' },
@@ -89,7 +90,8 @@ export const teach: Dict = {
 
   // §5.8 lesson card
   'teach.card.title': { ko: '내 수업: {name}', en: 'Your lesson: {name}' },
-  'teach.card.queued': { ko: '학습 차례를 기다리는 중 — 앞에 {n}개 있습니다.', en: 'Waiting for a free training slot — {n} lesson(s) ahead of you.' },
+  'teach.card.queued': { ko: '학습 차례를 기다리는 중 — 앞에 {n}개 있습니다.', en: 'Waiting for a free training slot — {n} lessons ahead of you.' },
+  'teach.card.queued_one': { ko: '학습 차례를 기다리는 중 — 앞에 {n}개 있습니다.', en: 'Waiting for a free training slot — {n} lesson ahead of you.' },
   'teach.card.blocked': { ko: '지금은 학습이 꽉 찼습니다. 순서는 유지됩니다. 탭을 열어 두거나 나중에 내 지식에서 확인하세요.', en: 'Training is fully booked right now. Your place in line is kept — leave this tab open or come back later from Your knowledge.' },
   'teach.card.lock': { ko: '모델 서버를 기다리는 중 (다른 사람이 라이브 테스트 중).', en: 'Waiting for the model server (someone is running a live test).' },
   'teach.card.runtime': { ko: '모델 서버가 꺼졌거나 재시작 중입니다. 수업은 자동으로 이어집니다.', en: 'The model server is off or restarting. The lesson will continue automatically.' },
@@ -176,6 +178,7 @@ export const teach: Dict = {
   'teach.keep.node_body': { ko: '내 키(그리고 노드 운영자)만 넣을 수 있습니다. 내 지식 → 써보기에서 씁니다. 운영자에게는 비공개가 아닙니다.', en: 'Only your key (and the node operator) can load it. Use it from Your knowledge → Try. Not private from the operator.' },
   'teach.keep.dl_title': { ko: '지식 파일 내려받기', en: 'Download the knowledge file' },
   'teach.keep.dl_body': { ko: '{size} MB · 메모리 항목 {rows}개 · 링크 7일 유효, 내 지식에서 언제든 새로 만들 수 있습니다.', en: '{size} MB · {rows} memory entries · link valid for 7 days; make a new one any time from Your knowledge.' },
+  'teach.keep.dl_body_one': { ko: '{size} MB · 메모리 항목 {rows}개 · 링크 7일 유효, 내 지식에서 언제든 새로 만들 수 있습니다.', en: '{size} MB · {rows} memory entry · link valid for 7 days; make a new one any time from Your knowledge.' },
   'teach.keep.dl_make': { ko: '내려받기 링크 만들기', en: 'Make download links' },
   'teach.keep.dl_file': { ko: '지식 파일 내려받기 ({filename})', en: 'Download the knowledge file ({filename})' },
   'teach.keep.dl_recipe': { ko: 'recipe.json 내려받기', en: 'Download recipe.json' },

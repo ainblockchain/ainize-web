@@ -5,11 +5,18 @@ import { PatchListItem } from '@/components/public/PatchListItem';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { num } from '@/utils/format';
 
 type Sort = 'popular' | 'latest' | 'price' | 'rows';
 const SORTS: Sort[] = ['popular', 'latest', 'price', 'rows'];
 const ITEM_LIMIT = 10;
+/**
+ * "Current only" — everything a visitor could sensibly load today. SUPERSEDED and REJECTED are the two states that
+ * are not, and on the demo node three of the four listings are superseded, so the default view was 75% dead rows.
+ * Sent as the catalog's own `status` query param, so the filtering happens where the catalogue lives.
+ */
+const CURRENT_STATUS = 'LISTED,ANNOUNCED,VERIFYING,CHALLENGED';
 
 const Filters = styled.div`
   display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 24px;
@@ -32,17 +39,28 @@ const Search = styled(Input)`
 const Count = styled.div`
   font-size: 12px; color: ${(p) => p.theme.color.GREY}; padding-bottom: 12px;
 `;
+const Hidden = styled.div`
+  margin-top: -6px; padding-bottom: 12px; font-size: 12px; color: ${(p) => p.theme.color.GREY};
+  button { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; text-decoration: underline; }
+`;
 const Intro = styled(Description)`margin: 0 0 24px;`;
 
 export default function ExplorePage() {
   const { t, tech, help } = useT();
+  useTitle(t('explore.title'));
   const [sort, setSort] = useState<Sort>('popular');
   const [model, setModel] = useState('');
   const [schema, setSchema] = useState('');
   const [q, setQ] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
   const { data: info } = useInfoQuery();
-  const { data, isLoading, isFetching, error } = useCatalogQuery({ sort, model: model || undefined, schema: schema || undefined, q: q || undefined, limit: 200 });
+  const filters = { sort, model: model || undefined, schema: schema || undefined, q: q || undefined };
+  const { data, isLoading, isFetching, error } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
+  // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
+  // page-of-one call for its `total`, never a node-wide count that would not match what is on screen.
+  const { data: unfiltered } = useCatalogQuery({ ...filters, limit: 1 }, { skip: showAll });
+  const hidden = showAll || !data || !unfiltered ? 0 : Math.max(0, unfiltered.total - data.total);
 
   const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
   const items = data?.items ?? [];
@@ -56,7 +74,7 @@ export default function ExplorePage() {
     <PageWrapper>
       <TitleRow>
         <Title>{t('explore.title')}</Title>
-        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} />
+        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} />
       </TitleRow>
       <Intro title={help('liveTest')}>{t('explore.sub')}</Intro>
 
@@ -75,6 +93,11 @@ export default function ExplorePage() {
             {data.schemas.map((s) => <Chip key={s} $active={schema === s} onClick={() => { setSchema(schema === s ? '' : s); reset(); }}>{s}</Chip>)}
           </FilterGroup>
         )}
+        <FilterGroup>
+          <span className="label" title={t('explore.filter.show_help')}>{t('explore.filter.show')}</span>
+          <Chip $active={!showAll} onClick={() => { setShowAll(false); reset(); }}>{t('explore.filter.current')}</Chip>
+          <Chip $active={showAll} onClick={() => { setShowAll(true); reset(); }}>{t('explore.filter.all_versions')}</Chip>
+        </FilterGroup>
         <Search placeholder={t('explore.search')} value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label={t('explore.search')} />
       </Filters>
 
@@ -83,6 +106,12 @@ export default function ExplorePage() {
       {!isLoading && data && (
         <>
           <Count>{t('explore.count', { n: num(data.total) })}{isFetching ? ` · ${t('explore.updating')}` : ''}</Count>
+          {hidden > 0 && (
+            <Hidden data-testid="explore-hidden" title={t('explore.filter.show_help')}>
+              {t('explore.hidden', { n: num(hidden) }, hidden)}{' · '}
+              <button type="button" onClick={() => { setShowAll(true); reset(); }}>{t('explore.hidden_show')}</button>
+            </Hidden>
+          )}
           <div>
             {visible.map((e) => <PatchListItem key={e.anchor.id} entry={e} currency={info?.currency} />)}
           </div>

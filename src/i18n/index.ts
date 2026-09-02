@@ -3,7 +3,7 @@
  * with `term(key)` / `help(key)` helpers backed by the plain-language glossary.
  * Page dictionaries live in ./pages/*.ts and are merged here so parallel workstreams never edit one file.
  */
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode, createElement } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode, createElement } from 'react';
 import { GLOSSARY, AUDIENCE, type TermKey } from './glossary';
 import { PAGES } from './pages';
 
@@ -19,6 +19,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     return 'en';   // Ainize is English-first; Korean stays available via the toggle
   });
   const setLocale = useCallback((l: Locale) => { setLocaleState(l); try { localStorage.setItem(KEY, l); } catch { /* ignore */ } }, []);
+  // index.html ships lang="en"; without this a page rendered entirely in Korean still declared itself English, so
+  // screen readers read Hangul with an English voice and browsers offered to translate it into the language it is in.
+  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
   const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);
   return createElement(LocaleContext.Provider, { value }, children);
 }
@@ -34,9 +37,13 @@ export function useT() {
   const { locale } = useLocale();
   return useMemo(() => ({
     locale,
-    /** page string: t('explore.title') */
-    t: (key: string, vars?: Record<string, string | number>): string => {
-      const e = PAGES[key];
+    /**
+     * Page string: t('explore.title'). Pass `count` for a countable noun — when the dictionary carries a
+     * `<key>_one` entry it is used for exactly one, so English never reads "1 corrections". Korean has no
+     * plural marking, so a `_one` entry there is normally the same sentence.
+     */
+    t: (key: string, vars?: Record<string, string | number>, count?: number): string => {
+      const e = (count === 1 ? PAGES[`${key}_one`] : undefined) ?? PAGES[key];
       if (!e) return key;
       return fmt(e[locale] ?? e.en, vars);
     },

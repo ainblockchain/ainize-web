@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useCreateTeachDatasetMutation, useTeachPolicyQuery, useTeachSamplesQuery, useUploadTeachDatasetMutation } from '@/api/api';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox } from '@/components/ui/Form';
 import { Description, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -44,6 +45,7 @@ const narrow = () => typeof window !== 'undefined' && window.innerWidth < 480;
 
 export default function TeachUploadPage() {
   const { t } = useT();
+  useTitle(t('teach.up.title'));
   const navigate = useNavigate();
   const { data: policy } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
   const [upload, { isLoading: uploading }] = useUploadTeachDatasetMutation();

@@ -7,6 +7,7 @@ import { STATUS_META } from '@/theme/theme';
 import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, SelectBox, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 
@@ -126,6 +127,7 @@ function KnowledgeGraph({ g }: { g: GraphResponse }) {
 /* ---------------------------------------------------------------- page */
 export default function LedgerPage() {
   const { t, help, tech } = useT();
+  useTitle(t('detail.ledger.title'));
   const f = useDetailFormat();
   const [kind, setKind] = useState('');
   const [page, setPage] = useState(1);
@@ -145,7 +147,7 @@ export default function LedgerPage() {
     <PageWrapper $wide>
       <TitleRow>
         <Title title={tech('ledger')}>{t('detail.ledger.title')}</Title>
-        <SelectBox options={kindOptions} value={kind} onChange={(v) => { setKind(v); setPage(1); }} />
+        <SelectBox options={kindOptions} value={kind} onChange={(v) => { setKind(v); setPage(1); }} label={t('common.kind_aria')} />
       </TitleRow>
       <Description style={{ marginTop: -12 }}>{help('ledger')}</Description>
 
@@ -170,6 +172,14 @@ export default function LedgerPage() {
 
       {isLoading && <CenterProgress />}
       {!isLoading && records.length === 0 && <Empty>{kind ? t('detail.ledger.empty_kind', { kind: f.kindLabel(kind) }) : t('detail.ledger.empty')}</Empty>}
+      {/*
+        * The node returns the NEWEST `limit` records and cannot page further back. With an unfiltered view the card
+        * above says how many records exist, so a table that can only ever hold 1,000 of them has to say which part
+        * of the record it is showing instead of letting the two numbers contradict each other.
+        */}
+      {!kind && records.length > 0 && (info?.records ?? 0) > records.length && (
+        <Description data-testid="ledger-window">{t('detail.ledger.window', { shown: num(records.length), total: num(info?.records) })}</Description>
+      )}
       {records.length > 0 && (
         <>
           <TableWrapper style={{ background: '#fff', border: '1px solid #dadada' }}>

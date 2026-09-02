@@ -10,7 +10,8 @@ import { CenterProgress, CopyButton, Divider, Empty, ExternalLink, KeyValue, Mon
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { sourceKind } from '@/components/teach/util';
-import { bytes, dateTime, num, pct, scoreText, shortAddr, shortHash } from '@/utils/format';
+import { useTitle } from '@/utils/useTitle';
+import { bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
 import { isExecuted, useDetailFormat } from './detail/recordText';
 
@@ -63,6 +64,11 @@ const Section = styled.section`margin-top: 24px; background: #fff; border: 1px s
 const H3 = styled.h3`margin: 0 0 8px; font-size: 14px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; &[title] { cursor: help; }`;
 const P = styled.p`margin: 0; font-size: 14px; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY}; white-space: pre-wrap; word-break: keep-all;`;
 const Note = styled.p`margin: 0 0 12px; font-size: 12px; line-height: 1.6; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;`;
+/** A promise the evidence does not (yet) back: warning tone, and a way straight to the evidence. */
+const Warn = styled.span`
+  color: #8a4b00;
+  button { background: none; border: 0; padding: 0; font: inherit; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; } }
+`;
 const Hash = styled.div`display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-family: ${(p) => p.theme.font.mono}; font-size: 13px; word-break: break-all;`;
 const Samples = styled.ul`
   margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px;
@@ -113,14 +119,17 @@ const TreeNode = styled(Link)<{ $me?: boolean }>`
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
 `;
 
-type Score = { text: string; pct: number | null };
+type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
 
 /** Accuracy shown in the header comes only from attestations that ran the real model — never from integrity-only checks. */
 function scoreOf(d: PatchDetail): Score {
   const real = d.attestations.filter((a) => a.passed && isExecuted(a.verified_on));
-  if (!real.length) return { text: '—', pct: null };
+  if (!real.length) return { text: '—', pct: null, tested: null, before: null };
   const s = real[real.length - 1].score;
-  return { text: scoreText(s), pct: pct(s.free_generation ?? s.free_generation_vllm ?? s.chat_60) };
+  const raw = s.free_generation ?? s.free_generation_vllm ?? s.chat_60;
+  // `before` is the same verifier's pre_apply run — the half of the measurement that says whether the model
+  // already knew these answers. Without it "100%" is not evidence of anything.
+  return { text: scoreText(s), pct: pct(raw), tested: denominator(raw), before: preApplyText(s) };
 }
 
 export default function PatchPage() {
@@ -130,6 +139,8 @@ export default function PatchPage() {
   const f = useDetailFormat();
   const { data, isLoading, error } = usePatchQuery(patchId, { pollingInterval: 10_000 });
   const [tab, setTab] = useState('overview');
+  // before the early returns: the tab is named after the knowledge as soon as the node answers
+  useTitle(data ? data.anchor.name || data.anchor.id : undefined);
 
   if (isLoading) return <Wrapper><CenterProgress /></Wrapper>;
   if (error || !data) return <NotFoundPage message={t('detail.patch.not_found', { id: patchId })} />;
@@ -179,7 +190,7 @@ export default function PatchPage() {
       <Content>
         <ContentInner>
           <NameRow>
-            <StatusChip status={data.status} />
+            <StatusChip status={data.status} supersededBy={data.superseded_by[0]} />
             <Quorum title={`${t('detail.patch.quorum_help', { quorum: data.quorum })} (${tech('verified')})`}>
               {t('detail.patch.verified_executed', { passed: data.passed, quorum: data.quorum })}{data.quorum_ok ? ` · ${term('verified')}` : ''}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
@@ -193,7 +204,15 @@ export default function PatchPage() {
 
           <Stats>
             <Stat><StatValue>{num(data.downloads)}</StatValue><StatName>{t('detail.stat.downloads')}</StatName></Stat>
-            <Stat><StatValue>{score.pct !== null ? `${score.pct}%` : score.text === '—' ? t('detail.stat.not_yet') : score.text}</StatValue><StatName title={`${t('detail.stat.accuracy_help')} (${tech('accuracy')})`}>{term('accuracy')}</StatName>{score.pct !== null && <StatNote>{score.text}</StatNote>}</Stat>
+            {/* Finding 28: the pair is the evidence — "1/8 → 26/26" says the model did NOT already know the answers.
+                The percentage moves to the note; with no pre_apply reported the value stays the plain score. */}
+            <Stat data-testid="stat-accuracy">
+              <StatValue title={score.before ? t('detail.stat.before_after_help', { before: score.before, after: score.text }) : undefined}>
+                {score.before && score.pct !== null ? `${score.before} → ${score.text}` : score.pct !== null ? `${score.pct}%` : score.text === '—' ? t('detail.stat.not_yet') : score.text}
+              </StatValue>
+              <StatName title={`${t('detail.stat.accuracy_help')} (${tech('accuracy')})`}>{term('accuracy')}</StatName>
+              {score.pct !== null && <StatNote>{score.before ? t('detail.stat.before_after_note', { pct: score.pct }) : score.text}</StatNote>}
+            </Stat>
             <Stat><StatValue>{num(a.rows)}</StatValue><StatName title={`${help('rows')} (${tech('rows')})`}>{t('detail.stat.entries')}</StatName></Stat>
             <Stat><StatValue>{num(a.benchmark.queries)}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
             <Stat><StatValue>{bytes(a.size_bytes)}</StatValue><StatName>{t('detail.stat.size')}</StatName></Stat>
@@ -203,7 +222,7 @@ export default function PatchPage() {
 
           <TabBar><Tabs tabs={tabs} value={tab} onChange={setTab} /></TabBar>
 
-          {tab === 'overview' && <Overview d={data} score={score} />}
+          {tab === 'overview' && <Overview d={data} score={score} onSeeVerification={() => setTab('verification')} />}
           {tab === 'verification' && <Verification d={data} />}
           {tab === 'lineage' && <Lineage d={data} authorSlug={authorSlug} />}
           {tab === 'buy' && <Buy d={data} authorSlug={authorSlug} isOperator={isSignedIn} />}
@@ -215,16 +234,31 @@ export default function PatchPage() {
 }
 
 /* ---------------------------------------------------------------- 개요 */
-function Overview({ d, score }: { d: PatchDetail; score: Score }) {
+function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Score; onSeeVerification: () => void }) {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const a = d.anchor;
+  // How many verifiers actually ran the model, and how many of those reported a side-effect measurement.
+  const executedAtts = d.attestations.filter((at) => isExecuted(at.verified_on));
+  const executedCount = executedAtts.length;
+  const sideMeasured = executedAtts.filter((at) => at.collateral_nat !== undefined && at.collateral_nat !== null).length;
   return (
     <>
       <Section>
         <H3>{t('detail.ov.description')}</H3>
         <P>{a.description || t('detail.ov.no_description')}</P>
-        {score.pct !== null && <div style={{ marginTop: 16, maxWidth: 360 }}><ScoreBar pct={score.pct} /><Quorum>{t('detail.ov.accuracy_line', { score: `${score.pct}% (${score.text})`, facts: num(a.benchmark.queries) })}</Quorum></div>}
+        {/* The denominator under the bar is the attestation's own ("26 of 2,761 checked"), never the anchor's
+            benchmark.queries alone — "over 2,761 benchmark questions" claimed an audit 100× the size of the real one. */}
+        {score.pct !== null && (
+          <div style={{ marginTop: 16, maxWidth: 360 }}>
+            <ScoreBar pct={score.pct} />
+            <Quorum>{score.tested !== null && score.tested < a.benchmark.queries
+              ? t('detail.ov.accuracy_line', { score: `${score.pct}%`, tested: num(score.tested), facts: num(a.benchmark.queries) })
+              : t('detail.ov.accuracy_line_all', { score: `${score.pct}%`, facts: num(a.benchmark.queries) })}</Quorum>
+            {/* the baseline the same verifier measured before loading the knowledge — the other half of the claim */}
+            {score.before && <Quorum as="div" data-testid="ov-before-after" style={{ display: 'block', marginTop: 2 }}>{t('detail.ov.before_after', { before: score.before, after: score.text })}</Quorum>}
+          </div>
+        )}
       </Section>
       {/* Taught knowledge carries hash-only provenance (design §D12): enough for a buyer to verify a re-train used the
           same input, never enough to read the teacher's questions — which is exactly what the note says. */}
@@ -261,7 +295,17 @@ function Overview({ d, score }: { d: PatchDetail; score: Score }) {
           <dt title="benchmark.schema">{t('detail.ov.subject')}</dt><dd><StyledLink to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{a.benchmark.schema}</StyledLink></dd>
           <dt title={tech('facts')}>{term('facts')}</dt><dd>{t('units.facts', { n: num(a.benchmark.queries) })}</dd>
           <dt>{t('detail.ov.formats')}</dt><dd>{a.benchmark.format.join(', ') || '—'}</dd>
-          <dt title={`${help('sideEffects')} (${tech('sideEffects')})`}>{t('detail.ov.side_effect_bound')}</dt><dd>{a.benchmark.collateral_bound_nat !== undefined ? <span title={t('detail.ov.side_effect_tech', { n: a.benchmark.collateral_bound_nat })}>{t('detail.ov.side_effect_value')}</span> : '—'}</dd>
+          {/* Finding 55: "Threshold set" read as "checked", while the Verification tab said "not reported" for every
+              verifier. The row now says which of the two it is, and links to the evidence. */}
+          <dt title={`${help('sideEffects')} (${tech('sideEffects')})`}>{t('detail.ov.side_effect_bound')}</dt>
+          <dd data-testid="ov-side-effect">{a.benchmark.collateral_bound_nat === undefined ? '—' : sideMeasured > 0 ? (
+            <span title={t('detail.ov.side_effect_tech', { n: a.benchmark.collateral_bound_nat })}>{t('detail.ov.side_effect_measured', { n: sideMeasured, of: executedCount })}</span>
+          ) : (
+            <Warn title={t('detail.ov.side_effect_tech', { n: a.benchmark.collateral_bound_nat })}>
+              {t('detail.ov.side_effect_unmeasured', { n: a.benchmark.collateral_bound_nat })}{' '}
+              <button type="button" onClick={onSeeVerification}>{t('detail.ov.side_effect_see')} →</button>
+            </Warn>
+          )}</dd>
           <dt title="benchmark_hash">{t('detail.ov.benchmark_hash')}</dt><dd><Mono>{a.benchmark_hash}</Mono></dd>
           {a.benchmark.answers_hash && <><dt title="answers_hash (commit–reveal)">{t('detail.ov.answers_hash')}</dt><dd><Mono>{a.benchmark.answers_hash}</Mono></dd></>}
         </KeyValue>
@@ -330,6 +374,8 @@ function Verification({ d }: { d: PatchDetail }) {
               <TableRow>
                 <TableHead $align="left" $padding="0 0 0 32px">{t('detail.ver.h.verifier')}</TableHead>
                 <TableHead $align="left">{t('detail.ver.h.method')}</TableHead>
+                {/* Finding 28: every attestation carries pre_apply and it reached the DOM only inside a title=. */}
+                <TableHead title={t('detail.ver.h.before_help')}>{t('detail.ver.h.before')}</TableHead>
                 <TableHead>{t('detail.ver.h.accuracy')}</TableHead>
                 <TableHead>{t('detail.ver.h.side')}</TableHead>
                 <TableHead>{t('detail.ver.h.restarts')}</TableHead>
@@ -346,7 +392,8 @@ function Verification({ d }: { d: PatchDetail }) {
                   <TableRow key={at.verifier + at.created_at}>
                     <TableData $align="left" $padding="0 0 0 32px" $weight={600} title={at.verifier}>{at.verifier_name ?? shortAddr(at.verifier)}<div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400 }}>{shortAddr(at.verifier, 8)}</div></TableData>
                     <TableData $align="left" title={`verified_on: ${at.verified_on}`}>{f.howLabel(at.verified_on)}</TableData>
-                    <TableData $mono title={executed ? JSON.stringify(at.score) : t('detail.how.integrity')}>{executed ? scoreText(at.score) : '—'}</TableData>
+                    <TableData $mono data-testid="ver-before" title={executed ? t('detail.ver.h.before_help') : t('detail.how.integrity')}>{executed ? preApplyText(at.score) ?? t('detail.ver.side_na') : '—'}</TableData>
+                    <TableData $mono data-testid="ver-after" title={executed ? JSON.stringify(at.score) : t('detail.how.integrity')}>{executed ? scoreText(at.score) : '—'}</TableData>
                     <TableData $color={side.ok === null ? undefined : side.ok ? '#44a45f' : '#e6173e'} title={side.detail ? `${side.detail} — ${help('sideEffects')} (${tech('sideEffects')})` : `${help('sideEffects')} (${tech('sideEffects')})`}>{side.text}</TableData>
                     <TableData title="restarts_detected">{at.restarts_detected === undefined ? '—' : at.restarts_detected === 0 ? t('detail.none') : t('detail.ver.restarts_n', { n: at.restarts_detected })}</TableData>
                     <TableData title={`${help('stake')} (${tech('stake')})${f.priceNote(d.anchor.currency) ? ` · ${f.priceNote(d.anchor.currency)}` : ''}`}>{f.priceLabel(at.stake, d.anchor.currency)}</TableData>
@@ -361,6 +408,7 @@ function Verification({ d }: { d: PatchDetail }) {
       )}
       <div style={{ padding: '16px 32px 20px' }}>
         <Note title={tech('verified')}><b>{term('verified')}</b> — {t('detail.ver.explain_count', { passed: d.passed, quorum: d.quorum, integrity: d.integrity_checks })}</Note>
+        <Note>{t('detail.ver.explain_before')}</Note>
         <Note>{t('detail.ver.explain_restart')}</Note>
         <Note style={{ margin: 0 }} title={tech('stake')}>{t('detail.ver.explain_stake')}</Note>
       </div>

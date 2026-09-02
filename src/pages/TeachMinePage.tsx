@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useDeleteTeachDatasetMutation, useMyTeachJobsQuery, useTeachDatasetsQuery, useTeachPolicyQuery } from '@/api/api';
 import type { TeachJob } from '@/api/types';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { Description, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -29,6 +30,7 @@ const Head = styled.div`display: flex; flex-wrap: wrap; gap: 10px; align-items: 
 
 export default function TeachMinePage() {
   const { t } = useT();
+  useTitle(t('teach.data.title'));
   const navigate = useNavigate();
   const hasKey = !!currentTeacherKey();
   const { data: policy } = useTeachPolicyQuery();

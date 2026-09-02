@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useTeachPolicyQuery } from '@/api/api';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
@@ -36,6 +37,7 @@ const Foot = styled.div`
 
 export default function TeachPage() {
   const { t } = useT();
+  useTitle(t('teach.entry.title'));
   const navigate = useNavigate();
   const { data: policy, isLoading } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
   const pol = policyLine(policy, t);

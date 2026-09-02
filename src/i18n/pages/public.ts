@@ -69,6 +69,8 @@ export const landing: Dict = {
   'landing.trending.empty_count': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge currently being verified' },
   'landing.trending.more': { ko: '더 보기', en: 'See all' },
   'landing.trending.accuracy_pending': { ko: '정답률 채점 전', en: 'Accuracy not scored yet' },
+  'landing.trending.accuracy_sample': { ko: '{pct}% — {facts}문항 중 {tested}문항 표본', en: '{pct}% on a {tested}-question sample of {facts}' },
+  'landing.trending.accuracy_checked': { ko: '{pct}% ({raw} 채점)', en: '{pct}% ({raw} checked)' },
 
   // why
   'landing.why.title': { ko: '왜 Ainize인가', en: 'Why Ainize' },
@@ -106,14 +108,35 @@ export const listing: Dict = {
   'explore.filter.schema_help': { ko: '같은 주제의 지식은 같은 질문 묶음으로 채점됩니다.', en: 'Knowledge on the same topic is scored with the same question set.' },
   'explore.filter.all': { ko: '전체', en: 'All' },
   'explore.search': { ko: '지식 이름·설명 검색', en: 'Search by name or description' },
+  'explore.filter.show': { ko: '표시', en: 'Show' },
+  'explore.filter.current': { ko: '최신 버전만', en: 'Current only' },
+  'explore.filter.all_versions': { ko: '모든 버전', en: 'All versions' },
+  'explore.filter.show_help': { ko: '"최신 버전만"은 더 새로운 버전으로 대체된 지식과 검증에 실패한 지식을 숨깁니다.', en: '"Current only" hides knowledge that a newer version replaced and knowledge that failed verification.' },
+  'explore.hidden': { ko: '이전 버전 {n}개가 숨겨져 있습니다', en: '{n} older versions hidden' },
+  'explore.hidden_one': { ko: '이전 버전 1개가 숨겨져 있습니다', en: '1 older version hidden' },
+  'explore.hidden_show': { ko: '보기', en: 'show' },
   'explore.count': { ko: '지식 {n}개', en: '{n} knowledge' },
   'explore.updating': { ko: '새로고침 중…', en: 'updating…' },
   'explore.empty': { ko: '조건에 맞는 지식이 없습니다. 다른 모델·주제·검색어를 시도해 보세요.', en: 'No knowledge matches. Try another model, topic or search term.' },
 
   // benchmark (same-topic) page
   'bench.title': { ko: '같은 주제의 지식', en: 'Knowledge on this topic' },
-  'bench.stats': { ko: '지식 {total}개 · 검증 완료 {listed}개 · 대상 모델: {models}', en: '{total} knowledge · {listed} verified · models: {models}' },
-  'bench.explain': { ko: '같은 주제의 지식은 같은 질문 묶음으로 채점되어 서로 비교할 수 있습니다. 내용이 겹치면 더 새로운 검증 완료 지식이 이전 것을 대체합니다("최신 버전 있음").', en: 'Knowledge on the same topic is scored with the same question set, so it can be compared. When contents overlap, the newer verified knowledge replaces the older one ("Newer version available").' },
+  // Finding 24 — the form the questions were asked in is part of what the score means
+  'item.format': { ko: '문항 형식 {formats}', en: 'asked as {formats}' },
+  'item.format_help': { ko: '검증 질문을 어떤 형식으로 물었는지입니다. 형식이 다르면 같은 지식이라도 다른 시험이라 점수를 나란히 비교할 수 없습니다.', en: 'The form the benchmark questions were asked in. A different form is a different exam, so the scores cannot be lined up side by side.' },
+  'item.seal_sealed': { ko: '검증 정족수를 채운 현재 버전입니다.', en: 'Passed the verifier quorum and is the current version.' },
+  'item.seal_retired': { ko: '검증은 통과했지만 최신 버전으로 대체된 지식입니다.', en: 'Passed verification, but a newer version has replaced it.' },
+  'item.seal_pending': { ko: '검증이 아직 진행 중입니다.', en: 'Verification is still arriving.' },
+  // Finding 29: "{listed} verified" next to four cards each labelled "Verified" read as "three failed verification".
+  // These are the current versions on sale; verification is what the badge on each card says.
+  'bench.stats': { ko: '지식 {total}개 · 현재 버전 {listed}개 · 문제 묶음 {sets}개 · 대상 모델: {models}', en: '{total} knowledge · {listed} current version(s) · {sets} question set(s) · models: {models}' },
+  // Finding 24: the four items here carry three different benchmark_hashes, so the old promise ("scored with the
+  // same question set, so it can be compared") was not true of the list it sat above.
+  'bench.explain': { ko: '점수는 같은 문제 묶음 안에서만 비교할 수 있습니다. 아래는 검증에 쓰인 문제 묶음별로 묶어 놓았습니다 — 묶음이 다르면 시험이 다른 것이라 점수를 나란히 비교할 수 없습니다. 내용이 겹치면 더 새로운 검증 완료 지식이 이전 것을 대체합니다("최신 버전 있음").', en: 'Scores are comparable only within one question set. The list below is grouped by the question set the verifiers used — a different set is a different exam, and those numbers cannot be lined up against each other. When contents overlap, the newer verified knowledge replaces the older one ("Newer version available").' },
+  'bench.group.title': { ko: '문제 묶음 · {format} · 질문 {n}개', en: 'Question set · {format} · {n} questions' },
+  'bench.group.title_noformat': { ko: '문제 묶음 · 질문 {n}개', en: 'Question set · {n} questions' },
+  'bench.group.note': { ko: '이 {n}개는 같은 문제 묶음으로 채점돼 서로 비교할 수 있습니다.', en: 'These {n} were scored on this same question set, so they can be compared with each other.' },
+  'bench.group.alone': { ko: '이 문제 묶음으로 채점된 지식은 이것뿐이라 비교 대상이 없습니다.', en: 'The only knowledge scored on this question set — nothing here to compare it with.' },
   'bench.back': { ko: '지식 둘러보기로 돌아가기', en: 'Back to Explore' },
   'bench.empty': { ko: '이 주제의 지식이 아직 없습니다.', en: 'No knowledge on this topic yet.' },
   'bench.notfound': { ko: '"{schema}" 주제로 등록된 지식이 없습니다.', en: 'No knowledge is registered under the topic "{schema}".' },
@@ -124,6 +147,9 @@ export const listing: Dict = {
   'item.integrity_only': { ko: '무결성만 확인 {n}', en: 'integrity-only checks: {n}' },
   'item.integrity_help': { ko: '파일이 손상되지 않았는지만 확인한 검증입니다. 정답률을 재지 않았으므로 검증 완료 수에 넣지 않습니다.', en: 'Checked only that the file is intact — no accuracy was measured, so it does not count toward verification.' },
   'item.accuracy': { ko: '정답률 {pct}%', en: '{pct}% accuracy' },
+  // The denominator is the attestation's own ('26/26'), never the anchor's benchmark.queries — the verifiers
+  // scored 26 questions, not the 2,761 the knowledge covers.
+  'item.accuracy_checked': { ko: '정답률 {pct}% ({raw} 채점)', en: '{pct}% ({raw} checked)' },
   'item.accuracy_raw': { ko: '검증 질문 {raw} 정답', en: '{raw} benchmark questions correct' },
   'item.downloads': { ko: '내려받기 {n}회', en: '{n} downloads' },
   'item.size': { ko: '크기 {size}', en: 'Size {size}' },

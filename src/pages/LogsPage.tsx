@@ -4,6 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import { usePatchEventsQuery, usePatchRecordsQuery } from '@/api/api';
 import type { EventRow, LedgerRecord } from '@/api/types';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { CenterProgress, Description, PageWrapper, SelectBox, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Pre, useMoney } from '@/components/operator/common';
 import { dateTime, shortAddr, shortHash, timeOnly } from '@/utils/format';
@@ -47,6 +48,7 @@ export default function LogsPage() {
   const [open, setOpen] = useState<number | null>(null);
   const events = usePatchEventsQuery({ id: patchId, limit }, { pollingInterval: 5000 });
   const records = usePatchRecordsQuery(patchId);
+  useTitle(t('op.logs.title', { id: patchId }));
 
   const LEVELS = [
     { value: 'all', label: t('op.logs.level.all') }, { value: 'info', label: t('op.logs.level.info') },
@@ -90,7 +92,7 @@ export default function LogsPage() {
     <PageWrapper $wide>
       <TitleRow>
         <Title>{t('op.logs.title', { id: patchId })}</Title>
-        <SelectBox options={LEVELS} value={level} onChange={setLevel} />
+        <SelectBox options={LEVELS} value={level} onChange={setLevel} label={t('common.level_aria')} />
       </TitleRow>
       <Description>{t('op.logs.desc')} <StyledLink to={`/project/${author}/${patchId}`}>{t('op.logs.back')}</StyledLink></Description>
 

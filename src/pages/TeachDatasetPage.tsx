@@ -7,6 +7,7 @@ import {
 } from '@/api/api';
 import type { DatasetRowInput, PreflightFact, TeachDatasetRow } from '@/api/types';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
@@ -58,6 +59,7 @@ const Sticky = styled.div`
 export default function TeachDatasetPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
   const { t } = useT();
+  useTitle(t('teach.rows.title'));
   const navigate = useNavigate();
   const { search } = useLocation();          // a re-train carries `?retrain=<job>&effort=…` through to the settings screen
   const { data: policy } = useTeachPolicyQuery();

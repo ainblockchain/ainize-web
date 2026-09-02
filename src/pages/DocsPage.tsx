@@ -6,6 +6,7 @@ import type { OpenApiOperation } from '@/api/types';
 import { Card, CenterProgress, CopyButton, Description, Empty, ExternalLink, PageWrapper, SubTitle, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { Alert } from '@/components/ui/Form';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 
 /* ------------------------------------------------------------------ styles */
 const Lede = styled.p`margin: 0 0 8px; font-size: 15px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; max-width: 76ch;`;
@@ -25,10 +26,10 @@ const Method = styled.span<{ $m: string }>`
 `;
 const Op = styled.details`
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; border-radius: 4px; margin-top: 8px;
-  summary { display: flex; gap: 12px; align-items: center; padding: 10px 14px; cursor: pointer; list-style: none; font-size: 14px; }
+  summary { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 14px; cursor: pointer; list-style: none; font-size: 14px; }
   summary::-webkit-details-marker { display: none; }
-  summary code { font-family: ${(p) => p.theme.font.mono}; font-size: 13px; color: ${(p) => p.theme.color.BLACK}; }
-  summary .sum { flex: 1; color: ${(p) => p.theme.color.GREY}; }
+  summary code { font-family: ${(p) => p.theme.font.mono}; font-size: 13px; color: ${(p) => p.theme.color.BLACK}; min-width: 0; overflow-wrap: anywhere; }
+  summary .sum { flex: 1 1 100%; min-width: 0; color: ${(p) => p.theme.color.GREY}; }
   .body { padding: 4px 14px 14px; font-size: 13.5px; color: ${(p) => p.theme.color.DARK_GREY}; border-top: 1px solid #f0f0f0; }
   .body h4 { margin: 12px 0 6px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: ${(p) => p.theme.color.GREY}; }
   .body table { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -56,6 +57,7 @@ const METHODS = ['get', 'post', 'patch', 'delete'] as const;
 
 export default function DocsPage() {
   const { t, locale } = useT();
+  useTitle(t('docs.title'));
   const { data, isLoading, isError } = useDocsQuery();
   const [tab, setTab] = useState<'cli' | 'api'>('cli');
   const grouped = useMemo(() => {

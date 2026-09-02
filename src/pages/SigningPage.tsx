@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { errorMessage, useLoginMutation, useMeQuery, useSetupMutation } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Alert, Checkbox, TextField } from '@/components/ui/Form';
 import { CopyButton, Description, KeyValue, Mono, PageWrapper, Title } from '@/components/ui/Misc';
 import { Muted, Stack, Tip } from '@/components/operator/common';
@@ -32,6 +33,7 @@ const NodeBox = styled.div`
 
 export default function SigningPage() {
   const { t, tech } = useT();
+  useTitle(t('nav.signin'));
   const auth = useAuth();
   const { data: me } = useMeQuery();
   const [params] = useSearchParams();

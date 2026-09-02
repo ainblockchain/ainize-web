@@ -6,7 +6,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
   AuthMe, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
-  ChatPatchesResponse, ChatRequest, ChatResponse, Settings, DocsResponse,
+  ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
@@ -138,6 +138,9 @@ export const api = createApi({
     // ChatMode (live test)
     chatPatches: b.query<ChatPatchesResponse, void>({ query: () => 'api/chat/patches', providesTags: ['Chat', 'Catalog', 'Runtime'] }),
     chat: b.mutation<ChatResponse, ChatRequest>({ query: (body) => ({ url: 'api/chat', method: 'POST', body }), invalidatesTags: ['Events'] }),
+    // D3 — polled every 1.5 s while a turn is pending: is it still queued behind the shared model, and who holds it?
+    chatStatus: b.query<ChatStatusResponse, string>({ query: (id) => `api/chat/status?request_id=${encodeURIComponent(id)}` }),
+    cancelChat: b.mutation<ChatCancelResponse, string>({ query: (id) => ({ url: 'api/chat/cancel', method: 'POST', body: { request_id: id } }) }),
     // operator settings (persisted on the node)
     settings: b.query<{ settings: Settings }, void>({ query: () => 'api/me/settings', providesTags: ['Settings'] }),
     updateSettings: b.mutation<{ settings: Settings }, Partial<Settings>>({ query: (body) => ({ url: 'api/me/settings', method: 'PATCH', body }), invalidatesTags: ['Settings', 'Me', 'Info'] }),
@@ -235,7 +238,7 @@ export const {
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
-  useChatPatchesQuery, useChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
+  useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
   useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,

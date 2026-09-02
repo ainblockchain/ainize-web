@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 import { PageWrapper, Title } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 
 /** Layout ported from ainize-web TermsAndPolicyPage.js; content in plain language via i18n (see i18n/pages/public.ts). */
 const Section = styled.section`
@@ -23,6 +24,7 @@ function Paragraphs({ text }: { text: string }) {
 
 export default function TermsPage() {
   const { t } = useT();
+  useTitle(t('terms.title'));
   return (
     <PageWrapper>
       <Title>{t('terms.title')}</Title>

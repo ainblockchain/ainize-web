@@ -115,8 +115,9 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   const publishOff = policy?.publish === 'never';
   const stub = policy?.backend === 'stub';
   /** checks were SIMULATED (no model server): never say "in the live model". A stub node with a live model measured
-   *  them for real — only the training was fake, which is `stub` alone. */
-  const simulated = !!(c?.note && /simulat/i.test(c.note));
+   *  them for real — only the training was fake, which is `stub` alone. Read it off the node's own flags rather than
+   *  off the prose of `note`: the wording of that sentence is not an API. */
+  const simulated = !!c?.simulated || !!policy?.simulated_checks;
   const doCancel = async () => { setActionError(null); try { await cancel(j.id).unwrap(); } catch (e) { setActionError(mapTeachError(e, t)); } };
   const doRecheck = async () => { setActionError(null); try { await recheck(j.id).unwrap(); } catch (e) { setActionError(mapTeachError(e, t)); } };
   const eta = etaText(j.eta_s, policy, t);
@@ -125,7 +126,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   let body: React.ReactNode = null;
   switch (j.status) {
     case 'QUEUED':
-      body = j.blocked === 'slot' ? t('teach.card.blocked') : j.blocked === 'lock' ? t('teach.card.lock') : <>{t('teach.card.queued', { n: j.position ?? 0 })}{eta ? ` · ${eta}` : ''}</>;
+      body = j.blocked === 'slot' ? t('teach.card.blocked') : j.blocked === 'lock' ? t('teach.card.lock') : <>{t('teach.card.queued', { n: j.position ?? 0 }, j.position ?? 0)}{eta ? ` · ${eta}` : ''}</>;
       break;
     case 'PREFLIGHT': case 'LOADING':
       body = warming; break;

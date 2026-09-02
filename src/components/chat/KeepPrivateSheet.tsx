@@ -6,7 +6,7 @@ import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox } from '@/components/ui/Form';
 import { CopyButton, Mono } from '@/components/ui/Misc';
-import { useDateTime } from '@/utils/useFormat';
+import { useDateTime, useNumber } from '@/utils/useFormat';
 import { Sheet, SheetFooter, SheetNote } from './Sheet';
 import { mapTeachError, mb } from './teachUtil';
 
@@ -62,6 +62,7 @@ export function KeepPrivateSheet({ job, policy, runtimeModel, onClose, onPublish
   const [kept, setKept] = useState(false);
   const [readme, setReadme] = useState<{ url: string; text: string } | null>(null);
   const [readmeError, setReadmeError] = useState<string | null>(null);
+  const num = useNumber();
   const model = policy.model.id_M ?? runtimeModel ?? '—';
   const size = job.result ? mb(job.result.size_bytes) : '—';
   const rows = job.result?.rows ?? 0;
@@ -101,7 +102,7 @@ export function KeepPrivateSheet({ job, policy, runtimeModel, onClose, onPublish
         </Option>
         <Option $active={choice === 'download'}>
           <input type="radio" name="keep" checked={choice === 'download'} onChange={() => pick('download')} data-testid="keep-download" />
-          <div><b>{t('teach.keep.dl_title')}</b><span className="body">{t('teach.keep.dl_body', { size, rows: rows.toLocaleString('en-US') })}</span></div>
+          <div><b>{t('teach.keep.dl_title')}</b><span className="body">{t('teach.keep.dl_body', { size, rows: num(rows) }, rows)}</span></div>
           {choice === 'download' && (
             <Inner>
               {saving && <SheetNote>{t('common.loading')}</SheetNote>}

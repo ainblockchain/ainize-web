@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useCreateTeachJobMutation, useRetrainTeachJobMutation, useTeachDatasetQuery, useTeachDatasetRowsQuery, useTeachPolicyQuery } from '@/api/api';
 import type { TeachEffort } from '@/api/types';
 import { useT } from '@/i18n';
+import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, HelperText, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
@@ -42,6 +43,7 @@ const EFFORTS = ['quick', 'balanced', 'thorough'] as const;
 export default function TeachSettingsPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
   const { t } = useT();
+  useTitle(t('teach.set.title'));
   const navigate = useNavigate();
   // "Change settings and re-train" lands here with the bumped effort pre-selected and the lesson it continues, so the
   // button keeps its promise: the visitor sees the settings before anything runs (design §5.7).
