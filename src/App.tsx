@@ -17,12 +17,15 @@ const PatchPage = lazy(() => import('./pages/PatchPage'));
 const BenchmarkPage = lazy(() => import('./pages/BenchmarkPage'));
 const LedgerPage = lazy(() => import('./pages/LedgerPage'));
 const NetworkPage = lazy(() => import('./pages/NetworkPage'));
+const TrackPage = lazy(() => import('./pages/TrackPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const SigningPage = lazy(() => import('./pages/SigningPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ManagePage = lazy(() => import('./pages/ManagePage'));
 const LogsPage = lazy(() => import('./pages/LogsPage'));
+// Finding 133: the node-wide event stream (`/api/events`) had no screen — only the per-knowledge log did.
+const NodeLogsPage = lazy(() => import('./pages/NodeLogsPage'));
 const NewPatchPage = lazy(() => import('./pages/NewPatchPage'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
 const DrivePage = lazy(() => import('./pages/DrivePage'));
@@ -55,6 +58,8 @@ export default function App() {
                 {/* Public pages (Layout) */}
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
                 <Route path="/network" element={<Layout><NetworkPage /></Layout>} />
+                {/* a track name contains slashes (`finance/KRX-latest`), so the route is a splat: /tracks/finance/KRX-latest */}
+                <Route path="/tracks/*" element={<Layout><TrackPage /></Layout>} />
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />
                 <Route path="/terms" element={<Layout><TermsPage /></Layout>} />
                 <Route path="/signing" element={<Layout><SigningPage /></Layout>} />
@@ -79,6 +84,7 @@ export default function App() {
                 <Route path="/dashboard" element={<SigningCheckLayout><DashboardPage /></SigningCheckLayout>} />
                 {/* signed out → public pre-screen (spec §5.2); signed in → the register form */}
                 <Route path="/new-patch" element={<NewPatchGate><NewPatchPage /></NewPatchGate>} />
+                <Route path="/logs" element={<SigningCheckLayout><NodeLogsPage /></SigningCheckLayout>} />
                 <Route path="/project/:author/:patchId/logs" element={<SigningCheckLayout><LogsPage /></SigningCheckLayout>} />
                 <Route path="/project/:author/:patchId" element={<SigningCheckLayout><ManagePage /></SigningCheckLayout>} />
                 <Route path="/account" element={<SigningCheckLayout><AccountPage /></SigningCheckLayout>} />
