@@ -14,8 +14,9 @@
  * Supported, and chosen because it all renders identically on GitHub:
  *   ATX headings `#`–`####` · paragraphs · fenced code with an info string · inline code · **bold** · _italic_ ·
  *   links · unordered and ordered lists with one level of nesting · GFM pipe tables · `> [!NOTE|TIP|IMPORTANT|
- *   WARNING|CAUTION]` alerts · plain blockquotes · `---` rules · flat `key: value` frontmatter · and one directive
- *   of our own, `:::tabs` / `::tab <label>` / `:::`, for a task that has both a CLI route and a browser route.
+ *   WARNING|CAUTION]` alerts · plain blockquotes · `---` rules · flat `key: value` frontmatter · `<!-- … -->`
+ *   comments, which render as nothing here and on GitHub · and one directive of our own, `:::tabs` /
+ *   `::tab <label>` / `:::`, for a task that has both a CLI route and a browser route.
  *
  * This module is pure — no React, no Vite, no DOM — so `packages/web/test/docs-shell.test.ts` runs it under plain node.
  */
@@ -146,10 +147,11 @@ function isList(line: string): boolean { return /^\s*([-*]\s|\d+[.)]\s)/.test(li
 function isQuote(line: string): boolean { return /^>\s?/.test(line); }
 function isTableRow(line: string): boolean { return line.trim().startsWith('|'); }
 function isTableDelim(line: string): boolean { return /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(line) && line.includes('-'); }
+function isComment(line: string): boolean { return line.trim().startsWith('<!--'); }
 
 function startsBlock(line: string): boolean {
   return line.trim() === '' || isFence(line) || isHeading(line) || isHr(line) || isList(line) || isQuote(line)
-    || isTableRow(line) || line.trim().startsWith(':::') || line.trim().startsWith('::tab ');
+    || isTableRow(line) || isComment(line) || line.trim().startsWith(':::') || line.trim().startsWith('::tab ');
 }
 
 function parseBlocks(lines: string[], ctx: Ctx): Block[] {
@@ -170,6 +172,18 @@ function parseBlocks(lines: string[], ctx: Ctx): Block[] {
       if (i >= lines.length) ctx.errors.push({ line: lineNo(i - 1), message: 'code fence is never closed' });
       i++;
       out.push({ t: 'code', lang: lang.toLowerCase(), code: body.join('\n') });
+      continue;
+    }
+
+    // `<!-- … -->` on its own line(s): a note to whoever edits the source, rendered by nobody.
+    // It is here for one job — `<!-- unverified: needs a model runtime -->` above a step that was written but could
+    // not be executed, so the mark travels with the step instead of living in a workflow report nobody reads. GitHub
+    // hides it too, so the page still renders identically there.
+    if (isComment(line)) {
+      const start = i;
+      while (i < lines.length && !lines[i].includes('-->')) i++;
+      if (i >= lines.length) ctx.errors.push({ line: lineNo(start), message: 'HTML comment is never closed with -->' });
+      i++;
       continue;
     }
 
