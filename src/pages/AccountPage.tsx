@@ -168,6 +168,39 @@ export default function AccountPage() {
   const royalties = wallet.data?.royalties ?? [];
   // Item 315 — what this node owes, on the money screen instead of only under a tab about taught lessons.
   const owed = useMemo(() => owedRows(sales, payouts.data?.items ?? [], me?.address ?? ''), [sales, payouts.data, me?.address]);
+  /**
+   * Item 317 — the wallet's arithmetic did not close. Sales listed the gross settlement amount (3, 3, 98, 3 = 107)
+   * under a balance that was 75.5 higher than it started, and the missing 31.5 — the creator share this node paid
+   * upstream out of those same sales — appeared on no row anywhere. The split is in `royalty` on every settlement
+   * the page already has, so each sale now says what stayed here and what left, and the totals under the table
+   * reconcile with the balance above it. A seller can finally price a derivative instead of distrusting the wallet.
+   */
+  const nameOfAddress = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of nodes.data?.nodes ?? []) if (n.name) m.set(n.address.toLowerCase(), n.name);
+    for (const p of nodes.data?.peers ?? []) if (p.info?.name && p.address) m.set(p.address.toLowerCase(), p.info.name);
+    for (const e of myPatches.data?.items ?? []) {
+      if (e.anchor.author_name) m.set(e.anchor.author.toLowerCase(), e.anchor.author_name);
+      for (const c of e.anchor.contributors ?? []) { if (c.name) m.set(c.address.toLowerCase(), c.name); if (c.name && c.signer) m.set(c.signer.toLowerCase(), c.name); }
+    }
+    return (a: string) => m.get(a.toLowerCase());
+  }, [nodes.data, myPatches.data]);
+  const saleSplit = useMemo(() => {
+    const me_ = (me?.address ?? '').toLowerCase();
+    const split = new Map<string, { mine: number; shared: { address: string; amount: number }[] }>();
+    let sharedTotal = 0;
+    let grossTotal = 0;
+    for (const s of sales) {
+      const shared = Object.entries(s.royalty ?? {})
+        .map(([address, amount]) => ({ address, amount: Number(amount) }))
+        .filter((r) => r.amount > 0 && r.address.toLowerCase() !== me_);
+      const out = shared.reduce((n, r) => n + r.amount, 0);
+      split.set(s.tx_hash, { mine: Math.round((Number(s.amount) - out) * 1e6) / 1e6, shared });
+      sharedTotal += out;
+      grossTotal += Number(s.amount);
+    }
+    return { split, sharedTotal: Math.round(sharedTotal * 1e6) / 1e6, grossTotal: Math.round(grossTotal * 1e6) / 1e6, netTotal: Math.round((grossTotal - sharedTotal) * 1e6) / 1e6 };
+  }, [sales, me?.address]);
   const owedTotals = useMemo(() => ({
     open: owed.filter((r) => r.state === 'pending' || r.state === 'failed').reduce((n, r) => n + r.amount, 0),
     credited: owed.filter((r) => r.state === 'credited').reduce((n, r) => n + r.amount, 0),
@@ -284,6 +317,11 @@ export default function AccountPage() {
             {netNote}{isAin && info?.ledger.provider ? <> · <Mono>{info.ledger.provider}</Mono></> : null}
           </Muted>
           <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.wallet.summary', { purchases: wallet.data.purchases, sales: sales.length, royalties: royalties.length })}</Muted>
+          {saleSplit.sharedTotal > 0 && (
+            <Muted style={{ display: 'block', marginTop: 2 }} data-testid="wallet-shared-out">
+              {t('op.account.wallet.shared_out', { gross: money.revenue(saleSplit.grossTotal, currency), shared: money.revenue(saleSplit.sharedTotal, currency), net: money.revenue(saleSplit.netTotal, currency) })}
+            </Muted>
+          )}
           {isAin && (
             <Row $gap={12} style={{ marginTop: 12 }}>
               <Button size="small" loading={chainState.isLoading} loadingText={t('op.account.chain.setting')} onClick={() => run(() => chainSetup().unwrap(), t('op.account.chain.done'))}>{t('op.account.chain.setup')}</Button>
@@ -295,25 +333,47 @@ export default function AccountPage() {
               <strong style={{ fontSize: 14 }}>{t('op.account.sales')}</strong>
               <TableWrapper style={{ marginTop: 8 }}>
                 <Table>
-                  <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.knowledge')}</TableHead><TableHead>{t('op.buyer')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.knowledge')}</TableHead><TableHead>{t('op.buyer')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead title={t('op.account.sales.yours_help')}>{t('op.account.sales.yours')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {sales.slice(0, salesShown).map((s) => (
-                      <TableRow key={s.tx_hash}>
-                        <TableData $align="left" $padding="0 8px">{s.patch_id}</TableData>
-                        <TableData title={s.buyer}>{shortAddr(s.buyer)}</TableData>
-                        <TableData title={money.note(s.currency)}>{money.fmt(s.amount, s.currency)}</TableData>
-                        <TableData title={dateTime(s.created_at)}>{elapsed(s.created_at)}</TableData>
+                    {sales.slice(0, salesShown).map((s) => {
+                      const sp = saleSplit.split.get(s.tx_hash);
+                      return (
+                        <TableRow key={s.tx_hash}>
+                          <TableData $align="left" $padding="0 8px">
+                            {s.patch_id}
+                            {/* Item 317: what left this sale, and to whom — the line that makes the balance add up. */}
+                            {!!sp?.shared.length && (
+                              <div style={{ fontSize: 11, color: '#8d8d8f' }} data-testid="sale-shared">
+                                {t('op.account.sales.shared_with', { who: sp.shared.map((r) => `${nameOfAddress(r.address) ?? shortAddr(r.address, 6)} ${money.revenue(r.amount, s.currency)}`).join(' · ') })}
+                              </div>
+                            )}
+                          </TableData>
+                          <TableData title={s.buyer}>{nameOfAddress(s.buyer) ?? shortAddr(s.buyer)}</TableData>
+                          <TableData title={money.note(s.currency)}>{money.fmt(s.amount, s.currency)}</TableData>
+                          <TableData title={t('op.account.sales.yours_help')} data-testid="sale-yours">{money.revenue(sp?.mine ?? Number(s.amount), s.currency)}</TableData>
+                          <TableData title={dateTime(s.created_at)}>{elapsed(s.created_at)}</TableData>
+                        </TableRow>
+                      );
+                    })}
+                    {sales.length > 0 && (
+                      <TableRow data-testid="sales-total">
+                        <TableData $align="left" $padding="0 8px" $weight={600}>{t('op.account.sales.total')}</TableData>
+                        <TableData />
+                        <TableData $weight={600}>{money.revenue(saleSplit.grossTotal, currency)}</TableData>
+                        <TableData $weight={600}>{money.revenue(saleSplit.netTotal, currency)}</TableData>
+                        <TableData />
                       </TableRow>
-                    ))}
-                    {sales.length === 0 && <TableRowEmpty $height={72}><td colSpan={4}>{t('op.account.sales.empty')}</td></TableRowEmpty>}
+                    )}
+                    {sales.length === 0 && <TableRowEmpty $height={72}><td colSpan={5}>{t('op.account.sales.empty')}</td></TableRowEmpty>}
                   </TableBody>
                 </Table>
               </TableWrapper>
               {/* Item 94: 20 of 244 rows, no count, no dates, no way to the rest — on the only screen that carries them. */}
               <Rows t={t} shown={salesShown} total={sales.length} onMore={() => setSalesShown((n) => n + PAGE)} onAll={() => setSalesShown(sales.length)}
                 onCsv={() => downloadCsv(`ainize-sales-${me?.name ?? 'node'}.csv`, [
-                  [t('op.when'), t('op.knowledge'), t('op.buyer'), t('op.amount'), 'currency', 'scheme', 'tx_hash'],
-                  ...sales.map((s) => [iso(s.created_at), s.patch_id, s.buyer, s.amount, s.currency, s.scheme, s.tx_hash]),
+                  [t('op.when'), t('op.knowledge'), t('op.buyer'), t('op.amount'), t('op.account.sales.yours'), t('op.account.sales.shared_col'), 'currency', 'scheme', 'tx_hash'],
+                  ...sales.map((s) => [iso(s.created_at), s.patch_id, s.buyer, s.amount, saleSplit.split.get(s.tx_hash)?.mine ?? s.amount,
+                    (saleSplit.split.get(s.tx_hash)?.shared ?? []).map((r) => `${r.address}:${r.amount}`).join(' '), s.currency, s.scheme, s.tx_hash]),
                 ])} />
             </div>
             <div>

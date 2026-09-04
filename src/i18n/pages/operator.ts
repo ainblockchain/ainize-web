@@ -589,7 +589,7 @@ export const operatorNew: Dict = {
 
 export const operatorAccount: Dict = {
   'op.account.title': { ko: '계정 설정', en: 'Account settings' },
-  'op.account.desc': { ko: '이 화면은 노드 하나를 운영합니다. 표시 이름, 알림, 정산 주소, 지갑, 연결된 노드, 모델 실행 환경을 여기서 다룹니다. 지식과 지식 묶음은 내 지식 화면에 있습니다.', en: 'This console runs one node. Display name, notifications, payout address, wallet, connected nodes and the model runtime live here; knowledge and tracks are on My knowledge.' },
+  'op.account.desc': { ko: '이 화면은 노드 하나를 운영합니다. 표시 이름, 알림, 비밀번호, 지갑, 연결된 노드, 모델 실행 환경을 여기서 다룹니다. 지식과 트랙은 내 지식 화면에 있습니다.', en: 'This console runs one node. Display name, notifications, password, wallet, connected nodes and the model runtime live here; knowledge and tracks are on My knowledge.' },
   'op.account.identity': { ko: '계정', en: 'Account' },
   'op.account.endpoint': { ko: '노드 주소', en: 'Node endpoint' },
   'op.account.ledger': { ko: '공개 기록 저장소', en: 'Public record' },
@@ -619,7 +619,7 @@ export const operatorAccount: Dict = {
   'op.account.password.err.same': { ko: '지금 쓰는 비밀번호와 같습니다.', en: 'That is the password you are already using.' },
   'op.account.password.err.wrong': { ko: '현재 비밀번호가 맞지 않습니다.', en: 'That is not the current password.' },
   'op.account.password.lost': { ko: '현재 비밀번호를 잊었다면 노드가 도는 컴퓨터에서 `ainize password --reset`으로 새로 정할 수 있습니다.', en: 'If the current password is lost, run `ainize password --reset` on the machine the node runs on.' },
-  'op.account.settings.title': { ko: '알림과 정산', en: 'Notifications & payout' },
+  'op.account.settings.title': { ko: '이름과 알림', en: 'Name & notifications' },
   'op.account.settings.desc': { ko: '이 설정은 노드에 저장되어 어느 브라우저에서 열어도 같습니다.', en: 'These settings are stored on the node, so they are the same in every browser.' },
   'op.account.display_name': { ko: '표시 이름', en: 'Display name' },
   'op.account.display_name.helper': { ko: '지식 페이지와 네트워크에서 만든 사람으로 보이는 이름입니다.', en: 'Shown as the creator on knowledge pages and in the network.' },
@@ -644,6 +644,13 @@ export const operatorAccount: Dict = {
   'op.account.chain.done': { ko: '체인에 지식 앱과 거래 규칙을 준비했습니다.', en: 'Knowledge app and market rules are set on chain.' },
   'op.account.chain.note': { ko: '처음 한 번만 필요하며, 여러 번 눌러도 안전합니다.', en: 'Needed once; safe to run again.' },
   'op.account.sales': { ko: '판매', en: 'Sales' },
+  // Item 317: gross sale amounts above a net balance, with no line for what left.
+  'op.account.sales.yours': { ko: '내 몫', en: 'Your share' },
+  'op.account.sales.yours_help': { ko: '판매액에서 원작자·데이터 제공자·검증 노드 몫을 뺀, 이 노드에 남는 금액입니다.', en: 'What stayed here: the sale minus the creator, data-provider and verification shares it paid out.' },
+  'op.account.sales.shared_with': { ko: '나눠 준 몫: {who}', en: 'paid out: {who}' },
+  'op.account.sales.shared_col': { ko: '나눠 준 몫', en: 'Paid out' },
+  'op.account.sales.total': { ko: '합계', en: 'Total' },
+  'op.account.wallet.shared_out': { ko: '판매 합계 {gross} 중 {shared}은(는) 원작자·데이터 제공자·검증 노드에게 나갔고, 이 노드에 남은 금액은 {net}입니다.', en: 'Of {gross} in sales, {shared} went to creators, data providers and verifiers; {net} stayed here.' },
   'op.account.sales.empty': { ko: '아직 판매가 없습니다.', en: 'No sales yet.' },
   // item 311 — this table used to report the SELLER's promise as money received. Each row now says which it is.
   'op.account.royalties': { ko: '내 몫으로 기록된 수익', en: 'Creator share owed to you' },
