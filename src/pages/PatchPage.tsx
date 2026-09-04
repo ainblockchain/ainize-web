@@ -86,6 +86,20 @@ const Warn = styled.span`
   color: #8a4b00;
   button { background: none; border: 0; padding: 0; font: inherit; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; } }
 `;
+/**
+ * The evidence under a failed verification (item 155): the questions the run got wrong, with the answer the model
+ * actually gave. Monospaced because the whole point is to compare two strings character by character.
+ */
+const FailureBlock = styled.div`
+  margin: 0 32px 16px; padding: 14px 16px; border: 1px solid #f0d8c0; border-radius: 8px; background: #fffaf4;
+  font-size: 13px; color: ${(p) => p.theme.color.BLACK};
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 10px 0 0; }
+  dt { font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
+  dd { margin: 0; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; word-break: break-all; }
+  dd.ok { color: #2f7d43; }
+  dd.bad { color: #b4232f; }
+  p { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: ${(p) => p.theme.color.GREY}; word-break: keep-all; }
+`;
 const Hash = styled.div`display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-family: ${(p) => p.theme.font.mono}; font-size: 13px; word-break: break-all;`;
 const Samples = styled.ul`
   margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px;
@@ -505,10 +519,18 @@ function Verification({ d }: { d: PatchDetail }) {
   const bound = d.anchor.benchmark.collateral_bound_nat;
   // `self_checks` is the number of the author's own attestations this node EXCLUDED (0 when a dev node counts them).
   const self = (at: Attestation) => d.self_checks > 0 && at.verifier.toLowerCase() === d.anchor.author.toLowerCase();
+  // How many DISTINCT model servers produced the counted attestations (item 329). Attestations written before the
+  // fingerprint existed count as one unknown machine each — that can understate independence, never overstate it.
+  const machines = (d.executors?.length ?? 0) + (d.executors_unknown ?? 0);
+  const sharedEngine = (d.executors?.length ?? 0) > 0 && machines < d.passed;
+  const failing = d.attestations.filter((at) => !at.passed && at.failures?.length);
   return (
     <Section style={{ padding: 0 }}>
       <SummaryRow>
         <div title={tech('verified')}><span className="k">{t('detail.ver.summary_executed')}</span><span className="v">{Math.min(d.passed, d.quorum)}/{d.quorum}</span></div>
+        {/* Item 329: "2/2 independent" was two signatures; two verifier processes on ONE vLLM look identical to two
+            machines unless the record says how many engines were behind them. */}
+        {machines > 0 && <div title="Attestation.executor.instance"><span className="k">{t('detail.ver.summary_executors')}</span><span className="v" data-testid="ver-executors" style={sharedEngine ? { color: '#8a4b00' } : undefined}>{machines}</span></div>}
         <div title="verified_on = hash-only"><span className="k">{t('detail.ver.summary_integrity')}</span><span className="v">{num(d.integrity_checks)}</span></div>
         <div><span className="k">{t('detail.ver.summary_status')}</span><span className="v"><StatusChip status={d.status} /></span></div>
       </SummaryRow>
@@ -553,8 +575,27 @@ function Verification({ d }: { d: PatchDetail }) {
           </Table>
         </TableWrapper>
       )}
+      {/* Item 155: the single most important moment in a publisher's life — "my knowledge was rejected" — used to be a
+          fraction and nothing else. The verifier signs up to five of the questions it got wrong with the model's own
+          answer; this is where the author reads them. */}
+      {failing.map((at) => (
+        <FailureBlock key={`f-${at.verifier}-${at.created_at}`} data-testid="ver-failures">
+          <b>{at.verifier_name ?? shortAddr(at.verifier, 8)}</b> — {t('detail.ver.failures', { n: at.failures!.length })}
+          {at.failures!.map((f, i) => (
+            <dl key={i}>
+              <dt>{t('detail.ver.f_asked')}</dt><dd>{f.prompt}</dd>
+              <dt>{t('detail.ver.f_expected')}</dt><dd className="ok">{f.expect}</dd>
+              <dt>{t('detail.ver.f_answered')}</dt><dd className="bad">{f.got || t('detail.ver.f_empty')}</dd>
+            </dl>
+          ))}
+          {d.status === 'REJECTED' && <p>{t('detail.ver.rejected_what', { n: d.quorum })}</p>}
+        </FailureBlock>
+      ))}
       <div style={{ padding: '16px 32px 20px' }}>
         <Note title={tech('verified')}><b>{term('verified')}</b> — {t('detail.ver.explain_count', { passed: d.passed, quorum: d.quorum, integrity: d.integrity_checks })}</Note>
+        {machines > 0 && d.passed > 1 && <Note style={sharedEngine ? { color: '#8a4b00' } : undefined}>{t('detail.ver.executors_shared', { passed: d.passed, n: machines })}</Note>}
+        {!!d.executors_unknown && <Note>{t('detail.ver.executors_unknown', { n: d.executors_unknown })}</Note>}
+        {!!d.no_baseline && <Note>{t('detail.ver.no_baseline', { n: d.no_baseline })}</Note>}
         <Note>{t('detail.ver.explain_before')}</Note>
         <Note>{t('detail.ver.explain_restart')}</Note>
         {d.self_checks > 0 && <Note>{t('detail.ver.explain_self', { n: d.self_checks })}</Note>}
@@ -568,7 +609,11 @@ function Verification({ d }: { d: PatchDetail }) {
 function Lineage({ d, authorSlug }: { d: PatchDetail; authorSlug: string }) {
   const { t, term, help, tech } = useT();
   const { data: info } = useInfoQuery();
-  const share = (info as { royalty_share?: number } | undefined)?.royalty_share;
+  // Item 191: this line used to print the VIEWING node's config as if it were the promise on this knowledge. The
+  // promise lives on the anchor (`royalty_share`), is floored at the network minimum, and cannot be lowered later.
+  const anchorShare = (d.anchor as { royalty_share?: number }).royalty_share;
+  const share = anchorShare ?? (info as { royalty_share?: number } | undefined)?.royalty_share;
+  const verifierShare = (d.anchor as { verifier_share?: number }).verifier_share;
   const { parents, children } = d.lineage;
   const relation = (c: ConflictInfo) => {
     const cross = (c as ConflictInfo & { cross_branch?: boolean }).cross_branch === true;
@@ -578,7 +623,8 @@ function Lineage({ d, authorSlug }: { d: PatchDetail; authorSlug: string }) {
     <>
       <Section>
         <H3 title={tech('lineage')}>{t('detail.lin.title')}</H3>
-        <Note><b>{term('lineage')}</b> — {t('detail.lin.note')}{typeof share === 'number' ? ` ${t('detail.lin.note_share', { pct: Math.round(share * 100) })}` : ''}</Note>
+        <Note><b>{term('lineage')}</b> — {t('detail.lin.note')}{typeof share === 'number' ? ` ${t(anchorShare === undefined ? 'detail.lin.note_share_network' : 'detail.lin.note_share', { pct: Math.round(share * 100) })}` : ''}</Note>
+        {typeof verifierShare === 'number' && <Note data-testid="lin-verifier-share">{t('detail.lin.note_verifier', { pct: Math.round(verifierShare * 100) })}</Note>}
         <Tree>
           <TreeLevel><span className="lbl">{t('detail.lin.parents')}</span>{parents.length === 0 && <Quorum>{t('detail.lin.no_parents')}</Quorum>}{parents.map((p) => <TreeNode key={p.id} to={`/${authorSlug}/${encodeURIComponent(p.id)}`} title={p.status}>{p.name}<code>{p.id}</code></TreeNode>)}</TreeLevel>
           <TreeLevel><span className="lbl">↓</span></TreeLevel>

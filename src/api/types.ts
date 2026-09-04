@@ -24,6 +24,16 @@ export interface CatalogEntry {
   /** Quorum met AND no open challenge: the only flag that means "buyable". */
   sellable: boolean;
   open_challenge?: Challenge;
+  /** Every challenge and what the verifiers said about it afterwards (item 328). */
+  challenge_log?: { challenge: Challenge; state: 'open' | 'upheld' | 'dismissed'; answered_at?: number; answered_by?: string }[];
+  /** Addresses whose attestations count — the verifiers paid the verification share of each sale (item 325). */
+  verifiers?: string[];
+  /** Distinct model-server fingerprints behind those attestations: `2/2` with ONE of these is not two runs (item 329). */
+  executors?: string[];
+  /** Counted attestations written before the fingerprint existed — independence unknown, never assumed. */
+  executors_unknown?: number;
+  /** Attestations recorded but not counted because the knowledge was already applied when they ran (item 329). */
+  no_baseline?: number;
   settlements: Settlement[];
   downloads: number;
   revenue: string;
@@ -127,7 +137,22 @@ export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string
 export interface PayoutRow { id: number; patch_id: string; settle_hash: string; address: string; amount: string; currency: string; status: 'pending' | 'paid' | 'failed'; tx_hash: string | null; attempts: number; last_error: string | null; created_at: number; updated_at: number }
 export interface PayoutSummary { pending: number; failed: number; paid: number }
 export interface PayoutsResponse { items: PayoutRow[]; summary: PayoutSummary; max_attempts: number; retry_ms: number; wallet: boolean }
-export interface WalletResponse extends ChainResponse { sales: Settlement[]; royalties: { patch_id: string; amount: string; created_at: number }[]; purchases: number; payouts?: PayoutSummary & { items: PayoutRow[] }; }
+/**
+ * One creator-share line. `state` separates a promise from a payment (item 311): `credited` is play money already in
+ * the balance, `paid` / `pending` / `failed` is what the SELLER's node answered about that settlement, and
+ * `unconfirmed` means the only evidence is the record the seller wrote.
+ */
+export interface RoyaltyRow {
+  patch_id: string; amount: string; created_at: number;
+  kind?: 'lineage' | 'verification';
+  state?: 'credited' | 'paid' | 'pending' | 'failed' | 'unconfirmed';
+  seller?: string; seller_name?: string | null; buyer?: string; currency?: string; scheme?: string;
+  tx_hash?: string | null; reported_at?: number | null; last_error?: string | null; days?: number;
+}
+export interface WalletResponse extends ChainResponse { sales: Settlement[]; royalties: RoyaltyRow[]; purchases: number; payouts?: PayoutSummary & { items: PayoutRow[] };
+  royalty_totals?: { owed: string; credited: string; paid: string; unconfirmed: string };
+  /** The share of other people's sales this node earned by verifying their knowledge (item 325). */
+  verification?: RoyaltyRow[]; verification_total?: string; verifier_share?: number; }
 export interface PurchaseResult { patch_id: string; steps: { step: string; detail: string; at: number }[]; manifest: PatchManifest; path: string; tx_hash: string; amount: string; scheme: string; }
 export interface RuntimeResponse extends Omit<RuntimeStatus, 'applied'> { applied: { patch_id: string; sha256: string; applied_at: number; reason: string }[]; }
 export interface DriveResponse {
@@ -463,8 +488,10 @@ export interface TreeResponse {
   /** `lineage_pct` is what the ancestors' authors share; `contributor_pct` is this knowledge's own credited teacher — two different promises. */
   money: {
     seller_pct: number; lineage_pct: number; contributor_pct: number;
+    /** what the verifiers keeping this knowledge on sale are paid out of one sale (item 325) */
+    verifier_pct?: number; verifier_count?: number;
     seller_name: string | null; lineage_names: string[];
-    recipients: { address: string; pct: number; name: string | null; kind: 'lineage' | 'contributor' }[];
+    recipients: { address: string; pct: number; name: string | null; kind: 'lineage' | 'contributor' | 'verifier' }[];
   };
 }
 export interface SignalsResponse {

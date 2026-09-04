@@ -150,6 +150,11 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate }: { id:
         {data.money.lineage_pct > 0 && (
           <div data-testid="tree-money">{t('detail.tree.money', { seller: data.money.seller_pct, seller_name: data.money.seller_name ?? shortAddr(data.nodes.find((n) => n.id === data.root)?.author ?? '', 6), lineage: data.money.lineage_pct, names })}</div>
         )}
+        {/* Item 325: the same sale also pays the verifiers that keep it on sale — this line is computed by the real
+            splitter, so the percentages here are the ones that will move. */}
+        {!!data.money.verifier_pct && (
+          <div data-testid="tree-money-verify">{t('detail.tree.money_verify', { pct: data.money.verifier_pct, n: data.money.verifier_count ?? 0 })}</div>
+        )}
       </Lines>
 
       <Buttons>

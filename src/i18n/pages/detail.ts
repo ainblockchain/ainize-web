@@ -173,6 +173,19 @@ export const detailPatch: Dict = {
   'detail.ver.explain_count': { ko: '검증 완료(현재 {passed}/{quorum})로 집계되는 것은 실제 모델에 넣어 채점한 검증뿐입니다. 무결성만 확인한 검증 {integrity}건은 별도로 표시하며, 파일이 바뀌지 않았음(내용 해시·항목 수 일치)만 보증합니다 — 해당 노드에 맞는 모델 서버가 없어서 실행하지 못한 경우입니다.', en: 'Only verifications run on the real model count toward Verified (currently {passed}/{quorum}). The {integrity} integrity-only checks are shown separately; they guarantee only that the file is unchanged (content hash and entry count match) — that node had no compatible model server to run it.' },
   'detail.ver.explain_restart': { ko: '재시작 감지: 검증 도중 모델 서버가 재시작되어 지식이 빠지면 검증 노드가 다시 넣고 다시 측정합니다. 횟수가 표시되면 그만큼 다시 측정했다는 뜻입니다.', en: 'Restarts detected: if the model server restarted mid-run and dropped the knowledge, the verifier re-loaded it and re-measured. The number is how many times that happened.' },
   'detail.ver.explain_backing': { ko: '검증 결과에 걸린 보증금은 없습니다. 각 결과는 검증 노드의 키로 서명되어 그 노드 이름으로 공개 기록에 영구히 남습니다. 결과가 틀렸다고 보는 노드는 누구나 이의를 제기할 수 있고, 이의가 제기되면 재검증될 때까지 판매가 멈춥니다.', en: 'No deposit is at stake on a verification. Each result is signed with the verifier node\u2019s key and stays on the public record under that identity for ever. Any node that thinks a result is wrong can challenge it, and a challenge stops the sale until the knowledge is re-verified.' },
+  // item 155 — a FAIL used to be a fraction and nothing else; the verifier signs what the model actually answered.
+  'detail.ver.failures': { ko: '이 검증에서 틀린 문항 {n}개 — 모델이 실제로 낸 답', en: 'What the model actually answered on {n} of the questions this run got wrong' },
+  'detail.ver.f_asked': { ko: '질문', en: 'Asked' },
+  'detail.ver.f_expected': { ko: '정답', en: 'Expected' },
+  'detail.ver.f_answered': { ko: '모델 답', en: 'Answered' },
+  'detail.ver.f_empty': { ko: '(아무 답도 하지 않음)', en: '(nothing)' },
+  'detail.ver.rejected_title': { ko: '검증에서 떨어졌습니다', en: 'Failed verification' },
+  'detail.ver.rejected_what': { ko: '검증 노드 {n}곳이 실제 모델에서 이 지식의 문제를 풀어봤고 답이 맞지 않았습니다. 기록은 영구적이라 이 id는 되돌릴 수 없습니다 — 위 답을 보고 고친 뒤 새 id로 다시 등록하세요.', en: 'Two verifiers ran your benchmark on the real model and the answers did not match. The anchor is permanent, so this id cannot be reused — fix what the answers above show and publish a corrected version under a new id.' },
+  // item 329 — independence is a claim about the machine, not about the number of signatures.
+  'detail.ver.summary_executors': { ko: '실행한 모델 서버', en: 'Model servers' },
+  'detail.ver.executors_shared': { ko: '검증 {passed}건이 서로 다른 모델 서버 {n}곳에서 나왔습니다. 서버가 검증 수보다 적으면 같은 엔진에서 두 번 잰 것이므로 독립 검증 {passed}건이 아닙니다.', en: '{passed} counted attestations came from {n} distinct model server(s). Fewer servers than attestations means the same engine was measured twice — that is not {passed} independent runs.' },
+  'detail.ver.executors_unknown': { ko: '검증 {n}건은 엔진 지문이 없는 옛 기록이라 서로 독립인지 확인할 수 없습니다.', en: '{n} attestation(s) predate the engine fingerprint, so their independence cannot be confirmed either way.' },
+  'detail.ver.no_baseline': { ko: '검증 {n}건은 해당 노드에 이 지식이 이미 적용된 상태에서 실행되어 비교 기준(넣기 전)이 없으므로 집계에서 제외했습니다.', en: '{n} attestation(s) ran on a node that already had this knowledge applied, so they had no un-patched baseline of their own and are not counted.' },
   'detail.ver.explain_self': { ko: '작성자 본인 노드가 남긴 검증 {n}건은 집계에서 제외했습니다. 검증 완료에는 다른 노드의 검증만 반영됩니다.', en: '{n} attestation(s) by the author\u2019s own node are excluded from the count. Only verifications by other nodes count toward Verified.' },
 
   'detail.challenge.banner': { ko: '검증 노드 {who}이(가) 이 지식에 이의를 제기했습니다: "{reason}" ({when}). 재검증으로 해소될 때까지 판매가 중단됩니다.', en: 'Verifier node {who} has challenged this knowledge: "{reason}" ({when}). It is not for sale until a verifier re-runs it and clears the challenge.' },
@@ -181,7 +194,10 @@ export const detailPatch: Dict = {
 
   'detail.lin.title': { ko: '원본과 파생', en: 'Origins & derivatives' },
   'detail.lin.note': { ko: '다른 지식을 바탕으로 만든 지식은 원본을 공개 기록에 남기며, 팔릴 때마다 원작자에게도 수익이 자동으로 나뉩니다.', en: 'Knowledge built on other knowledge records its origins publicly, and every sale automatically shares revenue with the original creators.' },
-  'detail.lin.note_share': { ko: '이 네트워크의 원작자 몫: 판매액의 {pct}%.', en: 'Creator share on this network: {pct}% of each sale.' },
+  // item 191 — the share is the promise written into THIS knowledge's record, not the viewing node's config.
+  'detail.lin.note_share': { ko: '이 지식이 기록에 약속한 원작자 몫: 판매액의 {pct}%. 파는 노드가 나중에 바꿀 수 없습니다.', en: 'This knowledge\u2019s record promises its origins {pct}% of each sale. The selling node cannot change it afterwards.' },
+  'detail.lin.note_share_network': { ko: '이 네트워크의 최소 원작자 몫: 판매액의 {pct}%.', en: 'Network minimum creator share: {pct}% of each sale.' },
+  'detail.lin.note_verifier': { ko: '검증 노드 몫: 판매자 몫의 {pct}%를 이 지식을 검증한 노드들이 나눠 받습니다.', en: 'Verifier share: {pct}% of the seller\u2019s side of each sale is divided among the nodes that verified this knowledge.' },
   'detail.lin.parents': { ko: '원본', en: 'Origins' },
   'detail.lin.this': { ko: '이 지식', en: 'This' },
   'detail.lin.children': { ko: '파생', en: 'Derived' },
@@ -347,6 +363,8 @@ export const detailNetwork: Dict = {
   'detail.net.ledger_records': { ko: '{kind} · 기록 {n}건', en: '{kind} · {n} records' },
   'detail.net.peers': { ko: '연결된 노드', en: 'Connected nodes' },
   'detail.net.peers_value': { ko: '직접 연결 {peers}개 · 기록으로 아는 노드 {known}개', en: '{peers} direct · {known} known from the record' },
+  'detail.net.peers_value_health': { ko: '직접 연결 {peers}개 중 {answered}개 응답 · 검증 노드 {verifiers}개 · 기록으로 아는 노드 {known}개', en: '{answered} of {peers} answered · {verifiers} verifying · {known} known from the record' },
+  'detail.net.ledger_mismatch': { ko: '{node} 노드는 {their}에 지식을 올립니다. 이 노드는 {ours}만 읽으므로, 그 노드의 지식은 이 목록에 절대 나타나지 않습니다. 그 노드와 직접 거래하거나, 이 노드를 같은 기록으로 다시 초기화하세요.', en: '{node} publishes on {their}. This node reads {ours}, so its knowledge can never appear in this catalogue — trade with that node directly, or re-initialise this one on the same record.' },
   'detail.net.bodies': { ko: '보관 중인 지식 파일', en: 'Knowledge files stored' },
   'detail.net.bodies_value': { ko: '{n}개', en: '{n}' },
   'detail.net.tracks': { ko: '구독한 지식 묶음', en: 'Subscribed tracks' },

@@ -161,21 +161,40 @@ export default function AccountPage() {
             </div>
             <div>
               <strong style={{ fontSize: 14 }}><Tip tech={tech('lineage')}>{t('op.account.royalties')}</Tip></strong>
+              {/* Item 311: a settle record naming this address is the SELLER's promise, not a receipt. Every row now
+                  carries the state this node can actually defend, and the three totals can be reconciled. */}
+              {wallet.data.royalty_totals && (
+                <Muted style={{ display: 'block', marginTop: 6 }} data-testid="royalty-totals">{t('op.account.royalties.totals', {
+                  owed: money.fmt(wallet.data.royalty_totals.owed, currency), credited: money.fmt(wallet.data.royalty_totals.credited, currency),
+                  paid: money.fmt(wallet.data.royalty_totals.paid, currency), unconfirmed: money.fmt(wallet.data.royalty_totals.unconfirmed, currency),
+                })}</Muted>
+              )}
               <TableWrapper style={{ marginTop: 8 }}>
                 <Table>
-                  <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.account.royalties.col')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.account.royalties.col')}</TableHead><TableHead>{t('op.account.royalties.for')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead>{t('op.account.royalties.state')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {wallet.data.royalties.slice(0, 20).map((r, i) => (
                       <TableRow key={`${r.patch_id}-${i}`}>
                         <TableData $align="left" $padding="0 8px">{r.patch_id}</TableData>
-                        <TableData title={money.note(currency)}>{money.fmt(r.amount, currency)}</TableData>
+                        <TableData>{t(r.kind === 'verification' ? 'op.account.royalties.for.verification' : 'op.account.royalties.for.lineage')}</TableData>
+                        <TableData title={money.note(r.currency ?? currency)}>{money.fmt(r.amount, r.currency ?? currency)}</TableData>
+                        <TableData data-testid="royalty-state" title={r.tx_hash ?? r.last_error ?? undefined} $color={r.state === 'credited' || r.state === 'paid' ? '#2f7d43' : r.state === 'failed' ? '#b4232f' : '#8a4b00'}>
+                          {r.state === 'unconfirmed' ? t('op.account.royalties.state.unconfirmed', { days: r.days ?? 0 })
+                            : r.state ? t(`op.account.royalties.state.${r.state}`) : t('op.account.royalties.state.unknown')}
+                        </TableData>
                         <TableData title={dateTime(r.created_at)}>{elapsed(r.created_at)}</TableData>
                       </TableRow>
                     ))}
-                    {wallet.data.royalties.length === 0 && <TableRowEmpty $height={72}><td colSpan={3}>{t('op.account.royalties.empty')}</td></TableRowEmpty>}
+                    {wallet.data.royalties.length === 0 && <TableRowEmpty $height={72}><td colSpan={5}>{t('op.account.royalties.empty')}</td></TableRowEmpty>}
                   </TableBody>
                 </Table>
               </TableWrapper>
+              <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.royalties.explain')}</Muted>
+              {/* Item 325: the fourth party in this economy — the one that only paid — can now see what it earned. */}
+              <strong style={{ fontSize: 14, display: 'block', marginTop: 20 }}>{t('op.account.verification')}</strong>
+              <Muted style={{ display: 'block', marginTop: 6 }} data-testid="verification-earned">{wallet.data.verification?.length
+                ? t('op.account.verification.some', { n: wallet.data.verification.length, amount: money.fmt(wallet.data.verification_total ?? '0', currency) })
+                : t('op.account.verification.none', { pct: Math.round((wallet.data.verifier_share ?? 0.05) * 100) })}</Muted>
             </div>
           </Grid>
         </>
