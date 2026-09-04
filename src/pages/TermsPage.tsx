@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useLocation } from 'react-router';
 import styled from 'styled-components';
 import { PageWrapper, Title } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
@@ -25,6 +27,13 @@ function Paragraphs({ text }: { text: string }) {
 export default function TermsPage() {
   const { t } = useT();
   useTitle(t('terms.title'));
+  // /terms#teaching (the /teach trust strip): the layout's ScrollToTop runs on every route change, so the hash is honoured here, after it
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const el = document.getElementById(hash.slice(1));
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+  }, [hash]);
   return (
     <PageWrapper>
       <Title>{t('terms.title')}</Title>
@@ -63,6 +72,8 @@ export default function TermsPage() {
         <Paragraphs text={t('terms.s3.p3')} />
         <h3>{t('terms.s3.h4')}</h3>
         <Paragraphs text={t('terms.s3.p4')} />
+        <h3 id="teaching" data-testid="terms-teaching">{t('terms.s3.h5')}</h3>
+        <Paragraphs text={t('terms.s3.p5')} />
       </Section>
 
       <Section>

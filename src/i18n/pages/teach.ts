@@ -324,6 +324,18 @@ export const teach: Dict = {
   'teach.ready.details': { ko: '자세히', en: 'Details' },
   'teach.ready.queue_detail': { ko: '대기열: 수업 {depth}개 / 최대 {max}개', en: 'Queue: {depth} of {max} lessons' },
   'teach.ready.measured': { ko: '이 노드에서 실제 학습 {n}건을 측정: 중앙값 {p50}초, 상위 90% {p90}초', en: 'Measured on this node over {n} real lessons: median {p50} s, 90th percentile {p90} s' },
+  // O-10: the trust strip — four facts the code makes true, each with its plain meaning behind "What this means"
+  'teach.trust.aria': { ko: '신뢰와 개인정보', en: 'Trust and privacy' },
+  'teach.trust.private': { ko: '기본은 비공개', en: 'Private by default' },
+  'teach.trust.private_body': { ko: '가르친 내용은 공개하기 전까지 이 노드에 비공개 초안으로만 있습니다. 초안은 내 데이터셋과 수업에서 언제든 지울 수 있습니다.', en: 'What you teach stays a private draft on this node until you publish it. You can delete a draft any time from My datasets and lessons.' },
+  'teach.trust.publish': { ko: '공개 여부는 내가 정합니다', en: 'You choose what to publish' },
+  'teach.trust.publish_body': { ko: '공개는 내 키로 서명하고 동의한 뒤 직접 하는 별도의 단계입니다. 한번 공개한 수업은 영구 공개 기록이 되어 지울 수 없습니다.', en: 'Publishing is a separate step you take yourself, with your key\'s signature and your consent. Once published, a lesson is a permanent public record and cannot be deleted.' },
+  'teach.trust.key': { ko: '가르치기 키는 이 브라우저에만 있습니다', en: 'Your teaching key stays in this browser' },
+  'teach.trust.key_body': { ko: '수업에 서명하고 수익을 받는 키는 이 브라우저에서 만들어져 이 브라우저에만 보관됩니다. 노드는 공개 주소만 봅니다 — 백업은 내 지식에서 내려받으세요.', en: 'The key that signs your lessons and receives your share is created and kept in this browser. The node only ever sees its public address — download a backup from Your knowledge.' },
+  'teach.trust.operator': { ko: '노드 운영자는 초안을 볼 수 있습니다', en: 'The node operator can see your drafts' },
+  'teach.trust.operator_body': { ko: '이 화면은 노드 하나가 제공합니다. 그 운영자는 여기 저장된 질문·정답·파일을 보관되는 동안 읽을 수 있습니다 — 비공개는 다른 모든 사람에게 비공개라는 뜻이지, 운영자에게는 아닙니다. 개인정보나 공유할 수 없는 내용은 올리지 마세요.', en: 'This page is served by one node. Its operator can read the questions, answers and files you store here for as long as they exist — private means private from everyone else, not from the operator. Do not upload personal data or anything you are not allowed to share.' },
+  'teach.trust.more': { ko: '자세한 뜻', en: 'What this means' },
+  'teach.trust.terms': { ko: '전체 약관', en: 'Full terms' },
   // O-2: a sentence, not a stepper — "What happens next: Dataset → Check → … — the same five steps, whichever door you pick"
   'teach.entry.next_label': { ko: '다음 단계', en: 'What happens next' },
   'teach.entry.next_same': { ko: '어느 쪽으로 들어와도 같은 다섯 단계입니다', en: 'the same five steps, whichever door you pick' },

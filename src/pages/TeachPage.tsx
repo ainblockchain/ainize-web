@@ -79,6 +79,43 @@ const Ready = styled(Alert)`
   summary:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
   details p { margin: 6px 0 0; opacity: 0.9; }
 `;
+/**
+ * The trust strip (ux-critique-owner O-10): four facts, each true in the code — drafts are private until published
+ * (teach.ts: only an owner-published lesson can be announced), publishing is a separate signed and consented step,
+ * the teaching key lives in localStorage and the node sees only its address, and the operator CAN read private
+ * drafts (the same "Not private from the operator" the keep-private sheet says). The meaning of each sits behind a
+ * native <details>, and the full terms are one link away.
+ */
+const Trust = styled.section`
+  margin-top: 16px; padding: 12px 16px; border-radius: 8px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff;
+  font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY};
+  ul { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
+  li { display: inline-flex; align-items: center; gap: 6px; }
+  li svg { flex: none; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; width: fit-content; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; padding: 1px 4px; margin-left: -4px; }
+  summary:hover { color: ${(p) => p.theme.color.HOVER}; }
+  summary:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
+  dl { margin: 8px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; }
+  dt { font-weight: 600; color: ${(p) => p.theme.color.BLACK}; }
+  dd { margin: 0; line-height: 1.6; max-width: 72ch; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { dl { grid-template-columns: 1fr; gap: 2px 0; } dd { margin-bottom: 8px; } }
+  .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; }
+  a { color: ${(p) => p.theme.color.PRIMARY}; font-weight: 600; white-space: nowrap; }
+  a:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 2px; border-radius: 2px; }
+`;
+const TRUST = [
+  ['private', 'teach.trust.private', 'teach.trust.private_body'],
+  ['publish', 'teach.trust.publish', 'teach.trust.publish_body'],
+  ['key', 'teach.trust.key', 'teach.trust.key_body'],
+  ['operator', 'teach.trust.operator', 'teach.trust.operator_body'],
+] as const;
+/** A small lock, the same purple as the rest of the page; decorative, the words carry the meaning. */
+const Lock = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden fill="#8b3eeb">
+    <path d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Z" />
+  </svg>
+);
 /** One line under the title (O-7): wider than `Description`'s 72ch so the English sentence stays on one line at 944 px. */
 const Intro = styled(Description)`max-width: none; font-size: 15px;`;
 /** The longer story, behind a disclosure (O-7): a native <details> — keyboard-operable, announced as expandable, no script. */
@@ -148,6 +185,21 @@ export default function TeachPage() {
           <Cta className="cta" id="door-file-cta" data-testid="door-file-cta">{t('teach.entry.file.cta')}</Cta>
         </Door>
       </Doors>
+
+      <Trust aria-label={t('teach.trust.aria')} data-testid="trust-strip">
+        <div className="row">
+          <ul>
+            {TRUST.map(([id, title]) => <li key={id} data-testid={`trust-${id}`}><Lock />{t(title)}</li>)}
+          </ul>
+          <Link to="/terms#teaching" data-testid="trust-terms">{t('teach.trust.terms')} →</Link>
+        </div>
+        <details data-testid="trust-detail">
+          <summary>{t('teach.trust.more')}</summary>
+          <dl>
+            {TRUST.map(([id, title, body]) => [<dt key={`${id}-t`}>{t(title)}</dt>, <dd key={`${id}-d`}>{t(body)}</dd>])}
+          </dl>
+        </details>
+      </Trust>
 
       <Next data-testid="teach-next">
         <b>{t('teach.entry.next_label')}:</b>{' '}
