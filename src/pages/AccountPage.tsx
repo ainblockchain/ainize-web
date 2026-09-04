@@ -1,10 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useNodesQuery, useRemovePeerMutation, useRuntimeQuery,
-  useSettingsQuery, useUpdateSettingsMutation, useWalletQuery,
+  errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
+  useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery,
 } from '@/api/api';
-import type { Settings } from '@/api/types';
+import type { PayoutRow, Settings, Settlement } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +20,68 @@ const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, m
 const SettingsForm = styled.form`margin-top: 16px; display: flex; flex-direction: column; gap: 18px; max-width: 640px;`;
 
 const NOTIF: Settings['notifications'][] = ['all', 'sales', 'none'];
+/** How many rows of an accounting table are on screen before "show more" (item 94). */
+const PAGE = 20;
+const TableFoot = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px;
+`;
+
+/** One accounting table's footer: how much of it you are looking at, how to see the rest, and how to take it away. */
+function Rows({ shown, total, onMore, onAll, onCsv, t }: {
+  shown: number; total: number; onMore: () => void; onAll: () => void; onCsv: () => void;
+  t: (k: string, v?: Record<string, string | number>) => string;
+}) {
+  if (!total) return null;
+  return (
+    <TableFoot>
+      <Muted data-testid="rows-showing">{t('op.account.rows.showing', { shown: Math.min(shown, total), total })}</Muted>
+      {shown < total && <Button size="small" variant="text" onClick={onMore}>{t('op.account.rows.more', { n: Math.min(PAGE, total - shown) })}</Button>}
+      {shown < total && <Button size="small" variant="text" color="default" onClick={onAll}>{t('op.account.rows.all', { total })}</Button>}
+      <Button size="small" variant="text" color="default" onClick={onCsv} data-testid="rows-csv">{t('op.account.rows.csv')}</Button>
+    </TableFoot>
+  );
+}
+
+/**
+ * Hand the operator the whole table as a file — the wallet is the only screen that carries settlement history, and
+ * reconciling it anywhere else was impossible (item 94). Excel reads the BOM as UTF-8, so Korean ids survive.
+ */
+function downloadCsv(name: string, rows: (string | number)[][]): void {
+  const body = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([`\ufeff${body}`], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/** ISO-8601 in the CSV: a spreadsheet cannot sort "1d ago". */
+const iso = (ts: number) => new Date(ts).toISOString();
+
+/**
+ * What this node owes other people, folded per (payee, knowledge, state) — item 315. Two sources, and they never
+ * overlap: an AIN sale writes a `payouts` row per payee and the transfer state lives there, while a local-credit
+ * sale enqueues nothing at all because the share is already in the payee's balance the moment the record is
+ * written. The old screen said the money was "pending until it runs on the AI Network", which on a local ledger
+ * was true of nothing.
+ */
+interface OwedRow { key: string; address: string; patch_id: string; amount: number; currency: string; n: number; last: number; state: 'credited' | PayoutRow['status'] }
+function owedRows(sales: Settlement[], payouts: PayoutRow[], me: string): OwedRow[] {
+  const out = new Map<string, OwedRow>();
+  const add = (address: string, patch_id: string, amount: number, currency: string, state: OwedRow['state'], at: number) => {
+    if (!(amount > 0) || address.toLowerCase() === me.toLowerCase()) return;
+    const key = `${address.toLowerCase()}|${patch_id}|${state}`;
+    const cur = out.get(key);
+    if (cur) { cur.amount += amount; cur.n += 1; cur.last = Math.max(cur.last, at); }
+    else out.set(key, { key, address, patch_id, amount, currency, n: 1, last: at, state });
+  };
+  for (const s of sales) {
+    if (s.scheme !== 'local-credit') continue;                       // an AIN sale is accounted by its payout rows
+    for (const [address, amount] of Object.entries(s.royalty ?? {})) add(address, s.patch_id, Number(amount), s.currency, 'credited', s.created_at);
+  }
+  for (const p of payouts) add(p.address, p.patch_id, Number(p.amount), p.currency, p.status, p.updated_at || p.created_at);
+  return [...out.values()].sort((a, b) => b.amount - a.amount);
+}
 
 export default function AccountPage() {
   const { t, term, help, tech } = useT();
@@ -32,12 +94,17 @@ export default function AccountPage() {
   const nodes = useNodesQuery(undefined, { pollingInterval: 15_000 });
   const runtime = useRuntimeQuery();
   const settings = useSettingsQuery();
+  const payouts = usePayoutsQuery({ limit: 500 });
+  const myPatches = useMyPatchesQuery();
   const [updateSettings, settingsState] = useUpdateSettingsMutation();
   const [chainSetup, chainState] = useChainSetupMutation();
   const [addPeer, addState] = useAddPeerMutation();
   const [removePeer, removeState] = useRemovePeerMutation();
   const [complete, completeState] = useCompleteMutation();
 
+  const [salesShown, setSalesShown] = useState(PAGE);
+  const [royShown, setRoyShown] = useState(PAGE);
+  const [owedShown, setOwedShown] = useState(PAGE);
   const [endpoint, setEndpoint] = useState('');
   const [prompt, setPrompt] = useState(() => t('op.account.try.default_prompt'));
   const [completion, setCompletion] = useState<string | null>(null);
@@ -68,6 +135,33 @@ export default function AccountPage() {
 
   const currency = info?.currency ?? wallet.data?.network ?? '';
   const isAin = info?.ledger.kind === 'ain';
+  /**
+   * Item 356: the largest number this screen shows was the one with no provenance. `price.ain_note` says "local dev
+   * chain" for every AIN node whatever it is attached to, so the kind is read off the provider the node reports.
+   */
+  const netKind = !isAin ? 'credit'
+    : !info?.ledger.provider ? 'unknown'
+      : /localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|\.local(:|\/|$)/.test(info.ledger.provider) ? 'local_chain'
+        : /test/i.test(info.ledger.provider) ? 'testnet' : 'mainnet';
+  const netNote = t(`op.account.wallet.network.${netKind}`);
+
+  const sales = wallet.data?.sales ?? [];
+  const royalties = wallet.data?.royalties ?? [];
+  // Item 315 — what this node owes, on the money screen instead of only under a tab about taught lessons.
+  const owed = useMemo(() => owedRows(sales, payouts.data?.items ?? [], me?.address ?? ''), [sales, payouts.data, me?.address]);
+  const owedTotals = useMemo(() => ({
+    open: owed.filter((r) => r.state === 'pending' || r.state === 'failed').reduce((n, r) => n + r.amount, 0),
+    credited: owed.filter((r) => r.state === 'credited').reduce((n, r) => n + r.amount, 0),
+    paid: owed.filter((r) => r.state === 'paid').reduce((n, r) => n + r.amount, 0),
+  }), [owed]);
+  /** Why this address is owed anything, from the sold anchor itself: it verified, it provided data, or it is upstream. */
+  const owedWhy = (r: OwedRow): string => {
+    const e = (myPatches.data?.items ?? []).find((x) => x.anchor.id === r.patch_id);
+    const low = r.address.toLowerCase();
+    if (e?.verifiers?.some((v) => v.toLowerCase() === low)) return t('op.account.owed.why.verification', { id: r.patch_id });
+    if ((e?.anchor.contributors ?? []).some((c) => c.address?.toLowerCase() === low)) return t('op.account.owed.why.provider', { id: r.patch_id });
+    return t('op.account.owed.why.lineage', { id: r.patch_id });
+  };
   const roleLabel = (r: string) => { const k = `op.role.${r}`; const v = t(k); return v === k ? r : v; };
   const [peersBefore, peersAfter] = t('op.account.peers.desc', { link: '|' }).split('|');
   const [tryBefore, tryAfter] = t('op.account.runtime.try.desc', { link: '|' }).split('|');
@@ -130,9 +224,11 @@ export default function AccountPage() {
       <Description>{isAin ? t('op.account.wallet.desc.ain') : t('op.account.wallet.desc.credit')}</Description>
       {wallet.isLoading ? <CenterProgress /> : wallet.data && (
         <>
-          <Balance title={money.note(currency)}>{wallet.data.balance === null ? '—' : num(wallet.data.balance)}<span>{money.unit(currency)}</span></Balance>
-          <Muted style={{ display: 'block' }} title={currency === 'AIN' ? tech('ain') : tech('credit')}>{money.note(currency)}</Muted>
-          <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.wallet.summary', { purchases: wallet.data.purchases, sales: wallet.data.sales.length, royalties: wallet.data.royalties.length })}</Muted>
+          <Balance title={netNote}>{wallet.data.balance === null ? '—' : num(wallet.data.balance)}<span>{money.unit(currency)}</span></Balance>
+          <Muted style={{ display: 'block' }} data-testid="wallet-network" title={currency === 'AIN' ? tech('ain') : tech('credit')}>
+            {netNote}{isAin && info?.ledger.provider ? <> · <Mono>{info.ledger.provider}</Mono></> : null}
+          </Muted>
+          <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.wallet.summary', { purchases: wallet.data.purchases, sales: sales.length, royalties: royalties.length })}</Muted>
           {isAin && (
             <Row $gap={12} style={{ marginTop: 12 }}>
               <Button size="small" loading={chainState.isLoading} loadingText={t('op.account.chain.setting')} onClick={() => run(() => chainSetup().unwrap(), t('op.account.chain.done'))}>{t('op.account.chain.setup')}</Button>
@@ -146,7 +242,7 @@ export default function AccountPage() {
                 <Table>
                   <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.knowledge')}</TableHead><TableHead>{t('op.buyer')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {wallet.data.sales.slice(0, 20).map((s) => (
+                    {sales.slice(0, salesShown).map((s) => (
                       <TableRow key={s.tx_hash}>
                         <TableData $align="left" $padding="0 8px">{s.patch_id}</TableData>
                         <TableData title={s.buyer}>{shortAddr(s.buyer)}</TableData>
@@ -154,10 +250,16 @@ export default function AccountPage() {
                         <TableData title={dateTime(s.created_at)}>{elapsed(s.created_at)}</TableData>
                       </TableRow>
                     ))}
-                    {wallet.data.sales.length === 0 && <TableRowEmpty $height={72}><td colSpan={4}>{t('op.account.sales.empty')}</td></TableRowEmpty>}
+                    {sales.length === 0 && <TableRowEmpty $height={72}><td colSpan={4}>{t('op.account.sales.empty')}</td></TableRowEmpty>}
                   </TableBody>
                 </Table>
               </TableWrapper>
+              {/* Item 94: 20 of 244 rows, no count, no dates, no way to the rest — on the only screen that carries them. */}
+              <Rows t={t} shown={salesShown} total={sales.length} onMore={() => setSalesShown((n) => n + PAGE)} onAll={() => setSalesShown(sales.length)}
+                onCsv={() => downloadCsv(`ainize-sales-${me?.name ?? 'node'}.csv`, [
+                  [t('op.when'), t('op.knowledge'), t('op.buyer'), t('op.amount'), 'currency', 'scheme', 'tx_hash'],
+                  ...sales.map((s) => [iso(s.created_at), s.patch_id, s.buyer, s.amount, s.currency, s.scheme, s.tx_hash]),
+                ])} />
             </div>
             <div>
               <strong style={{ fontSize: 14 }}><Tip tech={tech('lineage')}>{t('op.account.royalties')}</Tip></strong>
@@ -173,7 +275,7 @@ export default function AccountPage() {
                 <Table>
                   <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.account.royalties.col')}</TableHead><TableHead>{t('op.account.royalties.for')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead>{t('op.account.royalties.state')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {wallet.data.royalties.slice(0, 20).map((r, i) => (
+                    {royalties.slice(0, royShown).map((r, i) => (
                       <TableRow key={`${r.patch_id}-${i}`}>
                         <TableData $align="left" $padding="0 8px">{r.patch_id}</TableData>
                         <TableData>{t(r.kind === 'verification' ? 'op.account.royalties.for.verification' : 'op.account.royalties.for.lineage')}</TableData>
@@ -185,10 +287,15 @@ export default function AccountPage() {
                         <TableData title={dateTime(r.created_at)}>{elapsed(r.created_at)}</TableData>
                       </TableRow>
                     ))}
-                    {wallet.data.royalties.length === 0 && <TableRowEmpty $height={72}><td colSpan={5}>{t('op.account.royalties.empty')}</td></TableRowEmpty>}
+                    {royalties.length === 0 && <TableRowEmpty $height={72}><td colSpan={5}>{t('op.account.royalties.empty')}</td></TableRowEmpty>}
                   </TableBody>
                 </Table>
               </TableWrapper>
+              <Rows t={t} shown={royShown} total={royalties.length} onMore={() => setRoyShown((n) => n + PAGE)} onAll={() => setRoyShown(royalties.length)}
+                onCsv={() => downloadCsv(`ainize-creator-share-${me?.name ?? 'node'}.csv`, [
+                  [t('op.when'), t('op.account.royalties.col'), t('op.account.royalties.for'), t('op.amount'), 'currency', t('op.account.royalties.state'), 'seller', 'buyer', 'tx_hash'],
+                  ...royalties.map((r) => [iso(r.created_at), r.patch_id, r.kind ?? '', r.amount, r.currency ?? currency, r.state ?? 'unconfirmed', r.seller ?? '', r.buyer ?? '', r.tx_hash ?? '']),
+                ])} />
               <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.royalties.explain')}</Muted>
               {/* Item 325: the fourth party in this economy — the one that only paid — can now see what it earned. */}
               <strong style={{ fontSize: 14, display: 'block', marginTop: 20 }}>{t('op.account.verification')}</strong>
@@ -197,6 +304,45 @@ export default function AccountPage() {
                 : t('op.account.verification.none', { pct: Math.round((wallet.data.verifier_share ?? 0.05) * 100) })}</Muted>
             </div>
           </Grid>
+
+          {/* ---------------------------------------------------------- what this node owes other people (item 315) */}
+          <SubTitle $mt={40}>{t('op.account.owed')}</SubTitle>
+          <Description data-testid="owed-desc">{isAin ? t('op.account.owed.desc.ain', { n: payouts.data?.max_attempts ?? 20 }) : t('op.account.owed.desc.local')}</Description>
+          <Muted style={{ display: 'block', marginTop: 6 }} data-testid="owed-totals">{t('op.account.owed.totals', {
+            open: money.revenue(owedTotals.open, currency), credited: money.revenue(owedTotals.credited, currency), paid: money.revenue(owedTotals.paid, currency),
+          })}</Muted>
+          <TableWrapper style={{ marginTop: 8 }}>
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead $align="left" $padding="0 8px">{t('op.account.owed.to')}</TableHead><TableHead $align="left">{t('op.account.owed.why')}</TableHead>
+                <TableHead>{t('op.amount')}</TableHead><TableHead>{t('op.account.owed.sales')}</TableHead>
+                <TableHead>{t('op.account.royalties.state')}</TableHead><TableHead>{t('op.when')}</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {owed.slice(0, owedShown).map((r) => (
+                  <TableRow key={r.key} data-testid="owed-row" data-state={r.state}>
+                    <TableData $align="left" $padding="0 8px" title={r.address}>{shortAddr(r.address)}</TableData>
+                    <TableData $align="left">{owedWhy(r)}</TableData>
+                    <TableData title={money.note(r.currency)}>{money.revenue(r.amount, r.currency)}</TableData>
+                    <TableData>{r.n}</TableData>
+                    <TableData $color={r.state === 'credited' || r.state === 'paid' ? '#2f7d43' : r.state === 'failed' ? '#b4232f' : '#8a4b00'}>
+                      {t(r.state === 'credited' ? 'op.account.owed.state.credited' : `op.teach.payouts.status.${r.state}`)}
+                    </TableData>
+                    <TableData title={dateTime(r.last)}>{elapsed(r.last)}</TableData>
+                  </TableRow>
+                ))}
+                {owed.length === 0 && <TableRowEmpty $height={72}><td colSpan={6}>{t('op.account.owed.empty')}</td></TableRowEmpty>}
+              </TableBody>
+            </Table>
+          </TableWrapper>
+          <Rows t={t} shown={owedShown} total={owed.length} onMore={() => setOwedShown((n) => n + PAGE)} onAll={() => setOwedShown(owed.length)}
+            onCsv={() => downloadCsv(`ainize-owed-${me?.name ?? 'node'}.csv`, [
+              [t('op.account.owed.to'), t('op.account.owed.why'), t('op.amount'), 'currency', t('op.account.owed.sales'), t('op.account.royalties.state'), t('op.when')],
+              ...owed.map((r) => [r.address, r.patch_id, r.amount, r.currency, r.n, r.state, iso(r.last)]),
+            ])} />
+          <Muted style={{ display: 'block', marginTop: 8 }}>
+            {t('op.account.owed.teaching')} <StyledLink to="/dashboard?tab=teaching">{t('op.account.owed.teaching.link')}</StyledLink>
+          </Muted>
         </>
       )}
 
