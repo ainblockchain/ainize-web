@@ -48,6 +48,14 @@ export const operatorCommon: Dict = {
   'op.term.gateway.help': { ko: '사람이나 AI 에이전트가 이 주소로 요청하면 가격을 안내받고 자동 결제 후 바로 내려받습니다. 회원가입이 없습니다.', en: 'A person or AI agent requests this address, is quoted a price, pays automatically and downloads. No sign-up.' },
   'op.runtime.unavailable': { ko: '모델 실행 환경을 쓸 수 없습니다: {error} — 모델에 넣기/빼기가 잠시 비활성화됩니다.', en: 'Model runtime unavailable: {error} — load/unload is disabled for now.' },
   'op.runtime.noapi': { ko: '연결된 모델 서버 없음', en: 'no serving API' },
+  // Item 10 — a failing request must never look like an empty console.
+  'op.error.title': { ko: '{what} 불러오기에 실패했습니다.', en: 'Could not load {what}.' },
+  'op.error.body': { ko: '이 노드가 응답하지 않았습니다 ({status}: {message}). 아래 목록은 비어 있는 것이 아니라 알 수 없는 상태입니다 — 다시 등록하지 마세요.', en: 'This node did not answer ({status}: {message}). The list below is unknown, not empty — do not register anything again.' },
+  'op.error.nostatus': { ko: '응답 없음', en: 'no response' },
+  'op.error.retry': { ko: '다시 시도', en: 'Try again' },
+  'op.error.what.patches': { ko: '내 지식 목록', en: 'your knowledge' },
+  'op.error.what.purchases': { ko: '구매한 지식 목록', en: 'your purchases' },
+  'op.error.what.branches': { ko: '지식 묶음 목록', en: 'the knowledge tracks' },
 };
 
 export const operatorSign: Dict = {

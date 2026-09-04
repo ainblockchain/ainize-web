@@ -1,6 +1,9 @@
 import styled, { keyframes } from 'styled-components';
 import type { CSSProperties, ReactNode } from 'react';
+import { errorMessage } from '@/api/api';
 import { useT } from '@/i18n';
+import { Button } from '@/components/ui/Button';
+import { Alert } from '@/components/ui/Form';
 
 /** Small inline spinner (ainize used MUI CircularProgress size=16 next to "Deploying…"). */
 const spin = keyframes`to { transform: rotate(360deg); }`;
@@ -78,6 +81,28 @@ export const RadioGroup = styled.div`
   label { display: inline-flex; align-items: flex-start; gap: 10px; font-size: 14px; cursor: pointer; line-height: 1.4; }
   input { width: 18px; height: 18px; flex: none; margin-top: 1px; accent-color: #8b3eeb; }
 `;
+
+/**
+ * A query that failed, told as a failure (item 10). The operator console used to branch on `isLoading` alone and read
+ * `data?.items ?? []`, so a node answering 500 rendered "No knowledge yet — register your first one." over an
+ * inventory of a hundred items. Every panel that can be empty now says which request failed, with what status, and
+ * offers the only useful action: run it again.
+ */
+export function QueryError({ error, onRetry, retrying, what }: { error: unknown; onRetry: () => void; retrying?: boolean; what: string }) {
+  const { t } = useT();
+  const status = (error as { status?: number | string } | null | undefined)?.status;
+  return (
+    <Alert $tone="error" role="alert" style={{ marginTop: 16 }} data-testid="query-error">
+      <Row $gap={12} $align="center">
+        <span style={{ flex: '1 1 240px' }}>
+          <strong>{t('op.error.title', { what })}</strong>{' '}
+          {t('op.error.body', { status: status === undefined || status === null ? t('op.error.nostatus') : String(status), message: errorMessage(error) })}
+        </span>
+        <Button size="small" color="secondary" onClick={onRetry} loading={retrying} data-testid="query-retry">{t('op.error.retry')}</Button>
+      </Row>
+    </Alert>
+  );
+}
 
 export const TERMINAL_STATUSES = new Set(['LISTED', 'REJECTED', 'SUPERSEDED', 'DRAFT']);
 export const isInFlight = (status: string) => !TERMINAL_STATUSES.has(status);

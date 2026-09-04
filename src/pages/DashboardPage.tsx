@@ -14,7 +14,7 @@ import { Alert, Checkbox, Select, TextField } from '@/components/ui/Form';
 import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
 import { CenterProgress, PageWrapper, StatusChip, SubTitle, Tabs, Title, TitleRow, Description } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
-import { IconButton, LiveTestIcon, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { IconButton, LiveTestIcon, QueryError, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
 import { num, shortAddr, shortHash } from '@/utils/format';
 
 const NameLink = styled(Link)`
@@ -122,7 +122,8 @@ export default function DashboardPage() {
       {actionError && <Alert $tone="error" style={{ marginBottom: 16 }}>{actionError}</Alert>}
 
       {/* ---------------------------------------------------------------- my knowledge */}
-      {patches.isLoading ? <CenterProgress /> : (
+      {patches.isError && <QueryError error={patches.error} what={t('op.error.what.patches')} retrying={patches.isFetching} onRetry={() => void patches.refetch()} />}
+      {patches.isLoading ? <CenterProgress /> : patches.isError ? null : (
         <TableWrapper>
           <Table>
             <TableHeader>
@@ -181,6 +182,8 @@ export default function DashboardPage() {
       {/* ---------------------------------------------------------------- purchases */}
       <SubTitle $mt={56}>{t('op.dash.purchases.title')}</SubTitle>
       <Description title={tech('autoPay')}>{t('op.dash.purchases.desc')}</Description>
+      {purchases.isError && <QueryError error={purchases.error} what={t('op.error.what.purchases')} retrying={purchases.isFetching} onRetry={() => void purchases.refetch()} />}
+      {!purchases.isError && (
       <TableWrapper style={{ marginTop: 16 }}>
         <Table>
           <TableHeader>
@@ -221,16 +224,18 @@ export default function DashboardPage() {
                 </TableRow>
               );
             })}
-            {(purchases.data?.items ?? []).length === 0 && <TableRowEmpty $height={120}><td colSpan={7}>{t('op.dash.purchases.empty')}</td></TableRowEmpty>}
+            {(purchases.data?.items ?? []).length === 0 && <TableRowEmpty $height={120}><td colSpan={7}>{purchases.isLoading ? <SmallSpinner /> : t('op.dash.purchases.empty')}</td></TableRowEmpty>}
           </TableBody>
         </Table>
       </TableWrapper>
+      )}
       {runtime.data && !runtime.data.available && <StatusText style={{ marginTop: 8 }}>{t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}</StatusText>}
 
       {/* ---------------------------------------------------------------- knowledge tracks (branches) */}
       <SubTitle $mt={56}><Tip tech={tech('branch')}>{t('op.dash.branches.title')}</Tip></SubTitle>
       <Description>{t('op.dash.branches.desc')}</Description>
-      {branches.isLoading ? <CenterProgress /> : (
+      {branches.isError && <QueryError error={branches.error} what={t('op.error.what.branches')} retrying={branches.isFetching} onRetry={() => void branches.refetch()} />}
+      {branches.isLoading ? <CenterProgress /> : branches.isError ? null : (
         <BranchGrid>
           {(branches.data?.branches ?? []).map((b) => {
             const mine = branches.data?.mine.includes(b.name);
