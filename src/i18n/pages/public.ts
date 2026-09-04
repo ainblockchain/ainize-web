@@ -10,6 +10,7 @@ export const landing: Dict = {
   'landing.nav.chat': { ko: '라이브 테스트', en: 'Live test' },
   'landing.nav.teach': { ko: '가르치기', en: 'Teach' },
   'landing.nav.signin': { ko: '노드 로그인', en: 'Node sign-in' },
+  'landing.nav.aria': { ko: '주요 메뉴', en: 'Main' },
   'landing.nav.signin_help': { ko: '노드 운영자·개발자용 콘솔입니다. 지식을 사서 쓰는 데는 로그인이 필요 없습니다.', en: 'Console for node operators and developers. You do not need to sign in to use knowledge.' },
 
   // hero
@@ -141,12 +142,9 @@ export const landing: Dict = {
   'landing.why.ain.desc': { ko: '누가 어떤 지식을 등록·검증·구매했는지는 AI Network에 공개 기록으로 남고, 결제와 원작자 수익 분배도 그 위에서 자동으로 처리됩니다.', en: 'Who registered, verified and bought which knowledge is a public record on the AI Network, and payments and creator revenue share settle on it automatically.' },
   'landing.why.tagline': { ko: '만든 사람은 팔릴 때마다 정산받고, 쓰는 사람은 검증된 지식만 봅니다.', en: 'Creators get paid per sale; users only ever see verified knowledge.' },
 
-  // footer
-  'landing.footer.terms': { ko: '이용약관', en: 'Terms' },
-  'landing.footer.network': { ko: '네트워크', en: 'Network' },
-  'landing.footer.ledger': { ko: '공개 기록', en: 'Public record' },
-  'landing.footer.contact': { ko: '문의하기', en: 'Contact us' },
-  'landing.footer.copyright': { ko: 'ⓒ {year} Common Computer Inc. · Ainize', en: 'ⓒ {year} Common Computer Inc. · Ainize' },
+  // footer — finding 99: the landing no longer keeps a link list of its own. `components/ui/Footer.tsx` renders the
+  // same destinations under the same names on both chromes (dark skin here, purple bar elsewhere), so the
+  // `landing.footer.*` keys that used to name Terms / Network / Public record differently from `footer.*` are gone.
 };
 
 export const listing: Dict = {

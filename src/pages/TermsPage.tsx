@@ -63,7 +63,8 @@ export default function TermsPage() {
       </Section>
 
       <Section>
-        <h2>{t('terms.s3.title')}</h2>
+        {/* Finding 99 — the footer's Privacy link lands here; §3 IS the privacy policy. */}
+        <h2 id="privacy" data-testid="terms-privacy">{t('terms.s3.title')}</h2>
         <h3>{t('terms.s3.h1')}</h3>
         <Paragraphs text={t('terms.s3.p1')} />
         <h3>{t('terms.s3.h2')}</h3>

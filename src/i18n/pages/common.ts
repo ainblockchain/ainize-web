@@ -14,6 +14,9 @@ export const common: Dict = {
   'nav.files': { ko: '파일과 변경 이력', en: 'Files & changes' },
   'nav.logout': { ko: '로그아웃', en: 'Log out' },
   'footer.terms': { ko: '이용약관', en: 'Terms and Policies' },
+  // Finding 99 — the privacy policy is §3 of /terms and had no link anywhere; in Korean the words 개인정보 처리방침
+  // appeared in no navigation at all, so a visitor looking for it had nothing to search the page for.
+  'footer.privacy': { ko: '개인정보 처리방침', en: 'Privacy Policy' },
   'footer.contact': { ko: '문의하기', en: 'Contact us' },
   'footer.copyright': { ko: 'ⓒ {year} Common Computer Inc. · Ainize', en: 'ⓒ {year} Common Computer Inc. · Ainize' },
   'banner.p2p': { ko: 'Ainize는 이제 P2P입니다 — 내 노드를 직접 운영해 보세요', en: 'Ainize is peer-to-peer now — run your own node' },
@@ -22,6 +25,15 @@ export const common: Dict = {
   'common.loading': { ko: '불러오는 중…', en: 'Loading…' },
   'common.empty': { ko: '아직 없습니다.', en: 'Nothing here yet.' },
   'common.error': { ko: '문제가 생겼습니다: {message}', en: 'Something went wrong: {message}' },
+  // The public pages' one failure shape (finding 77) — components/ui/Offline.tsx. An outage must never be rendered
+  // as an empty catalogue or an empty public record, so these words say "unknown", never "none".
+  'offline.title': { ko: '지금 이 노드에 연결하지 못했습니다.', en: 'Can’t reach this node right now.' },
+  'offline.body': { ko: '{what} 정보는 이 노드가 직접 내려 주는데, 지금 응답이 없습니다. 아래에 보이지 않는 것은 없는 것이 아니라 알 수 없는 상태입니다.', en: '{what} is served by this node itself, and it did not answer. What is missing below is unknown, not empty.' },
+  'offline.detail': { ko: '브라우저가 받은 응답: {detail}', en: 'The browser got: {detail}' },
+  'offline.nostatus': { ko: '응답 없음', en: 'no response' },
+  'offline.retry': { ko: '다시 시도', en: 'Try again' },
+  'offline.what.ledger': { ko: '공개 기록', en: 'The public record' },
+  'offline.what.network': { ko: '네트워크', en: 'The network view' },
   'common.free': { ko: '무료', en: 'Free' },
   'common.price': { ko: '가격', en: 'Price' },
   'common.model': { ko: '대상 모델', en: 'Target model' },

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useCatalogQuery, useInfoQuery } from '@/api/api';
 import Lifecycle from '@/components/public/Lifecycle';
+import { Footer } from '@/components/ui/Footer';
 import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
 import { ScoreBar, Shimmer } from '@/components/ui/Misc';
 import { useLocale, useT } from '@/i18n';
@@ -13,6 +14,13 @@ import { num, shortAddr } from '@/utils/format';
 const IntroSection = styled.section`
   width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #333333; overflow: hidden;
 `;
+/**
+ * Finding 68 — this bar carries `position: sticky; top: 0`, but while it lived inside IntroSection (which sets
+ * `overflow: hidden` to crop the bleeding hero image) its sticky containing block was that section, so it scrolled
+ * away with the hero and 4,400 px of page had no navigation at all: measured viewport top −2,387 at scrollY 2,500.
+ * It is now a sibling at the page root, so the document is what it sticks to. IntroSection keeps its `overflow:
+ * hidden` and crops the hero image exactly as before.
+ */
 const NavBar = styled.div<{ $solid: boolean }>`
   width: 100%; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
   background-color: rgba(51, 51, 51, ${(p) => (p.$solid ? 1 : 0.8)}); transition: background-color 0.2s ease-in-out;
@@ -20,19 +28,45 @@ const NavBar = styled.div<{ $solid: boolean }>`
 const NavContent = styled.div`
   width: calc(100% - 80px); padding: 24px 40px; max-width: ${(p) => p.theme.layout.maxWidthLanding};
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: calc(100% - 32px); padding: 16px; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: calc(100% - 32px); padding: 6px 16px 2px; gap: 8px; flex-wrap: wrap; }
 `;
+/** Logo row on a phone: the home link and the language pill share it, the nav takes the width below them. */
+const NavHome = styled(Link)`flex: 0 0 auto; order: 0; display: flex; align-items: center;`;
 const NavLogo = styled.img`height: 26px; width: auto; display: block;`;
-const NavLinks = styled.nav`display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: flex-end;`;
+/**
+ * Finding 90 — at 360 px this was three right-ragged rows ("Explore knowledge" alone, then "Live test  Teach",
+ * then "Node sign-in") of 20 px-tall targets that read as unfinished layout rather than a menu. Below the sm
+ * breakpoint it takes a full-width row of its own under the logo, scrolls horizontally with a visible edge cue,
+ * and every item clears the 44 px platform guideline.
+ */
+const NavLinks = styled.nav`
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: flex-end;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) {
+    order: 2; flex: 1 0 100%; min-width: 0; margin: 0 -6px; flex-wrap: nowrap; justify-content: flex-start; gap: 0;
+    overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; &::-webkit-scrollbar { display: none; }
+    /* The row is wider than a 360 px phone, so it has to LOOK scrollable: two edge shadows that ride with the
+       viewport plus two #333 covers that ride with the content, so each shadow disappears at its own end. */
+    background:
+      linear-gradient(to right, #333333, rgba(51, 51, 51, 0)) left center / 20px 100% no-repeat local,
+      linear-gradient(to left, #333333, rgba(51, 51, 51, 0)) right center / 20px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)) left center / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)) right center / 12px 100% no-repeat scroll;
+  }
+`;
 const NavLink = styled(Link)`
   font-family: ${(p) => p.theme.font.display}; font-size: 15px; font-weight: 700; color: #ffffff; text-decoration: none;
+  /* WCAG 2.5.8 asks for 24 px at every width; the 44 px platform guideline is met below the sm breakpoint, where taps happen. */
+  display: inline-flex; align-items: center; min-height: 24px;
   &:hover { text-decoration: underline; }
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 13px; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 14px; padding: 12px 10px; white-space: nowrap; }
 `;
 const NavMuted = styled(NavLink)`color: #bdbdbd; font-weight: 500;`;
+/** The language toggle is a system setting, not a nav item — same corner as Header.tsx, outside the scrolling row. */
 const LocaleButton = styled.button`
-  padding: 4px 10px; border: 1px solid #6b6b6b; border-radius: 12px; background: transparent; font-size: 12px; color: #dddddd; cursor: pointer;
+  flex: 0 0 auto; padding: 8px 10px; border: 1px solid #6b6b6b; border-radius: 12px; background: transparent; font-size: 12px; color: #dddddd; cursor: pointer;
   &:hover { border-color: #ffffff; color: #ffffff; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { order: 1; margin-left: auto; }
 `;
 const IntroContent = styled.div`
   width: calc(100% - 80px); max-width: ${(p) => p.theme.layout.maxWidthLanding}; padding: 96px 40px 110px; position: relative;
@@ -205,16 +239,6 @@ const AsideBox = styled.img`width: 220px; object-fit: contain; @media (max-width
 const AsideText = styled.p`margin: 0; font-family: ${(p) => p.theme.font.display}; font-size: 16px; line-height: 1.6; font-weight: 700; word-break: keep-all; max-width: 30ch;`;
 const AsideSub = styled.p`margin: 0; font-size: 13px; line-height: 1.6; color: #bdbdbd; word-break: keep-all; max-width: 40ch;`;
 
-/* ---------------------------------------------------------------- footer (landing variant) */
-const FooterSection = styled.footer`
-  width: 100%; padding: 56px 24px; background-color: #333333; display: flex; flex-direction: column; align-items: center; gap: 28px;
-`;
-const FooterLogo = styled.img`height: 22px; width: auto; opacity: 0.9;`;
-const FooterLinks = styled.div`display: flex; align-items: center; justify-content: center; gap: 32px; flex-wrap: wrap;`;
-const FooterLink = styled(Link)`font-family: ${(p) => p.theme.font.display}; font-size: 15px; color: #f2f2f2; text-decoration: none; &:hover { text-decoration: underline; }`;
-const FooterA = styled.a`font-family: ${(p) => p.theme.font.display}; font-size: 15px; color: #f2f2f2; text-decoration: none; &:hover { text-decoration: underline; }`;
-const Copyright = styled.div`font-family: ${(p) => p.theme.font.display}; font-size: 13px; color: #9b9b9b; text-align: center;`;
-
 const LOGO = { src: '/static/images/logo-white.png', srcSet: '/static/images/logo-white@2x.png 2x, /static/images/logo-white@3x.png 3x' };
 
 export default function LandingPage() {
@@ -224,14 +248,21 @@ export default function LandingPage() {
   const priceLabel = usePriceLabel();
   const verification = useVerificationLabel();
   const [solid, setSolid] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
+  /**
+   * The bar is translucent while it floats over the dark hero and opaque once the page under it is light. The old
+   * threshold was a hard-coded 600 px that could never fire (finding 68: the bar was not sticky at all); it is now
+   * the hero's own measured height, which is the point at which the bar stops being over #333.
+   */
   useEffect(() => {
-    const onScroll = () => setSolid(window.scrollY > 600);
+    const onScroll = () => setSolid(window.scrollY > Math.max(0, (heroRef.current?.offsetHeight ?? 600) - 120));
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
   }, []);
   const { data: info } = useInfoQuery();
   const { data: trending, isLoading } = useCatalogQuery({ status: 'LISTED', sort: 'popular', limit: 6 });
-  const year = new Date().getFullYear();
   const listed = info?.counts.listed;
   const verifying = info ? (info.counts.verifying ?? Math.max(0, info.counts.patches - info.counts.listed - (info.counts.superseded ?? 0) - (info.counts.rejected ?? 0))) : undefined;
 
@@ -268,19 +299,23 @@ export default function LandingPage() {
 
   return (
     <>
-      <IntroSection>
-        <NavBar $solid={solid}>
-          <NavContent>
-            <Link to="/" aria-label="Ainize"><NavLogo {...LOGO} alt="Ainize" /></Link>
-            <NavLinks>
-              <NavLink to="/explore">{t('landing.nav.explore')}</NavLink>
-              <NavLink to="/chat">{t('landing.nav.chat')}</NavLink>
-              {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
-              <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>
-              <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
-            </NavLinks>
-          </NavContent>
-        </NavBar>
+      {/* Finding 68: a sibling of the hero, not a child of it — an ancestor with `overflow: hidden` is what kept
+          `position: sticky` from ever sticking. */}
+      <NavBar $solid={solid} data-testid="landing-nav">
+        <NavContent>
+          <NavHome to="/" aria-label="Ainize"><NavLogo {...LOGO} alt="Ainize" /></NavHome>
+          <NavLinks aria-label={t('landing.nav.aria')}>
+            <NavLink to="/explore">{t('landing.nav.explore')}</NavLink>
+            <NavLink to="/chat">{t('landing.nav.chat')}</NavLink>
+            {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
+            {/* Finding 69: /docs was in every other page's header and in neither of the landing's chromes. */}
+            <NavLink to="/docs" data-testid="landing-nav-docs">{t('nav.docs')}</NavLink>
+            <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>
+          </NavLinks>
+          <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
+        </NavContent>
+      </NavBar>
+      <IntroSection ref={heroRef}>
         <IntroContent>
           <Hero>
             <HeroLogo {...LOGO} alt="Ainize" />
@@ -462,17 +497,9 @@ export default function LandingPage() {
         </Inner>
       </Section>
 
-      <FooterSection>
-        <FooterLogo {...LOGO} alt="Ainize" />
-        <FooterLinks>
-          <FooterLink to="/terms">{t('landing.footer.terms')}</FooterLink>
-          <FooterLink to="/network">{t('landing.footer.network')}</FooterLink>
-          <FooterLink to="/ledger" title={help('ledger')}>{t('landing.footer.ledger')}</FooterLink>
-          <FooterA href="https://github.com/ainblockchain/ain-js" target="_blank" rel="noopener noreferrer">ain-js</FooterA>
-          <FooterA href="mailto:support@ainize.ai?subject=[Ainize] ">{t('landing.footer.contact')}</FooterA>
-        </FooterLinks>
-        <Copyright>{t('landing.footer.copyright', { year })}</Copyright>
-      </FooterSection>
+      {/* Finding 99: one footer component, one link list — the landing's own list named the same destinations
+          differently from every other page's and had no Privacy link at all. */}
+      <Footer variant="landing" />
     </>
   );
 }
