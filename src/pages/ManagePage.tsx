@@ -188,6 +188,27 @@ export default function ManagePage() {
         <dt>{t('op.manage.created')}</dt><dd>{dateTime(a.created_at)}</dd>
         {p.listed_at && <><dt>{t('op.manage.listed')}</dt><dd>{dateTime(p.listed_at)}</dd></>}
       </KeyValue>
+      {/* Item 154: "Registered · awaiting verification" for ever, with the reason only in the VERIFIERS' logs. This
+          is what the publisher's own node knows: how long, who it asked, what each of them serves. */}
+      {p.stalled && (
+        <Alert $tone="warning" style={{ marginTop: 16 }} data-testid="manage-stalled">
+          <b>{t('op.manage.stalled.title', { minutes: p.stalled.waited_minutes, counted: p.stalled.counted, quorum: p.stalled.quorum })}</b>
+          <div style={{ marginTop: 6 }}>{p.stalled.reason}</div>
+          {p.stalled.verifiers.length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+              {p.stalled.verifiers.map((v) => (
+                <li key={v.endpoint}>
+                  {t('op.manage.stalled.verifier', {
+                    who: v.name ?? v.endpoint,
+                    model: v.model ?? t('op.manage.stalled.no_model'),
+                    state: t(`op.manage.stalled.att.${v.attested}`),
+                  })}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Alert>
+      )}
       {isDraft && (
         <SectionBody>
           <strong style={{ fontSize: 14 }}>{t('op.manage.checklist')}</strong>

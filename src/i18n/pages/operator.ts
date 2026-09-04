@@ -207,6 +207,14 @@ export const operatorManage: Dict = {
   'op.manage.model': { ko: '대상 모델', en: 'Target model' },
   'op.manage.created': { ko: '만든 날짜', en: 'Created' },
   'op.manage.listed': { ko: '검증 완료 날짜', en: 'Verified on' },
+  /* Item 154: a publish for a model no verifier serves sat at "awaiting verification" for ever, and the reason
+     existed only as a warning in the VERIFIERS' logs. These say what the publisher's own node knows. */
+  'op.manage.stalled.title': { ko: '{minutes}분째 검증되지 않았습니다 — {counted}/{quorum}', en: 'Not verified after {minutes} minutes — {counted}/{quorum}' },
+  'op.manage.stalled.verifier': { ko: '{who} — {model} 서빙 중 · {state}', en: '{who} — serving {model} · {state}' },
+  'op.manage.stalled.no_model': { ko: '모델 없음', en: 'no model' },
+  'op.manage.stalled.att.no': { ko: '아직 검증하지 않음', en: 'has not attested' },
+  'op.manage.stalled.att.hash-only': { ko: '해시만 확인함 (벤치마크는 실행하지 못함)', en: 'checked the hash only (could not run the benchmark)' },
+  'op.manage.stalled.att.executed': { ko: '벤치마크를 실행함', en: 'ran the benchmark' },
   'op.manage.checklist': { ko: '등록 전 점검', en: 'Before you publish' },
   'op.manage.check.body': { ko: '지식 파일이 이 노드에 있음', en: 'Knowledge file is on this node' },
   'op.manage.check.schema': { ko: '주제 이름이 있음 ({schema})', en: 'Subject set ({schema})' },

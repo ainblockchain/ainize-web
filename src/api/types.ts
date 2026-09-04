@@ -151,6 +151,13 @@ export interface PatchDetail extends CatalogEntry {
   /** Set when the author retired it (item 148): off sale for good, the record kept. */
   retired_at?: number | null;
   retire_reason?: string | null;
+  /** Item 154: why an announced knowledge has not reached its quorum yet — null while it is still within its normal wait. */
+  stalled?: {
+    patch_id: string; since: number; waited_minutes: number; counted: number; quorum: number; hash_only: number;
+    needs_benchmark: boolean; model: string;
+    verifiers: { name: string | null; endpoint: string; address: string | null; model: string | null; attested: 'no' | 'hash-only' | 'executed' }[];
+    reason: string;
+  } | null;
 }
 
 export interface EventRow { seq: number; ts: number; level: 'debug' | 'info' | 'warn' | 'error'; kind: string; patch_id: string | null; message: string; data: unknown; }
