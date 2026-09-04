@@ -298,14 +298,16 @@ export const teach: Dict = {
 
   // ---------------------------------------------------------------- teach mode v2 (dataset design §5) — entry choice
   'teach.entry.title': { ko: '모델에게 새로운 것을 가르치기', en: 'Teach the model something new' },
-  'teach.entry.sub': { ko: '들어가는 길은 둘, 결과는 하나입니다. 질문과 정답이 데이터셋이 되고, 데이터셋을 학습해 지식이 되며, 그 지식을 써보고 · 나만 쓰고 · 공개할 수 있습니다.', en: 'Two ways in, one result: your questions and answers become a dataset, the dataset is trained into knowledge, and the knowledge is yours to test, keep private or publish.' },
-  'teach.entry.no_account': { ko: '계정도, 내 서버도, 코드도 필요 없습니다.', en: 'No account, no server of your own, no code.' },
+  // ux-critique-owner O-7: one line of intro, one sentence + one benefit per card; the longer story sits behind "How it works"
+  'teach.entry.sub': { ko: '계정도 코드도 필요 없습니다. 질문과 정답이 지식이 되어 써보고, 나만 쓰고, 공개할 수 있습니다.', en: 'No account, no code: your questions and answers become knowledge you can test, keep private or publish.' },
   'teach.entry.chat.title': { ko: '대화하며 가르치기', en: 'Teach it in a conversation' },
-  'teach.entry.chat.body': { ko: '모델에게 물어보고 답이 틀리면 바로잡습니다. 바로잡은 내용이 모여 데이터셋이 됩니다. 아직 파일이 없을 때 좋습니다.', en: 'Ask the model something and correct it when the answer is wrong. Your corrections collect into a dataset. Best when you do not have a file yet.' },
+  'teach.entry.chat.body': { ko: '모델에게 물어보고 답을 바로잡으세요. 파일이 없어도 됩니다.', en: 'Ask the model a question and correct its answer. No file needed.' },
   'teach.entry.chat.cta': { ko: '대화 시작하기', en: 'Start a conversation' },
   'teach.entry.file.eyebrow': { ko: '파일이 이미 있나요?', en: 'Already have a file?' },
   'teach.entry.file.title': { ko: '데이터셋 파일 올리기', en: 'Upload a dataset file' },
-  'teach.entry.file.body': { ko: '질문과 정답이 이미 파일이나 표에 있나요? 올려서 바로 학습하세요.', en: 'Already have the questions and answers in a file or a spreadsheet? Upload it and train straight away.' },
+  'teach.entry.file.body': { ko: '질문과 정답이 이미 파일에 있나요? 바로 학습하세요.', en: 'Already have questions and answers in a file? Train them straight away.' },
+  'teach.entry.how.title': { ko: '어떻게 되나요', en: 'How it works' },
+  'teach.entry.how.body': { ko: '어느 쪽으로 들어와도 같습니다. 질문과 정답이 이 노드에 데이터셋으로 저장되고, 한 줄씩 확인한 뒤 모델에 학습시키고, 결과를 다시 확인합니다. 그렇게 만들어진 지식은 라이브 테스트에서 써보고, 나만 쓰고, 내려받고, 다른 사람이 살 수 있게 공개할 수 있습니다. 계정도, 내 서버도, 코드도 필요 없습니다.', en: 'Whichever door you pick: your questions and answers are saved as a dataset on this node, checked line by line, trained into the model, and the result is checked again. What comes out is knowledge you can try in Live test, keep private, download, or publish for others to buy. No account, no server of your own, no code.' },
   'teach.entry.file.cta': { ko: '파일 고르기', en: 'Choose a file' },
   'teach.entry.file.formats': { ko: 'jsonl, csv, tsv, 일반 텍스트 · 질문 최대 {max}개', en: 'jsonl, csv, tsv or plain text · up to {max} questions' },
   'teach.entry.steps': { ko: '어느 쪽으로 들어와도 이 다섯 단계는 같습니다.', en: 'Whichever door you pick, these five steps are the same.' },

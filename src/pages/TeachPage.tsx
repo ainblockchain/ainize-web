@@ -57,6 +57,16 @@ const Cta = styled.span<{ $primary?: boolean }>`
 const Eyebrow = styled.span`
   font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: ${(p) => p.theme.color.GREY};
 `;
+/** One line under the title (O-7): wider than `Description`'s 72ch so the English sentence stays on one line at 944 px. */
+const Intro = styled(Description)`max-width: none; font-size: 15px;`;
+/** The longer story, behind a disclosure (O-7): a native <details> — keyboard-operable, announced as expandable, no script. */
+const How = styled.details`
+  margin-top: 20px; font-size: 14px; color: ${(p) => p.theme.color.DARK_GREY};
+  summary { cursor: pointer; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; width: fit-content; border-radius: 4px; padding: 2px 4px; margin-left: -4px; }
+  summary:hover { color: ${(p) => p.theme.color.HOVER}; }
+  summary:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
+  p { margin: 8px 0 0; line-height: 1.65; max-width: 78ch; }
+`;
 const Steps = styled.div`
   margin-top: 28px; padding: 16px; border-radius: 8px; background: ${(p) => p.theme.color.PALE_GREY};
   p { margin: 0 0 10px; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY}; }
@@ -72,8 +82,7 @@ export default function TeachPage() {
   return (
     <PageWrapper data-testid="teach-entry">
       <TitleRow><Title>{t('teach.entry.title')}</Title></TitleRow>
-      <Description>{t('teach.entry.sub')}</Description>
-      <Description style={{ marginTop: 6 }}>{t('teach.entry.no_account')}</Description>
+      <Intro>{t('teach.entry.sub')}</Intro>
 
       <Doors>
         <Door
@@ -104,6 +113,11 @@ export default function TeachPage() {
         <p>{t('teach.entry.steps')}</p>
         <StepStrip />
       </Steps>
+
+      <How data-testid="how-it-works">
+        <summary>{t('teach.entry.how.title')}</summary>
+        <p>{t('teach.entry.how.body')}</p>
+      </How>
     </PageWrapper>
   );
 }
