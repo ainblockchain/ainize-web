@@ -266,7 +266,12 @@ export default function PatchPage() {
   const taught = a.origin === 'teach' || !!provider;
   const providerName = provider?.name ?? t('detail.taught_by_anon');
   const canBuildOn = policy?.lineage === true && policy?.enabled !== false;
-  const datasetPrivate = (a.dataset?.access ?? 'private') === 'private';
+  // Two different refusals, and a knowledge published before training sets were kept must not be described as one
+  // whose creator chose privacy: `private` is a decision somebody made, `none` is a record from before the choice
+  // existed (§14). Both stop *Build on this* today — the doors start from the base's questions.
+  const datasetPrivate = !!a.dataset && a.dataset.access === 'private';
+  const datasetNone = !a.dataset;
+  const noBase = datasetPrivate || datasetNone;
   const base = a.base?.stack?.[0];
   const baseName = data.requires?.find((r) => r.id === base?.patch_id)?.name ?? base?.patch_id ?? '';
   const tabs = [
@@ -303,8 +308,8 @@ export default function PatchPage() {
               {term('liveTest')}<small>{t('detail.patch.live_test_sub')}</small>
             </LiveTestLink>
             {/* SC-9 *Build on this* — the flag holds it back, and a private training set says why nobody can. */}
-            <BuildOn type="button" data-testid="build-on" disabled={!canBuildOn || datasetPrivate}
-              title={datasetPrivate ? t('detail.build_on_private') : undefined}
+            <BuildOn type="button" data-testid="build-on" disabled={!canBuildOn || noBase}
+              title={datasetPrivate ? t('detail.build_on_private') : datasetNone ? t('detail.build_on_none') : undefined}
               onClick={() => { window.location.href = `/teach/settings?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
             <ViewAll to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{t('detail.patch.view_same_subject')}</ViewAll>
           </HeadRight>
@@ -368,7 +373,7 @@ export default function PatchPage() {
             <>
               <Section>
                 <H3>{t('detail.tab.tree')}</H3>
-                <FamilyTree id={a.id} authorSlug={authorSlug} canBuildOn={canBuildOn} datasetPrivate={datasetPrivate} />
+                <FamilyTree id={a.id} authorSlug={authorSlug} canBuildOn={canBuildOn} datasetPrivate={datasetPrivate} datasetNone={datasetNone} />
               </Section>
               {a.dataset && (
                 <Section>

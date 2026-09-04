@@ -64,7 +64,7 @@ const KIND_KEY: Record<TreeEdgeKind, string> = {
 
 const BOX_W = 176, BOX_H = 62, GAP_X = 26, ROW_H = 118, PAD = 16;
 
-export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate }: { id: string; authorSlug: string; canBuildOn: boolean; datasetPrivate: boolean }) {
+export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate, datasetNone = false }: { id: string; authorSlug: string; canBuildOn: boolean; datasetPrivate: boolean; datasetNone?: boolean }) {
   const { t } = useT();
   const [depth, setDepth] = useState(4);
   const { data, isLoading } = usePatchTreeQuery({ id, depth });
@@ -165,14 +165,15 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate }: { id:
 
       <Buttons>
         {/* Gated by `teach.lineage` (§18): reading the family is always allowed, building on it is what the flag holds back. */}
-        <a className="primary" href={canBuildOn && !datasetPrivate ? `/teach/settings?on=${encodeURIComponent(id)}` : undefined}
-          aria-disabled={!canBuildOn || datasetPrivate} data-testid="tree-teach-on"
-          style={!canBuildOn || datasetPrivate ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_teach')}</a>
+        <a className="primary" href={canBuildOn && !datasetPrivate && !datasetNone ? `/teach/settings?on=${encodeURIComponent(id)}` : undefined}
+          aria-disabled={!canBuildOn || datasetPrivate || datasetNone} data-testid="tree-teach-on"
+          style={!canBuildOn || datasetPrivate || datasetNone ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_teach')}</a>
         <a href={`/teach/settings?on=${encodeURIComponent(id)}&copy=1`} data-testid="tree-copy"
-          aria-disabled={!canBuildOn || datasetPrivate} style={!canBuildOn || datasetPrivate ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_copy')}</a>
+          aria-disabled={!canBuildOn || datasetPrivate || datasetNone} style={!canBuildOn || datasetPrivate || datasetNone ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_copy')}</a>
       </Buttons>
       {datasetPrivate && <Lines data-testid="tree-private">{t('detail.build_on_private')}</Lines>}
-      {!canBuildOn && !datasetPrivate && <Lines data-testid="tree-flag-off">{t('detail.tree.off')}</Lines>}
+      {datasetNone && <Lines data-testid="tree-no-dataset">{t('detail.build_on_none')}</Lines>}
+      {!canBuildOn && !datasetPrivate && !datasetNone && <Lines data-testid="tree-flag-off">{t('detail.tree.off')}</Lines>}
     </Wrap>
   );
 }

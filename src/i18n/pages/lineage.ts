@@ -11,6 +11,9 @@ export const lineageTree: Dict = {
   // ---------------------------------------------------------------- SC-9 knowledge page header and Family tree tab
   'detail.build_on': { ko: '이 지식 위에 만들기', en: 'Build on this' },
   'detail.build_on_private': { ko: '창작자가 학습 문답을 비공개로 두어 이어 만들 수 없습니다.', en: 'The creator kept the training set private, so nobody can build on it.' },
+  // §14: an anchor from before training sets were kept has no questions to continue from — which is not a decision
+  // its creator made, and must not be reported as one.
+  'detail.build_on_none': { ko: '이 지식에는 기록된 학습 문답이 없어 이어 만들 수 있는 질문이 없습니다.', en: 'This knowledge has no training set on the record, so there are no questions to continue from.' },
   'detail.addon_badge': { ko: '{name} 추가분 · 사용하려면 {name} 필요', en: 'Add-on to {name} · needs {name} to use' },
   'detail.tab.tree': { ko: '계보', en: 'Family tree' },
   'detail.tree.legend': { ko: '기반 / 위에 만든 지식 / 수정판 / 새 버전 / 다른 맥락용 / 합쳐서 만듦', en: 'Base / Built on it / Correction / Newer version / Different context / Combined from' },
