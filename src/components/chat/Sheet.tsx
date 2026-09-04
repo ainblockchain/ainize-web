@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { useT } from '@/i18n';
 
@@ -24,8 +24,32 @@ const CloseBtn = styled.button`
   margin-left: auto; flex: none; width: 32px; height: 32px; border: 0; border-radius: 16px; background: transparent; font-size: 20px; line-height: 1; color: ${(p) => p.theme.color.GREY}; cursor: pointer;
   &:hover { background: ${(p) => p.theme.color.PALE_GREY}; color: ${(p) => p.theme.color.BLACK}; }
 `;
-const Body = styled.div`padding: 16px 24px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; font-size: 14px; line-height: 1.55; color: ${(p) => p.theme.color.BLACK};`;
-export const SheetFooter = styled.div`display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; padding-top: 4px;`;
+/**
+ * Finding 16 — the action bar was an ordinary block at the end of the scrolling body, so on the publish sheet the
+ * Publish button and the two consent checkboxes above it sat below the fold (submit bottom 919 in a 900 px viewport,
+ * 1135 at 360x740) with nothing on screen to say they were there. The bar is still the last child of the body, so it
+ * flows after the content it belongs to, but `position: sticky` pins it to the body's bottom edge at every scroll
+ * position. The negative margins let it span the body's padding, so it reaches both edges and the content scrolls
+ * under an opaque bar instead of past a floating button.
+ */
+export const SheetFooter = styled.div`
+  /* The three negative margins cancel the body's 24px of side and bottom padding so the bar spans the panel edge to
+     edge, and the negative sticky offset moves the sticky line down by the same 24px so the pinned bar sits on the bottom of
+     the scrollport rather than 24px above it. Measured: pinned at 883 in a 900 px viewport, and still 883 — flush
+     with the body — once the body is scrolled to its end. */
+  position: sticky; bottom: -24px; z-index: 1; flex: none;
+  margin: 4px -24px -24px; padding: 14px 24px;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end;
+  background: ${(p) => p.theme.color.WHITE};
+`;
+/** `$more` = the body still has content below the fold; it is what draws the bar's edge and the "keep scrolling" shadow. */
+const Body = styled.div<{ $more: boolean }>`
+  padding: 16px 24px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; font-size: 14px; line-height: 1.55; color: ${(p) => p.theme.color.BLACK};
+  & > ${SheetFooter} {
+    border-top: 1px solid ${(p) => (p.$more ? p.theme.color.LIGHT_GREY : 'transparent')};
+    box-shadow: ${(p) => (p.$more ? '0 -10px 16px -12px rgba(0, 0, 0, 0.4)' : 'none')};
+  }
+`;
 export const SheetNote = styled.p`margin: 0; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY};`;
 
 export interface SheetProps {
@@ -37,6 +61,22 @@ const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([typ
 export function Sheet({ title, sub, onClose, children, side, width = 560, testId }: SheetProps) {
   const { t } = useT();
   const panel = useRef<HTMLElement | null>(null);
+  const body = useRef<HTMLDivElement | null>(null);
+  const [more, setMore] = useState(false);
+  /**
+   * Whether anything is still below the fold. Recomputed on scroll, on a resize of the body, and on any change to
+   * what is inside it — a validation message, an unfolded option or a freshly rendered list all change the answer.
+   */
+  useEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const update = () => setMore(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update); ro.observe(el);
+    const mo = new MutationObserver(update); mo.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => { el.removeEventListener('scroll', update); ro.disconnect(); mo.disconnect(); };
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
@@ -72,7 +112,7 @@ export function Sheet({ title, sub, onClose, children, side, width = 560, testId
           <div><h2>{title}</h2>{sub && <p>{sub}</p>}</div>
           <CloseBtn type="button" onClick={onClose} aria-label={t('teach.drawer.close')}>×</CloseBtn>
         </Head>
-        <Body>{children}</Body>
+        <Body ref={body} $more={more}>{children}</Body>
       </Panel>
     </Backdrop>
   );
