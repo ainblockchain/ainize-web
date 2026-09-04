@@ -1,42 +1,50 @@
 import type { Dict } from '../index';
 
+/**
+ * Documentation chrome — every word around a page, in both languages.
+ *
+ * The page *bodies* are markdown files under `docs/en/**` and `docs/ko/**`; nothing of their prose lives here. What
+ * lives here is the frame: the navigation label, the search box, the on-this-page rail, previous/next, the copy
+ * button, the alert labels and the banner a Korean reader gets when the page they opened has not been translated yet.
+ * Group names and page titles come from `docs/<lang>/_toctree.json`, which is why they are absent from this file.
+ */
 export const docs: Dict = {
-  'docs.title': { ko: '문서 · API · CLI', en: 'Docs · API · CLI' },
-  'docs.lede': { ko: 'Ainize 노드가 스스로 제공하는 명세입니다. 지식을 올리는 사람과 쓰는 사람 모두 한 줄이면 시작할 수 있고, 아래 REST API는 같은 노드가 실제로 서비스하는 엔드포인트입니다.', en: 'This reference is served by the node itself. Publishing or using knowledge starts with one line; the REST API below is what this very node serves.' },
-  'docs.oneline.title': { ko: '한 줄이면 됩니다', en: 'One line is enough' },
-  'docs.oneline.publish': { ko: '지식을 올리는 분', en: 'Publishing knowledge' },
-  'docs.oneline.publish.help': { ko: '학습된 지식 파일(.npz)과 검증 질문 예시(bench.json)를 주면 등록·공표까지 끝납니다. 검증은 네트워크의 독립 노드들이 실제 모델에 넣어 수행하고, 팔릴 때마다 자동 정산됩니다.', en: 'Give it the learned knowledge file (.npz) and a few benchmark questions (bench.json); registration and announcement are done. Independent nodes verify it on the real model and you are paid per sale.' },
-  'docs.oneline.use': { ko: '지식을 쓰는 분', en: 'Using knowledge' },
-  'docs.oneline.use.help': { ko: '검증 완료를 확인하고, 자동 결제하고, 내려받아 내 모델에 넣는 것까지 한 번에 합니다. 결제 수단은 지갑(AIN) 또는 노드 크레딧이며 회원가입은 없습니다.', en: 'Checks verification, pays automatically, downloads and loads it into your model in one go. Payment is a wallet (AIN) or node credit; no sign-up.' },
-  'docs.oneline.test': { ko: '사기 전에 라이브 테스트', en: 'Try before you buy' },
-  'docs.oneline.test.help': { ko: '같은 질문을 지식을 넣기 전과 후의 모델에 물어 답이 어떻게 달라지는지 봅니다.', en: 'Ask the same question before and after loading the knowledge and compare.' },
-  'docs.oneline.teach': { ko: '모델을 가르치는 분', en: 'Teaching the model' },
-  'docs.oneline.teach.help': { ko: '질문과 정답이 담긴 파일(.jsonl · .csv · .tsv · .txt) 하나면 됩니다. 노드가 파일을 읽어 학습하지 못할 줄을 줄 번호와 이유까지 그대로 알려주고, 학습한 뒤 실제 모델에서 부작용까지 확인해 지식 파일을 만듭니다. 문(門)은 둘이고 그 뒤는 하나입니다 — 브라우저 라이브 테스트에서 모은 교정도 Teach를 누르는 순간 같은 형식의 데이터셋 파일로 굳어져 같은 파이프라인을 탑니다.', en: 'One file of questions and their right answers (.jsonl · .csv · .tsv · .txt) is enough. The node reads it, names every line it cannot train with its source line number and the reason, trains it and checks the result on the live model. Two doors, one pipeline — corrections collected in the browser\'s Live test are frozen into the same kind of dataset file the moment you press Teach.' },
-  'docs.oneline.teach.cta': { ko: '브라우저에서 가르치기 →', en: 'Teach in the browser →' },
-  'docs.install': { ko: '설치', en: 'Install' },
-  'docs.cli.title': { ko: 'CLI 사용법 (ainize)', en: 'CLI reference (ainize)' },
-  'docs.cli.lede': { ko: '2019년 ainize-cli가 저장소를 AI 서비스로 만들었듯, 지금의 ainize는 지식을 모델에 넣습니다. 모든 명령은 --help 를 지원하고 --json 으로 기계가 읽을 수 있는 출력을 냅니다.', en: 'Like the 2019 ainize-cli turned repos into AI services, today\'s ainize puts knowledge into models. Every command supports --help and --json.' },
-  'docs.cli.col_cmd': { ko: '명령', en: 'Command' },
-  'docs.cli.col_desc': { ko: '설명', en: 'What it does' },
-  'docs.bench.title': { ko: '검증 질문 파일(bench.json) 예시', en: 'Benchmark file (bench.json) example' },
-  'docs.bench.help': { ko: 'schema는 주제 이름(같은 주제의 지식끼리 비교·대체 판정에 쓰임), queries는 담긴 사실 수, samples는 검증 노드가 실제 모델에 던질 질문과 정답입니다.', en: 'schema names the subject (used to compare/supersede knowledge on the same subject), queries is the number of facts, samples are the prompts and answers verifiers run on the real model.' },
-  'docs.api.title': { ko: 'REST API', en: 'REST API' },
-  'docs.api.lede': { ko: '기본 주소 {base}. 공개 조회·구매·라이브 테스트는 인증이 없고, 운영자 API는 로그인 쿠키 또는 Bearer 토큰을 씁니다. 원본 명세: ', en: 'Base URL {base}. Public browsing, purchase and live tests need no auth; operator APIs use the login cookie or a Bearer token. Raw spec: ' },
-  'docs.api.auth': { ko: '운영자 인증 필요', en: 'operator auth' },
-  'docs.api.params': { ko: '매개변수', en: 'Parameters' },
-  'docs.api.body': { ko: '요청 본문', en: 'Request body' },
-  'docs.api.responses': { ko: '응답', en: 'Responses' },
-  'docs.api.schemas': { ko: '데이터 구조', en: 'Schemas' },
-  'docs.x402.title': { ko: '자동 결제 흐름 (개발자용)', en: 'Automatic payment flow (developers)' },
-  'docs.x402.steps': { ko: '1) GET /x402/patch/{id} → 402와 함께 x-payment-required 헤더(base64 JSON: 금액·받는 주소·nonce)를 받습니다.  2) 결제합니다 — AIN 모드에서는 받는 주소로 AIN을 전송하고 tx 해시를, 노드 크레딧 모드에서는 서명한 지급 의향서를 만듭니다.  3) 같은 요청을 X-PAYMENT 헤더(base64 JSON 증명)와 함께 다시 보내면 200과 매니페스트를 받습니다(x-content-sha256로 검증).  4) 매니페스트의 blob_urls에서 download_token으로 본문을 내려받고 sha256이 원장 앵커와 같은지 확인합니다.', en: '1) GET /x402/patch/{id} → 402 with an x-payment-required header (base64 JSON: amount, payee, nonce). 2) Pay — AIN mode: transfer AIN to the payee and keep the tx hash; credit mode: sign a payment intent. 3) Repeat the request with X-PAYMENT (base64 JSON proof) → 200 + manifest (verify x-content-sha256). 4) Download the body from blob_urls with download_token and check sha256 against the ledger anchor.' },
-  'docs.mcp.title': { ko: 'AI 에이전트에서 쓰기 (MCP)', en: 'Use it from an AI agent (MCP)' },
-  'docs.mcp.lede': { ko: 'Claude Code · Cursor 같은 MCP 클라이언트가 이 노드의 지식을 직접 검색하고, 같은 질문의 전/후를 비교해 증명하고, 견적을 본 뒤 x402로 사고, 새로운 사실을 가르칠 수 있습니다. 서버는 저장소의 packages/mcp 에 있습니다.', en: 'An MCP client such as Claude Code or Cursor can search this node\'s knowledge, prove it with a before/after live test on the same question, quote it and buy it over x402, and teach the model new facts. The server lives in packages/mcp of the repository.' },
-  'docs.mcp.install': { ko: '설치 — 한 줄', en: 'Install — one line' },
-  'docs.mcp.promise1': { ko: '견적 없이는 결제하지 않습니다. buy 도구에는 id 인자가 없고, 견적 총액을 그대로 다시 적어야 하며, 한도는 서버 환경변수라 모델이 올릴 수 없습니다.', en: 'Nothing spends money without a quote you were shown: the buy tool has no id, the quoted total must be restated exactly, and the cap is server configuration the model cannot raise.' },
-  'docs.mcp.promise2': { ko: '모델을 쓰는 작업은 에이전트를 붙잡아 두지 않습니다. 모두 job 핸들을 돌려주고, 모든 응답이 지금 공유 모델을 누가 얼마나 오래 잡고 있는지 알려줍니다.', en: 'Nothing that touches the model blocks the caller: every model-touching tool returns a job handle, and every answer says who is holding the shared model and for how long.' },
-  'docs.mcp.promise3': { ko: '비밀은 모델에게 넘어가지 않습니다. 비밀번호·세션 토큰·개인키를 받는 인자도, 돌려주는 필드도 없습니다. 발행과 적용은 기본으로 꺼져 있습니다.', en: 'No secret reaches the model: no tool takes or returns a password, a session token or a private key. Publishing and applying are off by default.' },
-  'docs.mcp.more': { ko: '도구 목록과 실제 호출·응답 예시, 돈 정책, 문제 해결: packages/mcp/README.md · 에이전트용 안내서: packages/mcp/SKILL.md', en: 'Every tool with a real call and answer, the money policy and troubleshooting: packages/mcp/README.md · the agent-facing guide: packages/mcp/SKILL.md' },
+  'docs.title': { ko: '문서', en: 'Documentation' },
+
+  'docs.nav.label': { ko: '문서 목차', en: 'Documentation' },
+  'docs.nav.close': { ko: '목차 닫기', en: 'Close the navigation' },
+
+  'docs.search.placeholder': { ko: '문서 검색', en: 'Search the docs' },
+  'docs.search.results': { ko: '검색 결과', en: 'Search results' },
+  'docs.search.none': { ko: '"{q}"가 들어 있는 문서가 없습니다.', en: 'No page contains “{q}”.' },
+
+  'docs.toc.label': { ko: '이 페이지 안에서', en: 'On this page' },
+
+  'docs.pager.label': { ko: '이전 문서 · 다음 문서', en: 'Previous and next page' },
+  'docs.pager.prev': { ko: '이전', en: 'Previous' },
+  'docs.pager.next': { ko: '다음', en: 'Next' },
+
   'docs.copy': { ko: '복사', en: 'Copy' },
-  'docs.loading': { ko: '명세를 불러오는 중…', en: 'Loading the reference…' },
-  'docs.error': { ko: '명세를 불러오지 못했습니다. 노드가 켜져 있는지 확인하세요.', en: 'Could not load the reference. Is the node running?' },
+  'docs.copied': { ko: '복사했습니다', en: 'Copied' },
+  // navigator.clipboard exists only in a secure context, so a node browsed at http://<lan-ip> can genuinely fail
+  'docs.copy_failed': { ko: '복사하지 못했습니다', en: 'Could not copy' },
+
+  'docs.anchor': { ko: '"{title}" 링크', en: 'Link to “{title}”' },
+
+  'docs.alert.NOTE': { ko: '참고', en: 'Note' },
+  'docs.alert.TIP': { ko: '도움말', en: 'Tip' },
+  'docs.alert.IMPORTANT': { ko: '중요', en: 'Important' },
+  'docs.alert.WARNING': { ko: '주의', en: 'Warning' },
+  'docs.alert.CAUTION': { ko: '경고', en: 'Caution' },
+
+  'docs.untranslated.title': { ko: '아직 한국어로 옮기지 못한 문서입니다', en: 'This page is not translated yet' },
+  'docs.untranslated.body': { ko: '빈 화면을 보여 드리는 대신 영어 원문을 그대로 싣습니다. 목차와 화면의 다른 글자는 한국어 그대로입니다.', en: 'The English text is shown here rather than an empty page. The navigation and the rest of the interface stay in your language.' },
+  'docs.untranslated.link': { ko: '영어 원문 페이지로 이동', en: 'Open the English page' },
+  'docs.untranslated.short': { ko: '영어 원문', en: 'English text' },
+
+  'docs.notfound.title': { ko: '그런 문서는 없습니다', en: 'No such page' },
+  'docs.notfound.body': { ko: '{slug} 문서를 찾지 못했습니다. 왼쪽 목차에서 고르거나 검색해 보세요.', en: 'Nothing is published at {slug}. Pick a page from the navigation, or search for it.' },
+  'docs.notfound.home': { ko: '문서 첫 페이지로', en: 'Go to the first page' },
+
+  'docs.source': { ko: '저장소에서 이 페이지:', en: 'This page in the repository:' },
 };

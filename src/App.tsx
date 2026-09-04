@@ -58,7 +58,8 @@ export default function App() {
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />
                 <Route path="/terms" element={<Layout><TermsPage /></Layout>} />
                 <Route path="/signing" element={<Layout><SigningPage /></Layout>} />
-                <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
+                {/* one route for the whole docs tree: /docs, /docs/<page>, /docs/ko/<page> — React Router matches the splat against the empty remainder, so /docs still resolves */}
+                <Route path="/docs/*" element={<Layout><DocsPage /></Layout>} />
                 <Route path="/chat" element={<Layout><ChatPage /></Layout>} />
                 <Route path="/chat/:patchId" element={<Layout><ChatPage /></Layout>} />
                 {/* Teach mode: the entry choice, the dataset wizard, and the public data-provider page (spec §11) */}
