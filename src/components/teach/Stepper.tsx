@@ -7,6 +7,8 @@ import { useT } from '@/i18n';
  * `aria-label`s, so a screen reader gets the same list at every width and nothing scrolls sideways.
  */
 const LABELS = ['teach.step.data', 'teach.step.check', 'teach.step.settings', 'teach.step.train', 'teach.step.result'] as const;
+/** The same five labels, for the entry page's plain "what happens next" sentence (it renders no stepper — O-2). */
+export const STEP_KEYS: readonly string[] = LABELS;
 
 const Wrap = styled.nav`
   display: flex; flex-direction: column; gap: 8px; width: 100%;
@@ -49,17 +51,5 @@ export function Stepper({ current }: { current: 1 | 2 | 3 | 4 | 5 }) {
       <Small data-testid="teach-step-small">{t('teach.step.of', { n: current, label: t(LABELS[current - 1]) })}</Small>
       <Bar aria-hidden>{LABELS.map((key, i) => <span key={key} data-done={i + 1 <= current ? '1' : '0'} />)}</Bar>
     </Wrap>
-  );
-}
-
-/** The static "these five steps are the same" strip on the entry screen — no step is current there. */
-export function StepStrip() {
-  const { t } = useT();
-  return (
-    <Row aria-label={t('teach.entry.steps')} style={{ display: 'flex' }}>
-      {LABELS.map((key, i) => (
-        <Item key={key} $state="todo"><b aria-hidden>{i + 1}</b>{t(key)}</Item>
-      ))}
-    </Row>
   );
 }

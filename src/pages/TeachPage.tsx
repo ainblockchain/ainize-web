@@ -6,7 +6,7 @@ import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
 import { Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import { policyLine } from '@/components/chat/teachUtil';
-import { StepStrip } from '@/components/teach/Stepper';
+import { STEP_KEYS } from '@/components/teach/Stepper';
 import { rowsPerJob } from '@/components/teach/util';
 
 /**
@@ -67,9 +67,15 @@ const How = styled.details`
   summary:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
   p { margin: 8px 0 0; line-height: 1.65; max-width: 78ch; }
 `;
-const Steps = styled.div`
-  margin-top: 28px; padding: 16px; border-radius: 8px; background: ${(p) => p.theme.color.PALE_GREY};
-  p { margin: 0 0 10px; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY}; }
+/**
+ * "What happens next" (ux-critique-owner O-2): a plain sentence, not a stepper. The entry page has no current step,
+ * so nothing here may look like progress or like buttons — no numbered discs, no boxes, no colour states. The real
+ * Stepper, with the current step highlighted, starts on the first page of the flow.
+ */
+const Next = styled.p`
+  margin: 20px 0 0; font-size: 14px; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY};
+  b { font-weight: 600; color: ${(p) => p.theme.color.BLACK}; }
+  span { white-space: nowrap; }
 `;
 
 export default function TeachPage() {
@@ -109,10 +115,11 @@ export default function TeachPage() {
         <Alert $tone={pol.ok ? 'info' : 'warning'} role="status" data-testid="teach-policy" style={{ marginTop: 16 }}>{pol.text}</Alert>
       )}
 
-      <Steps>
-        <p>{t('teach.entry.steps')}</p>
-        <StepStrip />
-      </Steps>
+      <Next data-testid="teach-next">
+        <b>{t('teach.entry.next_label')}:</b>{' '}
+        {STEP_KEYS.map((key, i) => <span key={key}>{i > 0 && ' → '}{t(key)}</span>)}
+        {' — '}{t('teach.entry.next_same')}
+      </Next>
 
       <How data-testid="how-it-works">
         <summary>{t('teach.entry.how.title')}</summary>
