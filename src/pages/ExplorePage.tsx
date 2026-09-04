@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useCatalogQuery, useInfoQuery, errorMessage } from '@/api/api';
-import { PatchListItem } from '@/components/public/PatchListItem';
+import { PatchListItem, PriceUnitNote } from '@/components/public/PatchListItem';
+import { Shelves } from '@/components/public/Shelves';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { num } from '@/utils/format';
 
-type Sort = 'popular' | 'latest' | 'price' | 'rows';
-const SORTS: Sort[] = ['popular', 'latest', 'price', 'rows'];
+// `built_on` and `trending` are the two orderings §10 of the lineage design defines: most built on (children on the
+// ledger plus this node's derive intents) and doing well this week (3·sales + 2·builds-on + loads + ½·tests·hit-rate).
+type Sort = 'popular' | 'latest' | 'price' | 'rows' | 'built_on' | 'trending';
+const SORTS: Sort[] = ['popular', 'trending', 'built_on', 'latest', 'price', 'rows'];
 const ITEM_LIMIT = 10;
 /**
  * "Current only" — everything a visitor could sensibly load today. SUPERSEDED and REJECTED are the two states that
@@ -78,6 +81,9 @@ export default function ExplorePage() {
       </TitleRow>
       <Intro title={help('liveTest')}>{t('explore.sub')}</Intro>
 
+      {/* SC-17: what is selling, what is being built ON, what is new, and what people asked for here. */}
+      <Shelves />
+
       <Filters>
         {!!data?.models.length && (
           <FilterGroup>
@@ -112,6 +118,9 @@ export default function ExplorePage() {
               <button type="button" onClick={() => { setShowAll(true); reset(); }}>{t('explore.hidden_show')}</button>
             </Hidden>
           )}
+          {/* Finding 18: the price rides in each card's facts row on a phone, so its unit is explained once here
+              instead of four times down the list. Desktop cards carry the note under their own price. */}
+          <PriceUnitNote entries={visible} currency={info?.currency} data-testid="explore-price-note" />
           <div>
             {visible.map((e) => <PatchListItem key={e.anchor.id} entry={e} currency={info?.currency} />)}
           </div>

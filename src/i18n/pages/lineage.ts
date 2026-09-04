@@ -100,5 +100,7 @@ export const lineageTree: Dict = {
   'explore.sort.trending': { ko: '이번 주 인기', en: 'Doing well this week' },
   'explore.card.built_on': { ko: '바탕 {c}회', en: 'Built on {c}×' },
   'explore.card.needs': { ko: '{name} 필요', en: 'Needs {name}' },
+  'explore.card.sales': { ko: '최근 30일 판매 {n}건', en: '{n} sales in 30 days' },
+  'explore.card.rows': { ko: '기억 항목 {n}개', en: '{n} memory entries' },
   'explore.shelf.empty': { ko: '아직 없습니다.', en: 'Nothing here yet.' },
 };

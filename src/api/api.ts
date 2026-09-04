@@ -66,7 +66,8 @@ const signedFetch: typeof fetch = async (input, init) => {
 export const nodeAddressOnce = (): Promise<string | null> => nodeAddress();
 
 export interface CatalogQuery {
-  sort?: 'latest' | 'popular' | 'price' | 'rows';
+  /** `built_on` and `trending` are the lineage design's §10 orderings (most built on, doing well this week). */
+  sort?: 'latest' | 'popular' | 'price' | 'rows' | 'built_on' | 'trending';
   status?: string; model?: string; schema?: string; branch?: string; author?: string; q?: string;
   limit?: number; offset?: number; include_drafts?: boolean;
 }
