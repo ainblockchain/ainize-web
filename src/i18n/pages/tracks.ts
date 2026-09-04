@@ -17,6 +17,9 @@ export const tracks: Dict = {
   'track.members_value': { ko: '전체 {total}개 · 지금 받아 가는 것 {current}개', en: '{total} in total · {current} a subscriber loads today' },
   'track.updated': { ko: '가장 최근 버전', en: 'Freshest version' },
   'track.updated_value': { ko: '{ago} 등록', en: 'registered {ago}' },
+  // The chip beside the track name when THIS node is one of the subscribers below: a state, not an action, so it
+  // reads as a label rather than a button the visitor could press.
+  'track.subscribed': { ko: '이 노드가 구독 중', en: 'this node subscribes' },
   'track.subscribers': { ko: '구독 중인 노드', en: 'Subscribed nodes' },
   'track.subscribers_none': { ko: '아직 없습니다', en: 'none yet' },
   'track.created': { ko: '묶음이 생긴 때', en: 'Track created' },
