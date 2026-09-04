@@ -7,7 +7,7 @@ import { theme } from './theme/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { AuthProvider } from './auth/AuthContext';
 import { LocaleProvider } from './i18n';
-import { FullScreenLayout, Layout, NewPatchGate, SigningCheckLayout } from './components/base/Layout';
+import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SigningCheckLayout } from './components/base/Layout';
 import { CenterProgress } from './components/ui/Misc';
 
 // Pages are code-split like ainize-web did with @loadable/component.
@@ -62,12 +62,13 @@ export default function App() {
                 <Route path="/chat" element={<Layout><ChatPage /></Layout>} />
                 <Route path="/chat/:patchId" element={<Layout><ChatPage /></Layout>} />
                 {/* Teach mode: the entry choice, the dataset wizard, and the public data-provider page (spec §11) */}
-                <Route path="/teach" element={<Layout><TeachPage /></Layout>} />
-                <Route path="/teach/upload" element={<Layout><TeachUploadPage /></Layout>} />
-                <Route path="/teach/dataset/:dsId" element={<Layout><TeachDatasetPage /></Layout>} />
-                <Route path="/teach/dataset/:dsId/settings" element={<Layout><TeachSettingsPage /></Layout>} />
-                <Route path="/teach/lesson/:jobId" element={<Layout><TeachLessonPage /></Layout>} />
-                <Route path="/teach/mine" element={<Layout><TeachMinePage /></Layout>} />
+                {/* the wizard runs under the slim FocusedLayout (logo · exit · language); the data-provider page keeps the marketplace chrome */}
+                <Route path="/teach" element={<FocusedLayout><TeachPage /></FocusedLayout>} />
+                <Route path="/teach/upload" element={<FocusedLayout><TeachUploadPage /></FocusedLayout>} />
+                <Route path="/teach/dataset/:dsId" element={<FocusedLayout><TeachDatasetPage /></FocusedLayout>} />
+                <Route path="/teach/dataset/:dsId/settings" element={<FocusedLayout><TeachSettingsPage /></FocusedLayout>} />
+                <Route path="/teach/lesson/:jobId" element={<FocusedLayout><TeachLessonPage /></FocusedLayout>} />
+                <Route path="/teach/mine" element={<FocusedLayout><TeachMinePage /></FocusedLayout>} />
                 <Route path="/teacher/:address" element={<Layout><TeacherPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />

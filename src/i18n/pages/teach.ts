@@ -309,6 +309,10 @@ export const teach: Dict = {
   'teach.entry.file.formats': { ko: 'jsonl, csv, tsv, 일반 텍스트 · 질문 최대 {max}개', en: 'jsonl, csv, tsv or plain text · up to {max} questions' },
   'teach.entry.steps': { ko: '어느 쪽으로 들어와도 이 다섯 단계는 같습니다.', en: 'Whichever door you pick, these five steps are the same.' },
   'teach.entry.mine': { ko: '내 데이터셋과 수업', en: 'My datasets and lessons' },
+  // the slim chrome of /teach/* (ux-critique-owner O-3): logo · exit · language, nothing else
+  'teach.chrome.nav': { ko: '가르치기', en: 'Teaching' },
+  'teach.chrome.exit': { ko: '나가기', en: 'Exit' },
+  'teach.chrome.exit_help': { ko: '가르치기를 나가 지식 둘러보기로 갑니다', en: 'Leave teaching and go to Explore knowledge' },
 
   // §5.1 stepper
   'teach.step.data': { ko: '데이터셋', en: 'Dataset' },

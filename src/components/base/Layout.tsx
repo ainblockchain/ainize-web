@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
 import { Banner } from '@/components/ui/Banner';
+import { FocusedHeader } from '@/components/ui/FocusedHeader';
 import { Footer } from '@/components/ui/Footer';
 import { Header } from '@/components/ui/Header';
 import { CenterProgress } from '@/components/ui/Misc';
@@ -41,6 +42,22 @@ export function Layout({ children }: { children: ReactNode }) {
       <Header />
       <Content>{children}</Content>
       <Footer />
+    </Wrapper>
+  );
+}
+
+/**
+ * The teach flow's chrome (`/teach/*`, ux-critique-owner O-3): a slim header (logo · exit · language) and a minimal
+ * footer, so the one task on these pages — teaching the model — is not competing with seven marketplace links and
+ * the developer footer. Marketplace pages keep `Layout`.
+ */
+export function FocusedLayout({ children }: { children: ReactNode }) {
+  return (
+    <Wrapper data-testid="focused-layout">
+      <ScrollToTop />
+      <FocusedHeader />
+      <Content>{children}</Content>
+      <Footer minimal />
     </Wrapper>
   );
 }

@@ -14,16 +14,20 @@ const Copyright = styled.div`flex: 1; font-size: 12px; color: #ffffff;`;
 const FLink = styled(Link)`font-size: 12px; color: #ffffff; text-decoration: none; &:hover { text-decoration: underline; }`;
 const ALink = styled.a`font-size: 12px; color: #ffffff; text-decoration: none; &:hover { text-decoration: underline; }`;
 
-export function Footer() {
+/**
+ * `minimal` — the teach flow's footer (ux-critique-owner O-3): copyright, Terms and Contact only. The developer links
+ * (ain-js, aindrive) belong to the marketplace pages, not to a page whose one task is teaching the model.
+ */
+export function Footer({ minimal }: { minimal?: boolean } = {}) {
   const year = new Date().getFullYear();
   const { t } = useT();
   return (
-    <Wrapper>
+    <Wrapper data-testid={minimal ? 'focused-footer' : undefined}>
       <Content>
         <Copyright>{t('footer.copyright', { year })}</Copyright>
         <FLink to="/terms">{t('footer.terms')}</FLink>
-        <ALink href="https://github.com/ainblockchain/ain-js" target="_blank" rel="noopener noreferrer">ain-js</ALink>
-        <ALink href="https://github.com/ainetwork-ai/aindrive" target="_blank" rel="noopener noreferrer">aindrive</ALink>
+        {!minimal && <ALink href="https://github.com/ainblockchain/ain-js" target="_blank" rel="noopener noreferrer">ain-js</ALink>}
+        {!minimal && <ALink href="https://github.com/ainetwork-ai/aindrive" target="_blank" rel="noopener noreferrer">aindrive</ALink>}
         <ALink href="mailto:support@ainize.ai?subject=[Ainize] ">{t('footer.contact')}</ALink>
       </Content>
     </Wrapper>
