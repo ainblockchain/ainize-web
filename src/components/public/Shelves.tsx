@@ -2,6 +2,7 @@ import styled from 'styled-components';
 import { Link } from 'react-router';
 import { useExploreShelvesQuery } from '@/api/api';
 import type { ShelfCard } from '@/api/types';
+import { StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { num } from '@/utils/format';
 
@@ -32,6 +33,10 @@ const Card = styled(Link)`
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fff;
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
   .nm { font-size: 14px; font-weight: 600; color: ${(p) => p.theme.color.BLACK}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Findings 26/27/56/97 all closed "a retired version presented as current"; these rails re-opened it by
+     rendering no status at all, and on this node the "Selling now" rail is headed by a SUPERSEDED knowledge
+     with 320 sales. The chip says which of them a visitor could actually load today. */
+  .st { display: flex; }
   .by { font-size: 12px; color: ${(p) => p.theme.color.GREY}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fact { font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY}; font-variant-numeric: tabular-nums; }
   .needs { font-size: 11px; color: #8a4b00; }
@@ -63,6 +68,7 @@ export function Shelves() {
             {s.items.map((c) => (
               <Card key={c.id} to={`/${encodeURIComponent(c.author)}/${encodeURIComponent(c.id)}`}>
                 <span className="nm">{c.name}</span>
+                <span className="st"><StatusChip status={c.status} /></span>
                 <span className="by">{c.author_name ?? c.topic_path}</span>
                 <span className="fact">{fact(c, s.id)}</span>
                 {c.requires.length > 0 && <span className="needs">{t('explore.card.needs', { name: c.requires.map((r) => r.name).join(', ') })}</span>}
