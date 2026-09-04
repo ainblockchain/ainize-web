@@ -30,19 +30,22 @@ export function BuiltOnLines({ j }: { j: TeachJob }) {
   const { t } = useT();
   const bases = j.bases ?? [];
   if (!bases.length) return null;
+  const nameOf = (id: string) => bases.find((b) => b.patch_id === id)?.name ?? id;
   const direct = bases[bases.length - 1];
-  const name = direct.name ?? direct.patch_id;
+  // A merge has TWO parents and neither is "the" base: naming only the last would tell the creator their combined
+  // knowledge was built on one of the two knowledges they combined (§9).
+  const headline = j.merge ? `${nameOf(j.merge.a)} + ${nameOf(j.merge.b)}` : direct.name ?? direct.patch_id;
   const changed = j.changed_rows ?? 0;
   const added = Math.max(0, (j.facts?.length ?? 0) - changed);
-  const pc = j.checks?.parent_check?.find((x) => x.patch_id === direct.patch_id);
-  const broken = pc && pc.total ? pc.failed.length : 0;
+  // every knowledge the node re-asked, not just the closest one — a stack of two says two things
+  const checks = (j.checks?.parent_check ?? []).filter((pc) => pc.total > 0);
   return (
     <Lines data-testid="built-on">
-      <span>{t('teach.res.built_on', { name, m: num(added), k: num(changed), rows: num(j.result?.rows ?? 0) })}</span>
-      {!!pc?.total && (broken
-        ? <span className="bad" data-testid="parent-broken">{t('teach.res.parent_broken', { name, k: num(broken), list: pc.failed.slice(0, 6).map((i) => i + 1).join(', ') })}</span>
-        : <span data-testid="parent-ok">{t('teach.res.parent_ok', { name, hit: num(pc.hit), total: num(pc.total) })}</span>)}
-      {j.checks?.reversibility_ok === true && <span data-testid="reversible">{t('teach.res.reversible', { name })}</span>}
+      <span>{t('teach.res.built_on', { name: headline, m: num(added), k: num(changed), rows: num(j.result?.rows ?? 0) })}</span>
+      {checks.map((pc) => (pc.failed.length
+        ? <span className="bad" key={pc.patch_id} data-testid="parent-broken">{t('teach.res.parent_broken', { name: nameOf(pc.patch_id), k: num(pc.failed.length), list: pc.failed.slice(0, 6).map((i) => i + 1).join(', ') })}</span>
+        : <span key={pc.patch_id} data-testid="parent-ok">{t('teach.res.parent_ok', { name: nameOf(pc.patch_id), hit: num(pc.hit), total: num(pc.total) })}</span>))}
+      {j.checks?.reversibility_ok === true && <span data-testid="reversible">{t('teach.res.reversible', { name: headline })}</span>}
     </Lines>
   );
 }
@@ -50,10 +53,25 @@ export function BuiltOnLines({ j }: { j: TeachJob }) {
 export function BuiltOn({ j }: { j: TeachJob }) {
   const { t } = useT();
   if (!j.bases?.length) return null;
+  // SC-14 `merge.result` — a merge built from /teach/merge lands on THIS screen, and the per-source score is the one
+  // thing that says the combined knowledge kept both sides rather than one. Rendered only where both were scored.
+  const mc = j.checks?.merge_check;
+  const both = !!j.merge && !!mc?.some((x) => x.source === j.merge!.a) && !!mc.some((x) => x.source === j.merge!.b);
+  const nameOf = (id: string) => j.bases?.find((b) => b.patch_id === id)?.name ?? id;
+  const src = (id: string) => mc?.find((x) => x.source === id);
+  const resolved = mc?.find((x) => x.kind === 'resolved');
   return (
     <Panel data-testid="built-on-block">
       <h2>{t('teach.res.built_on_title')}</h2>
       <BuiltOnLines j={j} />
+      {both && (
+        <p style={{ marginTop: 8 }} data-testid="merge-check">{t('merge.result', {
+          A: nameOf(j.merge!.a), B: nameOf(j.merge!.b),
+          m: src(j.merge!.a)?.hit ?? 0, n: src(j.merge!.a)?.total ?? 0,
+          p: src(j.merge!.b)?.hit ?? 0, q: src(j.merge!.b)?.total ?? 0,
+          r: resolved?.hit ?? 0, s: resolved?.total ?? 0,
+        })}</p>
+      )}
     </Panel>
   );
 }

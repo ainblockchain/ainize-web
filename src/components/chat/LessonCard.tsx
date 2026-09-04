@@ -216,7 +216,10 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
           {c.parent_regression.total > 0 && <li>{t('teach.card.check_parent', { m: c.parent_regression.hit, n: c.parent_regression.total })}</li>}
           {/* SC-14 `merge.result`: a combined knowledge is scored per source, so a merge that keeps 95 % overall by
               losing one parent entirely cannot read as a pass (design §9 step 4). */}
-          {!!j.merge && !!c.merge_check?.length && (() => {
+          {/* only where the node scored BOTH sides: a parent whose questions the other one already covers has no
+              entry, and "{B} 0/0" would read as a knowledge the merge lost rather than one it did not have to score.
+              The per-parent lines above (SC-7) say what was measured in that case. */}
+          {!!j.merge && !!c.merge_check?.some((x) => x.source === j.merge!.a) && !!c.merge_check.some((x) => x.source === j.merge!.b) && (() => {
             const src = (id: string) => c.merge_check!.find((x) => x.source === id);
             const res = c.merge_check!.find((x) => x.kind === 'resolved');
             const nameOf = (id: string) => j.bases?.find((b) => b.patch_id === id)?.name ?? id;

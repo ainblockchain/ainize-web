@@ -31,6 +31,10 @@ export const mergeScreen: Dict = {
   'merge.tier_union_off': { ko: '불가: 겹치는 행 {dis}개의 값이 다릅니다.', en: 'Not available: {dis} shared rows disagree.' },
   'merge.tier_retrain': { ko: '서로 다른 질문 {d}개만 두 지식 위에서 다시 학습 (~{min}분)', en: 'Retrain the {d} disagreeing questions on top of both (~{min} min)' },
   'merge.tier_rebuild': { ko: '합친 질문 전체로 처음부터 다시 만들기 (~{h}시간, 최고 품질)', en: 'Rebuild everything from the combined questions (~{h} h, best quality)' },
+  // §4 SC-14 writes the estimate into both labels; this node has not always measured one, and "~? min" is not a
+  // time. Where there is no measurement the label drops the parenthetical instead of printing a placeholder.
+  'merge.tier_retrain_untimed': { ko: '서로 다른 질문 {d}개만 두 지식 위에서 다시 학습', en: 'Retrain the {d} disagreeing questions on top of both' },
+  'merge.tier_rebuild_untimed': { ko: '합친 질문 전체로 처음부터 다시 만들기 (최고 품질)', en: 'Rebuild everything from the combined questions (best quality)' },
   'merge.tier_untimed': { ko: '이 노드는 아직 재구축 시간을 잰 적이 없습니다 — 수 시간이 걸릴 수 있습니다.', en: 'This node has not timed a rebuild yet — it may take hours.' },
   'merge.result': { ko: '{A}의 질문 통과 {m}/{n} · {B}의 질문 통과 {p}/{q} · 고른 답 {r}/{s}', en: 'Passes {A}’s questions {m}/{n} · Passes {B}’s questions {p}/{q} · Resolved answers {r}/{s}' },
   'merge.footer': { ko: '두 제작자가 {lineage}%를 똑같이 나눕니다. 구매자는 둘 다 필요합니다.', en: 'Creators of {A} and {B} share {lineage}% equally. Buyers need both.' },

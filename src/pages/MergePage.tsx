@@ -147,14 +147,14 @@ export default function MergePage() {
         </Tier>
         <Tier $off={!p.tiers.retrain.allowed} $req={p.tiers.required === 'retrain'}>
           <input type="radio" name="tier" disabled={!p.tiers.retrain.allowed} checked={chosenTier === 'retrain'} onChange={() => setTier('retrain')} />
-          <span className="t">{t('merge.tier_retrain', { d: conflicts.length, min: p.tiers.retrain.est_min ?? '?' })}
+          <span className="t">{p.tiers.retrain.est_min == null ? t('merge.tier_retrain_untimed', { d: conflicts.length }) : t('merge.tier_retrain', { d: conflicts.length, min: p.tiers.retrain.est_min })}
             {p.tiers.retrain.allowed && p.tiers.retrain.est_min == null && <span className="w">{t('merge.tier_untimed')}</span>}
             {!p.tiers.retrain.allowed && <span className="w">{t('merge.tier_off', { reason: reason(p.tiers.retrain.reason) })}</span>}
           </span>
         </Tier>
         <Tier $off={!p.tiers.rebuild.allowed} $req={p.tiers.required === 'rebuild'}>
           <input type="radio" name="tier" disabled={!p.tiers.rebuild.allowed} checked={chosenTier === 'rebuild'} onChange={() => setTier('rebuild')} />
-          <span className="t">{t('merge.tier_rebuild', { h: p.tiers.rebuild.est_min != null ? Math.max(1, Math.round(p.tiers.rebuild.est_min / 60)) : '?' })}
+          <span className="t">{p.tiers.rebuild.est_min == null ? t('merge.tier_rebuild_untimed') : t('merge.tier_rebuild', { h: Math.max(1, Math.round(p.tiers.rebuild.est_min / 60)) })}
             {p.tiers.rebuild.allowed && p.tiers.rebuild.est_min == null && <span className="w">{t('merge.tier_untimed')}</span>}
             {!p.tiers.rebuild.allowed && <span className="w">{t('merge.tier_off', { reason: reason(p.tiers.rebuild.reason) })}</span>}
           </span>
