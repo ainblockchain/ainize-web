@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import styled from 'styled-components';
 import { useBenchmarkQuery, useInfoQuery } from '@/api/api';
-import { PatchListItem } from '@/components/public/PatchListItem';
+import { PatchListItem, PriceUnitNote } from '@/components/public/PatchListItem';
 import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -96,6 +96,8 @@ export default function BenchmarkPage() {
       <Explain title={`${help('superseded')} (${tech('superseded')})`}>
         {t('bench.explain')}{' '}<StyledLink to="/explore">{t('bench.back')}</StyledLink>
       </Explain>
+      {/* Finding 18: same as /explore — the mobile card shows the price, the unit is said once for the page. */}
+      <PriceUnitNote entries={visible} currency={info?.currency} data-testid="bench-price-note" />
       <div>
         {groups.map((g) => {
           const shown = g.entries.filter((e) => visible.includes(e));

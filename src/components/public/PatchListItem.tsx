@@ -1,3 +1,4 @@
+import type { HTMLAttributes } from 'react';
 import { Link, useNavigate } from 'react-router';
 import styled, { css, keyframes } from 'styled-components';
 import type { CatalogEntry } from '@/api/types';
@@ -136,6 +137,36 @@ const PriceCol = styled.div`
 const Price = styled.div`font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.PRIMARY}; white-space: nowrap;`;
 const PriceNote = styled.div`font-size: 11px; line-height: 1.4; color: ${(p) => p.theme.color.GREY};`;
 
+/**
+ * Finding 18 — the price column is the first thing a narrow card drops, and nothing took its place, so on a phone
+ * the browse list showed no price at all and choosing between 0.1 and 25 AIN meant opening every item. Below the
+ * breakpoint the price leads the facts row instead, in the same purple it has in the column. The unit note that
+ * rides under the desktop price is NOT repeated on every card here — it is one line per page (`PriceUnitNote`),
+ * because four copies of "AIN = AI Network token" is what pushed the price off the card in the first place.
+ */
+const PriceInline = styled.span`
+  display: none;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) {
+    display: inline; font-size: 13px; font-weight: 700; color: ${(p) => p.theme.color.PRIMARY};
+    &::after { content: ' · '; font-weight: 400; color: ${(p) => p.theme.color.BLACK}; }
+  }
+`;
+const UnitNote = styled.div`
+  display: none;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { display: block; padding-bottom: 12px; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY}; }
+`;
+
+/**
+ * The unit note for a list of cards, once — mobile only, because every desktop card carries its own under the price.
+ * Renders nothing when the prices on screen need no explanation (free items, or a currency with no note).
+ */
+export function PriceUnitNote({ entries, currency, ...rest }: { entries: CatalogEntry[]; currency?: string } & HTMLAttributes<HTMLDivElement>) {
+  const priceLabel = usePriceLabel();
+  const notes = [...new Set(entries.map((e) => priceLabel(e.anchor.price, e.anchor.currency ?? currency).note).filter(Boolean))];
+  if (!notes.length) return null;
+  return <UnitNote {...rest}>{notes.join(' · ')}</UnitNote>;
+}
+
 export function PatchListItem({ entry, currency }: { entry: CatalogEntry; currency?: string }) {
   const { t, term, help, tech } = useT();
   const priceLabel = usePriceLabel();
@@ -180,6 +211,7 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
           {' · '}<b>{t('item.topic')}:</b> <abbr title={t('explore.filter.schema_help')}>{a.benchmark.schema}</abbr>
         </Meta>
         <Meta>
+          <PriceInline data-testid="item-price-inline">{p.text}</PriceInline>
           <abbr title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(a.benchmark.queries) })}</abbr>
           {' · '}<abbr title={`${help('rows')} (${tech('rows')})`}>{t('units.rows', { n: num(a.rows) })}</abbr>
           {' · '}{t('item.size', { size: bytes(a.size_bytes) })}
