@@ -74,9 +74,16 @@ export default function SigningPage() {
    * genuinely forgotten it. 401 is the one status this form can explain better than the server can, so it gets the
    * translated sentence and the command that actually recovers the node (`ainize password --reset`); anything else
    * still shows what the server said, which is the only honest thing to do with an error nobody anticipated.
+   * The node also refuses a burst of guesses with 429 and the seconds left, which this page says in words.
    */
-  const signInError = (e: unknown): string =>
-    ((e as { status?: number | string } | null | undefined)?.status === 401 ? t('op.sign.err.wrong') : errorMessage(e));
+  const signInError = (e: unknown): string => {
+    const r = e as { status?: number | string; data?: { retry_after_s?: number; attempts?: number } } | null | undefined;
+    if (r?.status === 401) return t('op.sign.err.wrong');
+    // 429 is the node's own throttle (item 89): it carries the two numbers the sentence needs, so the wait is
+    // stated in the reader's language instead of arriving as an English server string.
+    if (r?.status === 429) return t('op.sign.err.throttled', { n: r.data?.attempts ?? 0, s: r.data?.retry_after_s ?? 0 });
+    return errorMessage(e);
+  };
   const err = localError ?? (setupState.error ? signInError(setupState.error) : loginState.error ? signInError(loginState.error) : null);
   // The Korean docs slugify their own headings, so the anchor differs by language: `## 5. Log in` → `#5-log-in`,
   // `## 5. 로그인` → `#5-로그인` (components/docs/markdown.ts, slugify keeps \p{L}).

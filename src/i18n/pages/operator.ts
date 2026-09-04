@@ -75,6 +75,8 @@ export const operatorSign: Dict = {
   'op.sign.err.terms': { ko: '이용약관에 동의해 주세요.', en: 'Please agree to the Terms and Policies.' },
   // Finding 89: the node answers 401 with the bare string "wrong password". This is what the reader sees instead —
   // in their own language, and with the one command that gets a forgotten node back.
+  // Item 89: the same door now counts attempts, and a refusal that is only "wait" has to say how long and why.
+  'op.sign.err.throttled': { ko: '비밀번호를 {n}번 틀려서 이 주소에서의 시도를 {s}초 동안 받지 않습니다. 잊었다면 노드가 도는 컴퓨터에서 `ainize password --reset`으로 새로 정하세요.', en: '{n} wrong passwords from this address — sign-in is refused here for {s}s. If it is lost, run `ainize password --reset` on the machine the node runs on.' },
   'op.sign.err.wrong': { ko: '이 노드의 운영자 비밀번호가 아닙니다. 노드가 도는 컴퓨터에서 `ainize login`을 처음 실행할 때 정한 비밀번호입니다. 잊었다면 그 컴퓨터에서 `ainize stop` 뒤 `ainize password --reset`으로 새로 정할 수 있습니다.', en: 'That is not this node’s operator password. It is the one set the first time `ainize login` ran on the machine the node runs on. If it is lost, run `ainize stop` and then `ainize password --reset` there to set a new one.' },
   // Finding 71: "Open the operator console" led here, and nothing on the page said where the password comes from.
   'op.sign.login.where': { ko: '이 노드를 직접 운영하고 있다면, 노드가 도는 컴퓨터에서 {cmd}을 처음 실행할 때 정한 비밀번호입니다. 이 화면에서는 비밀번호를 새로 만들거나 되돌릴 수 없습니다.', en: 'Running this node yourself? It is the password set the first time {cmd} ran on the machine the node runs on — this page can neither create one nor reset one.' },
