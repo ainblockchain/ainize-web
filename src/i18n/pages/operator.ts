@@ -50,7 +50,7 @@ export const operatorCommon: Dict = {
   'op.runtime.noapi': { ko: '연결된 모델 서버 없음', en: 'no serving API' },
   // Item 10 — a failing request must never look like an empty console.
   'op.error.title': { ko: '{what} 불러오기에 실패했습니다.', en: 'Could not load {what}.' },
-  'op.error.body': { ko: '이 노드가 응답하지 않았습니다 ({status}: {message}). 아래 목록은 비어 있는 것이 아니라 알 수 없는 상태입니다 — 다시 등록하지 마세요.', en: 'This node did not answer ({status}: {message}). The list below is unknown, not empty — do not register anything again.' },
+  'op.error.body': { ko: '이 노드가 응답하지 않았습니다 ({status}: {message}). 아래 목록은 비어 있는 것이 아니라 알 수 없는 상태입니다 — 사라진 것은 없으니 다시 등록하지 마세요.', en: 'This node did not answer ({status}: {message}). What is below is unknown, not empty — nothing has been lost, and nothing needs registering again.' },
   'op.error.nostatus': { ko: '응답 없음', en: 'no response' },
   'op.error.retry': { ko: '다시 시도', en: 'Try again' },
   'op.error.what.patches': { ko: '내 지식 목록', en: 'your knowledge' },
