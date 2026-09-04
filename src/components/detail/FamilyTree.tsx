@@ -82,6 +82,9 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate, dataset
   // …and the people credited on THIS knowledge, named the same way the money names them: a name when the record
   // carries one, the address otherwise. Never "someone", which would hide who a creator is actually paying.
   const credited = data.money.recipients.filter((r) => r.kind === 'contributor').map((r) => r.name ?? shortAddr(r.address, 6)).join(', ');
+  // one rule for both buttons: the flag holds building back, and a base with no questions to start from cannot be
+  // built on at all — the note under them says which of the two it is
+  const blocked = !canBuildOn || datasetPrivate || datasetNone;
 
   return (
     <Wrap>
@@ -165,11 +168,11 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate, dataset
 
       <Buttons>
         {/* Gated by `teach.lineage` (§18): reading the family is always allowed, building on it is what the flag holds back. */}
-        <a className="primary" href={canBuildOn && !datasetPrivate && !datasetNone ? `/teach/settings?on=${encodeURIComponent(id)}` : undefined}
-          aria-disabled={!canBuildOn || datasetPrivate || datasetNone} data-testid="tree-teach-on"
-          style={!canBuildOn || datasetPrivate || datasetNone ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_teach')}</a>
-        <a href={`/teach/settings?on=${encodeURIComponent(id)}&copy=1`} data-testid="tree-copy"
-          aria-disabled={!canBuildOn || datasetPrivate || datasetNone} style={!canBuildOn || datasetPrivate || datasetNone ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_copy')}</a>
+        <a className="primary" href={blocked ? undefined : `/teach/settings?on=${encodeURIComponent(id)}`}
+          aria-disabled={blocked} data-testid="tree-teach-on"
+          style={blocked ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_teach')}</a>
+        <a href={blocked ? undefined : `/teach/settings?on=${encodeURIComponent(id)}&copy=1`} data-testid="tree-copy"
+          aria-disabled={blocked} style={blocked ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_copy')}</a>
       </Buttons>
       {datasetPrivate && <Lines data-testid="tree-private">{t('detail.build_on_private')}</Lines>}
       {datasetNone && <Lines data-testid="tree-no-dataset">{t('detail.build_on_none')}</Lines>}
