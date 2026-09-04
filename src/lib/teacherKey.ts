@@ -152,6 +152,13 @@ let memoryKey: TeacherKey | null = null;
 
 export function currentTeacherKey(): TeacherKey | null { return readStorage() ?? memoryKey; }
 
+/**
+ * Finding 37 — did the key actually SURVIVE being written? `saveTeacherKey` swallows the storage error and falls
+ * back to a key that lives until the tab closes, and the sheet's warning ("if you clear this browser…") is then a
+ * kinder sentence than the truth. This is the one fact that separates the two, read back from storage.
+ */
+export function keyIsPersisted(): boolean { return readStorage() !== null; }
+
 export function createTeacherKey(extra: { name?: string; payout_address?: string } = {}): TeacherKey {
   const privateKey = randomPrivateKey();
   return saveTeacherKey({ privateKey, address: addressOf(privateKey), created_at: Date.now(), ...(extra.name?.trim() ? { name: extra.name.trim() } : {}), ...(isAddress(extra.payout_address) ? { payout_address: extra.payout_address } : {}) });

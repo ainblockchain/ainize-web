@@ -170,6 +170,10 @@ export const teach: Dict = {
   'teach.key.backup': { ko: '키 백업 내려받기', en: 'Download key backup' },
   'teach.key.warn': { ko: '백업 없이 브라우저를 지우면 내 수업과 미지급 수익에 접근할 수 없습니다.', en: 'If you clear this browser without a backup, you lose access to your lessons and any unpaid earnings.' },
   'teach.key.continue': { ko: '계속', en: 'Continue' },
+  // Finding 37 — the backup is the primary action until it is taken; leaving without one is a labelled choice.
+  'teach.key.continue_no_backup': { ko: '백업 없이 계속하기', en: 'Continue without a backup' },
+  'teach.key.backed_up': { ko: '백업을 내려받았습니다. 다시 찾을 수 있는 곳에 보관하세요 — 이 파일이 있으면 다른 브라우저에서도 내 수업과 수익에 접근할 수 있습니다.', en: 'Backup downloaded. Keep it somewhere you will find it again — with this file you can reach your lessons and earnings from any browser.' },
+  'teach.key.warn_memory': { ko: '이 브라우저는 키를 저장하지 못했습니다(시크릿 창이거나 저장이 차단됨). 지금 백업을 내려받지 않으면 이 탭을 닫는 순간 이 수업을 잃습니다.', en: 'This browser would not remember your key (a private window, or site data is blocked). Download the backup now or you lose this lesson when you close the tab.' },
   'teach.key.import': { ko: '이미 키가 있어요', en: 'I already have a key' },
   'teach.key.import_hint': { ko: '백업 파일을 고르거나 그 내용을 붙여 넣으세요.', en: 'Pick your backup file or paste its contents.' },
   'teach.key.import_ph': { ko: '{"privateKey": "…"} 또는 비밀키', en: '{"privateKey": "…"} or the private key' },
@@ -298,8 +302,10 @@ export const teach: Dict = {
   // §5.10 keep it private sheet
   'teach.keep.title': { ko: '나만 쓰기', en: 'Keep it private' },
   'teach.keep.sub': { ko: '아무것도 공개되지 않습니다. 어떻게 보관할지 고르세요.', en: 'Nothing is published. Pick how you want to keep it.' },
-  'teach.keep.node_title': { ko: '이 노드에 7일간 두기', en: 'Keep it on this node for 7 days' },
-  'teach.keep.node_body': { ko: '내 키(그리고 노드 운영자)만 넣을 수 있습니다. 내 지식 → 써보기에서 씁니다. 운영자에게는 비공개가 아닙니다.', en: 'Only your key (and the node operator) can load it. Use it from Your knowledge → Try. Not private from the operator.' },
+  // Findings 36 + 305 — this option is the ABSENCE of an action, and its deadline is a date the node knows.
+  'teach.keep.node_title': { ko: '이 노드에 그대로 두기', en: 'Leave it on this node' },
+  'teach.keep.node_body': { ko: '할 일이 없습니다 — 이미 여기 있습니다. 내 키(그리고 노드 운영자)만 넣을 수 있고, 내 지식 → 써보기에서 씁니다. 마지막으로 쓴 뒤 {days}일이 지나면 수업과 파일이 삭제됩니다. 운영자에게는 비공개가 아닙니다.', en: 'Nothing to do — it is already here. Only your key (and the node operator) can load it, from Your knowledge → Try. It is deleted {days} days after you last use it. Not private from the operator.' },
+  'teach.keep.node_body_until': { ko: '할 일이 없습니다 — 이미 여기 있습니다. 내 키(그리고 노드 운영자)만 넣을 수 있고, 내 지식 → 써보기에서 씁니다. {when}까지 보관하며, 열거나 써볼 때마다 그 날짜가 미뤄집니다. 그 뒤에는 내려받거나 공개하지 않았다면 수업과 파일이 삭제됩니다. 운영자에게는 비공개가 아닙니다.', en: 'Nothing to do — it is already here. Only your key (and the node operator) can load it, from Your knowledge → Try. It lives on this node until {when}, and that date moves every time you open or try it. After that it is deleted unless you have downloaded or published it. Not private from the operator.' },
   'teach.keep.dl_title': { ko: '지식 파일 내려받기', en: 'Download the knowledge file' },
   'teach.keep.dl_body': { ko: '{size} MB · 메모리 항목 {rows}개 · 링크 7일 유효, 내 지식에서 언제든 새로 만들 수 있습니다.', en: '{size} MB · {rows} memory entries · link valid for 7 days; make a new one any time from Your knowledge.' },
   'teach.keep.dl_body_one': { ko: '{size} MB · 메모리 항목 {rows}개 · 링크 7일 유효, 내 지식에서 언제든 새로 만들 수 있습니다.', en: '{size} MB · {rows} memory entry · link valid for 7 days; make a new one any time from Your knowledge.' },
@@ -316,13 +322,16 @@ export const teach: Dict = {
   'teach.keep.run_confirm': { ko: '명령어를 보려면 먼저 내려받기 링크를 만듭니다 (7일 유효).', en: 'Showing the commands first creates the download links (valid for 7 days).' },
   'teach.keep.run_note': { ko: '전체 안내(선택지 A/B/C, 감시 스크립트)는 RUN-LOCALLY.md에 있습니다.', en: 'The full guide (options A/B/C, watchdog) is in RUN-LOCALLY.md.' },
   'teach.keep.copy': { ko: '명령어 복사', en: 'Copy commands' },
+  // Finding 42 — the commands used to carry a live 7-day download link; the secret is now shown once, on its own.
+  'teach.keep.token_warn': { ko: '이 값은 내 비공개 수업을 내려받을 수 있는 열쇠입니다. {when}까지 유효하며, 가진 사람은 누구나 이 수업을 받을 수 있으니 이슈나 채팅에 붙여넣지 마세요.', en: 'This value is a key that downloads your private lesson. It works until {when}, and anyone who has it can download the lesson — do not paste it into an issue or a chat.' },
+  'teach.keep.token_copy': { ko: '토큰 복사', en: 'Copy the token' },
+  'teach.keep.token_note': { ko: '아래 명령어에는 이 값 대신 $AINIZE_TOKEN이 들어 있으니 그대로 공유해도 됩니다. 실행하기 전에 첫 줄의 export에 위 토큰을 붙여 넣으세요.', en: 'The commands below carry $AINIZE_TOKEN instead of the value, so they are safe to share. Before running them, paste the token above into the export on the first line.' },
   'teach.keep.readme': { ko: 'RUN-LOCALLY.md 내려받기', en: 'Download RUN-LOCALLY.md' },
   'teach.keep.done': { ko: '완료', en: 'Done' },
   'teach.keep.later': { ko: '나중에 공개', en: 'Publish later' },
   'teach.keep.delete': { ko: '이 노드에서 삭제', en: 'Delete from this node' },
   'teach.keep.delete_confirm': { ko: '이 수업과 파일을 이 노드에서 지웁니다. 되돌릴 수 없습니다. 계속할까요?', en: 'This removes the lesson and its file from this node. It cannot be undone. Continue?' },
   'teach.keep.deleted': { ko: '이 노드에서 삭제했습니다.', en: 'Deleted from this node.' },
-  'teach.keep.kept': { ko: '이 노드에 7일간 보관합니다. 내 지식에서 언제든 써보거나 내려받거나 공개할 수 있습니다.', en: 'Kept on this node for 7 days. Try, download or publish it any time from Your knowledge.' },
 
   // §5.11 your knowledge panel
   'teach.mine.title': { ko: '내 지식', en: 'Your knowledge' },

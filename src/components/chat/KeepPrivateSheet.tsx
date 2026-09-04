@@ -47,6 +47,21 @@ function commandsOf(md: string): string {
 }
 
 /**
+ * Finding 42 — the node writes RUN-LOCALLY.md with a live 7-day bearer token baked into every URL, and "Copy
+ * commands" put it on the clipboard with nothing saying so. The natural next step for someone stuck on these
+ * commands is to paste them into an issue or a chat, which hands anyone a working download link to a lesson they
+ * deliberately kept private. The token in the DISPLAYED document and in the copied text is replaced by
+ * `$AINIZE_TOKEN`; the value itself is shown once, on its own, with its own copy button and its expiry.
+ */
+const TOKEN_VAR = '$AINIZE_TOKEN';
+const TOKEN_EXPORT = "export AINIZE_TOKEN='paste-your-token-here'   # from the 'Keep it private' sheet";
+function tokenOf(url: string | undefined): string | null {
+  const m = /[?&]token=([0-9a-fA-F]{8,})/.exec(url ?? '');
+  return m ? m[1] : null;
+}
+const maskToken = (text: string, token: string | null): string => (token ? text.split(token).join(TOKEN_VAR) : text);
+
+/**
  * §5.10 — three honest options, default "keep it on this node". Download links are 7-day tokens minted on demand: nothing
  * is POSTed to /save until the visitor picks the download option (that is the request for links) or ticks the hardware box. The local-run commands are the node's
  * own RUN-LOCALLY.md (fetched through the same tokened link the visitor can download), not a second copy kept in the web app.
@@ -59,7 +74,6 @@ export function KeepPrivateSheet({ job, policy, runtimeModel, onClose, onPublish
   const [cancel, { isLoading: deleting }] = useCancelTeachJobMutation();
   const [showCmds, setShowCmds] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [kept, setKept] = useState(false);
   const [readme, setReadme] = useState<{ url: string; text: string } | null>(null);
   const [readmeError, setReadmeError] = useState<string | null>(null);
   const num = useNumber();
@@ -76,7 +90,14 @@ export function KeepPrivateSheet({ job, policy, runtimeModel, onClose, onPublish
     setError(null);
     try { await cancel(job.id).unwrap(); onDeleted(); } catch (e) { setError(mapTeachError(e, t)); }
   };
-  const done = () => { if (choice === 'node') setKept(true); else onClose(); };
+  /**
+   * Finding 36 — "Keep it on this node" sends no request and never did: the lesson is already here, and the option
+   * is the absence of an action. It used to answer Done with a green "Kept on this node for 7 days" while the card
+   * behind it said unsaved lessons are deleted after 7 days — two framings of one deadline, one of them a success
+   * message for something that never happened. The option now states the deadline itself (with the node's own date),
+   * and Done just closes the sheet.
+   */
+  const done = () => onClose();
 
   // Fetch RUN-LOCALLY.md once the links exist and the visitor asked for the commands.
   const readmeUrl = saved?.download.readme_url;
@@ -90,15 +111,22 @@ export function KeepPrivateSheet({ job, policy, runtimeModel, onClose, onPublish
       .catch((e: unknown) => { if (alive) setReadmeError(mapTeachError(e, t)); });
     return () => { alive = false; };
   }, [showCmds, readmeUrl, readme?.url, t]);
-  const commands = useMemo(() => (readme ? commandsOf(readme.text) : ''), [readme]);
+  /** finding 42 — nothing on screen or on the clipboard carries the bearer token; it is shown once, below. */
+  const token = tokenOf(saved?.download.npz_url);
+  const docText = useMemo(() => (readme ? maskToken(readme.text, token) : ''), [readme, token]);
+  const commands = useMemo(() => (docText ? `${TOKEN_EXPORT}\n\n${commandsOf(docText)}` : ''), [docText]);
 
   return (
     <Sheet title={t('teach.keep.title')} sub={t('teach.keep.sub')} onClose={onClose} width={640} testId="keep-sheet">
-      {kept && <Alert $tone="success" role="status" data-testid="keep-kept">{t('teach.keep.kept')}</Alert>}
       <Options role="radiogroup">
         <Option $active={choice === 'node'}>
           <input type="radio" name="keep" checked={choice === 'node'} onChange={() => pick('node')} />
-          <div><b>{t('teach.keep.node_title')}</b><span className="body">{t('teach.keep.node_body')}</span></div>
+          <div>
+            <b>{t('teach.keep.node_title')}</b>
+            <span className="body" data-testid="keep-node-body">
+              {job.expires_at ? t('teach.keep.node_body_until', { when: dateTime(job.expires_at) }) : t('teach.keep.node_body', { days: policy.draft_ttl_days })}
+            </span>
+          </div>
         </Option>
         <Option $active={choice === 'download'}>
           <input type="radio" name="keep" checked={choice === 'download'} onChange={() => pick('download')} data-testid="keep-download" />
@@ -135,11 +163,22 @@ export function KeepPrivateSheet({ job, policy, runtimeModel, onClose, onPublish
               {showCmds && saved && readme && (
                 <>
                   <SheetNote>{t('teach.keep.run_from_node')}</SheetNote>
-                  <Doc data-testid="run-commands"><pre>{readme.text}</pre></Doc>
+                  {/* finding 42 — the secret, once, before the block that no longer contains it */}
+                  {token && (
+                    <Alert $tone="warning" data-testid="run-token-warning">
+                      <div>{t('teach.keep.token_warn', { when: dateTime(saved.download.expires_at) })}</div>
+                      <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', wordBreak: 'break-all' }}>
+                        <Mono data-testid="run-token">{token}</Mono>
+                        <CopyButton text={token} label={t('teach.keep.token_copy')} />
+                      </div>
+                    </Alert>
+                  )}
+                  <Doc data-testid="run-commands"><pre>{docText}</pre></Doc>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <CopyButton text={commands || readme.text} label={t('teach.keep.copy')} />
+                    <CopyButton text={commands || docText} label={t('teach.keep.copy')} />
                     <a href={saved.download.readme_url} download="RUN-LOCALLY.md" data-testid="run-readme" style={{ fontWeight: 600 }}>{t('teach.keep.readme')}</a>
                   </div>
+                  {token && <SheetNote data-testid="run-token-note">{t('teach.keep.token_note')}</SheetNote>}
                   <SheetNote>{t('teach.keep.run_note')}</SheetNote>
                 </>
               )}
