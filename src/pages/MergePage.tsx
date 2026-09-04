@@ -73,6 +73,8 @@ export default function MergePage() {
   const open = conflicts.filter((c) => choices[c.key] === undefined);
   const chosenTier = tier || p?.tiers.required || (p?.tiers.union.allowed ? 'union' : p?.tiers.retrain.allowed ? 'retrain' : 'rebuild');
   const canBuild = !!p && !open.length && !!p.tiers[chosenTier as typeof TIERS[number]]?.allowed && !building;
+  // a combine writes a stand-alone file unless both parents were built on the same thing; a rebuild always does
+  const standAlone = chosenTier === 'rebuild' || (chosenTier === 'union' && p?.tiers.union.export === 'squash');
 
   const build = async () => {
     if (!p) return;
@@ -88,7 +90,8 @@ export default function MergePage() {
   };
 
   if (policy && !policy.lineage) return <PageWrapper><Alert $tone="warning">{t('merge.disabled')}</Alert></PageWrapper>;
-  if (!a || !b) return <PageWrapper><Picker onPick={(x, y) => setParams({ a: x, b: y })} /></PageWrapper>;
+  // arriving from a knowledge page there is one id in the URL: it is kept, and only the other one is asked for
+  if (!a || !b) return <PageWrapper><Picker first={a || b} onPick={(x, y) => setParams({ a: x, b: y })} /></PageWrapper>;
   if (isLoading || (!p && !previewError)) return <CenterProgress />;
   if (previewError || !p) return <PageWrapper><Alert $tone="error">{t('merge.failed', { message: errorMessage(previewError) })}</Alert></PageWrapper>;
 
@@ -163,7 +166,9 @@ export default function MergePage() {
       <Section>
         <h2>{t('merge.step.check')}</h2>
         <p className="hint">{t('merge.will_check', { A, B })}</p>
-        <p className="line">{t('merge.footer', { A, B, lineage: Math.round((policy?.shares.lineage ?? 0.3) * 100) })}</p>
+        {/* what a buyer needs depends on what this build writes: a combined stand-alone file carries both parents'
+            rows, a delta over them does not (§9 T0 vs T1/T2) */}
+        <p className="line">{t(standAlone ? 'merge.footer_squash' : 'merge.footer', { A, B, lineage: Math.round((policy?.shares.lineage ?? 0.3) * 100) })}</p>
       </Section>
 
       {!!buildError && <Alert $tone="error">{t('merge.failed', { message: errorMessage(buildError) })}</Alert>}
@@ -194,11 +199,11 @@ function ConflictCard({ c, A, B, value, onChange }: { c: MergeConflict; A: strin
 }
 
 /** No pair in the URL: two lists of what this node holds, so the screen is reachable without knowing an id. */
-function Picker({ onPick }: { onPick: (a: string, b: string) => void }) {
+function Picker({ onPick, first = '' }: { onPick: (a: string, b: string) => void; first?: string }) {
   const { t } = useT();
   const { data } = useCatalogQuery({ limit: 100 });
   const items = useMemo(() => (data?.items ?? []).filter((e) => e.status === 'LISTED' || e.status === 'ANNOUNCED'), [data]);
-  const [a, setA] = useState(''); const [b, setB] = useState('');
+  const [a, setA] = useState(first); const [b, setB] = useState('');
   return (
     <>
       <TitleRow><Title>{t('merge.pick_two')}</Title></TitleRow>

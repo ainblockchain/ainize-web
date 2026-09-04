@@ -8,6 +8,8 @@ import type { Dict } from '../index';
  * three other buttons — and the sentence that is really one sentence stays one key.
  */
 export const mergeScreen: Dict = {
+  // the way in, on the knowledge page beside *Teach on top of this* and *Copy and continue* (§9 / SC-9's button row)
+  'detail.tree.btn_merge': { ko: '다른 지식과 합치기', en: 'Combine with another' },
   'merge.title': { ko: '{A} + {B} 합치기', en: 'Combine {A} + {B}' },
   'merge.steps': { ko: '겹침 / 서로 다른 답 / 다시 만들 방법 / 검증', en: 'Overlap / Different answers / How to build / Checking' },
   'merge.step.overlap': { ko: '겹침', en: 'Overlap' },
@@ -32,6 +34,10 @@ export const mergeScreen: Dict = {
   'merge.tier_untimed': { ko: '이 노드는 아직 재구축 시간을 잰 적이 없습니다 — 수 시간이 걸릴 수 있습니다.', en: 'This node has not timed a rebuild yet — it may take hours.' },
   'merge.result': { ko: '{A}의 질문 통과 {m}/{n} · {B}의 질문 통과 {p}/{q} · 고른 답 {r}/{s}', en: 'Passes {A}’s questions {m}/{n} · Passes {B}’s questions {p}/{q} · Resolved answers {r}/{s}' },
   'merge.footer': { ko: '두 제작자가 {lineage}%를 똑같이 나눕니다. 구매자는 둘 다 필요합니다.', en: 'Creators of {A} and {B} share {lineage}% equally. Buyers need both.' },
+  // SC-14's footer is true of a merge that is an ADD-ON to both (a retrain, or a combine over a shared base): the
+  // buyer really does have to load them. A combined stand-alone file carries both parents' rows, so saying it would
+  // be a false claim about what a buyer needs — the money half stays, the loading half is replaced.
+  'merge.footer_squash': { ko: '두 제작자가 {lineage}%를 똑같이 나눕니다. 합친 지식은 그 자체로 동작하므로 구매자는 둘 다 필요하지 않습니다.', en: 'Creators of {A} and {B} share {lineage}% equally. The combined knowledge stands on its own — buyers do not need either.' },
   'merge.private_parent': { ko: '{name}의 질문이 비공개라 "바로 합치기"만 가능하며, 행이 겹치지 않을 때만 됩니다.', en: '{name}’s questions are private: only "Just combine" is possible, and only if the rows do not overlap.' },
 
   // ---------------------------------------------------------------- beyond SC-14: what the screen cannot leave unsaid
