@@ -418,7 +418,7 @@ export const detailLedger: Dict = {
 /* ---------------------------------------------------------------- NetworkPage */
 export const detailNetwork: Dict = {
   'detail.net.title': { ko: '네트워크', en: 'Network' },
-  'detail.net.intro': { ko: '같은 기본 모델을 쓰는 노드들은 어떤 지식을 넣었는지만 다릅니다. 각 노드는 지식 묶음을 구독하고, 게이트웨이는 요청 상황에 맞는 지식 묶음을 가진 노드로 연결합니다. 묶음 전환은 몇 초면 끝나고 재시작이 없습니다.', en: 'Nodes running the same base model differ only in which knowledge they have loaded. Each node subscribes to knowledge tracks; a gateway connects a request to a node whose track fits the situation. Switching tracks takes seconds, no restart.' },
+  'detail.net.intro': { ko: '같은 기본 모델을 쓰는 노드들은 어떤 지식을 넣었는지만 다릅니다. 각 노드는 지식 묶음을 구독하고, 게이트웨이는 요청 상황에 맞는 지식 묶음을 구독 중인 노드로 연결합니다. 운영자가 묶음을 바꾸면 모델 재시작 없이 몇 초 만에 반영되지만, 요청마다 자동으로 바뀌지는 않습니다.', en: 'Nodes running the same base model differ only in which knowledge they have loaded. Each node subscribes to knowledge tracks; a gateway connects a request to a node that subscribes to the track fitting the situation. An operator changing which track a node carries takes seconds and no restart — but it does not happen by itself, per request.' },
   'detail.net.this_node': { ko: '이 노드', en: 'This node' },
   'detail.net.address': { ko: '주소', en: 'Address' },
   'detail.net.endpoint': { ko: '접속 주소', en: 'Endpoint' },
@@ -474,7 +474,7 @@ export const detailNetwork: Dict = {
   'detail.net.h.subscribers': { ko: '구독 노드', en: 'Subscribers' },
   'detail.net.subscribed': { ko: '● 구독 중', en: '● subscribed' },
   'detail.net.router_title': { ko: '게이트웨이 라우터', en: 'Gateway router' },
-  'detail.net.router_note': { ko: '상황(예: 관할=KR)에 맞는 지식 묶음을 가진 노드로 연결합니다. 조건을 넣어 어느 노드로 연결되는지 확인해 보세요. 해당 묶음이 없는 노드는 지금 넣은 묶음을 빼고 새 묶음을 넣어 몇 초 만에 전환합니다.', en: 'Connects a request to a node whose knowledge track fits the situation (e.g. jurisdiction=KR). Enter a condition to see which nodes would answer. A node without that track switches in seconds by unloading its current track and loading the new one.' },
+  'detail.net.router_note': { ko: '상황(예: 관할=KR)에 맞는 지식 묶음을 이미 구독 중인 노드로 연결합니다. 조건을 넣어 어느 노드로 연결되는지 확인해 보세요. 그 묶음을 구독하지 않은 노드는 후보에 오르지 않습니다 — 요청이 왔다고 해서 노드가 알아서 묶음을 바꿔 끼우지는 않습니다.', en: 'Connects a request to a node that already subscribes to the knowledge track fitting the situation (e.g. jurisdiction=KR). Enter a condition to see which nodes would answer. A node that does not subscribe to that track is not a candidate — no node swaps tracks on its own because a request arrived.' },
   'detail.net.attribute': { ko: '조건 이름', en: 'Condition' },
   'detail.net.value': { ko: '값', en: 'Value' },
   'detail.net.route': { ko: '연결할 노드 찾기', en: 'Find nodes' },
