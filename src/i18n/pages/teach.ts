@@ -510,7 +510,7 @@ export const teach: Dict = {
   // of the uploaded file, never a position in the current set, so the table has to say which it is.
   'teach.rows.carried_line': { ko: '파일 {line}줄', en: 'file line {line}' },
   'teach.rows.carried_note': { ko: '파일을 읽을 때 제외된 줄입니다. 이후 수정에서도 해결되지 않아 계속 표시합니다.', en: 'Left out when your file was read, and still not resolved by your later edits — so it is still shown here.' },
-  'teach.rows.carried_summary': { ko: '위 목록에는 파일을 읽을 때 제외된 {n}줄이 함께 있습니다 — 하나를 고쳐도 나머지는 사라지지 않습니다.', en: 'The list above still includes {n} line(s) that were left out when your file was read — fixing one of them never makes the others disappear.' },
+  'teach.rows.carried_summary': { ko: '아직 세고 있는 {n}줄: 파일을 읽을 때 제외됐고, 이후 수정으로도 해결되지 않은 줄입니다 — 하나를 고쳐도 나머지는 사라지지 않습니다.', en: 'Still counted: {n} line(s) that were left out when your file was read and that your later edits did not resolve — fixing one problem never makes the others disappear.' },
   // Item 15 — a fallback encoding is a warning, not a footnote: it is the most likely reason the text looks wrong.
   'teach.rows.encoding_warn': { ko: '이 파일은 UTF-8이 아니라 {encoding}(으)로 읽혔습니다. 아래 질문이 깨져 보이면 학습하지 말고, UTF-8로 저장해 다시 올리거나 "다시 읽기"에서 인코딩을 지정하세요.', en: 'This file was not UTF-8 — it was read as {encoding}. If the questions below look wrong, do not train them: save the file as UTF-8 and upload it again, or name the encoding in "Read it again".' },
   'teach.rows.h.q': { ko: '질문', en: 'Question' },
