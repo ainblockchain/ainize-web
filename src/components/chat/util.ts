@@ -96,6 +96,27 @@ export function parseSelection(param: string | undefined): string[] {
 }
 export function selectionPath(ids: string[]): string { return `/chat/${ids.map((id) => encodeURIComponent(id)).join(SEL_SEP)}`; }
 
+/**
+ * Finding 218 — the set of knowledge loaded together is an object a visitor puts work into, and the only artifact
+ * of it was the address bar: a browser restart, or one click on a card that navigates to a single id, and the
+ * combination was gone. The last set of two or more is remembered here so it can be offered back, and so any other
+ * surface that wants "add to the live test" can read what is already loaded. The multi head's copy-link button is
+ * the other half: one makes the set shareable, this one makes it survive.
+ */
+export const STACK_KEY = 'ainize.chat.stack';
+/** Only a SET is remembered: landing on one knowledge (which is where every card links) must not erase the last one. */
+export function saveStack(ids: string[]): void {
+  if (ids.length < 2) return;
+  try { localStorage.setItem(STACK_KEY, JSON.stringify(ids.slice(0, MAX_CHAT_PATCHES))); } catch { /* storage unavailable (a private window): the set simply is not remembered */ }
+}
+export function loadStack(): string[] {
+  try {
+    const raw = localStorage.getItem(STACK_KEY);
+    const ids = raw ? (JSON.parse(raw) as unknown) : null;
+    return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string' && !!x).slice(0, MAX_CHAT_PATCHES) : [];
+  } catch { return []; }
+}
+
 /** Client-side check identical to the node's: answer (whitespace removed) contains the expected string. */
 export function answerHits(content: string | undefined, expect: string | undefined): boolean | null {
   if (!content || !expect) return null;

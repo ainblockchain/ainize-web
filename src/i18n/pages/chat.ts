@@ -118,6 +118,19 @@ export const chat: Dict = {
   'chat.queue.cancelled': { ko: '기다리기를 그만두었습니다. 노드가 아직 테스트를 시작하지 않아 무료 체험 횟수는 차감되지 않았습니다.', en: 'You stopped waiting. The node had not started this test yet, so no free try was used.' },
   'chat.queue.cancelled_late': { ko: '기다리기를 그만두었지만 공유 모델에서 이미 테스트가 시작되어 무료 체험 1회로 계산됩니다.', en: 'You stopped waiting, but the test had already started on the shared model, so it still counts as one free try.' },
 
+  // Finding 72 — arriving from "Teach the model" on a page whose h1 said "Live test"
+  'chat.title_teach': { ko: '모델 가르치기', en: 'Teach the model' },
+  'chat.subtitle_teach': { ko: '물어보고, 틀린 답을 바로잡으세요. 바로잡은 내용은 {model}에서 곧바로 시험됩니다.', en: 'Ask a question and correct the answer — tested live on {model}.' },
+  // Finding 38 — the corrections a queued lesson did not take stay in the basket, and this says why each stayed
+  'chat.basket.kept_back': { ko: '바로잡기 {n}개가 여기 남았습니다: {parts}.', en: '{n} corrections stayed here: {parts}.' },
+  'chat.basket.kept_back_one': { ko: '바로잡기 1개가 여기 남았습니다: {parts}.', en: '1 correction stayed here: {parts}.' },
+  'chat.basket.kept_known': { ko: '{n}개는 모델이 이미 맞게 답함', en: '{n} the model already answers correctly' },
+  'chat.basket.kept_overlap': { ko: '{n}개는 이 노드에 있는 지식과 겹침', en: '{n} overlap knowledge already on this node' },
+  'chat.basket.kept_in_base': { ko: '{n}개는 바탕 지식이 이미 답함', en: '{n} the base already answers' },
+  'chat.basket.kept_invalid': { ko: '{n}개는 가르칠 수 없음', en: '{n} cannot be taught' },
+  // Finding 218 — the set you loaded before, one click away
+  'chat.head.restore': { ko: '직전에 넣었던 지식 {n}개 다시 넣기: {names}', en: 'Load the last set of {n} again: {names}' },
+
   // quota
   'chat.quota.left': { ko: '이 시간 무료 체험 {n}회 남음', en: '{n} free tries left this hour' },
   'chat.quota.left_of': { ko: '무료 체험 {n}/{limit} 남음 (이 시간)', en: 'Free trial {n}/{limit} left this hour' },

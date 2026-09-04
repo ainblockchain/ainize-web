@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
-import { MAX_HISTORY, answerHits, loadTurns, matchSampleAny, matchSampleEach, parseSelection, saveTurns, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
+import { MAX_HISTORY, answerHits, loadStack, loadTurns, matchSampleAny, matchSampleEach, parseSelection, saveStack, saveTurns, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
 import { TeachDrawer } from '@/components/chat/TeachDrawer';
 import { toCandidate } from '@/components/chat/BasePicker';
 import { LessonBasket } from '@/components/chat/LessonBasket';
@@ -24,6 +24,7 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
 import { bannerDismissed, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
+import type { PreflightFact } from '@/api/types';
 import { num } from '@/utils/format';
 
 /* ---------------------------------------------------------------- layout */
@@ -84,6 +85,15 @@ const HeadList = styled.ol`
 `;
 const Transcript = styled.div`
   flex: 1; min-height: 200px; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px;
+`;
+/**
+ * Finding 36 — the lesson card, above the transcript rather than inside it. Inside, it was the first child of a
+ * box that scrolls itself to the newest answer, so the line stating the deadline sat below the clip. It gets its
+ * own scroller here (a long fact table must not push the composer off the panel) and never moves on its own.
+ */
+const CardSlot = styled.div`
+  flex: 0 1 auto; max-height: 46%; overflow-y: auto; padding: 16px 16px 0;
+  @media (max-width: ${(p) => p.theme.breakpoint.md}px) { max-height: none; overflow-y: visible; }
 `;
 /** centred in whatever space the lesson card (first block of the transcript) leaves; never hidden under it */
 const EmptyState = styled.div`
@@ -267,6 +277,13 @@ export default function ChatPage() {
   /** SC-12 *Teach this on top*: the open question travels in the link and lands in the box, unsent. */
   const askParam = searchParams.get('q') ?? undefined;
   const teachOn = !!policy?.enabled;
+  /**
+   * Finding 72 — the visitor came through the teach door, so this page is named for that door. It stays named for
+   * it after the banner is dismissed (which drops `?teach=1` from the address): renaming the page under someone
+   * mid-visit is the same disorientation in the other direction.
+   */
+  const [teachDoor, setTeachDoor] = useState(teachParam);
+  useEffect(() => { if (teachParam) setTeachDoor(true); }, [teachParam]);
   const setParam = useCallback((key: string, value: string | null) => {
     setSearchParams((prev) => { const next = new URLSearchParams(prev); if (value === null) next.delete(key); else next.set(key, value); return next; }, { replace: true });
   }, [setSearchParams]);
@@ -307,6 +324,8 @@ export default function ChatPage() {
   const [drawer, setDrawer] = useState<{ question: string; answer: string; editId?: string; initial?: { answer?: string; alt_prompt?: string }; focusAlt?: boolean } | null>(null);
   /** Corrections "Improve & retry" could not bring back because the lesson is already full. */
   const [improveFull, setImproveFull] = useState<{ n: number; max: number } | null>(null);
+  /** Finding 38 — corrections the queued lesson did not take, still in the basket, counted by reason. */
+  const [keptBack, setKeptBack] = useState<{ n: number; known: number; overlap: number; invalid: number; in_base: number } | null>(null);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [sheetJob, setSheetJob] = useState<TeachJob | null>(null);
   const [cardJobId, setCardJobId] = useState<string | null>(() => lessonParam ?? loadJobs()[0]?.id ?? null);
@@ -543,17 +562,40 @@ export default function ChatPage() {
     setDrawer(null); setBasketOpen(true); setBasketNudge((n) => n + 1);
   }, [updateBasket, factsPerJob, drawer?.editId]);
   const onTrain = useCallback(() => { setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey]);
-  const onQueued = useCallback((job: TeachJob) => {
+  /**
+   * Finding 38 — queueing used to empty the whole basket, including every correction the pre-flight REFUSED to
+   * train. A visitor who taught four things and had three skipped watched all four disappear, and the rejected one
+   * — the one they might reword and retry — was unrecoverable. Only the corrections that actually went into the
+   * lesson are taken out; the rest stay where they are, with one line saying how many and why.
+   */
+  const onQueued = useCallback((job: TeachJob, left: { id: string; status: PreflightFact['status'] }[] = []) => {
     rememberJob({ id: job.id, name: job.name, created_at: job.created_at });
-    clearBasket(selectedIds); setBasket({ facts: [], builds_on: false });
+    const keep = new Set(left.map((x) => x.id));
+    const facts = basket.facts.filter((f) => keep.has(f.id));
+    if (facts.length) {
+      const next: Basket = { facts, builds_on: basket.builds_on, ...(basket.base ? { base: basket.base } : {}) };
+      saveBasket(selectedIds, next); setBasket(next);
+      const count = (status: PreflightFact['status']) => left.filter((x) => x.status === status).length;
+      setKeptBack({ n: facts.length, known: count('already_known'), overlap: count('overlaps_listing'), invalid: count('invalid'), in_base: count('in_base') });
+    } else {
+      clearBasket(selectedIds); setBasket({ facts: [], builds_on: false }); setKeptBack(null);
+    }
     setSheet(null); setCardJobId(job.id); setCardHidden(false); setParam('lesson', job.id);
-  }, [selectedIds, setParam]);
+  }, [selectedIds, setParam, basket.facts, basket.builds_on, basket.base]);
+  /**
+   * Finding 43 — "Try it now" is the payoff of the whole flow, and it used to tick a checkbox and stop: the taught
+   * question was not put in the box, not asked and not added to the sample chips, so the primary green button on a
+   * finished lesson looked like it had done nothing. The lesson's own first question travels in the link (`?q=`,
+   * the same slot *Teach this on top* uses) and lands in the composer, focused, ready to send.
+   */
   const onTry = useCallback(async (job: TeachJob) => {
     const id = job.draft_id ?? job.patch_id; if (!id) return;
     await refetch();   // the draft must be in `lessons` before the route names it (otherwise it is dropped as untestable)
     userCleared.current = false;
     const next = selectedIds.includes(id) ? selectedIds : selectedIds.length >= MAX_CHAT_PATCHES ? [...selectedIds.slice(0, MAX_CHAT_PATCHES - 1), id] : [...selectedIds, id];
-    navigate({ pathname: selectionPath(next), search: `?lesson=${encodeURIComponent(job.id)}` });
+    const ask = job.facts[0]?.prompt ?? '';
+    const search = `?lesson=${encodeURIComponent(job.id)}${ask ? `&q=${encodeURIComponent(ask)}` : ''}`;
+    navigate({ pathname: selectionPath(next), search });
   }, [refetch, selectedIds, navigate]);
   /**
    * Finding 21 — "Improve & retry" used to REPLACE the whole basket with the failed lesson's facts, so a correction
@@ -606,6 +648,19 @@ export default function ChatPage() {
    * set, in this exact order. (`ainize use a b c`, the CLI half, is item 216 on the node's side.)
    */
   const [copied, setCopied] = useState(false);
+  /**
+   * Finding 218 — the other half of "a set you can pass on": one you can come BACK to. Every set of two or more is
+   * remembered as it is loaded, and when the visitor lands on a single knowledge with a different set remembered,
+   * the head offers it back in one click, in the order it was loaded.
+   */
+  useEffect(() => { if (data) saveStack(selectedIds); }, [selectionKey, data]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [lastStack, setLastStack] = useState<string[]>(() => loadStack());
+  useEffect(() => { setLastStack(loadStack()); }, [patchId]);
+  const restorable = useMemo(() => {
+    if (!data || lastStack.length < 2 || stackKey(lastStack) === selectionKey) return null;
+    const rows = lastStack.map((id) => pickable.find((e) => e.anchor.id === id)).filter((e): e is NonNullable<typeof e> => !!e);
+    return rows.length === lastStack.length ? rows : null;
+  }, [data, lastStack, selectionKey, pickable]);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
   const copyLink = useCallback(() => {
@@ -687,6 +742,21 @@ export default function ChatPage() {
           <button type="button" onClick={() => setImproveFull(null)}>{t('chat.improve.dismiss')}</button>
         </StrandedNote>
       )}
+      {/* finding 38 — the corrections the lesson did not take are still here, and this says why each one stayed */}
+      {keptBack && (
+        <StrandedNote $tone="info" role="status" data-testid="basket-kept-back" style={{ marginBottom: 10 }}>
+          <span>{t('chat.basket.kept_back', {
+            n: keptBack.n,
+            parts: [
+              keptBack.known ? t('chat.basket.kept_known', { n: keptBack.known }) : '',
+              keptBack.overlap ? t('chat.basket.kept_overlap', { n: keptBack.overlap }) : '',
+              keptBack.in_base ? t('chat.basket.kept_in_base', { n: keptBack.in_base }) : '',
+              keptBack.invalid ? t('chat.basket.kept_invalid', { n: keptBack.invalid }) : '',
+            ].filter(Boolean).join(', '),
+          }, keptBack.n)}</span>
+          <button type="button" onClick={() => setKeptBack(null)}>{t('chat.improve.dismiss')}</button>
+        </StrandedNote>
+      )}
       {stranded.map((sb) => (
         <StrandedNote key={stackKey(sb.ids) || 'base'} $tone="info" role="status" data-testid="basket-stranded" style={{ marginBottom: 10 }}>
           <span>{sb.ids.length
@@ -705,7 +775,9 @@ export default function ChatPage() {
   return (
     <PageWrapper $wide>
       <TitleRow>
-        <Title title={`${help('liveTest')} (${tech('liveTest')})`}>{t('chat.title')}</Title>
+        {/* Finding 72 — "Teach the model" landed on a page whose h1 said "Live test". The content already framed
+            teaching (the purple banner, the lesson basket at the top of the rail); only the name disagreed. */}
+        <Title title={`${help('liveTest')} (${tech('liveTest')})`} data-testid="chat-title">{t(teachDoor ? 'chat.title_teach' : 'chat.title')}</Title>
         {/* Finding 35 — this tooltip was literally the serving endpoint ("http://localhost:8002"), an internal
             infrastructure fact with no meaning to a visitor and an invitation on a node reachable from the
             internet. /network gated the same two facts on the operator session in b4d4df7; the operator still
@@ -716,7 +788,7 @@ export default function ChatPage() {
           </ModelChip>
         )}
       </TitleRow>
-      <Description>{t('chat.subtitle')}</Description>
+      <Description>{teachDoor ? t('chat.subtitle_teach', { model: data?.runtime.model ?? info?.node.model ?? t('chat.model_unknown') }) : t('chat.subtitle')}</Description>
 
       {isLoading && <CenterProgress />}
       {!!error && !data && <Alert $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })}</Alert>}
@@ -804,13 +876,22 @@ export default function ChatPage() {
                   </HeadList>
                 </>
               )}
-              {/* Findings 218 + 228 — the set as an object: a link that reproduces it in this order, and what
-                  owning all of it costs, instead of three prices in three cards and no total anywhere. */}
-              {selectedList.length > 1 && (
+              {/* Findings 218 + 228 — the set as an object: a link that reproduces it in this order, what owning
+                  all of it costs, and — when a different set of two or more was loaded before — one click back to
+                  it, so a combination survives a restart and a card that navigates to a single id. */}
+              {(selectedList.length > 1 || restorable) && (
                 <HeadActions data-testid="chat-stack-actions">
-                  <button type="button" onClick={copyLink} data-testid="chat-copy-link">{copied ? t('chat.head.copied') : t('chat.head.copy')}</button>
-                  {stackPrice.length > 0 && (
+                  {selectedList.length > 1 && (
+                    <button type="button" onClick={copyLink} data-testid="chat-copy-link">{copied ? t('chat.head.copied') : t('chat.head.copy')}</button>
+                  )}
+                  {selectedList.length > 1 && stackPrice.length > 0 && (
                     <span title={t('chat.head.own_help')}>{t('chat.head.own', { n: selectedList.length, price: stackPrice.join(' + ') })}</span>
+                  )}
+                  {restorable && (
+                    <button type="button" onClick={() => showStack(restorable.map((e) => e.anchor.id))} data-testid="chat-restore-stack"
+                      title={restorable.map((e) => e.anchor.name).join(' → ')}>
+                      {t('chat.head.restore', { n: restorable.length, names: restorable.map((e) => e.anchor.name).join(', ') })}
+                    </button>
                   )}
                 </HeadActions>
               )}
@@ -821,11 +902,19 @@ export default function ChatPage() {
                   {t('chat.samples.format_note')}
                 </Alert>
               )}
-              <Transcript aria-live="polite" aria-atomic="false">
-                {policy && cardJobId && !cardHidden && (
+              {/*
+                Finding 36 — the lesson card was the first child of the transcript, which is the panel's own
+                scroller and jumps to the newest answer: at 1280x900 the card's last line (the one stating the
+                7-day deadline) was drawn 80 px below the clip, with no scrollbar to suggest it. It sits above the
+                transcript instead, where a card that changes state cannot be scrolled out of sight by a reply.
+              */}
+              {policy && cardJobId && !cardHidden && (
+                <CardSlot>
                   <LessonCard key={cardJobId} jobId={cardJobId} policy={policy} nodeAddress={info?.node.address} teacherAddress={teacherKey?.address}
                     onTry={(j) => { void onTry(j); }} onPublish={(j) => openSheet('publish', j)} onKeep={(j) => openSheet('keep', j)} onImprove={onImprove} onHide={hideCard} />
-                )}
+                </CardSlot>
+              )}
+              <Transcript aria-live="polite" aria-atomic="false">
                 {turns.length === 0 ? (
                   /* Finding 78 — with the model server off, the biggest text on the screen used to tell the
                      visitor to click a sample question, pointing at greyed-out chips. Say what is actually

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
 import { useInfoQuery } from '@/api/api';
@@ -47,9 +47,13 @@ const NavItem = styled(NavLink)`
   &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; }
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
-/** Same look as NavItem but never "active" (it points at /chat?teach=1, which would otherwise light up together with Live test). */
-const NavPlain = styled(Link)`
-  ${navItemCss} color: ${(p) => p.theme.color.BLACK};
+/**
+ * Same look as NavItem, but its active state is decided here rather than by the router: it points at /teach, and
+ * the teach flow's conversational door is /chat?teach=1 — a different path that must still light this item up
+ * (finding 72: the visitor clicked Teach and watched Live test light instead).
+ */
+const NavPlain = styled(Link)<{ $active?: boolean }>`
+  ${navItemCss} color: ${(p) => (p.$active ? p.theme.color.HOVER : p.theme.color.BLACK)};
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
@@ -102,6 +106,9 @@ export function Header() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
   const ain = info?.ledger.kind === 'ain';
+  /** Finding 72 — /chat?teach=1 IS the teach flow's conversational door, so the Teach item is the one lit there. */
+  const location = useLocation();
+  const teaching = location.pathname.startsWith('/teach') || (location.pathname.startsWith('/chat') && new URLSearchParams(location.search).get('teach') === '1');
   return (
     <Wrapper>
       {import.meta.env.DEV && <DevBadge>Development Mode</DevBadge>}
@@ -114,7 +121,7 @@ export function Header() {
           <NavItem to="/explore">{t('nav.explore')}</NavItem>
           <NavItem to="/chat">{t('nav.chat')}</NavItem>
           {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}
-          {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach">{t('nav.teach')}</NavPlain>}
+          {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach" $active={teaching} className={teaching ? 'active' : undefined}>{t('nav.teach')}</NavPlain>}
           <NavItem to="/network">{t('nav.network')}</NavItem>
           <NavItem to="/ledger">{t('nav.ledger')}</NavItem>
           <NavItem to="/docs">{t('nav.docs')}</NavItem>

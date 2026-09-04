@@ -58,7 +58,8 @@ export interface PreflightSheetProps {
   baseCandidates?: BaseCandidate[];
   onBasket?: (fn: (b: Basket) => Basket) => void;
   contributorName?: string;
-  onQueued: (job: TeachJob) => void;
+  /** finding 38 — the corrections this queue did NOT take, so the caller can leave them in the basket */
+  onQueued: (job: TeachJob, left: { id: string; status: PreflightFact['status'] }[]) => void;
   onClose: () => void;
 }
 
@@ -96,7 +97,14 @@ export function PreflightSheet({ patchIds, basket, policy, baseCandidates = [], 
           ...(base ? { base_ids: [base], context_ids: contextIds, mode: 'extend' as const, ...(conflicts.length ? { confirm_conflicts: true } : {}) } : {}),
           contributor: contributorName ? { name: contributorName } : {},
         }).unwrap();
-      onQueued(res.job);
+      // finding 38 — everything the pre-flight refused (already known, overlapping, invalid, answered by the base)
+      const trained = new Set(trainable.map((r) => r.index));
+      const byIndex = new Map((data.facts ?? []).map((f) => [f.index, f]));
+      const left = basket.facts
+        .map((f, i) => ({ id: f.id, status: byIndex.get(i)?.status ?? ('invalid' as PreflightFact['status']), index: i }))
+        .filter((x) => !trained.has(x.index))
+        .map(({ id, status }) => ({ id, status }));
+      onQueued(res.job, left);
     } catch (e) { setQueueError(mapTeachError(e, t)); }
   };
 
