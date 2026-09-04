@@ -16,8 +16,25 @@ export const landing: Dict = {
   'landing.hero.title': { ko: '지식을 AI에 끼우다', en: 'Plug knowledge into your AI' },
   'landing.hero.sub': { ko: 'Ainize = AI + -ize, "AI가 쓸 수 있게 만든다".\n검증된 지식을 고르고, 라이브로 확인하고, 몇 초 만에 모델에 넣으세요.', en: 'Ainize = AI + -ize, "make it usable by AI".\nPick verified knowledge, check it live, load it into your model in seconds.' },
   'landing.hero.count': { ko: '검증 완료 지식 {n}개', en: '{n} verified knowledge' },
+  // `knowledge` is a mass noun, so the count form has to carry the noun itself at n=1 — "1 verified knowledge"
+  // was the reviewer's second complaint about this line (finding 13).
+  'landing.hero.count_one': { ko: '검증 완료 지식 1개', en: 'One verified knowledge' },
   'landing.hero.count_verifying': { ko: '검증 중 {n}개', en: '{n} being verified' },
   'landing.hero.count_help': { ko: '독립된 검증 노드가 실제 모델에 넣어 정답률과 부작용까지 확인한 지식의 수입니다.', en: 'Knowledge that independent verifier nodes loaded into the real model and checked for accuracy and side effects.' },
+  // Finding 13 — a count is only a headline once there is a market to count. Under `NAME_LISTED_BELOW` the hero
+  // names the knowledge that is actually here instead of shouting "1 verified knowledge", and with nothing listed
+  // it says what the node is doing (verifying) rather than advertising an empty shelf.
+  'landing.hero.lead_one': { ko: '‘{name}’ — {model}에서 검증 완료', en: '“{name}” — verified on {model}' },
+  // Never two names side by side: a knowledge name runs to 80 characters, and two of them at 28 px bold filled the
+  // whole card on a phone (measured: 150 characters, 8 wrapped lines). One name carries the concreteness; the rest
+  // are a count.
+  'landing.hero.lead_more': { ko: '‘{name}’ 외 {n}개 — 실제 모델에서 검증 완료', en: '“{name}” and {n} more — verified on the real model' },
+  'landing.hero.lead_sub': { ko: '독립된 노드가 실제 모델에 넣어 채점한 뒤에 올라온 지식입니다.', en: 'Each one was loaded into the real model and scored by independent nodes before it was listed.' },
+  'landing.hero.lead_verifying': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge in verification right now' },
+  'landing.hero.lead_verifying_one': { ko: '지금 지식 1개가 검증 중입니다', en: 'One knowledge is in verification right now' },
+  'landing.hero.lead_verifying_sub': { ko: '독립된 노드가 하나씩 실제 모델에 넣어 채점하고 있습니다. 통과한 지식만 여기에 올라옵니다.', en: 'Independent nodes are loading each one into the real model and scoring it. Whatever passes is listed here.' },
+  'landing.hero.lead_empty': { ko: '이 노드에는 아직 올라온 지식이 없습니다', en: 'No knowledge is listed on this node yet' },
+  'landing.hero.lead_empty_sub': { ko: '지식은 독립된 노드가 실제 모델에 넣어 채점한 뒤에만 여기에 올라옵니다.', en: 'Knowledge is listed here only after independent nodes load it into the real model and score it.' },
   'landing.hero.primary': { ko: '지식 둘러보기', en: 'Explore knowledge' },
   'landing.hero.secondary': { ko: '라이브 테스트 해보기', en: 'Try a live test' },
   'landing.hero.note': { ko: '회원가입 없음 · 결제는 지갑(AIN) 또는 노드 크레딧으로 자동 처리 · 언제든 뺄 수 있음', en: 'No sign-up · pays automatically with a wallet (AIN) or node credit · removable any time' },

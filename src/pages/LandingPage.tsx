@@ -58,15 +58,23 @@ const HeroImage = styled.img`
 `;
 const CountCard = styled.div`
   z-index: 2; margin-top: 56px; padding: 48px 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  /* Finding 13: the headline is a sentence now, not a number — the card keeps a measure so a long one wraps
+     inside it instead of stretching the card across the hero image. */
+  max-width: 640px;
   border-radius: 24px; box-shadow: 0 4px 30px 0 rgba(0, 0, 0, 0.5); background-color: #ffffff;
   @media (max-width: ${(p) => p.theme.breakpoint.md}px) { margin-top: 40px; padding: 40px 24px; width: 100%; }
 `;
 const CountTitle = styled.div`
   font-family: ${(p) => p.theme.font.display}; font-weight: 800; line-height: 1.33; color: #8c6cff; text-align: center; cursor: help;
+  /* A knowledge name is user-supplied: keep-all so Korean breaks between words, anywhere so a 60-character id
+     with no spaces in it wraps instead of stretching the card past the hero. */
+  word-break: keep-all; overflow-wrap: anywhere;
   font-size: 22px;
   @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 28px; }
 `;
 const CountSub = styled.div`font-family: ${(p) => p.theme.font.display}; font-size: 14px; color: #828282;`;
+/** The sentence under the hero headline: a full sentence, so it needs a measure and Korean line breaking. */
+const CountExplain = styled(CountSub)`max-width: 46ch; line-height: 1.5; text-align: center; word-break: keep-all;`;
 const PillRow = styled.div`margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;`;
 const PrimaryPill = styled(Link)`
   padding: 18px 34px; border-radius: 32px; background-color: #8c6cff; font-family: ${(p) => p.theme.font.display}; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none;
@@ -227,6 +235,33 @@ export default function LandingPage() {
   const listed = info?.counts.listed;
   const verifying = info ? (info.counts.verifying ?? Math.max(0, info.counts.patches - info.counts.listed - (info.counts.superseded ?? 0) - (info.counts.rejected ?? 0))) : undefined;
 
+  /**
+   * Finding 13 — the loudest element on the page used to be `{n} verified knowledge`, which read "1 verified
+   * knowledge" on the demo node and "0 verified knowledge" on the teach node, directly above "Explore knowledge".
+   * A number only sells a marketplace once the number is impressive, so below the threshold the card leads with
+   * the thing itself: the knowledge that IS here and the model it was verified on. With nothing listed it leads
+   * with what the node is doing — verification in progress, which /explore does show — instead of a zero.
+   * `trending` is the same LISTED/popular query the section below uses, so this costs no extra request.
+   *
+   * Only ever ONE name: a knowledge name runs to 80 characters, so two of them side by side filled the whole hero
+   * card on a phone. The count of the others comes from `listed`, not from the page of six the query returned.
+   */
+  const NAME_LISTED_BELOW = 5;
+  const heroItems = trending?.items ?? [];
+  const heroNames = heroItems.map((e) => e.anchor.name || e.anchor.id);
+  const namesLead = listed !== undefined && listed > 0 && listed < NAME_LISTED_BELOW && heroNames.length > 0;
+  const heroLead = listed === undefined || (listed > 0 && listed < NAME_LISTED_BELOW && isLoading) ? null
+    : namesLead ? (
+      listed === 1 ? t('landing.hero.lead_one', { name: heroNames[0], model: heroItems[0].anchor.model.id_M })
+        : t('landing.hero.lead_more', { name: heroNames[0], n: listed - 1 }))
+    : listed > 0 ? t('landing.hero.count', { n: num(listed) }, listed)
+      : verifying ? t('landing.hero.lead_verifying', { n: num(verifying) }, verifying)
+        : t('landing.hero.lead_empty');
+  const heroExplain = listed === undefined ? null
+    : namesLead ? t('landing.hero.lead_sub')
+      : listed === 0 ? (verifying ? t('landing.hero.lead_verifying_sub') : t('landing.hero.lead_empty_sub'))
+        : null;
+
   const user = audience('user');
   const creator = audience('creator');
   const operator = audience('operator');
@@ -252,10 +287,14 @@ export default function LandingPage() {
             <IntroTitle>{t('landing.hero.title')}</IntroTitle>
             <IntroSub title={help('brand')}>{t('landing.hero.sub')}</IntroSub>
             <CountCard>
-              <CountTitle title={`${t('landing.hero.count_help')} (${tech('verified')})`}>
-                {listed === undefined ? <Shimmer $w="220px" $h="28px" /> : t('landing.hero.count', { n: num(listed) })}
+              <CountTitle
+                data-testid="hero-lead"
+                title={listed === 0 && verifying ? `${help('verifying')} (${tech('verifying')})` : `${t('landing.hero.count_help')} (${tech('verified')})`}
+              >
+                {heroLead ?? <Shimmer $w="220px" $h="28px" />}
               </CountTitle>
-              {verifying !== undefined && verifying > 0 && <CountSub title={help('verifying')}>{t('landing.hero.count_verifying', { n: num(verifying) })}</CountSub>}
+              {heroExplain && <CountExplain data-testid="hero-explain">{heroExplain}</CountExplain>}
+              {listed !== undefined && listed > 0 && verifying !== undefined && verifying > 0 && <CountSub title={help('verifying')}>{t('landing.hero.count_verifying', { n: num(verifying) })}</CountSub>}
               <PillRow>
                 <PrimaryPill to="/explore">{t('landing.hero.primary')}</PrimaryPill>
                 <SecondaryPill to="/chat" title={help('liveTest')}>{t('landing.hero.secondary')}</SecondaryPill>
