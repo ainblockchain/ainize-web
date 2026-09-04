@@ -135,8 +135,10 @@ export default function TeachUploadPage() {
     setError(null); setCopying(true);
     ensureKey();
     try {
-      const fork = await forkPatch({ id: base.anchor.id, name: base.anchor.name }).unwrap();
-      rememberDataset(fork.dataset_id, base.anchor.name);
+      // no `name`: the node's own default is "<knowledge> (my copy)", which is what My datasets has to show — a copy
+      // carrying the original's exact name is indistinguishable from it in the list and in the lesson id it produces
+      const fork = await forkPatch({ id: base.anchor.id }).unwrap();
+      rememberDataset(fork.dataset_id, fork.dataset.name);
       navigate(`/teach/dataset/${fork.dataset_id}?on=${encodeURIComponent(base.anchor.id)}`);
     } catch (e) { setError(mapTeachError(e, t)); } finally { setCopying(false); }
   };
