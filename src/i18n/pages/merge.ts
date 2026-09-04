@@ -54,6 +54,9 @@ export const mergeScreen: Dict = {
   'merge.pick_b': { ko: '두 번째 지식', en: 'Second knowledge' },
   'merge.combined_set': { ko: '합친 학습 문답 {n}개 — {A}에서 {ra}개, {B}에서 {rb}개', en: 'Combined training set: {n} questions — {ra} from {A}, {rb} from {B}' },
   'merge.license': { ko: '라이선스: {a} + {b} → {child}', en: 'Licence: {a} + {b} → {child}' },
+  // The three numbers of `merge.result` are MEASURED after the build (they are on the result card); before it, the
+  // screen says what will be counted instead of printing three dashes shaped like a result.
+  'merge.will_check': { ko: '만든 뒤에 확인합니다: {A}의 질문에 여전히 답하는지, {B}의 질문에 답하는지, 그리고 고른 답대로 답하는지 — 각각 따로 셉니다.', en: 'Afterwards it is checked: does the result still answer {A}’s questions, {B}’s questions, and the answers you chose — each counted on its own.' },
   'merge.queued': { ko: '만들기 시작했습니다 — 진행 상황을 봅니다', en: 'Queued — follow it on the lesson page' },
   'merge.failed': { ko: '합치지 못했습니다: {message}', en: 'Could not combine them: {message}' },
   'merge.disabled': { ko: '이 노드에서는 아직 지식 합치기를 할 수 없습니다.', en: 'Combining knowledges is not enabled on this node yet.' },

@@ -398,6 +398,8 @@ export interface TeachChecks {
   parent_check?: { patch_id: string; hit: number; total: number; failed: number[]; simulated?: boolean; base_hit?: number; base_total?: number; base_failed?: number[]; overridden?: number }[];
   /** "removing the lesson leaves the base exactly as it was" — null until it was measured. */
   reversibility_ok?: boolean | null;
+  /** Merge (§9 step 4): the combined knowledge scored PER SOURCE — each parent's questions and the resolved answers, never one average. */
+  merge_check?: { source: string; kind: 'parent' | 'resolved'; hit: number; total: number; min: number; ok: boolean }[];
 }
 export interface TeachJob {
   id: string;
@@ -425,6 +427,8 @@ export interface TeachJob {
   /** Lineage (design §12.1): the ordered base stack (ancestors first), how the lesson was made, what it did with the base's questions. */
   bases?: { patch_id: string; sha256: string; name?: string; status?: string }[];
   mode?: 'scratch' | 'extend' | 'fork' | 'merge';
+  /** Merge (§9): the two knowledges combined, how, and what was chosen for each question they answered differently. */
+  merge?: { tier: 'union' | 'retrain' | 'rebuild'; a: string; b: string; conflicts: number; targets: number; dropped: number; from_a: number; from_b: number; rows: { shared: number; disagree: number; opposing: number } };
   export?: 'delta' | 'squash';
   inherited_rows?: number;
   changed_rows?: number;

@@ -211,6 +211,21 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
       {showChecks && (
         <Checks>
           {c.parent_regression.total > 0 && <li>{t('teach.card.check_parent', { m: c.parent_regression.hit, n: c.parent_regression.total })}</li>}
+          {/* SC-14 `merge.result`: a combined knowledge is scored per source, so a merge that keeps 95 % overall by
+              losing one parent entirely cannot read as a pass (design §9 step 4). */}
+          {!!j.merge && !!c.merge_check?.length && (() => {
+            const src = (id: string) => c.merge_check!.find((x) => x.source === id);
+            const res = c.merge_check!.find((x) => x.kind === 'resolved');
+            const nameOf = (id: string) => j.bases?.find((b) => b.patch_id === id)?.name ?? id;
+            return (
+              <li data-testid="lesson-merge-check">{t('merge.result', {
+                A: nameOf(j.merge!.a), B: nameOf(j.merge!.b),
+                m: src(j.merge!.a)?.hit ?? 0, n: src(j.merge!.a)?.total ?? 0,
+                p: src(j.merge!.b)?.hit ?? 0, q: src(j.merge!.b)?.total ?? 0,
+                r: res?.hit ?? 0, s: res?.total ?? 0,
+              })}</li>
+            );
+          })()}
           <li>{t('teach.card.check_locality', { m: c.locality.same, n: c.locality.total })}</li>
           {c.heldout.total > 0 && <li>{t('teach.card.check_heldout', { m: c.heldout.hits, n: c.heldout.total })}</li>}
         </Checks>

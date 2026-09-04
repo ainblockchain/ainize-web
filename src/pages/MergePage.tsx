@@ -162,7 +162,7 @@ export default function MergePage() {
       {/* 4 — what will be checked, and who is paid */}
       <Section>
         <h2>{t('merge.step.check')}</h2>
-        <p className="hint">{t('merge.result', { A, B, m: '—', n: p.a.questions ?? '—', p: '—', q: p.b.questions ?? '—', r: '—', s: conflicts.length })}</p>
+        <p className="hint">{t('merge.will_check', { A, B })}</p>
         <p className="line">{t('merge.footer', { A, B, lineage: Math.round((policy?.shares.lineage ?? 0.3) * 100) })}</p>
       </Section>
 
