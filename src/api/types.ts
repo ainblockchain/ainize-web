@@ -389,7 +389,12 @@ export interface TreeResponse {
   nodes: TreeNode[]; edges: { from: string; to: string; kind: TreeEdgeKind }[];
   truncated: boolean;
   family: { sales: number; knowledges: number; authors: number };
-  money: { seller_pct: number; lineage_pct: number; seller_name: string | null; recipients: { address: string; pct: number; name: string | null }[] };
+  /** `lineage_pct` is what the ancestors' authors share; `contributor_pct` is this knowledge's own credited teacher — two different promises. */
+  money: {
+    seller_pct: number; lineage_pct: number; contributor_pct: number;
+    seller_name: string | null; lineage_names: string[];
+    recipients: { address: string; pct: number; name: string | null; kind: 'lineage' | 'contributor' }[];
+  };
 }
 export interface SignalsResponse {
   patch_id: string;

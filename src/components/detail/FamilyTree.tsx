@@ -77,7 +77,8 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate }: { id:
     sales: num(n.signals.sales_all ?? 0), loads: num(n.signals.loads ?? 0), c: num(n.signals.built_on ?? 0),
   }));
   const kindsShown = [...new Set(data.edges.map((e) => e.kind))];
-  const names = data.money.recipients.map((r) => r.name ?? shortAddr(r.address, 6)).join(', ');
+  // SC-9's "{names}" are the knowledges whose creators share the lineage pool — not every address on the split
+  const names = data.money.lineage_names.join(', ');
 
   return (
     <Wrap>
