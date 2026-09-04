@@ -227,14 +227,30 @@ export const detailPatch: Dict = {
   'detail.lin.no_children': { ko: '아직 파생된 지식 없음', en: 'no derived knowledge yet' },
   'detail.lin.royalty_to': { ko: '수익 분배 대상', en: 'Revenue shared with' },
   'detail.lin.conflicts_note': { ko: '이 노드가 파일을 가진 다른 지식과 기억 항목이 겹치는지 자동으로 확인합니다. 겹치지 않는 지식은 함께 넣어도 안전합니다.', en: 'Automatically checks whether memory entries overlap with other knowledge this node holds. Knowledge that does not overlap is safe to load together.' },
+  // Item 226 — the note stopped at the safe case and said nothing about what to do with an overlapping row.
+  'detail.lin.conflicts_note2': { ko: '겹치는 지식은 둘 다 넣을 수 있지만, 겹치는 항목에서는 나중에 넣은 쪽 값이 남습니다 — 아래 "둘 다 넣고 시험"으로 직접 확인해 보세요.', en: 'Overlapping knowledge can still be loaded together, but on the entries they share the one loaded last wins — "Test both" below puts the pair on the model and shows what the answer becomes.' },
   'detail.lin.conflicts_none': { ko: '겹치는 지식이 없습니다. 이 노드의 다른 지식과 함께 넣어도 됩니다.', en: 'No overlap. It can be loaded together with the other knowledge on this node.' },
   'detail.lin.h.patch': { ko: '지식', en: 'Knowledge' },
   'detail.lin.h.overlap': { ko: '겹치는 기억 항목', en: 'Overlapping entries' },
   'detail.lin.h.relation': { ko: '관계', en: 'Relation' },
   'detail.lin.h.status': { ko: '상태', en: 'Status' },
+  'detail.lin.h.try': { ko: '함께 시험', en: 'Test' },
+  'detail.lin.try_both': { ko: '둘 다 넣고 시험', en: 'Test both' },
+  /* Items 226 + 283 — the three fixed sentences below knew nothing about lineage, so the declared parent drawn as
+     "Origins" ten lines above was labelled "Different subject", and every same-schema row claimed to be either a
+     contradiction or a version without saying which. The first four sentences are the relation the record already
+     states; `ov_*` is the arithmetic under it, and `rel_also_*` is the second fact when a row is both. */
+  'detail.lin.rel_parent': { ko: '원본 — 이 지식은 그 위에서 만들어졌습니다', en: 'Origin — this knowledge was built on it' },
+  'detail.lin.rel_child': { ko: '이 지식 위에서 만들어진 파생 지식입니다', en: 'Built on this knowledge' },
+  'detail.lin.rel_older': { ko: '이전 버전 — 이 지식이 대체합니다. 둘을 함께 넣지 마세요', en: 'Older version — this one replaces it; do not load both' },
+  'detail.lin.rel_newer': { ko: '최신 버전 — 이 지식을 대체합니다', en: 'Newer version — it replaces this one' },
+  'detail.lin.rel_also_older': { ko: '이 지식이 대체한 버전이기도 합니다.', en: 'It is also the version this one replaced.' },
+  'detail.lin.rel_also_newer': { ko: '이 지식을 대체한 버전이기도 합니다.', en: 'It is also the version that replaced this one.' },
+  'detail.lin.ov_all': { ko: '그쪽 기억 항목 {n}개를 이 지식이 모두 담고 있어 따로 넣지 않아도 됩니다.', en: 'This knowledge already covers all {n} of its entries, so it does not have to be loaded as well.' },
+  'detail.lin.ov_some': { ko: '그쪽 기억 항목 {of}개 중 {n}개가 겹칩니다 — 나머지 {rest}개는 이 지식에 없습니다.', en: '{n} of its {of} entries are also here — the other {rest} are not in this knowledge.' },
   'detail.lin.rel_cross_branch': { ko: '다른 지식 묶음이라 함께 둘 수 있음', en: 'Different track — can coexist' },
-  'detail.lin.rel_same': { ko: '같은 주제 — 서로 모순되거나 최신 버전 관계', en: 'Same subject — contradictory or a newer version' },
-  'detail.lin.rel_other': { ko: '다른 주제 — 겹치는 항목을 조정해야 함', en: 'Different subject — overlapping entries need reconciling' },
+  'detail.lin.rel_same': { ko: '같은 주제 — 겹치는 항목은 나중에 넣은 쪽 값이 남습니다', en: 'Same subject — where they overlap, whichever is loaded last wins' },
+  'detail.lin.rel_other': { ko: '다른 주제 — 겹치는 항목은 나중에 넣은 쪽 값이 남습니다', en: 'Different subject — where they overlap, whichever is loaded last wins' },
   'detail.lin.supersedes': { ko: '이 지식이 대체한 이전 버전: ', en: 'This knowledge replaces the older version(s): ' },
   'detail.lin.supersedes_tail': { ko: ' — 같은 주제, 겹치는 기억 항목, 더 새로운 등록.', en: ' — same subject, overlapping entries, newer registration.' },
   'detail.lin.superseded_by': { ko: '최신 버전이 있습니다: ', en: 'A newer version exists: ' },
@@ -308,6 +324,8 @@ export const detailPatch: Dict = {
   'detail.buy.collected': { ko: '다시 받았습니다 — 추가 결제 없음 (이전 결제 {amount} · 거래 {tx})', en: 'Collected again — nothing was charged (earlier payment {amount} · tx {tx})' },
   'detail.buy.needs': { ko: '함께 필요한 지식', en: 'Needs underneath it' },
   'detail.buy.needs_none': { ko: '없습니다 — 이 파일 하나로 동작합니다.', en: 'Nothing — this file works on its own.' },
+  // Item 283 — the buyer of a child had to guess whether the base was a second, unbudgeted purchase.
+  'detail.buy.needs_contains': { ko: '원본 {name}의 기억 항목 {n}개를 이 파일이 그대로 담고 있습니다 — 이 지식을 쓰는 데 원본을 따로 살 필요는 없습니다.', en: 'It already carries all {n} memory entries of its origin {name} — that base does not have to be bought to use this.' },
   'detail.buy.needs_squash': { ko: '기반 지식의 내용을 이 파일이 그대로 담고 있습니다(squash).', en: 'It carries its base’s rows inside itself (squash build).' },
   'detail.buy.needs_lead': { ko: '이 지식은 아래 지식 위에서 학습된 추가분입니다. 아래 지식이 먼저 모델에 올라가 있어야 동작합니다.', en: 'This is an add-on trained on top of the knowledge below. It only works with that loaded underneath it.' },
   'detail.buy.needs_mine': { ko: '내가 만든 지식', en: 'published by this node' },

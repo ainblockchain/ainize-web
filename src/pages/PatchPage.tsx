@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
@@ -13,6 +13,7 @@ import { CenterProgress, CopyButton, Divider, Empty, ExternalLink, KeyValue, Mon
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { sourceKind } from '@/components/teach/util';
+import { selectionPath } from '@/components/chat/util';
 import { useTitle } from '@/utils/useTitle';
 import { bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
 import { FamilyTree } from '@/components/detail/FamilyTree';
@@ -196,6 +197,24 @@ const TreeNode = styled(Link)<{ $me?: boolean }>`
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
 `;
 
+/**
+ * Item 205 — at 360 px the overlap table was 709 px wide inside a 360 px viewport, so Relation (the column this
+ * whole section exists for) and Status were simply not on screen. Below the phone breakpoint the same rows are
+ * cards: every field labelled, nothing to scroll sideways for.
+ */
+const OverlapCards = styled.ul`
+  margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 10px;
+  li { border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; }
+  li .top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
+  li .k { font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
+  li .v { font-size: 13px; color: ${(p) => p.theme.color.BLACK}; }
+`;
+/** Item 226: what the overlap MEANS, and the second line that says which version came first. */
+const RelCell = styled.div`
+  font-size: 13px; line-height: 1.5;
+  small { display: block; margin-top: 2px; font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
+`;
+
 /** The two versions set side by side inside the "newer version" warning — price, accuracy and verification of each. */
 const Versions = styled.div`
   margin-top: 10px; display: grid; gap: 8px;
@@ -225,6 +244,23 @@ const TextBtn = styled.button`
   background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: ${(p) => p.theme.color.GREY}; cursor: pointer;
   text-decoration: underline; &:hover { color: ${(p) => p.theme.color.BLACK}; }
 `;
+
+/**
+ * Item 205: the phone layout of the overlap block is a different shape, not a hidden column — rendering both and
+ * hiding one with CSS would put the same rows in the accessibility tree twice.
+ */
+function useNarrow(px: number): boolean {
+  const query = `(max-width: ${px - 1}px)`;
+  const [on, setOn] = useState(() => (typeof window === 'undefined' ? false : window.matchMedia(query).matches));
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const sync = () => setOn(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, [query]);
+  return on;
+}
 
 type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
 
@@ -757,10 +793,43 @@ function Lineage({ d, authorSlug }: { d: PatchDetail; authorSlug: string }) {
   const share = anchorShare ?? (info as { royalty_share?: number } | undefined)?.royalty_share;
   const verifierShare = (d.anchor as { verifier_share?: number }).verifier_share;
   const { parents, children } = d.lineage;
-  const relation = (c: ConflictInfo) => {
+  const narrow = useNarrow(600);
+  /**
+   * Items 226 + 283 — `relation()` picked one of three fixed sentences from `same_schema` and `cross_branch` and
+   * knew nothing about lineage, so the declared parent drawn as "Origins" ten lines above appeared in this table as
+   * "Different subject — overlapping entries need reconciling", and every same-schema row said "contradictory or a
+   * newer version" without knowing which. The response already carries the answer: `lineage.parents/children`,
+   * `supersedes` and `superseded_by` say what the pair IS, and the partner's own row count — read from the
+   * same-subject list this page already loads — turns the overlap into the sentence a buyer needs: whether this
+   * knowledge covers all of the other one's entries or only some of them.
+   */
+  const family = useBenchmarkQuery(d.anchor.benchmark.schema, { skip: d.conflicts.length === 0 });
+  const rowsOf = (id: string): number | undefined => family.data?.items.find((e: CatalogEntry) => e.anchor.id === id)?.anchor.rows;
+  const parentIds = new Set(parents.map((p) => p.id));
+  const childIds = new Set(children.map((c) => c.id));
+  const older = new Set(d.supersedes);
+  const newer = new Set(d.superseded_by);
+  /** The relation itself: origin / built on this / older / newer / coexisting — in that order of consequence. */
+  const relation = (c: ConflictInfo): string => {
+    if (parentIds.has(c.patch_id)) return t('detail.lin.rel_parent');
+    if (childIds.has(c.patch_id)) return t('detail.lin.rel_child');
+    if (older.has(c.patch_id)) return t('detail.lin.rel_older');
+    if (newer.has(c.patch_id)) return t('detail.lin.rel_newer');
     const cross = (c as ConflictInfo & { cross_branch?: boolean }).cross_branch === true;
     return cross ? t('detail.lin.rel_cross_branch') : c.same_schema ? t('detail.lin.rel_same') : t('detail.lin.rel_other');
   };
+  /** The arithmetic under it: how much of the other knowledge is already in this one (item 283). */
+  const overlapNote = (c: ConflictInfo): string | null => {
+    const of = rowsOf(c.patch_id);
+    if (of === undefined || of <= 0) return null;
+    if (c.overlap_rows >= of) return t('detail.lin.ov_all', { n: num(of) });
+    return t('detail.lin.ov_some', { n: num(c.overlap_rows), of: num(of), rest: num(of - c.overlap_rows) });
+  };
+  const versionNote = (c: ConflictInfo): string | null => (
+    parentIds.has(c.patch_id) && older.has(c.patch_id) ? t('detail.lin.rel_also_older')
+      : childIds.has(c.patch_id) && newer.has(c.patch_id) ? t('detail.lin.rel_also_newer') : null
+  );
+  const bothPath = (id: string) => selectionPath([d.anchor.id, id]);
   return (
     <>
       <Section>
@@ -778,24 +847,43 @@ function Lineage({ d, authorSlug }: { d: PatchDetail; authorSlug: string }) {
       </Section>
       <Section>
         <H3 title={`${help('conflict')} (${tech('conflict')})`}>{term('conflict')}</H3>
-        <Note>{t('detail.lin.conflicts_note')}</Note>
+        <Note>{t('detail.lin.conflicts_note')} {t('detail.lin.conflicts_note2')}</Note>
         {d.conflicts.length === 0 && <P>{t('detail.lin.conflicts_none')}</P>}
-        {d.conflicts.length > 0 && (
+        {d.conflicts.length > 0 && !narrow && (
           <TableWrapper>
             <Table>
-              <TableHeader><TableRow><TableHead $align="left" $padding="0 8px 0 0">{t('detail.lin.h.patch')}</TableHead><TableHead>{t('detail.lin.h.overlap')}</TableHead><TableHead $align="left">{t('detail.lin.h.relation')}</TableHead><TableHead>{t('detail.lin.h.status')}</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead $align="left" $padding="0 8px 0 0">{t('detail.lin.h.patch')}</TableHead><TableHead>{t('detail.lin.h.overlap')}</TableHead><TableHead $align="left">{t('detail.lin.h.relation')}</TableHead><TableHead>{t('detail.lin.h.status')}</TableHead><TableHead $align="right">{t('detail.lin.h.try')}</TableHead></TableRow></TableHeader>
               <TableBody>
                 {d.conflicts.map((c) => (
                   <TableRow key={c.patch_id}>
                     <TableData $align="left" $padding="0 8px 0 0" $weight={600}><StyledLink to={`/${authorSlug}/${encodeURIComponent(c.patch_id)}`}>{c.patch_id}</StyledLink></TableData>
                     <TableData title={tech('rows')}>{t('units.rows', { n: num(c.overlap_rows) })}</TableData>
-                    <TableData $align="left">{relation(c)}</TableData>
+                    {/* the shared cell is one ellipsised line by default; a relation is two sentences, so it wraps here */}
+                    <TableData $align="left" $maxWidth="420px" style={{ whiteSpace: 'normal', overflow: 'visible', padding: '8px' }}>
+                      <RelCell>{relation(c)}{[overlapNote(c), versionNote(c)].filter(Boolean).map((x) => <small key={x as string}>{x}</small>)}</RelCell>
+                    </TableData>
                     <TableData><StatusChip status={c.status} /></TableData>
+                    <TableData $align="right"><StyledLink to={bothPath(c.patch_id)}>{t('detail.lin.try_both')} →</StyledLink></TableData>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableWrapper>
+        )}
+        {d.conflicts.length > 0 && narrow && (
+          <OverlapCards data-testid="overlap-cards">
+            {d.conflicts.map((c) => (
+              <li key={c.patch_id}>
+                <div className="top">
+                  <StyledLink to={`/${authorSlug}/${encodeURIComponent(c.patch_id)}`} style={{ fontWeight: 600, fontSize: 13 }}>{c.patch_id}</StyledLink>
+                  <StatusChip status={c.status} />
+                </div>
+                <div><span className="k">{t('detail.lin.h.overlap')}</span> <span className="v" title={tech('rows')}>{num(c.overlap_rows)}</span></div>
+                <div><span className="k">{t('detail.lin.h.relation')}</span><RelCell>{relation(c)}{[overlapNote(c), versionNote(c)].filter(Boolean).map((x) => <small key={x as string}>{x}</small>)}</RelCell></div>
+                <StyledLink to={bothPath(c.patch_id)} style={{ fontSize: 13 }}>{t('detail.lin.try_both')} →</StyledLink>
+              </li>
+            ))}
+          </OverlapCards>
         )}
         {d.supersedes.length > 0 && <Alert $tone="info" style={{ marginTop: 12 }}>{t('detail.lin.supersedes')}{d.supersedes.map((s, i) => <span key={s}>{i > 0 && ', '}<StyledLink to={`/${authorSlug}/${encodeURIComponent(s)}`}>{s}</StyledLink></span>)}{t('detail.lin.supersedes_tail')}</Alert>}
         {d.superseded_by.length > 0 && <Alert $tone="warning" style={{ marginTop: 12 }} title={help('superseded')}>{t('detail.lin.superseded_by')}{d.superseded_by.map((s, i) => <span key={s}>{i > 0 && ', '}<StyledLink to={`/${authorSlug}/${encodeURIComponent(s)}`}>{s}</StyledLink></span>)}{t('detail.lin.superseded_tail')}</Alert>}
@@ -923,7 +1011,9 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
    * this page already links to, so naming it costs one request and no node change.
    */
   const successorIds = [...new Set(d.superseded_by)].filter((id) => id !== a.id);
-  const family = useBenchmarkQuery(a.benchmark.schema, { skip: successorIds.length === 0 });
+  // the same-subject list answers two questions here: which successor to send a buyer to, and (item 283) how much
+  // of a declared origin this knowledge already carries — the one fact that decides whether the base is needed too.
+  const family = useBenchmarkQuery(a.benchmark.schema, { skip: successorIds.length === 0 && d.lineage.parents.length === 0 });
   const successors = successorIds
     .map((id) => family.data?.items.find((e: CatalogEntry) => e.anchor.id === id))
     .filter((e): e is CatalogEntry => !!e)
@@ -948,6 +1038,14 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const needs = quote?.requires ?? [];
   const missing = needs.filter((r) => !r.licensed && !r.mine);
   const totalText = quote ? f.priceLabel(quote.total, quote.currency) : priceText;
+  /**
+   * Item 283: the buyer of a child had to work out for themselves whether the base was a second purchase. When the
+   * child's blob already carries every address of a declared origin, this says so by name — and only when the node's
+   * own quote agrees that nothing else has to be bought.
+   */
+  const originsCovered = d.lineage.parents
+    .map((pnt) => ({ name: pnt.name || pnt.id, overlap: d.conflicts.find((c) => c.patch_id === pnt.id)?.overlap_rows, rows: family.data?.items.find((e: CatalogEntry) => e.anchor.id === pnt.id)?.anchor.rows }))
+    .filter((x): x is { name: string; overlap: number; rows: number } => x.overlap !== undefined && x.rows !== undefined && x.rows > 0 && x.overlap >= x.rows);
   // Item 364: on a local-credit node the money is issued BY this node — say so where it is about to be spent.
   const { data: credit } = useMyCreditQuery(undefined, { skip: !isOperator || a.currency !== 'CREDIT' });
   return (
@@ -1009,6 +1107,9 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
                 </>
               )}
             {quote?.export === 'squash' && needs.length === 0 && <div style={{ fontSize: 12, color: '#8d8d8f' }}>{t('detail.buy.needs_squash')}</div>}
+            {needs.length === 0 && originsCovered.map((o) => (
+              <div key={o.name} style={{ marginTop: 4, fontSize: 13 }} data-testid="buy-origin-covered">{t('detail.buy.needs_contains', { name: o.name, n: num(o.rows) })}</div>
+            ))}
           </dd>
           <dt>{t('detail.buy.seller')}</dt><dd>{a.author_name ? <>{a.author_name} <Mono style={{ color: '#8d8d8f' }}>{shortAddr(a.author, 8)}</Mono></> : <Mono>{a.author}</Mono>}</dd>
           <dt title={t('detail.tech.gateway')}>{t('detail.buy.gateway')}</dt>
