@@ -18,11 +18,16 @@ export function fmtMs(ms: number | null | undefined, locale: 'ko' | 'en'): strin
 export const BENCH_MATCH_MIN = 8;
 
 /**
- * The benchmark sample that matches a prompt — the SAME rule the node uses for benchmark_hit
- * (packages/node/src/market.ts matchBenchmarkSample), so the ✓/✗ chip and the server never disagree.
- * Trimmed equality first (a chip sent verbatim still scores), then containment only for questions of at least
- * BENCH_MATCH_MIN characters: "드", "코드", "종목" and a bare space used to auto-score against
- * "종목코드 픽셀플러스 " and were shown as ✗ Wrong against a ticker the visitor never asked about.
+ * The benchmark sample that matches a prompt. Trimmed equality first (a chip sent verbatim still scores), then
+ * containment only ONE WAY and only for questions of at least BENCH_MATCH_MIN characters: the user typed the
+ * sample plus extra words.
+ *
+ * Finding 60 — the other direction (`x.prompt.trim().includes(p)`) scored a TRUNCATION of a sample against that
+ * sample: "종목코드 한화머시" is a prefix of "종목코드 한화머시너리앤서비스홀딩스 ", so a question about one company
+ * was marked ✗ Wrong against another company's ticker, with the expected value nowhere on screen. The node's
+ * matchBenchmarkSample still keeps both directions (packages/node/src/market.ts:378, out of this workstream's
+ * reach), so the UI treats ITS OWN match as the gate: a verdict is rendered only for a prompt matched here, which
+ * is why `expects` below is what TurnView scores against.
  */
 export function matchSample(entry: CatalogEntry | undefined, prompt: string): { prompt: string; expect: string } | undefined {
   const p = prompt.trim();
@@ -31,13 +36,55 @@ export function matchSample(entry: CatalogEntry | undefined, prompt: string): { 
   const exact = samples?.find((x) => x.prompt.trim() === p);
   if (exact) return exact;
   if (p.length < BENCH_MATCH_MIN) return undefined;
-  return samples?.find((x) => p.includes(x.prompt.trim()) || x.prompt.trim().includes(p));
+  return samples?.find((x) => p.includes(x.prompt.trim()));
 }
 
 /** First matching sample across several selected knowledges (the node scores each one separately in benchmark_hits). */
 export function matchSampleAny(entries: CatalogEntry[], prompt: string): { prompt: string; expect: string; patch_id: string } | undefined {
   for (const e of entries) { const s = matchSample(e, prompt); if (s) return { ...s, patch_id: e.anchor.id }; }
   return undefined;
+}
+
+/**
+ * What EACH selected knowledge expects for this question (finding 223): the node answers once with everything
+ * loaded and scores that one answer against every knowledge's own sample, so the bubble shows several verdicts of
+ * one text. Rendering them needs each knowledge's expected value, not just the first match.
+ */
+export function matchSampleEach(entries: CatalogEntry[], prompt: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const e of entries) { const s = matchSample(e, prompt); if (s) out[e.anchor.id] = s.expect; }
+  return out;
+}
+
+/**
+ * Finding 67 — the transcript survives leaving the page.
+ *
+ * The only route to buying is the panel head's *Details →*, and the answers that persuaded the visitor were
+ * component state: one client-side navigation and Back came home to "No questions yet", with the free tries that
+ * produced them already spent. The record is plain JSON, so it is kept in sessionStorage (this tab, this origin,
+ * until the tab is closed) and restored on mount.
+ *
+ * Pending turns are never stored: a request in flight when the page unmounts has no answer to come back to.
+ */
+const TURNS_KEY = 'ainize.chat.turns';
+/** Keep the tail of a long conversation rather than refusing to store it: a browser quota is a few hundred KB. */
+const TURNS_MAX = 12;
+export function loadTurns<T>(): T[] {
+  try {
+    const raw = sessionStorage.getItem(TURNS_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch { return []; }
+}
+export function saveTurns<T extends { status: string }>(turns: T[]): void {
+  const keep = turns.filter((t) => t.status !== 'pending').slice(-TURNS_MAX);
+  try {
+    if (keep.length === 0) { sessionStorage.removeItem(TURNS_KEY); return; }
+    sessionStorage.setItem(TURNS_KEY, JSON.stringify(keep));
+  } catch {
+    // Out of room (a long conversation with raw answers): keep the last few rather than losing the lot.
+    try { sessionStorage.setItem(TURNS_KEY, JSON.stringify(keep.slice(-3))); } catch { /* storage unavailable */ }
+  }
 }
 
 /** Up to 3 knowledges per live test (server limit, spec §6.3). */
@@ -57,6 +104,15 @@ export function answerHits(content: string | undefined, expect: string | undefin
 
 /** Server limits for POST /api/chat (zod): at most 24 messages, each non-empty. We send the last 23 + the new prompt. */
 export const MAX_HISTORY = 23;
+/**
+ * Longest question the node accepts (packages/node/src/api.ts:1041 — `content: z.string().min(1).max(4000)` per
+ * message). Finding 61: the box had no limit, so an over-long question was cleared from the composer, sent, and
+ * answered with a zod 400 the UI translated into "clear the conversation" — advice that could not work, on text
+ * the visitor no longer had.
+ */
+export const PROMPT_MAX = 4000;
+/** Where the counter appears: close enough to matter, far enough not to nag. */
+export const PROMPT_COUNT_FROM = 3500;
 
 /** What a pending turn knows about its place in the queue behind the shared model (D3). */
 export interface ChatQueueView {
@@ -106,6 +162,25 @@ export function lockKind(lock: ChatLock | null | undefined, heldByThisTab = fals
   // NOTE: lock.mine means "this NODE process holds it" — with two tabs on one node that is still someone else's
   // test, so the "your test" wording is driven by this tab's own in-flight request, not by the node flag.
   return heldByThisTab ? 'mine' : 'other';
+}
+
+/**
+ * Finding 65 — what a VISITOR is told is holding the shared model. The raw label is an internal lock key
+ * (`teach:e012b848-…:preflight`, `chat:krx-all-2761+pixelplus-087600`, `verify:krx-all-2761`) and the owner is the
+ * node's OS process (`pid:1355814`); printing either turned a public page into a debug console. This maps the
+ * label to the KIND of work, which is the only part a visitor can act on.
+ *
+ * `mineJobId` is the lesson this page is showing: a `teach:<that job>:…` lock is the visitor's OWN lesson being
+ * checked, which the old wording blamed on a stranger.
+ */
+export type LockJobKind = 'chat' | 'teach' | 'teach_mine' | 'verify' | 'apply' | 'other';
+export function lockJobKind(label: string | undefined, mineJobId?: string | null): LockJobKind {
+  const l = (label ?? '').trim();
+  if (l.startsWith('chat:')) return 'chat';
+  if (l.startsWith('teach:')) return mineJobId && l.startsWith(`teach:${mineJobId}:`) ? 'teach_mine' : 'teach';
+  if (l.startsWith('verify:')) return 'verify';
+  if (l.startsWith('apply:') || l.startsWith('remove:')) return 'apply';
+  return 'other';
 }
 
 /** Extract a numeric pid from the lock owner label ("pid:1234" → "1234"); falls back to the raw owner. */
