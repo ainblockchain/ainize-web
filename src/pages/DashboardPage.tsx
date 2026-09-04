@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
   errorMessage, useAddToBranchMutation, useApplyMutation, useBranchesQuery, useCreateBranchMutation, useInfoQuery, useMyPatchesQuery, useMyPurchasesQuery,
-  useRemoveMutation, useRuntimeQuery, useSubscribeMutation,
+  useRemoveMutation, useRuntimeQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -15,6 +15,7 @@ import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
 import { CenterProgress, PageWrapper, StatusChip, SubTitle, Tabs, Title, TitleRow, Description } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { IconButton, LiveTestIcon, QueryError, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { TrackCard } from '@/components/operator/TrackCard';
 import { num, shortAddr, shortHash } from '@/utils/format';
 
 const NameLink = styled(Link)`
@@ -23,17 +24,11 @@ const NameLink = styled(Link)`
 const IconLink = styled(Link)`
   display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 4px; &:hover { background: #f5eefc; }
 `;
-const BranchCard = styled.div`
-  padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; display: flex; flex-direction: column; gap: 8px;
-`;
 const BranchGrid = styled.div`display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;`;
 const MiniForm = styled.form`
   margin-top: 16px; padding: 16px 20px; border: 1px dashed ${(p) => p.theme.color.LIGHT_GREY}; display: flex; flex-direction: column; gap: 14px; max-width: 640px;
 `;
 const ContextRow = styled.div`display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;`;
-const Tag = styled.span`
-  display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #f5eefc; color: #5b1ca8; font-family: ${(p) => p.theme.font.mono};
-`;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
 
 /** Teaching tab (spec §5.13) is code-split: most operators open My knowledge far more often than the teach queue. */
@@ -61,7 +56,6 @@ export default function DashboardPage() {
   const [apply, applyState] = useApplyMutation();
   const [remove, removeState] = useRemoveMutation();
   const branches = useBranchesQuery();
-  const [subscribe, subState] = useSubscribeMutation();
   const [createBranch, createState] = useCreateBranchMutation();
   const [addToBranch, addState] = useAddToBranchMutation();
 
@@ -237,26 +231,9 @@ export default function DashboardPage() {
       {branches.isError && <QueryError error={branches.error} what={t('op.error.what.branches')} retrying={branches.isFetching} onRetry={() => void branches.refetch()} />}
       {branches.isLoading ? <CenterProgress /> : branches.isError ? null : (
         <BranchGrid>
-          {(branches.data?.branches ?? []).map((b) => {
-            const mine = branches.data?.mine.includes(b.name);
-            const busy = subState.isLoading && subState.originalArgs?.name === b.name;
-            return (
-              <BranchCard key={b.name}>
-                <Row $justify="space-between">
-                  <strong>{b.name}</strong>
-                  {mine && <Tag>{t('op.dash.branches.subscribed')}</Tag>}
-                </Row>
-                <span style={{ fontSize: 13, color: '#8d8d8f' }}>{b.description || t('op.dash.branches.nodesc')}</span>
-                <Row $gap={6}>{Object.entries(b.context).map(([k, v]) => <Tag key={k}>{k}={v}</Tag>)}{Object.keys(b.context).length === 0 && <Tag>{t('op.dash.branches.noctx')}</Tag>}</Row>
-                <span style={{ fontSize: 12, color: '#8d8d8f' }}>{t('op.dash.branches.meta', { patches: b.patch_ids.length, subs: b.subscribers.length, owner: shortAddr(b.owner) })}</span>
-                <Row $gap={8}>
-                  {mine
-                    ? <Button size="small" color="secondary" loading={busy} onClick={() => run(() => subscribe({ name: b.name, action: 'unsubscribe' }).unwrap())}>{t('op.dash.branches.unsubscribe')}</Button>
-                    : <Button size="small" loading={busy} onClick={() => run(() => subscribe({ name: b.name, action: 'subscribe' }).unwrap())}>{t('op.dash.branches.subscribe')}</Button>}
-                </Row>
-              </BranchCard>
-            );
-          })}
+          {(branches.data?.branches ?? []).map((b) => (
+            <TrackCard key={b.name} branch={b} subscribed={!!branches.data?.mine.includes(b.name)} currency={currency} address={address} />
+          ))}
           {(branches.data?.branches ?? []).length === 0 && <span style={{ color: '#8d8d8f', fontSize: 14 }}>{t('op.dash.branches.empty')}</span>}
         </BranchGrid>
       )}
