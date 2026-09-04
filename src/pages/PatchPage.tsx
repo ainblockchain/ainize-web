@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useBuyMutation, useInfoQuery, usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery } from '@/api/api';
+import { errorMessage, useBenchmarkQuery, useBuyMutation, useInfoQuery, usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery } from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -131,6 +131,15 @@ const TreeNode = styled(Link)<{ $me?: boolean }>`
   color: ${(p) => p.theme.color.BLACK}; text-decoration: none; font-size: 12px; display: inline-flex; flex-direction: column; gap: 2px;
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
+`;
+
+/** The two versions set side by side inside the "newer version" warning — price, accuracy and verification of each. */
+const Versions = styled.div`
+  margin-top: 10px; display: grid; gap: 8px;
+  > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  span.lbl { font-size: 12px; font-weight: 700; min-width: 104px; }
+  span.v { font-size: 13px; }
+  code { font-family: ${(p) => p.theme.font.mono}; font-size: 11px; opacity: 0.85; word-break: break-all; }
 `;
 
 type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
@@ -590,12 +599,58 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const [buy, { data: result, isLoading, error, reset }] = useBuyMutation();
   const gw = d.gateway_url ?? `${window.location.origin}/x402/patch/${d.anchor.id}`;
   const a = d.anchor;
+  /**
+   * Item 4: a retired version used to sell exactly like the current one — the only warning sat in the Origins tab,
+   * which is not open while someone is buying. The successor's price and accuracy come from the same-subject list
+   * this page already links to, so naming it costs one request and no node change.
+   */
+  const successorIds = [...new Set(d.superseded_by)].filter((id) => id !== a.id);
+  const family = useBenchmarkQuery(a.benchmark.schema, { skip: successorIds.length === 0 });
+  const successors = successorIds
+    .map((id) => family.data?.items.find((e: CatalogEntry) => e.anchor.id === id))
+    .filter((e): e is CatalogEntry => !!e)
+    // the version to send a buyer to is the newest one that has not itself been replaced
+    .sort((x, y) => (x.superseded_by.length ? 1 : 0) - (y.superseded_by.length ? 1 : 0) || y.anchor.created_at - x.anchor.created_at);
+  const head = successors[0];
+  const unresolved = successorIds.filter((id) => !successors.some((e) => e.anchor.id === id));
+  const superseded = successorIds.length > 0;
   // Item 153: `sellable` is quorum met AND no open challenge — a disputed knowledge is off sale, not discounted.
   const canBuy = d.sellable && !d.owned;
   const priceText = f.priceLabel(a.price, a.currency);
   const note = f.priceNote(a.currency);
+  const mine = scoreOf(d);
   return (
     <>
+      {superseded && (
+        <Alert $tone="warning" style={{ marginTop: 24 }} data-testid="buy-superseded" title={help('superseded')}>
+          <b>{t('detail.buy.old_title')}</b> {t('detail.buy.old_note')}
+          {head && (
+            <Versions>
+              <div>
+                <span className="lbl">{t('detail.buy.old_this')}</span>
+                <span className="v">{priceText} · {mine.pct !== null ? t('detail.buy.old_accuracy', { score: mine.text }) : t('detail.buy.old_unverified')}</span>
+                <code>{a.id}</code>
+              </div>
+              <div>
+                <span className="lbl">{t('detail.buy.old_newer')}</span>
+                <span className="v">
+                  {f.priceLabel(head.anchor.price, head.anchor.currency)} · {scoreOf(head).pct !== null ? t('detail.buy.old_accuracy', { score: scoreOf(head).text }) : t('detail.buy.old_unverified')}
+                  {!head.sellable && ` · ${t('detail.buy.old_notsale')}`}
+                </span>
+                <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{head.anchor.name || head.anchor.id} →</StyledLink>
+                <code>{head.anchor.id}</code>
+              </div>
+            </Versions>
+          )}
+          {successors.length > 1 && (
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              {t('detail.buy.old_more')}
+              {successors.slice(1).map((e, i) => <span key={e.anchor.id}>{i > 0 && ', '}<StyledLink to={`/${authorSlug}/${encodeURIComponent(e.anchor.id)}`}>{e.anchor.name || e.anchor.id}</StyledLink></span>)}
+            </div>
+          )}
+          {unresolved.length > 0 && <div style={{ marginTop: 8, fontSize: 13 }}>{t('detail.buy.old_unknown', { ids: unresolved.join(', ') })}</div>}
+        </Alert>
+      )}
       <Section>
         <H3 title={`${help('autoPay')} (${tech('autoPay')})`}>{t('detail.buy.title')}</H3>
         <P>{t('detail.buy.explain')}</P>
@@ -626,9 +681,15 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         )}
         {isOperator && canBuy && (
           <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button variant="contained" loading={isLoading} loadingText={t('detail.buy.paying')} onClick={() => { reset(); void buy({ id: a.id }); }} title={help('autoPay')}>
-              {d.purchased ? t('detail.buy.button_again') : t('detail.buy.button', { price: priceText })}
+            {/* Item 4: on a replaced version the loud control is the link to the successor; paying for the old one
+                stays possible, but as an outlined button that says which version the money buys. */}
+            <Button
+              variant={superseded ? 'outlined' : 'contained'} loading={isLoading} loadingText={t('detail.buy.paying')}
+              onClick={() => { reset(); void buy({ id: a.id }); }} title={help('autoPay')} data-testid="buy-button"
+            >
+              {d.purchased ? t('detail.buy.button_again') : superseded ? t('detail.buy.button_old', { price: priceText }) : t('detail.buy.button', { price: priceText })}
             </Button>
+            {superseded && head && <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{t('detail.buy.old_open')} →</StyledLink>}
             <Quorum>{a.currency === 'AIN' ? t('detail.buy.pays_from_ain') : t('detail.buy.pays_from_credit')}{note && <> · {note}</>}</Quorum>
           </div>
         )}

@@ -225,6 +225,20 @@ export const detailPatch: Dict = {
   'detail.buy.stored_yes': { ko: '이 노드에 보관 중입니다', en: 'is stored on this node' },
   'detail.buy.stored_no': { ko: '이 노드에 없습니다', en: 'is not stored on this node' },
   'detail.buy.not_verified': { ko: '아직 검증 완료 전입니다 (실제 모델 검증 {passed}/{quorum}). 검증이 끝나야 구매할 수 있습니다.', en: 'Not yet verified ({passed}/{quorum} real-model verifications). Purchase opens when verification completes.' },
+  /* Item 4: a replaced version sold exactly like the current one — same panel, same primary button, and the only
+     warning in a tab nobody has open while buying. These strings put the successor's price and accuracy next to
+     this one's, above the price, and turn the buy control into "the older one, knowingly". */
+  'detail.buy.old_title': { ko: '이 지식에는 더 새로운 버전이 있습니다.', en: 'A newer version of this knowledge exists.' },
+  'detail.buy.old_note': { ko: '아래 가격은 지금 보고 있는 이전 버전의 가격입니다. 결제하기 전에 두 버전을 비교해 보세요.', en: 'The price below is this older version’s. Compare the two before you pay.' },
+  'detail.buy.old_this': { ko: '지금 보는 버전', en: 'This version' },
+  'detail.buy.old_newer': { ko: '더 새로운 버전', en: 'Newer version' },
+  'detail.buy.old_accuracy': { ko: '정답률 {score}', en: 'accuracy {score}' },
+  'detail.buy.old_unverified': { ko: '실제 모델 검증 결과 없음', en: 'no real-model verification yet' },
+  'detail.buy.old_notsale': { ko: '아직 판매 전', en: 'not on sale yet' },
+  'detail.buy.old_more': { ko: '이 지식을 대체한 다른 버전: ', en: 'Also replaced by: ' },
+  'detail.buy.old_unknown': { ko: '이 노드는 {ids}의 가격·정답률을 아직 가지고 있지 않습니다 — 눌러서 직접 확인하세요.', en: 'This node does not have the price and accuracy of {ids} yet — open it to see them.' },
+  'detail.buy.old_open': { ko: '더 새로운 버전 보기', en: 'Open the newer version' },
+  'detail.buy.button_old': { ko: '그래도 이 이전 버전 구매 · {price}', en: 'Buy this older version anyway · {price}' },
   'detail.buy.button': { ko: '자동 결제로 구매 · {price}', en: 'Buy · {price}' },
   'detail.buy.button_again': { ko: '다시 구매', en: 'Buy again' },
   'detail.buy.paying': { ko: '결제 중…', en: 'Paying…' },
