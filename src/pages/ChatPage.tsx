@@ -706,8 +706,12 @@ export default function ChatPage() {
     <PageWrapper $wide>
       <TitleRow>
         <Title title={`${help('liveTest')} (${tech('liveTest')})`}>{t('chat.title')}</Title>
+        {/* Finding 35 — this tooltip was literally the serving endpoint ("http://localhost:8002"), an internal
+            infrastructure fact with no meaning to a visitor and an invitation on a node reachable from the
+            internet. /network gated the same two facts on the operator session in b4d4df7; the operator still
+            gets the endpoint here, everyone else gets a sentence about what the chip means. */}
         {data && (
-          <ModelChip title={data.runtime.api ?? undefined}>
+          <ModelChip title={isSignedIn ? data.runtime.api ?? undefined : t('chat.model_help')}>
             {t('chat.model')} <b>{data.runtime.model ?? t('chat.model_unknown')}</b>
           </ModelChip>
         )}

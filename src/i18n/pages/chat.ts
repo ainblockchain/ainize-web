@@ -6,6 +6,8 @@ export const chat: Dict = {
   'chat.subtitle': { ko: '같은 질문을 지식을 넣기 전과 넣은 후의 모델에 물어보고 답이 어떻게 달라지는지 직접 확인하세요. 재시작 없이 몇 초 만에 넣었다 뺍니다.', en: 'Ask the same question before and after loading the knowledge and watch the answer change. It loads and unloads in seconds, no restart.' },
   'chat.model': { ko: '테스트 모델', en: 'Test model' },
   'chat.model_unknown': { ko: '모델 정보 없음', en: 'Model unknown' },
+  // Finding 35 — what a visitor is told about the chip. The serving endpoint behind it is the operator's business.
+  'chat.model_help': { ko: '이 노드가 서비스하는 모델입니다. 라이브 테스트는 넣기 전과 넣은 후 모두 이 모델에서 실행됩니다.', en: 'The model this node serves — every live test, before and after loading, runs on it.' },
 
   // picker
   'chat.picker.title': { ko: '테스트할 지식', en: 'Knowledge to test' },
