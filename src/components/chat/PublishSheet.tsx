@@ -63,7 +63,8 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
       const claim_sig = signMessage(ch.claim, teacherKey.privateKey);
       const res = await publish({
         id: job.id, name: name.trim(), description: description.trim() || undefined, price: price.trim(), license, payout_address, claim_sig,
-        consent: { permanent: true, rights: true },
+        // the real checkbox state — the node refuses a publish without both (lineage design §6.5, F12)
+        consent: { permanent: consentPermanent, rights: consentRights },
         // "Shown as" falls back to this browser's key name when the job carries none; sending it is what makes the
         // public record agree with what the sheet just promised (design §9.3)
         ...(!job.contributor.name && teacherKey.name ? { contributor: { name: teacherKey.name } } : {}),

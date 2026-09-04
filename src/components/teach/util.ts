@@ -62,6 +62,7 @@ export function fileStatus(row: TeachDatasetRow, t: Tr, limits?: { prompt_max: n
   switch (row.status) {
     case 'ok': return { text: t('teach.rows.status.new'), tone: 'ok' };
     case 'fixed': return { text: t('teach.rows.status.fixed'), tone: 'ok' };
+    case 'pii': return { text: t('teach.rows.status.pii', { kinds: (row.pii ?? []).join(', ') }), tone: 'warn' };
     case 'duplicate': return { text: t('teach.rows.status.dupe', { n: firstNumber(row.detail) ?? row.line }), tone: 'muted' };
     case 'conflict': {
       const other = firstNumber(row.detail) ?? row.line;

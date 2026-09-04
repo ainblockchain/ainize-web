@@ -96,7 +96,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
             const file = fileStatus(row, t, limits);
             const model = row.index !== null ? modelStatus(preflight?.[row.index], t, simulated) : null;
             const advisory = sharedEnding(row, t);
-            const trains = row.status === 'ok' || row.status === 'fixed';
+            const trains = row.status === 'ok' || row.status === 'fixed' || row.status === 'pii';
             const view = trains && model ? model : file;
             const picked = row.index !== null && selected?.has(row.index);
             return (
