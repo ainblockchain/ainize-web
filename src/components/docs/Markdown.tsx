@@ -21,9 +21,17 @@ export { resolveDocHref } from './docsTree';
 
 /* ------------------------------------------------------------------ prose styles
    `65ch` keeps a line of body text near sixty-five characters whatever the viewport does; code blocks and tables
-   stay full column width because they scroll rather than wrap. */
+   stay full column width because they scroll rather than wrap.
+
+   `overflow-wrap: break-word` is load-bearing on a phone, and the generated reference is what proves it: an option
+   description like `comma list: DRAFT,ANNOUNCED,VERIFYING,LISTED,REJECTED,CHALLENGED,SUPERSEDED` is one unbreakable
+   60-character token, and `max-width` cannot hold a word that has nowhere to break. Without this, that one list item
+   pushed `/docs/reference/cli` to 575px inside a 360px viewport and the whole page — sidebar, header and all —
+   scrolled sideways. It breaks only words that would otherwise overflow, so ordinary prose is unaffected, and code
+   in a table still refuses to break because the table scrolls instead. */
 export const Prose = styled.article`
   min-width: 0;
+  overflow-wrap: break-word;
   color: ${(p) => p.theme.color.DARK_GREY};
   font-size: 15px;
   line-height: 1.75;
