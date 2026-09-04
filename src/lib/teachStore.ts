@@ -37,6 +37,8 @@ const remove = (key: string) => { try { localStorage.removeItem(key); } catch { 
 
 /** One basket per knowledge stack (load order matters, so the key is the ordered id list). */
 export function stackHash(ids: string[]): string { return ids.length ? ids.join('+') : 'base'; }
+/** `stackHash` read back: ids never contain '+' (slug = [a-z0-9._-]), and 'base' is the empty stack. */
+export function stackIds(hash: string): string[] { return hash === 'base' ? [] : hash.split('+').filter(Boolean); }
 
 export function loadBasket(ids: string[]): Basket {
   const b = read<Partial<Basket>>(BASKET_PREFIX + stackHash(ids), {});
@@ -53,6 +55,45 @@ export function saveBasket(ids: string[], basket: Basket) {
   else write(BASKET_PREFIX + stackHash(ids), basket);
 }
 export function clearBasket(ids: string[]) { remove(BASKET_PREFIX + stackHash(ids)); }
+
+/**
+ * Finding 14 — the basket FOLLOWS the selection instead of being swapped out with it. Ticking a second knowledge
+ * moved the page to a different, empty record: the panel read "Your lesson (0 of 8) — no corrections yet" while the
+ * corrections sat in localStorage under the old key with nothing saying so, and the rational response was to retype
+ * them. The draft now moves to the new stack's key, so the same lesson is still there after a tick.
+ *
+ * Nothing is ever overwritten: a stack that already holds its own draft keeps it, and the one left behind is named
+ * to the visitor by `strandedBaskets` rather than disappearing.
+ */
+export function carryBasket(fromIds: string[], toIds: string[]): Basket {
+  const to = stackHash(toIds);
+  const target = loadBasket(toIds);
+  if (to === stackHash(fromIds) || target.facts.length > 0 || target.retry_of) return target;
+  const source = loadBasket(fromIds);
+  if (source.facts.length === 0 && !source.retry_of) return target;
+  saveBasket(toIds, source);
+  clearBasket(fromIds);
+  return source;
+}
+
+/**
+ * Every OTHER stack that still holds corrections — work this browser has saved under a key the page is not showing.
+ * The chat page names each one and offers to load it, so a draft can never be invisible (finding 14).
+ */
+export function strandedBaskets(currentIds: string[]): { ids: string[]; facts: number }[] {
+  const here = BASKET_PREFIX + stackHash(currentIds);
+  const out: { ids: string[]; facts: number }[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(BASKET_PREFIX) || key === here) continue;
+      const ids = stackIds(key.slice(BASKET_PREFIX.length));
+      const facts = loadBasket(ids).facts.length;
+      if (facts > 0) out.push({ ids, facts });
+    }
+  } catch { /* storage unavailable */ }
+  return out.sort((a, b) => b.facts - a.facts || stackHash(a.ids).localeCompare(stackHash(b.ids)));
+}
 
 export function loadJobs(): JobRef[] {
   const j = read<JobRef[]>(JOBS_KEY, []);

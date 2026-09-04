@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useCancelChatMutation, useChatMutation, useChatPatchesQuery, useChatStatusQuery, useInfoQuery, useTeachPolicyQuery } from '@/api/api';
@@ -23,7 +23,7 @@ import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
-import { bannerDismissed, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
+import { bannerDismissed, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
 import { num } from '@/utils/format';
 
 /* ---------------------------------------------------------------- layout */
@@ -60,6 +60,21 @@ const Transcript = styled.div`
 const EmptyState = styled.div`
   margin: auto; padding: 24px 0; max-width: 48ch; text-align: center; color: ${(p) => p.theme.color.GREY}; font-size: 14px; line-height: 1.6;
   b { display: block; color: ${(p) => p.theme.color.BLACK}; font-size: 16px; margin-bottom: 6px; }
+`;
+/**
+ * Finding 14 — the line that marks where the loaded knowledge changed. Turns are no longer thrown away when the
+ * selection changes, so the transcript has to say which knowledge each run of questions was asked with.
+ */
+const StackMark = styled.p`
+  display: flex; align-items: center; gap: 10px; margin: 0; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY};
+  &::before, &::after { content: ''; flex: 1; border-top: 1px dashed ${(p) => p.theme.color.LIGHT_GREY}; }
+  b { font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; }
+`;
+/** Corrections saved under another stack's key: named, with one click to go back to them (finding 14). */
+const StrandedNote = styled(Alert)`
+  /* column, not a row: the side panel is 300 px wide and an inline button broke the sentence across it */
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.5;
+  button { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: inherit; cursor: pointer; text-decoration: underline; }
 `;
 const ModelChip = styled.span`
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 14px; background: ${(p) => p.theme.color.PALE_GREY}; color: ${(p) => p.theme.color.HOVER};
@@ -108,6 +123,8 @@ function mapChatError(err: unknown, t: Tr): string {
 }
 
 const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+/** The knowledge a turn was asked with, as one comparable key — load order matters, so it is a list, not a set. */
+const stackKey = (ids: string[] | undefined) => (ids ?? []).join(',');
 
 /**
  * Build ONE column's outgoing history: only completed turns whose own column produced a NON-EMPTY answer, capped to
@@ -188,7 +205,13 @@ export default function ChatPage() {
 
   const [mode, setMode] = useState<ChatModeKind>('compare');
   const [thinking, setThinking] = useState(false);
-  const [transcripts, setTranscripts] = useState<Record<string, Turn[]>>({});
+  /**
+   * Finding 14 — ONE transcript, not one per selection. Keying it by the selected ids meant that ticking a second
+   * knowledge — the natural next move, "now add this one and ask again" — swapped in an empty record and the panel
+   * said "No questions yet", throwing away (to the eye) answers bought with scarce free tries. Every turn carries
+   * the knowledge it was asked with instead, and the transcript marks where that changed.
+   */
+  const [turns, setTurns] = useState<Turn[]>([]);
   /** undefined = not asked yet; null = unlimited (operator); number = remaining free tries */
   const [quota, setQuota] = useState<number | null | undefined>(undefined);
   const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
@@ -211,8 +234,23 @@ export default function ChatPage() {
   }, [setSearchParams]);
   const [teacherKey, setTeacherKey] = useState<TeacherKey | null>(() => currentTeacherKey());
   useEffect(() => onTeacherKeyChange(() => { setTeacherKey(currentTeacherKey()); void refetch(); }), [refetch]);
-  const [basket, setBasket] = useState<Basket>(() => loadBasket([]));
-  useEffect(() => { setBasket(loadBasket(selectedIds)); }, [selectionKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [basket, setBasket] = useState<Basket>(() => loadBasket(parseSelection(patchId)));
+  /**
+   * Finding 14 — the lesson FOLLOWS the selection. Loading `loadBasket(selectedIds)` on every change swapped the
+   * panel for a different, empty record the moment a knowledge was ticked, and the correction being written looked
+   * deleted. `carryBasket` moves the draft to the new stack unless that stack already has one of its own; anything
+   * that does stay behind is named below the panel instead of vanishing.
+   */
+  const basketStack = useRef<string[]>(parseSelection(patchId));
+  const [stranded, setStranded] = useState<{ ids: string[]; facts: number }[]>([]);
+  useEffect(() => {
+    if (!data) return;   // the route's ids are not resolved against this node's catalog yet
+    const from = basketStack.current;
+    basketStack.current = selectedIds;
+    if (stackKey(from) !== selectionKey) setBasket(carryBasket(from, selectedIds));
+    const next = strandedBaskets(selectedIds);
+    setStranded((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+  }, [selectionKey, data, basket, selectedIds]);
   const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(selectedIds, next); return next; }); }, [selectedIds]);
   const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || loadBasket(parseSelection(patchId)).facts.length > 0);
   /** the basket panel — scrolled into view on ?teach=1 and after "Add to lesson" so the visitor sees where the correction went */
@@ -254,10 +292,9 @@ export default function ChatPage() {
   useEffect(() => () => { alive.current = false; inflight.current?.abort(); }, []);
   const refreshPatches = useCallback(() => { if (alive.current) void refetch(); }, [refetch]);
 
-  // '' is a real transcript key: teaching with nothing loaded. Treating it as "no selection → no turns" threw away
-  // every answer the conversational door produced on a node with an empty catalog.
-  const turns = useMemo(() => transcripts[selectionKey] ?? [], [transcripts, selectionKey]);
   const lastStatus = turns[turns.length - 1]?.status;
+  /** Did the loaded knowledge ever change during this conversation? Only then is a turn marked with what it used. */
+  const mixedStacks = useMemo(() => new Set(turns.map((x) => stackKey(x.patchIds))).size > 1, [turns]);
 
   // ---------------------------------------------------------------- D3: where is this request in the queue?
   // While a turn is pending the node is asked every 1.5 s whether it is still queued behind the shared model,
@@ -292,21 +329,19 @@ export default function ChatPage() {
     lastTurnRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [turns.length, lastStatus]);
 
-  const patchTurns = useCallback((pid: string, fn: (prev: Turn[]) => Turn[]) => {
-    setTranscripts((prev) => ({ ...prev, [pid]: fn(prev[pid] ?? []) }));
-  }, []);
-
   const send = useCallback(async (text: string, opts?: { mode?: ChatModeKind; thinking?: boolean; replaceId?: string }) => {
     // An empty selection is allowed while teaching: you are correcting the model itself, and a node with an empty
     // catalog has nothing to pick. There is no "with knowledge" side then, so the turn is base-only.
     if ((selectedIds.length === 0 && !teachOn) || busy || exhausted) return;
-    const pid = selectionKey;
     const ids = selectedIds;
     const useMode: ChatModeKind = selectedIds.length === 0 ? 'base' : (opts?.mode ?? mode);
     const useThinking = opts?.thinking ?? thinking;
     const sample = matchSampleAny(selectedList, text);
     const id = newId();
-    const prior = (transcripts[pid] ?? []).filter((x) => x.id !== opts?.replaceId);
+    // The conversation SENT is still one selection's own: a turn answered with other knowledge loaded is shown (it is
+    // the visitor's transcript) but never replayed here, so neither column is told it once produced another stack's
+    // answer. This is the same set of messages the per-selection transcript used to build.
+    const prior = turns.filter((x) => x.id !== opts?.replaceId && stackKey(x.patchIds) === selectionKey);
     // One conversation per column. In compare mode both go on the wire (messages = the patched one, so a client or
     // node that ignores the split behaves exactly as before); a single-column mode sends only its own.
     const basePast = buildHistory(prior, text, 'base');
@@ -317,8 +352,8 @@ export default function ChatPage() {
     // D3: the node registers this id the moment the request arrives, so GET /api/chat/status can answer
     // "queued" (and a give-up while queued costs nothing) long before the answer exists.
     const requestId = newId();
-    const turn: Turn = { id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect, patchIds: ids, requestId };
-    patchTurns(pid, (prev) => [...prev.filter((x) => x.id !== opts?.replaceId), turn]);
+    const turn: Turn = { id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect, patchIds: ids, patchNames: selectedList.map((e) => e.anchor.name), requestId };
+    setTurns((prev) => [...prev.filter((x) => x.id !== opts?.replaceId), turn]);
     // one knowledge → patch_id (works on every node); several → patch_ids (teach-mode nodes)
     const target = ids.length === 1 ? { patch_id: ids[0] } : { patch_ids: ids };
     const request = sendChat({ ...target, mode: useMode, messages: history, ...split, thinking: useThinking, request_id: requestId });
@@ -330,7 +365,7 @@ export default function ChatPage() {
       setQuota(res.remaining_quota);
       if (res.quota_limit !== undefined) setQuotaLimit(res.quota_limit);
       if (res.remaining_quota !== null && res.remaining_quota <= 0) setExhausted(true);
-      patchTurns(pid, (prev) => prev.map((x) => (x.id === id ? { ...x, status: 'done', response: res, baseHit: answerHits(res.base?.content, sample?.expect) } : x)));
+      setTurns((prev) => prev.map((x) => (x.id === id ? { ...x, status: 'done', response: res, baseHit: answerHits(res.base?.content, sample?.expect) } : x)));
     } catch (err) {
       const e = err as { status?: number | string; name?: string; data?: { quota_reset?: number | null } } | undefined;
       const quotaHit = e?.status === 429;
@@ -345,13 +380,13 @@ export default function ChatPage() {
       const quota = quotaHit
         ? { resetAt: e?.data?.quota_reset ?? null, buyHref: first ? `/${encodeURIComponent(first.author)}/${encodeURIComponent(first.id)}` : null }
         : undefined;
-      patchTurns(pid, (prev) => prev.map((x) => (x.id === id ? { ...x, status: 'error', error: msg, retryable: !quotaHit, quota } : x)));
+      setTurns((prev) => prev.map((x) => (x.id === id ? { ...x, status: 'error', error: msg, retryable: !quotaHit, quota } : x)));
     } finally {
       clearTimeout(lockPeek);
       if (inflight.current === request) inflight.current = null;
       refreshPatches();   // lock released (or still queued) — refresh the banner without waiting for the poll
     }
-  }, [selectedIds, selectedList, selectionKey, busy, exhausted, teachOn, mode, thinking, transcripts, patchTurns, sendChat, refreshPatches, t]);
+  }, [selectedIds, selectedList, selectionKey, busy, exhausted, teachOn, mode, thinking, turns, sendChat, refreshPatches, t]);
 
   /**
    * D3 — "Stop waiting". While the request is still queued the node drops it before touching the model and no free
@@ -367,7 +402,8 @@ export default function ChatPage() {
     inflight.current?.abort();
   }, [cancelChat, t]);
   const retry = useCallback((turn: Turn) => { void send(turn.prompt, { mode: turn.mode, thinking: turn.thinking, replaceId: turn.id }); }, [send]);
-  const clear = useCallback(() => { if (selectionKey) patchTurns(selectionKey, () => []); }, [selectionKey, patchTurns]);
+  /** "Clear conversation" empties the whole transcript — every turn is in one list now, whatever was loaded for it. */
+  const clear = useCallback(() => setTurns([]), []);
   const toggle = useCallback((id: string) => {
     setMissingId(null);
     userCleared.current = false;
@@ -378,6 +414,11 @@ export default function ChatPage() {
     go(next.length ? selectionPath(next) : '/chat');
   }, [shownIds, go]);
   const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); setPendingIds([]); go('/chat'); }, [go]);
+  /** Load a whole stack at once — how the "corrections saved under another selection" note takes you back to them. */
+  const showStack = useCallback((ids: string[]) => {
+    if (ids.length === 0) { clearSelection(); return; }
+    setMissingId(null); userCleared.current = false; setPendingIds(ids); go(selectionPath(ids));
+  }, [clearSelection, go]);
   /** Selected knowledge whose benchmark format has no chat form — the live test asks through the chat template. */
   const templateOnly = useMemo(() => selectedList.filter((e) => { const f = e.anchor.benchmark.format ?? []; return f.length > 0 && !f.includes('chat') && !f.includes('natural'); }), [selectedList]);
   /** Sample questions of every selected knowledge (deduplicated by prompt), in load order. */
@@ -428,6 +469,28 @@ export default function ChatPage() {
     : teacherKey.name ? t('teach.key.chip', { name: teacherKey.name, short: shortKey(teacherKey.address) })
       : t('teach.key.chip_anon', { short: shortKey(teacherKey.address) });
 
+  /**
+   * The basket column: the panel, plus — above it — every correction this browser has saved under a DIFFERENT
+   * selection, named and one click away (finding 14). Rendered in two places because a node that does not accept
+   * lessons shows it under the picker instead of above it.
+   */
+  const basketPanel = policy && (
+    <div ref={basketRef}>
+      {stranded.map((sb) => (
+        <StrandedNote key={stackKey(sb.ids) || 'base'} $tone="info" role="status" data-testid="basket-stranded" style={{ marginBottom: 10 }}>
+          <span>{sb.ids.length
+            ? t('chat.basket.stranded', { n: sb.facts, names: sb.ids.map(nameOf).join(', ') }, sb.facts)
+            : t('chat.basket.stranded_none', { n: sb.facts }, sb.facts)}</span>
+          <button type="button" onClick={() => showStack(sb.ids)}>{t('chat.basket.stranded_go')}</button>
+        </StrandedNote>
+      ))}
+      <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
+        baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
+        onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
+        onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
+    </div>
+  );
+
   return (
     <PageWrapper $wide>
       <TitleRow>
@@ -456,14 +519,7 @@ export default function ChatPage() {
           <Grid>
             <Side>
               {/* The basket heads the column when this node teaches (§5.5: the visitor must see it without scrolling past every knowledge card); a node that does not accept lessons shows the "does not accept" line under the picker instead. */}
-              {policy && teachOn && (
-                <div ref={basketRef}>
-                  <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
-                    baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
-                    onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
-                    onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
-                </div>
-              )}
+              {teachOn && basketPanel}
               {/* D3: "your test" is driven by THIS TAB's in-flight request, so it must read `queue`, not `qs`.
                   RTK Query keeps `data` from the last fetch after the query is skipped, so once a visitor had run
                   one live test `qs.state` stayed 'running' for ever and every later holder — another visitor, a
@@ -472,14 +528,7 @@ export default function ChatPage() {
               <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} clockSkewMs={lockSkew}
                 lockIsMine={queue?.state === 'running'} selectedIds={shownIds}
                 onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
-              {policy && !teachOn && (
-                <div ref={basketRef}>
-                  <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
-                    baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
-                    onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
-                    onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
-                </div>
-              )}
+              {!teachOn && basketPanel}
             </Side>
 
             <Main aria-live="polite">
@@ -525,10 +574,23 @@ export default function ChatPage() {
                 )}
                 {turns.length === 0 ? (
                   <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
-                ) : turns.map((turn, i) => (
-                  <TurnView key={turn.id} turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} nameOf={nameOf}
-                    innerRef={i === turns.length - 1 ? lastTurnRef : undefined} />
-                ))}
+                ) : turns.map((turn, i) => {
+                  // Finding 14: the questions stay, so each run of them says what was loaded when it was asked. A
+                  // conversation that never changed selection carries no marks at all.
+                  const marked = i === 0 ? mixedStacks : stackKey(turn.patchIds) !== stackKey(turns[i - 1].patchIds);
+                  const names = turn.patchNames?.length ? turn.patchNames : (turn.patchIds ?? []).map(nameOf);
+                  return (
+                    <Fragment key={turn.id}>
+                      {marked && (
+                        <StackMark data-testid="chat-stack-mark" title={t('chat.turn.stack_help')}>
+                          <b>{names.length ? t('chat.turn.stack', { names: names.join(', ') }) : t('chat.turn.stack_none')}</b>
+                        </StackMark>
+                      )}
+                      <TurnView turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} nameOf={nameOf}
+                        innerRef={i === turns.length - 1 ? lastTurnRef : undefined} />
+                    </Fragment>
+                  );
+                })}
               </Transcript>
               {/*
                 * Finding 1: from turn 2 the two columns are two different conversations — the base call replays base

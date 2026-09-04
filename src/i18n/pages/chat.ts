@@ -106,6 +106,18 @@ export const chat: Dict = {
   // follow-up questions: each column replays its own earlier answers (never the other's)
   'chat.history.split': { ko: '이어지는 질문에서 각 열은 자기가 한 답만 다시 보게 됩니다 — "넣기 전" 모델에는 지식이 낸 답을 알려주지 않습니다.', en: 'On follow-up questions each column replays only its own earlier answers — the "Before loading" model is never shown what the knowledge answered.' },
 
+  // transcript — the mark that says which knowledge a run of questions was asked with (finding 14)
+  'chat.turn.stack': { ko: '여기부터: {names}을(를) 넣고 물어봤습니다', en: 'From here: asked with {names} loaded' },
+  'chat.turn.stack_none': { ko: '여기부터: 아무 지식도 넣지 않고 물어봤습니다', en: 'From here: asked with no knowledge loaded' },
+  'chat.turn.stack_help': { ko: '지식을 체크하거나 해제해도 질문과 답은 지워지지 않습니다. 모두 여기 남고, 물어볼 당시 넣어져 있던 지식이 표시됩니다. 이어지는 질문에는 같은 조합으로 받은 답만 모델에 다시 보냅니다.', en: 'Ticking or unticking a knowledge never deletes your questions — they all stay here, marked with what was loaded when you asked them. Follow-up questions replay only the answers from the same combination.' },
+
+  // the lesson kept under another selection (finding 14)
+  'chat.basket.stranded': { ko: '{names}을(를) 넣었을 때 만든 바로잡기 {n}개가 그대로 저장되어 있습니다.', en: '{n} corrections you made with {names} loaded are still saved.' },
+  'chat.basket.stranded_one': { ko: '{names}을(를) 넣었을 때 만든 바로잡기 1개가 그대로 저장되어 있습니다.', en: '1 correction you made with {names} loaded is still saved.' },
+  'chat.basket.stranded_none': { ko: '아무 지식도 넣지 않았을 때 만든 바로잡기 {n}개가 그대로 저장되어 있습니다.', en: '{n} corrections you made with no knowledge loaded are still saved.' },
+  'chat.basket.stranded_none_one': { ko: '아무 지식도 넣지 않았을 때 만든 바로잡기 1개가 그대로 저장되어 있습니다.', en: '1 correction you made with no knowledge loaded is still saved.' },
+  'chat.basket.stranded_go': { ko: '그 수업 열기', en: 'Open that lesson' },
+
   // transcript
   'chat.empty.title': { ko: '아직 질문이 없습니다', en: 'No questions yet' },
   'chat.empty.body': { ko: '아래 예시 질문을 누르거나 직접 질문을 입력해 보세요. 답은 "지식 넣기 전"과 "지식 넣은 후" 두 개가 나란히 나옵니다.', en: 'Click a sample question below or type your own. You get two answers side by side: before and after loading the knowledge.' },

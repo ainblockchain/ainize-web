@@ -21,6 +21,8 @@ export interface Turn {
   baseHit?: boolean | null;
   /** Knowledge loaded for this turn, in load order (mirrors the request; the response repeats it as patch_ids). */
   patchIds?: string[];
+  /** Their names as they read when the question was asked — the transcript's "asked with … loaded" mark (finding 14). */
+  patchNames?: string[];
   /** D3 — the id this turn was sent with, and where it is in the queue behind the shared model. */
   requestId?: string;
   queue?: ChatQueueView;
