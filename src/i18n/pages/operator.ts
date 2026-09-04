@@ -303,7 +303,7 @@ export const operatorManage: Dict = {
   // signed record in its name — plus, when the runtime is down, that the run degrades to a fingerprint check.
   'op.manage.verify_now': { ko: '이 노드에서 지금 검증', en: 'Verify now (this node)' },
   'op.manage.verify.cost.run': { ko: '이 노드가 지식을 실제 모델에 넣고 검증 질문 {n}개를 채점합니다 — 그동안 이 노드의 모델은 다른 일에 쓸 수 없고, 몇 분이 걸립니다. 결과는 통과든 실패든 이 노드 이름으로 서명되어 공개 기록에 남습니다. 걸어 두는 보증금은 없습니다.', en: 'This node loads the knowledge into its real model and scores {n} benchmark question(s) — its model is busy for the duration, which is minutes. The result, pass or fail, is signed in this node’s name on the permanent public record. No deposit is staked.' },
-  'op.manage.verify.cost.hash': { ko: '지금은 모델 실행 환경을 쓸 수 없어 파일 지문과 검증 질문 지문만 맞는지 확인하는 무결성 검사만 됩니다. 무결성 검사는 검증 정족수에 반영되지 않습니다.', en: 'The model runtime is unavailable, so this can only run an integrity check — the file and benchmark fingerprints, nothing scored. An integrity check does not count toward the verification quorum.' },
+  'op.manage.verify.cost.hash': { ko: '이 노드는 지금 이 검증 질문을 채점할 수 없습니다(맞는 모델 서버가 없거나 예시 질문이 없습니다). 파일 지문과 검증 질문 지문만 확인하는 무결성 검사만 남기며, 무결성 검사는 검증 정족수에 반영되지 않습니다.', en: 'This node cannot score the benchmark right now — no matching model server, or no sample questions. It will record an integrity check instead (file and benchmark fingerprints only), and an integrity check does not count toward the verification quorum.' },
   'op.manage.verify.elapsed': { ko: '검증 중… {elapsed} 경과 — 창을 닫아도 계속됩니다', en: 'Verifying… {elapsed} elapsed — it keeps going if you leave this page' },
   'op.manage.verifying': { ko: '검증 중…', en: 'Verifying…' },
   'op.manage.verified_ok': { ko: '검증 결과를 올렸습니다.', en: 'Verification result published.' },
@@ -499,7 +499,7 @@ export const operatorNew: Dict = {
   'op.new.price.helper': { ko: '0이면 무료입니다. 구매자는 이 금액을 한 번 내고 파일을 받아 갑니다. 등록하는 순간 기록에 새겨지며 그 뒤에는 바꿀 수 없습니다.', en: '0 = free. The buyer pays this once, per download, and keeps the file. It is written into the record when you publish and cannot be changed afterwards.' },
   // Item 162 — the price used to be typed with no idea what anything else on this node costs, and the silent 0.1
   // default undercut the version it replaced by 250×. The catalogue the buyer sees is now beside the field.
-  'op.new.price.market': { ko: '이 노드의 다른 지식: {min} ~ {max} · 중앙값 {median} ({n}건)', en: 'Priced on this node: {min} – {max} · median {median} · {n} listed' },
+  'op.new.price.market': { ko: '이 노드의 다른 지식: {min} ~ {max} {unit} · 중앙값 {median} ({n}건)', en: 'Priced on this node: {min} – {max} {unit} · median {median} · {n} listed' },
   'op.new.price.market.none': { ko: '이 노드에는 아직 값이 매겨진 지식이 없어 견줄 기준이 없습니다.', en: 'Nothing else is priced on this node yet, so there is nothing to compare with.' },
   'op.new.price.same': { ko: '같은 주제({schema})의 {name} — 지금 {price}에 팔립니다.', en: '{name}, on this same subject ({schema}), sells for {price} today.' },
   'op.new.price.same.use': { ko: '같은 값으로 맞추기', en: 'Match that price' },
@@ -538,7 +538,7 @@ export const operatorNew: Dict = {
   // Item 165 — the declared count is now weighed against the file itself (the .npz addrs member, read in the
   // browser), so "250,000 facts" in a file with 2,992 memory entries is caught before it is written into the anchor.
   'op.new.queries.rows': { ko: '고른 파일에는 기억 항목이 {rows}개 있습니다.', en: 'The file you picked holds {rows} memory entries.' },
-  'op.new.queries.over': { ko: '{q}개라고 적었지만 이 파일의 기억 항목은 {rows}개입니다. 구매자는 {q}를 대표 숫자로 봅니다.', en: 'You declared {q} facts, but this file holds {rows} memory entries. Buyers see {q} as the headline number.' },
+  'op.new.queries.over': { ko: '{q}개라고 적었지만 이 파일의 기억 항목은 {rows}개입니다. 구매자가 보는 대표 숫자는 {q}입니다.', en: 'You declared {q} facts, but this file holds {rows} memory entries. Buyers see {q} as the headline number.' },
   'op.new.queries.use_rows': { ko: '{rows}개로 맞추기', en: 'Use {rows}' },
   'op.new.collateral': { ko: '부작용 허용치 (선택)', en: 'Side-effect limit (optional)' },
   'op.new.collateral.helper': { ko: '이 지식을 넣었을 때 관련 없는 답이 얼마나 흔들려도 되는지를 nat 단위로 선언합니다. 참고값은 0.08입니다. 비워 두면 아무 값도 선언하지 않고, 지식 페이지에는 기준 없음(—)으로 표시됩니다.', en: 'How much the model’s unrelated answers may drift when this knowledge is loaded, in nats. The reference value is 0.08. Leave it empty to declare nothing — the knowledge page then shows no limit at all.' },
