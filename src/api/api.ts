@@ -140,15 +140,28 @@ export const api = createApi({
     retire: b.mutation<{ patch_id: string; retired_at: number; reason: string }, { id: string; reason?: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/retire`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
-    /** Item 270 — `with_required` buys the bases this knowledge needs underneath it too, deepest first. */
+    /** Item 270 / design §12.4 — `bundle` buys the bases this knowledge needs underneath it too, deepest first,
+     * one settlement each. */
     // `again` is the deliberate second payment (item 271): without it the node collects on the receipt it already has.
-    buy: b.mutation<PurchaseResult, { id: string; apply?: boolean; with_required?: boolean; again?: boolean }>({ query: ({ id, apply, with_required, again }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply, with_required, again } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
+    buy: b.mutation<PurchaseResult, { id: string; apply?: boolean; bundle?: boolean; again?: boolean }>({ query: ({ id, apply, bundle, again }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply, bundle, again } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
     /** Item 273 — collect a knowledge this node already paid for: a re-issued manifest, no second charge. */
     collect: b.mutation<PurchaseResult, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/collect`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Events', 'Runtime'] }),
     /** Item 364 — where this node's local credit came from, and the fact that it is not money. */
     myCredit: b.query<CreditInfo, void>({ query: () => 'api/me/credit', providesTags: ['Me', 'Ledger'] }),
-    apply: b.mutation<{ result: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/apply`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Runtime', 'Events', 'Me'] }),
-    remove: b.mutation<{ result: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/remove`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Runtime', 'Events', 'Me'] }),
+    /**
+     * Load / unload, along the chain (design §8, SC-15). `with_base` puts everything this knowledge was trained on
+     * top of underneath it, in order; `cascade` unloads what is loaded on top of it. Both take a bare id too, so
+     * every call site that only ever loads a stand-alone knowledge is unchanged.
+     * The answer carries `order` — the chain it now sits on, ancestors first — which is what the screen reports.
+     */
+    apply: b.mutation<{ result: string; order?: string[]; loaded?: string[] }, string | { id: string; with_base?: boolean }>({
+      query: (a) => { const { id, with_base } = typeof a === 'string' ? { id: a, with_base: undefined } : a; return { url: `api/patches/${encodeURIComponent(id)}/apply`, method: 'POST', body: { with_base } }; },
+      invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: typeof a === 'string' ? a : a.id }, 'Runtime', 'Events', 'Me'],
+    }),
+    remove: b.mutation<{ result: string }, string | { id: string; cascade?: boolean }>({
+      query: (a) => { const { id, cascade } = typeof a === 'string' ? { id: a, cascade: undefined } : a; return { url: `api/patches/${encodeURIComponent(id)}/remove`, method: 'POST', body: { cascade } }; },
+      invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: typeof a === 'string' ? a : a.id }, 'Runtime', 'Events', 'Me'],
+    }),
     createBranch: b.mutation<unknown, { name: string; description: string; context: Record<string, string>; patch_ids: string[] }>({ query: (body) => ({ url: 'api/branches', method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger'] }),
     addToBranch: b.mutation<unknown, { name: string; patch_id: string }>({ query: ({ name, patch_id }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches`, method: 'POST', body: { patch_id } }), invalidatesTags: ['Branches', 'Ledger'] }),
     subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe' }>({ query: ({ name, action }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST' }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),

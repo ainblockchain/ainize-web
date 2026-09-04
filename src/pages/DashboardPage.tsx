@@ -2,8 +2,8 @@ import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddToBranchMutation, useApplyMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMyPatchesQuery,
-  useMyPurchasesQuery, useRemoveMutation, useRuntimeQuery,
+  errorMessage, useAddToBranchMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMyPatchesQuery,
+  useMyPurchasesQuery, useRuntimeQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -16,6 +16,7 @@ import { CenterProgress, Empty, Pagination, PageWrapper, SelectBox, StatusChip, 
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { IconButton, LiveTestIcon, QueryError, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
 import { TrackCard } from '@/components/operator/TrackCard';
+import { useLoadChain } from '@/components/detail/LoadChain';
 import { num, shortAddr, shortHash } from '@/utils/format';
 
 const NameLink = styled(Link)`
@@ -97,8 +98,12 @@ export default function DashboardPage() {
 
   const purchases = useMyPurchasesQuery();
   const runtime = useRuntimeQuery();
-  const [apply, applyState] = useApplyMutation();
-  const [remove, removeState] = useRemoveMutation();
+  /**
+   * SC-15 — this is the table where a bought add-on is loaded, so it is where the base has to be offered: a bare
+   * apply answered `needs_base` with a code, on the one screen whose whole job is turning a purchase into a model
+   * that knows something.
+   */
+  const chain = useLoadChain((id) => purchases.data?.items.find((x) => x.patch_id === id)?.entry?.anchor.name || id);
   const branches = useBranchesQuery();
   const [createBranch, createState] = useCreateBranchMutation();
   const [addToBranch, addState] = useAddToBranchMutation();
@@ -201,6 +206,9 @@ export default function DashboardPage() {
       {tab === 'teaching' && <Suspense fallback={<CenterProgress />}><TeachingTab /></Suspense>}
       {tab === 'knowledge' && (<>
       {actionError && <Alert $tone="error" style={{ marginBottom: 16 }}>{actionError}</Alert>}
+      {chain.error && <Alert $tone="error" style={{ marginBottom: 16 }} data-testid="apply-error">{chain.error}</Alert>}
+      {chain.notice && <Alert $tone="success" style={{ marginBottom: 16 }} data-testid="apply-order">{chain.notice}</Alert>}
+      {chain.dialog}
 
       {/* ---------------------------------------------------------------- my knowledge */}
       {patches.isError && <QueryError error={patches.error} what={t('op.error.what.patches')} retrying={patches.isFetching} onRetry={() => void patches.refetch()} />}
@@ -324,7 +332,7 @@ export default function DashboardPage() {
             {(purchases.data?.items ?? []).map((p) => {
               const author = p.entry?.anchor.author;
               const cur = p.entry?.anchor.currency ?? currency;
-              const busy = (applyState.isLoading && applyState.originalArgs === p.patch_id) || (removeState.isLoading && removeState.originalArgs === p.patch_id);
+              const busy = chain.busy && chain.busyId === p.patch_id;
               return (
                 <TableRow key={p.patch_id}>
                   <TableData $align="left" $padding="8px 0 8px 32px" $maxWidth="320px">
@@ -337,8 +345,8 @@ export default function DashboardPage() {
                   <TableData>{p.applied ? <span style={{ color: '#44a45f', fontWeight: 600 }}>{t('op.yes')}</span> : t('op.no')}</TableData>
                   <TableData>
                     <Row $gap={6} $justify="center">
-                      <Button size="small" title={help('apply')} disabled={!runtime.data?.available || busy || p.applied} loading={busy && !p.applied} onClick={() => run(() => apply(p.patch_id).unwrap())}>{term('apply')}</Button>
-                      <Button size="small" color="secondary" title={help('remove')} disabled={!runtime.data?.available || busy || !p.applied} loading={busy && p.applied} onClick={() => run(() => remove(p.patch_id).unwrap())}>{term('remove')}</Button>
+                      <Button size="small" title={help('apply')} disabled={!runtime.data?.available || busy || p.applied} loading={busy && !p.applied} onClick={() => { setActionError(null); void chain.load(p.patch_id); }}>{term('apply')}</Button>
+                      <Button size="small" color="secondary" title={help('remove')} disabled={!runtime.data?.available || busy || !p.applied} loading={busy && p.applied} onClick={() => { setActionError(null); void chain.unload(p.patch_id); }}>{term('remove')}</Button>
                     </Row>
                   </TableData>
                   <TableData>

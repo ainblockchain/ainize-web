@@ -111,4 +111,16 @@ export const lineageTree: Dict = {
   'explore.card.sales': { ko: '최근 30일 판매 {n}건', en: '{n} sales in 30 days' },
   'explore.card.rows': { ko: '기억 항목 {n}개', en: '{n} memory entries' },
   'explore.shelf.empty': { ko: '아직 없습니다.', en: 'Nothing here yet.' },
+
+  // ---------------------------------------------------------------- SC-15 buy / apply for a child (§4, §8, §12.4)
+  // The chain is listed by `detail.buy.needs_*`, which this node already had. What was missing is the sentence a
+  // buyer needs BEFORE paying twice: the base's creators are paid for the base AND out of this sale. `{lineage}` is
+  // read from the tree's money line, which is computed by the splitter that will settle the sale (§11) — never a
+  // constant, and never printed when the node cannot compute it.
+  'detail.buy.twice_note': { ko: '{name} 제작자는 {name} 판매 대금과 이 판매의 {lineage}%를 함께 받습니다.', en: "{name}'s creators are paid for {name} and receive {lineage}% of this sale too." },
+  'detail.apply.needs_base': { ko: '{child}은(는) {parent} 위에 만든 지식입니다. {parent}을(를) 먼저 넣을까요?', en: '{child} is built on {parent}. Load {parent} first?' },
+  'detail.apply.load_both': { ko: '둘 다 넣기', en: 'Load both' },
+  'detail.apply.order': { ko: '불러온 순서: {parent} → {child}', en: 'Loaded in order: {parent} → {child}' },
+  'detail.apply.has_dependents': { ko: '{parent}을(를) 빼려면 {children}을(를) 먼저 빼세요.', en: 'Remove {children} before removing {parent}.' },
+  'detail.apply.mismatch': { ko: '모델에 {child}이(가) 기대하는 상태로 {parent}이(가) 올라가 있지 않습니다 (다른 것이 이 행을 바꿨습니다). {parent}을(를) 다시 넣고 시도하세요.', en: 'The model does not have {parent} loaded the way {child} expects (something else changed these rows). Reload {parent} and try again.' },
 };

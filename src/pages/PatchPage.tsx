@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useApplyMutation, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery,
+  errorMessage, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
   usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery,
 } from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
@@ -17,6 +17,7 @@ import { selectionPath } from '@/components/chat/util';
 import { useTitle } from '@/utils/useTitle';
 import { bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
 import { FamilyTree } from '@/components/detail/FamilyTree';
+import { useLoadChain } from '@/components/detail/LoadChain';
 import { OpenQuestions } from '@/components/detail/OpenQuestions';
 import { SignalsStrip } from '@/components/detail/SignalsStrip';
 import { TrainingSetBlock } from '@/components/detail/TrainingSetBlock';
@@ -1010,11 +1011,12 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
   const { t } = useT();
   const f = useDetailFormat();
   const [again, setAgain] = useState(false);
-  const [apply, applyState] = useApplyMutation();
   const [collect, collectState] = useCollectMutation();
   const { data: purchases } = useMyPurchasesQuery();
   const { data: info } = useInfoQuery();
   const row = purchases?.items.find((x) => x.patch_id === d.anchor.id);
+  // SC-15 — the knowledge just bought may be an add-on: loading it means loading what it was trained on top of.
+  const chain = useLoadChain((id) => d.quote?.requires.find((r) => r.id === id)?.name || (id === d.anchor.id ? d.anchor.name : id) || id);
   return (
     <div data-testid="buy-paid">
       <Alert $tone="success">{t('detail.buy.purchased', { applied: d.applied ? t('detail.buy.purchased_applied') : '', stored: d.has_body ? t('detail.buy.stored_yes') : t('detail.buy.stored_no') })}</Alert>
@@ -1042,15 +1044,17 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
       <Actions>
         {d.has_body && !d.applied && (
           <Button
-            variant="contained" disabled={!runtimeReady} loading={applyState.isLoading} loadingText={t('detail.buy.paid_loading')}
-            onClick={() => { void apply(d.anchor.id); }} data-testid="buy-paid-load"
+            variant="contained" disabled={!runtimeReady} loading={chain.busy} loadingText={t('detail.buy.paid_loading')}
+            onClick={() => { void chain.load(d.anchor.id); }} data-testid="buy-paid-load"
           >{t('detail.buy.paid_load')}</Button>
         )}
         {d.applied && <Quorum>{t('detail.buy.paid_loaded')}</Quorum>}
         {d.has_body && !d.applied && !runtimeReady && <Quorum>{t('detail.buy.paid_no_runtime')}</Quorum>}
         <StyledLink to="/dashboard">{t('detail.buy.paid_manage')} →</StyledLink>
       </Actions>
-      {applyState.error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(applyState.error)}</Alert>}
+      {chain.error && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="apply-error">{chain.error}</Alert>}
+      {chain.notice && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="apply-order">{chain.notice}</Alert>}
+      {chain.dialog}
       {!again
         ? <Actions><TextBtn type="button" onClick={() => setAgain(true)} data-testid="buy-again-open">{t('detail.buy.again_open')}</TextBtn></Actions>
         : (
@@ -1122,6 +1126,17 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
     .filter((x): x is { name: string; overlap: number; rows: number } => x.overlap !== undefined && x.rows !== undefined && x.rows > 0 && x.overlap >= x.rows);
   // Item 364: on a local-credit node the money is issued BY this node — say so where it is about to be spent.
   const { data: credit } = useMyCreditQuery(undefined, { skip: !isOperator || a.currency !== 'CREDIT' });
+  /**
+   * SC-15 `buy.twice_note` — worked example 7 of §11: a buyer who needs the base pays for the base AND pays the
+   * base's creators again out of this sale. The percentage is not written here: it is read from the tree's money
+   * line, which `royaltyPlan` computes on a unit price — the same code that will settle the sale — and each
+   * recipient names the ancestor it is paid FOR, so the sentence goes against the right knowledge or is not shown.
+   */
+  const { data: tree } = usePatchTreeQuery({ id: a.id, depth: 4, dir: 'up' }, { skip: needs.length === 0 });
+  const paidTwice = (id: string) => {
+    const pct = (tree?.money.recipients ?? []).filter((r) => r.kind === 'lineage' && r.for_id === id).reduce((n, r) => n + r.pct, 0);
+    return pct > 0 ? Math.round(pct * 10) / 10 : null;
+  };
   return (
     <>
       {superseded && (
@@ -1175,6 +1190,11 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
                         : r.licensed ? t('detail.buy.needs_have')
                         : r.known ? t('detail.buy.needs_buy', { price: f.priceLabel(r.price ?? '0', r.currency ?? a.currency), who: r.author_name ?? shortAddr(r.author ?? '', 6) })
                         : t('detail.buy.needs_unknown')}
+                      {paidTwice(r.id) !== null && (
+                        <div style={{ fontSize: 12, color: '#8d8d8f' }} data-testid="buy-twice-note">
+                          {t('detail.buy.twice_note', { name: r.name || r.id, lineage: String(paidTwice(r.id)) })}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {missing.length > 0 && <div style={{ marginTop: 6, fontWeight: 600 }}>{t('detail.buy.needs_total', { total: totalText, n: missing.length })}</div>}
@@ -1244,7 +1264,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
                 stays possible, but as an outlined button that says which version the money buys. */}
             <Button
               variant={superseded ? 'outlined' : 'contained'} loading={isLoading} loadingText={t('detail.buy.paying')}
-              onClick={() => { reset(); void buy({ id: a.id, with_required: missing.length > 0 }); }} title={help('autoPay')} data-testid="buy-button"
+              onClick={() => { reset(); void buy({ id: a.id, bundle: missing.length > 0 }); }} title={help('autoPay')} data-testid="buy-button"
             >
               {/* The button says what leaves the wallet: the family total when a base has to come with it. */}
               {missing.length > 0 ? t('detail.buy.button_family', { price: totalText, n: missing.length + 1 })

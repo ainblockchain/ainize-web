@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAnnounceMutation, useApplyMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, usePatchQuery, useRemoveMutation,
+  errorMessage, useAnnounceMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, usePatchQuery,
   useRetireMutation, useRuntimeQuery, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
@@ -14,6 +14,7 @@ import { Alert, FormRow, Select, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { CheckItem, Checklist, DevBox, ExternalAnchor, ExternalRow, ExternalTitle, MonoBox, Muted, Row, SectionBody, SmallSpinner, Stack, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { useLoadChain } from '@/components/detail/LoadChain';
 import { Sheet, SheetFooter } from '@/components/chat/Sheet';
 import { bytes, dateTime, num, scoreText, shortAddr, shortHash } from '@/utils/format';
 
@@ -63,8 +64,11 @@ export default function ManagePage() {
   const [announce, announceState] = useAnnounceMutation();
   const [verify, verifyState] = useVerifyMutation();
   const [challenge, challengeState] = useChallengeMutation();
-  const [apply, applyState] = useApplyMutation();
-  const [remove, removeState] = useRemoveMutation();
+  /**
+   * SC-15 — an add-on is loaded with what it was trained on top of, and unloading something with a knowledge on top
+   * of it says which one. The bare apply this page used to send answered `needs_base` with a code and no way out.
+   */
+  const chain = useLoadChain((id) => catalog.data?.items.find((e) => e.anchor.id === id)?.anchor.name || id);
   const [del, delState] = useDeletePatchMutation();
   const [retire, retireState] = useRetireMutation();
 
@@ -478,14 +482,17 @@ export default function ManagePage() {
       <SubTitle $mt={56}><Tip tech={`${tech('apply')} / ${tech('remove')}`}>{t('op.manage.runtime.title')}</Tip></SubTitle>
       <Description>{t('op.manage.runtime.desc')}</Description>
       <SaveRow>
-        <Button disabled={!runtime.data?.available || !p.has_body || p.applied} loading={applyState.isLoading} loadingText={t('op.manage.runtime.loading')} onClick={() => run(() => apply(a.id).unwrap(), t('op.manage.runtime.loaded_ok'))}>{term('apply')}</Button>
-        <Button color="secondary" disabled={!runtime.data?.available || !p.applied} loading={removeState.isLoading} loadingText={t('op.manage.runtime.unloading')} onClick={() => run(() => remove(a.id).unwrap(), t('op.manage.runtime.unloaded_ok'))}>{term('remove')}</Button>
+        <Button disabled={!runtime.data?.available || !p.has_body || p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.loading')} onClick={() => { setError(null); setNotice(null); void chain.load(a.id); }}>{term('apply')}</Button>
+        <Button color="secondary" disabled={!runtime.data?.available || !p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.unloading')} onClick={() => { setError(null); setNotice(null); void chain.unload(a.id); }}>{term('remove')}</Button>
         <Muted>
           {p.applied ? t('op.manage.runtime.is_loaded') : t('op.manage.runtime.not_loaded')}
           {runtime.data && !runtime.data.available ? ` · ${t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}` : runtime.data?.model ? ` · ${runtime.data.model}` : ''}
         </Muted>
         <StyledLink to={`/chat/${encodeURIComponent(a.id)}`} title={help('liveTest')}>{t('op.manage.runtime.try')} →</StyledLink>
       </SaveRow>
+      {chain.notice && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="apply-order">{chain.notice}</Alert>}
+      {chain.error && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="apply-error">{chain.error}</Alert>}
+      {chain.dialog}
 
       {/* ------------------------------------------------------------ markdown snippet */}
       <SubTitle $mt={56}>{t('op.manage.badge.title')}</SubTitle>
