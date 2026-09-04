@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useBenchmarkQuery, useBuyMutation, useInfoQuery, usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery } from '@/api/api';
+import {
+  errorMessage, useApplyMutation, useBenchmarkQuery, useBuyMutation, useInfoQuery, useMyPurchasesQuery,
+  usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery,
+} from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -156,6 +159,13 @@ const CmdRow = styled.div`
     font-family: ${(p) => p.theme.font.mono}; font-size: 12px; line-height: 1.6; word-break: break-all;
   }
 `;
+/** The controls on a knowledge this node has already paid for (item 271). */
+const Actions = styled.div`margin-top: 12px; display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center;`;
+const TextBtn = styled.button`
+  background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: ${(p) => p.theme.color.GREY}; cursor: pointer;
+  text-decoration: underline; &:hover { color: ${(p) => p.theme.color.BLACK}; }
+`;
+
 type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
 
 /** Accuracy shown in the header comes only from attestations that ran the real model — never from integrity-only checks. */
@@ -639,6 +649,58 @@ function VisitorBuy({ id, gw, priceText }: { id: string; gw: string; priceText: 
   );
 }
 
+/**
+ * Item 271: "Buy again" was the only control on a body this node had already paid for, and `market.buy` re-runs the
+ * whole 402 loop with no check for an existing settlement (market.ts:814) while `store.putPurchase` overwrites the
+ * first row's tx hash (store.ts:283 `ON CONFLICT(patch_id) DO UPDATE`). So the licence now leads with what it is
+ * for — loading the knowledge into the model — and a second payment is a separate, confirmed act that says what it
+ * costs and what it overwrites. A free re-download would need a node-side route; nothing here promises one.
+ */
+function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
+  d: PatchDetail; priceText: string; runtimeReady: boolean; onBuyAgain: () => void; buying: boolean;
+}) {
+  const { t } = useT();
+  const f = useDetailFormat();
+  const [again, setAgain] = useState(false);
+  const [apply, applyState] = useApplyMutation();
+  const { data: purchases } = useMyPurchasesQuery();
+  const row = purchases?.items.find((x) => x.patch_id === d.anchor.id);
+  return (
+    <div data-testid="buy-paid">
+      <Alert $tone="success">{t('detail.buy.purchased', { applied: d.applied ? t('detail.buy.purchased_applied') : '', stored: d.has_body ? t('detail.buy.stored_yes') : t('detail.buy.stored_no') })}</Alert>
+      {row && (
+        <Note style={{ margin: '8px 0 0' }} title={dateTime(row.created_at)}>
+          {t('detail.buy.paid_when', { amount: f.priceLabel(row.amount, d.anchor.currency), when: f.ago(row.created_at), tx: shortHash(row.tx_hash, 16) })}
+        </Note>
+      )}
+      {!d.has_body && <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-paid-gone">{t('detail.buy.paid_gone', { price: priceText })}</Alert>}
+      <Actions>
+        {d.has_body && !d.applied && (
+          <Button
+            variant="contained" disabled={!runtimeReady} loading={applyState.isLoading} loadingText={t('detail.buy.paid_loading')}
+            onClick={() => { void apply(d.anchor.id); }} data-testid="buy-paid-load"
+          >{t('detail.buy.paid_load')}</Button>
+        )}
+        {d.applied && <Quorum>{t('detail.buy.paid_loaded')}</Quorum>}
+        {d.has_body && !d.applied && !runtimeReady && <Quorum>{t('detail.buy.paid_no_runtime')}</Quorum>}
+        <StyledLink to="/dashboard">{t('detail.buy.paid_manage')} →</StyledLink>
+      </Actions>
+      {applyState.error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(applyState.error)}</Alert>}
+      {!again
+        ? <Actions><TextBtn type="button" onClick={() => setAgain(true)} data-testid="buy-again-open">{t('detail.buy.again_open')}</TextBtn></Actions>
+        : (
+          <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-again-confirm">
+            <b>{t('detail.buy.again_title')}</b> {t('detail.buy.again_body', { id: d.anchor.id, price: priceText })}
+            <Actions>
+              <Button color="secondary" loading={buying} loadingText={t('detail.buy.paying')} onClick={onBuyAgain} data-testid="buy-again-pay">{t('detail.buy.again_confirm', { price: priceText })}</Button>
+              <TextBtn type="button" onClick={() => setAgain(false)}>{t('common.cancel')}</TextBtn>
+            </Actions>
+          </Alert>
+        )}
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- 구매 */
 function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
   const { t, term, help, tech } = useT();
@@ -662,7 +724,10 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const unresolved = successorIds.filter((id) => !successors.some((e) => e.anchor.id === id));
   const superseded = successorIds.length > 0;
   // Item 153: `sellable` is quorum met AND no open challenge — a disputed knowledge is off sale, not discounted.
-  const canBuy = d.sellable && !d.owned;
+  // Item 271: a knowledge this node has already paid for is not offered for sale again here — PaidFor holds it.
+  const canBuy = d.sellable && !d.owned && !d.purchased;
+  const { data: info } = useInfoQuery();
+  const runtimeReady = info?.runtime.available === true;
   const priceText = f.priceLabel(a.price, a.currency);
   const note = f.priceNote(a.currency);
   const mine = scoreOf(d);
@@ -718,7 +783,9 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
       <Section>
         <H3>{isOperator ? t('detail.buy.from_node') : t('detail.buy.visitor_title')}</H3>
         {isOperator && d.owned && <P>{t('detail.buy.owned')}<StyledLink to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.buy.owned_manage')}</StyledLink></P>}
-        {isOperator && !d.owned && d.purchased && <Alert $tone="success">{t('detail.buy.purchased', { applied: d.applied ? t('detail.buy.purchased_applied') : '', stored: d.has_body ? t('detail.buy.stored_yes') : t('detail.buy.stored_no') })}</Alert>}
+        {isOperator && !d.owned && d.purchased && (
+          <PaidFor d={d} priceText={priceText} runtimeReady={runtimeReady} buying={isLoading} onBuyAgain={() => { reset(); void buy({ id: a.id }); }} />
+        )}
         {/* Item 3: why it cannot be bought is public — a visitor used to be shown the price and no reason at all. */}
         {!d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
         {!d.owned && d.quorum_ok && !d.sellable && (
@@ -736,7 +803,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
               variant={superseded ? 'outlined' : 'contained'} loading={isLoading} loadingText={t('detail.buy.paying')}
               onClick={() => { reset(); void buy({ id: a.id }); }} title={help('autoPay')} data-testid="buy-button"
             >
-              {d.purchased ? t('detail.buy.button_again') : superseded ? t('detail.buy.button_old', { price: priceText }) : t('detail.buy.button', { price: priceText })}
+              {superseded ? t('detail.buy.button_old', { price: priceText }) : t('detail.buy.button', { price: priceText })}
             </Button>
             {superseded && head && <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{t('detail.buy.old_open')} →</StyledLink>}
             <Quorum>{a.currency === 'AIN' ? t('detail.buy.pays_from_ain') : t('detail.buy.pays_from_credit')}{note && <> · {note}</>}</Quorum>

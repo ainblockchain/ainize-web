@@ -252,7 +252,21 @@ export const detailPatch: Dict = {
   'detail.buy.old_open': { ko: '더 새로운 버전 보기', en: 'Open the newer version' },
   'detail.buy.button_old': { ko: '그래도 이 이전 버전 구매 · {price}', en: 'Buy this older version anyway · {price}' },
   'detail.buy.button': { ko: '자동 결제로 구매 · {price}', en: 'Buy · {price}' },
-  'detail.buy.button_again': { ko: '다시 구매', en: 'Buy again' },
+  /* Item 271: “Buy again” was the only control on a body this node has already paid for, and market.buy is not
+     idempotent — it re-runs the whole 402 loop and store.putPurchase overwrites the first row's tx hash. The paid
+     licence now leads with what it is actually for (loading it), and paying a second time is a named, confirmed act
+     that states the cost. A free re-download needs a node-side route and is not promised here. */
+  'detail.buy.paid_when': { ko: '{when} {amount} 결제 · 거래 {tx}', en: 'Paid {amount} {when} · tx {tx}' },
+  'detail.buy.paid_load': { ko: '모델에 넣기', en: 'Load into the model' },
+  'detail.buy.paid_loading': { ko: '넣는 중…', en: 'Loading…' },
+  'detail.buy.paid_loaded': { ko: '지금 이 노드의 모델에 올라가 있습니다.', en: 'It is loaded in this node’s model right now.' },
+  'detail.buy.paid_no_runtime': { ko: '이 노드에 연결된 모델 서버가 없어 지금은 넣을 수 없습니다.', en: 'This node has no model server attached, so it cannot be loaded right now.' },
+  'detail.buy.paid_manage': { ko: '내 지식에서 관리하기', en: 'Manage it under My knowledge' },
+  'detail.buy.paid_gone': { ko: '이 화면에서 파일을 다시 받는 무료 경로는 아직 없습니다 — 다시 받으려면 결제 게이트웨이를 거치므로 {price}이 한 번 더 이체되고, 앞서 낸 금액은 차감되지 않습니다.', en: 'Getting the bytes back is not free from this page yet: a re-download goes through the paid gateway, which transfers {price} a second time and credits nothing for the earlier payment.' },
+  'detail.buy.again_open': { ko: '그래도 한 번 더 결제하기…', en: 'Pay for it a second time…' },
+  'detail.buy.again_title': { ko: '한 번 더 결제하면 전액이 다시 빠져나갑니다.', en: 'Paying again transfers the full price a second time.' },
+  'detail.buy.again_body': { ko: '이 노드는 이미 {id}의 사용권을 결제했습니다. 다시 누르면 {price}이 한 번 더 이체되고, 이 노드의 구매 기록에는 가장 최근 결제만 남습니다(거래 해시가 덮어써집니다). 사용권을 하나 더 살 의도가 아니라면 취소하세요.', en: 'This node has already paid for {id}. Pressing again transfers {price} once more, and this node’s purchase record keeps only the most recent payment — the earlier transaction hash is overwritten. Cancel unless you meant to pay for a second licence.' },
+  'detail.buy.again_confirm': { ko: '{price} 다시 결제', en: 'Pay {price} again' },
   'detail.buy.paying': { ko: '결제 중…', en: 'Paying…' },
   'detail.buy.pays_from_ain': { ko: '이 노드의 AIN 지갑에서 결제하고 파일을 이 노드에 저장합니다.', en: 'Pays from this node’s AIN wallet and stores the file on this node.' },
   'detail.buy.pays_from_credit': { ko: '이 노드의 크레딧 잔액에서 결제하고 파일을 이 노드에 저장합니다.', en: 'Pays from this node’s credit balance and stores the file on this node.' },
