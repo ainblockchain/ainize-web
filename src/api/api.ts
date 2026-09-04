@@ -10,7 +10,7 @@ import type {
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
-  IssuesResponse, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
+  IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
   SubscribeResult, TrackQuote, CreditInfo,
 } from './types';
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
@@ -19,7 +19,7 @@ import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/te
  * Endpoints that carry the visitor's signed `x-ngram-auth` when this browser has a teaching key (spec §6.1).
  * `chat` is included because a private draft (a taught lesson before publishing) can be live-tested only by its owner.
  */
-const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishPreview', 'publishTeachJob', 'saveTeachJob',
+const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'mergePreview', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishPreview', 'publishTeachJob', 'saveTeachJob',
   // teach mode v2 — the dataset routes (design §7)
   'forkPatch', 'teachDatasets', 'teachDataset', 'teachDatasetRows', 'createTeachDataset', 'uploadTeachDataset', 'reparseTeachDataset', 'patchTeachDataset', 'forkTeachDataset', 'deleteTeachDataset',
   'retrainTeachJob', 'teachJobEvents']);
@@ -177,10 +177,14 @@ export const api = createApi({
     // Teach mode (spec §6.2) — visitor routes signed with the browser's teaching key; poll a job every 5 s (call site: pollingInterval)
     teachPolicy: b.query<TeachPolicy, void>({ query: () => 'api/teach/policy', providesTags: ['Teach'] }),
     teachPreflight: b.mutation<PreflightResponse, { patch_ids: string[]; base_ids?: string[]; context_ids?: string[]; facts?: TeachFactInput[]; dataset_id?: string; offset?: number; limit?: number }>({ query: (body) => ({ url: 'api/teach/preflight', method: 'POST', body }) }),
+    /** Design §12.2: what combining two knowledges would mean — questions, rows and which builds are possible. Reads only. */
+    mergePreview: b.mutation<MergePreview, { a: string; b: string }>({ query: (body) => ({ url: 'api/teach/merge/preview', method: 'POST', body }) }),
     createTeachJob: b.mutation<CreateTeachJobResponse, {
       patch_ids: string[]; builds_on_context: boolean; facts?: TeachFactInput[];
-      /** lineage §12.1: the knowledge this lesson is built ON (≤ 1 here), what is only loaded for comparison, and the two confirmations the node will not make for the creator */
-      base_ids?: string[]; context_ids?: string[]; mode?: 'scratch' | 'extend' | 'fork'; inherit?: boolean; confirm_conflicts?: boolean;
+      /** lineage §12.1: the knowledge this lesson is built ON (two = a merge), what is only loaded for comparison, and the two confirmations the node will not make for the creator */
+      base_ids?: string[]; context_ids?: string[]; mode?: 'scratch' | 'extend' | 'fork' | 'merge'; inherit?: boolean; confirm_conflicts?: boolean;
+      /** merge §9: what the creator chose for each question the two answer differently, and how the result is built */
+      resolutions?: Record<string, 'a' | 'b' | 'drop' | { answer: string }>; tier?: 'union' | 'retrain' | 'rebuild';
       dataset_id?: string; selected_indexes?: number[]; training?: Partial<TeachTrainingSpec>;
       /** what the preview's live pre-flight measured on those dataset rows (design §5.5) */
       known?: { index: number; base_answer: string }[];
@@ -284,7 +288,7 @@ export const {
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
-  useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
+  useTeachPolicyQuery, useTeachPreflightMutation, useMergePreviewMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
   useForkPatchMutation, useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,
   usePatchTeachDatasetMutation, useForkTeachDatasetMutation, useDeleteTeachDatasetMutation, useTeachSamplesQuery, useRetrainTeachJobMutation, useTeachJobEventsQuery,

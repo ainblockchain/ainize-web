@@ -39,6 +39,7 @@ const TeachDatasetPage = lazy(() => import('./pages/TeachDatasetPage'));
 const TeachSettingsPage = lazy(() => import('./pages/TeachSettingsPage'));
 const TeachLessonPage = lazy(() => import('./pages/TeachLessonPage'));
 const TeachMinePage = lazy(() => import('./pages/TeachMinePage'));
+const MergePage = lazy(() => import('./pages/MergePage'));
 
 const fallback = <CenterProgress />;
 
@@ -75,6 +76,8 @@ export default function App() {
                 <Route path="/teach/dataset/:dsId/settings" element={<FocusedLayout><TeachSettingsPage /></FocusedLayout>} />
                 <Route path="/teach/lesson/:jobId" element={<FocusedLayout><TeachLessonPage /></FocusedLayout>} />
                 <Route path="/teach/mine" element={<FocusedLayout><TeachMinePage /></FocusedLayout>} />
+                {/* Combining two knowledges (lineage design §4 SC-14, §9) — the third door, behind the `teach.lineage` flag */}
+                <Route path="/teach/merge" element={<FocusedLayout><MergePage /></FocusedLayout>} />
                 <Route path="/teacher/:address" element={<Layout><TeacherPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />

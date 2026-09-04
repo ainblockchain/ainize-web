@@ -634,3 +634,21 @@ export interface ShelvesResponse {
   asked: { topic: string; count: number; people: number; patches: string[] }[];
   scope: Record<string, string>;
 }
+
+/**
+ * `POST /api/teach/merge/preview` (lineage design §12.2, SC-14) — what combining two knowledges would mean, measured.
+ * `questions` is null when one creator kept their training set private: then only the rows can be compared, and only a
+ * disjoint-rows "just combine" is possible.
+ */
+export interface MergeConflict { key: string; prompt: string; a_answer: string; b_answer: string; a_row: number; b_row: number }
+export interface MergeTier { allowed: boolean; reason?: string; est_min?: number | null; export?: 'delta' | 'squash' }
+export interface MergePreview {
+  a: { id: string; name: string; status: string; sha256: string; rows: number; questions: number | null; access: string; private?: true; stack: string[] };
+  b: MergePreview['a'];
+  questions: { a_only: number; b_only: number; same: number; conflicts: MergeConflict[] } | null;
+  rows: { a_only: number; b_only: number; shared: number; disagree: number; opposing: number; before_differs: number };
+  merged: { rows: number; from_a: number; from_b: number; targets: number } | null;
+  tiers: { union: MergeTier; retrain: MergeTier; rebuild: MergeTier; required: 'union' | 'retrain' | 'rebuild' | null; disagree_ratio: number };
+  licenses: { a: string | null; b: string | null; child_min: string | null };
+  private_parent?: string;
+}
