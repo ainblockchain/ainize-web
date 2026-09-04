@@ -106,6 +106,15 @@ export const chat: Dict = {
   // follow-up questions: each column replays its own earlier answers (never the other's)
   'chat.history.split': { ko: '이어지는 질문에서 각 열은 자기가 한 답만 다시 보게 됩니다 — "넣기 전" 모델에는 지식이 낸 답을 알려주지 않습니다.', en: 'On follow-up questions each column replays only its own earlier answers — the "Before loading" model is never shown what the knowledge answered.' },
 
+  // "Improve & retry" (finding 21) — the failed lesson's corrections come BACK into the basket beside whatever is
+  // already there, and the drawer opens on the one that missed, asking for the phrasing the card asked for
+  'chat.improve.title': { ko: '표현 하나 더 넣기', en: 'Add another phrasing' },
+  'chat.improve.sub': { ko: '이 바로잡기는 수업에 그대로 있습니다. 같은 사실을 다른 말로도 물어볼 수 있게 표현을 하나 더 넣어 주세요 — 모델이 표현이 아니라 사실을 배우는지 확인하는 데 씁니다.', en: 'This correction is still in your lesson. Add one more way of asking the same thing — it is what checks the model learned the fact and not the wording.' },
+  'chat.improve.save': { ko: '수업에 저장', en: 'Save to the lesson' },
+  'chat.improve.full': { ko: '수업이 이미 가득 차서 지난 수업의 바로잡기 {n}개는 다시 넣지 못했습니다 (한 수업에 최대 {max}개). 몇 개를 빼고 "보완해서 다시"를 한 번 더 누르면 들어갑니다.', en: '{n} corrections from that lesson could not come back: this lesson is already full (up to {max}). Remove a few and press "Improve & retry" again.' },
+  'chat.improve.full_one': { ko: '수업이 이미 가득 차서 지난 수업의 바로잡기 1개는 다시 넣지 못했습니다 (한 수업에 최대 {max}개). 하나를 빼고 "보완해서 다시"를 한 번 더 누르면 들어갑니다.', en: '1 correction from that lesson could not come back: this lesson is already full (up to {max}). Remove one and press "Improve & retry" again.' },
+  'chat.improve.dismiss': { ko: '닫기', en: 'Dismiss' },
+
   // transcript — the mark that says which knowledge a run of questions was asked with (finding 14)
   'chat.turn.stack': { ko: '여기부터: {names}을(를) 넣고 물어봤습니다', en: 'From here: asked with {names} loaded' },
   'chat.turn.stack_none': { ko: '여기부터: 아무 지식도 넣지 않고 물어봤습니다', en: 'From here: asked with no knowledge loaded' },

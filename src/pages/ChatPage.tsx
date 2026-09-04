@@ -262,7 +262,13 @@ export default function ChatPage() {
     const r = el.getBoundingClientRect();
     if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [basketNudge]);
-  const [drawer, setDrawer] = useState<{ question: string; answer: string } | null>(null);
+  /**
+   * The teach drawer. `editId` (finding 21) is set when it is EDITING a correction the lesson already holds — the
+   * "Improve & retry" path, where the card asks for another phrasing of a correction that is already written.
+   */
+  const [drawer, setDrawer] = useState<{ question: string; answer: string; editId?: string; initial?: { answer?: string; alt_prompt?: string }; focusAlt?: boolean } | null>(null);
+  /** Corrections "Improve & retry" could not bring back because the lesson is already full. */
+  const [improveFull, setImproveFull] = useState<{ n: number; max: number } | null>(null);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [sheetJob, setSheetJob] = useState<TeachJob | null>(null);
   const [cardJobId, setCardJobId] = useState<string | null>(() => lessonParam ?? loadJobs()[0]?.id ?? null);
@@ -433,9 +439,15 @@ export default function ChatPage() {
   // ---------------------------------------------------------------- teach-mode handlers
   const onTeach = useCallback((turn: Turn, answer: string) => { setDrawer({ question: turn.prompt, answer }); }, []);
   const addCorrection = useCallback((c: { prompt: string; answer: string; alt_prompt?: string; model_answer?: string }) => {
-    updateBasket((b) => (b.facts.length >= factsPerJob ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
+    const editId = drawer?.editId;
+    updateBasket((b) => (editId
+      // editing one the lesson already holds: it is replaced where it stands, so the lesson never grows past the cap
+      // the stored question is kept verbatim when only its surrounding space differs: this node trains prompts whose
+      // trailing space is part of what was trained, and an edit of the PHRASING must not quietly rewrite them
+      ? { ...b, facts: b.facts.map((f) => (f.id === editId ? { ...f, ...c, prompt: f.prompt.trim() === c.prompt.trim() ? f.prompt : c.prompt, alt_prompt: c.alt_prompt, id: f.id, added_at: f.added_at } : f)) }
+      : b.facts.length >= factsPerJob ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
     setDrawer(null); setBasketOpen(true); setBasketNudge((n) => n + 1);
-  }, [updateBasket, factsPerJob]);
+  }, [updateBasket, factsPerJob, drawer?.editId]);
   const onTrain = useCallback(() => { setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey]);
   const onQueued = useCallback((job: TeachJob) => {
     rememberJob({ id: job.id, name: job.name, created_at: job.created_at });
@@ -449,10 +461,47 @@ export default function ChatPage() {
     const next = selectedIds.includes(id) ? selectedIds : selectedIds.length >= MAX_CHAT_PATCHES ? [...selectedIds.slice(0, MAX_CHAT_PATCHES - 1), id] : [...selectedIds, id];
     navigate({ pathname: selectionPath(next), search: `?lesson=${encodeURIComponent(job.id)}` });
   }, [refetch, selectedIds, navigate]);
+  /**
+   * Finding 21 — "Improve & retry" used to REPLACE the whole basket with the failed lesson's facts, so a correction
+   * being written on something else was destroyed with no prompt, and the improvement the card asks for ("add another
+   * phrasing") could not be made afterwards: a basket item offered nothing but "Remove ×".
+   *
+   * It now MERGES: whatever is in the lesson stays, the failed job's corrections are added unless the same question
+   * and answer are already there, and the drawer opens on the one that did not stick with "Ask it another way"
+   * focused — which is exactly what the card told the visitor to do. Corrections that do not fit the node's
+   * per-lesson cap are never dropped silently; the line above the basket says how many and why.
+   */
   const onImprove = useCallback((job: TeachJob) => {
-    updateBasket(() => ({ facts: job.facts.map((f) => ({ prompt: f.prompt, answer: f.answer, ...(f.alt_prompt ? { alt_prompt: f.alt_prompt } : {}), ...(f.base_answer ? { model_answer: f.base_answer } : {}), id: newCorrectionId(), added_at: Date.now() })), builds_on: job.builds_on_context, retry_of: job.id }));
-    setBasketOpen(true);
-  }, [updateBasket]);
+    const same = (a: { prompt: string; answer: string }, b: { prompt: string; answer: string }) => a.prompt.trim() === b.prompt.trim() && a.answer.trim() === b.answer.trim();
+    const kept = basket.facts;
+    const room = Math.max(0, factsPerJob - kept.length);
+    // each correction of the failed lesson beside the copy of it the lesson already holds (pressing Improve twice,
+    // or having taught the same fact by hand, must not put it in twice)
+    const paired = job.facts.map((f) => ({ fact: f, held: kept.find((k) => same(k, f)) ?? null }));
+    const missing = paired.filter((p) => !p.held);
+    const added = new Map(missing.slice(0, room).map((p) => [p, {
+      prompt: p.fact.prompt, answer: p.fact.answer,
+      ...(p.fact.alt_prompt ? { alt_prompt: p.fact.alt_prompt } : {}),
+      ...(p.fact.base_answer ? { model_answer: p.fact.base_answer } : {}),
+      id: newCorrectionId(), added_at: Date.now(),
+    }]));
+    // what the lesson holds of that job afterwards, in the job's own order
+    const back = paired.flatMap((p) => { const c = p.held ?? added.get(p); return c ? [{ fact: p.fact, c }] : []; });
+    // the lesson is only the RETRY of that job while it actually carries its corrections: a lesson too full to take
+    // any of them back is still the visitor's own, and must not be queued as a second attempt at someone else's
+    if (added.size > 0) updateBasket((b) => ({ ...b, facts: [...b.facts, ...added.values()], builds_on: b.builds_on || job.builds_on_context, retry_of: job.id }));
+    else if (back.length > 0) updateBasket((b) => ({ ...b, retry_of: job.id }));
+    setImproveFull(missing.length > added.size ? { n: missing.length - added.size, max: factsPerJob } : null);
+    setBasketOpen(true); setBasketNudge((n) => n + 1);
+    // the phrasing is wanted for a correction the model got WRONG; failing that, for the first one that came back
+    const target = back.find((x) => x.fact.hit === false) ?? back[0];
+    if (target) {
+      setDrawer({
+        question: target.c.prompt, answer: target.fact.base_answer ?? '', editId: target.c.id, focusAlt: true,
+        initial: { answer: target.c.answer, alt_prompt: target.c.alt_prompt },
+      });
+    }
+  }, [basket.facts, updateBasket, factsPerJob]);
   const openSheet = useCallback((kind: SheetKind, job: TeachJob | null) => { setSheetJob(job); setSheet(kind); }, []);
   const hideCard = useCallback(() => { setCardHidden(true); setParam('lesson', null); }, [setParam]);
   const closeMine = useCallback(() => setParam('mine', null), [setParam]);
@@ -476,6 +525,12 @@ export default function ChatPage() {
    */
   const basketPanel = policy && (
     <div ref={basketRef}>
+      {improveFull && (
+        <StrandedNote $tone="warning" role="status" data-testid="improve-full" style={{ marginBottom: 10 }}>
+          <span>{t('chat.improve.full', { n: improveFull.n, max: improveFull.max }, improveFull.n)}</span>
+          <button type="button" onClick={() => setImproveFull(null)}>{t('chat.improve.dismiss')}</button>
+        </StrandedNote>
+      )}
       {stranded.map((sb) => (
         <StrandedNote key={stackKey(sb.ids) || 'base'} $tone="info" role="status" data-testid="basket-stranded" style={{ marginBottom: 10 }}>
           <span>{sb.ids.length
@@ -624,7 +679,11 @@ export default function ChatPage() {
 
       {/* ------------------------------------------------------------ teach-mode overlays */}
       {drawer && (
-        <TeachDrawer question={drawer.question} modelAnswer={drawer.answer} full={basket.facts.length >= factsPerJob} max={factsPerJob} limits={policy?.limits}
+        <TeachDrawer question={drawer.question} modelAnswer={drawer.answer} max={factsPerJob} limits={policy?.limits}
+          // editing one the lesson already holds replaces it in place, so a full lesson is not a reason to refuse
+          full={!drawer.editId && basket.facts.length >= factsPerJob}
+          initial={drawer.initial} focusAlt={drawer.focusAlt}
+          labels={drawer.editId ? { title: t('chat.improve.title'), sub: t('chat.improve.sub'), add: t('chat.improve.save') } : undefined}
           onAdd={addCorrection} onClose={() => setDrawer(null)} />
       )}
       {sheet === 'credit' && <CreditSheet onDone={(k) => { setTeacherKey(k); setSheet('preflight'); }} onClose={() => setSheet(null)} />}
