@@ -68,6 +68,8 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' | 
     // item 171 — a typo and "this node does not have it" used to be the same sentence; each now names its own remedy
     case 'unknown_knowledge': return t('teach.err.unknown_knowledge', { id: detailString(err, 'id', '') });
     case 'knowledge_not_held': return t('teach.err.knowledge_not_held', { name: detailString(err, 'name', detailString(err, 'id', '')), id: detailString(err, 'id', '') });
+    // item 327 — the file is on this node because it VERIFIED it, which is possession and not a licence to build on it
+    case 'knowledge_not_licensed': return t('teach.err.knowledge_not_licensed', { name: detailString(err, 'name', detailString(err, 'id', '')), price: `${detailString(err, 'price', '0')} ${detailString(err, 'currency', '')}`.trim() });
     // item 312 — a lesson trained on someone else's questions has to name them
     case 'undeclared_parent': return t('teach.err.undeclared_parent', { name: detailString(err, 'name', detailString(err, 'id', '')) });
     default: break;

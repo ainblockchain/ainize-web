@@ -762,6 +762,9 @@ export const teach: Dict = {
   'teach.err.dataset_not_text': { ko: '이 파일은 글자로 읽히지 않습니다 ({encoding}으로 읽었습니다). 스프레드시트라면 CSV로 내보낸 뒤 올려주세요.', en: 'This file does not read as text (it was read as {encoding}). If it is a spreadsheet, export it as CSV and upload that.' },
   // item 171 — the two different reasons a base is unusable, each with its own remedy
   'teach.err.unknown_knowledge': { ko: '이 노드에는 "{id}"이(가) 없습니다. 아이디를 확인하거나, 그 지식을 가진 노드에서 가르치세요.', en: 'This node does not have "{id}". Check the id, or teach on a node that holds it.' },
+  /* Item 327: a verifier holds every body it scored. Possession is not a licence, and the sentence has to be a
+     different one from "the file is not here" — the remedy is a purchase, not a download. */
+  'teach.err.knowledge_not_licensed': { ko: '{name}의 파일은 이 노드에 있지만, 채점을 위해 받아 둔 것이라 그 위에 가르칠 권리는 없습니다. 먼저 구매해야 합니다({price}).', en: 'The file for {name} is on this node, but only because this node verified it — scoring a knowledge is not a licence to teach on top of it. Buy it first ({price}).' },
   'teach.err.knowledge_not_held': { ko: '{name}은(는) 이 노드에 등록되어 있지만 파일이 여기 없습니다. 먼저 받아 두어야 그 위에 가르칠 수 있습니다.', en: '{name} is listed on this node but its file is not here. Get it first — teaching on top of it needs the file.' },
   // item 312 — the questions came from someone else's knowledge, and the lesson has to say so
   'teach.err.undeclared_parent': { ko: '이 질문들은 {name}에서 가져온 것입니다. 그 위에 만드는 수업이라고 밝혀야 합니다 — "이 지식을 바탕으로 합니다"를 켜고 다시 학습하세요.', en: 'These questions came from {name}. A lesson trained on them has to say so — turn on "builds on this knowledge" and train it again.' },
