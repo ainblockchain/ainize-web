@@ -14,7 +14,19 @@ export const MAX_FACTS = 64;
 export const DEFAULT_FACTS_PER_JOB = 8;
 
 export interface Correction extends TeachFactInput { id: string; model_answer?: string; added_at: number }
-export interface Basket { facts: Correction[]; builds_on: boolean; /** set by "Improve & retry": the next training call goes through POST …/retry with this parent job */ retry_of?: string }
+export interface Basket {
+  facts: Correction[];
+  builds_on: boolean;
+  /**
+   * Lineage (design §4 SC-1): the knowledge this lesson is being built ON TOP OF — `undefined` means "not chosen yet"
+   * (the first loaded knowledge is offered), `null` means the visitor chose the plain model on purpose.
+   */
+  base?: string | null;
+  /** the visitor confirmed that answers differing from the base's are meant to replace them (§12.1) */
+  confirm_conflicts?: boolean;
+  /** set by "Improve & retry": the next training call goes through POST …/retry with this parent job */
+  retry_of?: string;
+}
 export interface JobRef { id: string; name?: string; created_at: number }
 
 const read = <T>(key: string, fallback: T): T => {
@@ -29,10 +41,15 @@ export function stackHash(ids: string[]): string { return ids.length ? ids.join(
 export function loadBasket(ids: string[]): Basket {
   const b = read<Partial<Basket>>(BASKET_PREFIX + stackHash(ids), {});
   const facts = Array.isArray(b.facts) ? b.facts.filter((f) => f && typeof f.prompt === 'string' && typeof f.answer === 'string').slice(0, MAX_FACTS) : [];
-  return { facts, builds_on: !!b.builds_on, ...(typeof b.retry_of === 'string' ? { retry_of: b.retry_of } : {}) };
+  return {
+    facts, builds_on: !!b.builds_on,
+    ...(typeof b.base === 'string' || b.base === null ? { base: b.base } : {}),
+    ...(b.confirm_conflicts ? { confirm_conflicts: true } : {}),
+    ...(typeof b.retry_of === 'string' ? { retry_of: b.retry_of } : {}),
+  };
 }
 export function saveBasket(ids: string[], basket: Basket) {
-  if (basket.facts.length === 0 && !basket.builds_on && !basket.retry_of) remove(BASKET_PREFIX + stackHash(ids));
+  if (basket.facts.length === 0 && !basket.builds_on && !basket.retry_of && basket.base === undefined) remove(BASKET_PREFIX + stackHash(ids));
   else write(BASKET_PREFIX + stackHash(ids), basket);
 }
 export function clearBasket(ids: string[]) { remove(BASKET_PREFIX + stackHash(ids)); }

@@ -53,6 +53,65 @@ export const teach: Dict = {
   'teach.basket.expand': { ko: '수업 열기', en: 'Open lesson' },
   'teach.basket.collapse': { ko: '접기', en: 'Collapse' },
 
+  // ---- lineage SC-1 / SC-3 / SC-4 / SC-5 / SC-6 / SC-16 (docs/lineage-teach-design.md §4). Never "fork / parent / delta".
+  'teach.basket.base': { ko: '바탕 지식: {name}', en: 'Built on: {name}' },
+  'teach.basket.base_change': { ko: '바꾸기', en: 'Change' },
+  'teach.basket.base_none': { ko: '바탕 지식 없음 — 기본 모델에 가르칩니다', en: 'Built on: nothing — teaching the plain model' },
+  'teach.basket.base_choose': { ko: '고르기', en: 'Choose' },
+  'teach.basket.base_consequences': { ko: '{name}을(를) 바탕으로 만든 지식으로 기록됩니다 · 그 제작자가 판매마다 {lineage}%를 받습니다 · 구매자는 {name}을(를) 먼저 넣어야 합니다.', en: 'Recorded as built on {name} · its creators receive {lineage}% of every sale · buyers must load {name} first.' },
+  'teach.basket.compare_only': { ko: '비교용으로만 넣음: {names}', en: 'Also loaded, for comparison only: {names}' },
+  'teach.basket.inherits': { ko: '그 지식의 질문 {n}개에서 시작합니다', en: 'Starts from its {n} questions' },
+  'teach.basket.base_private': { ko: '{name} 위에는 만들 수 없습니다: 제작자가 질문을 비공개로 두었습니다. 비교용으로 넣고 기본 모델에 가르칠 수는 있습니다.', en: 'Cannot build on {name}: its creator kept the questions private. You can still teach the plain model with it loaded for comparison.' },
+  'teach.basket.base_unlisted': { ko: '아직 등록 전이에요 ({status}). 지금 가르칠 수는 있지만, 등록된 뒤에만 공개할 수 있습니다.', en: 'Not listed yet ({status}). You can build on it now; you can publish only after it is listed.' },
+  'teach.basket.base_retired': { ko: '퇴역됨 — 새 버전 {name} 위에 만드세요', en: 'Retired — build on its newer version {name}' },
+
+  // SC-3 base picker sheet (both doors)
+  'teach.pick.title': { ko: '무엇을 바탕으로 만드나요?', en: 'What are you building on?' },
+  'teach.pick.loaded': { ko: '지금 넣은 지식', en: 'Loaded now' },
+  'teach.pick.mine': { ko: '내 지식', en: 'Your knowledge' },
+  'teach.pick.bought': { ko: '구매한 지식', en: 'Bought' },
+  'teach.pick.search': { ko: '카탈로그 검색', en: 'Search the catalog' },
+  'teach.pick.row': { ko: '{name} · {author} · {status} · 질문 {n}개 · {share}', en: '{name} · {author} · {status} · Questions: {n} · {share}' },
+  'teach.pick.shareable': { ko: '공유 가능', en: 'shareable' },
+  'teach.pick.private': { ko: '비공개', en: 'private' },
+  'teach.pick.one': { ko: '바탕 지식은 하나만 고를 수 있습니다. 둘을 합치려면 지식 페이지의 "합치기"를 쓰세요.', en: 'One base only. Combining two? Use Combine on the knowledge page.' },
+  'teach.pick.not_held': { ko: '이 노드에 없음 — 먼저 구매하거나 내려받으세요', en: 'Not on this node — buy or download it first' },
+  'teach.pick.none': { ko: '바탕 없이 기본 모델에 가르치기', en: 'Nothing — teach the plain model' },
+  'teach.pick.empty': { ko: '이 노드에는 바탕으로 쓸 수 있는 지식이 아직 없습니다.', en: 'This node has no knowledge you can build on yet.' },
+  'teach.pick.use': { ko: '이 지식 위에 만들기', en: 'Build on this' },
+  'teach.pick.search_ph': { ko: '이름이나 주제로 찾기', en: 'Find by name or topic' },
+
+  // SC-4 dataset door "Start from"
+  'teach.settings.start_from': { ko: '기반 지식', en: 'Start from' },
+  'teach.settings.scratch': { ko: '처음부터', en: 'Start from scratch' },
+  'teach.settings.required': { ko: '기반 지식을 고르거나 "처음부터"를 선택하세요', en: 'Choose a base or start from scratch' },
+  'teach.settings.inherit': { ko: '그 지식의 질문에서 시작하기 ({n}개 행이 표에 추가됩니다)', en: 'Start from its questions ({n} rows will be added to your table)' },
+  'teach.settings.checked_with': { ko: '{name}을(를) 넣은 상태로 확인했습니다', en: 'Checked with {name} loaded' },
+  'teach.settings.inherited_already': { ko: '이 문답은 이미 {name}에서 복사한 것입니다 — 물려받은 질문 {n}개는 아는 답으로 다시 학습됩니다.', en: 'These questions were already copied from {name} — its {n} inherited questions are trained again as known answers.' },
+  'teach.settings.copying': { ko: '{name}의 질문을 내 표로 복사하는 중…', en: 'Copying {name}’s questions into your table…' },
+
+  // SC-5 rows table
+  'teach.rows.from': { ko: '{name}에서', en: 'from {name}' },
+  'teach.rows.filters': { ko: '내 것 ({a}) · 물려받음 ({b}) · 바꿈 ({c}) · 충돌 ({d})', en: 'Mine ({a}) · Inherited ({b}) · Changed ({c}) · Conflicts ({d})' },
+  'teach.rows.f_all': { ko: '전체', en: 'All' },
+  'teach.rows.f_mine': { ko: '내 것 ({n})', en: 'Mine ({n})' },
+  'teach.rows.f_inherited': { ko: '물려받음 ({n})', en: 'Inherited ({n})' },
+  'teach.rows.f_changed': { ko: '바꿈 ({n})', en: 'Changed ({n})' },
+  'teach.rows.f_conflicts': { ko: '충돌 ({n})', en: 'Conflicts ({n})' },
+  'teach.rows.summary_inherit': { ko: '{name}에서 {z}개 유지, {y}개 바꿈, {x}개 추가', en: 'Adds {x} questions, changes {y}, keeps {z} from {name}' },
+  'teach.rows.change': { ko: '이 답 바꾸기', en: 'Change this answer' },
+  'teach.rows.changed_badge': { ko: '{name}의 답을 바꿈', en: 'changes {name}’s answer' },
+  'teach.rows.inherited_note': { ko: '물려받은 질문은 아는 답으로 다시 학습해서 내 지식이 그것을 지우지 않게 합니다.', en: 'Inherited questions are trained again as known answers so your lesson does not undo them.' },
+
+  // SC-6 pre-flight statuses
+  'teach.pre.in_base': { ko: '{name}이(가) 이미 답합니다', en: '{name} already answers this' },
+  'teach.pre.base_conflict': { ko: '{name}이(가) 지금은 다르게 답합니다 ({name}의 답: {answer}). 내 추가분을 넣은 사람에게는 내 답이 대신 나옵니다.', en: '{name} answers this differently today ({name} says: {answer}). Your row will replace it for anyone who loads your add-on.' },
+  'teach.pre.confirm_changes': { ko: '이 답들이 {name}의 답을 대신하게 하겠습니다 ({n}개)', en: 'Yes — these {n} answer(s) are meant to replace {name}’s' },
+  'teach.pre.confirm_needed': { ko: '{name}의 답을 바꾸는 질문이 {n}개 있습니다. 계속하려면 위에서 확인해 주세요.', en: '{n} of these change {name}’s answers. Confirm above to continue.' },
+
+  // SC-16 my datasets card
+  'teach.ds.card_from': { ko: '{name}(지식)에서 복사 · 물려받음 {inherited}, 내 것 {mine}', en: 'Copied from {name} (knowledge) · {inherited} inherited, {mine} mine' },
+
   // §5.6 who gets the credit (teaching key)
   'teach.key.title': { ko: '누구의 이름으로 남길까요?', en: 'Who gets the credit?' },
   'teach.key.body': { ko: '이 브라우저에 가르치기 키를 만들었습니다. 내 수업에 서명하고 판매 수익을 받는 곳입니다. 계정도, 노드도, 로그인도 없습니다. Ainize는 비밀키를 볼 수 없습니다.', en: 'Ainize just created a teaching key in this browser. It signs your lessons and is where sales revenue is paid. No account, no node, no sign-in. Ainize never sees the private key.' },

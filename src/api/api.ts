@@ -8,7 +8,7 @@ import type {
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
-  DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, TeachDataset, TeachEventRow, TeachTrainingSpec,
+  DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
 } from './types';
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
@@ -19,7 +19,7 @@ import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/te
  */
 const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishTeachJob', 'saveTeachJob',
   // teach mode v2 — the dataset routes (design §7)
-  'teachDatasets', 'teachDataset', 'teachDatasetRows', 'createTeachDataset', 'uploadTeachDataset', 'reparseTeachDataset', 'patchTeachDataset', 'forkTeachDataset', 'deleteTeachDataset',
+  'forkPatch', 'teachDatasets', 'teachDataset', 'teachDatasetRows', 'createTeachDataset', 'uploadTeachDataset', 'reparseTeachDataset', 'patchTeachDataset', 'forkTeachDataset', 'deleteTeachDataset',
   'retrainTeachJob', 'teachJobEvents']);
 /** Header that carries the sha256 of a multipart upload — it is what the v2 signature covers (design §D14). */
 export const DATASET_SHA_HEADER = 'x-ngram-dataset-sha256';
@@ -147,9 +147,11 @@ export const api = createApi({
 
     // Teach mode (spec §6.2) — visitor routes signed with the browser's teaching key; poll a job every 5 s (call site: pollingInterval)
     teachPolicy: b.query<TeachPolicy, void>({ query: () => 'api/teach/policy', providesTags: ['Teach'] }),
-    teachPreflight: b.mutation<PreflightResponse, { patch_ids: string[]; facts?: TeachFactInput[]; dataset_id?: string; offset?: number; limit?: number }>({ query: (body) => ({ url: 'api/teach/preflight', method: 'POST', body }) }),
+    teachPreflight: b.mutation<PreflightResponse, { patch_ids: string[]; base_ids?: string[]; context_ids?: string[]; facts?: TeachFactInput[]; dataset_id?: string; offset?: number; limit?: number }>({ query: (body) => ({ url: 'api/teach/preflight', method: 'POST', body }) }),
     createTeachJob: b.mutation<CreateTeachJobResponse, {
       patch_ids: string[]; builds_on_context: boolean; facts?: TeachFactInput[];
+      /** lineage §12.1: the knowledge this lesson is built ON (≤ 1 here), what is only loaded for comparison, and the two confirmations the node will not make for the creator */
+      base_ids?: string[]; context_ids?: string[]; mode?: 'scratch' | 'extend' | 'fork'; inherit?: boolean; confirm_conflicts?: boolean;
       dataset_id?: string; selected_indexes?: number[]; training?: Partial<TeachTrainingSpec>;
       /** what the preview's live pre-flight measured on those dataset rows (design §5.5) */
       known?: { index: number; base_answer: string }[];
@@ -168,6 +170,10 @@ export const api = createApi({
     publishTeachJob: b.mutation<PublishResponse, { id: string } & PublishRequest>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Teach', id: a.id }, 'Teach', 'Chat', 'Catalog', 'Teacher'] }),
     saveTeachJob: b.mutation<TeachSaveResponse, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/save`, method: 'POST' }) }),
     // Teach mode v2 — datasets (design §7.1-§7.2). One pipeline, two doors: both produce a TeachDataset.
+    /** Story B — copy a published knowledge's questions into my training sets (lineage design §12.3). */
+    forkPatch: b.mutation<ForkPatchResponse, { id: string; name?: string }>({
+      query: ({ id, ...body }) => ({ url: `api/patches/${encodeURIComponent(id)}/fork`, method: 'POST', body }), invalidatesTags: ['TeachDataset'],
+    }),
     teachDatasets: b.query<{ items: TeachDataset[] }, void>({ query: () => 'api/teach/datasets', providesTags: ['TeachDataset'] }),
     teachDataset: b.query<{ dataset: TeachDataset }, string>({ query: (id) => `api/teach/datasets/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'TeachDataset', id }] }),
     teachDatasetRows: b.query<DatasetRowsPage, { id: string; offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected' }>({
@@ -241,7 +247,7 @@ export const {
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
-  useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,
+  useForkPatchMutation, useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,
   usePatchTeachDatasetMutation, useForkTeachDatasetMutation, useDeleteTeachDatasetMutation, useTeachSamplesQuery, useRetrainTeachJobMutation, useTeachJobEventsQuery,
   useTeachAdminPolicyQuery, useUpdateTeachAdminPolicyMutation, useTeachAdminJobsQuery, useApproveTeachJobMutation, useRejectTeachJobMutation, useCancelTeachJobAdminMutation,
   useTeachContributorsQuery, useSetContributorHiddenMutation, useTeachBansQuery, useAddTeachBanMutation, useDeleteTeachBanMutation, usePayoutsQuery, useRetryPayoutMutation,

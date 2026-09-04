@@ -177,3 +177,14 @@ export function suggestPhrasings(question: string, locale: 'ko' | 'en'): string[
 
 export const mb = (bytes: number) => (bytes / 1e6).toFixed(bytes < 1e6 ? 2 : 1);
 export const pct = (x: number) => Math.round(x * 100);
+
+/**
+ * Which knowledge a lesson is being built ON (lineage design §4 SC-1). The visitor's choice wins — including a
+ * deliberate `null`, "teach the plain model". Until they choose, the FIRST loaded knowledge that can be a base is
+ * offered, because that is what the chat door was doing when they pressed *Teach the right answer*; anything else
+ * loaded is comparison only.
+ */
+export function effectiveBase(chosen: string | null | undefined, candidates: { id: string; loaded: boolean; blocked: boolean }[]): string | null {
+  if (chosen !== undefined) return candidates.some((c) => c.id === chosen && !c.blocked) ? chosen : null;
+  return candidates.find((c) => c.loaded && !c.blocked)?.id ?? null;
+}

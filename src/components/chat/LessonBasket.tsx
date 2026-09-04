@@ -9,8 +9,9 @@ import { DatasetTable } from '@/components/teach/DatasetTable';
 import { basketFilename, canonicalJsonl, downloadBytes } from '@/lib/teachDataset';
 import type { Basket } from '@/lib/teachStore';
 import { DEFAULT_FACTS_PER_JOB } from '@/lib/teachStore';
+import { BasePicker, baseBlocked, type BaseCandidate } from './BasePicker';
 import { Sheet } from './Sheet';
-import { policyLine } from './teachUtil';
+import { effectiveBase, policyLine } from './teachUtil';
 
 /**
  * The chat door's basket, which is a DATASET DRAFT before "Teach" is ever pressed (design §5.9) — the owner's
@@ -42,6 +43,14 @@ const Item = styled.li`
   .alt { color: ${(p) => p.theme.color.GREY}; font-size: 12px; word-break: break-word; }
   button { position: absolute; top: 6px; right: 6px; background: none; border: 0; font-size: 12px; color: ${(p) => p.theme.color.GREY}; cursor: pointer; &:hover { color: ${(p) => p.theme.color.ERROR}; } }
 `;
+const BaseRow = styled.div`
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fafafa;
+  .line { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  b { font-size: 13px; color: ${(p) => p.theme.color.BLACK}; word-break: break-word; }
+  button { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; } }
+  p { margin: 0; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY}; word-break: break-word; }
+  p.warn { color: ${(p) => p.theme.color.WARNING}; }
+`;
 const KeyChip = styled.div`
   font-size: 11px; color: ${(p) => p.theme.color.GREY}; font-variant-numeric: tabular-nums; code { font-family: ${(p) => p.theme.font.mono}; }
 `;
@@ -51,6 +60,9 @@ export interface LessonBasketProps {
   policy: TeachPolicy | undefined;
   /** names of the knowledge currently loaded (the lesson's context) */
   stackNames: string[];
+  /** SC-1/SC-3: what this lesson could be built on — the loaded stack first, then this key's own knowledge */
+  baseCandidates?: BaseCandidate[];
+  onBase?: (id: string | null) => void;
   expanded: boolean;
   onToggle: () => void;
   onRemove: (id: string) => void;
@@ -62,9 +74,10 @@ export interface LessonBasketProps {
 }
 
 /** §5.5 / v2 §5.9 — the corrections collected for the current knowledge stack; persists in localStorage across reloads. */
-export function LessonBasket({ basket, policy, stackNames, expanded, onToggle, onRemove, onBuildsOn, onTrain, onOpenMine, keyLabel }: LessonBasketProps) {
+export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], onBase, expanded, onToggle, onRemove, onBuildsOn, onTrain, onOpenMine, keyLabel }: LessonBasketProps) {
   const { t } = useT();
   const [viewing, setViewing] = useState(false);
+  const [picking, setPicking] = useState(false);
   const n = basket.facts.length;
   // the per-lesson cap is the NODE's (design §D1); the shipped default only stands in while the policy loads
   const max = policy?.limits?.facts_per_job ?? DEFAULT_FACTS_PER_JOB;
@@ -77,6 +90,19 @@ export function LessonBasket({ basket, policy, stackNames, expanded, onToggle, o
     prompt: f.prompt, answer: f.answer, ...(f.alt_prompt ? { alt_prompt: f.alt_prompt } : {}),
   }));
   const download = () => downloadBytes(basketFilename(), canonicalJsonl(basket.facts.map((f) => ({ prompt: f.prompt, answer: f.answer, ...(f.alt_prompt ? { alt_prompt: f.alt_prompt } : {}) }))));
+
+  // SC-1: what this lesson is built on, and what is only loaded beside it
+  const lineage = policy?.lineage === true;
+  const marked = baseCandidates.map((c) => ({ ...c, blocked: !!baseBlocked(c, t) }));
+  const base = lineage ? effectiveBase(basket.base, marked) : null;
+  const chosen = marked.find((c) => c.id === base);
+  const baseName = chosen?.name ?? null;
+  const baseRows = chosen?.rows ?? 0;
+  const baseStatus = chosen && !['LISTED', 'ANNOUNCED', 'VERIFYING'].includes(chosen.status) ? chosen.status : null;
+  const compareOnly = marked.filter((c) => c.loaded && c.id !== base).map((c) => c.name);
+  // a loaded knowledge that CANNOT be built on says why here, where the visitor is deciding
+  const blockedNote = !base ? (marked.filter((c) => c.loaded && c.blocked).map((c) => baseBlocked(c, t)).find(Boolean) ?? null) : null;
+  const lineagePct = Math.round((policy?.shares?.lineage ?? 0) * 100);
 
   return (
     <Panel aria-label={heading} data-testid="lesson-basket">
@@ -108,13 +134,37 @@ export function LessonBasket({ basket, policy, stackNames, expanded, onToggle, o
           </Tools>
           <Hint>{t('teach.basket.add_more')}</Hint>
           <Hint>{stackNames.length ? t('teach.basket.stack', { names: stackNames.join(', ') }) : t('teach.basket.stack_none')}</Hint>
-          {stackNames.length > 0 && (
+          {/*
+            SC-1 — the base row replaces the "builds on what I loaded" checkbox on a node that has lineage: the
+            knowledge this lesson is built ON is one choice, stated with its three consequences, and everything else
+            that is loaded is named as comparison only. Where the flag is off, the v1 checkbox stays exactly as it was.
+          */}
+          {lineage ? (
+            <BaseRow data-testid="basket-base">
+              <div className="line">
+                <b>{baseName ? t('teach.basket.base', { name: baseName }) : t('teach.basket.base_none')}</b>
+                {onBase && baseCandidates.length > 0 && (
+                  <button type="button" onClick={() => setPicking(true)} data-testid="basket-base-change">{base ? t('teach.basket.base_change') : t('teach.basket.base_choose')}</button>
+                )}
+              </div>
+              {base && baseName && (
+                <p data-testid="basket-base-why">{t('teach.basket.base_consequences', { name: baseName, lineage: lineagePct })}</p>
+              )}
+              {base && baseRows ? <p data-testid="basket-base-inherits">{t('teach.basket.inherits', { n: baseRows })}</p> : null}
+              {baseStatus && <p className="warn" data-testid="basket-base-unlisted">{t('teach.basket.base_unlisted', { status: baseStatus })}</p>}
+              {compareOnly.length > 0 && <p data-testid="basket-compare-only">{t('teach.basket.compare_only', { names: compareOnly.join(', ') })}</p>}
+              {blockedNote && <p className="warn" data-testid="basket-base-blocked">{blockedNote}</p>}
+            </BaseRow>
+          ) : stackNames.length > 0 && (
             <Checkbox checked={basket.builds_on} onChange={(e) => onBuildsOn(e.target.checked)} label={<span style={{ fontSize: 13 }}>{t('teach.basket.builds_on')}</span>} />
           )}
           {n >= max && <Alert $tone="info">{t('teach.drawer.v_full', { n: max })}</Alert>}
           <Button variant="contained" fullWidth disabled={!canTrain} onClick={onTrain} data-testid="train-lesson">{t('teach.basket.train_ds', { n })}</Button>
           {keyLabel && <KeyChip title={t('teach.key.address')}>{keyLabel}</KeyChip>}
         </>
+      )}
+      {picking && onBase && (
+        <BasePicker candidates={baseCandidates} value={base} onPick={onBase} onClose={() => setPicking(false)} />
       )}
       {viewing && (
         <Sheet title={t('teach.basket.view_title')} sub={heading} onClose={() => setViewing(false)} width={720} testId="basket-sheet">

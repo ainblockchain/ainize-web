@@ -217,6 +217,14 @@ export interface TeachChecks {
   note?: string;
   /** The visitor turned the side-effect check off — publish stays gated until a recheck measures it. */
   skipped?: true;
+  /**
+   * Lineage (design §7.6): per knowledge in the stack, its own questions re-asked with the lesson ON TOP. `base_hit`
+   * is the same questions measured BEFORE the lesson went on; `base_failed` are the ones the base itself misses on
+   * this node (left out of the score); `overridden` are the ones this lesson deliberately replaces.
+   */
+  parent_check?: { patch_id: string; hit: number; total: number; failed: number[]; simulated?: boolean; base_hit?: number; base_total?: number; base_failed?: number[]; overridden?: number }[];
+  /** "removing the lesson leaves the base exactly as it was" — null until it was measured. */
+  reversibility_ok?: boolean | null;
 }
 export interface TeachJob {
   id: string;
@@ -241,6 +249,12 @@ export interface TeachJob {
   /** the worker's pre-training pass: `known` questions were dropped because the model already answered them */
   preflight?: { checked: number; of: number; known: number; overlaps?: number };
   training?: TeachTrainingSpec;
+  /** Lineage (design §12.1): the ordered base stack (ancestors first), how the lesson was made, what it did with the base's questions. */
+  bases?: { patch_id: string; sha256: string; name?: string; status?: string }[];
+  mode?: 'scratch' | 'extend' | 'fork' | 'merge';
+  export?: 'delta' | 'squash';
+  inherited_rows?: number;
+  changed_rows?: number;
   created_at: number; updated_at: number; started_at?: number; finished_at?: number; expires_at?: number;
 }
 /** What strangers get for a job they do not own. */
@@ -270,11 +284,23 @@ export interface TeachPolicy {
   model: { id_M: string | null };
   applied: string[];
   draft_ttl_days: number;
+  /** `teach.lineage` — whether this node lets a lesson be built on top of another knowledge (design §18 gating). */
+  lineage?: boolean;
+}
+/** `POST /api/patches/:id/fork` — Story B, *Copy and continue*. */
+export interface ForkPatchResponse {
+  dataset_id: string; dataset: TeachDataset; created: boolean; inherited_rows: number;
+  parent: { patch_id: string; name: string; dataset_sha256: string }; license: string | null;
 }
 export interface TeachQuota { key_remaining: number; ip_remaining: number; rows_remaining?: number; rows_ip_remaining?: number }
 export interface TeachFactInput { prompt: string; answer: string; alt_prompt?: string; base_answer?: string }
-export interface PreflightFact { index: number; status: 'will_train' | 'already_known' | 'overlaps_listing' | 'invalid'; base_answer?: string; detail?: string }
-export interface PreflightResponse { facts: PreflightFact[]; trainable: number; quota: TeachQuota; sampled?: { checked: number; of: number } }
+export interface PreflightFact {
+  index: number;
+  /** `in_base` / `base_conflict` appear only when a base was chosen (lineage design §12.1, SC-6). */
+  status: 'will_train' | 'already_known' | 'overlaps_listing' | 'invalid' | 'in_base' | 'base_conflict';
+  base_answer?: string; detail?: string; base_id?: string;
+}
+export interface PreflightResponse { facts: PreflightFact[]; trainable: number; quota: TeachQuota; bases?: string[]; sampled?: { checked: number; of: number } }
 export interface TeachJobResponse { job: TeachJob }
 export interface CreateTeachJobResponse { job: TeachJob; quota: TeachQuota }
 export interface TeachSaveResponse { download: { npz_url: string; recipe_url: string; readme_url: string; expires_at: number }; sha256: string; rows: number; size_bytes: number; filename: string }

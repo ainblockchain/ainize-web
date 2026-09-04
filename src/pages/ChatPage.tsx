@@ -9,6 +9,7 @@ import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
 import { MAX_HISTORY, answerHits, matchSampleAny, parseSelection, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
 import { TeachDrawer } from '@/components/chat/TeachDrawer';
+import { toCandidate } from '@/components/chat/BasePicker';
 import { LessonBasket } from '@/components/chat/LessonBasket';
 import { CreditSheet } from '@/components/chat/CreditSheet';
 import { PreflightSheet } from '@/components/chat/PreflightList';
@@ -161,6 +162,19 @@ export default function ChatPage() {
   /** Route `/chat/a,b,c` = ordered selection (tick order = load order). */
   const routeIds = useMemo(() => parseSelection(patchId), [patchId]);
   const selectedList = useMemo(() => routeIds.map((id) => pickable.find((e) => e.anchor.id === id)).filter((e): e is NonNullable<typeof e> => !!e), [routeIds, pickable]);
+  /**
+   * SC-3 — what this lesson could be built ON: the loaded stack first (that is what the visitor was testing when the
+   * answer came out wrong), then this key's own lessons, then the rest of the catalog. `mine` is what lets a visitor
+   * build on their own unpublished draft (Story A3) even though its questions are not published.
+   */
+  const baseCandidates = useMemo(() => {
+    const mineIds = new Set((lessons ?? []).map((e) => e.anchor.id));
+    return [...selectedList, ...(lessons ?? []), ...pickable].reduce<ReturnType<typeof toCandidate>[]>((acc, e) => {
+      if (acc.some((c) => c.id === e.anchor.id)) return acc;
+      acc.push(toCandidate(e, routeIds, mineIds.has(e.anchor.id)));
+      return acc;
+    }, []);
+  }, [selectedList, lessons, pickable, routeIds]);
   const selectedIds = useMemo(() => selectedList.map((e) => e.anchor.id), [selectedList]);
   const selectionKey = selectedIds.join(',');
   /** First selected knowledge — the one whose name heads the transcript and whose details link is shown alone. */
@@ -434,6 +448,7 @@ export default function ChatPage() {
               {policy && teachOn && (
                 <div ref={basketRef}>
                   <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
+                    baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
                     onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
                     onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
                 </div>
@@ -449,6 +464,7 @@ export default function ChatPage() {
               {policy && !teachOn && (
                 <div ref={basketRef}>
                   <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
+                    baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
                     onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
                     onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
                 </div>
@@ -537,7 +553,7 @@ export default function ChatPage() {
       )}
       {sheet === 'credit' && <CreditSheet onDone={(k) => { setTeacherKey(k); setSheet('preflight'); }} onClose={() => setSheet(null)} />}
       {sheet === 'preflight' && policy && (
-        <PreflightSheet patchIds={selectedIds} basket={basket} policy={policy} contributorName={teacherKey?.name} onQueued={onQueued} onClose={() => setSheet(null)} />
+        <PreflightSheet patchIds={selectedIds} basket={basket} policy={policy} baseCandidates={baseCandidates} onBasket={updateBasket} contributorName={teacherKey?.name} onQueued={onQueued} onClose={() => setSheet(null)} />
       )}
       {sheet === 'publish' && sheetJob && policy && teacherKey && (
         <PublishSheet job={sheetJob} policy={policy} teacherKey={teacherKey} onClose={() => setSheet(null)} onPublished={() => undefined} />

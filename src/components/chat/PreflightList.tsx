@@ -4,11 +4,12 @@ import { useCreateTeachJobMutation, useRetryTeachJobMutation, useTeachPreflightM
 import type { PreflightFact, PreflightResponse, TeachFactInput, TeachJob, TeachPolicy } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
-import { Alert } from '@/components/ui/Form';
+import { Alert, Checkbox } from '@/components/ui/Form';
 import { Spinner } from '@/components/ui/Misc';
 import type { Basket, Correction } from '@/lib/teachStore';
+import { baseBlocked, type BaseCandidate } from './BasePicker';
 import { Sheet, SheetFooter, SheetNote } from './Sheet';
-import { mapTeachError } from './teachUtil';
+import { effectiveBase, mapTeachError } from './teachUtil';
 
 const List = styled.ol`margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px;`;
 const Row = styled.li<{ $tone: 'train' | 'skip' | 'bad' }>`
@@ -20,10 +21,10 @@ const Row = styled.li<{ $tone: 'train' | 'skip' | 'bad' }>`
   .m { margin-top: 2px; font-size: 12px; color: ${(p) => p.theme.color.GREY}; white-space: pre-wrap; word-break: break-word; max-height: 72px; overflow: hidden; }
 `;
 
-const tone = (s: PreflightFact['status']) => (s === 'will_train' ? 'train' : s === 'invalid' ? 'bad' : 'skip');
+const tone = (s: PreflightFact['status']) => (s === 'will_train' || s === 'base_conflict' ? 'train' : s === 'invalid' ? 'bad' : 'skip');
 
-/** §5.7 result list (pure). */
-export function PreflightList({ facts, result }: { facts: Correction[]; result: PreflightResponse }) {
+/** §5.7 result list (pure). SC-6 adds the two verdicts a base makes possible: it already answers this, or it answers it differently. */
+export function PreflightList({ facts, result, baseName }: { facts: Correction[]; result: PreflightResponse; baseName?: string }) {
   const { t } = useT();
   const byIndex = new Map(result.facts.map((f) => [f.index, f]));
   return (
@@ -31,13 +32,17 @@ export function PreflightList({ facts, result }: { facts: Correction[]; result: 
       {facts.map((f, i) => {
         const r = byIndex.get(i);
         const status = r?.status ?? 'invalid';
-        const label = status === 'will_train' ? t('teach.pre.will_train') : status === 'already_known' ? t('teach.pre.known') : status === 'overlaps_listing' ? t('teach.pre.overlap', { name: r?.detail ?? '' }) : t('teach.pre.invalid', { detail: r?.detail ?? '' });
+        const who = baseName ?? r?.base_id ?? '';
+        const label = status === 'will_train' ? t('teach.pre.will_train')
+          : status === 'in_base' ? t('teach.pre.in_base', { name: who })
+            : status === 'base_conflict' ? t('teach.pre.base_conflict', { name: who, answer: (r?.base_answer ?? '').slice(0, 120) })
+              : status === 'already_known' ? t('teach.pre.known') : status === 'overlaps_listing' ? t('teach.pre.overlap', { name: r?.detail ?? '' }) : t('teach.pre.invalid', { detail: r?.detail ?? '' });
         return (
           <Row key={f.id} $tone={tone(status)} data-status={status}>
             <div className="q">{i + 1}. {f.prompt}</div>
             <div className="a">{t('teach.basket.answer_label')}: <b>{f.answer}</b></div>
             <div className="s">{label}</div>
-            {r?.base_answer !== undefined && <div className="m">{t('teach.pre.model_said', { answer: r.base_answer.trim() || t('teach.drawer.model_none') })}</div>}
+            {r?.base_answer !== undefined && status !== 'base_conflict' && <div className="m">{t('teach.pre.model_said', { answer: r.base_answer.trim() || t('teach.drawer.model_none') })}</div>}
           </Row>
         );
       })}
@@ -49,13 +54,16 @@ export interface PreflightSheetProps {
   patchIds: string[];
   basket: Basket;
   policy: TeachPolicy;
+  /** SC-1/SC-3: what the lesson could be built on; the chosen one is loaded for the probe and recorded as the base */
+  baseCandidates?: BaseCandidate[];
+  onBasket?: (fn: (b: Basket) => Basket) => void;
   contributorName?: string;
   onQueued: (job: TeachJob) => void;
   onClose: () => void;
 }
 
 /** §5.7 — runs the pre-flight on open (≤ 30 s under a short model lock), then queues the trainable corrections. */
-export function PreflightSheet({ patchIds, basket, policy, contributorName, onQueued, onClose }: PreflightSheetProps) {
+export function PreflightSheet({ patchIds, basket, policy, baseCandidates = [], onBasket, contributorName, onQueued, onClose }: PreflightSheetProps) {
   const { t } = useT();
   const [preflight, { data, error, isLoading }] = useTeachPreflightMutation();
   const [createJob, { isLoading: queueing }] = useCreateTeachJobMutation();
@@ -64,18 +72,30 @@ export function PreflightSheet({ patchIds, basket, policy, contributorName, onQu
   const started = useRef(false);
   const inputFacts: TeachFactInput[] = basket.facts.map((f) => ({ prompt: f.prompt, answer: f.answer, ...(f.alt_prompt ? { alt_prompt: f.alt_prompt } : {}) }));
 
-  const run = () => { void preflight({ patch_ids: patchIds, facts: inputFacts }); };
+  // SC-1: the probe runs with the BASE loaded and everything else as comparison — the same split the job records
+  const marked = baseCandidates.map((c) => ({ ...c, blocked: !!baseBlocked(c, t) }));
+  const base = policy.lineage ? effectiveBase(basket.base, marked) : null;
+  const baseName = marked.find((c) => c.id === base)?.name;
+  const contextIds = patchIds.filter((id) => id !== base);
+  const run = () => { void preflight({ patch_ids: patchIds, ...(base ? { base_ids: [base], context_ids: contextIds } : {}), facts: inputFacts }); };
   useEffect(() => { if (!started.current) { started.current = true; run(); } });   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const trainable = (data?.facts ?? []).filter((f) => f.status === 'will_train');
+  // a row the base answers differently is trainable — as a CHANGE to it — and only once the visitor says so (§12.1)
+  const conflicts = (data?.facts ?? []).filter((f) => f.status === 'base_conflict');
+  const trainable = (data?.facts ?? []).filter((f) => f.status === 'will_train' || f.status === 'base_conflict');
+  const needsConfirm = conflicts.length > 0 && !basket.confirm_conflicts;
   const queue = async () => {
-    if (!data || trainable.length === 0) return;
+    if (!data || trainable.length === 0 || needsConfirm) return;
     setQueueError(null);
-    const facts: TeachFactInput[] = trainable.map((r) => ({ ...inputFacts[r.index], ...(r.base_answer !== undefined ? { base_answer: r.base_answer.slice(0, 4000) } : {}) }));
+    const facts: TeachFactInput[] = trainable.map((r) => ({ ...inputFacts[r.index], ...(r.status === 'will_train' && r.base_answer !== undefined ? { base_answer: r.base_answer.slice(0, 4000) } : {}) }));
     try {
       const res = basket.retry_of
         ? await retryJob({ id: basket.retry_of, facts }).unwrap()
-        : await createJob({ patch_ids: patchIds, builds_on_context: basket.builds_on && patchIds.length > 0, facts, contributor: contributorName ? { name: contributorName } : {} }).unwrap();
+        : await createJob({
+          patch_ids: patchIds, builds_on_context: !base && basket.builds_on && patchIds.length > 0, facts,
+          ...(base ? { base_ids: [base], context_ids: contextIds, mode: 'extend' as const, ...(conflicts.length ? { confirm_conflicts: true } : {}) } : {}),
+          contributor: contributorName ? { name: contributorName } : {},
+        }).unwrap();
       onQueued(res.job);
     } catch (e) { setQueueError(mapTeachError(e, t)); }
   };
@@ -84,13 +104,23 @@ export function PreflightSheet({ patchIds, basket, policy, contributorName, onQu
     <Sheet title={t('teach.pre.title')} sub={t('teach.pre.running')} onClose={onClose} width={620} testId="preflight-sheet">
       {isLoading && <Spinner label={t('teach.pre.title')} />}
       {!!error && <Alert $tone="error" role="alert">{mapTeachError(error, t, { stage: 'preflight' })} <Button size="small" onClick={run} style={{ marginLeft: 8 }}>{t('teach.pre.retry')}</Button></Alert>}
-      {data && <PreflightList facts={basket.facts} result={data} />}
+      {data && <PreflightList facts={basket.facts} result={data} baseName={baseName} />}
+      {data && conflicts.length > 0 && (
+        <Alert $tone="warning" style={{ marginTop: 10 }} data-testid="preflight-conflicts">
+          <Checkbox
+            checked={!!basket.confirm_conflicts} onChange={(e) => onBasket?.((b) => ({ ...b, confirm_conflicts: e.target.checked }))}
+            data-testid="confirm-changes"
+            label={<span style={{ fontSize: 13 }}>{t('teach.pre.confirm_changes', { name: baseName ?? base ?? '', n: conflicts.length })}</span>}
+          />
+        </Alert>
+      )}
       {data && trainable.length === 0 && <Alert $tone="info" role="status" data-testid="preflight-none">{t('teach.pre.none')}</Alert>}
+      {data && needsConfirm && <SheetNote data-testid="confirm-needed">{t('teach.pre.confirm_needed', { name: baseName ?? base ?? '', n: conflicts.length })}</SheetNote>}
       {queueError && <Alert $tone="error" role="alert">{queueError}</Alert>}
       {data && (
         <SheetFooter>
           <SheetNote style={{ marginRight: 'auto' }} data-testid="preflight-quota">{t('teach.pre.quota', { n: data.quota.key_remaining, limit: policy.limits.jobs_per_key_per_day })}</SheetNote>
-          <Button variant="contained" onClick={() => { void queue(); }} disabled={trainable.length === 0 || data.quota.key_remaining <= 0} loading={queueing || retrying} loadingText={t('teach.pre.queueing')} data-testid="queue-training">
+          <Button variant="contained" onClick={() => { void queue(); }} disabled={trainable.length === 0 || needsConfirm || data.quota.key_remaining <= 0} loading={queueing || retrying} loadingText={t('teach.pre.queueing')} data-testid="queue-training">
             {t('teach.pre.queue', { k: trainable.length }, trainable.length)}
           </Button>
         </SheetFooter>
