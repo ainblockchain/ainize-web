@@ -192,13 +192,14 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
       {/* SC-8: what this was built on is part of the publish decision — it is who gets paid, and what buyers will need */}
       {bases.length > 0 && (
         <Alert $tone="info" data-testid="pub-built-on">
-          {t('teach.pub.built_on', { names: baseNames })}
-          {' '}
+          {/* two §4 sentences, and "Built on: {names}" ends in a name rather than a full stop: on one line they read
+              as "Built on: X Every sale: 30% to the creators of X…" */}
+          <div>{t('teach.pub.built_on', { names: baseNames })}</div>
           {/* item 186: the percentages are the node's own royaltySplit on this anchor's parents, not the raw policy
               share — a lesson with a parent pays its teacher 49 %, and the sentence used to promise 70 %. */}
-          {money
+          <div style={{ marginTop: 4 }}>{money
             ? t('teach.pub.money', { names: lineageNames, lineage: `${lineagePct}`, contributor: `${mine?.percent ?? 0}`, node: nodeName })
-            : t('teach.pub.money', { names: baseNames, lineage: pct(policy.shares.lineage), contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName })}
+            : t('teach.pub.money', { names: baseNames, lineage: pct(policy.shares.lineage), contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName })}</div>
         </Alert>
       )}
       {unlisted.map((b) => (
