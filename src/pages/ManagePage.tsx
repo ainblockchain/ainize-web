@@ -68,7 +68,10 @@ export default function ManagePage() {
    * SC-15 — an add-on is loaded with what it was trained on top of, and unloading something with a knowledge on top
    * of it says which one. The bare apply this page used to send answered `needs_base` with a code and no way out.
    */
-  const chain = useLoadChain((id) => catalog.data?.items.find((e) => e.anchor.id === id)?.anchor.name || id);
+  const chain = useLoadChain((id) => catalog.data?.items.find((e) => e.anchor.id === id)?.anchor.name || id, {
+    onLoaded: () => setNotice(t('op.manage.runtime.loaded_ok')),
+    onUnloaded: () => setNotice(t('op.manage.runtime.unloaded_ok')),
+  });
   const [del, delState] = useDeletePatchMutation();
   const [retire, retireState] = useRetireMutation();
 

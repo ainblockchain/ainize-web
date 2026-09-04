@@ -34,8 +34,16 @@ export interface LoadChain {
   dialog: ReactNode;
 }
 
-/** `nameOf` turns an id into what the operator calls it; without one the id is shown, which is never wrong. */
-export function useLoadChain(nameOf: (id: string) => string = (id) => id): LoadChain {
+/**
+ * `nameOf` turns an id into what the operator calls it; without one the id is shown, which is never wrong.
+ * `onLoaded` / `onUnloaded` fire when the model really changed — including from inside the *Load both* dialog, which
+ * is why they are callbacks and not a return value: a page that says "Loaded into the model." must still say it when
+ * the load went through the question.
+ */
+export function useLoadChain(
+  nameOf: (id: string) => string = (id) => id,
+  opts: { onLoaded?: (order: string[]) => void; onUnloaded?: (id: string) => void } = {},
+): LoadChain {
   const { t } = useT();
   const [apply, applyState] = useApplyMutation();
   const [remove, removeState] = useRemoveMutation();
@@ -54,7 +62,8 @@ export function useLoadChain(nameOf: (id: string) => string = (id) => id): LoadC
     setNotice(order.length > 1
       ? t('detail.apply.order', { parent: names(order.slice(0, -1)), child: nameOf(order[order.length - 1]) })
       : null);
-  }, [apply, nameOf, t]);
+    opts.onLoaded?.(order);
+  }, [apply, nameOf, t, opts]);
 
   const load = useCallback(async (id: string) => {
     setNotice(null); setError(null); setBusyId(id);
@@ -77,6 +86,7 @@ export function useLoadChain(nameOf: (id: string) => string = (id) => id): LoadC
     setNotice(null); setError(null); setBusyId(id);
     try {
       await remove(id).unwrap();
+      opts.onUnloaded?.(id);
     } catch (err) {
       const data = (err as { data?: { error?: string; ids?: string[] } }).data ?? {};
       const msg = data.error ?? errorMessage(err);
@@ -86,7 +96,7 @@ export function useLoadChain(nameOf: (id: string) => string = (id) => id): LoadC
       }
       setError(errorMessage(err));
     }
-  }, [remove, nameOf, t]);
+  }, [remove, nameOf, t, opts]);
 
   const dialog = pending ? (
     <Sheet
