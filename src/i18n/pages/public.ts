@@ -16,6 +16,10 @@ export const landing: Dict = {
   // hero
   'landing.hero.title': { ko: '지식을 AI에 끼우다', en: 'Plug knowledge into your AI' },
   'landing.hero.sub': { ko: 'Ainize = AI + -ize, "AI가 쓸 수 있게 만든다".\n검증된 지식을 고르고, 라이브로 확인하고, 몇 초 만에 모델에 넣으세요.', en: 'Ainize = AI + -ize, "make it usable by AI".\nPick verified knowledge, check it live, load it into your model in seconds.' },
+  // Finding 77: the hero's headline is a fact from this node, and an unreachable node rendered it as a grey bar for
+  // ever. When there is no answer the card says so instead of pretending to be loading.
+  'landing.hero.offline': { ko: '이 노드에 연결하지 못했습니다', en: 'This node is not answering' },
+  'offline.what.landing': { ko: '이 노드가 가진 지식 목록', en: 'The knowledge this node lists' },
   'landing.hero.count': { ko: '검증 완료 지식 {n}개', en: '{n} verified knowledge' },
   // `knowledge` is a mass noun, so the count form has to carry the noun itself at n=1 — "1 verified knowledge"
   // was the reviewer's second complaint about this line (finding 13).

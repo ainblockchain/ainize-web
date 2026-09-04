@@ -7,6 +7,7 @@ import Lifecycle from '@/components/public/Lifecycle';
 import { Footer } from '@/components/ui/Footer';
 import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
 import { ScoreBar, Shimmer } from '@/components/ui/Misc';
+import { Offline } from '@/components/ui/Offline';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { num, shortAddr } from '@/utils/format';
@@ -268,8 +269,16 @@ export default function LandingPage() {
     window.addEventListener('resize', onScroll);
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
   }, []);
-  const { data: info } = useInfoQuery();
-  const { data: trending, isLoading } = useCatalogQuery({ status: 'LISTED', sort: 'popular', limit: 6 });
+  const infoQ = useInfoQuery();
+  const info = infoQ.data;
+  const { data: trending, isLoading, error: trendError, isFetching: trendFetching, refetch: refetchTrending } = useCatalogQuery({ status: 'LISTED', sort: 'popular', limit: 6 });
+  /**
+   * Finding 77 — with `/api/**` unreachable this page rendered a grey Shimmer where "1 verified knowledge" belongs,
+   * for ever, the Teach link silently vanished (it is gated on `info.accepts_contributions`), and the trending grid
+   * went blank: a visitor could not tell a node that is down from a marketplace that is empty. Both queries now have
+   * the error branch the other public pages got, in the same words and with the same retry.
+   */
+  const infoDown = !info && !infoQ.isLoading && !!infoQ.error;
   const listed = info?.counts.listed;
   const verifying = info ? (info.counts.verifying ?? Math.max(0, info.counts.patches - info.counts.listed - (info.counts.superseded ?? 0) - (info.counts.rejected ?? 0))) : undefined;
 
@@ -337,9 +346,12 @@ export default function LandingPage() {
                 data-testid="hero-lead"
                 title={listed === 0 && verifying ? `${help('verifying')} (${tech('verifying')})` : `${t('landing.hero.count_help')} (${tech('verified')})`}
               >
-                {heroLead ?? <Shimmer $w="220px" $h="28px" />}
+                {infoDown ? t('landing.hero.offline') : heroLead ?? <Shimmer $w="220px" $h="28px" />}
               </CountTitle>
-              {heroExplain && <CountExplain data-testid="hero-explain">{heroExplain}</CountExplain>}
+              {infoDown && (
+                <Offline error={infoQ.error} what={t('offline.what.landing')} retrying={infoQ.isFetching} onRetry={() => { void infoQ.refetch(); }} />
+              )}
+              {!infoDown && heroExplain && <CountExplain data-testid="hero-explain">{heroExplain}</CountExplain>}
               {listed !== undefined && listed > 0 && verifying !== undefined && verifying > 0 && <CountSub title={help('verifying')}>{t('landing.hero.count_verifying', { n: num(verifying) })}</CountSub>}
               <PillRow>
                 <PrimaryPill to="/explore">{t('landing.hero.primary')}</PrimaryPill>
@@ -440,6 +452,9 @@ export default function LandingPage() {
           <TrendLegend data-testid="trending-legend">
             <b>{term('facts')}</b> — {t('explore.legend.facts')} · <b>{term('accuracy')}</b> — {t('explore.legend.accuracy')}
           </TrendLegend>
+          {!!trendError && !trending && (
+            <Offline error={trendError} what={t('offline.what.landing')} retrying={trendFetching} onRetry={() => { void refetchTrending(); }} />
+          )}
           <CardGrid>
             {isLoading && Array.from({ length: 3 }).map((_, i) => <Shimmer key={i} $w="100%" $h="320px" style={{ borderRadius: 24 }} />)}
             {trending?.items.map((e) => {
