@@ -50,6 +50,9 @@ const BaseCard = styled.section`
   h2 { margin: 0 0 6px; font-size: 15px; }
   p { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY}; }
   p.hint { color: ${(p) => p.theme.color.GREY}; }
+  /* "Start from its questions (12 rows will be added to your table)" is one long sentence: on a 360 px phone an
+     unwrapped button is 455 px wide and takes the whole page with it. */
+  button { max-width: 100%; white-space: normal; text-align: left; word-break: break-word; }
 `;
 const KeyNote = styled.p`margin: 0; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY}; button { background: none; border: 0; padding: 0; font: inherit; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; text-decoration: underline; }`;
 
