@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
   errorMessage, useApplyMutation, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery,
@@ -118,7 +118,20 @@ const ManageMenu = styled(Link)`
   display: inline-flex; align-items: center; gap: 8px; font-size: 16px; color: ${(p) => p.theme.color.GREY}; text-decoration: none; margin-left: auto;
   img { width: 14px; height: 14px; }
 `;
-const TabBar = styled.div`margin-top: 32px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-bottom: 0; padding: 0 24px;`;
+/**
+ * Item 205: measured at 360 px the six tabs were a 586 px strip inside a 278 px box, so *Buy* and *History* sat off
+ * the right edge with no fade, no chevron and nothing to say they existed — a phone visitor never saw that a
+ * knowledge had origins, and Playwright could not click Buy at all. Below the phone breakpoint the strip wraps
+ * instead of scrolling: every tab is on screen and hittable, and no swipe has to be discovered first.
+ */
+const TabBar = styled.div`
+  margin-top: 32px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-bottom: 0; padding: 0 24px;
+  @media (max-width: 599px) {
+    padding: 0 12px;
+    [role='tablist'] { flex-wrap: wrap; overflow-x: visible; gap: 0 14px; }
+    [role='tab'] { padding: 10px 2px; font-size: 14px; }
+  }
+`;
 const SummaryRow = styled.div`
   display: flex; flex-wrap: wrap; gap: 24px 40px; padding: 16px 32px; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
   div { display: flex; flex-direction: column; gap: 2px; }
@@ -247,7 +260,18 @@ export default function PatchPage() {
   // and ship on every node, including the demo cluster where the flag is off.
   const { data: policy } = useTeachPolicyQuery();
   const { data: issues } = usePatchIssuesQuery({ id: patchId, limit: 1 });
-  const [tab, setTab] = useState('overview');
+  /**
+   * Item 73: the open tab used to live in `useState`, so "look at the verification results" could not be sent to
+   * anyone, a reload came back to Overview, and Back from the third tab ejected the reader to /explore instead of
+   * stepping back through the page. It is a search param now — deep-linkable, reloadable, and every switch is a
+   * history entry Back can walk. An unknown or absent `?tab=` reads as Overview.
+   */
+  const [sp, setSp] = useSearchParams();
+  const setTab = (id: string) => setSp((prev) => {
+    const next = new URLSearchParams(prev);
+    if (id === 'overview') next.delete('tab'); else next.set('tab', id);
+    return next;
+  });
   // before the early returns: the tab is named after the knowledge as soon as the node answers
   useTitle(data ? data.anchor.name || data.anchor.id : undefined);
 
@@ -282,6 +306,8 @@ export default function PatchPage() {
     { id: 'buy', label: t('detail.tab.buy') },
     { id: 'history', label: t('detail.tab.history') },
   ];
+  const wanted = sp.get('tab');
+  const tab = tabs.some((x) => x.id === wanted) ? wanted! : 'overview';
 
   return (
     <Wrapper>
