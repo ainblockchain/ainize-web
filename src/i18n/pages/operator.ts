@@ -283,10 +283,9 @@ export const operatorManage: Dict = {
   // Item 148: the takedown the manage page used to point at `patch forget` for — which deletes the local file and
   // keeps the listing (and the gateway) selling it. `op.manage.retire.*` is the publish-time supersede sheet;
   // these keys are the author's own withdrawal of a published knowledge.
-  // Status chip for a knowledge its author took off sale (item 148). It lives here rather than in the shared
-  // status.* block because the takedown is an operator action; the chip reads the same key wherever it renders.
-  'status.RETIRED': { ko: '판매 중단됨', en: 'Off sale' },
-  'status.RETIRED_help': { ko: '만든 사람이 판매를 멈췄습니다. 기록은 남아 있고, 이미 산 사람은 계속 쓸 수 있습니다.', en: 'The publisher took it off sale. The record stays, and everyone who already bought it keeps their copy.' },
+  'op.manage.conflict.who': { ko: '올린 곳', en: 'Published by' },
+  'op.manage.conflict.mine': { ko: '내 지식', en: 'mine' },
+  'op.manage.conflict.copy': { ko: '내 파일과 완전히 같은 파일입니다 (sha256 일치) — 다른 노드가 그대로 다시 올렸습니다. 내 지식을 물러나게 하지는 못합니다.', en: 'byte for byte the same file as yours (sha256 matches) — another node republished it. It cannot retire your listing.' },
   'op.manage.takedown.title': { ko: '판매 중단 (영구)', en: 'Take off sale (permanent)' },
   'op.manage.takedown.desc': { ko: '이 지식을 목록에서 내리고 판매를 영구히 멈춥니다. 공개 기록의 앵커는 그대로 남고, 이미 구매한 사람은 받은 파일을 계속 쓸 수 있습니다. 결제 게이트웨이는 이후 410(사라짐)으로 답합니다. 되돌릴 수 없습니다.', en: 'Takes this knowledge off the catalogue and stops selling it, for good. The anchor stays on the public record and everyone who already bought it keeps the file they paid for; the payment gateway answers 410 Gone from then on. This cannot be undone.' },
   'op.manage.takedown.button': { ko: '판매 중단', en: 'Take off sale' },

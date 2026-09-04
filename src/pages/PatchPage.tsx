@@ -788,7 +788,14 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         )}
         {/* Item 3: why it cannot be bought is public — a visitor used to be shown the price and no reason at all. */}
         {!d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
-        {!d.owned && d.quorum_ok && !d.sellable && (
+        {/* Item 148: a knowledge its author retired is not disputed — saying "a verifier has challenged this" about
+            a withdrawal would be a lie, and the two have different answers ("wait for re-verification" vs "never"). */}
+        {!d.owned && d.status === 'RETIRED' && (
+          <Alert $tone="warning" data-testid="buy-retired">
+            {t('detail.buy.retired')}{d.retire_reason ? ` ${t('detail.buy.retired.reason', { reason: d.retire_reason })}` : ''}
+          </Alert>
+        )}
+        {!d.owned && d.quorum_ok && !d.sellable && d.status !== 'RETIRED' && (
           <Alert $tone="warning" data-testid="buy-challenged">
             {t('detail.buy.challenged')}{d.open_challenge ? ` ${t('detail.challenge.banner', { who: shortAddr(d.open_challenge.challenger, 8), reason: d.open_challenge.reason, when: f.ago(d.open_challenge.created_at) })}` : ''}
           </Alert>

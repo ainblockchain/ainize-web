@@ -297,20 +297,33 @@ export default function ManagePage() {
         <Table>
           <TableHeader><TableRow>
             <TableHead $align="left" $padding="0 8px">{t('op.knowledge')}</TableHead>
+            <TableHead>{t('op.manage.conflict.who')}</TableHead>
             <TableHead><Tip tech="overlap_rows (shared table addresses)">{t('op.manage.conflict.overlap')}</Tip></TableHead>
             <TableHead>{t('op.manage.conflict.same')}</TableHead>
             <TableHead>{t('op.status')}</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {p.conflicts.map((c) => (
-              <TableRow key={c.patch_id}>
-                <TableData $align="left" $padding="0 8px"><StyledLink to={`/${a.author}/${c.patch_id}`}>{c.patch_id}</StyledLink></TableData>
-                <TableData>{t('units.rows', { n: num(c.overlap_rows) })}</TableData>
-                <TableData $color={c.same_schema ? '#e6173e' : '#8d8d8f'}>{c.same_schema ? t('op.yes') : t('op.no')}</TableData>
-                <TableData><StatusChip status={c.status} /></TableData>
-              </TableRow>
-            ))}
-            {p.conflicts.length === 0 && <TableRowEmpty $height={80}><td colSpan={4}>{t('op.manage.conflict.empty')}</td></TableRowEmpty>}
+            {p.conflicts.map((c) => {
+              // Item 363: a byte-identical republish of your file by another node shows up here with every row
+              // shared — say so in words, because "2,992 memory entries" and "yes" do not read as "this is my file".
+              const other = byId.get(c.patch_id);
+              const copy = !!other && other.anchor.patch_sha256 === a.patch_sha256 && c.same_author === false;
+              return (
+                <TableRow key={c.patch_id}>
+                  <TableData $align="left" $padding="0 8px">
+                    <StyledLink to={`/${c.author ?? other?.anchor.author ?? a.author}/${c.patch_id}`}>{c.patch_id}</StyledLink>
+                    {copy && <Muted style={{ display: 'block' }} data-testid="conflict-copy">{t('op.manage.conflict.copy')}</Muted>}
+                  </TableData>
+                  <TableData>{c.same_author === false
+                    ? (c.author_name || shortAddr(c.author ?? other?.anchor.author ?? '', 6))
+                    : <Muted>{t('op.manage.conflict.mine')}</Muted>}</TableData>
+                  <TableData>{t('units.rows', { n: num(c.overlap_rows) })}</TableData>
+                  <TableData $color={c.same_schema ? '#e6173e' : '#8d8d8f'}>{c.same_schema ? t('op.yes') : t('op.no')}</TableData>
+                  <TableData><StatusChip status={c.status} /></TableData>
+                </TableRow>
+              );
+            })}
+            {p.conflicts.length === 0 && <TableRowEmpty $height={80}><td colSpan={5}>{t('op.manage.conflict.empty')}</td></TableRowEmpty>}
           </TableBody>
         </Table>
       </TableWrapper>
