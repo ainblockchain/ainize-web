@@ -50,8 +50,15 @@ export function useDetailFormat() {
     const billingLabel = (billing: string): string => { const k = t(`detail.billing.${billing}`); return k === `detail.billing.${billing}` ? billing : k; };
     const who = (addr: unknown, name?: unknown): string => (typeof name === 'string' && name ? name : shortAddr(String(addr ?? '')));
 
-    /** One plain sentence per public-record entry. */
-    const recordSummary = (r: LedgerRecord, opts?: { withHash?: boolean }): string => {
+    /**
+     * One plain sentence per public-record entry.
+     *
+     * `names` resolves an address to a person or node name. Item 197: the record page promises "who registered,
+     * verified and bought which knowledge" and stopped one field short of the money — a settle row said
+     * "purchase settled · 10 node credit · buyer 0x81…", while `royalty` on the same body says who was actually
+     * paid what. A creator auditing whether her 30 % arrived had to run `--json` and read addresses.
+     */
+    const recordSummary = (r: LedgerRecord, opts?: { withHash?: boolean; names?: (address: string) => string | undefined }): string => {
       const b = (r.body ?? {}) as Record<string, unknown>;
       switch (r.kind) {
         case 'anchor':
@@ -60,8 +67,19 @@ export function useDetailFormat() {
             : t('detail.rec.anchor', { id: String(b.id), name: String(b.name ?? '') });
         case 'attest':
           return t(b.passed === false ? 'detail.rec.attest_fail' : 'detail.rec.attest_pass', { id: String(b.patch_id ?? b.id), verifier: who(b.verifier, b.verifier_name), how: howLabel(typeof b.verified_on === 'string' ? b.verified_on : undefined) });
-        case 'settle':
-          return t('detail.rec.settle', { id: String(b.patch_id ?? b.resource), amount: priceLabel(String(b.amount), String(b.currency ?? '')), buyer: shortAddr(String(b.buyer)) });
+        case 'settle': {
+          const currency = String(b.currency ?? '');
+          const line = t('detail.rec.settle', { id: String(b.patch_id ?? b.resource), amount: priceLabel(String(b.amount), currency), buyer: opts?.names?.(String(b.buyer)) ?? shortAddr(String(b.buyer)) });
+          const royalty = Object.entries((b.royalty ?? {}) as Record<string, string>).filter(([, v]) => Number(v) > 0);
+          const seller = String(b.seller ?? '');
+          // The seller's own line is the sale itself; what a reader cannot get anywhere else is who ELSE was paid.
+          const others = royalty.filter(([addr]) => addr.toLowerCase() !== seller.toLowerCase());
+          const unresolved = Object.entries((b.royalty_unresolved ?? {}) as Record<string, string>).filter(([, v]) => Number(v) > 0);
+          const paid = others.map(([addr, v]) => `${opts?.names?.(addr) ?? shortAddr(addr)} ${priceLabel(v, currency)}`).join(' · ');
+          const tail = paid ? ` ${t('detail.rec.settle_royalty', { payees: paid })}` : '';
+          const owed = unresolved.length ? ` ${t('detail.rec.settle_unresolved', { n: unresolved.length, amount: priceLabel(unresolved.reduce((n, [, v]) => n + Number(v), 0), currency) })}` : '';
+          return `${line}${tail}${owed}`;
+        }
         case 'supersede':
           return t('detail.rec.supersede', { new_id: String(b.new_patch_id), old_id: String(b.old_patch_id), n: num(Number(b.overlap_rows ?? 0)) });
         case 'challenge':

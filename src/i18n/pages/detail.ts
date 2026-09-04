@@ -30,6 +30,9 @@ export const detailShared: Dict = {
   'detail.rec.attest_pass': { ko: '{verifier} 노드가 {id} 검증 통과 ({how})', en: '{verifier} verified {id}: passed ({how})' },
   'detail.rec.attest_fail': { ko: '{verifier} 노드가 {id} 검증 실패 ({how})', en: '{verifier} verified {id}: failed ({how})' },
   'detail.rec.settle': { ko: '{id} 구매 정산 · {amount} · 구매자 {buyer}', en: '{id} purchase settled · {amount} · buyer {buyer}' },
+  // Item 197: the row stopped one field short of the money — who the sale actually paid is in the same record body.
+  'detail.rec.settle_royalty': { ko: '→ {payees} (원작자·데이터 제공자 몫)', en: '→ {payees} (creator share)' },
+  'detail.rec.settle_unresolved': { ko: '· 받을 사람을 찾지 못한 몫 {amount} ({n}건)', en: '· {amount} of it has no payee yet ({n})' },
   'detail.rec.supersede': { ko: '{new_id}이(가) {old_id}의 최신 버전으로 표시됨 (겹치는 기억 항목 {n}개)', en: '{new_id} marked as the newer version of {old_id} ({n} overlapping memory entries)' },
   'detail.rec.challenge': { ko: '{who}이(가) {id} 재검증 요청: {reason}', en: '{who} requested re-verification of {id}: {reason}' },
   'detail.rec.branch': { ko: '지식 묶음 {name} 만듦 (지식 {n}개)', en: 'Knowledge track {name} created ({n} items)' },

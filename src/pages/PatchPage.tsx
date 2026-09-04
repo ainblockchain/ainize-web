@@ -1567,6 +1567,17 @@ function HistoryTab({ d }: { d: PatchDetail }) {
   const { data: info } = useInfoQuery();
   if (isLoading) return <CenterProgress />;
   const recs = [...(data?.records ?? [])].sort((a, b) => b.ts - a.ts);
+  /**
+   * Item 197 — the settle rows here name their payees too, and this page knows more names than /ledger does: the
+   * anchor in front of it carries the author's and every contributor's. An address nobody named stays an address.
+   */
+  const names = new Map<string, string>();
+  if (d.anchor.author_name) names.set(d.anchor.author.toLowerCase(), d.anchor.author_name);
+  for (const c of d.anchor.contributors ?? []) {
+    if (c.name) names.set(c.address.toLowerCase(), c.name);
+    if (c.name && c.signer) names.set(c.signer.toLowerCase(), c.name);
+  }
+  const nameOf = (address: string) => names.get(address.toLowerCase());
   return (
     <Section style={{ padding: '8px 0 0' }}>
       {/* Item 30: the sales figures belong beside the settlements they are counted from, not beside the price. */}
@@ -1582,7 +1593,7 @@ function HistoryTab({ d }: { d: PatchDetail }) {
             <TableHeader><TableRow><TableHead $align="left" $padding="0 0 0 32px">{t('detail.hist.h.kind')}</TableHead><TableHead $align="left">{t('detail.hist.h.summary')}</TableHead><TableHead>{t('detail.hist.h.author')}</TableHead><TableHead>{t('detail.hist.h.time')}</TableHead><TableHead $align="right" $padding="0 32px 0 8px">{t('detail.hist.h.hash')}</TableHead></TableRow></TableHeader>
             <TableBody>
               {recs.map((r) => {
-                const s = f.recordSummary(r, { withHash: true });
+                const s = f.recordSummary(r, { withHash: true, names: nameOf });
                 return (
                   <TableRow key={r.hash}>
                     <TableData $align="left" $padding="0 0 0 32px"><KindChip $kind={r.kind} title={r.kind}>{f.kindLabel(r.kind)}</KindChip></TableData>

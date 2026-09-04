@@ -145,6 +145,26 @@ export default function LedgerPage() {
 
   const kindOptions = useMemo(() => [{ value: '', label: t('detail.kind.all') }, ...KINDS.map((k) => ({ value: k, label: f.kindLabel(k) }))], [t, f]);
   const records = data?.records ?? [];   // API already returns newest first
+  /**
+   * Item 197 — the settle rows name the people they paid, and the record itself is where their names are: a `node`
+   * record carries a node's name, an `anchor` carries the author's and its contributors'. No extra request, and
+   * nothing invented: an address the record never named stays an address.
+   */
+  const nameOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of records) {
+      const b = (r.body ?? {}) as Record<string, unknown>;
+      if (r.kind === 'node' && typeof b.address === 'string' && typeof b.name === 'string' && b.name) m.set(b.address.toLowerCase(), b.name);
+      if (r.kind === 'anchor') {
+        if (typeof b.author === 'string' && typeof b.author_name === 'string' && b.author_name) m.set(b.author.toLowerCase(), b.author_name);
+        for (const c of (b.contributors as { address?: string; signer?: string; name?: string }[] | undefined) ?? []) {
+          if (c.name && c.address) m.set(c.address.toLowerCase(), c.name);
+          if (c.name && c.signer) m.set(c.signer.toLowerCase(), c.name);
+        }
+      }
+    }
+    return (address: string) => m.get(address.toLowerCase());
+  }, [records]);
   const pageCount = Math.max(1, Math.ceil(records.length / PAGE));
   const current = Math.min(page, pageCount);
   const visible = records.slice((current - 1) * PAGE, current * PAGE);
@@ -202,7 +222,7 @@ export default function LedgerPage() {
               </TableHeader>
               <TableBody>
                 {visible.map((r) => {
-                  const s = f.recordSummary(r);
+                  const s = f.recordSummary(r, { names: nameOf });
                   return (
                     <TableRow key={r.hash}>
                       <TableData $align="left" $padding="0 0 0 24px" title={dateTime(r.ts)} $maxWidth="140px">{f.ago(r.ts)}</TableData>
