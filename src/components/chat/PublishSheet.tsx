@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useInfoQuery, usePublishChallengeMutation, usePublishTeachJobMutation } from '@/api/api';
+import { useInfoQuery, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation } from '@/api/api';
 import { TEACH_SAMPLES_ON_CHAIN } from '@ngram/core';
 import type { PublishResponse, TeachJob, TeachPolicy } from '@/api/types';
 import { useT } from '@/i18n';
@@ -47,6 +47,8 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
    * the sheet says so rather than letting the creator believe otherwise.
    */
   const [access, setAccess] = useState<'public' | 'derivative' | 'private'>('derivative');
+  /** item 298 — a node with fewer verifier peers than its quorum cannot put this on sale; publishing anyway is a choice. */
+  const [anyway, setAnyway] = useState(false);
   const [dsLicense, setDsLicense] = useState('CC-BY-4.0');
   const [includeNotes, setIncludeNotes] = useState(false);
   const [declSource, setDeclSource] = useState<'own' | 'public' | 'licensed'>('own');
@@ -60,13 +62,52 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
   const unlisted = bases.filter((b) => b.status && !['LISTED', 'ANNOUNCED', 'VERIFYING'].includes(b.status));
   const currency = info?.currency ?? 'CREDIT';
   const nodeName = info?.node.name ?? 'This node';
+
+  /**
+   * SC-8 money (item 186). The node computes the real split with the same `royaltySplit` that settles a sale — the
+   * sheet used to render `policy.shares.contributor` alone and promise "70 % of every sale" where a lesson with a
+   * parent pays 49 %, because the lineage pool comes off the top and the contributor share is carved out of the rest.
+   * This is the same GET the submit path signs, read as a query so the numbers are on screen before the price is typed.
+   */
+  const payoutForPreview = payoutMode === 'none' ? null : payoutMode === 'wallet' ? (isAddress(wallet.trim()) ? wallet.trim() : undefined) : undefined;
+  const { data: preview } = usePublishPreviewQuery({ id: job.id, payout_address: payoutForPreview });
+  const split = preview?.split_preview;
+  const verification = preview?.verification ?? policy.verification;
+  const ledgerKind = preview?.ledger?.kind ?? policy.ledger?.kind ?? (currency === 'CREDIT' ? 'local' : undefined);
+  /** item 299 — on a local-ledger node the price is denominated in credit this node mints and no wallet can spend. */
+  const playMoney = ledgerKind === 'local';
+  /** item 298 — no quorum reachable here means the price/payout ceremony cannot end in a sale. */
+  const cannotSell = !!verification && verification.verifiers < verification.quorum;
+
+  // A child priced 0 pays its parents 0, so "the creators share in sales" is empty by default: when the node knows
+  // what the parent asks, that is the number the field starts at (the creator can still type anything).
+  const [priceTouched, setPriceTouched] = useState(false);
+  useEffect(() => {
+    if (priceTouched || !split?.suggested_price) return;
+    if (price !== '0') return;
+    setPrice(split.suggested_price);
+  }, [split?.suggested_price, priceTouched, price]);
+
+  /** What the typed price pays each line — `royaltySplit` is proportional, so the unit shares scale exactly. */
+  const money = useMemo(() => {
+    const p = Number(price.trim());
+    if (!split || !Number.isFinite(p)) return null;
+    const fmt = (n: number) => String(Math.round(n * 1e6) / 1e6);
+    return split.shares.map((sh) => ({ ...sh, amount: fmt(sh.share * p), percent: Math.round(sh.share * 1000) / 10 }));
+  }, [split, price]);
+  const mine = money?.find((m) => m.kind === 'you');
+  const nodeLine = money?.find((m) => m.kind === 'node');
+  const lineage = money?.filter((m) => m.kind === 'lineage') ?? [];
+  const lineagePct = Math.round(lineage.reduce((n, l) => n + l.share, 0) * 1000) / 10;
+  const lineageNames = split?.parents.length ? split.parents.map((x) => x.name).join(', ') : baseNames;
+
   const nameBad = name.trim().length < 2 || name.trim().length > 80;
   const priceBad = !/^\d+(\.\d+)?$/.test(price.trim());
   const walletBad = payoutMode === 'wallet' && !isAddress(wallet.trim());
   const declarationRows = policy.limits?.declaration_rows ?? 100;
   const needsDeclaration = (job.dataset?.rows ?? job.facts.length) >= declarationRows;
   const consentBad = !consentPermanent || !consentRights || (needsDeclaration && !consentData);
-  const disabled = nameBad || priceBad || walletBad || consentBad || busy;
+  const disabled = nameBad || priceBad || walletBad || consentBad || (cannotSell && !anyway) || busy;
 
   const submit = async () => {
     if (disabled) return;
@@ -96,7 +137,11 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
     const pageUrl = result.status === 'ANNOUNCED' ? `/${encodeURIComponent(info?.node.address ?? '')}/${encodeURIComponent(result.patch_id)}` : null;
     return (
       <Sheet title={t('teach.pub.title')} onClose={onClose} testId="publish-sheet">
-        <Alert $tone="success" role="status" data-testid="publish-done">{result.status === 'ANNOUNCED' ? t('teach.pub.done_auto', { quorum: info?.quorum ?? 2 }) : t('teach.pub.done_review')}</Alert>
+        <Alert $tone={result.status === 'ANNOUNCED' && cannotSell ? 'warning' : 'success'} role="status" data-testid="publish-done">
+          {result.status !== 'ANNOUNCED' ? t('teach.pub.done_review')
+            : cannotSell ? t('teach.pub.done_no_verifiers', { quorum: verification?.quorum ?? info?.quorum ?? 2, n: verification?.verifiers ?? 0 })
+              : t('teach.pub.done_auto', { quorum: verification?.quorum ?? info?.quorum ?? 2 })}
+        </Alert>
         <SheetFooter>
           {pageUrl && <StyledLink to={pageUrl} data-testid="publish-page-link">{t('teach.pub.link_page')} →</StyledLink>}
           <StyledLink to={`/teacher/${teacherKey.address}`} data-testid="publish-earnings-link">{t('teach.pub.link_earnings')} →</StyledLink>
@@ -124,8 +169,19 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
         </Field>
         <Field>
           <FieldLabel>{t('teach.pub.price', { currency })}</FieldLabel>
-          <Input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" aria-label={t('teach.pub.price', { currency })} data-testid="pub-price" />
+          {/* SC-8: what the base asks is the number a creator is undercutting or matching — show it above the field */}
+          {!!split?.parents.length && (
+            <HelperText data-testid="pub-parent-price">
+              {t('teach.pub.parent_price', { name: split.parents.map((x) => x.name).join(', '), price: split.parents[split.parents.length - 1].price ?? '0', currency })}
+            </HelperText>
+          )}
+          <Input value={price} onChange={(e) => { setPriceTouched(true); setPrice(e.target.value); }} inputMode="decimal" aria-label={t('teach.pub.price', { currency })} data-testid="pub-price" />
           {priceBad && <HelperText $error>{t('teach.pub.v_price')}</HelperText>}
+          {/* item 299: this node settles in credit it mints for every address it sees — say so where the price is typed */}
+          {playMoney && <HelperText data-testid="pub-credit-note">{t('price.credit_note')}</HelperText>}
+          {mine && !priceBad && (
+            <HelperText data-testid="pub-your-cut">{t('teach.pub.you_get', { amount: mine.amount, currency, percent: mine.percent })}</HelperText>
+          )}
         </Field>
       </Two>
       <Field>
@@ -137,7 +193,12 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
       {bases.length > 0 && (
         <Alert $tone="info" data-testid="pub-built-on">
           {t('teach.pub.built_on', { names: baseNames })}
-          {' '}{t('teach.pub.money', { names: baseNames, lineage: pct(policy.shares.lineage), contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName })}
+          {' '}
+          {/* item 186: the percentages are the node's own royaltySplit on this anchor's parents, not the raw policy
+              share — a lesson with a parent pays its teacher 49 %, and the sentence used to promise 70 %. */}
+          {money
+            ? t('teach.pub.money', { names: lineageNames, lineage: `${lineagePct}`, contributor: `${mine?.percent ?? 0}`, node: nodeName })
+            : t('teach.pub.money', { names: baseNames, lineage: pct(policy.shares.lineage), contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName })}
         </Alert>
       )}
       {unlisted.map((b) => (
@@ -152,6 +213,14 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
           <label><input type="radio" name="ds-access" checked={access === 'private'} onChange={() => setAccess('private')} />{t('teach.pub.ds_private')}</label>
         </Radios>
         <HelperText data-testid="pub-ds-honesty">{t('teach.pub.ds_honesty', { n: Math.min(job.facts.length, TEACH_SAMPLES_ON_CHAIN) })}</HelperText>
+        {/*
+          Item 312 — "derivative" is not "on request": it is a recorded commitment. Whoever takes these questions is
+          written down against their teaching key, and this node refuses to publish a lesson trained on them unless it
+          names this knowledge as its base. The creator is told that before they choose, not after.
+        */}
+        <HelperText data-testid="pub-ds-terms">
+          {access === 'public' ? t('teach.pub.ds_terms_public') : access === 'derivative' ? t('teach.pub.ds_terms_derivative') : t('teach.pub.ds_terms_private')}
+        </HelperText>
       </div>
       {access !== 'private' && (
         <Two>
@@ -183,8 +252,41 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
           {walletBad && <HelperText $error style={{ marginLeft: 28 }}>{t('teach.key.payout_invalid')}</HelperText>}
           <label><input type="radio" name="payout" checked={payoutMode === 'none'} onChange={() => setPayoutMode('none')} />{t('teach.pub.payout_none')}</label>
         </Radios>
+        {/* item 299: on a local-ledger node an AIN address is a place nothing will ever arrive — say so under the option */}
+        {playMoney && <HelperText data-testid="pub-payout-note">{t('teach.pub.payout_credit', { node: nodeName })}</HelperText>}
       </div>
-      <Alert $tone="info">{t('teach.pub.split', { contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName, lineage: pct(policy.shares.lineage) })}</Alert>
+      {/*
+        Item 186 — one sentence, the node's own numbers, no hedging. `royaltySplit` takes the lineage pool off the
+        top and carves the contributor's share out of what is left, so the figure here is what a sale really pays;
+        the old copy read the policy share directly and said "70 %" where the answer was 49 %, and hedged with "if
+        you ticked builds on" on a job whose parents the node already knows.
+      */}
+      <Alert $tone="info" data-testid="pub-split">
+        {money && mine
+          ? lineage.length
+            ? t('teach.pub.split_lineage', { contributor: `${mine.percent}`, lineage: `${lineagePct}`, names: lineageNames, node: nodeName, nodePct: `${nodeLine?.percent ?? 0}` })
+            : t('teach.pub.split_plain', { contributor: `${mine.percent}`, node: nodeName, nodePct: `${nodeLine?.percent ?? 0}` })
+          : t('teach.pub.split', { contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName, lineage: pct(policy.shares.lineage) })}
+        {money && !priceBad && Number(price) > 0 && (
+          <span data-testid="pub-split-amounts">{' '}{t('teach.pub.split_at', {
+            price: price.trim(), currency,
+            lines: money.filter((m) => Number(m.amount) > 0).map((m) => `${m.name ?? (m.kind === 'you' ? t('teach.pub.split_you') : m.kind === 'node' ? nodeName : m.address.slice(0, 10))} ${m.amount}`).join(' · '),
+          })}</span>
+        )}
+      </Alert>
+      {/*
+        Item 298 — the sheet promised "it goes on sale when 2 agree" without ever asking whether two verifiers exist.
+        On the node actually deployed for teaching there are none, and 136 lessons have been waiting up to 75 hours.
+      */}
+      {cannotSell && (
+        <Alert $tone="warning" data-testid="pub-no-verifiers">
+          {t('teach.pub.no_verifiers', { n: verification?.verifiers ?? 0, quorum: verification?.quorum ?? 2, node: nodeName })}
+          <Checkbox
+            checked={anyway} onChange={(e) => setAnyway(e.target.checked)} data-testid="pub-anyway"
+            label={t('teach.pub.publish_anyway')}
+          />
+        </Alert>
+      )}
       <Consents>
         <Checkbox checked={consentPermanent} onChange={(e) => setConsentPermanent(e.target.checked)} label={t('teach.pub.consent_permanent')} data-testid="consent-permanent" />
         <Checkbox checked={consentRights} onChange={(e) => setConsentRights(e.target.checked)} label={t('teach.pub.consent_rights')} data-testid="consent-rights" />

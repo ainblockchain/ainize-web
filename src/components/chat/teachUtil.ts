@@ -13,6 +13,12 @@ function detailNumber(err: unknown, key: string, fallback: number): number {
   return typeof v === 'number' ? v : fallback;
 }
 
+/** A string the node put in `TeachError.details` (an id, a name), with a fallback so the sentence is never left with a hole. */
+function detailString(err: unknown, key: string, fallback: string): string {
+  const v = (err as { data?: Record<string, unknown> } | undefined)?.data?.[key];
+  return typeof v === 'string' && v ? v : fallback;
+}
+
 /** True for the two "you ran out of free tries this hour" answers — the caller may want to keep what it already has. */
 export function isQuotaError(err: unknown): boolean {
   const e = err as { status?: number | string } | undefined;
@@ -57,6 +63,13 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' | 
     case 'quota_rows': return t('teach.err.quota_rows');
     case 'quota_bytes': return t('teach.err.quota_bytes');
     case 'dataset_declaration': return t('teach.err.dataset_declaration', { n: detailNumber(err, 'rows', 100) });
+    // item 15 — the file was read and it is not text; the node says what it tried and what it measured
+    case 'dataset_not_text': return t('teach.err.dataset_not_text', { encoding: detailString(err, 'encoding', '?') });
+    // item 171 — a typo and "this node does not have it" used to be the same sentence; each now names its own remedy
+    case 'unknown_knowledge': return t('teach.err.unknown_knowledge', { id: detailString(err, 'id', '') });
+    case 'knowledge_not_held': return t('teach.err.knowledge_not_held', { name: detailString(err, 'name', detailString(err, 'id', '')), id: detailString(err, 'id', '') });
+    // item 312 — a lesson trained on someone else's questions has to name them
+    case 'undeclared_parent': return t('teach.err.undeclared_parent', { name: detailString(err, 'name', detailString(err, 'id', '')) });
     default: break;
   }
   // v1 shape: a missing job answers 404 with a bare sentence and no machine code

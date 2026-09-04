@@ -106,7 +106,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
             const view = trains && model ? model : file;
             const picked = row.index !== null && selected?.has(row.index);
             return (
-              <tr key={`${row.line}-${row.index ?? 'x'}`} data-bad={file.tone === 'bad' ? '1' : '0'} data-testid="dataset-row" data-status={row.status}>
+              <tr key={`${row.carried ? 'c' : 'r'}${row.line}-${row.index ?? 'x'}`} data-bad={file.tone === 'bad' ? '1' : '0'} data-testid="dataset-row" data-status={row.status} data-carried={row.carried ? '1' : undefined}>
                 {selectable && (
                   <td className="pick" data-label={nHead}>
                     {row.index !== null && (
@@ -118,7 +118,9 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                     )}
                   </td>
                 )}
-                <td className="n" data-label={nHead}>{row.line}</td>
+                {/* item 5: a carried row's number is a line of the file the visitor uploaded, not a position in the
+                    rewritten set — showing a bare "7" next to accepted row 7 would be two different sevens */}
+                <td className="n" data-label={nHead}>{row.carried ? t('teach.rows.carried_line', { line: row.line }) : row.line}</td>
                 <td className="q" data-label={t('teach.rows.h.q')}>
                   {row.prompt ?? (row.raw ? row.raw.slice(0, 120) : '—')}
                   {/* SC-5: where this question came from — the pointer is in the published bytes, so it is a fact, not a label */}
@@ -131,6 +133,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                   <Pill $tone={view.tone}>{view.text}</Pill>
                   {view.help && <Help $warn={view.helpTone === 'warn'} data-testid={view.helpTone === 'warn' ? 'row-simulated' : undefined}>{view.help}</Help>}
                   {trains && !model && <Help>{t('teach.rows.status.unchecked')}</Help>}
+                  {row.carried && <Help data-testid="row-carried">{t('teach.rows.carried_note')}</Help>}
                   {advisory && <Help data-testid="advisory">{advisory}</Help>}
                 </td>
                 <td className="act" data-label="">
@@ -138,6 +141,8 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                     {onEdit && (row.index !== null || row.status !== 'not_parsed') && (
                       <button type="button" onClick={() => onEdit(row)} disabled={busy} data-testid="row-edit">{t('teach.rows.edit')}</button>
                     )}
+                    {/* `Keep this answer` on a carried contradiction still works: it appends the row, which is the
+                        one action that resolves it — the button is rendered by the `conflict` branch below. */}
                     {onKeep && row.status === 'conflict' && (
                       <button type="button" onClick={() => onKeep(row)} disabled={busy} data-testid="row-keep">{t('teach.rows.conflict_keep')}</button>
                     )}

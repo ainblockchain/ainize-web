@@ -173,6 +173,13 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
   }
 
   const showChecks = c && c.executed && ['READY', 'NEEDS_MORE', 'PENDING_REVIEW', 'ANNOUNCED', 'REJECTED'].includes(j.status);
+  /**
+   * Item 17 — the card used to print "2 of 2 correct" while training and "0 of 2" as the verdict, both bare, one after
+   * the other, with nothing saying they measure different things. The two lines are now labelled (practice vs the live
+   * model) and, when they actually disagree, the card says so instead of leaving it to read like a product bug.
+   */
+  const practiceGap = !!c?.executed && !!p && p.total > 0 && ['READY', 'NEEDS_MORE'].includes(j.status)
+    && (p.hits !== c.taught.hits || p.total !== c.taught.total);
   const showFacts = ['READY', 'NEEDS_MORE', 'PENDING_REVIEW', 'ANNOUNCED', 'REJECTED'].includes(j.status) && j.facts.some((f) => f.after_answer !== undefined || f.hit !== undefined);
   const pageLink = j.patch_id && nodeAddress ? `/${encodeURIComponent(nodeAddress)}/${encodeURIComponent(j.patch_id)}` : null;
 
@@ -198,6 +205,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
           k: j.facts.filter((f) => f.hit !== undefined).length, n: j.facts.length, hits: j.facts.filter((f) => f.hit === true).length,
         })}</Tip>
       )}
+      {practiceGap && <Tip data-testid="practice-gap">{t('teach.card.practice_gap', { phits: p!.hits, ptotal: p!.total })}</Tip>}
       {(simulated || stub) && showChecks && <Tip data-testid="lesson-simulated">{t(simulated ? 'teach.card.simulated' : 'teach.card.stub_only')}</Tip>}
       {c?.reverted_and_reapplied && <Tip>{t('teach.card.revert_note')}</Tip>}
       {showChecks && (

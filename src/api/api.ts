@@ -271,7 +271,7 @@ export const {
   useSubscribeMutation, useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
-  useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
+  useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
   useForkPatchMutation, useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,
   usePatchTeachDatasetMutation, useForkTeachDatasetMutation, useDeleteTeachDatasetMutation, useTeachSamplesQuery, useRetrainTeachJobMutation, useTeachJobEventsQuery,
   useTeachAdminPolicyQuery, useUpdateTeachAdminPolicyMutation, useTeachAdminJobsQuery, useApproveTeachJobMutation, useRejectTeachJobMutation, useCancelTeachJobAdminMutation,

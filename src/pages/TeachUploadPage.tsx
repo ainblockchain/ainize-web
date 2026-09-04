@@ -12,7 +12,7 @@ import { DropZone } from '@/components/teach/DropZone';
 import { FormatHelp } from '@/components/teach/FormatHelp';
 import { PasteTable } from '@/components/teach/PasteTable';
 import { Stepper } from '@/components/teach/Stepper';
-import { acceptedFile, fileSize, isoDay, previewCount, rememberDataset, sha256Hex } from '@/lib/teachDataset';
+import { acceptedFile, fileSize, isoDay, looksBinary, previewCount, rememberDataset, sha256Hex } from '@/lib/teachDataset';
 import { createTeacherKey, currentTeacherKey, shortKey } from '@/lib/teacherKey';
 
 /**
@@ -72,9 +72,12 @@ export default function TeachUploadPage() {
     setError(null);
     if (!acceptedFile(file.name, policy?.limits?.formats)) { setError(t('teach.up.err_type', { name: file.name })); return; }
     if (file.size > maxBytes) { setError(t('teach.up.err_big', { size: fileSize(file.size), mb: maxMb })); return; }
+    const buf = await file.arrayBuffer();
+    // item 15: the extension is the one thing a renamed file lies about — look at the bytes before creating a key,
+    // charging a quota or uploading anything. The node makes the same measurement and refuses it too.
+    if (looksBinary(buf)) { setError(t('teach.up.err_binary', { name: file.name })); return; }
     ensureKey();
     try {
-      const buf = await file.arrayBuffer();
       let n = 0;
       try { n = previewCount(new TextDecoder('utf-8').decode(buf), file.name); } catch { n = 0; }
       setChip({ name: file.name, size: fileSize(file.size), n });

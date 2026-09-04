@@ -1,6 +1,6 @@
 import { useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useTeacherQuery } from '@/api/api';
+import { errorMessage, useInfoQuery, useTeacherQuery } from '@/api/api';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
@@ -27,6 +27,7 @@ export default function TeacherPage() {
   const dateTime = useDateTime();
   const valid = isAddress(address);
   const { data, error, isLoading } = useTeacherQuery(address, { skip: !valid, pollingInterval: 15_000 });
+  const { data: info } = useInfoQuery();
   const mine = currentTeacherKey()?.address.toLowerCase() === address.toLowerCase();
   useTitle(data?.name ? `${t('teacher.title')} · ${data.name}` : t('teacher.title'));
 
@@ -35,6 +36,17 @@ export default function TeacherPage() {
   if (error || !data) return <PageWrapper><Alert $tone="error">{t('common.error', { message: errorMessage(error) })}</Alert></PageWrapper>;
   const e = data.earnings;
   const cur = e.currency;
+  const nodeName = info?.node.name ?? 'this node';
+  /** item 298 — a lesson can only be sold where enough independent verifiers can look at it. */
+  const v = data.verification;
+  const cannotSell = !!v && v.verifiers < v.quorum;
+  /** item 299 — on a local ledger "Paid" is a line in one node's book, not money that moved. */
+  const playMoney = (data.ledger?.kind ?? (cur === 'CREDIT' ? 'local' : undefined)) === 'local';
+  /** How long a lesson has been waiting, and how many verifiers actually looked (never "0 of 2" with no age). */
+  const waiting = (l: { status: string; verified: boolean; created_at?: number; attestations?: number; quorum?: number }) =>
+    !l.verified && ['ANNOUNCED', 'VERIFYING', 'PENDING_REVIEW'].includes(l.status) && l.created_at !== undefined
+      ? t('teacher.awaiting', { age: elapsed(l.created_at), n: l.attestations ?? 0, quorum: l.quorum ?? v?.quorum ?? 2 })
+      : null;
 
   return (
     <PageWrapper>
@@ -48,10 +60,14 @@ export default function TeacherPage() {
         {data.hidden && <span>{t('teacher.hidden')}</span>}
       </AddrLine>
       {mine && <Alert $tone="info" style={{ marginTop: 16 }}>{t('teacher.your_page')} <StyledLink to="/chat?mine=1">{t('teach.mine.title')} →</StyledLink></Alert>}
+      {cannotSell && (
+        <Alert $tone="warning" style={{ marginTop: 16 }} data-testid="teacher-no-verifiers">{t('teacher.no_verifiers', { n: v!.verifiers, quorum: v!.quorum })}</Alert>
+      )}
+      {playMoney && <Description style={{ marginTop: 12 }} data-testid="teacher-credit-note">{t('teacher.credit_ledger')}</Description>}
 
       <Stats data-testid="teacher-earnings">
         <Stat><b>{e.owed} {cur}</b><span>{t('teacher.owed')}</span></Stat>
-        <Stat><b>{e.paid} {cur}</b><span>{t('teacher.paid')}</span></Stat>
+        <Stat><b>{e.paid} {cur}</b><span>{playMoney ? t('teacher.paid_credit', { node: nodeName }) : t('teacher.paid')}</span></Stat>
         <Stat $tone={Number(e.pending) > 0 ? 'warn' : undefined}><b>{e.pending} {cur}</b><span>{t('teacher.pending')}</span></Stat>
         {Number(e.failed) > 0 && <Stat $tone="bad"><b>{e.failed} {cur}</b><span>{t('teacher.failed')}</span></Stat>}
         <Stat><b>{num(e.sales)}</b><span>{t('teacher.sales')}</span></Stat>
@@ -67,7 +83,10 @@ export default function TeacherPage() {
               {data.lessons.map((l) => (
                 <TableRow key={l.id} data-testid="teacher-lesson">
                   <TableData $align="left" $padding="0 0 0 16px" $weight={600}>{l.status === 'PENDING_REVIEW' ? l.name : <StyledLink to={`/explore?q=${encodeURIComponent(l.id)}`}>{l.name}</StyledLink>}<div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400 }}>{l.id}</div></TableData>
-                  <TableData>{l.status === 'PENDING_REVIEW' ? t('teach.mine.status.review') : <StatusChip status={l.status} />}</TableData>
+                  <TableData>
+                    {l.status === 'PENDING_REVIEW' ? t('teach.mine.status.review') : <StatusChip status={l.status} />}
+                    {waiting(l) && <div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400, marginTop: 4 }} data-testid="teacher-awaiting">{waiting(l)}</div>}
+                  </TableData>
                   <TableData>{num(l.downloads)}</TableData>
                   <TableData $align="right" $padding="0 16px 0 8px">{l.revenue} {cur}</TableData>
                 </TableRow>

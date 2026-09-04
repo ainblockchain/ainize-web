@@ -51,6 +51,34 @@ export function acceptedFile(name: string, formats?: string[]): boolean {
   return list.includes(ext);
 }
 
+/**
+ * Does this look like text at all? (item 15)
+ *
+ * `acceptedFile` gates on the extension, which is exactly the thing a renamed file lies about: 4 KB of /dev/urandom
+ * called binary.csv passed every check and was previewed as "8 questions", every row with a green Will-train pill.
+ * The node refuses it (`dataset_not_text`) and that refusal is the authority; this is the same measurement done
+ * before the upload, so the visitor is told about their own file instead of watching a request fail.
+ *
+ * Deliberately the same budget as the node: a NUL byte in the file is decisive, and otherwise at most 5 % of the
+ * sampled characters may be control / replacement / private-use codepoints.
+ */
+export function looksBinary(bytes: ArrayBuffer | Uint8Array): boolean {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const head = view.subarray(0, 65_536);
+  if (head.includes(0)) return true;
+  let text: string;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(head); }
+  catch { text = new TextDecoder('latin1').decode(head); }
+  let bad = 0; let n = 0;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    n++;
+    if (cp === 0xfffd || (cp < 0x20 && cp !== 0x09 && cp !== 0x0a && cp !== 0x0d) || (cp >= 0x7f && cp <= 0x9f)
+      || (cp >= 0xe000 && cp <= 0xf8ff) || (cp >= 0xf0000 && cp <= 0xffffd) || (cp >= 0x100000 && cp <= 0x10fffd)) bad++;
+  }
+  return n > 0 && bad / n > 0.05;
+}
+
 /** Human file size — MB above a megabyte, kB below, so "4 MB" and "12 kB" both read naturally. */
 export function fileSize(bytes: number): string {
   if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(bytes >= 1e7 ? 0 : 1)} MB`;

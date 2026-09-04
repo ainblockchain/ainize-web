@@ -112,6 +112,24 @@ export const teach: Dict = {
   // SC-8 publish sheet — what happens to the questions, and who is paid
   'teach.pub.built_on': { ko: '기반 지식: {names}', en: 'Built on: {names}' },
   'teach.pub.money': { ko: '판매마다: {names} 제작자에게 {lineage}%, 나에게 {contributor}%, 나머지는 {node}에게.', en: 'Every sale: {lineage}% to the creators of {names}, {contributor}% to you, the rest to {node}.' },
+  // Item 186 — the split the node actually settles, not the raw policy share. `contributor` / `lineage` / `nodePct`
+  // are whole percentages computed by `royaltySplit` on this anchor's real parents, so a built-on lesson reads 49 %
+  // where the old sentence promised 70 %, and nothing hedges with "if you ticked".
+  'teach.pub.split_plain': { ko: '판매마다: 나에게 {contributor}%, {node}에게 {nodePct}% (학습·호스팅·검증 비용).', en: 'Every sale: {contributor}% to you, {nodePct}% to {node} for training, hosting and verification.' },
+  'teach.pub.split_lineage': { ko: '판매마다: {names} 제작자에게 {lineage}%, 나에게 {contributor}%, {node}에게 {nodePct}%. 제작자 몫이 먼저 나가고, 내 몫은 그 나머지에서 계산됩니다.', en: 'Every sale: {lineage}% to the creators of {names}, {contributor}% to you, {nodePct}% to {node}. The creators are paid first, and your share is a share of what is left.' },
+  'teach.pub.split_at': { ko: '{price} {currency}에 팔면 — {lines}.', en: 'At {price} {currency} that is {lines}.' },
+  'teach.pub.split_you': { ko: '나', en: 'you' },
+  'teach.pub.you_get': { ko: '이 가격이면 판매마다 {amount} {currency}를 받습니다 ({percent}%).', en: 'At this price you receive {amount} {currency} per sale ({percent}%).' },
+  'teach.pub.parent_price': { ko: '{name}은(는) {price} {currency}에 팔립니다. 0으로 두면 기반 지식 제작자도 0을 받습니다.', en: '{name} sells for {price} {currency}. Priced at 0, the creators you built on receive 0 too.' },
+  // Item 298 — a node with fewer verifier peers than its quorum cannot put anything on sale, whatever the sheet says.
+  'teach.pub.no_verifiers': { ko: '{node}에는 검증 노드 이웃이 {n}곳뿐이고 판매에는 {quorum}곳이 필요합니다. 지금 공개하면 기록에는 남지만 여기서는 팔 수 없고, 검증 노드가 생길 때까지 "검증 대기"로 머뭅니다.', en: '{node} has {n} verifier peers and needs {quorum} to put anything on sale. Published now, your lesson goes on the record but cannot be sold here — it waits as "awaiting verification" until verifier peers appear.' },
+  'teach.pub.publish_anyway': { ko: '팔 수 없다는 것을 알고도 공개합니다', en: 'Publish anyway, knowing it cannot be sold here' },
+  'teach.pub.done_no_verifiers': { ko: '공개했습니다. 다만 이 노드에는 검증 노드 이웃이 {n}곳뿐이고 판매에는 {quorum}곳이 필요하므로, 검증 노드가 생기기 전에는 판매가 시작되지 않습니다.', en: 'Announced — but this node has {n} verifier peers and needs {quorum}, so it cannot go on sale here until verifier nodes appear.' },
+  // Item 312 — what each access level really means for the questions, including who is recorded and what they owe.
+  'teach.pub.ds_terms_public': { ko: '누구나 서명된 요청 한 번으로 이 질문들을 내려받을 수 있습니다. 기록은 남지만, 내 지식을 기반으로 밝힐 의무는 없습니다.', en: 'Anyone can download these questions with one signed request. It is recorded, but they are not required to credit this knowledge.' },
+  'teach.pub.ds_terms_derivative': { ko: '가져가는 사람의 가르치기 키가 기록되고, 이 노드는 그 질문들로 학습한 수업이 이 지식을 기반으로 명시하지 않으면 공개를 거부합니다 — 그래야 제작자 몫이 나갑니다.', en: 'Whoever takes them is recorded against their teaching key, and this node refuses to publish a lesson trained on them unless it names this knowledge as its base — which is what pays you the creator share.' },
+  'teach.pub.ds_terms_private': { ko: '아무도 내려받을 수 없습니다. 확인에 쓰인 질문만 공개 기록에 남습니다.', en: 'Nobody can download them. Only the questions used to check this lesson stay on the public record.' },
+  'teach.pub.payout_credit': { ko: '{node}는 노드 크레딧으로 정산합니다. 여기서 받는 금액은 이 노드의 장부에만 있고, 지갑 주소로 옮기거나 쓸 수 없습니다.', en: '{node} settles in node credit: what you are paid here lives on this node\'s ledger only — it cannot be moved to a wallet or spent.' },
   'teach.pub.base_unlisted': { ko: '{name}이(가) 아직 등록 전이에요. 등록된 뒤에 공개하세요.', en: '{name} is not listed yet. Publish after it is listed.' },
   'teach.pub.ds_title': { ko: '내 질문', en: 'Your questions' },
   'teach.pub.ds_public': { ko: '누구나 내려받고 바탕으로 쓸 수 있음', en: 'Anyone can download and build on them' },
@@ -173,7 +191,10 @@ export const teach: Dict = {
   'teach.card.runtime': { ko: '모델 서버가 꺼졌거나 재시작 중입니다. 수업은 자동으로 이어집니다.', en: 'The model server is off or restarting. The lesson will continue automatically.' },
   'teach.card.loading': { ko: '모델을 준비하는 중 (약 1분).', en: 'Warming up the model (about a minute).' },
   'teach.card.starting': { ko: '시작하는 중…', en: 'Starting…' },
-  'teach.card.training': { ko: '가르치는 중… {step}/{max}단계 · 지금까지 {total}개 중 {hits}개 표현 정답.', en: 'Teaching… step {step} of up to {max} · answers {hits} of {total} phrasings correctly so far.' },
+  // Item 17 — two bare X-of-Y counts that disagreed, one after the other, on the same card: the trainer's own
+  // running score during training and the live model's score after it. Each now says which one it is.
+  'teach.card.training': { ko: '가르치는 중… {step}/{max}단계 · 연습에서는 {total}개 중 {hits}개 정답. 실제 모델 확인은 학습이 끝난 뒤에 합니다.', en: 'Teaching… step {step} of up to {max} · during practice it gets {hits} of {total} phrasings right. The live check comes after training.' },
+  'teach.card.practice_gap': { ko: '학습 중 연습 점수는 {ptotal}개 중 {phits}개였습니다 — 학습기가 스스로 채점한 값입니다. 위의 숫자는 수업을 얹은 실제 모델에서 측정한 것이고, 공개 가능 여부는 그쪽으로 판단합니다.', en: 'During training the practice score was {phits} of {ptotal} — that is the trainer marking its own work. The number above was measured in the live model with the lesson applied, and it is the one the publish gate uses.' },
   'teach.card.checking': { ko: '실제 모델에서 다시 확인하는 중.', en: 'Double-checking the answer in the live model.' },
   'teach.card.revert_note': { ko: '확인 중 모델 서버가 재시작되어 수업을 다시 넣고 측정했습니다.', en: 'The model server restarted during the check; we re-loaded the lesson and measured again.' },
   'teach.card.ready': { ko: '배웠습니다 — 실제 모델에서 {total}개 중 {hits}개 정답.', en: 'It learned it — {hits} of {total} answers correct in the live model.' },
@@ -185,7 +206,7 @@ export const teach: Dict = {
   'teach.card.check_parent': { ko: '넣어 둔 지식이 자기 질문에 여전히 답함: {m}/{n}', en: 'Knowledge you had loaded still answers its own questions: {m}/{n}' },
   'teach.card.check_locality': { ko: '무관한 질문 변화 없음: {m}/{n}', en: 'Unrelated questions unchanged: {m}/{n}' },
   'teach.card.check_heldout': { ko: '다른 표현으로 물어도 정답: {m}/{n}', en: 'Other phrasing answered correctly: {m}/{n}' },
-  'teach.card.needs_more': { ko: '충분히 배우지 못했습니다 ({total}개 중 {hits}개). 표현을 하나 더 넣고 다시 해보세요.', en: 'It did not stick well enough ({hits} of {total}). Add another phrasing and try again.' },
+  'teach.card.needs_more': { ko: '충분히 배우지 못했습니다 — 실제 모델에서 {total}개 중 {hits}개 정답. 표현을 하나 더 넣고 다시 해보세요.', en: 'It did not stick well enough — in the live model it answered {hits} of {total}. Add another phrasing and try again.' },
   'teach.card.failed': { ko: '가르치는 중 문제가 생겼습니다. 비용은 없습니다. 잠시 후 다시 시도하세요.', en: 'Something went wrong while teaching. Nothing was charged. Try again in a moment.' },
   'teach.card.failed_known': { ko: '모델이 이미 이 질문에 맞게 답해서 가르칠 것이 없었습니다.', en: 'The model already answered this correctly, so there was nothing to teach.' },
   'teach.card.failed_restart': { ko: '가르치는 도중 이 노드가 재시작되었습니다. 비용은 없습니다. 다시 시도해 주세요.', en: 'This node restarted while teaching. Nothing was charged. Please try again.' },
@@ -349,6 +370,12 @@ export const teach: Dict = {
   'teacher.item.attempts': { ko: '시도 {n}회', en: '{n} attempt(s)' },
   'teacher.item.scheme_local': { ko: '이 노드의 크레딧으로 정산', en: 'settled as node credit' },
   'teacher.item.scheme_ain': { ko: 'AIN 송금으로 정산', en: 'settled by AIN transfer' },
+  // Item 298 — "Registered · awaiting verification" with no age and no verifier count was the whole story on a node
+  // where no attestation can ever arrive. Item 299 — on a local ledger every number here is node credit.
+  'teacher.awaiting': { ko: '검증 대기 {age} · 독립 검증 노드 {quorum}곳 중 {n}곳이 확인함', en: 'awaiting verification for {age} · {n} of {quorum} independent verifiers have looked' },
+  'teacher.no_verifiers': { ko: '이 노드에는 검증 노드 이웃이 {n}곳뿐이고 판매에는 {quorum}곳이 필요합니다. 여기서 공개된 지식은 기록에는 남지만, 검증 노드가 생기기 전에는 판매가 시작되지 않습니다.', en: 'This node has {n} verifier peers and needs {quorum} to put anything on sale. Knowledge published here stays on the record, but cannot go on sale until verifier nodes appear.' },
+  'teacher.credit_ledger': { ko: '이 노드는 노드 크레딧으로 정산합니다 — 아래 금액은 이 노드의 장부에만 있고, 지갑으로 옮기거나 쓸 수 없습니다.', en: 'This node settles in node credit — the amounts below live on this node\'s ledger only, and cannot be moved to a wallet or spent.' },
+  'teacher.paid_credit': { ko: '{node} 크레딧으로 적립 (출금 불가)', en: 'Credited on {node} (not withdrawable)' },
   'teacher.your_page': { ko: '이 키는 이 브라우저의 것입니다 — 라이브 테스트의 내 지식에서 관리하세요.', en: 'This key belongs to this browser — manage the lessons from Your knowledge in Live test.' },
   'teacher.hidden': { ko: '노드 운영자가 이 이름을 숨겼습니다.', en: 'The node operator hid this display name.' },
 
@@ -461,6 +488,8 @@ export const teach: Dict = {
   'teach.up.err_empty': { ko: '이 파일에서 질문·정답 쌍을 찾지 못했습니다. 아래 형식 예시를 확인하세요.', en: 'No question and answer pairs were found in that file. Check the format examples below.' },
   'teach.up.err_big': { ko: '파일이 {size}로 {mb} MB 제한을 넘습니다. 파일을 나누거나 질문 수를 줄이세요.', en: 'That file is {size}, over the {mb} MB limit. Split it, or upload fewer questions.' },
   'teach.up.err_type': { ko: '이 노드는 jsonl, csv, tsv, 일반 텍스트를 읽습니다. "{name}"은(는) 해당하지 않습니다.', en: 'This node reads jsonl, csv, tsv and plain text. "{name}" is none of those.' },
+  // item 15 — the extension said .csv and the bytes said otherwise; nothing is uploaded and no quota is spent
+  'teach.up.err_binary': { ko: '"{name}"은(는) 글자가 아니라 이진 파일로 보입니다. 엑셀/시트라면 CSV로 내보낸 뒤 그 파일을 올려주세요.', en: '"{name}" looks like a binary file, not text. If it is a spreadsheet, export it as CSV and upload that file instead.' },
   'teach.up.err_read': { ko: '파일을 읽지 못했습니다. UTF-8 텍스트로 다시 저장해 보세요.', en: 'That file could not be read. Try saving it again as UTF-8 text.' },
   'teach.up.err_many': { ko: '파일에 질문이 {n}개 있습니다. 이 노드는 한 데이터셋에 {max}개까지 받습니다. 앞의 {max}개만 불러왔습니다.', en: 'That file has {n} questions; this node accepts up to {max} in one dataset. The first {max} were loaded.' },
 
@@ -477,6 +506,13 @@ export const teach: Dict = {
   'teach.rows.h.n': { ko: '줄', en: 'Line' },
   // after an edit these are positions in the stored dataset, not lines of the file the visitor uploaded (§8.7)
   'teach.rows.h.pos': { ko: '순번', en: '#' },
+  // Item 5 — a row that was refused when the file was read and that this edit did not resolve. Its number is a line
+  // of the uploaded file, never a position in the current set, so the table has to say which it is.
+  'teach.rows.carried_line': { ko: '파일 {line}줄', en: 'file line {line}' },
+  'teach.rows.carried_note': { ko: '파일을 읽을 때 제외된 줄입니다. 이후 수정에서도 해결되지 않아 계속 표시합니다.', en: 'Left out when your file was read, and still not resolved by your later edits — so it is still shown here.' },
+  'teach.rows.carried_summary': { ko: '위 목록에는 파일을 읽을 때 제외된 {n}줄이 함께 있습니다 — 하나를 고쳐도 나머지는 사라지지 않습니다.', en: 'The list above still includes {n} line(s) that were left out when your file was read — fixing one of them never makes the others disappear.' },
+  // Item 15 — a fallback encoding is a warning, not a footnote: it is the most likely reason the text looks wrong.
+  'teach.rows.encoding_warn': { ko: '이 파일은 UTF-8이 아니라 {encoding}(으)로 읽혔습니다. 아래 질문이 깨져 보이면 학습하지 말고, UTF-8로 저장해 다시 올리거나 "다시 읽기"에서 인코딩을 지정하세요.', en: 'This file was not UTF-8 — it was read as {encoding}. If the questions below look wrong, do not train them: save the file as UTF-8 and upload it again, or name the encoding in "Read it again".' },
   'teach.rows.h.q': { ko: '질문', en: 'Question' },
   'teach.rows.h.a': { ko: '정답', en: 'Right answer' },
   'teach.rows.h.alt': { ko: '다른 표현 (선택)', en: 'Another way to ask (optional)' },
@@ -722,4 +758,11 @@ export const teach: Dict = {
   'teach.err.quota_rows': { ko: '이 노드에서 오늘 가르칠 수 있는 질문 한도를 다 썼습니다. 내일 다시 오거나 직접 노드를 운영하세요 — 내려받는 수업마다 실행 방법이 들어 있습니다.', en: 'You have used up the questions you can teach on this node today. Come back tomorrow, or run your own node — the instructions come with every lesson you download.' },
   'teach.err.quota_bytes': { ko: '오늘 이 노드가 가르치기 키 하나에서 받는 용량을 다 썼습니다.', en: 'You have uploaded as much as this node accepts from one teaching key today.' },
   'teach.err.dataset_declaration': { ko: '질문 {n}개를 공개하려면 데이터 출처를 확인해 주셔야 합니다.', en: 'Publishing {n} questions needs you to confirm where the data came from.' },
+  // item 15 — the file was read, and what came out of the decoder was not text
+  'teach.err.dataset_not_text': { ko: '이 파일은 글자로 읽히지 않습니다 ({encoding}으로 읽었습니다). 스프레드시트라면 CSV로 내보낸 뒤 올려주세요.', en: 'This file does not read as text (it was read as {encoding}). If it is a spreadsheet, export it as CSV and upload that.' },
+  // item 171 — the two different reasons a base is unusable, each with its own remedy
+  'teach.err.unknown_knowledge': { ko: '이 노드에는 "{id}"이(가) 없습니다. 아이디를 확인하거나, 그 지식을 가진 노드에서 가르치세요.', en: 'This node does not have "{id}". Check the id, or teach on a node that holds it.' },
+  'teach.err.knowledge_not_held': { ko: '{name}은(는) 이 노드에 등록되어 있지만 파일이 여기 없습니다. 먼저 받아 두어야 그 위에 가르칠 수 있습니다.', en: '{name} is listed on this node but its file is not here. Get it first — teaching on top of it needs the file.' },
+  // item 312 — the questions came from someone else's knowledge, and the lesson has to say so
+  'teach.err.undeclared_parent': { ko: '이 질문들은 {name}에서 가져온 것입니다. 그 위에 만드는 수업이라고 밝혀야 합니다 — "이 지식을 바탕으로 합니다"를 켜고 다시 학습하세요.', en: 'These questions came from {name}. A lesson trained on them has to say so — turn on "builds on this knowledge" and train it again.' },
 };

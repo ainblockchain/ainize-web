@@ -223,7 +223,18 @@ export default function TeachDatasetPage() {
       {/* dataset-wide, always: a check that sampled 24 of 40 must not silently restate "40 will train" as "24". */}
       <Pills data-testid="row-counts">{t('teach.rows.counts', { train: Math.max(0, dataset.rows - known), known, dupe: summary?.duplicates ?? 0, bad })}</Pills>
       {!!summary?.fixed && <Note data-testid="fixed-note">{t('teach.rows.fixed', { n: summary.fixed })}</Note>}
-      {!!dataset.encoding && dataset.encoding !== 'utf-8' && <Note data-testid="encoding-note">{t('teach.up.encoding', { encoding: dataset.encoding })}</Note>}
+      {/* item 5: an edit rewrites the set from its accepted rows, so the refused ones are carried and still counted —
+          the table shows them, and this line says why numbers that look like "the current file" are not only that. */}
+      {!!summary?.carried && <Note data-testid="carried-note">{t('teach.rows.carried_summary', { n: summary.carried })}</Note>}
+      {/*
+        item 15: a file that fell back to latin1 (or to any non-UTF-8 decoder) is the single most likely reason the
+        questions below are mojibake, and it used to be a grey footnote sitting under a green "8 will train" pill.
+      */}
+      {!!dataset.encoding && dataset.encoding !== 'utf-8' && (
+        dataset.encoding === 'latin1'
+          ? <Alert $tone="warning" style={{ marginTop: 10 }} data-testid="encoding-note">{t('teach.rows.encoding_warn', { encoding: dataset.encoding })}</Alert>
+          : <Note data-testid="encoding-note">{t('teach.up.encoding', { encoding: dataset.encoding })}</Note>
+      )}
       {!!summary?.over_cap && <Note data-testid="over-cap-note">{t('teach.up.err_many', { n: (summary.accepted ?? 0) + summary.over_cap, max: policy?.limits?.dataset_max_rows ?? dataset.rows })}</Note>}
       {sampled && (
         <Note data-testid="checked-note">
