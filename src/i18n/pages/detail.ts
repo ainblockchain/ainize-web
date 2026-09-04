@@ -92,6 +92,11 @@ export const detailPatch: Dict = {
   'detail.patch.self_n': { ko: '작성자 본인 검증 {n}건 (집계 제외)', en: '{n} self-check(s) by the author (not counted)' },
   'detail.patch.quorum_help': { ko: '검증 완료가 되려면 독립된 검증 노드 {quorum}곳 이상이 실제 모델에 넣어 채점해야 합니다. 파일이 바뀌지 않았는지만 본 "무결성 확인"은 여기에 세지 않습니다.', en: 'To be marked Verified, at least {quorum} independent verifier nodes must load it into the real model and score it. Integrity-only checks (file unchanged) do not count.' },
 
+  /* Item 250 — the headline is computed from the verifications that PASSED, so a version one verifier rejected read
+     "Accuracy 100%" next to "Verifying 1/2" and nothing said why it was still waiting. */
+  'detail.patch.failed_chip': { ko: '검증 노드 {n}곳이 통과시키지 않음', en: '{n} verifiers did not pass it' },
+  'detail.patch.failed_chip_one': { ko: '검증 노드 1곳이 통과시키지 않음', en: 'A verifier did not pass it' },
+  'detail.patch.failed_help': { ko: '이 지식을 실제 모델에서 실행했지만 통과시키지 않은 검증이 있습니다. 위 정답률은 통과한 검증만 반영합니다 — 눌러서 검증 결과를 보세요.', en: 'A verifier ran this knowledge on the real model and did not pass it. The accuracy shown counts only the verifications that passed — open the Verification tab to read both.' },
   'detail.stat.downloads': { ko: '구매 수', en: 'Purchases' },
   'detail.stat.accuracy': { ko: '정답률', en: 'Accuracy' },
   'detail.stat.entries': { ko: '학습된 기억 항목', en: 'Memory entries' },
@@ -124,6 +129,7 @@ export const detailPatch: Dict = {
   // Finding 28 — the baseline the SAME verifier measured before the knowledge was loaded (score.pre_apply).
   'detail.ov.before_after': { ko: '지식을 넣기 전에는 같은 검증에서 {before}였습니다 → 넣은 뒤 {after}', en: 'The same run scored {before} before the knowledge was loaded → {after} after' },
   'detail.ov.accuracy_line_all': { ko: '정답률 {score} — 검증 노드가 검증 질문 {facts}건을 모두 채점했습니다', en: 'Accuracy {score} on all {facts} questions checked by verifiers' },
+  'detail.ov.failed_line': { ko: '{who} 노드는 같은 질문을 {score}로 채점하고 통과시키지 않았습니다. 위 정답률에는 이 결과가 들어 있지 않습니다.', en: '{who} scored the same questions {score} and did not pass it — that run is not in the accuracy above.' },
   'detail.ov.model': { ko: '대상 모델', en: 'Target model' },
   'detail.ov.model_note': { ko: '이 지식은 아래 모델에서만 동작합니다. 다른 모델에는 아래 "만드는 방법"을 이용해 다시 만들 수 있습니다.', en: 'This knowledge works only on the model below. For other models it can be rebuilt from the recipe below.' },
   'detail.ov.model_name': { ko: '모델', en: 'Model' },

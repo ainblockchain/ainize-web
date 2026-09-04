@@ -91,6 +91,19 @@ const ContentInner = styled.div`
 `;
 const NameRow = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap;`;
 const Quorum = styled.span`font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
+/**
+ * Item 250 — `scoreOf` keeps only attestations that PASSED, so a version one verifier rejected still read
+ * "Accuracy 100%" beside "Verifying 1/2", and the one fact that explained the wait (node-c scored 3/4 and refused
+ * it) was reachable only from the operator's own log page. The headline number stays what it is — one verifier's
+ * before/after pair, which a failing run cannot be averaged into — and the disagreement is stated next to it, in
+ * the challenge palette, one click from the evidence.
+ */
+const FailChip = styled.button`
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 12px; font: inherit;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.02em; border: 0; cursor: pointer;
+  background: #fde8ec; color: #a0102c;
+  &:hover { text-decoration: underline; }
+`;
 const Info = styled.div`margin-top: 9px; font-size: 12px; color: ${(p) => p.theme.color.GREY}; b { color: ${(p) => p.theme.color.BLACK}; font-weight: 500; }`;
 const Stats = styled.div`
   margin-top: 24px; display: flex; flex-wrap: wrap; gap: 24px 32px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
@@ -275,6 +288,11 @@ function scoreOf(d: CatalogEntry): Score {
   return { text: scoreText(s), pct: pct(raw), tested: denominator(raw), before: preApplyText(s) };
 }
 
+/** Executed verifications that did NOT pass — the half of the record the headline score cannot show (item 250). */
+function failedRuns(d: CatalogEntry): Attestation[] {
+  return d.attestations.filter((a) => !a.passed && isExecuted(a.verified_on));
+}
+
 /** RTK Query reports either an HTTP status or a client-side marker ('FETCH_ERROR', 'TIMEOUT_ERROR', 'PARSING_ERROR'). */
 function httpStatus(err: unknown): number | null {
   const s = (err as { status?: unknown } | undefined)?.status;
@@ -355,6 +373,7 @@ export default function PatchPage() {
   const authorLabel = a.author_name ?? shortAddr(a.author);
   const authorSlug = decodeURIComponent(author) === a.author ? author : encodeURIComponent(a.author);
   const score = scoreOf(data);
+  const failed = failedRuns(data);
   const when = data.status === 'LISTED' ? t('detail.patch.listed_when', { ago: f.ago(data.listed_at ?? a.created_at) }) : t('detail.patch.registered_when', { ago: f.ago(a.created_at) });
   const provider = a.contributors?.find((c) => c.role === 'data_provider');
   const taught = a.origin === 'teach' || !!provider;
@@ -439,6 +458,11 @@ export default function PatchPage() {
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
               {data.self_checks > 0 && <> · {t('detail.patch.self_n', { n: data.self_checks })}</>}
             </Quorum>
+            {failed.length > 0 && (
+              <FailChip type="button" data-testid="failed-chip" onClick={() => setTab('verification')} title={t('detail.patch.failed_help')}>
+                {failed.length === 1 ? t('detail.patch.failed_chip_one') : t('detail.patch.failed_chip', { n: failed.length })} →
+              </FailChip>
+            )}
             {isSignedIn && data.owned && <ManageMenu to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.patch.manage')} <img src="/static/images/ic-openwindow.svg" alt="" /></ManageMenu>}
           </NameRow>
           {data.open_challenge && (
@@ -515,6 +539,7 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const a = d.anchor;
+  const failed = failedRuns(d);
   // How many verifiers actually ran the model, and how many of those reported a side-effect measurement.
   const executedAtts = d.attestations.filter((at) => isExecuted(at.verified_on));
   const executedCount = executedAtts.length;
@@ -535,6 +560,15 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
             {/* the baseline the same verifier measured before loading the knowledge — the other half of the claim */}
             {score.before && <Quorum as="div" data-testid="ov-before-after" style={{ display: 'block', marginTop: 2 }}>{t('detail.ov.before_after', { before: score.before, after: score.text })}</Quorum>}
           </div>
+        )}
+        {/* Item 250: the run that disagreed, with its own number, wherever the headline number is read. */}
+        {failed.length > 0 && (
+          <Note style={{ margin: '10px 0 0' }} data-testid="ov-failed">
+            <Warn>
+              {failed.map((at) => t('detail.ov.failed_line', { who: at.verifier_name ?? shortAddr(at.verifier, 8), score: scoreText(at.score) })).join(' ')}{' '}
+              <button type="button" onClick={onSeeVerification}>{t('detail.ov.side_effect_see')} →</button>
+            </Warn>
+          </Note>
         )}
       </Section>
       {/* Taught knowledge carries hash-only provenance (design §D12): enough for a buyer to verify a re-train used the
