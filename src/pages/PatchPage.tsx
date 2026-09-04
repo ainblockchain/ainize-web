@@ -293,6 +293,18 @@ function failedRuns(d: CatalogEntry): Attestation[] {
   return d.attestations.filter((a) => !a.passed && isExecuted(a.verified_on));
 }
 
+/**
+ * Item 353 — the receipt printed a transaction hash as plain text and the product's own promise ("final once
+ * executed") had no one-click way to confirm it. An AIN provider answers `GET /get_transaction?hash=…` with the
+ * state, the block and `is_executed`, so on an AIN ledger the hash becomes the link it always should have been.
+ * On a local ledger there is nothing to look a hash up in, and no link is offered.
+ */
+function txLookup(info: { ledger?: { kind?: string; provider?: string } } | undefined, tx?: string | null): string | null {
+  const provider = info?.ledger?.provider;
+  if (!provider || info?.ledger?.kind !== 'ain' || !tx || !tx.startsWith('0x')) return null;
+  return `${provider.replace(/\/+$/, '')}/get_transaction?hash=${encodeURIComponent(tx)}`;
+}
+
 /** RTK Query reports either an HTTP status or a client-side marker ('FETCH_ERROR', 'TIMEOUT_ERROR', 'PARSING_ERROR'). */
 function httpStatus(err: unknown): number | null {
   const s = (err as { status?: unknown } | undefined)?.status;
@@ -975,6 +987,7 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
   const [apply, applyState] = useApplyMutation();
   const [collect, collectState] = useCollectMutation();
   const { data: purchases } = useMyPurchasesQuery();
+  const { data: info } = useInfoQuery();
   const row = purchases?.items.find((x) => x.patch_id === d.anchor.id);
   return (
     <div data-testid="buy-paid">
@@ -982,6 +995,7 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
       {row && (
         <Note style={{ margin: '8px 0 0' }} title={dateTime(row.created_at)}>
           {t('detail.buy.paid_when', { amount: f.priceLabel(row.amount, d.anchor.currency), when: f.ago(row.created_at), tx: shortHash(row.tx_hash, 16) })}
+          {txLookup(info, row.tx_hash) && <> <ExternalLink href={txLookup(info, row.tx_hash)!} target="_blank" rel="noopener noreferrer">{t('detail.buy.tx_link')} →</ExternalLink></>}
         </Note>
       )}
       {/* Item 273: the body is gone but the payment is not. The seller re-issues the manifest against the
@@ -1145,7 +1159,17 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
               <div key={o.name} style={{ marginTop: 4, fontSize: 13 }} data-testid="buy-origin-covered">{t('detail.buy.needs_contains', { name: o.name, n: num(o.rows) })}</div>
             ))}
           </dd>
-          <dt>{t('detail.buy.seller')}</dt><dd>{a.author_name ? <>{a.author_name} <Mono style={{ color: '#8d8d8f' }}>{shortAddr(a.author, 8)}</Mono></> : <Mono>{a.author}</Mono>}</dd>
+          {/* Item 349: `author_name` is written by the seller itself (`author_name: this.cfg.name`) and can be changed
+              at any time; the address is the only part of this row the chain enforces. So the address leads, the name
+              is quoted as the claim it is, and the record it can be checked against is one click away. */}
+          <dt>{t('detail.buy.seller')}</dt>
+          <dd data-testid="buy-seller">
+            <Mono>{a.author}</Mono>
+            {a.author_name && <div style={{ fontSize: 13, marginTop: 2 }}>{t('detail.buy.seller_selfnamed', { name: a.author_name })}</div>}
+            <Note style={{ margin: '4px 0 0' }}>
+              {t('detail.buy.seller_check')} <StyledLink to={{ search: '?tab=history' }}>{t('detail.buy.seller_record')} →</StyledLink>
+            </Note>
+          </dd>
           <dt title={t('detail.tech.gateway')}>{t('detail.buy.gateway')}</dt>
           <dd>
             <ExternalLink href={gw} target="_blank" rel="noopener noreferrer">{gw}</ExternalLink>
@@ -1209,23 +1233,44 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
           </div>
         )}
         {error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(error)}</Alert>}
-        {result && <PurchaseTimeline r={result} currency={a.currency} />}
+        {result && <PurchaseTimeline r={result} d={d} />}
         <Note style={{ margin: '16px 0 0' }}>{term('apply')}: {help('apply')} {term('remove')}: {help('remove')}</Note>
       </Section>
     </>
   );
 }
 
-function PurchaseTimeline({ r, currency }: { r: PurchaseResult; currency: string }) {
+function PurchaseTimeline({ r, d }: { r: PurchaseResult; d: PatchDetail }) {
   const { t } = useT();
   const f = useDetailFormat();
-  const stepLabel = (s: string) => { const k = t(`detail.buy.step.${s}`); return k === `detail.buy.step.${s}` ? s : k; };
+  const { data: info } = useInfoQuery();
+  const currency = d.anchor.currency;
+  const machines = (d.executors?.length ?? 0) + (d.executors_unknown ?? 0);
+  const url = txLookup(info, r.tx_hash);
+  /**
+   * Item 354 — this step was a green "verification confirmed" at the moment of payment, while the terms say
+   * verification is best-effort, nothing is escrowed, and Verified does not promise the knowledge is correct. It
+   * now says what was actually checked (how many independent runs, on how many distinct model servers), and the
+   * caveat is on the receipt instead of only on a page nobody opens while buying.
+   */
+  const stepLabel = (s: string) => {
+    if (s === 'quorum') return t('detail.buy.step.quorum', { passed: Math.min(d.passed, d.quorum), quorum: d.quorum });
+    const k = t(`detail.buy.step.${s}`);
+    return k === `detail.buy.step.${s}` ? s : k;
+  };
   return (
     <>
-      <Alert $tone="success" style={{ marginTop: 16 }}>{t('detail.buy.done', { id: r.patch_id, amount: f.priceLabel(r.amount, currency), tx: shortHash(r.tx_hash, 18) })} <Mono style={{ fontSize: 11, opacity: 0.8 }}>({r.scheme})</Mono></Alert>
+      <Alert $tone="success" style={{ marginTop: 16 }}>
+        {t('detail.buy.done', { id: r.patch_id, amount: f.priceLabel(r.amount, currency), tx: shortHash(r.tx_hash, 18) })} <Mono style={{ fontSize: 11, opacity: 0.8 }}>({r.scheme})</Mono>
+        {url && <> <ExternalLink href={url} target="_blank" rel="noopener noreferrer" data-testid="buy-tx-link">{t('detail.buy.tx_link')} →</ExternalLink></>}
+      </Alert>
       <Timeline>
         {r.steps.map((s, i) => <li key={i}><span className="step" title={s.step}>{stepLabel(s.step)}</span>{s.detail}<span className="t">{new Date(s.at).toLocaleTimeString()}</span></li>)}
       </Timeline>
+      <Note style={{ margin: '4px 0 0' }} data-testid="buy-quorum-caveat">
+        {machines > 0 ? t('detail.buy.quorum_caveat_n', { n: machines }) : t('detail.buy.quorum_caveat')}{' '}
+        <StyledLink to="/terms">{t('detail.buy.quorum_terms')} →</StyledLink>
+      </Note>
       <KeyValue>
         <dt>{t('detail.buy.body_path')}</dt><dd><Mono>{r.path}</Mono></dd>
         <dt>{t('detail.ov.content_hash')}</dt><dd><Mono>{r.manifest.patch_sha256}</Mono></dd>
@@ -1240,6 +1285,7 @@ function HistoryTab({ d }: { d: PatchDetail }) {
   const { t } = useT();
   const f = useDetailFormat();
   const { data, isLoading } = usePatchRecordsQuery(d.anchor.id, { pollingInterval: 10_000 });
+  const { data: info } = useInfoQuery();
   if (isLoading) return <CenterProgress />;
   const recs = [...(data?.records ?? [])].sort((a, b) => b.ts - a.ts);
   return (
@@ -1264,7 +1310,15 @@ function HistoryTab({ d }: { d: PatchDetail }) {
                     <TableData $align="left" $maxWidth="420px" title={s}>{s}</TableData>
                     <TableData $mono title={r.author}>{shortAddr(r.author, 6)}</TableData>
                     <TableData title={dateTime(r.ts)}>{f.ago(r.ts)}</TableData>
-                    <TableData $align="right" $padding="0 32px 0 8px" $mono title={r.sig || r.hash}>{shortHash(r.sig && r.sig.startsWith('0x') ? r.sig : r.hash, 14)}</TableData>
+                    {/* Item 353: a settlement's payment is a transaction the chain can be asked about — so ask it. */}
+                    <TableData $align="right" $padding="0 32px 0 8px" $mono title={r.sig || r.hash}>
+                      {(() => {
+                        const tx = r.kind === 'settle' ? (r.body as { tx_hash?: string } | undefined)?.tx_hash : undefined;
+                        const url = txLookup(info, tx);
+                        const label = shortHash(r.sig && r.sig.startsWith('0x') ? r.sig : r.hash, 14);
+                        return url ? <ExternalLink href={url} target="_blank" rel="noopener noreferrer" title={t('detail.buy.tx_link')}>{label}</ExternalLink> : label;
+                      })()}
+                    </TableData>
                   </TableRow>
                 );
               })}

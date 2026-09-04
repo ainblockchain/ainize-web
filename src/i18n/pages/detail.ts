@@ -268,6 +268,14 @@ export const detailPatch: Dict = {
   'detail.buy.explain': { ko: '지식을 요청하면 판매 노드가 가격을 알려주고, 결제가 확인되는 즉시 내려받습니다. 결제는 본인 지갑(AIN)이나 본인 노드의 크레딧으로 하며, 이 사이트에 따로 가입할 필요는 없습니다 — 로그인은 바로 이 노드의 지갑으로 결제할 때만 필요합니다. 내려받은 파일은 공개 기록의 내용 해시와 대조해 위·변조가 없는지 확인한 뒤 몇 초 만에 모델에 넣습니다(재시작 없음). 판매 대금은 원작자 수익 분배 규칙에 따라 자동으로 나뉩니다.', en: 'Ask for the knowledge and the selling node quotes a price; once payment is confirmed you download immediately. Pay from your own wallet (AIN) or your own node’s credit — there is no account to create on this site; signing in is only needed to pay with THIS node’s wallet. The file is checked against the content hash on the public record, then loaded into the model in seconds (no restart). Revenue is split automatically with the original creators.' },
   'detail.buy.price': { ko: '가격', en: 'Price' },
   'detail.buy.seller': { ko: '판매 노드', en: 'Selling node' },
+  /* Item 349 — the display name is written by the seller itself and can be changed at any time; the address is the
+     only half of this row anything enforces. Leading with the name put the trustworthy-looking field where a bad
+     actor's one free choice was. */
+  'detail.buy.seller_selfnamed': { ko: '스스로 밝힌 이름: "{name}" — 판매 노드가 직접 적은 값이며, 확인된 신원이 아닙니다.', en: 'Calls itself "{name}" — a name the selling node writes itself, not a verified identity.' },
+  'detail.buy.seller_check': { ko: '결제는 위 주소로 갑니다. 이름은 언제든 바꿀 수 있으니, 이 지식의 공개 기록에 남은 등록 주소와 같은지 확인하세요.', en: 'Payment goes to the address above. A name can be changed at any time, so check the address against the one that registered this knowledge on the public record.' },
+  'detail.buy.seller_record': { ko: '기록에서 확인', en: 'Check the record' },
+  // Item 353 — "final once executed" with no way to see that it executed.
+  'detail.buy.tx_link': { ko: '체인에서 이 거래 확인', en: 'Look this payment up on the chain' },
   'detail.buy.gateway': { ko: '구매 주소', en: 'Purchase address' },
   'detail.buy.gateway_moved': { ko: '공개 기록에 적힌 주소({old})는 판매 노드가 더 이상 쓰지 않습니다 — 위 주소는 이 노드가 지금 확인한 위치입니다.', en: 'The address written into the public record ({old}) is not where this seller answers any more — the one above is where this node currently sees it.' },
   'detail.buy.gateway_seen': { ko: '이 판매 노드가 마지막으로 응답한 시각: {when}.', en: 'This seller last answered {when}.' },
@@ -350,7 +358,13 @@ export const detailPatch: Dict = {
   'detail.buy.pays_from_credit': { ko: '이 노드의 크레딧 잔액에서 결제하고 파일을 이 노드에 저장합니다.', en: 'Pays from this node’s credit balance and stores the file on this node.' },
   'detail.buy.done': { ko: '구매 완료: {id} · {amount} · 거래 {tx}', en: 'Purchased {id} · {amount} · tx {tx}' },
   'detail.buy.step.402': { ko: '가격 안내 받음', en: 'price quoted' },
-  'detail.buy.step.quorum': { ko: '검증 완료 확인', en: 'verification confirmed' },
+  /* Item 354 — a green "verification confirmed" at the moment of payment, while the terms say verification is
+     best-effort, nothing is escrowed, and Verified does not promise the knowledge is correct. The step now says
+     what was actually checked, and the caveat is on the receipt. */
+  'detail.buy.step.quorum': { ko: '독립 검증 {passed}/{quorum} 통과 확인', en: 'passed {passed} of {quorum} independent checks' },
+  'detail.buy.quorum_caveat': { ko: '검증은 보증이 아닙니다: 독립된 검증 노드가 공개된 질문으로 채점했다는 뜻이며, 보증금이 걸려 있지도, 이 지식이 언제나 옳거나 부작용이 없다고 약속하지도 않습니다.', en: 'Verification is not a guarantee: it means independent nodes scored the published questions. No deposit is at stake, and it does not promise the knowledge is always correct or free of side effects.' },
+  'detail.buy.quorum_caveat_n': { ko: '검증은 보증이 아닙니다: 독립된 검증 노드가 서로 다른 모델 서버 {n}곳에서 공개된 질문으로 채점했다는 뜻이며, 보증금이 걸려 있지도, 이 지식이 언제나 옳거나 부작용이 없다고 약속하지도 않습니다.', en: 'Verification is not a guarantee: it means independent nodes scored the published questions on {n} distinct model server(s). No deposit is at stake, and it does not promise the knowledge is always correct or free of side effects.' },
+  'detail.buy.quorum_terms': { ko: '검증의 범위와 한계', en: 'What verification does and does not cover' },
   'detail.buy.step.pay': { ko: '자동 결제', en: 'paid' },
   'detail.buy.step.free': { ko: '무료 — 결제 생략', en: 'free — no payment' },
   'detail.buy.step.receipt': { ko: '접근 영수증을 공개 기록에 남김', en: 'access receipt recorded on the ledger' },

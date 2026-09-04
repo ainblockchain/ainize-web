@@ -52,10 +52,22 @@ export const ExternalLink = styled.a`
   &:hover { text-decoration: underline; }
 `;
 
+/**
+ * Item 295 — `word-break: break-all` against a max-content label column left the value column ~130 px wide at
+ * 360 px, so the money line of the knowledge page read "pay o / nce per download" and "developm / ent play money":
+ * every word broken mid-word, on the device most visitors use. `overflow-wrap: anywhere` breaks a token only when
+ * it cannot fit on a line of its own — a hash or a gateway URL still wraps, an English sentence no longer does —
+ * and below the phone breakpoint the pairs stack, which gives the value the full width instead of a third of it.
+ */
 export const KeyValue = styled.dl`
   display: grid; grid-template-columns: max-content 1fr; gap: 8px 24px; margin: 16px 0 0; font-size: 14px;
   dt { color: ${(p) => p.theme.color.GREY}; }
-  dd { margin: 0; color: ${(p) => p.theme.color.BLACK}; word-break: break-all; }
+  dd { margin: 0; color: ${(p) => p.theme.color.BLACK}; word-break: normal; overflow-wrap: anywhere; }
+  @media (max-width: 479px) {
+    grid-template-columns: 1fr; gap: 2px 0;
+    dt { margin-top: 10px; font-size: 12px; }
+    dt:first-of-type { margin-top: 0; }
+  }
 `;
 
 // ------------------------------------------------------------------ status chip
