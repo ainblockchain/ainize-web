@@ -238,14 +238,19 @@ function AnswerBubble({ kind, result, turn, hit, onTeach, nameOf }: { kind: 'bas
   );
 }
 
-export function TurnView({ turn, onRetry, onTeach, nameOf }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void; /** id → the knowledge's name, for the SC-13 consent line */ nameOf?: (id: string) => string }) {
+export function TurnView({ turn, onRetry, onTeach, nameOf, innerRef }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void; /** id → the knowledge's name, for the SC-13 consent line */ nameOf?: (id: string) => string;
+  /**
+   * Finding 19 — the page puts THIS element on screen when it is the newest turn. Scrolling the transcript box to its
+   * own bottom does nothing below md, where the panel is un-clamped and the page is the scroller.
+   */
+  innerRef?: React.Ref<HTMLElement> }) {
   const { t, locale } = useT();
   const showBase = turn.mode === 'compare' || turn.mode === 'base';
   const showPatched = turn.mode === 'compare' || turn.mode === 'patched';
   const r = turn.response;
   const patchedHit = r?.benchmark_hit ?? null;
   return (
-    <Wrap>
+    <Wrap ref={innerRef}>
       <UserRow><UserBubble><span>{t('chat.turn.you')}</span>{turn.prompt}</UserBubble></UserRow>
       {turn.status === 'error' ? (
         <ErrRow>

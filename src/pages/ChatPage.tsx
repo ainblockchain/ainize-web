@@ -194,7 +194,6 @@ export default function ChatPage() {
   const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
   const [exhausted, setExhausted] = useState(false);
   const [missingId, setMissingId] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   /** Optimistic selection: the route update is a React transition, so the checkboxes flip from this state first. */
   const [pendingIds, setPendingIds] = useState<string[] | null>(null);
   useEffect(() => { setPendingIds(null); }, [patchId]);
@@ -280,9 +279,17 @@ export default function ChatPage() {
     holder: qs.state === 'queued' && qs.lock && qs.lock.alive && !qs.lock.stale ? { label: qs.lock.label, since: since(qs.lock.since) } : null,
   };
   const queuedNow = queue?.state === 'queued';
+  /**
+   * Finding 19 — bring the NEWEST TURN on screen, not the bottom of a box that may not be scrolling anything.
+   * Below md the panel is deliberately un-clamped (`max-height: none` on Main), so the transcript is not its own
+   * scroller — the page is. `scrollTo` on the transcript then moved nothing at all: at 360 px the answer was drawn
+   * below the fold and the only visible change was the free-try counter going down. `scrollIntoView` scrolls
+   * whichever ancestors actually scroll (the transcript at desktop widths, the window on a phone), and `nearest`
+   * puts the top of an answer taller than the viewport at the top of it instead of its last line.
+   */
+  const lastTurnRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    lastTurnRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [turns.length, lastStatus]);
 
   const patchTurns = useCallback((pid: string, fn: (prev: Turn[]) => Turn[]) => {
@@ -511,14 +518,17 @@ export default function ChatPage() {
                   {t('chat.samples.format_note')}
                 </Alert>
               )}
-              <Transcript ref={scrollRef}>
+              <Transcript>
                 {policy && cardJobId && !cardHidden && (
                   <LessonCard key={cardJobId} jobId={cardJobId} policy={policy} nodeAddress={info?.node.address} teacherAddress={teacherKey?.address}
                     onTry={(j) => { void onTry(j); }} onPublish={(j) => openSheet('publish', j)} onKeep={(j) => openSheet('keep', j)} onImprove={onImprove} onHide={hideCard} />
                 )}
                 {turns.length === 0 ? (
                   <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
-                ) : turns.map((turn) => <TurnView key={turn.id} turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} nameOf={nameOf} />)}
+                ) : turns.map((turn, i) => (
+                  <TurnView key={turn.id} turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} nameOf={nameOf}
+                    innerRef={i === turns.length - 1 ? lastTurnRef : undefined} />
+                ))}
               </Transcript>
               {/*
                 * Finding 1: from turn 2 the two columns are two different conversations — the base call replays base
