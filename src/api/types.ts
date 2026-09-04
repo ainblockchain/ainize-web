@@ -43,6 +43,11 @@ export interface CatalogEntry {
   children: string[];
   record_hash: string;
   listed_at?: number;
+  /**
+   * Items 25 + 206 — the benchmark sample that made this row a search hit, when the words on the card do not
+   * explain it. Present only on `/api/catalog?q=…` answers from a node new enough to send it.
+   */
+  matched?: { prompt: string; expect: string; source?: string } | null;
 }
 
 /**

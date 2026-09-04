@@ -160,6 +160,12 @@ const Desc = styled.div`
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 `;
 
+/** The question that made a row a search hit (items 25, 206) — quoted, so it reads as content and not as a claim. */
+const Match = styled.div`
+  margin-top: 10px; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.DARK_GREY};
+  background: ${(p) => p.theme.color.PALE_GREY}; border-radius: 4px; padding: 6px 10px; word-break: break-word;
+`;
+
 const PriceCol = styled.div`
   flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 200px; text-align: right;
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { display: none; }
@@ -238,6 +244,9 @@ function useFamily(entry: CatalogEntry, nameOf?: (id: string) => string | undefi
   if (a.parents?.length) return { tone: 'family' as const, text: t('item.built_on', { names: label(a.parents) }), help: t('item.built_on_help') };
   return null;
 }
+
+/** Search hits quote the trained prompt, which can be a paragraph; the card shows the head of it. */
+const clip = (v: string, n: number) => (v.length > n ? `${v.slice(0, n - 1)}…` : v);
 
 export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry; currency?: string; nameOf?: (id: string) => string | undefined }) {
   const { t, term, help, tech } = useT();
@@ -324,6 +333,12 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
           {formats && <>{' · '}<Soft data-testid="item-format"><Explain text={t('item.format_help')}>{t('item.format', { formats })}</Explain></Soft></>}
         </Meta>
         {description && <Desc>{description}</Desc>}
+        {/* Items 25 + 206: a hit on a question the knowledge answers used to look like a hit on nothing at all. */}
+        {entry.matched && (
+          <Match data-testid="item-match" title={t('item.match_help')}>
+            {t('item.match', { prompt: clip(entry.matched.prompt, 80), expect: clip(entry.matched.expect, 40) })}
+          </Match>
+        )}
       </Info>
       <PriceCol>
         <Price>{p.text}</Price>

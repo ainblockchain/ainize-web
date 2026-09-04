@@ -162,7 +162,9 @@ export const listing: Dict = {
   'explore.filter.schema': { ko: '주제', en: 'Topic' },
   'explore.filter.schema_help': { ko: '같은 주제의 지식은 같은 질문 묶음으로 채점됩니다.', en: 'Knowledge on the same topic is scored with the same question set.' },
   'explore.filter.all': { ko: '전체', en: 'All' },
-  'explore.search': { ko: '지식 이름·설명 검색', en: 'Search by name or description' },
+  'explore.search': { ko: '이름·질문·주제·만든 이 검색', en: 'Search names, questions, topics, creators' },
+  // Items 25 + 206: the search box reaches the questions a knowledge answers, so the card says which one matched.
+  'explore.filter.track': { ko: '트랙', en: 'Track' },
   'explore.filter.show': { ko: '표시', en: 'Show' },
   'explore.filter.current': { ko: '최신 버전만', en: 'Current only' },
   'explore.filter.all_versions': { ko: '모든 버전', en: 'All versions' },
@@ -253,6 +255,8 @@ export const listing: Dict = {
   // Finding 282 — nothing on the browse surfaces said a knowledge was an add-on, so a buyer comparing a 5-credit
   // base with a 3-credit item built on it could not tell which was which until the fourth tab of the detail page.
   // `base.stack` is the table state the body was trained against: without it underneath, the rows mean nothing.
+  'item.match': { ko: '검색어와 맞는 질문: “{prompt}” → {expect}', en: 'Matching question: “{prompt}” → {expect}' },
+  'item.match_help': { ko: '이 지식이 답할 수 있는 질문 중 검색어와 맞는 것입니다. 이름이나 설명이 아니라 내용이 맞았습니다.', en: 'One of the questions this knowledge can answer that matches your search — the content matched, not the name or description.' },
   'item.addon': { ko: '애드온 · {names} 위에서 동작', en: 'Add-on · runs on {names}' },
   'item.addon_help': { ko: '이 지식만으로는 동작하지 않습니다. {names}를 함께 가지고 있어야 하고, 모델에 넣을 때도 그 아래에 먼저 들어가야 합니다. 가격 비교를 할 때는 두 지식의 값을 함께 보세요.', en: 'This does not work on its own: you have to hold the knowledge it names as well, and load that underneath it. Compare its price together with what its base costs.' },
   'item.built_on': { ko: '{names} 위에 만든 지식', en: 'Built on {names}' },

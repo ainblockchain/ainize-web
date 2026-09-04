@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useCatalogQuery, useInfoQuery, errorMessage } from '@/api/api';
+import { useBranchesQuery, useCatalogQuery, useInfoQuery, errorMessage } from '@/api/api';
 import { PatchListItem, PriceUnitNote, TermsLegend } from '@/components/public/PatchListItem';
 import { Shelves } from '@/components/public/Shelves';
 import { Alert, Input } from '@/components/ui/Form';
@@ -108,11 +108,14 @@ export default function ExplorePage() {
   const [sort, setSort] = useState<Sort>('popular');
   const [model, setModel] = useState('');
   const [schema, setSchema] = useState('');
+  /** Item 206: the API has always accepted `branch`; nothing on the page could ask for it. */
+  const [branch, setBranch] = useState('');
   const [q, setQ] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
   const { data: info } = useInfoQuery();
-  const filters = { sort, model: model || undefined, schema: schema || undefined, q: q || undefined };
+  const { data: tracks } = useBranchesQuery();
+  const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
   const { data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
   // page-of-one call for its `total`, never a node-wide count that would not match what is on screen.
@@ -175,6 +178,15 @@ export default function ExplorePage() {
             <span className="label" title={`${t('explore.filter.schema_help')} (${tech('facts')})`}>{t('explore.filter.schema')}</span>
             <Chip $active={!schema} onClick={() => { setSchema(''); reset(); }}>{t('explore.filter.all')}</Chip>
             {schemas.map((s) => <Chip key={s} $active={schema === s} onClick={() => { setSchema(schema === s ? '' : s); reset(); }}>{s}</Chip>)}
+          </FilterGroup>
+        )}
+        {/* Item 206: a track is how a returning consumer thinks about a catalogue ("today's KRX bake"), and it was
+            the one axis of the API the browse page never offered. Only rendered when this node knows any. */}
+        {!!tracks?.branches.length && (
+          <FilterGroup>
+            <span className="label" title={`${help('branch')} (${tech('branch')})`}>{t('explore.filter.track')}</span>
+            <Chip $active={!branch} onClick={() => { setBranch(''); reset(); }}>{t('explore.filter.all')}</Chip>
+            {tracks.branches.map((b) => <Chip key={b.name} $active={branch === b.name} title={b.description} onClick={() => { setBranch(branch === b.name ? '' : b.name); reset(); }}>{b.name}</Chip>)}
           </FilterGroup>
         )}
         <FilterGroup>
