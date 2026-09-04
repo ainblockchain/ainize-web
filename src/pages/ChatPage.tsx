@@ -601,7 +601,10 @@ export default function ChatPage() {
                 <>
                   <MainHead>
                     <h2 title={t('chat.head.multi_help')}>{t('chat.head.multi', { n: selectedList.length })}</h2>
-                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)) })}</small>
+                    {/* A knowledge registered without a question count has `queries` undefined, and summing it gave
+                        "NaN facts" in the header of every multi-knowledge stack. A total is only a total when every
+                        item has one: otherwise the count is unknown (`num` renders the dash), never a made-up number. */}
+                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selectedList.every((e) => typeof e.anchor.benchmark.queries === 'number') ? selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0) : null) })}</small>
                     <small style={{ marginLeft: 'auto' }}>{t('chat.head.multi_help')}</small>
                   </MainHead>
                   <HeadList aria-label={t('chat.head.multi', { n: selectedList.length })}>

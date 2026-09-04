@@ -19,7 +19,11 @@ export function bytes(n?: number | null): string {
 
 export function num(n?: number | string | null): string {
   if (n === undefined || n === null || n === '') return '—';
-  return Number(n).toLocaleString('en-US');
+  const v = Number(n);
+  // A missing field that reached a sum arrives here as NaN, and `NaN.toLocaleString()` prints the word "NaN" on the
+  // page. An unknown quantity is a dash, like every other missing number here — never a token the reader has to decode.
+  if (!Number.isFinite(v)) return '—';
+  return v.toLocaleString('en-US');
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
