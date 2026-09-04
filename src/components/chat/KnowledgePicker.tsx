@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import type { CatalogEntry, ChatLock, ChatOverlap, RuntimeStatus } from '@/api/types';
+import { errorMessage, useBuyMutation, useRequestPatchMutation } from '@/api/api';
+import type { CatalogEntry, ChatLock, ChatOverlap, ElsewhereRow, RuntimeStatus } from '@/api/types';
 import { useT } from '@/i18n';
 import { StatusChip } from '@/components/ui/Misc';
 import { Alert } from '@/components/ui/Form';
@@ -49,6 +50,12 @@ const Pinned = styled.span`
   display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #fff3e0; color: #8a4b00;
 `;
 const Section = styled.h3`margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: ${(p) => p.theme.color.DARK_GREY};`;
+const SmallButton = styled.button`
+  align-self: flex-start; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  color: ${(p) => p.theme.color.PRIMARY}; background: #fff; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 3px;
+  &:hover:not(:disabled) { background: ${(p) => p.theme.color.PALE_GREY}; }
+  &:disabled { color: ${(p) => p.theme.color.GREY}; border-color: ${(p) => p.theme.color.LIGHT_GREY}; cursor: default; }
+`;
 
 export interface KnowledgePickerProps {
   items: CatalogEntry[];
@@ -67,9 +74,15 @@ export interface KnowledgePickerProps {
   overlaps?: ChatOverlap[];
   /** The visitor's own private lessons (teach mode); empty until wired. */
   lessons?: CatalogEntry[];
+  /** Bodies a recent live test found on the shared model that this node never loaded (item 211). */
+  dirty?: string[];
+  /** Knowledge this node's model could run but cannot load — shown with its price and seller instead of hidden (item 297). */
+  elsewhere?: ElsewhereRow[];
+  /** Only the operator can buy; a visitor can ask for it. */
+  operator?: boolean;
 }
 
-export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsMine = false, selectedIds, onToggle, onClear, applied = [], overlaps = [], lessons = [] }: KnowledgePickerProps) {
+export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsMine = false, selectedIds, onToggle, onClear, applied = [], overlaps = [], lessons = [], dirty = [], elsewhere = [], operator = false }: KnowledgePickerProps) {
   const { t, term, help, tech, locale } = useT();
   const kind = lockKind(lock, lockIsMine);
   // the banner's clock ticks every second instead of freezing until the next 20 s poll
@@ -170,6 +183,14 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
           {t('chat.picker.contaminated', { names: appliedNames.join(', ') })}
         </Alert>
       )}
+      {/* Item 211 — a body on the shared model that this node never loaded. It used to be reported to the visitor as
+          "was already loaded" and measured into their Before column; now the test unloads it and says so. */}
+      {dirty.length > 0 && (
+        <Alert $tone="warning" role="status" data-testid="chat-dirty">
+          {t('chat.picker.dirty', { names: dirty.map(nameOf).join(', ') })}
+          <Small>{t('chat.picker.dirty_detail')}</Small>
+        </Alert>
+      )}
       {selectedOverlaps.map((o) => (
         <Alert key={`${o.a}|${o.b}`} $tone="info" role="status" data-testid="chat-overlap" title={t('chat.picker.overlap', { n: num(o.rows) })}>
           {t('chat.picker.overlap_pair', { a: nameOf(o.a), b: nameOf(o.b), n: num(o.rows), winner: nameOf(o.winner) })}
@@ -194,6 +215,58 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
           <List>{items.map(renderItem)}</List>
         </>
       )}
+
+      {/* Item 297 — knowledge this node's model could run but does not hold (or holds only because it verified it).
+          It used to be missing from this list entirely: no row, no price, no seller, and the terminal answered
+          "unknown knowledge" — the same words a typo gets. The chained purchase the product is built on starts here. */}
+      {elsewhere.length > 0 && (
+        <>
+          <Section>{t('chat.picker.elsewhere')}</Section>
+          <Hint>{t('chat.picker.elsewhere_help')}</Hint>
+          <List>{elsewhere.map((e) => <ElsewhereItem key={e.patch_id} row={e} operator={operator} />)}</List>
+        </>
+      )}
     </Panel>
+  );
+}
+
+/** One knowledge that cannot be tested here: what it costs, who sells it, and the one thing the reader can do. */
+function ElsewhereItem({ row, operator }: { row: ElsewhereRow; operator: boolean }) {
+  const { t, term, locale } = useT();
+  const [buy, buyState] = useBuyMutation();
+  const [request, reqState] = useRequestPatchMutation();
+  const [asked, setAsked] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const price = Number(row.price)
+    ? `${Number(row.price).toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US', { maximumFractionDigits: 6 })} ${row.currency === 'CREDIT' ? term('credit') : row.currency}`
+    : t('common.free');
+  const asks = asked ?? row.requests;
+  return (
+    <li>
+      <Row $active={false} $disabled as="div" data-testid="picker-elsewhere" data-patch={row.patch_id}>
+        <span aria-hidden style={{ width: 18 }} />
+        <Body>
+          <Name>{row.name}</Name>
+          <Id>{row.author_name ?? shortAddr(row.author)}/{row.patch_id}</Id>
+          <MetaRow>
+            <span>{t('units.facts', { n: num(row.queries) })}</span>
+            <Price>{price}</Price>
+            <StatusChip status={row.status} />
+          </MetaRow>
+          <PriceNote>{t(`chat.picker.why.${row.reason}`)}</PriceNote>
+          {asks > 0 && <PriceNote data-testid="picker-requests">{t('chat.picker.asked', { n: asks })}</PriceNote>}
+          <ChipRow>
+            {operator
+              ? <SmallButton type="button" disabled={!row.buyable || buyState.isLoading} onClick={() => { setError(null); buy({ id: row.patch_id }).unwrap().catch((e) => setError(errorMessage(e))); }}>
+                {buyState.isLoading ? t('chat.picker.buying') : t('chat.picker.buy', { price })}
+              </SmallButton>
+              : <SmallButton type="button" disabled={reqState.isLoading || asked !== null} onClick={() => { setError(null); request(row.patch_id).unwrap().then((r) => setAsked(r.requests)).catch((e) => setError(errorMessage(e))); }}>
+                {asked !== null ? t('chat.picker.asked_done') : t('chat.picker.ask')}
+              </SmallButton>}
+          </ChipRow>
+          {error && <PriceNote role="alert">{error}</PriceNote>}
+        </Body>
+      </Row>
+    </li>
   );
 }

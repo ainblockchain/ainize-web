@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useCatalogQuery, useChainQuery, useInfoQuery, useMyPurchasesQuery, useRuntimeQuery, useSubscribeMutation } from '@/api/api';
-import type { BranchesResponse, CatalogEntry } from '@/api/types';
+import { errorMessage, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
+import type { BranchesResponse, SubscribeResult, TrackItem } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -39,82 +39,50 @@ const ItemPlan = styled.div<{ $tone: 'spend' | 'warn' | 'muted' }>`
 `;
 
 type Branch = BranchesResponse['branches'][number];
-/** What subscribing will do with one item of the track, decided by the same rules `market.subscribe` follows. */
-type Plan = 'buy' | 'held' | 'own' | 'blocked' | 'missing';
-
-interface Item { id: string; name: string; author: string | null; authorName?: string; price: string; currency?: string; status?: string; plan: Plan }
 
 /**
- * One knowledge track, and the sheet that has to be crossed before this node spends anything (items 9 and 357).
+ * One knowledge track, and the sheet that has to be crossed before this node spends anything (items 9, 357, 255, 358).
  *
- * The bare outlined "Subscribe" that used to sit here called `market.subscribe`, which appends and broadcasts the
- * public subscription record FIRST and then loops `buy()` over every item the node lacks — applying each one to the
- * live serving model, logging failures as warnings, and answering `{ok: true}` whatever happened. So the card now
- * prices the track before the click, the sheet names every item and what will happen to it, and after the call the
- * node's own purchase list is read back to say how many items were really acquired instead of "done".
+ * The plan for every item comes from the NODE (`POST /api/branches/:name/quote`), decided with the same rules
+ * `market.subscribe` follows: a version another member of the track has retired is history and is not bought again,
+ * an unverified bake is skipped, and a body this node holds only because it verified it is not a licence to serve it.
+ * Deriving that here from the catalogue was a second copy of those rules, and it disagreed with the node on every one.
  */
 export function TrackCard({ branch, subscribed, currency, address }: { branch: Branch; subscribed: boolean; currency: string; address: string | null }) {
   const { t } = useT();
   const money = useMoney();
   const [open, setOpen] = useState<null | 'subscribe' | 'unsubscribe'>(null);
   const [subscribe, subState] = useSubscribeMutation();
+  const [syncTrack, syncState] = useSyncBranchMutation();
   const [error, setError] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<{ acquired: number; wanted: number; missing: string[] } | null>(null);
+  const [outcome, setOutcome] = useState<SubscribeResult | null>(null);
 
-  // The track's own items, priced: /api/catalog?branch= is the same list `market.subscribe` walks.
-  const cat = useCatalogQuery({ branch: branch.name, limit: 200, include_drafts: true });
-  const purchases = useMyPurchasesQuery();
-  // `subscribe` decides per item on `blobs.has(patch_sha256)`, NOT on the purchase list — a node that verified an
-  // item already holds its body and is never charged for it. `info.node.blobs` is that same set, so the plan below
-  // predicts what the node will really do instead of what a buyer would guess.
-  const info = useInfoQuery();
-  // `subscribe` only applies what it acquired `if (st.available)` — with no runtime the spend still happens and nothing is loaded.
-  const runtime = useRuntimeQuery();
-
-  const heldSha = useMemo(() => new Set(info.data?.node.blobs ?? []), [info.data]);
-  const heldId = useMemo(() => new Set((purchases.data?.items ?? []).map((p) => p.patch_id)), [purchases.data]);
-  const items: Item[] = useMemo(() => {
-    const byId = new Map<string, CatalogEntry>((cat.data?.items ?? []).map((e) => [e.anchor.id, e]));
-    return branch.patch_ids.map((id) => {
-      const e = byId.get(id);
-      if (!e) return { id, name: id, author: null, price: '0', plan: 'missing' as Plan };
-      const own = !!address && e.anchor.author.toLowerCase() === address.toLowerCase();
-      const have = heldSha.has(e.anchor.patch_sha256) || heldId.has(id);
-      const plan: Plan = own ? 'own' : have ? 'held' : e.sellable ? 'buy' : 'blocked';
-      return { id, name: e.anchor.name || id, author: e.anchor.author, authorName: e.anchor.author_name, price: e.anchor.price, currency: e.anchor.currency ?? currency, status: e.status, plan };
-    });
-  }, [cat.data, branch.patch_ids, heldSha, heldId, address, currency]);
-
+  const quote = useTrackQuoteQuery(branch.name);
+  const q = quote.data?.quote;
+  const items = q?.items ?? [];
   const toBuy = items.filter((i) => i.plan === 'buy');
-  /** Prices are per anchor and each anchor names its own currency: sum per currency, never across. */
-  const totals = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const i of toBuy) m.set(i.currency || currency, (m.get(i.currency || currency) ?? 0) + Number(i.price || 0));
-    return [...m.entries()];
-  }, [toBuy, currency]);
-  const totalText = totals.length ? totals.map(([cur, n]) => money.fmt(n, cur)).join(' + ') : money.fmt(0, currency);
-  const chain = useChainQuery();
-  const balance = chain.data?.balance;
+  const totalText = q && q.total.length ? q.total.map((x) => money.fmt(Number(x.amount), x.currency)).join(' + ') : money.fmt(0, currency);
+  const balance = q?.balance ?? null;
   /** The balance is held in ONE currency: only compare it with a total priced in that same currency. */
-  const short = totals.length === 1 && totals[0][0] === currency && typeof balance === 'number' && totals[0][1] > balance;
+  const short = !!q && q.total.length === 1 && q.total[0].currency === currency && typeof balance === 'number' && Number(q.total[0].amount) > balance;
+  const mine = !!address && branch.owner.toLowerCase() === address.toLowerCase();
+  /** Item 257 — `patch_ids` is the whole history of the track; `current` is what a subscriber actually loads. */
+  const current = branch.current ?? q?.current ?? branch.patch_ids;
+  const retiredCount = branch.patch_ids.length - current.length;
 
-  const planLabel = (i: Item) => t(`op.dash.branches.plan.${i.plan}`);
+  const planLabel = (i: TrackItem) => t(`op.dash.branches.plan.${i.plan}`);
   const busy = subState.isLoading;
-  const loading = cat.isLoading || purchases.isLoading || info.isLoading;
+  const loading = quote.isLoading;
 
   const doSubscribe = async () => {
     setError(null); setOutcome(null);
-    try {
-      await subscribe({ name: branch.name, action: 'subscribe' }).unwrap();
-      // `{ok: true}` says nothing about what arrived: read the node's own blob list back and count (item 357).
-      const [freshInfo, freshBuys] = await Promise.all([info.refetch(), purchases.refetch()]);
-      const now = new Set(freshInfo.data?.node.blobs ?? []);
-      const bought = new Set((freshBuys.data?.items ?? []).map((p) => p.patch_id));
-      const byId = new Map<string, CatalogEntry>((cat.data?.items ?? []).map((e) => [e.anchor.id, e]));
-      const wanted = items.filter((i) => i.plan === 'buy' || i.plan === 'blocked');
-      const missing = wanted.filter((i) => !bought.has(i.id) && !now.has(byId.get(i.id)?.anchor.patch_sha256 ?? '')).map((i) => i.id);
-      setOutcome({ acquired: wanted.length - missing.length, wanted: wanted.length, missing });
-    } catch (err) { setError(errorMessage(err)); }
+    try { setOutcome(await subscribe({ name: branch.name, action: 'subscribe' }).unwrap()); }
+    catch (err) { setError(errorMessage(err)); }
+  };
+  const doSync = async () => {
+    setError(null); setOutcome(null);
+    try { setOutcome(await syncTrack(branch.name).unwrap()); }
+    catch (err) { setError(errorMessage(err)); }
   };
   const doUnsubscribe = async () => {
     setError(null);
@@ -133,34 +101,44 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
         {Object.entries(branch.context).map(([k, v]) => <Tag key={k}>{k}={v}</Tag>)}
         {Object.keys(branch.context).length === 0 && <Tag>{t('op.dash.branches.noctx')}</Tag>}
       </Row>
-      <span style={{ fontSize: 12, color: '#8d8d8f' }}>{t('op.dash.branches.meta', { patches: branch.patch_ids.length, subs: branch.subscribers.length, owner: shortAddr(branch.owner) })}</span>
+      {/* Item 358 — the owner is on the card, so a track taken over under the same name is visible. */}
+      <span style={{ fontSize: 12, color: '#8d8d8f' }} data-testid="track-meta">
+        {t('op.dash.branches.meta', { patches: current.length, subs: branch.subscribers.length, owner: mine ? t('op.dash.branches.owner.you') : shortAddr(branch.owner) })}
+        {retiredCount > 0 && <> {t('op.dash.branches.meta.retired', { n: retiredCount })}</>}
+      </span>
       {/* The price of the track, before the click (item 9): what subscribing would spend, right now, from this node. */}
       {!subscribed && (
         <Cost $spend={toBuy.length > 0} data-testid="track-cost">
-          {loading ? <SmallSpinner /> : cat.isError ? t('op.dash.branches.cost.unknown')
-            : toBuy.length === 0 ? t('op.dash.branches.cost.nothing', { n: branch.patch_ids.length })
+          {loading ? <SmallSpinner /> : quote.isError ? t('op.dash.branches.cost.unknown')
+            : toBuy.length === 0 ? t('op.dash.branches.cost.nothing', { n: current.length })
               : t('op.dash.branches.cost.buy', { n: toBuy.length, total: totalText })}
         </Cost>
       )}
       <Row $gap={8}>
         {subscribed
-          ? <Button size="small" color="secondary" onClick={() => setOpen('unsubscribe')} data-testid="track-unsubscribe">{t('op.dash.branches.unsubscribe')}</Button>
+          ? <>
+            <Button size="small" onClick={doSync} loading={syncState.isLoading} loadingText={t('op.dash.branches.syncing')} data-testid="track-sync">{t('op.dash.branches.sync')}</Button>
+            <Button size="small" color="secondary" onClick={() => setOpen('unsubscribe')} data-testid="track-unsubscribe">{t('op.dash.branches.unsubscribe')}</Button>
+          </>
           : <Button size="small" onClick={() => setOpen('subscribe')} disabled={loading} data-testid="track-subscribe">{t('op.dash.branches.subscribe')}</Button>}
       </Row>
+      {subscribed && <Muted>{t('op.dash.branches.keepsup')}</Muted>}
+      {subscribed && error && <Alert $tone="error" role="alert">{error}</Alert>}
+      {subscribed && outcome && <Alert $tone={outcome.failed.length ? 'warning' : 'success'} role="status" data-testid="track-sync-outcome">{outcomeText(outcome, t, money)}</Alert>}
 
       {open === 'subscribe' && (
         <Sheet title={t('op.dash.branches.sheet.title', { name: branch.name })} sub={t('op.dash.branches.sheet.sub')} onClose={close} width={720} testId="subscribe-sheet">
-          {cat.isError
-            ? <QueryError error={cat.error} what={t('op.dash.branches.sheet.items')} retrying={cat.isFetching} onRetry={() => void cat.refetch()} />
+          {quote.isError
+            ? <QueryError error={quote.error} what={t('op.dash.branches.sheet.items')} retrying={quote.isFetching} onRetry={() => void quote.refetch()} />
             : (
               <ItemList>
                 {items.map((i) => (
-                  <ItemRow key={i.id} data-testid="subscribe-item" data-plan={i.plan}>
+                  <ItemRow key={i.patch_id} data-testid="subscribe-item" data-plan={i.plan}>
                     <ItemName>
-                      {i.author ? <Link to={`/${i.author}/${i.id}`}>{i.name}</Link> : <span>{i.name}</span>}
-                      <SubText>{i.id}{i.author ? ` · ${i.authorName ?? shortAddr(i.author)}` : ''}</SubText>
+                      {i.author ? <Link to={`/${i.author}/${i.patch_id}`}>{i.name ?? i.patch_id}</Link> : <span>{i.name ?? i.patch_id}</span>}
+                      <SubText>{i.patch_id}{i.author ? ` · ${i.author_name ?? shortAddr(i.author)}` : ''}</SubText>
                     </ItemName>
-                    <ItemPlan $tone={i.plan === 'buy' ? 'spend' : i.plan === 'blocked' || i.plan === 'missing' ? 'warn' : 'muted'}>
+                    <ItemPlan $tone={i.plan === 'buy' ? 'spend' : i.plan === 'held' || i.plan === 'own' ? 'muted' : 'warn'}>
                       {i.plan === 'buy' && <strong title={money.note(i.currency)}>{money.fmt(i.price, i.currency)}</strong>}
                       {planLabel(i)}
                     </ItemPlan>
@@ -177,18 +155,18 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
 
           <Consequences>
             <li>{t('op.dash.branches.sheet.why.record')}</li>
-            <li>{runtime.data && !runtime.data.available ? t('op.dash.branches.sheet.why.model_off') : t('op.dash.branches.sheet.why.model')}</li>
+            <li>{q && !q.runtime_available ? t('op.dash.branches.sheet.why.model_off') : t('op.dash.branches.sheet.why.model')}</li>
             <li>{t('op.dash.branches.sheet.why.partial')}</li>
+            <li>{t('op.dash.branches.sheet.why.keepsup')}</li>
             <li>{t('op.dash.branches.sheet.why.route')}</li>
             <li>{t('op.dash.branches.sheet.why.refund')}</li>
             <li>{t('op.dash.branches.sheet.why.allornothing')}</li>
           </Consequences>
 
-          {error && <Alert $tone="error" role="alert">{error}</Alert>}
+          {error && <Alert $tone="error" role="alert" data-testid="subscribe-error">{error}</Alert>}
           {outcome && (
-            <Alert $tone={outcome.missing.length ? 'warning' : 'success'} role="alert" data-testid="subscribe-outcome">
-              {t('op.dash.branches.sheet.done', { acquired: outcome.acquired, wanted: outcome.wanted })}
-              {outcome.missing.length > 0 && <> {t('op.dash.branches.sheet.done.missing', { ids: outcome.missing.join(', ') })}</>}
+            <Alert $tone={outcome.failed.length ? 'warning' : 'success'} role="alert" data-testid="subscribe-outcome">
+              {outcomeText(outcome, t, money)}
             </Alert>
           )}
 
@@ -222,4 +200,15 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
       )}
     </Card>
   );
+}
+
+/** What the node reported it actually did — bought, loaded, unloaded, skipped (item 357). */
+function outcomeText(x: SubscribeResult, t: (k: string, v?: Record<string, string | number>) => string, money: ReturnType<typeof useMoney>): string {
+  const parts: string[] = [];
+  if (x.acquired.length) parts.push(t('op.dash.branches.done.bought', { n: x.acquired.length, total: x.spent.map((s) => money.fmt(Number(s.amount), s.currency)).join(' + ') || money.fmt(0, 'CREDIT') }));
+  if (x.applied.length) parts.push(t('op.dash.branches.done.loaded', { ids: x.applied.join(', ') }));
+  if (x.removed.length) parts.push(t('op.dash.branches.done.unloaded', { ids: x.removed.join(', ') }));
+  for (const s of x.skipped) parts.push(t('op.dash.branches.done.skipped', { id: s.patch_id, reason: s.reason }));
+  if (!parts.length) parts.push(t('op.dash.branches.done.nothing'));
+  return parts.join(' ');
 }

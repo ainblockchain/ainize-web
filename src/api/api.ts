@@ -11,6 +11,7 @@ import type {
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
+  SubscribeResult, TrackQuote,
 } from './types';
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
 
@@ -144,7 +145,13 @@ export const api = createApi({
     remove: b.mutation<{ result: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/remove`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Runtime', 'Events', 'Me'] }),
     createBranch: b.mutation<unknown, { name: string; description: string; context: Record<string, string>; patch_ids: string[] }>({ query: (body) => ({ url: 'api/branches', method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger'] }),
     addToBranch: b.mutation<unknown, { name: string; patch_id: string }>({ query: ({ name, patch_id }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches`, method: 'POST', body: { patch_id } }), invalidatesTags: ['Branches', 'Ledger'] }),
-    subscribe: b.mutation<unknown, { name: string; action: 'subscribe' | 'unsubscribe' }>({ query: ({ name, action }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST' }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events'] }),
+    subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe' }>({ query: ({ name, action }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST' }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
+    /** Item 357 — what subscribing would spend, decided by the node with the same rules `subscribe` follows. */
+    trackQuote: b.query<{ quote: TrackQuote }, string>({ query: (name) => ({ url: `api/branches/${encodeURIComponent(name)}/quote`, method: 'POST' }), providesTags: ['Branches', 'Catalog', 'Me'] }),
+    /** Item 255 — buy and load what the track added, unload what it retired. */
+    syncBranch: b.mutation<SubscribeResult, string>({ query: (name) => ({ url: `api/branches/${encodeURIComponent(name)}/sync`, method: 'POST' }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
+    /** Item 297 — a visitor asks the operator to get a knowledge this node does not hold. */
+    requestPatch: b.mutation<{ patch_id: string; requests: number }, string>({ query: (id) => ({ url: `api/chat/patches/${encodeURIComponent(id)}/request`, method: 'POST' }), invalidatesTags: ['Chat'] }),
     complete: b.mutation<{ text: string }, { prompt: string; max_tokens?: number }>({ query: (body) => ({ url: 'api/runtime/complete', method: 'POST', body }) }),
     addPeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'POST', body }), invalidatesTags: ['Nodes', 'Info'] }),
     removePeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'DELETE', body }), invalidatesTags: ['Nodes', 'Info'] }),
@@ -268,7 +275,8 @@ export const {
   useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
-  useSubscribeMutation, useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
+  useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
+  useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,

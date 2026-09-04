@@ -582,7 +582,8 @@ export default function ChatPage() {
                   unless a turn of this tab is actually pending, which is exactly the condition wanted here. */}
               <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} clockSkewMs={lockSkew}
                 lockIsMine={queue?.state === 'running'} selectedIds={shownIds}
-                onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []} />
+                onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []}
+                dirty={data.dirty ?? []} elsewhere={data.elsewhere ?? []} operator={!!data.operator} />
               {!teachOn && basketPanel}
             </Side>
 
