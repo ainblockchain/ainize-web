@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import type { ChatResponse, ChatResult } from '@/api/types';
 import { useT } from '@/i18n';
+import { MarkWrong } from './MarkWrong';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { fmtMs, type ChatModeKind, type ChatQueueView } from './util';
@@ -175,7 +176,7 @@ function QueuePending({ turn }: { turn: Turn }) {
   );
 }
 
-function AnswerBubble({ kind, result, turn, hit, onTeach }: { kind: 'base' | 'patched'; result: ChatResult | null | undefined; turn: Turn; hit: boolean | null | undefined; onTeach?: (answer: string) => void }) {
+function AnswerBubble({ kind, result, turn, hit, onTeach, nameOf }: { kind: 'base' | 'patched'; result: ChatResult | null | undefined; turn: Turn; hit: boolean | null | undefined; onTeach?: (answer: string) => void; nameOf?: (id: string) => string }) {
   const { t, help, locale } = useT();
   const pending = turn.status === 'pending';
   const applied = kind === 'patched' && turn.response ? turn.response.applied_ms : null;
@@ -227,13 +228,17 @@ function AnswerBubble({ kind, result, turn, hit, onTeach }: { kind: 'base' | 'pa
           {result && <Truncation result={result} />}
           {result?.reasoning && (<Reasoning><summary>{t('chat.bubble.reasoning')}</summary><pre>{result.reasoning}</pre></Reasoning>)}
           {onTeach && result && <TeachBtn type="button" onClick={() => onTeach(result.content?.trim() ?? '')} data-testid={`teach-${kind}`}>{t('chat.turn.teach')}</TeachBtn>}
+          {/* SC-13: only under the answer the loaded knowledge produced — the bare model's answer is not its creator's business. */}
+          {kind === 'patched' && result && turn.response?.turn_id && ids.length > 0 && (
+            <MarkWrong turnId={turn.response.turn_id} patchIds={ids} name={nameOf?.(ids[0]) ?? ids[0]} />
+          )}
         </>
       )}
     </Bubble>
   );
 }
 
-export function TurnView({ turn, onRetry, onTeach }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void }) {
+export function TurnView({ turn, onRetry, onTeach, nameOf }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void; /** id → the knowledge's name, for the SC-13 consent line */ nameOf?: (id: string) => string }) {
   const { t, locale } = useT();
   const showBase = turn.mode === 'compare' || turn.mode === 'base';
   const showPatched = turn.mode === 'compare' || turn.mode === 'patched';
@@ -255,7 +260,7 @@ export function TurnView({ turn, onRetry, onTeach }: { turn: Turn; onRetry?: (tu
       ) : (
         <Pair $cols={showBase && showPatched ? 2 : 1}>
           {showBase && <AnswerBubble kind="base" result={r?.base} turn={turn} hit={turn.expect ? turn.baseHit : null} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined} />}
-          {showPatched && <AnswerBubble kind="patched" result={r?.patched} turn={turn} hit={patchedHit} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined} />}
+          {showPatched && <AnswerBubble kind="patched" result={r?.patched} turn={turn} hit={patchedHit} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined} nameOf={nameOf} />}
         </Pair>
       )}
     </Wrap>

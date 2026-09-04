@@ -129,6 +129,8 @@ export interface ChatResponse {
   quota_limit?: number | null;
   /** How many messages each column was sent, and whether the two conversations differed (split histories). */
   history?: { base: number; patched: number; split: boolean };
+  /** SC-13 — the handle *Mark wrong* comes back with. The node holds the question behind it; the browser never resends it. */
+  turn_id?: string;
 }
 /** Two testable knowledges that share `rows` memory entries (the one loaded last wins on those). */
 export interface ChatOverlap { a: string; b: string; rows: number }

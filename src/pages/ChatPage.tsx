@@ -158,6 +158,8 @@ export default function ChatPage() {
   const items = useMemo(() => data?.items ?? [], [data]);
   /** The visitor's own lessons; a published one is already a public item, so it is listed once (under the public list). */
   const lessons = useMemo(() => (data?.lessons ?? []).filter((l) => !(data?.items ?? []).some((e) => e.anchor.id === l.anchor.id)), [data]);
+  /** SC-13's consent line names the knowledge, not its id ("Share this question with {name}'s creator?"). */
+  const nameOf = useCallback((id: string) => [...items, ...lessons].find((e) => e.anchor.id === id)?.anchor.name ?? id, [items, lessons]);
   const pickable = useMemo(() => [...lessons, ...items], [lessons, items]);
   /** Route `/chat/a,b,c` = ordered selection (tick order = load order). */
   const routeIds = useMemo(() => parseSelection(patchId), [patchId]);
@@ -202,6 +204,8 @@ export default function ChatPage() {
   const teachParam = searchParams.get('teach') === '1';
   const lessonParam = searchParams.get('lesson');
   const mineParam = searchParams.get('mine') === '1';
+  /** SC-12 *Teach this on top*: the open question travels in the link and lands in the box, unsent. */
+  const askParam = searchParams.get('q') ?? undefined;
   const teachOn = !!policy?.enabled;
   const setParam = useCallback((key: string, value: string | null) => {
     setSearchParams((prev) => { const next = new URLSearchParams(prev); if (value === null) next.delete(key); else next.set(key, value); return next; }, { replace: true });
@@ -514,7 +518,7 @@ export default function ChatPage() {
                 )}
                 {turns.length === 0 ? (
                   <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
-                ) : turns.map((turn) => <TurnView key={turn.id} turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} />)}
+                ) : turns.map((turn) => <TurnView key={turn.id} turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} nameOf={nameOf} />)}
               </Transcript>
               {/*
                 * Finding 1: from turn 2 the two columns are two different conversations — the base call replays base
@@ -534,7 +538,7 @@ export default function ChatPage() {
                 mode={mode} onMode={setMode} thinking={thinking} onThinking={setThinking}
                 samples={samples}
                 onSend={(text) => { void send(text); }} onClear={clear} canClear={turns.length > 0}
-                footer={quotaText}
+                footer={quotaText} prefill={askParam}
               />
             </Main>
           </Grid>

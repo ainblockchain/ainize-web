@@ -63,16 +63,20 @@ export interface ChatComposerProps {
   canClear: boolean;
   footer?: React.ReactNode;
   disabledReason?: string;
+  /** A question the visitor arrived with (SC-12 *Teach this on top* → `/chat/<id>?teach=1&q=…`). Never sent on its own. */
+  prefill?: string;
 }
 
-export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinking, samples, onSend, onClear, canClear, footer, disabledReason }: ChatComposerProps) {
+export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinking, samples, onSend, onClear, canClear, footer, disabledReason, prefill }: ChatComposerProps) {
   const { t } = useT();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(prefill ?? '');
   const [showAll, setShowAll] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   const locked = disabled || busy;
 
   useEffect(() => { setShowAll(false); }, [samples]);
+  // SC-12 *Teach this on top* arrives as `?q=<question>`: the box opens with it, and the visitor still presses Send.
+  useEffect(() => { if (prefill) { setText(prefill); ref.current?.focus(); } }, [prefill]);
   useEffect(() => {
     const el = ref.current; if (!el) return;
     el.style.height = 'auto'; el.style.height = `${Math.min(160, el.scrollHeight)}px`;
