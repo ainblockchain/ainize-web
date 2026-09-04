@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { useInfoQuery, usePublishChallengeMutation, usePublishTeachJobMutation } from '@/api/api';
+import { TEACH_SAMPLES_ON_CHAIN } from '@ngram/core';
 import type { PublishResponse, TeachJob, TeachPolicy } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
@@ -40,10 +41,23 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
   const [consentRights, setConsentRights] = useState(false);
   // v2 §12.2: a big dataset is plausibly someone else's database, and the marketplace pays the uploader for it
   const [consentData, setConsentData] = useState(false);
+  /**
+   * SC-8 — the training-set section. `derivative` is the default for a taught lesson (§16 R11): the ≤ 32 verification
+   * questions are on the public record either way, so "private" protects notes and untrained rows, and nothing else —
+   * the sheet says so rather than letting the creator believe otherwise.
+   */
+  const [access, setAccess] = useState<'public' | 'derivative' | 'private'>('derivative');
+  const [dsLicense, setDsLicense] = useState('CC-BY-4.0');
+  const [includeNotes, setIncludeNotes] = useState(false);
+  const [declSource, setDeclSource] = useState<'own' | 'public' | 'licensed'>('own');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PublishResponse | null>(null);
 
+  const bases = job.bases ?? [];
+  const baseNames = bases.map((b) => b.name ?? b.patch_id).join(', ');
+  // a base that is not listed yet blocks the publish server-side (`parent_not_listed`) — say so before the button
+  const unlisted = bases.filter((b) => b.status && !['LISTED', 'ANNOUNCED', 'VERIFYING'].includes(b.status));
   const currency = info?.currency ?? 'CREDIT';
   const nodeName = info?.node.name ?? 'This node';
   const nameBad = name.trim().length < 2 || name.trim().length > 80;
@@ -65,6 +79,11 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
         id: job.id, name: name.trim(), description: description.trim() || undefined, price: price.trim(), license, payout_address, claim_sig,
         // the real checkbox state — the node refuses a publish without both (lineage design §6.5, F12)
         consent: { permanent: consentPermanent, rights: consentRights },
+        // what may be done with the questions, and where they came from (§6.1, §6.5)
+        dataset: {
+          access, license: dsLicense, include_notes: includeNotes,
+          ...(needsDeclaration ? { declaration: { source: declSource, license: dsLicense, no_pii: consentData } } : {}),
+        },
         // "Shown as" falls back to this browser's key name when the job carries none; sending it is what makes the
         // public record agree with what the sheet just promised (design §9.3)
         ...(!job.contributor.name && teacherKey.name ? { contributor: { name: teacherKey.name } } : {}),
@@ -113,6 +132,48 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
         <FieldLabel>{t('teach.pub.license')}</FieldLabel>
         <Select value={license} onChange={(e) => setLicense(e.target.value)} aria-label={t('teach.pub.license')}>{LICENSES.map((l) => <option key={l} value={l}>{l}</option>)}</Select>
       </Field>
+
+      {/* SC-8: what this was built on is part of the publish decision — it is who gets paid, and what buyers will need */}
+      {bases.length > 0 && (
+        <Alert $tone="info" data-testid="pub-built-on">
+          {t('teach.pub.built_on', { names: baseNames })}
+          {' '}{t('teach.pub.money', { names: baseNames, lineage: pct(policy.shares.lineage), contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName })}
+        </Alert>
+      )}
+      {unlisted.map((b) => (
+        <Alert $tone="warning" key={b.patch_id} data-testid="pub-base-unlisted">{t('teach.pub.base_unlisted', { name: b.name ?? b.patch_id })}</Alert>
+      ))}
+
+      <div>
+        <FieldLabel>{t('teach.pub.ds_title')}</FieldLabel>
+        <Radios style={{ marginTop: 8 }} data-testid="pub-access">
+          <label><input type="radio" name="ds-access" checked={access === 'public'} onChange={() => setAccess('public')} />{t('teach.pub.ds_public')}</label>
+          <label><input type="radio" name="ds-access" checked={access === 'derivative'} onChange={() => setAccess('derivative')} />{t('teach.pub.ds_derivative')}</label>
+          <label><input type="radio" name="ds-access" checked={access === 'private'} onChange={() => setAccess('private')} />{t('teach.pub.ds_private')}</label>
+        </Radios>
+        <HelperText data-testid="pub-ds-honesty">{t('teach.pub.ds_honesty', { n: Math.min(job.facts.length, TEACH_SAMPLES_ON_CHAIN) })}</HelperText>
+      </div>
+      {access !== 'private' && (
+        <Two>
+          <Field>
+            <FieldLabel>{t('teach.pub.ds_license')}</FieldLabel>
+            <Select value={dsLicense} onChange={(e) => setDsLicense(e.target.value)} aria-label={t('teach.pub.ds_license')} data-testid="pub-ds-license">{LICENSES.map((l) => <option key={l} value={l}>{l}</option>)}</Select>
+          </Field>
+          {needsDeclaration && (
+            <Field>
+              <FieldLabel>{t('teach.pub.decl_source')}</FieldLabel>
+              <Select value={declSource} onChange={(e) => setDeclSource(e.target.value as 'own' | 'public' | 'licensed')} aria-label={t('teach.pub.decl_source')} data-testid="pub-decl-source">
+                <option value="own">{t('teach.pub.decl_own')}</option>
+                <option value="public">{t('teach.pub.decl_public')}</option>
+                <option value="licensed">{t('teach.pub.decl_licensed')}</option>
+              </Select>
+            </Field>
+          )}
+        </Two>
+      )}
+      {access !== 'private' && (
+        <Checkbox checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} label={t('teach.pub.include_notes')} data-testid="pub-include-notes" />
+      )}
       <div>
         <FieldLabel>{t('teach.pub.payout')}</FieldLabel>
         <Radios style={{ marginTop: 8 }}>

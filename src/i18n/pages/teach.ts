@@ -109,6 +109,22 @@ export const teach: Dict = {
   'teach.pre.confirm_changes': { ko: '이 답들이 {name}의 답을 대신하게 하겠습니다 ({n}개)', en: 'Yes — these {n} answer(s) are meant to replace {name}’s' },
   'teach.pre.confirm_needed': { ko: '{name}의 답을 바꾸는 질문이 {n}개 있습니다. 계속하려면 위에서 확인해 주세요.', en: '{n} of these change {name}’s answers. Confirm above to continue.' },
 
+  // SC-8 publish sheet — what happens to the questions, and who is paid
+  'teach.pub.built_on': { ko: '기반 지식: {names}', en: 'Built on: {names}' },
+  'teach.pub.money': { ko: '판매마다: {names} 제작자에게 {lineage}%, 나에게 {contributor}%, 나머지는 {node}에게.', en: 'Every sale: {lineage}% to the creators of {names}, {contributor}% to you, the rest to {node}.' },
+  'teach.pub.base_unlisted': { ko: '{name}이(가) 아직 등록 전이에요. 등록된 뒤에 공개하세요.', en: '{name} is not listed yet. Publish after it is listed.' },
+  'teach.pub.ds_title': { ko: '내 질문', en: 'Your questions' },
+  'teach.pub.ds_public': { ko: '누구나 내려받고 바탕으로 쓸 수 있음', en: 'Anyone can download and build on them' },
+  'teach.pub.ds_derivative': { ko: '이 지식 위에 만드는 사람만 받을 수 있음 (권장)', en: 'Only people building on this knowledge can get them (recommended)' },
+  'teach.pub.ds_private': { ko: '비공개 — 아무도 이 지식 위에 만들 수 없음', en: 'Keep private — nobody can build on this knowledge' },
+  'teach.pub.ds_honesty': { ko: '참고: 확인에 쓰인 질문 {n}개는 이미 공개 기록에 있습니다. "비공개"는 메모와 학습되지 않은 행만 보호합니다.', en: 'Note: the {n} questions used to check this lesson are already public on its record; "private" protects only notes and untrained rows.' },
+  'teach.pub.ds_license': { ko: '질문의 이용 조건', en: 'Licence for the questions' },
+  'teach.pub.include_notes': { ko: '공유되는 질문에 내 메모 포함', en: 'Include my notes in the shared questions' },
+  'teach.pub.decl_source': { ko: '이 질문의 출처', en: 'Where did these questions come from?' },
+  'teach.pub.decl_own': { ko: '직접 작성', en: 'Own work' },
+  'teach.pub.decl_public': { ko: '공개 자료', en: 'Public source' },
+  'teach.pub.decl_licensed': { ko: '이용 허락 받음', en: 'Licensed to me' },
+
   // SC-16 my datasets card
   'teach.ds.card_from': { ko: '{name}(지식)에서 복사 · 물려받음 {inherited}, 내 것 {mine}', en: 'Copied from {name} (knowledge) · {inherited} inherited, {mine} mine' },
 
