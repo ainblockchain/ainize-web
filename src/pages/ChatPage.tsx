@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
-import { MAX_HISTORY, answerHits, matchSampleAny, parseSelection, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
+import { MAX_HISTORY, answerHits, loadTurns, matchSampleAny, matchSampleEach, parseSelection, saveTurns, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
 import { TeachDrawer } from '@/components/chat/TeachDrawer';
 import { toCandidate } from '@/components/chat/BasePicker';
 import { LessonBasket } from '@/components/chat/LessonBasket';
@@ -48,9 +48,38 @@ const MainHead = styled.div`
   h2 { margin: 0; font-size: 15px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
   small { font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
 `;
+/**
+ * Finding 87 — what this knowledge IS. The description was rendered only into the picker row's `title`, so an
+ * English-speaking visitor got a 50-character title, a fact count and eight buttons of Korean, and nothing that
+ * says what the comparison they are about to run is about.
+ */
+const HeadDesc = styled.p`
+  margin: 0; padding: 0 16px 10px; background: #fff; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
+  font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY};
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+`;
+/** Findings 218 + 228 — the stack as an object: a link you can send, and what owning all of it costs. */
+const HeadActions = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px 10px; background: #fff;
+  border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY};
+  b { font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
+  button { background: none; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 3px; padding: 3px 10px; font: inherit; font-size: 12px; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer;
+    &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; background: ${(p) => p.theme.color.PALE_GREY}; } }
+  code { font-family: ${(p) => p.theme.font.mono}; font-size: 11px; color: ${(p) => p.theme.color.DARK_GREY}; background: ${(p) => p.theme.color.PALE_GREY}; padding: 2px 6px; border-radius: 3px; }
+`;
+/** Finding 228 — a member of the stack that a newer version already replaces. */
+const Replaced = styled.span`font-size: 11px; color: #8a4b00; background: #fff3e0; padding: 1px 7px; border-radius: 9px;`;
+/** Finding 57 — the ONE place the exhausted trial makes its offer: the knowledge, its price, and when it comes back. */
+const QuotaOffer = styled.span`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY};
+  a { color: ${(p) => p.theme.color.PRIMARY}; font-weight: 600; text-decoration: none; &:hover { text-decoration: underline; } }
+  em { font-style: normal; color: ${(p) => p.theme.color.GREY}; }
+`;
 const HeadList = styled.ol`
   display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 0; padding: 8px 16px 10px; list-style: none; background: #fff; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY};
   li { display: inline-flex; align-items: center; gap: 6px; }
+  /* one knowledge per line on a phone: side by side, a 50-character name was squeezed into a four-word column */
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { li { width: 100%; flex-wrap: wrap; } }
   b { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: ${(p) => p.theme.color.PRIMARY}; color: #fff; font-size: 11px; }
 `;
 const Transcript = styled.div`
@@ -153,7 +182,7 @@ type SheetKind = 'credit' | 'preflight' | 'publish' | 'keep' | null;
 
 /* ---------------------------------------------------------------- page */
 export default function ChatPage() {
-  const { t, help, tech, audience } = useT();
+  const { t, help, tech, term, audience, locale } = useT();
   useTitle(t('chat.title'));
   const { patchId } = useParams<{ patchId: string }>();
   const navigate = useNavigate();
@@ -211,11 +240,20 @@ export default function ChatPage() {
    * said "No questions yet", throwing away (to the eye) answers bought with scarce free tries. Every turn carries
    * the knowledge it was asked with instead, and the transcript marks where that changed.
    */
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurns] = useState<Turn[]>(() => loadTurns<Turn>());
+  /**
+   * Finding 67 — and it survives leaving the page. The only route to the price is the head's *Details →*; the
+   * transcript that persuaded the visitor used to die on that click, together with the free tries it cost.
+   */
+  useEffect(() => { saveTurns(turns); }, [turns]);
   /** undefined = not asked yet; null = unlimited (operator); number = remaining free tries */
   const [quota, setQuota] = useState<number | null | undefined>(undefined);
   const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
   const [exhausted, setExhausted] = useState(false);
+  /** When the measured free hour ends (from the node's 429 body) — printed once, in the composer footer. */
+  const [quotaReset, setQuotaReset] = useState<number | null>(null);
+  /** Finding 61 — the question a failed send must put back in the box (nonce = "this is a new failure"). */
+  const [restore, setRestore] = useState<{ text: string; nonce: number }>({ text: '', nonce: 0 });
   const [missingId, setMissingId] = useState<string | null>(null);
   /** Optimistic selection: the route update is a React transition, so the checkboxes flip from this state first. */
   const [pendingIds, setPendingIds] = useState<string[] | null>(null);
@@ -335,6 +373,8 @@ export default function ChatPage() {
     lastTurnRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [turns.length, lastStatus]);
 
+  /** Finding 229 — what a stack actually took, measured in this session, keyed by the stack and the view. */
+  const measured = useRef(new Map<string, number>());
   const send = useCallback(async (text: string, opts?: { mode?: ChatModeKind; thinking?: boolean; replaceId?: string }) => {
     // An empty selection is allowed while teaching: you are correcting the model itself, and a node with an empty
     // catalog has nothing to pick. There is no "with knowledge" side then, so the turn is base-only.
@@ -343,6 +383,8 @@ export default function ChatPage() {
     const useMode: ChatModeKind = selectedIds.length === 0 ? 'base' : (opts?.mode ?? mode);
     const useThinking = opts?.thinking ?? thinking;
     const sample = matchSampleAny(selectedList, text);
+    // finding 223 — every selected knowledge's own expected value for this question, so the hit row can show them
+    const expects = matchSampleEach(selectedList, text);
     const id = newId();
     // The conversation SENT is still one selection's own: a turn answered with other knowledge loaded is shown (it is
     // the visitor's transcript) but never replayed here, so neither column is told it once produced another stack's
@@ -358,11 +400,21 @@ export default function ChatPage() {
     // D3: the node registers this id the moment the request arrives, so GET /api/chat/status can answer
     // "queued" (and a give-up while queued costs nothing) long before the answer exists.
     const requestId = newId();
-    const turn: Turn = { id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect, patchIds: ids, patchNames: selectedList.map((e) => e.anchor.name), requestId };
+    const turn: Turn = {
+      id, prompt: text, mode: useMode, thinking: useThinking, status: 'pending', expect: sample?.expect, expects,
+      patchIds: ids, patchNames: selectedList.map((e) => e.anchor.name), requestId,
+      // finding 229 — what is being loaded, and what the same stack measured last time in this session
+      loadBytes: selectedList.reduce((a, e) => a + (e.anchor.size_bytes ?? 0), 0) || null,
+      estimateMs: measured.current.get(stackKey(ids) + (useMode === 'compare' ? '|c' : '')) ?? null,
+    };
     setTurns((prev) => [...prev.filter((x) => x.id !== opts?.replaceId), turn]);
     // one knowledge → patch_id (works on every node); several → patch_ids (teach-mode nodes)
     const target = ids.length === 1 ? { patch_id: ids[0] } : { patch_ids: ids };
-    const request = sendChat({ ...target, mode: useMode, messages: history, ...split, thinking: useThinking, request_id: requestId });
+    const startedAt = Date.now();
+    // D1/finding 58 — thinking shares the answer's token budget (the node defaults to 200), so a thinking turn was
+    // routinely cut mid-sentence or came back empty with the reasoning full. Ask for the room it needs; the node's
+    // own ceiling (1024) still applies.
+    const request = sendChat({ ...target, mode: useMode, messages: history, ...split, thinking: useThinking, request_id: requestId, ...(useThinking ? { max_tokens: 900 } : {}) });
     inflight.current = request;
     // show the shared-model lock (held by this very request, or by someone ahead of it) right away instead of on the next 20 s poll
     const lockPeek = setTimeout(refreshPatches, 800);
@@ -371,13 +423,18 @@ export default function ChatPage() {
       setQuota(res.remaining_quota);
       if (res.quota_limit !== undefined) setQuotaLimit(res.quota_limit);
       if (res.remaining_quota !== null && res.remaining_quota <= 0) setExhausted(true);
+      // finding 229 — this is the only honest source of "how long does this take": what it just took, here.
+      measured.current.set(stackKey(ids) + (useMode === 'compare' ? '|c' : ''), Date.now() - startedAt);
       setTurns((prev) => prev.map((x) => (x.id === id ? { ...x, status: 'done', response: res, baseHit: answerHits(res.base?.content, sample?.expect) } : x)));
     } catch (err) {
       const e = err as { status?: number | string; name?: string; data?: { quota_reset?: number | null } } | undefined;
       const quotaHit = e?.status === 429;
-      if (quotaHit) { setQuota(0); setExhausted(true); }
+      if (quotaHit) { setQuota(0); setExhausted(true); setQuotaReset(e?.data?.quota_reset ?? null); }
       const msg = cancelNote.current ?? mapChatError(err, t);
       cancelNote.current = null;
+      // Finding 61 — the box was cleared on submit, so a rejected question was simply gone: an over-long prompt
+      // came back as "clear the conversation and try again" with nothing left to shorten. Put it back.
+      setRestore((r) => ({ text, nonce: r.nonce + 1 }));
       // A Retry button is only offered where send() would actually send. On a 429 it would not: send() returns at the
       // `exhausted` guard, so the click was measured as zero requests. A cancel (499 / AbortError) leaves `busy` and
       // `exhausted` false and its Retry does issue a real request — AZ-089/AZ-093 press it and get a completed turn —
@@ -408,6 +465,11 @@ export default function ChatPage() {
     inflight.current?.abort();
   }, [cancelChat, t]);
   const retry = useCallback((turn: Turn) => { void send(turn.prompt, { mode: turn.mode, thinking: turn.thinking, replaceId: turn.id }); }, [send]);
+  /**
+   * Finding 58 — the same question, asked again without thinking, in place of the turn that thinking spoiled. The
+   * checkbox goes off too: leaving it on would spoil the next question the same way.
+   */
+  const askAgain = useCallback((turn: Turn) => { setThinking(false); void send(turn.prompt, { mode: turn.mode, thinking: false, replaceId: turn.id }); }, [send]);
   /** "Clear conversation" empties the whole transcript — every turn is in one list now, whatever was loaded for it. */
   const clear = useCallback(() => setTurns([]), []);
   const toggle = useCallback((id: string) => {
@@ -419,6 +481,19 @@ export default function ChatPage() {
     setPendingIds(next);
     go(next.length ? selectionPath(next) : '/chat');
   }, [shownIds, go]);
+  /**
+   * Finding 224 — the load order decides which knowledge wins on the entries they share, and it was not a control:
+   * the only way to change it was to untick and re-tick, which renumbered everything else. Now it moves.
+   */
+  const reorder = useCallback((id: string, dir: -1 | 1) => {
+    const cur = [...shownIds];
+    const i = cur.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= cur.length) return;
+    [cur[i], cur[j]] = [cur[j], cur[i]];
+    setPendingIds(cur);
+    go(selectionPath(cur));
+  }, [shownIds, go]);
   const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); setPendingIds([]); go('/chat'); }, [go]);
   /** Load a whole stack at once — how the "corrections saved under another selection" note takes you back to them. */
   const showStack = useCallback((ids: string[]) => {
@@ -427,14 +502,33 @@ export default function ChatPage() {
   }, [clearSelection, go]);
   /** Selected knowledge whose benchmark format has no chat form — the live test asks through the chat template. */
   const templateOnly = useMemo(() => selectedList.filter((e) => { const f = e.anchor.benchmark.format ?? []; return f.length > 0 && !f.includes('chat') && !f.includes('natural'); }), [selectedList]);
-  /** Sample questions of every selected knowledge (deduplicated by prompt), in load order. */
+  /**
+   * Sample questions of every selected knowledge (deduplicated by prompt), in load order. With more than one
+   * knowledge loaded the rows are merged, so each chip also says which knowledge published it (finding 87 — the
+   * `chat.samples.from` slot that had existed unused since the multi-selection shipped).
+   */
   const samples = useMemo(() => {
     const seen = new Set<string>();
-    const out: { prompt: string; expect: string }[] = [];
+    const out: { prompt: string; expect: string; from?: string }[] = [];
     // dedupe on the exact prompt: two samples that differ only by the trained trailing space are different prompts
-    for (const e of selectedList) for (const s of e.anchor.benchmark.samples ?? []) { if (!seen.has(s.prompt)) { seen.add(s.prompt); out.push(s); } }
+    for (const e of selectedList) {
+      for (const s of e.anchor.benchmark.samples ?? []) {
+        if (seen.has(s.prompt)) continue;
+        seen.add(s.prompt);
+        out.push(selectedList.length > 1 ? { ...s, from: e.anchor.name } : s);
+      }
+    }
     return out;
   }, [selectedList]);
+  /**
+   * Finding 87 — one sentence saying what these questions are, for the visitor who cannot read them. Everything in
+   * it is measured from the anchor: whose benchmark they are, and one real expected answer as the shape to expect.
+   */
+  const samplesGloss = samples.length > 0 && selected
+    ? (selectedList.length > 1
+      ? t('chat.samples.gloss_stack', { n: selectedList.length, expect: samples[0].expect })
+      : t('chat.samples.gloss', { name: selected.anchor.name, expect: samples[0].expect }))
+    : undefined;
 
   // ---------------------------------------------------------------- teach-mode handlers
   const onTeach = useCallback((turn: Turn, answer: string) => { setDrawer({ question: turn.prompt, answer }); }, []);
@@ -506,14 +600,76 @@ export default function ChatPage() {
   const hideCard = useCallback(() => { setCardHidden(true); setParam('lesson', null); }, [setParam]);
   const closeMine = useCallback(() => setParam('mine', null), [setParam]);
 
+  /**
+   * Finding 218 — the stack has no name, no save and no share; the only artifact is the address bar. This is the
+   * smallest thing that makes it an object a person can pass on: one button that copies the link to this exact
+   * set, in this exact order. (`ainize use a b c`, the CLI half, is item 216 on the node's side.)
+   */
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
+  const copyLink = useCallback(() => {
+    const url = `${window.location.origin}${selectionPath(selectedIds)}`;
+    const done = () => {
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 2500);
+    };
+    // clipboard access can be refused (an insecure origin, a denied permission): fall back to a selectable prompt
+    navigator.clipboard?.writeText(url).then(done).catch(() => window.prompt(t('chat.head.copy'), url));
+  }, [selectedIds, t]);
+  const patchHref = (e: { anchor: { author: string; id: string } }) => `/${encodeURIComponent(e.anchor.author)}/${encodeURIComponent(e.anchor.id)}`;
+  /** "25 AIN" / "Free" for one knowledge, in the reader's locale. */
+  const priceOf = useCallback((e: typeof selectedList[number]) => {
+    const n = Number(e.anchor.price);
+    if (!n) return null;
+    return { n, currency: e.anchor.currency === 'AIN' ? 'AIN' : e.anchor.currency === 'CREDIT' ? term('credit') : e.anchor.currency };
+  }, [term]);
+  const fmtPrice = useCallback((n: number, currency: string) => `${n.toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US', { maximumFractionDigits: 6 })} ${currency}`, [locale]);
+  /**
+   * Finding 228 — what the ticked set costs to OWN. The per-item prices sat in three separate cards and the head
+   * had no total, so the visitor who liked the combination added 25 + 0.1 + 10 by hand. Currencies are summed
+   * separately: this node may list some knowledge in AIN and some in node credit, and adding those is not a price.
+   */
+  /** Does any pair of the ticked knowledge share memory entries? Then their fact counts cannot be added (finding 63). */
+  const stackOverlaps = useMemo(
+    () => (data?.overlaps ?? []).some((o) => selectedIds.includes(o.a) && selectedIds.includes(o.b)),
+    [data?.overlaps, selectedIds],
+  );
+  const factsKnown = selectedList.every((e) => typeof e.anchor.benchmark.queries === 'number');
+  const stackPrice = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const e of selectedList) { const p = priceOf(e); if (p) by.set(p.currency, (by.get(p.currency) ?? 0) + p.n); }
+    return [...by.entries()].map(([currency, n]) => fmtPrice(n, currency));
+  }, [selectedList, priceOf, fmtPrice]);
+
+  /**
+   * Finding 57 — the offer, made ONCE. "Buy the knowledge" used to render in the page alert, the transcript
+   * bubble, the textarea placeholder AND the composer footer, four dead-end copies of one sentence at the highest
+   * intent moment on the site. It now lives here, beside the box the visitor cannot type in, as a link to the
+   * knowledge, its price and the measured instant the free hour ends; everywhere else says "no free tries left".
+   */
+  const outOfTries = exhausted && !isSignedIn;
+  const quotaOffer = outOfTries && (
+    <QuotaOffer data-testid="chat-quota-actions">
+      <span>{quotaLimit ? t('chat.quota.spent_of', { limit: quotaLimit }) : t('chat.quota.spent')}</span>
+      {selected && (
+        <StyledLink to={patchHref(selected)}>
+          {(() => { const p = priceOf(selected); return p ? t('chat.quota.buy_price', { name: selected.anchor.name, price: fmtPrice(p.n, p.currency) }) : t('chat.quota.buy_free', { name: selected.anchor.name }); })()} →
+        </StyledLink>
+      )}
+      {quotaReset !== null && <em>{t('chat.quota.resets_at', { time: new Date(quotaReset).toLocaleTimeString(locale === 'ko' ? 'ko-KR' : 'en-US', { hour: '2-digit', minute: '2-digit' }) })}</em>}
+      {quotaReset === null && <em>{t('chat.quota.resets_hour')}</em>}
+    </QuotaOffer>
+  );
   const quotaText = isSignedIn || quota === null
     ? t('chat.quota.operator')
     : quota === undefined ? t('chat.quota.visitor')
-      : exhausted || quota <= 0 ? t('chat.quota.none')
+      : exhausted || quota <= 0 ? t('chat.quota.none_short')
         : quotaLimit ? t('chat.quota.left_of', { n: quota, limit: quotaLimit }) : t('chat.quota.left', { n: quota });
 
-  const composerDisabled = (selectedIds.length === 0 && !teachOn) || runtimeOff || (exhausted && !isSignedIn);
-  const disabledReason = selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : exhausted && !isSignedIn ? t('chat.quota.none') : undefined;
+  const composerDisabled = (selectedIds.length === 0 && !teachOn) || runtimeOff || outOfTries;
+  const disabledReason = selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : outOfTries ? t('chat.quota.none_short') : undefined;
   const keyLabel = !teacherKey ? undefined
     : teacherKey.name ? t('teach.key.chip', { name: teacherKey.name, short: shortKey(teacherKey.address) })
       : t('teach.key.chip_anon', { short: shortKey(teacherKey.address) });
@@ -570,7 +726,6 @@ export default function ChatPage() {
             </TeachBanner>
           )}
           {missingId && <Alert $tone="warning" style={{ marginTop: 16 }}>{t('chat.picker.route_missing', { id: missingId })}</Alert>}
-          {exhausted && !isSignedIn && <Alert $tone="warning" style={{ marginTop: 16 }} role="status">{t('chat.quota.none')}</Alert>}
           <Grid>
             <Side>
               {/* The basket heads the column when this node teaches (§5.5: the visitor must see it without scrolling past every knowledge card); a node that does not accept lessons shows the "does not accept" line under the picker instead. */}
@@ -581,43 +736,76 @@ export default function ChatPage() {
                   verifier, another node — was announced as "Your test has the shared model". `queue` is undefined
                   unless a turn of this tab is actually pending, which is exactly the condition wanted here. */}
               <KnowledgePicker items={items} lessons={lessons} runtime={data.runtime} lock={data.lock} clockSkewMs={lockSkew}
-                lockIsMine={queue?.state === 'running'} selectedIds={shownIds}
-                onToggle={toggle} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []}
+                lockIsMine={queue?.state === 'running'} selectedIds={shownIds} mineJobId={cardJobId}
+                onToggle={toggle} onReorder={reorder} onClear={clearSelection} applied={data.applied ?? []} overlaps={data.overlaps ?? []}
                 dirty={data.dirty ?? []} elsewhere={data.elsewhere ?? []} operator={!!data.operator} />
               {!teachOn && basketPanel}
             </Side>
 
-            <Main aria-live="polite">
+            {/* Finding 82 — the live region is the TRANSCRIPT, not the whole panel. On `Main` it wrapped the head,
+                the picker's neighbours, the chips, the mode buttons, the composer and the quota footer: 742
+                characters that a screen reader re-read in full every time anything changed, instead of the answer
+                that just arrived. */}
+            <Main>
               {selected && selectedList.length === 1 && (
-                <MainHead>
-                  <h2>{selected.anchor.name}</h2>
-                  <StatusChip status={selected.status} />
-                  <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selected.anchor.benchmark.queries) })}</small>
-                  <small style={{ marginLeft: 'auto' }}>
-                    <StyledLink to={`/${encodeURIComponent(selected.anchor.author)}/${encodeURIComponent(selected.anchor.id)}`}>{t('common.details')} →</StyledLink>
-                  </small>
-                </MainHead>
+                <>
+                  <MainHead>
+                    <h2>{selected.anchor.name}</h2>
+                    <StatusChip status={selected.status} />
+                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selected.anchor.benchmark.queries) }, selected.anchor.benchmark.queries)}</small>
+                    {/* Finding 228 — a retired version is pickable here; say what replaces it before the visitor
+                        spends a free try, or a purchase, on an epoch the newer one already covers. */}
+                    {selected.superseded_by?.[0] && (
+                      <Replaced title={t('chat.head.replaced_help')}>{t('chat.head.replaced', { id: selected.superseded_by[0] })}</Replaced>
+                    )}
+                    <small style={{ marginLeft: 'auto' }}>
+                      <StyledLink to={patchHref(selected)}>{t('common.details')} →</StyledLink>
+                    </small>
+                  </MainHead>
+                  {selected.anchor.description && (
+                    <HeadDesc title={selected.anchor.description} data-testid="chat-head-desc">{selected.anchor.description}</HeadDesc>
+                  )}
+                </>
               )}
               {selectedList.length > 1 && (
                 <>
                   <MainHead>
                     <h2 title={t('chat.head.multi_help')}>{t('chat.head.multi', { n: selectedList.length })}</h2>
-                    {/* A knowledge registered without a question count has `queries` undefined, and summing it gave
-                        "NaN facts" in the header of every multi-knowledge stack. A total is only a total when every
-                        item has one: otherwise the count is unknown (`num` renders the dash), never a made-up number. */}
-                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selectedList.every((e) => typeof e.anchor.benchmark.queries === 'number') ? selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0) : null) })}</small>
+                    {/* Finding 63 — the head used to SUM the fact counts across knowledge the picker had just
+                        called 88% identical: three KRX versions of 2,761 facts sharing 241,992 of ~270,053 memory
+                        entries were advertised as "8,283 facts", three times the truth, next to the alert saying
+                        so. Where any two of them overlap the total is not a total; the biggest of them is what can
+                        honestly be claimed. (A knowledge registered without a count still renders the dash rather
+                        than a made-up number.) */}
+                    <small title={`${help('facts')} (${tech('facts')})`}>
+                      {factsKnown
+                        ? (stackOverlaps ? t('chat.head.facts_each', { n: num(Math.max(...selectedList.map((e) => e.anchor.benchmark.queries))) }) : t('units.facts', { n: num(selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)) }))
+                        : t('units.facts', { n: num(null) })}
+                    </small>
                     <small style={{ marginLeft: 'auto' }}>{t('chat.head.multi_help')}</small>
                   </MainHead>
                   <HeadList aria-label={t('chat.head.multi', { n: selectedList.length })}>
                     {selectedList.map((e, i) => (
                       <li key={e.anchor.id}>
                         <b>{i + 1}</b>
-                        <StyledLink to={`/${encodeURIComponent(e.anchor.author)}/${encodeURIComponent(e.anchor.id)}`} title={t('common.details')}>{e.anchor.name}</StyledLink>
+                        <StyledLink to={patchHref(e)} title={t('common.details')}>{e.anchor.name}</StyledLink>
                         <StatusChip status={e.status} />
+                        {/* Finding 228 — two of the three pickable items on this node are replaced versions. */}
+                        {e.superseded_by?.[0] && <Replaced title={t('chat.head.replaced_help')}>{t('chat.head.replaced', { id: e.superseded_by[0] })}</Replaced>}
                       </li>
                     ))}
                   </HeadList>
                 </>
+              )}
+              {/* Findings 218 + 228 — the set as an object: a link that reproduces it in this order, and what
+                  owning all of it costs, instead of three prices in three cards and no total anywhere. */}
+              {selectedList.length > 1 && (
+                <HeadActions data-testid="chat-stack-actions">
+                  <button type="button" onClick={copyLink} data-testid="chat-copy-link">{copied ? t('chat.head.copied') : t('chat.head.copy')}</button>
+                  {stackPrice.length > 0 && (
+                    <span title={t('chat.head.own_help')}>{t('chat.head.own', { n: selectedList.length, price: stackPrice.join(' + ') })}</span>
+                  )}
+                </HeadActions>
               )}
               {/* D2: a knowledge trained and verified only in the completion form answers a chat-format question
                   less well (measured 6/6 vs 4/6). Say so rather than silently switching the live test's form. */}
@@ -626,13 +814,20 @@ export default function ChatPage() {
                   {t('chat.samples.format_note')}
                 </Alert>
               )}
-              <Transcript>
+              <Transcript aria-live="polite" aria-atomic="false">
                 {policy && cardJobId && !cardHidden && (
                   <LessonCard key={cardJobId} jobId={cardJobId} policy={policy} nodeAddress={info?.node.address} teacherAddress={teacherKey?.address}
                     onTry={(j) => { void onTry(j); }} onPublish={(j) => openSheet('publish', j)} onKeep={(j) => openSheet('keep', j)} onImprove={onImprove} onHide={hideCard} />
                 )}
                 {turns.length === 0 ? (
-                  <EmptyState><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</EmptyState>
+                  /* Finding 78 — with the model server off, the biggest text on the screen used to tell the
+                     visitor to click a sample question, pointing at greyed-out chips. Say what is actually
+                     happening, in the middle of the panel where they are looking. */
+                  <EmptyState>
+                    {runtimeOff
+                      ? <><b>{t('chat.runtime.off')}</b>{t('chat.runtime.off_detail')}</>
+                      : <><b>{t('chat.empty.title')}</b>{t('chat.empty.body')}</>}
+                  </EmptyState>
                 ) : turns.map((turn, i) => {
                   // Finding 14: the questions stay, so each run of them says what was loaded when it was asked. A
                   // conversation that never changed selection carries no marks at all.
@@ -645,7 +840,7 @@ export default function ChatPage() {
                           <b>{names.length ? t('chat.turn.stack', { names: names.join(', ') }) : t('chat.turn.stack_none')}</b>
                         </StackMark>
                       )}
-                      <TurnView turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onTeach={teachOn ? onTeach : undefined} nameOf={nameOf}
+                      <TurnView turn={turn.id === pending?.id ? { ...turn, queue } : turn} onRetry={retry} onAskAgain={askAgain} onTeach={teachOn ? onTeach : undefined} nameOf={nameOf}
                         innerRef={i === turns.length - 1 ? lastTurnRef : undefined} />
                     </Fragment>
                   );
@@ -667,9 +862,9 @@ export default function ChatPage() {
               <ChatComposer
                 disabled={composerDisabled} disabledReason={disabledReason} busy={busy}
                 mode={mode} onMode={setMode} thinking={thinking} onThinking={setThinking}
-                samples={samples}
+                samples={samples} samplesGloss={samplesGloss}
                 onSend={(text) => { void send(text); }} onClear={clear} canClear={turns.length > 0}
-                footer={quotaText} prefill={askParam}
+                footer={quotaOffer || quotaText} prefill={askParam} restore={restore}
               />
             </Main>
           </Grid>
