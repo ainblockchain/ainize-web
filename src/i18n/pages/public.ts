@@ -23,14 +23,6 @@ export const landing: Dict = {
   'landing.hero.note': { ko: '회원가입 없음 · 결제는 지갑(AIN) 또는 노드 크레딧으로 자동 처리 · 언제든 뺄 수 있음', en: 'No sign-up · pays automatically with a wallet (AIN) or node credit · removable any time' },
 
   // audience
-  'landing.oneline.title': { ko: '한 줄이면 됩니다', en: 'One line is enough' },
-  'landing.oneline.sub': { ko: '터미널이 편하시면 — 지식을 올리는 것도, 쓰는 것도 명령 한 줄입니다.', en: 'If you prefer the terminal — publishing knowledge and using it are each a single command.' },
-  'landing.oneline.publish.who': { ko: '지식을 올리는 분', en: 'Publish knowledge' },
-  'landing.oneline.publish.help': { ko: '학습된 지식 파일과 검증 질문 몇 개를 주면 등록과 공표가 끝납니다. 검증은 네트워크가 실제 모델에서 대신 하고, 팔릴 때마다 자동으로 정산됩니다.', en: 'Give it the learned knowledge file and a few benchmark questions — registration and announcement are done. The network verifies it on the real model and you are paid on every sale.' },
-  'landing.oneline.use.who': { ko: '지식을 쓰는 분', en: 'Use knowledge' },
-  'landing.oneline.use.help': { ko: '검증 완료를 확인하고, 자동 결제하고, 내려받아 내 모델에 넣는 것까지 한 번에 합니다. 회원가입 없이 지갑(AIN) 또는 노드 크레딧으로 결제됩니다.', en: 'Checks verification, pays automatically, downloads and loads it into your model in one go. No sign-up — a wallet (AIN) or node credit pays.' },
-  'landing.oneline.caption': { ko: '웹으로도 똑같이 할 수 있습니다 — 위의 "지식 둘러보기"와 "라이브 테스트"부터 시작하세요.', en: 'You can do all of this on the web too — start with "Explore knowledge" and "Live test" above.' },
-  'landing.oneline.more': { ko: '자세한 API·CLI 문서', en: 'Full API & CLI reference' },
   'landing.audience.title': { ko: '어떤 분이신가요?', en: 'Which one are you?' },
   'landing.audience.sub': { ko: 'Ainize는 지식을 쓰는 사람, 만드는 사람, 네트워크를 돌리는 사람이 함께 씁니다.', en: 'Ainize is used by people who use knowledge, people who make it, and people who run the network.' },
   'landing.audience.user.s1': { ko: '주제·모델별로 검증된 지식을 찾습니다.', en: 'Find knowledge verified for your topic and model.' },
@@ -49,8 +41,55 @@ export const landing: Dict = {
   'landing.audience.operator.s2': { ko: '검증 결과는 노드 키로 서명되어 공개 기록에 남습니다. 잘못된 검증에는 누구나 이의를 제기할 수 있고, 그때 판매가 멈춥니다.', en: 'Every verification you publish is signed with your node key and stays on the public record. Any node can challenge a wrong one, and a challenge stops the sale.' },
   'landing.audience.operator.s3': { ko: 'HTTP API로 AI 에이전트가 지식을 직접 사고 넣도록 자동화합니다.', en: 'Automate with the HTTP API so AI agents buy and load knowledge themselves.' },
   'landing.audience.operator.cta': { ko: '운영자 콘솔 열기', en: 'Open the operator console' },
-  'landing.audience.operator.dev_label': { ko: '개발자용 · 터미널', en: 'For developers · terminal' },
-  'landing.audience.operator.dev_help': { ko: '아래 명령은 노드를 직접 운영하려는 개발자만 필요합니다. 지식을 사서 쓰는 데는 설치가 필요 없습니다.', en: 'Only developers who want to run their own node need these commands. Using knowledge requires no install.' },
+
+
+  // lifecycle — ONE time-ordered diagram of the ecosystem (owner review 2026-09: the one-line commands were grouped
+  // by role and read as a menu, not a sequence). Every note here is a promise the shipped product keeps: where a
+  // step has no command it says so, and where a step needs an earlier step it names it. README.md carries the same
+  // eight steps and test/lifecycle.test.ts fails if the wording of a command or a route drifts apart.
+  'landing.flow.title': { ko: '이 생태계가 도는 순서', en: 'How the ecosystem goes around' },
+  'landing.flow.sub': { ko: '실제로 일어나는 순서 그대로 여덟 단계입니다. 단계마다 명령 한 줄과 눌러서 갈 수 있는 화면이 있고, 마지막 단계가 내가 공개한 지식을 다음 사람에게 넘기면서 다시 처음으로 돌아갑니다.', en: 'Eight steps, in the order they actually happen. Each one is a single command and a page you can click — and the last one hands what you published to the next person, so it starts again.' },
+  'landing.flow.legend': { ko: '단계마다 움직이는 사람이 바뀝니다:', en: 'Who is acting changes as it goes:' },
+  'landing.flow.actor.you': { ko: '나', en: 'You' },
+  'landing.flow.actor.node': { ko: '내 노드', en: 'Your node' },
+  'landing.flow.actor.network': { ko: '네트워크', en: 'The network' },
+  'landing.flow.actor.other': { ko: '다른 사람', en: 'Someone else' },
+  'landing.flow.ui_label': { ko: '이 노드에서', en: 'On this node' },
+  'landing.flow.loop': { ko: '이제 그들이 공개한 지식이 다음 사람이 만나는 지식입니다 — 그 사람은 맨 위에서 자기 노드를 띄우고 {n}번 단계에서 이 지식을 만납니다.', en: 'What they published is now what the next person finds: they start their own node at the top, and meet it at step {n}.' },
+  'landing.flow.readme': { ko: 'README에도 똑같은 여덟 단계가 똑같은 명령과 화면 경로로 적혀 있습니다.', en: 'The README carries the same eight steps, with the same commands and the same routes.' },
+  'landing.flow.more': { ko: '자세한 API·CLI 문서', en: 'Full API & CLI reference' },
+
+  'landing.flow.s1.title': { ko: '노드를 띄웁니다', en: 'Run a node' },
+  'landing.flow.s1.note': { ko: '이 프로세스 하나가 마켓 웹사이트이자 CLI입니다. 먼저 저장소를 클론하고 `npm install && npm run build`를 하세요 — 공개 npm 패키지는 아직 없습니다. `init`이 config.json에 쓰는 키가 곧 노드입니다. 이 노드가 공개한 모든 지식과 잔액이 그 키의 것이고, 사본은 그 파일 하나뿐입니다.', en: 'The same process is the marketplace site and the CLI. Clone the repo first and run `npm install && npm run build` — there is no public npm package yet. The key `init` writes into config.json is the node: it owns everything the node publishes and its balance, and that file is the only copy.' },
+  'landing.flow.s1.path': { ko: '/ — 이 페이지를 노드가 직접 띄웁니다', en: '/ — the node serves this page itself' },
+
+  'landing.flow.s2.title': { ko: '기본 모델이 답합니다', en: 'The base model answers' },
+  'landing.flow.s2.note': { ko: '아직 아무 지식도 넣지 않은 답이 라이브 테스트의 “넣기 전” 칸입니다. 모델만 따로 부르는 명령은 없습니다 — `chat`은 언제나 넣기 전과 후를 함께 답해서, 설명 대신 차이를 직접 보게 합니다. 브라우저의 라이브 테스트는 무료이고, 구매가 아닙니다.', en: 'With nothing loaded yet, that answer is the “before” column of a live test. No command asks the bare model on its own — `chat` always answers before and after, so you see the difference instead of a claim about it. In the browser the live test is free, and it is not a purchase.' },
+  'landing.flow.s2.path': { ko: '/ → 라이브 테스트', en: '/ → Live test' },
+
+  'landing.flow.s3.title': { ko: '남의 지식을 찾아서 씁니다', en: 'Find someone’s knowledge and use it' },
+  'landing.flow.s3.note': { ko: '둘째 줄 한 줄로 검증 여부 확인 → 결제 → 내려받기 → 재시작 없이 실행 중인 모델에 넣기까지 끝납니다. 구매는 노드 운영자의 몫이라 `ainize login`이 먼저이고, 검증을 마쳐 판매 중인 지식만 살 수 있습니다. 브라우저에서는 무료로 라이브 테스트만 되고 구매는 되지 않습니다.', en: 'The second line checks it is verified, pays, downloads and loads it into the running model with no restart. Buying is the node operator’s action, so `ainize login` comes first, and only knowledge that finished verification is on sale. In the browser you can live-test it free, but not buy it.' },
+  'landing.flow.s3.path': { ko: '/ → 지식 둘러보기 → 지식 상세 → 구매', en: '/ → Explore knowledge → a knowledge page → Buy' },
+
+  'landing.flow.s4.title': { ko: '틀리는 것을 가르칩니다', en: 'Teach it something it gets wrong' },
+  'landing.flow.s4.note': { ko: '내 질문과 정답이 수업이 되고, 노드가 학습한 뒤 상관없는 질문들을 다시 물어 다른 답이 망가지지 않았는지 확인합니다. 가르치기는 운영자가 켜 둔 노드에서만 되고 기본값은 꺼짐입니다. 계정은 없습니다 — 브라우저나 `<NGRAM_HOME>/teaching-key.json`에 있는 teaching key가 신원 전부라, 백업을 잃으면 수업도 그 수익도 잃습니다.', en: 'Your questions and their right answers become a lesson: the node trains it, then re-asks unrelated questions to prove nothing else moved. Teaching only works on a node whose operator switched it on — it is off by default. There is no account: a teaching key, in your browser or at `<NGRAM_HOME>/teaching-key.json`, is the whole identity, and losing the backup loses the lesson and its earnings.' },
+  'landing.flow.s4.path': { ko: '/ → 가르치기 → 데이터셋 올리기', en: '/ → Teach → Upload your dataset' },
+
+  'landing.flow.s5.title': { ko: '공개합니다', en: 'Publish it' },
+  'landing.flow.s5.note': { ko: '데이터 제공자는 브라우저에서 공개합니다 — 이 경로의 CLI는 아직 없습니다. 위 명령은 노드 컴퓨터에 이미 지식 파일이 있는 운영자용입니다. 공개는 파일이 아니라 경로를 보내므로, 지식을 파는 노드는 그 파일을 들고 있는 노드입니다. 검증 문항은 필수이고 질문과 정답이 함께 공개됩니다 — 그래야 누구든 검증자의 채점을 다시 해 볼 수 있습니다.', en: 'A data provider publishes in the browser — there is no CLI for that path yet; the line above is the operator’s route for a knowledge file already on the node’s machine. Publishing sends a path, not bytes, so the node that sells the knowledge is the node holding the file. A benchmark is required and its questions and expected answers become public — that is what makes a verifier’s score checkable by anyone.' },
+  'landing.flow.s5.path': { ko: '/teach → 내 데이터셋과 수업 → 수업 → 공개하기', en: '/teach → My datasets and lessons → the lesson → Publish' },
+
+  'landing.flow.s6.title': { ko: '다른 노드가 검증해야 팔립니다', en: 'Other nodes verify it before it sells' },
+  'landing.flow.s6.note': { ko: '공개했다고 판매가 시작되지 않습니다. 검증자 역할을 가진 독립 노드 두 곳이 실제 모델에 넣어 채점해야 하고, 채점 결과는 지식 상세의 “검증” 탭에 남습니다. 내 노드가 스스로 낸 검증은 거부되고 절대 세지 않습니다. 그래서 피어가 없는 노드는 아무것도 판매 상태가 되지 못하는데 이 저장소에는 기본 피어 목록이 없습니다 — 피어를 직접 추가하거나 노드를 하나 더 띄우세요.', en: 'Publishing is not selling. Two independent nodes with the verifier role have to load it into the real model and score it, and the score lands on the knowledge page under Verification. Your own attestation is refused and never counted, so a node with no peers lists nothing — and this repo ships no bootstrap peer list. Add a peer, or run a second node yourself.' },
+  'landing.flow.s6.path': { ko: '/ → 네트워크 — 검증에 참여하는 노드들', en: '/ → Network — the nodes that verify' },
+
+  'landing.flow.s7.title': { ko: '다른 사람이 내 지식을 씁니다', en: 'Someone else uses yours' },
+  'landing.flow.s7.note': { ko: '첫 줄은 그 사람이, 둘째 줄은 판매를 확인하려는 내가 실행하는 명령입니다. 결제는 x402로 지갑(AIN) 또는 노드 크레딧에서 이뤄지고, 파일은 내 노드에서 나갑니다 — 지식을 들고 있는 노드가 파는 노드이기 때문입니다. 그래서 내 노드는 계속 접속 가능해야 하고 파일도 그대로 갖고 있어야 합니다. 어떤 검증자든 이의를 제기하면 다시 검증될 때까지 판매가 멈춥니다.', en: 'The first line is theirs; the second is what you run to see the sale. They pay over x402 from a wallet (AIN) or node credit, and the file comes from your node, because the node holding the knowledge is the node selling it. So your node has to stay reachable and still hold the body. Any verifier can challenge it, and a challenge stops the sale until it is re-run.' },
+  'landing.flow.s7.path': { ko: '/ → 공개 기록 — 서명되어 영구히 남는 판매 기록', en: '/ → Public record — the sale, signed and permanent' },
+
+  'landing.flow.s8.title': { ko: '거기에 더 얹어서 다시 공개합니다', en: 'They add to it and publish again' },
+  'landing.flow.s8.note': { ko: '내 지식을 확보하는 일은 저절로 따라오지 않는 별도의 단계입니다 — 그 위에 가르치려면 상대 노드가 파일을 들고 있어야 하므로 첫 줄이 먼저 성공해야 합니다. 둘째 줄은 내가 공개할 때 질문을 읽을 수 있게(전체 공개, 또는 파생 지식을 만드는 사람에게만) 정해 둔 경우에만 됩니다. 새 수업은 내 지식을 부모로 기록하고 팔릴 때마다 수익을 나눠 주며, 자식은 부모와 계속 묶여 있습니다 — 부모 없이 자식만 사는 것도, 부모를 밑에 올리지 않고 적용하는 것도 거부됩니다.', en: 'Acquiring your knowledge is a step of its own, not an implication: to teach on top of it their node must hold the body, so the first line has to succeed first. The second line only works if you published the questions as readable — by anyone, or by people building on it. The new lesson records yours as its parent and shares revenue with you on every sale, and the child stays tied to the parent: buying it without the parent is refused, and so is loading it without the parent underneath.' },
+  'landing.flow.s8.path': { ko: '/ → 지식 둘러보기 → 지식 상세 → 출처와 파생', en: '/ → Explore knowledge → a knowledge page → Origins & derivatives' },
 
   // how it works
   'landing.how.title': { ko: '이렇게 됩니다', en: 'How it works' },

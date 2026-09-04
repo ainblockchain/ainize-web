@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useCatalogQuery, useInfoQuery } from '@/api/api';
+import Lifecycle from '@/components/public/Lifecycle';
 import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
-import { CopyButton, ScoreBar, Shimmer } from '@/components/ui/Misc';
+import { ScoreBar, Shimmer } from '@/components/ui/Misc';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { num, shortAddr } from '@/utils/format';
@@ -123,26 +124,6 @@ const AudienceAlt = styled(Link)`
   &:hover { text-decoration: underline; }
 `;
 const AudienceOff = styled.p`margin: 14px 0 0; font-size: 13px; line-height: 1.5; color: #8d8d8f; word-break: keep-all;`;
-const DevLabel = styled.div`
-  margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #c9b8ff; cursor: help;
-  &::before { content: '</>'; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; padding: 2px 6px; border-radius: 4px; background: #3f3f3f; color: #ffffff; letter-spacing: 0; }
-`;
-const Cmd = styled.code`
-  display: block; margin-top: 8px; padding: 12px 16px; border-radius: 8px; background: #1b1b1b; color: #d6c7ff; font-family: ${(p) => p.theme.font.mono}; font-size: 13px; line-height: 1.6; text-align: left; white-space: pre; overflow-x: auto;
-`;
-
-/* ---------------------------------------------------------------- one line (publish / use) */
-const OneLineGrid = styled.div`
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 32px;
-`;
-const OneLineCard = styled.div`
-  background: #ffffff; border: 1px solid #e6e6e6; border-radius: 16px; padding: 24px 24px 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;
-`;
-const OneLineWho = styled.h3`margin: 0; font-family: ${(p) => p.theme.font.display}; font-size: 20px; font-weight: 800; color: #333333; word-break: keep-all;`;
-const OneLineHelp = styled.p`margin: 0; font-size: 14px; line-height: 1.6; color: #5c5c5c; word-break: keep-all;`;
-const OneLineCmdRow = styled.div`display: flex; gap: 10px; align-items: flex-start; ${Cmd} { flex: 1; margin-top: 0; white-space: pre-wrap; word-break: break-all; }`;
-const OneLineCaption = styled.p`margin: 12px auto 0; font-family: ${(p) => p.theme.font.display}; font-size: 14px; color: #828282; text-align: center; max-width: 60ch; word-break: keep-all;`;
-const OneLineMore = styled(Link)`display: inline-block; margin-top: 20px; font-family: ${(p) => p.theme.font.display}; font-size: 15px; font-weight: 700; color: #8c6cff; text-decoration: none; &:hover { text-decoration: underline; }`;
 
 /* ---------------------------------------------------------------- how it works */
 const HowGrid = styled.div`
@@ -227,8 +208,6 @@ const FooterA = styled.a`font-family: ${(p) => p.theme.font.display}; font-size:
 const Copyright = styled.div`font-family: ${(p) => p.theme.font.display}; font-size: 13px; color: #9b9b9b; text-align: center;`;
 
 const LOGO = { src: '/static/images/logo-white.png', srcSet: '/static/images/logo-white@2x.png 2x, /static/images/logo-white@3x.png 3x' };
-const ONE_LINE_PUBLISH = 'ainize publish ./my-knowledge.npz --name "한국 상장사 종목코드" --model Qwen3.8-Flash-Next --benchmark ./bench.json --price 25';
-const ONE_LINE_USE = 'ainize use krx-all-2761';
 
 export default function LandingPage() {
   const { t, term, help, tech, audience } = useT();
@@ -288,6 +267,9 @@ export default function LandingPage() {
         </IntroContent>
       </IntroSection>
 
+      {/* -------- the ecosystem, in time order (replaces the role-grouped "one line is enough" menu) */}
+      <Lifecycle />
+
       {/* -------- audience switch */}
       <Section $bg="#f7f5fc">
         <Inner>
@@ -327,33 +309,9 @@ export default function LandingPage() {
                 <li><b>2</b><span title={`${help('signedResult')} (${tech('signedResult')})`}>{t('landing.audience.operator.s2')}</span></li>
                 <li><b>3</b><span title={`${help('autoPay')} (${tech('autoPay')})`}>{t('landing.audience.operator.s3')}</span></li>
               </Steps>
-              <DevLabel title={t('landing.audience.operator.dev_help')}>{t('landing.audience.operator.dev_label')}</DevLabel>
-              <Cmd>{'npm install -g ainize\nainize init\nainize start'}</Cmd>
               <AudienceCta $dev to="/signing">{t('landing.audience.operator.cta')}</AudienceCta>
             </AudienceCard>
           </AudienceGrid>
-        </Inner>
-      </Section>
-
-      {/* -------- one line: publish / use */}
-      <Section $bg="#f7f5fb">
-        <Inner>
-          <SectionTitle>{t('landing.oneline.title')}</SectionTitle>
-          <SectionSub>{t('landing.oneline.sub')}</SectionSub>
-          <OneLineGrid>
-            <OneLineCard>
-              <OneLineWho>{t('landing.oneline.publish.who')}</OneLineWho>
-              <OneLineCmdRow><Cmd>{ONE_LINE_PUBLISH}</Cmd><CopyButton text={ONE_LINE_PUBLISH} label={t('common.copy')} /></OneLineCmdRow>
-              <OneLineHelp>{t('landing.oneline.publish.help')}</OneLineHelp>
-            </OneLineCard>
-            <OneLineCard>
-              <OneLineWho>{t('landing.oneline.use.who')}</OneLineWho>
-              <OneLineCmdRow><Cmd>{ONE_LINE_USE}</Cmd><CopyButton text={ONE_LINE_USE} label={t('common.copy')} /></OneLineCmdRow>
-              <OneLineHelp>{t('landing.oneline.use.help')}</OneLineHelp>
-            </OneLineCard>
-          </OneLineGrid>
-          <OneLineCaption>{t('landing.oneline.caption')}</OneLineCaption>
-          <div style={{ textAlign: 'center' }}><OneLineMore to="/docs">{t('landing.oneline.more')} →</OneLineMore></div>
         </Inner>
       </Section>
 
