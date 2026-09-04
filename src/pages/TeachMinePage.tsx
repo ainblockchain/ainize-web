@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
-import { useDeleteTeachDatasetMutation, useMyTeachJobsQuery, useTeachDatasetsQuery, useTeachPolicyQuery } from '@/api/api';
+import { useCatalogQuery, useDeleteTeachDatasetMutation, useMyTeachJobsQuery, useTeachDatasetsQuery, useTeachPolicyQuery } from '@/api/api';
 import type { TeachJob } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -41,6 +41,8 @@ export default function TeachMinePage() {
   const [note, setNote] = useState<string | null>(null);
 
   const datasets = dsData?.items ?? [];
+  // SC-16 names the knowledge a set was copied from; the catalog is only fetched when one of them has a parent
+  const { data: catalog } = useCatalogQuery({ limit: 200 }, { skip: !datasets.some((d) => d.parent_patch) });
   const jobs = useMemo(() => jobData?.items ?? [], [jobData]);
   const byDataset = useMemo(() => {
     const map = new Map<string, TeachJob[]>();
@@ -82,6 +84,7 @@ export default function TeachMinePage() {
           {datasets.map((d) => (
             <DatasetCard
               key={d.id} dataset={d} lessons={byDataset.get(d.id) ?? []} ttlDays={policy?.limits?.dataset_ttl_days} busy={deleting}
+              baseName={catalog?.items.find((e) => e.anchor.id === d.parent_patch)?.anchor.name}
               onRetrain={() => navigate(`/teach/dataset/${d.id}/settings`)}
               onContinue={() => navigate(`/teach/dataset/${d.id}`)}
               onDownload={() => void signedDownload(`/api/teach/datasets/${d.id}/download`, `${d.name}.jsonl`).catch((e: Error) => setError(e.message))}

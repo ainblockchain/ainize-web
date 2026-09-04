@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  usePatchTeachDatasetMutation, useReparseTeachDatasetMutation, useTeachDatasetQuery, useTeachDatasetRowsQuery,
+  useCatalogQuery, usePatchTeachDatasetMutation, useReparseTeachDatasetMutation, useTeachDatasetQuery, useTeachDatasetRowsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation,
 } from '@/api/api';
 import type { DatasetRowInput, PreflightFact, TeachDatasetRow } from '@/api/types';
@@ -67,6 +67,7 @@ export default function TeachDatasetPage() {
   const [offset, setOffset] = useState(0);
   const [origin, setOrigin] = useState<'all' | 'mine' | 'inherited' | 'changed' | 'conflicts'>('all');
   const { data: page } = useTeachDatasetRowsQuery({ id: dsId, offset, limit: PAGE, origin }, { skip: !dsId });
+  const { data: catalog } = useCatalogQuery({ limit: 200 }, { skip: !dsData?.dataset?.parent_patch });
   const [patch, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [reparse, { isLoading: reparsing }] = useReparseTeachDatasetMutation();
   const [preflight, { isLoading: checking }] = useTeachPreflightMutation();
@@ -200,7 +201,8 @@ export default function TeachDatasetPage() {
   const bad = (summary?.conflicts ?? 0) + (summary?.too_long ?? 0) + (summary?.empty ?? 0) + (summary?.blocked ?? 0) + (summary?.not_parsed ?? 0);
   const origins = page?.origins ?? { mine: dataset.rows, inherited: 0, changed: 0, conflicts: summary?.conflicts ?? 0 };
   const inherited = origins.inherited + origins.changed;
-  const baseName = dataset.parent_patch ?? '';
+  // "from {name}", not "from taught-krx-9f21": the id is the address, the name is what the creator recognises
+  const baseName = catalog?.items.find((e) => e.anchor.id === dataset.parent_patch)?.anchor.name ?? dataset.parent_patch ?? '';
   const parsedRows = rows.filter((r) => r.status !== 'not_parsed');
   const droppedRows = rows.filter((r) => r.status === 'not_parsed');
   const total = page?.total ?? rows.length;

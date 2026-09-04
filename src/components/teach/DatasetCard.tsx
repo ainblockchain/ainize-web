@@ -41,6 +41,8 @@ export interface DatasetCardProps {
   dataset: TeachDataset;
   lessons: TeachJob[];
   ttlDays?: number;
+  /** the NAME of the knowledge this set was copied from, when this node still knows it (SC-16) */
+  baseName?: string;
   onRetrain: () => void;
   onContinue: () => void;
   onDownload: () => void;
@@ -48,7 +50,7 @@ export interface DatasetCardProps {
   busy?: boolean;
 }
 
-export function DatasetCard({ dataset, lessons, ttlDays, onRetrain, onContinue, onDownload, onDelete, busy }: DatasetCardProps) {
+export function DatasetCard({ dataset, lessons, ttlDays, baseName, onRetrain, onContinue, onDownload, onDelete, busy }: DatasetCardProps) {
   const { t } = useT();
   const dateTime = useDateTime();
   const deleted = !!dataset.deleted_at;
@@ -66,7 +68,7 @@ export function DatasetCard({ dataset, lessons, ttlDays, onRetrain, onContinue, 
       {dataset.parent_patch && (
         <Gone data-testid="ds-copied-from">
           {t('teach.ds.card_from', {
-            name: dataset.parent_patch,
+            name: baseName ?? dataset.parent_patch,
             inherited: dataset.inherited_rows ?? 0,
             mine: Math.max(0, dataset.rows - (dataset.inherited_rows ?? 0)),
           })}
