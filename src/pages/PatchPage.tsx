@@ -22,6 +22,7 @@ import { SignalsStrip } from '@/components/detail/SignalsStrip';
 import { TrainingSetBlock } from '@/components/detail/TrainingSetBlock';
 import NotFoundPage from './NotFoundPage';
 import { isExecuted, useDetailFormat } from './detail/recordText';
+import { trackHref } from './TrackPage';
 
 /* ---------------------------------------------------------------- layout ported from ainize DeploymentPage.js */
 const Wrapper = styled.div`width: 100%; flex: 1; display: flex; flex-direction: column;`;
@@ -41,6 +42,21 @@ const Branch = styled.div`margin-top: 6px; font-size: 13px; color: ${(p) => p.th
 const TrackChip = styled.span`
   display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
   background: #e1eef3; color: #0b5468; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+/**
+ * Item 268 — the track a knowledge belongs to is the thing a returning consumer actually wants to subscribe to,
+ * and until `/tracks/<name>` existed these chips were deliberately plain text (a dead link is worse than a word).
+ * The route landed in e3bd678; this is the link the finding asked for, so the path from "today's bake" to
+ * "give me this every day" no longer runs through a 35-row table at the bottom of /network.
+ */
+const TrackChipLink = styled(TrackChip).attrs({ as: Link })`
+  text-decoration: none;
+  &:hover { background: #cfe4ec; }
+  &:focus-visible { outline: 2px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
+`;
+const TrackLink = styled(Link)`
+  color: inherit; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: #b7ccd4;
+  &:hover { color: #0b5468; text-decoration-color: #0b5468; }
 `;
 const TaughtLine = styled.div`
   margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY};
@@ -679,13 +695,23 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
  * on "main" (a version-control default this product does not have) and one in 32 test tracks was announced as
  * belonging to whichever the node happened to list first. A track is only named as THE track when the anchor
  * declares it or the knowledge is in exactly one; otherwise the memberships are chips, or the line says there are
- * none. The chips do not link: /tracks/:name does not exist yet, and a dead link is worse than a plain word.
+ * none. Every track name here links to `/tracks/<name>` (item 268); the sentence keeps its own word order in both
+ * languages because `{branch}` is left uninterpolated and the link is spliced into the gap.
  */
 function TrackLine({ declared, memberships, topic }: { declared?: string; memberships: { name: string; context: Record<string, string> }[]; topic: string }) {
   const { t, tech } = useT();
   const title = `${tech('branch')} · topic_path`;
   const one = declared ?? (memberships.length === 1 ? memberships[0].name : null);
-  if (one) return <Branch title={title} data-testid="track-line">{t('detail.patch.track_topic', { branch: one, topic })}</Branch>;
+  if (one) {
+    // `branch` is deliberately not interpolated: the two halves of the sentence go either side of the link.
+    const [before, after] = t('detail.patch.track_topic', { topic }).split('{branch}');
+    return (
+      // one <span>: `Branch` is a flex row with a gap, and three bare children would space the sentence apart
+      <Branch title={title} data-testid="track-line">
+        <span>{after === undefined ? before : <>{before}<TrackLink to={trackHref(one)}>{one}</TrackLink>{after}</>}</span>
+      </Branch>
+    );
+  }
   if (memberships.length === 0) return <Branch title={title} data-testid="track-line">{t('detail.patch.no_track_topic', { topic })}</Branch>;
   const ctx = (c: Record<string, string>) => Object.entries(c).map(([k, v]) => `${k}=${v}`).join(', ');
   const shown = memberships.slice(0, 3);
@@ -693,7 +719,7 @@ function TrackLine({ declared, memberships, topic }: { declared?: string; member
   return (
     <Branch title={title} data-testid="track-line">
       <span>{t('detail.patch.tracks_topic', { n: memberships.length, topic })}</span>
-      {shown.map((b) => <TrackChip key={b.name} title={ctx(b.context) || undefined}>{b.name}</TrackChip>)}
+      {shown.map((b) => <TrackChipLink key={b.name} to={trackHref(b.name)} title={ctx(b.context) || undefined}>{b.name}</TrackChipLink>)}
       {rest.length > 0 && <TrackChip title={rest.map((b) => b.name).join(', ')}>{t('detail.patch.tracks_more', { n: rest.length })}</TrackChip>}
     </Branch>
   );
