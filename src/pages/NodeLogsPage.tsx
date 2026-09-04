@@ -64,7 +64,8 @@ export default function NodeLogsPage() {
 
   const warn = all.filter((e) => e.level === 'warn').length;
   const err = all.filter((e) => e.level === 'error').length;
-  const fresh = all.filter((e) => (e.level === 'warn' || e.level === 'error') && e.ts > seen).length;
+  // On a first visit there is no "last visit", so nothing is marked as new and the sentence about it is not shown.
+  const fresh = seen ? all.filter((e) => (e.level === 'warn' || e.level === 'error') && e.ts > seen).length : 0;
   const filtered = kind !== 'all' || level !== 'all';
 
   const LEVELS = [
