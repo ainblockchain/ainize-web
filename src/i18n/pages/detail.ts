@@ -74,6 +74,11 @@ export const detailPatch: Dict = {
   'detail.patch.stale': { ko: '아래는 이 노드가 마지막으로 준 정보입니다 — 방금 새로 고침이 실패했습니다({message}). 숫자가 최신이 아닐 수 있습니다.', en: 'Below is the last answer this node gave — the newest refresh failed ({message}), so the numbers may be out of date.' },
   'detail.patch.id': { ko: 'ID', en: 'ID' },
   'detail.patch.track_topic': { ko: '지식 묶음 {branch} · 주제 {topic}', en: 'Track {branch} · topic {topic}' },
+  /* Item 207 — a knowledge in no track used to read "Track main", and one in 32 test tracks was announced under
+     whichever the node listed first. Neither was a fact about the knowledge. */
+  'detail.patch.no_track_topic': { ko: '속한 지식 묶음 없음 · 주제 {topic}', en: 'Not in a track · topic {topic}' },
+  'detail.patch.tracks_topic': { ko: '지식 묶음 {n}개에 속함 · 주제 {topic}', en: 'In {n} tracks · topic {topic}' },
+  'detail.patch.tracks_more': { ko: '+{n}개 더', en: '+{n} more' },
   'detail.patch.view_same_subject': { ko: '같은 주제의 다른 지식 보기 ›', en: 'Other knowledge on this subject ›' },
   'detail.patch.live_test_sub': { ko: '넣기 전·후 답을 나란히 비교', en: 'Compare answers before and after' },
   'detail.patch.manage': { ko: '관리', en: 'Manage' },
@@ -128,7 +133,14 @@ export const detailPatch: Dict = {
   'detail.ov.row_dim': { ko: '기억 항목 폭', en: 'Entry width' },
   'detail.ov.billing': { ko: '과금 방식', en: 'Billing' },
   'detail.ov.license': { ko: '이용 조건', en: 'License' },
+  /* Item 187 — `license` is undefined on every anchor in the catalogue, and the old fallback printed the marketplace
+     default as if the creator had written it, then said nothing about the one thing a derivative publisher is here
+     to find out. The default is real (terms §2.2) — it is now named as the default, and its silence is stated. */
+  // still the text of that default, quoted by the publish form's hint (NewPatchPage `op.new.license.default`).
   'detail.ov.license_default': { ko: '표시된 모델에서 사용 가능 · 원본 데이터 재판매 금지', en: 'Use on the identified model · no resale of raw data' },
+  'detail.ov.license_none': { ko: '창작자가 정하지 않음', en: 'Not declared by the creator' },
+  'detail.ov.license_none_note': { ko: '창작자가 별도 조건을 밝히지 않아 마켓 기본값이 적용됩니다: 표시된 모델에서 사용, 원본 데이터 재판매 금지. 이 위에 새 지식을 만들어 파는 것에 대해서는 아무 말도 하지 않으므로, 파생 지식을 계획한다면 창작자에게 확인하세요.', en: 'The creator declared no terms, so the marketplace default applies: use on the identified model, no resale of the raw data. It says nothing about building new knowledge on top and selling that — ask the creator before you do.' },
+  'detail.ov.license_terms': { ko: '기본 이용 조건 읽기', en: 'Read the default terms' },
   'detail.ov.created': { ko: '만든 날짜', en: 'Created' },
   'detail.ov.benchmark': { ko: '검증 문제', en: 'Verification questions' },
   'detail.ov.benchmark_note': { ko: '검증 노드는 이 문제로 지식을 채점합니다. 문제와 정답은 지식과 함께 공개되므로 — 봉인되지 않습니다 — 누구나 같은 채점을 다시 해 볼 수 있습니다. 그래서 판매자가 이 문제들을 미리 알고 만들었다는 점도 함께 감안해서 보십시오.', en: 'Verifier nodes score the knowledge with these questions. They are published with the knowledge — not sealed — so anyone can re-run the same scoring and check the verdict. It also means the author knew these questions in advance; read the accuracy with that in mind.' },
@@ -143,7 +155,9 @@ export const detailPatch: Dict = {
   'detail.ov.benchmark_hash': { ko: '검증 문제 해시', en: 'Question-set hash' },
   'detail.ov.answers_hash': { ko: '정답 묶음 해시', en: 'Answer-set hash' },
   'detail.ov.samples': { ko: '예시 질문 ({n})', en: 'Sample questions ({n})' },
-  'detail.ov.more': { ko: '… {n}개 더', en: '… {n} more' },
+  // Item 75 — "… 14 more" was a list item, not a control; there was no way to see questions 13 to 26.
+  'detail.ov.more': { ko: '예시 {n}개 더 보기', en: 'Show {n} more questions' },
+  'detail.ov.less': { ko: '예시 접기', en: 'Show fewer' },
   'detail.ov.recipe': { ko: '만드는 방법 (다른 모델에도 적용 가능)', en: 'Recipe (portable to other models)' },
   'detail.ov.integrity': { ko: '위·변조 확인 정보', en: 'Integrity' },
   'detail.ov.integrity_note': { ko: '내려받은 파일의 내용 해시가 아래 값과 같아야 진짜입니다.', en: 'A downloaded file is genuine only if its content hash matches the value below.' },

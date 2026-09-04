@@ -35,7 +35,12 @@ const IdLine = styled.div`
   margin-top: 6px; font-size: 13px; color: ${(p) => p.theme.color.GREY}; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
   code { font-family: ${(p) => p.theme.font.mono}; color: #1b73e8; word-break: break-all; }
 `;
-const Branch = styled.div`margin-top: 6px; font-size: 13px; color: ${(p) => p.theme.color.GREY};`;
+const Branch = styled.div`margin-top: 6px; font-size: 13px; color: ${(p) => p.theme.color.GREY}; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;`;
+/** Item 207: a track this knowledge is a MEMBER of, named as one of several — never promoted to "the" track. */
+const TrackChip = styled.span`
+  display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+  background: #e1eef3; color: #0b5468; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
 const TaughtLine = styled.div`
   margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY};
   button { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; } }
@@ -117,10 +122,22 @@ const FailureBlock = styled.div`
   p { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: ${(p) => p.theme.color.GREY}; word-break: keep-all; }
 `;
 const Hash = styled.div`display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-family: ${(p) => p.theme.font.mono}; font-size: 13px; word-break: break-all;`;
+/**
+ * Item 75 — the one section that shows what the knowledge actually does used to render `JSON.stringify(prompt)`:
+ * `"종목코드 픽셀플러스 " → 087600`, quotes and all, with the trailing space that is deliberately part of the
+ * trained prompt invisible inside them. The Live test already had the answer (ChatComposer): the prompt as it was
+ * trained, with a ␣ marker carrying its own tooltip. Same treatment here, and the 12-of-26 cut-off is a control.
+ */
 const Samples = styled.ul`
   margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px;
-  li { font-family: ${(p) => p.theme.font.mono}; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY}; }
+  li { font-family: ${(p) => p.theme.font.mono}; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY}; word-break: break-word; }
   li b { color: ${(p) => p.theme.color.PRIMARY}; font-weight: 500; }
+  li span.sp { opacity: 0.55; }
+`;
+const MoreBtn = styled.button`
+  margin-top: 10px; padding: 5px 14px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 14px; background: #fff;
+  font: inherit; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY}; cursor: pointer;
+  &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; color: ${(p) => p.theme.color.PRIMARY}; }
 `;
 const Pre = styled.pre`
   margin: 8px 0 0; padding: 12px 16px; border-radius: 4px; background: #303133; color: #f2f2f2; font-size: 12px; line-height: 1.6; overflow-x: auto;
@@ -333,7 +350,7 @@ export default function PatchPage() {
           <HeadLeft>
             <PatchTitle>{a.name}</PatchTitle>
             <IdLine><span>{t('detail.patch.id')} <code>{a.id}</code></span><span>{t('common.author')}: <b title={a.author}>{authorLabel}</b></span></IdLine>
-            <Branch title={`${tech('branch')} · topic_path`}>{t('detail.patch.track_topic', { branch: a.branch ?? (data.branches[0]?.name ?? 'main'), topic: a.topic_path })}</Branch>
+            <TrackLine declared={a.branch} memberships={data.branches} topic={a.topic_path} />
             {/* SC-9: an add-on is not usable alone, and the header is the first place a buyer can be told so. */}
             {base && <AddonBadge data-testid="addon-badge">{t('detail.addon_badge', { name: baseName })}</AddonBadge>}
             <SignalsStrip id={a.id} />
@@ -508,7 +525,20 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
           {a.model.hash_const && <><dt title="hash_const">{t('detail.ov.hash_const')}</dt><dd><Mono>{a.model.hash_const}</Mono></dd></>}
           {a.model.row_dim !== undefined && <><dt title="row_dim">{t('detail.ov.row_dim')}</dt><dd>{a.model.row_dim}</dd></>}
           <dt>{t('detail.ov.billing')}</dt><dd title={a.billing}>{f.billingLabel(a.billing)}</dd>
-          <dt>{t('detail.ov.license')}</dt><dd>{a.license ?? t('detail.ov.license_default')}</dd>
+          {/* Item 187: every anchor in the live catalogue has `license` undefined, and the fallback sentence read as a
+              term the creator had chosen. It is the marketplace default from the terms, so it is named as that — and
+              it says the thing a derivative publisher needs and the old line never did: it covers use, not building. */}
+          <dt>{t('detail.ov.license')}</dt>
+          <dd data-testid="ov-license">
+            {a.license ?? (
+              <>
+                <div>{t('detail.ov.license_none')}</div>
+                <Note style={{ margin: '2px 0 0' }}>
+                  {t('detail.ov.license_none_note')} <StyledLink to="/terms">{t('detail.ov.license_terms')} →</StyledLink>
+                </Note>
+              </>
+            )}
+          </dd>
           <dt>{t('detail.ov.created')}</dt><dd>{dateTime(a.created_at)}</dd>
         </KeyValue>
       </Section>
@@ -533,15 +563,7 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
           <dt title="benchmark_hash">{t('detail.ov.benchmark_hash')}</dt><dd><Mono>{a.benchmark_hash}</Mono></dd>
           {a.benchmark.answers_hash && <><dt title="answers_hash (commit–reveal)">{t('detail.ov.answers_hash')}</dt><dd><Mono>{a.benchmark.answers_hash}</Mono></dd></>}
         </KeyValue>
-        {!!a.benchmark.samples?.length && (
-          <>
-            <H3 style={{ marginTop: 16 }}>{t('detail.ov.samples', { n: a.benchmark.samples.length })}</H3>
-            <Samples>
-              {a.benchmark.samples.slice(0, 12).map((s, i) => <li key={i}>{JSON.stringify(s.prompt)} → <b>{s.expect}</b></li>)}
-              {a.benchmark.samples.length > 12 && <li>{t('detail.ov.more', { n: a.benchmark.samples.length - 12 })}</li>}
-            </Samples>
-          </>
-        )}
+        {!!a.benchmark.samples?.length && <SampleQuestions samples={a.benchmark.samples} />}
         {a.recipe && (
           <Details>
             <summary title={t('detail.tech.recipe')}>{t('detail.dev_section')} · {t('detail.ov.recipe')}</summary>
@@ -565,6 +587,60 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
           <H3 title={`${help('branch')} (${tech('branch')})`}>{t('detail.ov.tracks')}</H3>
           <P>{d.branches.map((b) => `${b.name} (${Object.entries(b.context).map(([k, v]) => `${k}=${v}`).join(', ') || t('detail.ov.no_context')})`).join(' · ')}</P>
         </Section>
+      )}
+    </>
+  );
+}
+
+/**
+ * Item 207 — the header printed `a.branch ?? branches[0]?.name ?? 'main'`, so a knowledge in no track claimed to be
+ * on "main" (a version-control default this product does not have) and one in 32 test tracks was announced as
+ * belonging to whichever the node happened to list first. A track is only named as THE track when the anchor
+ * declares it or the knowledge is in exactly one; otherwise the memberships are chips, or the line says there are
+ * none. The chips do not link: /tracks/:name does not exist yet, and a dead link is worse than a plain word.
+ */
+function TrackLine({ declared, memberships, topic }: { declared?: string; memberships: { name: string; context: Record<string, string> }[]; topic: string }) {
+  const { t, tech } = useT();
+  const title = `${tech('branch')} · topic_path`;
+  const one = declared ?? (memberships.length === 1 ? memberships[0].name : null);
+  if (one) return <Branch title={title} data-testid="track-line">{t('detail.patch.track_topic', { branch: one, topic })}</Branch>;
+  if (memberships.length === 0) return <Branch title={title} data-testid="track-line">{t('detail.patch.no_track_topic', { topic })}</Branch>;
+  const ctx = (c: Record<string, string>) => Object.entries(c).map(([k, v]) => `${k}=${v}`).join(', ');
+  const shown = memberships.slice(0, 3);
+  const rest = memberships.slice(3);
+  return (
+    <Branch title={title} data-testid="track-line">
+      <span>{t('detail.patch.tracks_topic', { n: memberships.length, topic })}</span>
+      {shown.map((b) => <TrackChip key={b.name} title={ctx(b.context) || undefined}>{b.name}</TrackChip>)}
+      {rest.length > 0 && <TrackChip title={rest.map((b) => b.name).join(', ')}>{t('detail.patch.tracks_more', { n: rest.length })}</TrackChip>}
+    </Branch>
+  );
+}
+
+/** Item 75: the trained prompt as it was trained — trailing space marked, never quoted — and all of them on request. */
+function SampleQuestions({ samples }: { samples: { prompt: string; expect: string }[] }) {
+  const { t } = useT();
+  const [all, setAll] = useState(false);
+  const shown = all ? samples : samples.slice(0, 12);
+  const anyTrailing = samples.some((s) => s.prompt !== s.prompt.replace(/\s+$/, ''));
+  return (
+    <>
+      <H3 style={{ marginTop: 16 }}>{t('detail.ov.samples', { n: samples.length })}</H3>
+      {anyTrailing && <Note style={{ margin: '4px 0 0' }}>{t('chat.samples.verbatim')}</Note>}
+      <Samples data-testid="ov-samples">
+        {shown.map((s, i) => {
+          const trailing = s.prompt !== s.prompt.replace(/\s+$/, '');
+          return (
+            <li key={`${i}-${s.prompt}`}>
+              {s.prompt.trim()}{trailing && <span className="sp" title={t('chat.samples.trailing_space')}>␣</span>} → <b>{s.expect}</b>
+            </li>
+          );
+        })}
+      </Samples>
+      {samples.length > 12 && (
+        <MoreBtn type="button" data-testid="ov-samples-more" onClick={() => setAll((v) => !v)}>
+          {all ? t('detail.ov.less') : t('detail.ov.more', { n: samples.length - 12 })}
+        </MoreBtn>
       )}
     </>
   );
