@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useCatalogQuery, useInfoQuery } from '@/api/api';
+import { ApplyArt, LiveTestArt, VerifiedArt } from '@/components/public/HowArt';
 import Lifecycle from '@/components/public/Lifecycle';
 import { Footer } from '@/components/ui/Footer';
 import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
@@ -172,7 +173,8 @@ const HowGrid = styled.div`
   margin-top: 64px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 40px;
 `;
 const HowStep = styled.div`display: flex; flex-direction: column; align-items: center; text-align: center;`;
-const HowImg = styled.img`width: 200px; object-fit: contain;`;
+/** Finding 98: the step art is inline SVG of the mechanism now (components/public/HowArt.tsx), not 2019 product art. */
+const HowArt = styled.div`width: 200px; height: 150px; display: flex; align-items: center; justify-content: center;`;
 const HowNum = styled.div`margin-top: 20px; font-family: ${(p) => p.theme.font.display}; font-size: 13px; font-weight: 800; letter-spacing: 0.1em; color: #8c6cff;`;
 const HowTitle = styled.h3`margin: 6px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 24px; font-weight: 800; line-height: 1.33; color: #000000; cursor: help;`;
 const HowDesc = styled.p`margin: 16px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 15px; line-height: 1.6; color: #333333; max-width: 38ch; word-break: keep-all;`;
@@ -396,19 +398,19 @@ export default function LandingPage() {
           <SectionSub>{t('landing.how.sub')}</SectionSub>
           <HowGrid>
             <HowStep>
-              <HowImg src="/static/images/feature-testing.png" srcSet="/static/images/feature-testing@2x.png 2x" alt="" />
+              <HowArt><VerifiedArt /></HowArt>
               <HowNum>01</HowNum>
               <HowTitle title={`${help('verified')} (${tech('verified')})`}>{t('landing.how.step1.title')}</HowTitle>
               <HowDesc>{t('landing.how.step1.desc')}</HowDesc>
             </HowStep>
             <HowStep>
-              <HowImg src="/static/images/feature-k8s.png" srcSet="/static/images/feature-k8s@2x.png 2x" alt="" />
+              <HowArt><LiveTestArt /></HowArt>
               <HowNum>02</HowNum>
               <HowTitle title={`${help('liveTest')} (${tech('liveTest')})`}>{t('landing.how.step2.title')}</HowTitle>
               <HowDesc>{t('landing.how.step2.desc')}</HowDesc>
             </HowStep>
             <HowStep>
-              <HowImg src="/static/images/feature-deploy.png" srcSet="/static/images/feature-deploy@2x.png 2x" alt="" />
+              <HowArt><ApplyArt /></HowArt>
               <HowNum>03</HowNum>
               <HowTitle title={`${help('apply')} (${tech('apply')}) · ${help('conflict')} (${tech('conflict')})`}>{t('landing.how.step3.title')}</HowTitle>
               <HowDesc>{t('landing.how.step3.desc')}</HowDesc>
