@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
+import { errorMessage, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
 import type { BranchesResponse, SubscribeResult, TrackItem } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
@@ -37,6 +37,17 @@ const ItemPlan = styled.div<{ $tone: 'spend' | 'warn' | 'muted' }>`
   color: ${(p) => (p.$tone === 'spend' ? '#a0102c' : p.$tone === 'warn' ? '#8a4b00' : p.theme.color.GREY)};
   strong { display: block; font-size: 14px; color: ${(p) => p.theme.color.BLACK}; }
 `;
+/**
+ * Finding 262 — the card said "{n} knowledge · {subs} subscriber(s)" and nothing about THIS node, so a subscriber
+ * whose model was a day behind had to read the card, then the retired item's page (which addresses the subscriber
+ * on a page the subscriber never opens) and then the CLI to find out. The comparison belongs here, on the card
+ * beside the button that fixes it.
+ */
+const Standing = styled.span<{ $behind: boolean }>`
+  font-size: 13px; font-weight: ${(p) => (p.$behind ? 600 : 400)};
+  color: ${(p) => (p.$behind ? '#8a4b00' : p.theme.color.SUCCESS)};
+`;
+const StandingNote = styled.span`display: block; font-weight: 400; font-size: 12px; color: ${(p) => p.theme.color.GREY}; margin-top: 2px;`;
 
 type Branch = BranchesResponse['branches'][number];
 
@@ -69,6 +80,21 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
   /** Item 257 — `patch_ids` is the whole history of the track; `current` is what a subscriber actually loads. */
   const current = branch.current ?? q?.current ?? branch.patch_ids;
   const retiredCount = branch.patch_ids.length - current.length;
+
+  /**
+   * Finding 262 — what this node actually holds of the track's current knowledge. `applied` is the runtime's own
+   * answer (what is on the model right now), never a guess from the catalogue: a subscription that half-failed,
+   * a body this node owns but never loaded and a version superseded overnight all read the same on the ledger.
+   */
+  const runtime = useRuntimeQuery();
+  const loadedIds = new Set((runtime.data?.applied ?? []).map((x) => x.patch_id));
+  const loaded = current.filter((id) => loadedIds.has(id));
+  const missing = current.filter((id) => !loadedIds.has(id));
+  const nameOf = (id: string) => items.find((i) => i.patch_id === id)?.name ?? id;
+  const missingText = missing.length <= 2
+    ? missing.map(nameOf).join(', ')
+    : t('op.dash.branches.behind.more', { ids: missing.slice(0, 2).map(nameOf).join(', '), n: missing.length - 2 });
+  const runtimeKnown = !!runtime.data?.available;
 
   const planLabel = (i: TrackItem) => t(`op.dash.branches.plan.${i.plan}`);
   const busy = subState.isLoading;
@@ -113,6 +139,17 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
             : toBuy.length === 0 ? t('op.dash.branches.cost.nothing', { n: current.length })
               : t('op.dash.branches.cost.buy', { n: toBuy.length, total: totalText })}
         </Cost>
+      )}
+      {/* Finding 262 — "loaded 1 of 2 current · still missing: …" beside the button that closes the gap. */}
+      {subscribed && (
+        <Standing $behind={runtimeKnown && missing.length > 0} data-testid="track-standing">
+          {!runtimeKnown ? <Muted>{t('op.dash.branches.loaded.unknown')}</Muted>
+            : missing.length === 0 ? t('op.dash.branches.loaded', { n: loaded.length, total: current.length })
+              : <>
+                {t('op.dash.branches.behind', { n: loaded.length, total: current.length, ids: missingText })}
+                <StandingNote>{t('op.dash.branches.behind.help')}</StandingNote>
+              </>}
+        </Standing>
       )}
       <Row $gap={8}>
         {subscribed
