@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
-import { useCatalogQuery, useDeleteTeachDatasetMutation, useMyTeachJobsQuery, useTeachDatasetsQuery, useTeachPolicyQuery } from '@/api/api';
+import { useCatalogQuery, useDeleteTeachDatasetMutation, useMyTeachJobsQuery, usePatchTeachDatasetMutation, useTeachDatasetsQuery, useTeachPolicyQuery } from '@/api/api';
 import type { TeachJob } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -37,6 +37,7 @@ export default function TeachMinePage() {
   const { data: dsData, isFetching } = useTeachDatasetsQuery(undefined, { skip: !hasKey });
   const { data: jobData } = useMyTeachJobsQuery(undefined, { skip: !hasKey });
   const [remove, { isLoading: deleting }] = useDeleteTeachDatasetMutation();
+  const [patchDataset, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -56,6 +57,15 @@ export default function TeachMinePage() {
     return map;
   }, [jobs]);
   const legacy = jobs.filter((j) => !j.dataset?.id);
+
+  /** Finding 45 — the retention choice, changed after the upload that fixed it. */
+  const setRetention = (id: string, retention: 'keep' | 'delete_after_training') => {
+    setError(null); setNote(null);
+    void (async () => {
+      try { await patchDataset({ id, retention }).unwrap(); setNote(t(retention === 'delete_after_training' ? 'teach.data.retention_now_delete' : 'teach.data.retention_now_keep')); }
+      catch (e) { setError(mapTeachError(e, t)); }
+    })();
+  };
 
   const drop = (id: string, name: string) => {
     if (!window.confirm(t('teach.data.delete_confirm', { name }))) return;
@@ -83,7 +93,8 @@ export default function TeachMinePage() {
         <List>
           {datasets.map((d) => (
             <DatasetCard
-              key={d.id} dataset={d} lessons={byDataset.get(d.id) ?? []} ttlDays={policy?.limits?.dataset_ttl_days} busy={deleting}
+              key={d.id} dataset={d} lessons={byDataset.get(d.id) ?? []} ttlDays={policy?.limits?.dataset_ttl_days} busy={deleting || patching}
+              onRetention={(r) => setRetention(d.id, r)}
               baseName={catalog?.items.find((e) => e.anchor.id === d.parent_patch)?.anchor.name}
               onRetrain={() => navigate(`/teach/dataset/${d.id}/settings`)}
               onContinue={() => navigate(`/teach/dataset/${d.id}`)}

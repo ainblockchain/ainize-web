@@ -479,6 +479,8 @@ export const teach: Dict = {
   'teach.entry.file.cta': { ko: '파일 고르기', en: 'Choose a file' },
   // O-4: the file door's limits are two chips beside the picker label — the formats chip is the node's own list joined with " · "
   'teach.entry.file.cap': { ko: '질문 최대 {max}개', en: 'up to {max} questions' },
+  // Finding 50 — the lesson cap first, because it is what decides how much of a file is actually taught
+  'teach.entry.file.cap_both': { ko: '한 수업에 질문 {lesson}개까지 (데이터셋 보관은 {stored}개)', en: 'up to {lesson} questions per lesson ({stored} stored)' },
   'teach.entry.file.limits_aria': { ko: '파일 조건', en: 'File limits' },
   // O-5: the readiness line — plain language first, the node's own status sentence behind "Details"
   'teach.ready.now': { ko: '지금 바로 시작할 수 있습니다 — 기다리는 사람이 없습니다.', en: 'You can start now — nobody is waiting.' },
@@ -526,6 +528,8 @@ export const teach: Dict = {
   'teach.up.sub': { ko: '한 줄에 질문 하나, 정답 하나. 적어 준 그대로 모델이 배웁니다.', en: 'One question and one right answer per line. The model is taught the answers exactly as you write them.' },
   'teach.up.drop': { ko: '여기에 파일을 놓으세요', en: 'Drop a file here' },
   'teach.up.or': { ko: '또는', en: 'or' },
+  // Finding 93 — one line that works on both devices: the tappable control is the button below it, always.
+  'teach.up.drop_or': { ko: '여기에 파일을 끌어다 놓거나', en: 'Drop a file here, or' },
   'teach.up.browse': { ko: '파일 고르기', en: 'Choose a file' },
   'teach.up.accept': { ko: 'jsonl, csv, tsv, txt · 최대 {mb} MB', en: 'jsonl, csv, tsv or txt · up to {mb} MB' },
   'teach.up.reading': { ko: '파일을 읽는 중…', en: 'Reading your file…' },
@@ -799,6 +803,9 @@ export const teach: Dict = {
   'teach.data.retention': { ko: '{date}까지 이 노드에 보관합니다.', en: 'Kept on this node until {date}.' },
   'teach.data.retention_delete': { ko: '학습이 끝나면 바로 삭제합니다.', en: 'Deleted as soon as training finishes.' },
   'teach.data.retention_set': { ko: '학습이 끝나면 내 파일 삭제하기', en: 'Delete my file as soon as training finishes' },
+  // Finding 45 — the one privacy decision in the flow, changeable after the upload it governs
+  'teach.data.retention_now_delete': { ko: '학습이 끝나면 이 데이터셋의 질문 파일을 지웁니다.', en: 'This dataset\'s questions will be deleted as soon as training finishes.' },
+  'teach.data.retention_now_keep': { ko: '이 데이터셋을 보관 기간 동안 이 노드에 둡니다.', en: 'This dataset stays on this node for its retention period.' },
   'teach.data.gone': { ko: '이 수업의 데이터셋은 소유자가 삭제했습니다. 수업 자체는 그대로입니다.', en: 'The dataset for this lesson was deleted by its owner. The lesson itself is unchanged.' },
   'teach.data.file_gone': { ko: '요청하신 대로 학습이 끝나자마자 질문 파일을 지웠습니다. 지문과 수업은 그대로지만, 이 데이터셋은 다시 내려받거나 학습할 수 없습니다.', en: 'Your questions were deleted as soon as training finished, as you asked. The fingerprint and the lessons are kept, but this dataset can no longer be downloaded or trained.' },
   'teach.data.other_lessons': { ko: '데이터셋 없이 만든 수업', en: 'Lessons made without a dataset' },

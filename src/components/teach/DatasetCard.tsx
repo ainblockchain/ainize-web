@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import type { TeachDataset, TeachJob } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Form';
 import { useDateTime } from '@/utils/useFormat';
 import { mineStatusKey } from '@/components/chat/teachUtil';
 import { shortSha } from '@/lib/teachDataset';
@@ -47,10 +48,12 @@ export interface DatasetCardProps {
   onContinue: () => void;
   onDownload: () => void;
   onDelete: () => void;
+  /** Finding 45 — the retention choice, changeable after the upload it governs (PATCH …/datasets/:id). */
+  onRetention?: (retention: 'keep' | 'delete_after_training') => void;
   busy?: boolean;
 }
 
-export function DatasetCard({ dataset, lessons, ttlDays, baseName, onRetrain, onContinue, onDownload, onDelete, busy }: DatasetCardProps) {
+export function DatasetCard({ dataset, lessons, ttlDays, baseName, onRetrain, onContinue, onDownload, onDelete, onRetention, busy }: DatasetCardProps) {
   const { t } = useT();
   const dateTime = useDateTime();
   const deleted = !!dataset.deleted_at;
@@ -79,7 +82,21 @@ export function DatasetCard({ dataset, lessons, ttlDays, baseName, onRetrain, on
         <div><dt>{t('teach.data.h.created')}</dt><dd>{dateTime(dataset.created_at)}</dd></div>
         <div>
           <dt>{t('teach.data.h.retention')}</dt>
-          <dd>{dataset.retention === 'delete_after_training' ? t('teach.data.retention_delete') : dataset.expires_at ? t('teach.data.retention', { date: dateTime(dataset.expires_at) }) : ttlDays ? t('teach.data.expires', { days: ttlDays }) : '—'}</dd>
+          <dd>
+            {dataset.retention === 'delete_after_training' ? t('teach.data.retention_delete') : dataset.expires_at ? t('teach.data.retention', { date: dateTime(dataset.expires_at) }) : ttlDays ? t('teach.data.expires', { days: ttlDays }) : '—'}
+            {/*
+              Finding 45 — the privacy decision was one-way: it was made above the drop zone and nothing afterwards
+              could change it, although the node has always accepted `retention` on PATCH. It is a control here.
+            */}
+            {onRetention && !deleted && !fileGone && (
+              <Checkbox
+                checked={dataset.retention === 'delete_after_training'} disabled={busy} data-testid="ds-retention"
+                onChange={(e) => onRetention(e.target.checked ? 'delete_after_training' : 'keep')}
+                label={<span style={{ fontSize: 12 }}>{t('teach.data.retention_set')}</span>}
+                style={{ marginTop: 4 }}
+              />
+            )}
+          </dd>
         </div>
       </Meta>
       {deleted ? <Gone data-testid="dataset-gone">{t('teach.data.gone')}</Gone> : fileGone ? (

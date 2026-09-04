@@ -144,6 +144,9 @@ export default function TeachPage() {
   const ready = readiness(policy, t, policyLine(policy, t).text);
   const open = !!policy?.enabled && policy.trainer !== 'paused';
   const formats = policy?.limits?.formats?.length ? policy.limits.formats : ['jsonl', 'csv', 'tsv', 'txt'];
+  /** finding 50 — two different caps: what one lesson teaches, and what one dataset may hold. */
+  const lessonCap = rowsPerJob(policy);
+  const storeCap = policy?.limits?.dataset_max_rows ?? lessonCap;
 
   return (
     <PageWrapper data-testid="teach-entry">
@@ -180,7 +183,14 @@ export default function TeachPage() {
           <p id="door-file-body">{t('teach.entry.file.body')}</p>
           <Limits aria-label={t('teach.entry.file.limits_aria')} data-testid="door-file-limits">
             <li>{formats.join(' · ')}</li>
-            <li>{t('teach.entry.file.cap', { max: policy?.limits?.dataset_max_rows ?? rowsPerJob(policy) })}</li>
+            {/*
+              Finding 50 — this chip showed the STORAGE cap (2,000) and nothing else, so 2,000 was the first and
+              only number a prospective teacher saw, and the one they sized their file to. The number that governs
+              what actually gets taught is rows_per_job; it leads, with the storage cap in brackets behind it.
+            */}
+            <li data-testid="door-file-cap">{lessonCap < storeCap
+              ? t('teach.entry.file.cap_both', { lesson: lessonCap, stored: storeCap })
+              : t('teach.entry.file.cap', { max: lessonCap })}</li>
           </Limits>
           <Cta className="cta" id="door-file-cta" data-testid="door-file-cta">{t('teach.entry.file.cta')}</Cta>
         </Door>

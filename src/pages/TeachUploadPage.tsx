@@ -42,8 +42,11 @@ const Sample = styled.div`
   span { color: ${(p) => p.theme.color.GREY}; font-size: 12px; }
   a { color: ${(p) => p.theme.color.PRIMARY}; }
 `;
-const Privacy = styled.p`
-  margin: 0; padding: 12px 14px; border-radius: 6px; background: #fff3e0; color: #8a4b00; font-size: 13px; line-height: 1.55;
+/** Finding 45 — the sentence and the choice it governs, in one block, ABOVE the control that acts on them. */
+const Privacy = styled.div`
+  padding: 12px 14px; border-radius: 6px; background: #fff3e0; color: #8a4b00; font-size: 13px; line-height: 1.55;
+  p { margin: 0; }
+  label { margin-top: 8px; color: inherit; }
 `;
 const BaseCard = styled.section`
   margin: 0; padding: 14px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 8px; background: #fff;
@@ -188,17 +191,25 @@ export default function TeachUploadPage() {
               )}
           </BaseCard>
         )}
+        {/*
+          Finding 45 — the one privacy decision in the flow used to sit BELOW the drop zone, and dropping a file
+          uploads it immediately with retention fixed at whatever the checkbox held: the control was placed after
+          the action it governs, and nothing later could change it. Both the sentence and the checkbox come first,
+          before a file exists. (The dataset card in My datasets can change it afterwards as well.)
+        */}
+        <Privacy data-testid="privacy">
+          <p data-testid="privacy-text">{t('teach.up.privacy')}</p>
+          <Checkbox
+            checked={deleteAfter} onChange={(e) => setDeleteAfter(e.target.checked)} data-testid="retention"
+            label={<span style={{ fontSize: 13 }}>{t('teach.data.retention_set')}</span>}
+          />
+        </Privacy>
         <DropZone onFile={(f) => { void send(f); }} maxMb={maxMb} disabled={busy} />
         {chip && <Chip role="status" data-testid="file-chip">{busy ? t('teach.up.reading') : t('teach.up.file_chip', { name: chip.name, size: chip.size, n: chip.n })}</Chip>}
         {error && <Alert $tone="error" role="alert" data-testid="upload-error">{error}</Alert>}
 
         <PasteTable open={narrow()} onUse={sendPaste} busy={busy} />
 
-        <Checkbox
-          checked={deleteAfter} onChange={(e) => setDeleteAfter(e.target.checked)} data-testid="retention"
-          label={<span style={{ fontSize: 13 }}>{t('teach.data.retention_set')}</span>}
-        />
-        <Privacy data-testid="privacy">{t('teach.up.privacy')}</Privacy>
         {keyShort && (
           <KeyNote data-testid="key-note">
             {t('teach.up.key_made', { short: keyShort })}{' '}
