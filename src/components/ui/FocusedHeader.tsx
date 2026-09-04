@@ -1,12 +1,13 @@
-import { Link } from 'react-router';
+import { Link, NavLink } from 'react-router';
 import styled from 'styled-components';
 import { useLocale, useT } from '@/i18n';
 
 /**
  * The slim header of the teach flow (`/teach/*`, ux-critique-owner O-3 / O-6 / O-8). One task lives on these pages —
  * teaching the model — so the marketplace navigation and its ledger badge stay off them. What remains is what the
- * flow needs: the logo (home), a way out to the marketplace, and the language toggle in the same system-setting
- * corner it has on every other page.
+ * flow needs: the logo (home), the one route back to existing work ("My datasets and lessons", O-6 — a navigational
+ * link in the header's secondary position, never part of the action group), a way out to the marketplace, and the
+ * language toggle in the same system-setting corner it has on every other page.
  *
  * Same white bar, shadow and hover purple as the full header, so the two chromes read as one product.
  */
@@ -35,6 +36,11 @@ const itemCss = `
   display: inline-flex; align-items: center; padding: 8px 10px; border-radius: 4px; font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap;
   &:focus-visible { outline: 3px solid #8b3eeb; outline-offset: 1px; }
 `;
+const MineLink = styled(NavLink)`
+  ${itemCss} color: ${(p) => p.theme.color.PRIMARY};
+  &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; text-decoration: underline; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 6px 8px; font-size: 13px; }
+`;
 const ExitLink = styled(Link)`
   ${itemCss} color: ${(p) => p.theme.color.BLACK};
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
@@ -58,6 +64,7 @@ export function FocusedHeader() {
           <Logo src="/static/images/asset-logo.png" srcSet="/static/images/asset-logo@2x.png 2x, /static/images/asset-logo@3x.png 3x" alt="Ainize" />
         </Home>
         <Links aria-label={t('teach.chrome.nav')}>
+          <MineLink to="/teach/mine" data-testid="link-mine">{t('teach.entry.mine')}</MineLink>
           <ExitLink to="/explore" data-testid="teach-exit" title={t('teach.chrome.exit_help')}>{t('teach.chrome.exit')}</ExitLink>
         </Links>
         <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>

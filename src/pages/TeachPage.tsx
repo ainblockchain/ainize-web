@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useTeachPolicyQuery } from '@/api/api';
 import { useT } from '@/i18n';
@@ -28,11 +28,6 @@ const Door = styled.section<{ $primary?: boolean }>`
 const Steps = styled.div`
   margin-top: 28px; padding: 16px; border-radius: 8px; background: ${(p) => p.theme.color.PALE_GREY};
   p { margin: 0 0 10px; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY}; }
-`;
-const Foot = styled.div`
-  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 20px;
-  p { margin: 0; font-size: 13px; }
-  a { color: ${(p) => p.theme.color.PRIMARY}; font-size: 14px; font-weight: 600; }
 `;
 
 export default function TeachPage() {
@@ -71,11 +66,6 @@ export default function TeachPage() {
         <p>{t('teach.entry.steps')}</p>
         <StepStrip />
       </Steps>
-
-      <Foot>
-        <p />
-        <Link to="/teach/mine" data-testid="link-mine">{t('teach.entry.mine')} →</Link>
-      </Foot>
     </PageWrapper>
   );
 }
