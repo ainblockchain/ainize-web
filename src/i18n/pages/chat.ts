@@ -36,6 +36,7 @@ export const chat: Dict = {
   'chat.picker.move_up': { ko: '먼저 넣기 (Alt+↑)', en: 'Load this earlier (Alt+↑)' },
   'chat.picker.move_down': { ko: '나중에 넣기 (Alt+↓)', en: 'Load this later (Alt+↓)' },
   'chat.picker.loaded_section': { ko: '넣는 순서', en: 'Loaded, in this order' },
+  'chat.picker.loaded_section_one': { ko: '넣을 지식', en: 'Loaded' },
   'chat.picker.rest_section': { ko: '고를 수 있는 다른 지식', en: 'Other knowledge you can pick' },
   // Finding 218 — a node holding 136 testable knowledges listed all 136 and offered no way to find one.
   'chat.picker.filter': { ko: '지식 {n}개에서 찾기', en: 'Search {n} knowledges' },

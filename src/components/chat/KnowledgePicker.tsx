@@ -333,7 +333,7 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
           )}
           {shown.ticked.length > 0 && (
             <>
-              <Section>{t('chat.picker.loaded_section')}</Section>
+              <Section>{t('chat.picker.loaded_section', undefined, shown.ticked.length)}</Section>
               <List data-testid="picker-loaded">{shown.ticked.map(renderItem)}</List>
             </>
           )}
