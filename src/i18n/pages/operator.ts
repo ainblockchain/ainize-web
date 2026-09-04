@@ -489,7 +489,13 @@ export const operatorNew: Dict = {
   'op.new.id.helper.preview': { ko: '{slug} 로 공개됩니다', en: 'will be published as {slug}' },
   'op.new.id.helper.empty': { ko: '비워 두면 이름에서 만듭니다', en: 'derived from the name if empty' },
   'op.new.description': { ko: '설명', en: 'Description' },
-  'op.new.description.ph': { ko: '어떤 지식이 들어 있고, 어떻게 만들었고, 검증 질문이 무엇을 재는지…', en: 'What knowledge is inside, how it was made, what the benchmark measures…' },
+  'op.new.description.ph': { ko: '이 지식을 넣으면 모델이 무엇에 답할 수 있게 되는지…', en: 'What the model can answer once this is loaded…' },
+  // Finding 100 — the seeded descriptions spent the card's two visible lines on a build path and an optimiser
+  // setting. `lib/describe.ts` drops those sentences from the card; this says so at the moment they are typed, so a
+  // publisher does not have to discover it by looking at their own listing.
+  'op.new.description.helper': { ko: '둘러보기 카드에는 앞 두 줄만 보입니다. 이 지식을 넣으면 모델이 무엇에 답하게 되는지부터 쓰세요. 파일 경로·학습 설정은 레시피에 자동으로 남으므로 여기 쓰면 카드에서 빠집니다.', en: 'A buyer reads the first two lines of this on the browse card, so start with what the model can answer once it is loaded. How the file was built is recorded in the recipe automatically — a build path or an optimiser setting typed here is dropped from the card.' },
+  'op.new.description.count': { ko: '{n} / {max}자', en: '{n} / {max}' },
+  'op.new.description.limit_hit': { ko: '{max}자까지 쓸 수 있습니다', en: '{max} characters is the limit' },
   'op.new.model': { ko: '대상 모델', en: 'Target model' },
   'op.new.model.helper': { ko: '이 지식이 들어갈 AI 모델입니다. 지식은 만들 때 쓴 모델에만 맞습니다.', en: 'The AI model this knowledge goes into. Knowledge only fits the model it was made for.' },
   'op.new.topic': { ko: '분류 (선택)', en: 'Category (optional)' },

@@ -26,6 +26,11 @@ const ChoiceCard = styled.label<{ $active: boolean }>`
   input[type='radio'] { accent-color: #8b3eeb; }
 `;
 const FileInput = styled.input`font-size: 13px;`;
+/** Finding 100 — the character counter beside the description helper, in the same face the live-test composer uses. */
+const DescCount = styled.span<{ $full: boolean }>`
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+  color: ${(p) => (p.$full ? '#a0102c' : 'inherit')}; font-weight: ${(p) => (p.$full ? 600 : 400)};
+`;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
 /** Consequence of what is being typed, in the info tone the Alert already uses — money, licence and lineage. */
 const Hint = styled.div<{ $tone?: 'info' | 'warning' }>`
@@ -51,6 +56,17 @@ const LICENSE_LABEL: Record<string, string> = {
   'CC-BY-4.0': 'op.new.license.opt.cc_by', 'CC-BY-SA-4.0': 'op.new.license.opt.cc_by_sa', 'CC0-1.0': 'op.new.license.opt.cc0',
   'ODC-By-1.0': 'op.new.license.opt.odc_by', Proprietary: 'op.new.license.opt.proprietary',
 };
+
+/**
+ * Finding 100 — the description is the largest block of prose on a browse card and is clamped to two lines there,
+ * and the descriptions this network carries spent them on an absolute path and an optimiser setting. The card side
+ * is handled by `lib/describe.ts`; this is the other half the finding asked for, on the form that writes them: a
+ * ceiling, a counter that appears before it is reached, and helper text saying what those two lines are for.
+ * 1,000 is a deliberate ceiling rather than the node's (the node has none) — long enough for a full description of
+ * a knowledge and its benchmark, short enough that nobody pastes a training log into it.
+ */
+const DESCRIPTION_MAX = 1000;
+const DESCRIPTION_COUNT_FROM = 700;
 
 const DRAFT_KEY = 'ainize.new-patch.form';
 interface FormDraft {
@@ -320,7 +336,13 @@ export default function NewPatchPage() {
           <TextField label={t('op.new.name')} placeholder={t('op.new.name.ph')} value={name} onChange={(e) => setName(e.target.value)} required />
           <TextField label={t('op.new.id')} placeholder="krx-all-2761" value={id} onChange={(e) => setId(e.target.value)} helper={slugPreview ? t('op.new.id.helper.preview', { slug: slugPreview }) : t('op.new.id.helper.empty')} />
         </FormRow>
-        <TextArea label={t('op.new.description')} placeholder={t('op.new.description.ph')} value={description} onChange={(e) => setDescription(e.target.value)} />
+        <TextArea label={t('op.new.description')} placeholder={t('op.new.description.ph')} value={description} maxLength={DESCRIPTION_MAX}
+          onChange={(e) => setDescription(e.target.value)}
+          helper={<>{t('op.new.description.helper')}{description.length >= DESCRIPTION_COUNT_FROM && (
+            <> <DescCount $full={description.length >= DESCRIPTION_MAX} data-testid="new-description-count">
+              {description.length >= DESCRIPTION_MAX ? t('op.new.description.limit_hit', { max: DESCRIPTION_MAX }) : t('op.new.description.count', { n: description.length, max: DESCRIPTION_MAX })}
+            </DescCount></>
+          )}</>} />
         <FormRow>
           <TextField label={<Tip tech="model.id_M — target backbone + tokenizer">{t('op.new.model')}</Tip>} value={modelId} onChange={(e) => setModelId(e.target.value)} required helper={t('op.new.model.helper')} />
           <TextField label={<Tip tech="topic_path (ain-js knowledge graph)">{t('op.new.topic')}</Tip>} placeholder="finance/krx" value={topic} onChange={(e) => setTopic(e.target.value)} helper={t('op.new.topic.helper')} />
