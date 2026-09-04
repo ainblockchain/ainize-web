@@ -605,12 +605,31 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
       {a.dataset && (
         <Section data-testid="dataset-provenance">
           <H3>{t('detail.ov.dataset')}</H3>
-          <Note>{t('detail.ov.dataset_note')}</Note>
+          <Note>{(a.dataset.access ?? 'private') === 'private'
+            ? t('detail.ov.dataset_note')
+            : t('detail.ov.dataset_note_shared', { license: a.dataset.license ?? '—' })}</Note>
           <KeyValue style={{ marginTop: 0 }}>
             <dt>{t('detail.ov.dataset_fingerprint')}</dt>
             <dd><Mono data-testid="dataset-sha">{a.dataset.sha256.slice(0, 12)}</Mono><CopyButton text={a.dataset.sha256} label={t('common.copy')} /></dd>
             <dt>{t('detail.ov.dataset_rows')}</dt><dd>{t('teach.data.count', { n: a.dataset.rows })}</dd>
             <dt>{t('teach.data.h.source')}</dt><dd data-testid="dataset-source">{sourceKind(a.dataset.source, t)}</dd>
+            {/* Provenance BY SHA (§5.2, §6.3): the record says which set each inherited row came from, and the
+                fingerprint is what a reader checks the claim against. Without it this block says "copied from a
+                lesson" and names neither the lesson nor the bytes. */}
+            {!!a.dataset.parents?.length && (
+              <>
+                <dt>{t('detail.ov.dataset_from')}</dt>
+                <dd data-testid="dataset-parents">
+                  {a.dataset.parents.map((p) => (
+                    <div key={p.patch_id}>
+                      <StyledLink to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(p.patch_id)}`}>{p.patch_id}</StyledLink>
+                      {' · '}{t('teach.data.count', { n: p.rows })}{' · '}<Mono>{p.sha256.slice(0, 12)}</Mono>
+                      <CopyButton text={p.sha256} label={t('common.copy')} />
+                    </div>
+                  ))}
+                </dd>
+              </>
+            )}
           </KeyValue>
         </Section>
       )}

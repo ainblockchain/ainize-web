@@ -212,7 +212,12 @@ export default function TeachDatasetPage() {
     <PageWrapper $wide data-testid="teach-dataset">
       <Stepper current={2} />
       <TitleRow style={{ paddingTop: 16 }}><Title>{t('teach.rows.title')}</Title></TitleRow>
-      <Description>{t('teach.rows.sub', { n: dataset.rows, source: sourceLabel(dataset.source, dataset.source === 'chat' ? filename : dataset.source_name, t) })}</Description>
+      {/* a set forked out of someone else's knowledge is `derived`, whose label reads "a lesson you already trained" —
+          which is a claim about this visitor's own history that a copy of a stranger's questions cannot make. */}
+      <Description>{t('teach.rows.sub', {
+        n: dataset.rows,
+        source: dataset.parent_patch ? t('teach.rows.source_copied', { name: baseName }) : sourceLabel(dataset.source, dataset.source === 'chat' ? filename : dataset.source_name, t),
+      })}</Description>
       <Bar>
         <span>{t('teach.data.fingerprint', { short: shortSha(dataset.sha256) })}</span>
         {/* after an edit the stored questions are no longer the bytes the visitor uploaded — naming their file here
@@ -275,9 +280,11 @@ export default function TeachDatasetPage() {
       */}
       {inherited > 0 && (
         <>
+          {/* two sentences from §4, and neither ends in a full stop: run together they read
+              "…keeps 3 from X Inherited questions are trained again…" */}
           <Pills data-testid="inherit-summary">
-            {t('teach.rows.summary_inherit', { x: origins.mine, y: origins.changed, z: origins.inherited, name: baseName })}
-            {' '}{t('teach.rows.inherited_note')}
+            <span>{t('teach.rows.summary_inherit', { x: origins.mine, y: origins.changed, z: origins.inherited, name: baseName })}</span>
+            <span style={{ display: 'block', marginTop: 4 }}>{t('teach.rows.inherited_note')}</span>
           </Pills>
           <Bar data-testid="origin-filters">
             {([['all', t('teach.rows.f_all')], ['mine', t('teach.rows.f_mine', { n: origins.mine })], ['inherited', t('teach.rows.f_inherited', { n: origins.inherited })],

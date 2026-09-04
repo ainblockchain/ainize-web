@@ -342,6 +342,12 @@ export const teach: Dict = {
   'detail.teacher_page': { ko: '이 데이터 제공자의 페이지', en: 'This data provider\'s page' },
   'detail.ov.dataset': { ko: '학습에 쓴 데이터', en: 'The data it was taught from' },
   'detail.ov.dataset_note': { ko: '이 지식이 어떤 질문 묶음에서 나왔는지 확인할 수 있는 지문입니다. 질문과 정답 자체는 공개되지 않습니다 — 아래 예시 문항만 기록에 남습니다.', en: 'The fingerprint of the questions this knowledge was taught from. The questions and answers themselves were never published — only the sample questions below are on the record.' },
+  // A training set with `public` or `derivative` access IS published (lineage design §6.1) — the flat "never
+  // published" sentence below is true only of a private one, and on the same page the Family tree tab was already
+  // saying the opposite.
+  'detail.ov.dataset_note_shared': { ko: '이 지식이 어떤 질문 묶음에서 나왔는지 확인할 수 있는 지문입니다. 질문 자체는 {license} 조건으로 공유됩니다 — 누가 읽을 수 있는지는 계보 탭에 있습니다.', en: 'The fingerprint of the questions this knowledge was taught from. The questions themselves are shared under {license} — the Family tree tab says who may read them.' },
+  'detail.ov.dataset_from': { ko: '물려받은 질문', en: 'Questions inherited from' },
+  'detail.ov.dataset_from_v': { ko: '{id} · 문답 {n}개 · {sha}', en: '{id} · {n} questions · {sha}' },
   'detail.ov.dataset_fingerprint': { ko: '데이터셋 지문', en: 'Dataset fingerprint' },
   'detail.ov.dataset_rows': { ko: '질문 수', en: 'Questions' },
 
@@ -506,6 +512,7 @@ export const teach: Dict = {
   'teach.rows.sub': { ko: '{source}에서 가져온 질문 {n}개입니다. 빨간 표시를 고친 뒤, 모델이 이미 아는 질문을 확인하세요.', en: '{n} questions from {source}. Fix anything marked in red, then see which ones the model already knows.' },
   'teach.rows.source_file': { ko: '{name}', en: '{name}' },
   'teach.rows.source_upload': { ko: '올린 파일', en: 'a file you uploaded' },
+  'teach.rows.source_copied': { ko: '{name}에서 복사한 질문', en: 'questions copied from {name}' },
   'teach.rows.source_derived': { ko: '이미 학습한 수업', en: 'a lesson you already trained' },
   'teach.rows.source_chat': { ko: '내 대화', en: 'your conversation' },
   'teach.rows.source_paste': { ko: '붙여넣은 내용', en: 'pasted text' },
