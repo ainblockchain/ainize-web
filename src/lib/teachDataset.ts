@@ -59,16 +59,29 @@ export function acceptedFile(name: string, formats?: string[]): boolean {
  * The node refuses it (`dataset_not_text`) and that refusal is the authority; this is the same measurement done
  * before the upload, so the visitor is told about their own file instead of watching a request fail.
  *
- * Deliberately the same budget as the node: a NUL byte in the file is decisive, and otherwise at most 5 % of the
+ * Deliberately the same budget as the node: a NUL in the DECODED text is decisive, and otherwise at most 5 % of the
  * sampled characters may be control / replacement / private-use codepoints.
+ *
+ * Decoded, not raw. The node decodes first and measures the text; every UTF-16 file has zero BYTES between its ASCII
+ * characters, so a raw NUL test refuses the one encoding the node goes out of its way to read and name — a Korean
+ * spreadsheet saved as "Unicode text" is exactly that, and the visitor was told their own CSV "looks like a binary
+ * file". A UTF-16 byte-order mark is therefore honoured here the way the node honours it.
  */
 export function looksBinary(bytes: ArrayBuffer | Uint8Array): boolean {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const head = view.subarray(0, 65_536);
-  if (head.includes(0)) return true;
+  const utf16 = head.length >= 2 && ((head[0] === 0xff && head[1] === 0xfe) ? 'utf-16le' : (head[0] === 0xfe && head[1] === 0xff) ? 'utf-16be' : null);
   let text: string;
-  try { text = new TextDecoder('utf-8', { fatal: true }).decode(head); }
-  catch { text = new TextDecoder('latin1').decode(head); }
+  if (utf16) {
+    // an odd trailing byte is not evidence about the file, only about where the 64 kB window fell
+    try { text = new TextDecoder(utf16).decode(head.subarray(0, head.length - (head.length % 2))); }
+    catch { return true; }
+    if (text.includes('\u0000')) return true;
+  } else {
+    if (head.includes(0)) return true;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(head); }
+    catch { text = new TextDecoder('latin1').decode(head); }
+  }
   let bad = 0; let n = 0;
   for (const ch of text) {
     const cp = ch.codePointAt(0)!;
