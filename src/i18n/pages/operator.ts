@@ -602,12 +602,32 @@ export const operatorAccount: Dict = {
   'op.account.teach.title': { ko: '가르치기', en: 'Teaching' },
   'op.account.teach.desc': { ko: '방문자가 이 노드의 모델을 가르칠 수 있는지, 수업을 어떻게 공개할지, 데이터 제공자 몫은 얼마인지는 {link}에서 설정합니다.', en: 'Whether visitors may teach this node’s model, how their lessons get published and the data-provider share are set on {link}.' },
   'op.account.teach.link': { ko: '내 지식 → 가르치기', en: 'My knowledge → Teaching' },
+  /**
+   * Item 34 — the one credential guarding sales, publishing, the wallet and the model runtime could not be changed
+   * from the console at all: the node route existed, the client did not, and /account had no password block.
+   */
+  'op.account.password.title': { ko: '비밀번호', en: 'Password' },
+  'op.account.password.desc': { ko: '이 노드의 운영자 비밀번호입니다. 판매·발행·지갑·모델 실행을 지키는 하나뿐인 열쇠이니 주기적으로 바꾸세요. 바꾸면 다른 브라우저·기기의 로그인은 모두 끊기고, 이 브라우저만 로그인 상태로 남습니다.', en: 'This node’s operator password — the one key guarding sales, publishing, the wallet and the model runtime. Changing it signs out every other browser and device; this one stays signed in.' },
+  'op.account.password.current': { ko: '현재 비밀번호', en: 'Current password' },
+  'op.account.password.new': { ko: '새 비밀번호', en: 'New password' },
+  'op.account.password.confirm': { ko: '새 비밀번호 확인', en: 'Confirm new password' },
+  'op.account.password.save': { ko: '비밀번호 바꾸기', en: 'Change password' },
+  'op.account.password.saving': { ko: '바꾸는 중…', en: 'Changing…' },
+  'op.account.password.done': { ko: '비밀번호를 바꿨습니다. 다른 기기의 로그인은 모두 끊겼습니다.', en: 'Password changed. Every other session was signed out.' },
+  'op.account.password.err.short': { ko: '새 비밀번호는 4자 이상이어야 합니다.', en: 'The new password must be at least 4 characters.' },
+  'op.account.password.err.mismatch': { ko: '새 비밀번호가 서로 다릅니다.', en: 'The new passwords do not match.' },
+  'op.account.password.err.same': { ko: '지금 쓰는 비밀번호와 같습니다.', en: 'That is the password you are already using.' },
+  'op.account.password.err.wrong': { ko: '현재 비밀번호가 맞지 않습니다.', en: 'That is not the current password.' },
+  'op.account.password.lost': { ko: '현재 비밀번호를 잊었다면 노드가 도는 컴퓨터에서 `ainize password --reset`으로 새로 정할 수 있습니다.', en: 'If the current password is lost, run `ainize password --reset` on the machine the node runs on.' },
   'op.account.settings.title': { ko: '알림과 정산', en: 'Notifications & payout' },
   'op.account.settings.desc': { ko: '이 설정은 노드에 저장되어 어느 브라우저에서 열어도 같습니다.', en: 'These settings are stored on the node, so they are the same in every browser.' },
   'op.account.display_name': { ko: '표시 이름', en: 'Display name' },
   'op.account.display_name.helper': { ko: '지식 페이지와 네트워크에서 만든 사람으로 보이는 이름입니다.', en: 'Shown as the creator on knowledge pages and in the network.' },
-  'op.account.payout': { ko: '정산 받을 주소', en: 'Payout address' },
-  'op.account.payout.helper': { ko: '판매 수익과 원작자 수익 분배가 들어오는 계정 주소입니다. 기본값은 이 노드의 주소입니다.', en: 'Where sales revenue and creator revenue share arrive. Defaults to this node’s address.' },
+  'op.account.payout': { ko: '수익이 들어오는 주소', en: 'Where money arrives' },
+  // Item 166: the helper used to describe a text box that decided nothing. Money arrives at the node's own key —
+  // that is what the settlement is signed against — so the screen states the address instead of asking for one.
+  'op.account.payout.fact': { ko: '판매 수익과 원작자 수익 분배는 모두 이 노드의 주소로 들어옵니다. 결제가 이 주소로 왔는지로 거래를 확인하기 때문에, 지금은 다른 지갑으로 돌릴 수 없습니다.', en: 'Sales revenue and creator revenue share both arrive at this node’s own address. A payment is verified by checking it arrived there, so it cannot be routed to a different wallet today.' },
+  'op.account.payout.stored': { ko: '예전 화면에서 저장한 지급 주소({address})가 남아 있지만 어떤 결제에도 쓰이지 않습니다.', en: 'A payout address saved by an earlier build ({address}) is still stored; no payment has ever used it.' },
   'op.account.notif': { ko: '알림', en: 'Notifications' },
   'op.account.notif.all': { ko: '모두 — 판매, 검증 결과, 구독한 묶음에 새 지식', en: 'Everything — sales, verification results, new knowledge in subscribed tracks' },
   'op.account.notif.sales': { ko: '판매만 — 내 지식이 팔렸을 때', en: 'Sales only — when my knowledge sells' },

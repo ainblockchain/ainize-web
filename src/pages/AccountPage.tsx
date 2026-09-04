@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
+  errorMessage, useAddPeerMutation, useChainSetupMutation, useChangePasswordMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
   useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery,
 } from '@/api/api';
 import type { PayoutRow, Settings, Settlement } from '@/api/types';
@@ -117,7 +117,27 @@ export default function AccountPage() {
   const [settingsError, setSettingsError] = useState<string | null>(null);
   useEffect(() => { if (settings.data) setForm(settings.data.settings); }, [settings.data]);
   const saved = settings.data?.settings;
-  const dirty = !!saved && (saved.notifications !== form.notifications || saved.display_name !== form.display_name || saved.payout_address !== form.payout_address);
+  const dirty = !!saved && (saved.notifications !== form.notifications || saved.display_name !== form.display_name);
+  // item 34 — changing the one credential that guards this node, from the console
+  const [changePassword, passwordState] = useChangePasswordMutation();
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
+  const [pwNotice, setPwNotice] = useState<string | null>(null);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const onChangePassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setPwNotice(null); setPwError(null);
+    if (pw.next.length < 4) return setPwError(t('op.account.password.err.short'));
+    if (pw.next !== pw.confirm) return setPwError(t('op.account.password.err.mismatch'));
+    if (pw.next === pw.current) return setPwError(t('op.account.password.err.same'));
+    try {
+      await changePassword({ current: pw.current, password: pw.next }).unwrap();
+      setPw({ current: '', next: '', confirm: '' });
+      setPwNotice(t('op.account.password.done'));
+    } catch (err) {
+      // 401 here means one thing only — the current password is wrong — and the node says it in English.
+      setPwError((err as { status?: number } | null)?.status === 401 ? t('op.account.password.err.wrong') : errorMessage(err));
+    }
+  };
   const onSaveSettings = async (e: FormEvent) => {
     e.preventDefault();
     setSettingsNotice(null); setSettingsError(null);
@@ -125,7 +145,6 @@ export default function AccountPage() {
     const patch: Partial<Settings> = {};
     if (saved.notifications !== form.notifications) patch.notifications = form.notifications;
     if (saved.display_name !== form.display_name) patch.display_name = form.display_name.trim();
-    if (saved.payout_address !== form.payout_address) patch.payout_address = form.payout_address.trim();
     try { await updateSettings(patch).unwrap(); setSettingsNotice(t('op.account.settings.saved')); } catch (err) { setSettingsError(errorMessage(err)); }
   };
 
@@ -198,7 +217,28 @@ export default function AccountPage() {
       ) : (
         <SettingsForm onSubmit={onSaveSettings}>
           <TextField label={t('op.account.display_name')} helper={t('op.account.display_name.helper')} value={form.display_name} maxLength={64} required onChange={(e) => setForm({ ...form, display_name: e.target.value })} />
-          <TextField label={<Tip tech={tech('lineage')}>{t('op.account.payout')}</Tip>} helper={t('op.account.payout.helper')} value={form.payout_address} placeholder={me?.address} onChange={(e) => setForm({ ...form, payout_address: e.target.value })} />
+          {/*
+            * Item 166 — this was a free-text "Payout address" field, saved successfully, consumed by nothing: every
+            * payment still went to the node key (`payTo: this.address` in the x402 requirement and in the signed
+            * intent hash, `royaltySplit` paying `anchor.author`). A form that promises where money arrives and does
+            * not decide it is worse than no form, so the promise is gone and the fact is stated instead. Routing
+            * sales to a second wallet needs the settlement path to verify against that address, which is a change to
+            * how payments are checked, not a text box.
+            */}
+          <div data-testid="account-payout">
+            <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}><Tip tech={tech('lineage')}>{t('op.account.payout')}</Tip></span>
+            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <Mono>{me?.address ?? '—'}</Mono>
+              {me?.address && <CopyButton text={me.address} label={t('common.copy')} />}
+            </div>
+            <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.payout.fact')}</Muted>
+            {/* A value an earlier build stored is not silently honoured — it never was, and now the screen says so. */}
+            {!!saved?.payout_address && me?.address && saved.payout_address.toLowerCase() !== me.address.toLowerCase() && (
+              <Muted style={{ display: 'block', marginTop: 4, color: '#8a4b00' }} data-testid="account-payout-stale">
+                {t('op.account.payout.stored', { address: saved.payout_address })}
+              </Muted>
+            )}
+          </div>
           <div>
             <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}>{t('op.account.notif')}</span>
             <RadioGroup role="radiogroup" aria-label={t('op.account.notif')}>
@@ -214,6 +254,21 @@ export default function AccountPage() {
           </Row>
         </SettingsForm>
       )}
+
+      {/* ------------------------------------------------------------ password (item 34) */}
+      <SubTitle $mt={56}>{t('op.account.password.title')}</SubTitle>
+      <Description>{t('op.account.password.desc')}</Description>
+      <SettingsForm onSubmit={onChangePassword} data-testid="password-form">
+        <TextField type="password" label={t('op.account.password.current')} autoComplete="current-password" value={pw.current} required onChange={(e) => setPw({ ...pw, current: e.target.value })} />
+        <TextField type="password" label={t('op.account.password.new')} autoComplete="new-password" value={pw.next} required onChange={(e) => setPw({ ...pw, next: e.target.value })} />
+        <TextField type="password" label={t('op.account.password.confirm')} autoComplete="new-password" value={pw.confirm} required onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
+        {pwError && <Alert $tone="error" data-testid="password-error">{pwError}</Alert>}
+        <Row $gap={12}>
+          <Button type="submit" variant="contained" disabled={!pw.current || !pw.next} loading={passwordState.isLoading} loadingText={t('op.account.password.saving')}>{t('op.account.password.save')}</Button>
+          {pwNotice && <Muted style={{ color: '#44a45f' }} data-testid="password-done">{pwNotice}</Muted>}
+        </Row>
+        <Muted>{t('op.account.password.lost')}</Muted>
+      </SettingsForm>
 
       {/* ------------------------------------------------------------ teaching (settings live on My knowledge → Teaching, spec §5.13) */}
       <SubTitle $mt={56}>{t('op.account.teach.title')}</SubTitle>

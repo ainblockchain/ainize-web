@@ -130,6 +130,15 @@ export const api = createApi({
     login: b.mutation<{ ok: boolean }, { password: string }>({ query: (body) => ({ url: 'api/auth/login', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
     setup: b.mutation<{ ok: boolean }, { password: string }>({ query: (body) => ({ url: 'api/auth/setup', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
+    /**
+     * Item 34 — the node has had `POST /api/auth/password` since item 121, and no client could reach it: the one
+     * credential guarding sales, publishing, the wallet and the runtime could be rotated only from the CLI. The
+     * route drops every other session and hands back a fresh token for this browser, so the operator changing it
+     * stays signed in here and a stolen cookie does not survive the change.
+     */
+    changePassword: b.mutation<{ ok: boolean }, { current: string; password: string }>({
+      query: (body) => ({ url: 'api/auth/password', method: 'POST', body }), invalidatesTags: ['Me'],
+    }),
 
     // operator
     myPatches: b.query<{ items: CatalogEntry[] }, void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
@@ -298,7 +307,7 @@ export const {
   useInfoQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
-  useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation,
+  useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation, useChangePasswordMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
