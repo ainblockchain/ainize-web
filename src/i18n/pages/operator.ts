@@ -48,6 +48,11 @@ export const operatorCommon: Dict = {
   'op.term.gateway.help': { ko: '사람이나 AI 에이전트가 이 주소로 요청하면 가격을 안내받고 자동 결제 후 바로 내려받습니다. 회원가입이 없습니다.', en: 'A person or AI agent requests this address, is quoted a price, pays automatically and downloads. No sign-up.' },
   'op.runtime.unavailable': { ko: '모델 실행 환경을 쓸 수 없습니다: {error} — 모델에 넣기/빼기가 잠시 비활성화됩니다.', en: 'Model runtime unavailable: {error} — load/unload is disabled for now.' },
   'op.runtime.noapi': { ko: '연결된 모델 서버 없음', en: 'no serving API' },
+  // SC-18 (lineage design §4): what is on the model, in the order it was put there — an add-on is meaningless
+  // without the knowledge under it, so a set of names would not have answered the operator's question.
+  'ops.stack': { ko: '올라간 지식 (순서대로): {list}', en: 'Loaded stack (in order): {list}' },
+  'ops.stack.base': { ko: '아래에 깔린 기반', en: 'loaded underneath' },
+  'ops.stack.nojournal': { ko: '이 중 {n}개는 직전 값 기록이 없습니다 — 빼면 파일에 적힌 이전 값으로 되돌아갑니다.', en: '{n} of these have no record of what the rows held before — removing one writes the file\'s own "before" instead.' },
   // Item 10 — a failing request must never look like an empty console.
   'op.error.title': { ko: '{what} 불러오기에 실패했습니다.', en: 'Could not load {what}.' },
   'op.error.body': { ko: '이 노드가 응답하지 않았습니다 ({status}: {message}). 아래 목록은 비어 있는 것이 아니라 알 수 없는 상태입니다 — 사라진 것은 없으니 다시 등록하지 마세요.', en: 'This node did not answer ({status}: {message}). What is below is unknown, not empty — nothing has been lost, and nothing needs registering again.' },

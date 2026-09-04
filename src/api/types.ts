@@ -228,7 +228,19 @@ export interface PurchaseResult {
   /** The payment was already settled and the seller re-issued the manifest — nothing was charged (item 273). */
   redeemed?: boolean;
 }
-export interface RuntimeResponse extends Omit<RuntimeStatus, 'applied'> { applied: { patch_id: string; sha256: string; applied_at: number; reason: string }[]; }
+/** One layer of the loaded stack, deepest first (lineage design §5.4, SC-18) — `base: true` = loaded under a child. */
+export interface StackLayer {
+  patch_id: string; name: string | null; sha256: string; position: number; applied_at: number; reason: string;
+  rows: number | null; export: 'delta' | 'squash' | null; base_stack: string[];
+  /** whether the file that says what these rows held BEFORE this layer is on disk — without it, removing writes the shipped `before` */
+  journal: boolean; journal_path: string | null; stack_sha256: string | null; body_present: boolean;
+}
+export interface RuntimeResponse extends Omit<RuntimeStatus, 'applied'> {
+  applied: { patch_id: string; sha256: string; applied_at: number; reason: string }[];
+  /** SC-18: the same layers in the order they were applied. */
+  stack?: StackLayer[];
+  journal_dir?: string;
+}
 export interface DriveResponse {
   configured: boolean; running: boolean; pid: number | null; folder: string; server: string | null; drive_id: string | null; url: string | null;
   login_hint: string; files: { path: string; size: number; mtime: number }[];

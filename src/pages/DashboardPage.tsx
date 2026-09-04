@@ -223,6 +223,14 @@ export default function DashboardPage() {
         </Table>
       </TableWrapper>
       )}
+      {/* SC-18 — the loaded stack, in the order the model holds it. A set of ids cannot answer the operator's
+          question ("what is under what?"), and after L2 the order is a record the node keeps, not a guess. */}
+      {!!runtime.data?.stack?.length && (
+        <StatusText style={{ marginTop: 8 }} data-testid="ops-stack">
+          {t('ops.stack', { list: runtime.data.stack.map((l, i) => `${i + 1}. ${l.name ?? l.patch_id}${l.reason === 'base' ? ` (${t('ops.stack.base')})` : ''}`).join('  ·  ') })}
+          {runtime.data.stack.some((l) => !l.journal) && <div>{t('ops.stack.nojournal', { n: runtime.data.stack.filter((l) => !l.journal).length })}</div>}
+        </StatusText>
+      )}
       {runtime.data && !runtime.data.available && <StatusText style={{ marginTop: 8 }}>{t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}</StatusText>}
 
       {/* ---------------------------------------------------------------- knowledge tracks (branches) */}
