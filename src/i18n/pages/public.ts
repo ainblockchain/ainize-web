@@ -204,6 +204,18 @@ export const listing: Dict = {
   'bench.group.title_noformat': { ko: '문제 묶음 · 질문 {n}개', en: 'Question set · {n} questions' },
   'bench.group.note': { ko: '이 {n}개는 같은 문제 묶음으로 채점돼 서로 비교할 수 있습니다.', en: 'These {n} were scored on this same question set, so they can be compared with each other.' },
   'bench.group.alone': { ko: '이 문제 묶음으로 채점된 지식은 이것뿐이라 비교 대상이 없습니다.', en: 'The only knowledge scored on this question set — nothing here to compare it with.' },
+  // Finding 74 — the page whose whole job is "which of these should I buy?" rendered the same prose cards as
+  // /explore, so four prices, three accuracies and four sizes were never adjacent. Inside one question set they
+  // are a table; these are its columns.
+  'bench.col.name': { ko: '지식', en: 'Knowledge' },
+  'bench.col.status': { ko: '판매 상태', en: 'Listing' },
+  'bench.col.accuracy': { ko: '정답률', en: 'Accuracy' },
+  'bench.col.verified': { ko: '독립 검증', en: 'Verifiers' },
+  'bench.col.facts': { ko: '담긴 사실', en: 'Facts' },
+  'bench.col.rows': { ko: '기억 항목', en: 'Memory entries' },
+  'bench.col.size': { ko: '크기', en: 'Size' },
+  'bench.col.downloads': { ko: '내려받기', en: 'Downloads' },
+  'bench.col.unscored': { ko: '채점 전', en: 'not scored' },
   'bench.back': { ko: '지식 둘러보기로 돌아가기', en: 'Back to Explore' },
   'bench.empty': { ko: '이 주제의 지식이 아직 없습니다.', en: 'No knowledge on this topic yet.' },
   'bench.notfound': { ko: '"{schema}" 주제로 등록된 지식이 없습니다.', en: 'No knowledge is registered under the topic "{schema}".' },
