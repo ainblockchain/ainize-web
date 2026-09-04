@@ -85,7 +85,17 @@ export const detailPatch: Dict = {
   'detail.patch.meta': { ko: '{author} 님이 만듦 · 대상 모델 {model} · {when}', en: 'By {author} · target model {model} · {when}' },
   'detail.patch.listed_when': { ko: '{ago} 검증 완료', en: 'verified {ago}' },
   'detail.patch.registered_when': { ko: '{ago} 등록', en: 'registered {ago}' },
+  /**
+   * Item 190 — the flat "never published" sentence (i18n/pages/teach.ts) is true of a big training set whose
+   * record carries a handful of samples, and false of a three-row lesson whose three questions and answers ARE the
+   * verification samples. Both cases are stated with their numbers instead. (The `_shared` sentence for a public
+   * or derivative set is unchanged and still lives beside the other teach strings.)
+   */
+  'detail.ov.dataset_note_all_public': { ko: '이 지식이 어떤 질문 묶음에서 나왔는지 확인할 수 있는 지문입니다. 질문 {n}개와 정답은 모두 공개 기록에 있습니다 — 검증에 쓰인 문항이 곧 학습 문답입니다.', en: 'The fingerprint of the questions this knowledge was taught from. All {n} questions and answers are on the public record — they are the questions it was verified against.' },
+  'detail.ov.dataset_note_partly': { ko: '이 지식이 어떤 질문 묶음에서 나왔는지 확인할 수 있는 지문입니다. 학습 문답 {rows}개 중 {samples}개가 검증용 예시로 기록에 남아 있고, 나머지는 공개되지 않았습니다.', en: 'The fingerprint of the questions this knowledge was taught from. {samples} of its {rows} questions and answers are on the record as the verification samples; the rest were not published.' },
   'detail.patch.newer_version': { ko: '최신 버전: {id}', en: 'Newer version: {id}' },
+  // Item 249: on a track that publishes daily, the direct successor is itself retired — the link has to reach the end.
+  'detail.patch.newest_version': { ko: '최신 버전: {id} ({n}단계 뒤)', en: 'Newest version: {id} ({n} versions newer)' },
   'detail.patch.verified_executed': { ko: '실제 모델 검증 {passed}/{quorum}', en: 'Verified on the real model {passed}/{quorum}' },
   'detail.patch.integrity_n': { ko: '무결성만 확인 {n}건', en: '{n} integrity-only checks' },
   'detail.patch.extra_n': { ko: '독립 검증 {n}건 추가', en: '{n} more independent verification(s)' },
@@ -231,7 +241,22 @@ export const detailPatch: Dict = {
   'detail.lin.children': { ko: '파생', en: 'Derived' },
   'detail.lin.no_parents': { ko: '원본 없음 — 처음 만든 지식', en: 'none — original knowledge' },
   'detail.lin.no_children': { ko: '아직 파생된 지식 없음', en: 'no derived knowledge yet' },
-  'detail.lin.royalty_to': { ko: '수익 분배 대상', en: 'Revenue shared with' },
+  // Item 324: a knowledge may credit up to four data providers and the page named one of them.
+  'detail.people_more': { ko: '함께 가르친 사람: {names}', en: 'also taught by {names}' },
+  'detail.lin.royalty_to': { ko: '판매 1건이 나뉘는 곳', en: 'Where one sale goes' },
+  // Items 193 / 323 / 324: the split that will actually move, by name, with the amount — computed by the node's own
+  // splitter (`royaltyPlan`), not by this page. Every line names a person and what they are being paid for.
+  'detail.lin.pay_seller': { ko: '파는 사람 {name} — {amount} ({pct}%)', en: 'Seller {name} — {amount} ({pct}%)' },
+  'detail.lin.pay_for_base': { ko: '{name} 제작자 몫', en: 'creator of {name}' },
+  'detail.lin.pay_for_data': { ko: '이 지식에 데이터를 준 사람', en: 'data provider on this knowledge' },
+  'detail.lin.pay_for_verify': { ko: '검증해 준 노드', en: 'verification' },
+  'detail.lin.pay_none': { ko: '이 지식은 판매액을 나누는 곳이 없습니다 — 원본도, 데이터 제공자도 없습니다.', en: 'Nothing else is paid from a sale of this: it has no origins and no credited data provider.' },
+  'detail.lin.pay_same_creator': { ko: '원본까지 모두 같은 사람이 만들어, 나뉜 몫도 같은 사람에게 돌아갑니다.', en: 'Same creator throughout — the shared part returns to the same person.' },
+  'detail.lin.built_on_n': { ko: '지금까지 이 지식 위에 만들어진 지식 {n}개', en: '{n} knowledges have been built on this' },
+  'detail.lin.built_on_n_one': { ko: '지금까지 이 지식 위에 만들어진 지식 1개', en: '1 knowledge has been built on this' },
+  'detail.lin.newer_of': { ko: '새 버전 {id}', en: 'Newer version {id}' },
+  'detail.lin.whole_family': { ko: '가족 전체 보기', en: 'See the whole family' },
+  'detail.lin.ledger_map': { ko: '공개 기록의 관계도', en: 'The map on the public record' },
   'detail.lin.conflicts_note': { ko: '이 노드가 파일을 가진 다른 지식과 기억 항목이 겹치는지 자동으로 확인합니다. 겹치지 않는 지식은 함께 넣어도 안전합니다.', en: 'Automatically checks whether memory entries overlap with other knowledge this node holds. Knowledge that does not overlap is safe to load together.' },
   // Item 226 — the note stopped at the safe case and said nothing about what to do with an overlapping row.
   'detail.lin.conflicts_note2': { ko: '겹치는 지식은 둘 다 넣을 수 있지만, 겹치는 항목에서는 나중에 넣은 쪽 값이 남습니다 — 아래 "둘 다 넣고 시험"으로 직접 확인해 보세요.', en: 'Overlapping knowledge can still be loaded together, but on the entries they share the one loaded last wins — "Test both" below puts the pair on the model and shows what the answer becomes.' },
@@ -314,6 +339,13 @@ export const detailPatch: Dict = {
   'detail.buy.old_note': { ko: '아래 가격은 지금 보고 있는 이전 버전의 가격입니다. 결제하기 전에 두 버전을 비교해 보세요.', en: 'The price below is this older version’s. Compare the two before you pay.' },
   'detail.buy.old_this': { ko: '지금 보는 버전', en: 'This version' },
   'detail.buy.old_newer': { ko: '더 새로운 버전', en: 'Newer version' },
+  'detail.buy.owned_already': { ko: '이미 가진 지식과 겹침', en: 'Overlaps what you own' },
+  // Item 196: the overlap with what the buyer already holds — the fact the panel had on the same response all along.
+  'detail.buy.owned_overlap': { ko: '이미 가진 {name}과(와) 같은 항목 {n}개를 포함합니다 (이 지식 전체 {total}개 중).', en: 'Shares {n} of its {total} entries with {name}, which you already hold.' },
+  'detail.buy.owned_overlap_note': { ko: '겹쳐도 함께 쓸 수 있습니다. 두 지식을 다 올리면 겹치는 항목은 나중에 올린 쪽 답이 이깁니다.', en: 'You can still use both: with both loaded, the one loaded last wins on the shared entries.' },
+  // Item 296: what state the base you are about to pay for is actually in.
+  'detail.buy.needs_status': { ko: '이 기반 지식의 상태: {status}', en: 'This base is {status}' },
+  'detail.buy.old_hops': { ko: '이 버전보다 {n}단계 새 버전', en: '{n} versions newer than this one' },
   'detail.buy.old_accuracy': { ko: '정답률 {score}', en: 'accuracy {score}' },
   'detail.buy.old_unverified': { ko: '실제 모델 검증 결과 없음', en: 'no real-model verification yet' },
   'detail.buy.old_notsale': { ko: '아직 판매 전', en: 'not on sale yet' },

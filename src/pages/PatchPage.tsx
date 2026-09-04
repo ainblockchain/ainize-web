@@ -5,7 +5,7 @@ import {
   errorMessage, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
   usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery,
 } from '@/api/api';
-import type { Attestation, CatalogEntry, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
+import type { Attestation, CatalogEntry, ConflictInfo, LineageRef, PatchDetail, PurchaseResult, TreeResponse } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -226,6 +226,20 @@ const TreeNode = styled(Link)<{ $me?: boolean }>`
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
 `;
+/** Items 296 / 203: an origin's status was a hover `title` — invisible on a phone, and the CLI prints it in words. */
+const TreeCell = styled.div`
+  display: inline-flex; flex-direction: column; gap: 3px; align-items: flex-start;
+  .newer { font-size: 11px; color: #8a4b00; text-decoration: underline; text-underline-offset: 2px; }
+`;
+
+/** Items 193 / 323: who a sale actually pays, one row each — a name, what they are paid for, and how much. */
+const Payees = styled.ul`
+  margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px;
+  li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: ${(p) => p.theme.color.BLACK}; }
+  li .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+  li .for { font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
+  li code { font-family: ${(p) => p.theme.font.mono}; font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
+`;
 
 /**
  * Item 205 — at 360 px the overlap table was 709 px wide inside a 360 px viewport, so Relation (the column this
@@ -391,6 +405,8 @@ export default function PatchPage() {
   });
   // before the early returns: the tab is named after the knowledge as soon as the node answers
   useTitle(data ? data.anchor.name || data.anchor.id : undefined);
+  // item 249 — the END of the supersede chain, not the next link in it
+  const newest = useNewestVersion(data);
 
   if (isLoading) return <Wrapper><CenterProgress /></Wrapper>;
   if (!data) {
@@ -404,7 +420,14 @@ export default function PatchPage() {
   const score = scoreOf(data);
   const failed = failedRuns(data);
   const when = data.status === 'LISTED' ? t('detail.patch.listed_when', { ago: f.ago(data.listed_at ?? a.created_at) }) : t('detail.patch.registered_when', { ago: f.ago(a.created_at) });
-  const provider = a.contributors?.find((c) => c.role === 'data_provider');
+  /**
+   * Item 324 — an anchor may carry up to MAX_CONTRIBUTORS data providers and this page rendered `find(…)`: the
+   * first one, with the second, third and fourth invisible to every buyer and to the seller checking what their
+   * own record promises. All of them are named here; what each is PAID is in the money block on the Origins tab,
+   * where finding 41 put it (the share is not published beside a person's name in the header).
+   */
+  const providers = (a.contributors ?? []).filter((c) => c.role === 'data_provider');
+  const provider = providers[0];
   const taught = a.origin === 'teach' || !!provider;
   const providerName = provider?.name ?? t('detail.taught_by_anon');
   const canBuildOn = policy?.lineage === true && policy?.enabled !== false;
@@ -442,7 +465,14 @@ export default function PatchPage() {
               <TaughtLine data-testid="taught-by">
                 <TaughtChip>{t('detail.taught_badge')}</TaughtChip>
                 <span>{provider ? t('detail.people', { author_name: authorLabel, name: provider.name ?? t('detail.taught_by_anon'), share: Math.round(provider.share * 100) }) : t('detail.published_by', { name: providerName, node: authorLabel })}</span>
-                {provider && <StyledLink to={`/teacher/${encodeURIComponent(provider.signer ?? provider.address)}`} title={provider.address}>{t('detail.teacher_page')} →</StyledLink>}
+                {providers.length > 1 && (
+                  <span data-testid="taught-by-more">{t('detail.people_more', { names: providers.slice(1).map((c) => c.name ?? t('detail.taught_by_anon')).join(', ') })}</span>
+                )}
+                {providers.map((c) => (
+                  <StyledLink key={c.address} to={`/teacher/${encodeURIComponent(c.signer ?? c.address)}`} title={c.address}>
+                    {providers.length > 1 ? `${c.name ?? t('detail.taught_by_anon')} →` : `${t('detail.teacher_page')} →`}
+                  </StyledLink>
+                ))}
                 <button type="button" onClick={() => setTab('buy')}>{t('detail.use_yourself')} →</button>
               </TaughtLine>
             )}
@@ -478,7 +508,7 @@ export default function PatchPage() {
       <Content>
         <ContentInner>
           <NameRow>
-            <StatusChip status={data.status} supersededBy={data.superseded_by[0]} />
+            <StatusChip status={data.status} supersededBy={newest?.id} />
             <Quorum title={`${t('detail.patch.quorum_help', { quorum: data.quorum })} (${tech('verified')})`}>
               {/* Item 146: the numerator is clamped to the quorum — `3/2` is not a fraction a reader can use —
                   and the extra independent attestations are stated instead of being folded into the ratio. */}
@@ -508,7 +538,9 @@ export default function PatchPage() {
           )}
           <Info>
             {t('detail.patch.meta', { author: authorLabel, model: a.model.id_M, when })}
-            {data.superseded_by.length > 0 && <> ∙ <StyledLink to={`/${authorSlug}/${encodeURIComponent(data.superseded_by[0])}`} title={help('superseded')}>{t('detail.patch.newer_version', { id: data.superseded_by[0] })}</StyledLink></>}
+            {newest && <> ∙ <StyledLink to={`/${authorSlug}/${encodeURIComponent(newest.id)}`} title={help('superseded')} data-testid="head-newest">
+              {newest.hops > 1 ? t('detail.patch.newest_version', { id: newest.id, n: newest.hops }) : t('detail.patch.newer_version', { id: newest.id })}
+            </StyledLink></>}
           </Info>
 
           <Stats>
@@ -605,9 +637,18 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
       {a.dataset && (
         <Section data-testid="dataset-provenance">
           <H3>{t('detail.ov.dataset')}</H3>
-          <Note>{(a.dataset.access ?? 'private') === 'private'
-            ? t('detail.ov.dataset_note')
-            : t('detail.ov.dataset_note_shared', { license: a.dataset.license ?? '—' })}</Note>
+          {/*
+            * Item 190 — the private-set note said "the questions and answers themselves were never published" on a
+            * page whose Overview lists every one of them two sections lower: a lesson's benchmark samples ARE its
+            * questions and answers, and for a small lesson the record carries all of them. The sentence is counted
+            * now: it claims privacy only for the questions that really are not on the record, and says how many of
+            * each there are. The publisher reads the same number the buyer does.
+            */}
+          <Note data-testid="dataset-note">{(a.dataset.access ?? 'private') !== 'private'
+            ? t('detail.ov.dataset_note_shared', { license: a.dataset.license ?? '—' })
+            : (a.benchmark.samples?.length ?? 0) >= a.dataset.rows && a.dataset.rows > 0
+              ? t('detail.ov.dataset_note_all_public', { n: num(a.dataset.rows) })
+              : t('detail.ov.dataset_note_partly', { samples: num(a.benchmark.samples?.length ?? 0), rows: num(a.dataset.rows) })}</Note>
           <KeyValue style={{ marginTop: 0 }}>
             <dt>{t('detail.ov.dataset_fingerprint')}</dt>
             <dd><Mono data-testid="dataset-sha">{a.dataset.sha256.slice(0, 12)}</Mono><CopyButton text={a.dataset.sha256} label={t('common.copy')} /></dd>
@@ -875,10 +916,126 @@ function Verification({ d }: { d: PatchDetail }) {
   );
 }
 
+/**
+ * Item 249 — "Newer version:" pointed ONE hop up a chain that grows by one every day, so a buyer opening a
+ * 30-day-old version was sent to another retired page, and an agent reading `superseded_by[0]` bought a retired
+ * version. This follows the chain to the end using the same-subject list the page already loads (a supersede is
+ * always same-schema), stops on anything it cannot resolve, and counts the hops so the link can say how far the
+ * reader actually is from the current version. Cycle-safe: every id is visited once.
+ */
+function useNewestVersion(d: PatchDetail | undefined): { id: string; hops: number; entry?: CatalogEntry } | null {
+  // called before the page's early returns, so it has to survive not having an answer yet
+  const family = useBenchmarkQuery(d?.anchor.benchmark.schema ?? '', { skip: !d?.superseded_by.length });
+  const first = d?.superseded_by[0];
+  if (!d || !first) return null;
+  const byId = new Map((family.data?.items ?? []).map((e: CatalogEntry) => [e.anchor.id, e]));
+  const seen = new Set<string>([d.anchor.id]);
+  let cur = first;
+  let hops = 1;
+  for (;;) {
+    seen.add(cur);
+    const next = byId.get(cur)?.superseded_by?.[0];
+    if (!next || seen.has(next)) break;
+    cur = next;
+    hops += 1;
+  }
+  return { id: cur, hops, entry: byId.get(cur) };
+}
+
+/**
+ * One relative in the Origins tree (items 296, 203).
+ *
+ * The status used to be a `title` attribute: invisible on a phone, invisible at the keyboard, and invisible to
+ * anyone who does not think to hover — so a base that had been replaced the same morning, or one a verifier had
+ * challenged, looked exactly as healthy as a current one. The CLI has always printed `parents: pixel-parent
+ * (SUPERSEDED)` in plain sight. The chip says it here, and where the tree knows the replacement it links to it, so
+ * the buyer completing a family a day later is not sent to the retired base with nothing pointing forward.
+ */
+function RelativeNode({ rel, tree, authorSlug }: { rel: LineageRef; tree?: TreeResponse; authorSlug: string }) {
+  const { t } = useT();
+  const node = tree?.nodes.find((n) => n.id === rel.id);
+  const newer = node?.superseded_by?.[0];
+  return (
+    <TreeCell>
+      <TreeNode to={`/${authorSlug}/${encodeURIComponent(rel.id)}`}>{rel.name}<code>{rel.id}</code></TreeNode>
+      {rel.status && <StatusChip status={rel.status} supersededBy={newer} />}
+      {newer && (
+        <StyledLink className="newer" to={`/${authorSlug}/${encodeURIComponent(newer)}`} data-testid="lin-parent-newer">
+          {t('detail.lin.newer_of', { id: newer })} →
+        </StyledLink>
+      )}
+    </TreeCell>
+  );
+}
+
+/**
+ * Who a sale of THIS knowledge actually pays (items 193, 323, 324).
+ *
+ * `royalty_preview` in the finding's fix is `tree.money`, which the node computes with `royaltyPlan` — the same
+ * code that settles the sale — so every line here is the split that will actually move, named: the seller, the
+ * creators of each ancestor (with the ancestor they are paid for), the data providers credited on this knowledge,
+ * and the verifiers that keep it on sale. Amounts are the percentages against this knowledge's own price, so the
+ * reader sees "1.5 CREDIT to alice" rather than a percentage of an unnamed whole. When the whole family is one
+ * creator, that is said in words instead of printing the seller paying himself.
+ */
+function RevenueShared({ d, tree, authorSlug }: { d: PatchDetail; tree?: TreeResponse; authorSlug: string }) {
+  const { t } = useT();
+  const f = useDetailFormat();
+  const a = d.anchor;
+  const price = Number(a.price);
+  const money = tree?.money;
+  if (!money) return null;
+  const amount = (pct: number) => (price > 0 ? f.priceLabel(String(Math.round((price * pct) / 100 * 1e6) / 1e6), a.currency) : null);
+  const shared = money.recipients.filter((r) => r.pct > 0);
+  const sellerName = money.seller_name ?? a.author_name ?? shortAddr(a.author, 8);
+  const sameCreator = shared.every((r) => r.address.toLowerCase() === a.author.toLowerCase());
+  const label = (r: { name: string | null; address: string }) => r.name ?? shortAddr(r.address, 8);
+  const forWhat = (r: { kind: string; for_id?: string; for_name?: string }) => (
+    r.kind === 'lineage' ? t('detail.lin.pay_for_base', { name: r.for_name ?? r.for_id ?? '—' })
+      : r.kind === 'contributor' ? t('detail.lin.pay_for_data')
+        : t('detail.lin.pay_for_verify')
+  );
+  return (
+    <KeyValue data-testid="lin-royalty">
+      <dt>{t('detail.lin.royalty_to')}</dt>
+      <dd>
+        <div>{t('detail.lin.pay_seller', { name: sellerName, pct: money.seller_pct, amount: amount(money.seller_pct) ?? t('common.free') })}</div>
+        {shared.length === 0 && <Quorum>{t('detail.lin.pay_none')}</Quorum>}
+        {shared.length > 0 && sameCreator && <Quorum data-testid="lin-same-creator">{t('detail.lin.pay_same_creator')}</Quorum>}
+        <Payees>
+          {shared.map((r) => (
+            <li key={`${r.kind}-${r.address}-${r.for_id ?? ''}`}>
+              <span>{r.kind === 'lineage' && r.for_id
+                ? <StyledLink to={`/${encodeURIComponent(r.address)}/${encodeURIComponent(r.for_id)}`}>{label(r)}</StyledLink>
+                : label(r)}</span>
+              <span className="amt">{amount(r.pct) ?? `${r.pct}%`}</span>
+              <span className="for">{r.pct}% · {forWhat(r)}</span>
+              <code title={r.address}>{shortAddr(r.address, 6)}</code>
+            </li>
+          ))}
+        </Payees>
+        {/* Item 193's last limb: how often this has been built on — the number the ancestor share exists for. */}
+        <Quorum as="div" style={{ display: 'block', marginTop: 6 }} data-testid="lin-built-on">
+          {t('detail.lin.built_on_n', { n: num(d.children.length) }, d.children.length)}
+        </Quorum>
+      </dd>
+    </KeyValue>
+  );
+}
+
 /* ---------------------------------------------------------------- 원본과 파생 */
 function Lineage({ d, authorSlug }: { d: PatchDetail; authorSlug: string }) {
   const { t, term, help, tech } = useT();
   const { data: info } = useInfoQuery();
+  /**
+   * Items 193 + 323 — "Revenue shared with 0x1A4eBAA0…E84f" named the wrong people in the wrong units: the direct
+   * parents' AUTHORS, computed at draft time, truncated to an address with no name, no share and no amount, while
+   * the settlement pays the whole ancestor set, the credited teachers and the verifiers. On the flagship, whose
+   * parent is its own earlier epoch, it printed the seller paying himself. The tree endpoint already answers this
+   * with the same `royaltyPlan` that settles the sale: every recipient with a name, a percentage and the ancestor
+   * it is paid FOR. Same query args as the Family-tree tab, so the two share one request.
+   */
+  const { data: tree } = usePatchTreeQuery({ id: d.anchor.id, depth: 4 });
   // Item 191: this line used to print the VIEWING node's config as if it were the promise on this knowledge. The
   // promise lives on the anchor (`royalty_share`), is floored at the network minimum, and cannot be lowered later.
   const anchorShare = (d.anchor as { royalty_share?: number }).royalty_share;
@@ -929,13 +1086,20 @@ function Lineage({ d, authorSlug }: { d: PatchDetail; authorSlug: string }) {
         <Note><b>{term('lineage')}</b> — {t('detail.lin.note')}{typeof share === 'number' ? ` ${t(anchorShare === undefined ? 'detail.lin.note_share_network' : 'detail.lin.note_share', { pct: Math.round(share * 100) })}` : ''}</Note>
         {typeof verifierShare === 'number' && <Note data-testid="lin-verifier-share">{t('detail.lin.note_verifier', { pct: Math.round(verifierShare * 100) })}</Note>}
         <Tree>
-          <TreeLevel><span className="lbl">{t('detail.lin.parents')}</span>{parents.length === 0 && <Quorum>{t('detail.lin.no_parents')}</Quorum>}{parents.map((p) => <TreeNode key={p.id} to={`/${authorSlug}/${encodeURIComponent(p.id)}`} title={p.status}>{p.name}<code>{p.id}</code></TreeNode>)}</TreeLevel>
+          <TreeLevel><span className="lbl">{t('detail.lin.parents')}</span>{parents.length === 0 && <Quorum>{t('detail.lin.no_parents')}</Quorum>}{parents.map((p) => <RelativeNode key={p.id} rel={p} tree={tree} authorSlug={authorSlug} />)}</TreeLevel>
           <TreeLevel><span className="lbl">↓</span></TreeLevel>
           <TreeLevel><span className="lbl">{t('detail.lin.this')}</span><TreeNode $me to="#" onClick={(e) => e.preventDefault()}>{d.anchor.name}<code>{d.anchor.id}</code></TreeNode></TreeLevel>
           <TreeLevel><span className="lbl">↓</span></TreeLevel>
-          <TreeLevel><span className="lbl">{t('detail.lin.children')}</span>{children.length === 0 && <Quorum>{t('detail.lin.no_children')}</Quorum>}{children.map((c) => <TreeNode key={c.id} to={`/${authorSlug}/${encodeURIComponent(c.id)}`} title={c.status}>{c.name}<code>{c.id}</code></TreeNode>)}</TreeLevel>
+          <TreeLevel><span className="lbl">{t('detail.lin.children')}</span>{children.length === 0 && <Quorum>{t('detail.lin.no_children')}</Quorum>}{children.map((c) => <RelativeNode key={c.id} rel={c} tree={tree} authorSlug={authorSlug} />)}</TreeLevel>
         </Tree>
-        {d.anchor.parent_authors.length > 0 && <KeyValue><dt>{t('detail.lin.royalty_to')}</dt><dd>{[...new Set(d.anchor.parent_authors)].map((x) => shortAddr(x, 8)).join(', ')}</dd></KeyValue>}
+        {/* Item 203: the family beyond one hop lives on the Family-tree tab of this same page — until this line
+            the only way to it was noticing the tab, and the SVG map on /ledger was never linked from here at all. */}
+        <Note style={{ marginTop: 10 }} data-testid="lin-whole-family">
+          <StyledLink to={{ search: '?tab=tree' }}>{t('detail.lin.whole_family')} →</StyledLink>
+          {' · '}
+          <StyledLink to="/ledger#graph">{t('detail.lin.ledger_map')} →</StyledLink>
+        </Note>
+        <RevenueShared d={d} tree={tree} authorSlug={authorSlug} />
       </Section>
       <Section>
         <H3 title={`${help('conflict')} (${tech('conflict')})`}>{term('conflict')}</H3>
@@ -1116,7 +1280,11 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
     .filter((e): e is CatalogEntry => !!e)
     // the version to send a buyer to is the newest one that has not itself been replaced
     .sort((x, y) => (x.superseded_by.length ? 1 : 0) - (y.superseded_by.length ? 1 : 0) || y.anchor.created_at - x.anchor.created_at);
-  const head = successors[0];
+  // Item 249: the version to send a buyer to is the END of the chain, not the first link — on a daily track the
+  // direct successor was itself replaced this morning. `useNewestVersion` walks it; `successors` stays the set of
+  // direct replacements, which is what "also replaced by" below is about.
+  const newest = useNewestVersion(d);
+  const head = newest?.entry ?? successors[0];
   const unresolved = successorIds.filter((id) => !successors.some((e) => e.anchor.id === id));
   const superseded = successorIds.length > 0;
   // Item 153: `sellable` is quorum met AND no open challenge — a disputed knowledge is off sale, not discounted.
@@ -1146,12 +1314,35 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   // Item 364: on a local-credit node the money is issued BY this node — say so where it is about to be spent.
   const { data: credit } = useMyCreditQuery(undefined, { skip: !isOperator || a.currency !== 'CREDIT' });
   /**
+   * Item 196 — a buyer composing a family paid 10 + 10 + 10 + 10 for four bodies that overlap on every address,
+   * and the Buy panel, which reads price/billing/purchased/has_body, said nothing: the overlap was in `conflicts`
+   * on the same response the whole time. What it can honestly say is which of the entries on this shelf the buyer
+   * ALREADY holds — a purchase of this node's own, or something it published — and how much of this knowledge is
+   * the same rows. It is not a refusal: the newer rows win when both are loaded, which is what the note says.
+   */
+  const { data: purchased } = useMyPurchasesQuery(undefined, { skip: !isOperator });
+  const held = new Set((purchased?.items ?? []).map((x) => x.patch_id));
+  const ownedOverlap = d.conflicts
+    .filter((c) => held.has(c.patch_id) && c.overlap_rows > 0)
+    .sort((x, y) => y.overlap_rows - x.overlap_rows);
+
+  /**
    * SC-15 `buy.twice_note` — worked example 7 of §11: a buyer who needs the base pays for the base AND pays the
    * base's creators again out of this sale. The percentage is not written here: it is read from the tree's money
    * line, which `royaltyPlan` computes on a unit price — the same code that will settle the sale — and each
    * recipient names the ancestor it is paid FOR, so the sentence goes against the right knowledge or is not shown.
    */
   const { data: tree } = usePatchTreeQuery({ id: a.id, depth: 4, dir: 'up' }, { skip: needs.length === 0 });
+  /**
+   * Item 296 — a base that has been replaced, or one a verifier has challenged, kept quoting its old price with
+   * nothing pointing at the current version, because `requires` carries the price and not the state. The tree this
+   * panel already loads for the split does carry it, so each base says what it is and links to its replacement.
+   * The child's own sale is NOT gated on it: it passed its own verification.
+   */
+  const baseState = (id: string) => {
+    const n = tree?.nodes.find((x) => x.id === id);
+    return n?.status && n.status !== 'LISTED' ? { status: n.status, newer: n.superseded_by?.[0], author: n.author } : null;
+  };
   const paidTwice = (id: string) => {
     const pct = (tree?.money.recipients ?? []).filter((r) => r.kind === 'lineage' && r.for_id === id).reduce((n, r) => n + r.pct, 0);
     return pct > 0 ? Math.round(pct * 10) / 10 : null;
@@ -1176,6 +1367,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
                 </span>
                 <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{head.anchor.name || head.anchor.id} →</StyledLink>
                 <code>{head.anchor.id}</code>
+                {!!newest && newest.hops > 1 && <span className="v" data-testid="buy-newest-hops">{t('detail.buy.old_hops', { n: newest.hops })}</span>}
               </div>
             </Versions>
           )}
@@ -1209,6 +1401,15 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
                         : r.licensed ? t('detail.buy.needs_have')
                         : r.known ? t('detail.buy.needs_buy', { price: f.priceLabel(r.price ?? '0', r.currency ?? a.currency), who: r.author_name ?? shortAddr(r.author ?? '', 6) })
                         : t('detail.buy.needs_unknown')}
+                      {(() => {
+                        const st = baseState(r.id);
+                        return st && (
+                          <div style={{ fontSize: 12, color: '#8a4b00' }} data-testid="buy-base-status">
+                            {t('detail.buy.needs_status', { status: t(`status.${st.status}`) })}
+                            {st.newer ? <> <StyledLink to={`/${encodeURIComponent(st.author ?? r.author ?? authorSlug)}/${encodeURIComponent(st.newer)}`}>{t('detail.lin.newer_of', { id: st.newer })} →</StyledLink></> : null}
+                          </div>
+                        );
+                      })()}
                       {paidTwice(r.id) !== null && (
                         <div style={{ fontSize: 12, color: '#8d8d8f' }} data-testid="buy-twice-note">
                           {t('detail.buy.twice_note', { name: r.name || r.id, lineage: String(paidTwice(r.id)) })}
@@ -1224,6 +1425,19 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
               <div key={o.name} style={{ marginTop: 4, fontSize: 13 }} data-testid="buy-origin-covered">{t('detail.buy.needs_contains', { name: o.name, n: num(o.rows) })}</div>
             ))}
           </dd>
+          {ownedOverlap.length > 0 && (
+            <>
+              <dt>{t('detail.buy.owned_already')}</dt>
+              <dd data-testid="buy-owned-overlap">
+                {ownedOverlap.map((c) => (
+                  <div key={c.patch_id} style={{ marginTop: 4 }}>
+                    {t('detail.buy.owned_overlap', { n: num(c.overlap_rows), total: num(a.rows), name: c.patch_id })}
+                  </div>
+                ))}
+                <Note style={{ margin: '4px 0 0' }}>{t('detail.buy.owned_overlap_note')}</Note>
+              </dd>
+            </>
+          )}
           {/* Item 349: `author_name` is written by the seller itself (`author_name: this.cfg.name`) and can be changed
               at any time; the address is the only part of this row the chain enforces. So the address leads, the name
               is quoted as the claim it is, and the record it can be checked against is one click away. */}
