@@ -95,6 +95,14 @@ export const detailPatch: Dict = {
   'detail.stat.price': { ko: '가격', en: 'Price' },
   'detail.stat.revenue': { ko: '누적 판매액', en: 'Revenue' },
   'detail.stat.not_yet': { ko: '검증 전', en: 'not yet' },
+  // Item 30 — the seller's cumulative takings, said to be that, in a face that cannot be mistaken for the price.
+  'detail.stat.revenue_note': { ko: '지금까지 이 지식에 지불된 총액', en: 'paid for this knowledge so far' },
+  /* Item 30 — the header's first control is the price now; Live test keeps the outlined face. `buy_off` leads to the
+     Buy tab because that is where the reason (not verified / challenged / retired) is written out in full. */
+  'detail.head.buy': { ko: '이 지식 받기 · {price}', en: 'Get this knowledge · {price}' },
+  'detail.head.buy_free': { ko: '이 지식 받기 · 무료', en: 'Get this knowledge · free' },
+  'detail.head.buy_have': { ko: '이미 가진 지식 — 열기', en: 'You already have this — open it' },
+  'detail.head.buy_off': { ko: '지금은 판매하지 않음 — 이유 보기', en: 'Not on sale — see why' },
   'detail.stat.before_after_help': { ko: '같은 검증 실행에서 지식을 넣기 전 {before}, 넣은 뒤 {after}였습니다.', en: 'The same verification run scored {before} before the knowledge was loaded and {after} after.' },
   'detail.stat.before_after_note': { ko: '넣은 뒤 {pct}%', en: '{pct}% after loading' },
   'detail.stat.accuracy_help': { ko: '실제 모델에서 실행한 가장 최근 검증의 정답률입니다.', en: 'Accuracy from the most recent verification run on the real model.' },
@@ -314,6 +322,8 @@ export const detailPatch: Dict = {
   'detail.buy.body_path': { ko: '저장 위치', en: 'Saved to' },
   'detail.buy.blob_urls': { ko: '내려받기 주소', en: 'Download URLs' },
 
+  'detail.hist.records': { ko: '공개 기록', en: 'Records' },
+  'detail.hist.revenue_help': { ko: '이 노드가 가진 정산 기록에서 이 지식에 지불된 금액을 모두 더한 값입니다. 원작자·검증 노드 몫은 이 금액 안에서 나뉩니다.', en: 'Every payment for this knowledge on the settlement records this node holds, added up. The creator and verifier shares are divided out of that amount.' },
   'detail.hist.empty': { ko: '아직 공개 기록이 없습니다. 등록 전의 지식은 이 노드에만 있습니다.', en: 'No public records yet — unregistered knowledge lives only on this node.' },
   'detail.hist.h.kind': { ko: '종류', en: 'Kind' },
   'detail.hist.h.summary': { ko: '내용', en: 'What happened' },

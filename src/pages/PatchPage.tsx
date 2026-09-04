@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
@@ -52,11 +52,27 @@ const BuildOn = styled.button`
   &:hover:not(:disabled) { background: ${(p) => p.theme.color.PALE_GREY}; }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
 `;
+/**
+ * Item 30 — the header used to carry Live test, Build on this and a view-all link, and nothing at all about
+ * money: the price was the sixth of seven equal-weight numbers in the strip, with the seller's Revenue in the
+ * same 24 px face beside it, and buying was the fourth tab. The filled purple slot now belongs to the price,
+ * Live test keeps the outlined face it shares with Build on this, and the button says what leaves the wallet.
+ */
+const BuyNow = styled.button<{ $muted?: boolean }>`
+  font: inherit; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 10px 26px; border-radius: 4px; cursor: pointer; white-space: nowrap; text-align: center;
+  font-size: 15px; font-weight: 700; line-height: 1.3;
+  border: 1px solid ${(p) => (p.$muted ? p.theme.color.LIGHT_GREY : p.theme.color.PRIMARY)};
+  background: ${(p) => (p.$muted ? '#fff' : p.theme.color.PRIMARY)}; color: ${(p) => (p.$muted ? p.theme.color.DARK_GREY : '#fff')};
+  small { font-size: 11px; font-weight: 400; opacity: ${(p) => (p.$muted ? 0.75 : 0.9)}; }
+  &:hover { background: ${(p) => (p.$muted ? p.theme.color.PALE_GREY : p.theme.color.HOVER)}; }
+`;
 const LiveTestLink = styled(Link)`
-  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px 26px; border-radius: 4px; text-decoration: none;
-  background: ${(p) => p.theme.color.PRIMARY}; color: #fff; font-size: 15px; font-weight: 700; line-height: 1.3; white-space: nowrap;
-  small { font-size: 11px; font-weight: 400; opacity: 0.9; }
-  &:hover { background: ${(p) => p.theme.color.HOVER}; }
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 9px 22px; border-radius: 4px; text-decoration: none;
+  border: 1px solid ${(p) => p.theme.color.PRIMARY}; background: #fff; color: ${(p) => p.theme.color.PRIMARY};
+  font-size: 14px; font-weight: 700; line-height: 1.3; white-space: nowrap;
+  small { font-size: 11px; font-weight: 400; color: ${(p) => p.theme.color.GREY}; }
+  &:hover { background: ${(p) => p.theme.color.PALE_GREY}; }
 `;
 const ViewAll = styled(Link)`
   height: 30px; display: inline-flex; align-items: center; font-size: 13px; font-weight: 500; color: ${(p) => p.theme.color.GREY}; text-decoration: none;
@@ -74,7 +90,7 @@ const Stats = styled.div`
   margin-top: 24px; display: flex; flex-wrap: wrap; gap: 24px 32px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
 `;
 const Stat = styled.div`display: flex; flex-direction: column; align-items: center; min-width: 72px;`;
-const StatValue = styled.div`font-size: 20px; font-weight: 500; color: ${(p) => p.theme.color.BLACK}; font-variant-numeric: tabular-nums; white-space: nowrap;`;
+const StatValue = styled.div<{ $muted?: boolean }>`font-size: ${(p) => (p.$muted ? 16 : 20)}px; font-weight: 500; color: ${(p) => (p.$muted ? p.theme.color.GREY : p.theme.color.BLACK)}; font-variant-numeric: tabular-nums; white-space: nowrap;`;
 const StatName = styled.div`margin-top: 4px; font-size: 12px; font-weight: 500; color: ${(p) => p.theme.color.GREY}; border-bottom: 1px dotted transparent; &[title] { border-bottom-color: ${(p) => p.theme.color.LIGHT_GREY}; cursor: help; }`;
 const StatNote = styled.div`margin-top: 2px; font-size: 10px; color: ${(p) => p.theme.color.GREY}; text-align: center; max-width: 150px; line-height: 1.3;`;
 const Section = styled.section`margin-top: 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; padding: 24px 32px;`;
@@ -267,6 +283,7 @@ export default function PatchPage() {
    * history entry Back can walk. An unknown or absent `?tab=` reads as Overview.
    */
   const [sp, setSp] = useSearchParams();
+  const tabsRef = useRef<HTMLDivElement>(null);
   const setTab = (id: string) => setSp((prev) => {
     const next = new URLSearchParams(prev);
     if (id === 'overview') next.delete('tab'); else next.set('tab', id);
@@ -330,6 +347,21 @@ export default function PatchPage() {
             )}
           </HeadLeft>
           <HeadRight>
+            {/* Item 30: the commercial intent of the page, above the fold — price on the control that spends it.
+                `owned` is "this node published it", which is true of every knowledge a visitor browses on its
+                author's own node: the operator gets Manage instead, everyone else gets the price. */}
+            {!(isSignedIn && data.owned) && (
+              <BuyNow
+                type="button" data-testid="head-buy" $muted={!data.sellable && !data.purchased}
+                onClick={() => { setTab('buy'); requestAnimationFrame(() => tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}
+              >
+                {data.purchased ? t('detail.head.buy_have')
+                  : !data.sellable ? t('detail.head.buy_off')
+                  : Number(a.price) > 0 ? t('detail.head.buy', { price: f.priceLabel(a.price, a.currency) })
+                  : t('detail.head.buy_free')}
+                {data.sellable && !data.purchased && <small>{f.billingLabel(a.billing)}</small>}
+              </BuyNow>
+            )}
             <LiveTestLink to={`/chat/${encodeURIComponent(a.id)}`} title={`${help('liveTest')} (${tech('liveTest')})`}>
               {term('liveTest')}<small>{t('detail.patch.live_test_sub')}</small>
             </LiveTestLink>
@@ -388,10 +420,13 @@ export default function PatchPage() {
             <Stat><StatValue>{num(a.benchmark.queries)}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
             <Stat><StatValue>{bytes(a.size_bytes)}</StatValue><StatName>{t('detail.stat.size')}</StatName></Stat>
             <Stat><StatValue>{f.priceLabel(a.price, a.currency)}</StatValue><StatName>{t('detail.stat.price')}</StatName>{Number(a.price) > 0 && <StatNote>{f.priceNote(a.currency)}</StatNote>}</Stat>
-            <Stat><StatValue>{f.revenueLabel(data.revenue, a.currency)}</StatValue><StatName>{t('detail.stat.revenue')}</StatName></Stat>
+            {/* Item 30: two large AIN numbers side by side invited reading the seller's takings as the price. The
+                figure stays public — it is the settlement record — in the face of the seller metric it is, and the
+                purchases it came from are summarised on the History tab beside the records themselves. */}
+            <Stat><StatValue $muted>{f.revenueLabel(data.revenue, a.currency)}</StatValue><StatName>{t('detail.stat.revenue')}</StatName><StatNote>{t('detail.stat.revenue_note')}</StatNote></Stat>
           </Stats>
 
-          <TabBar><Tabs tabs={tabs} value={tab} onChange={setTab} /></TabBar>
+          <TabBar ref={tabsRef}><Tabs tabs={tabs} value={tab} onChange={setTab} /></TabBar>
 
           {tab === 'overview' && <Overview d={data} score={score} onSeeVerification={() => setTab('verification')} />}
           {tab === 'verification' && <Verification d={data} />}
@@ -415,7 +450,7 @@ export default function PatchPage() {
           )}
           {tab === 'lineage' && <Lineage d={data} authorSlug={authorSlug} />}
           {tab === 'buy' && <Buy d={data} authorSlug={authorSlug} isOperator={isSignedIn} />}
-          {tab === 'history' && <HistoryTab id={a.id} />}
+          {tab === 'history' && <HistoryTab d={data} />}
         </ContentInner>
       </Content>
     </Wrapper>
@@ -990,14 +1025,20 @@ function PurchaseTimeline({ r, currency }: { r: PurchaseResult; currency: string
 }
 
 /* ---------------------------------------------------------------- 기록 */
-function HistoryTab({ id }: { id: string }) {
+function HistoryTab({ d }: { d: PatchDetail }) {
   const { t } = useT();
   const f = useDetailFormat();
-  const { data, isLoading } = usePatchRecordsQuery(id, { pollingInterval: 10_000 });
+  const { data, isLoading } = usePatchRecordsQuery(d.anchor.id, { pollingInterval: 10_000 });
   if (isLoading) return <CenterProgress />;
   const recs = [...(data?.records ?? [])].sort((a, b) => b.ts - a.ts);
   return (
     <Section style={{ padding: '8px 0 0' }}>
+      {/* Item 30: the sales figures belong beside the settlements they are counted from, not beside the price. */}
+      <SummaryRow data-testid="hist-summary">
+        <div><span className="k">{t('detail.stat.downloads')}</span><span className="v">{num(d.downloads)}</span></div>
+        <div title={t('detail.hist.revenue_help')}><span className="k">{t('detail.stat.revenue')}</span><span className="v">{f.revenueLabel(d.revenue, d.anchor.currency)}</span></div>
+        <div><span className="k">{t('detail.hist.records')}</span><span className="v">{num(recs.length)}</span></div>
+      </SummaryRow>
       {recs.length === 0 && <Empty style={{ border: 0 }}>{t('detail.hist.empty')}</Empty>}
       {recs.length > 0 && (
         <TableWrapper>
