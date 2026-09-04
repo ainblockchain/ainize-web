@@ -110,6 +110,12 @@ export const teach: Dict = {
   'teach.pre.confirm_needed': { ko: '{name}의 답을 바꾸는 질문이 {n}개 있습니다. 계속하려면 위에서 확인해 주세요.', en: '{n} of these change {name}’s answers. Confirm above to continue.' },
 
   // SC-8 publish sheet — what happens to the questions, and who is paid
+  // SC-7 — what a lesson built on someone else's knowledge did to it, measured in CHECKING (§7.6)
+  'teach.res.built_on_title': { ko: '무엇 위에 만들었나', en: 'What this was built on' },
+  'teach.res.built_on': { ko: '{name} 바탕 · 질문 {m}개 추가 · {k}개 수정 (행 {rows}개)', en: 'Built on {name} · adds {m} questions · changes {k} ({rows} rows)' },
+  'teach.res.parent_ok': { ko: '내 수업을 위에 얹어도 {name}은(는) 자기 질문에 {hit}/{total} 답합니다', en: '{name} still answers its own questions with your lesson on top: {hit}/{total}' },
+  'teach.res.parent_broken': { ko: '내 수업이 {name}의 답 {k}개({list})를 망가뜨립니다. 이대로는 {name} 위에 공개할 수 없어요. 겹치는 질문을 고치거나, "틀린 답 고치기"로 의도적으로 바꾸거나, 다시 만드세요.', en: 'Your lesson breaks {k} of {name}’s answers ({list}). It cannot be published on top of {name}. Fix the conflicting rows, correct them on purpose with Correct it, or rebuild.' },
+  'teach.res.reversible': { ko: '내 수업을 빼면 {name}은(는) 원래 그대로: 확인됨.', en: 'Removing your lesson leaves {name} exactly as it was: checked.' },
   'teach.pub.built_on': { ko: '기반 지식: {names}', en: 'Built on: {names}' },
   'teach.pub.money': { ko: '판매마다: {names} 제작자에게 {lineage}%, 나에게 {contributor}%, 나머지는 {node}에게.', en: 'Every sale: {lineage}% to the creators of {names}, {contributor}% to you, the rest to {node}.' },
   // Item 186 — the split the node actually settles, not the raw policy share. `contributor` / `lineage` / `nodePct`

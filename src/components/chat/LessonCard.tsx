@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { StyledLink } from '@/components/ui/Misc';
 import { basketFilename } from '@/lib/teachDataset';
+import { BuiltOnLines } from '@/components/teach/BuiltOn';
 import { ACTIVE, cardStatusKey, etaText, failedKey, isFullJob, mapTeachError } from './teachUtil';
 
 const Card = styled.section<{ $tone: 'busy' | 'ok' | 'warn' | 'bad' | 'muted' }>`
@@ -205,6 +206,8 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
           k: j.facts.filter((f) => f.hit !== undefined).length, n: j.facts.length, hits: j.facts.filter((f) => f.hit === true).length,
         })}</Tip>
       )}
+      {/* SC-7 — the same three sentences the file door's result screen gives, in the card the chat door ends on. */}
+      {!!j.bases?.length && <Tip><BuiltOnLines j={j} /></Tip>}
       {practiceGap && <Tip data-testid="practice-gap">{t('teach.card.practice_gap', { phits: p!.hits, ptotal: p!.total })}</Tip>}
       {(simulated || stub) && showChecks && <Tip data-testid="lesson-simulated">{t(simulated ? 'teach.card.simulated' : 'teach.card.stub_only')}</Tip>}
       {c?.reverted_and_reapplied && <Tip>{t('teach.card.revert_note')}</Tip>}

@@ -17,6 +17,7 @@ import { ACTIVE, failedKey, isFullJob, mapTeachError } from '@/components/chat/t
 import { LiveTestBox } from '@/components/teach/LiveTestBox';
 import { StageRail } from '@/components/teach/StageRail';
 import { Stepper } from '@/components/teach/Stepper';
+import { BuiltOn } from '@/components/teach/BuiltOn';
 import { elapsedText, etaLine, nextEffort, stageOf } from '@/components/teach/util';
 import { signedDownload } from '@/lib/teachDataset';
 import { currentTeacherKey } from '@/lib/teacherKey';
@@ -307,6 +308,11 @@ export default function TeachLessonPage() {
           {missed.length > ROWS_SHOWN && <ShownNote data-testid="missed-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: missed.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
         </Panel>
       )}
+
+      {/* SC-7 — the base is named before the side-effect panel, because "what did my lesson do to the knowledge
+          underneath it" is the question a creator who built on someone else has, and the panel below answers a
+          different one (what it did to the rest of the model). */}
+      {!failedTone && <BuiltOn j={j} />}
 
       {c && !failedTone && (
         <Panel data-testid="side-effects">
