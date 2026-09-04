@@ -1,43 +1,20 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
-import styled, { keyframes } from 'styled-components';
-import { usePatchEventsQuery, usePatchRecordsQuery } from '@/api/api';
-import type { EventRow, LedgerRecord } from '@/api/types';
+import styled from 'styled-components';
+import { usePatchEventsQuery, usePatchQuery, usePatchRecordsQuery } from '@/api/api';
+import type { LedgerRecord } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { CenterProgress, Description, PageWrapper, SelectBox, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
-import { Pre, useMoney } from '@/components/operator/common';
-import { dateTime, shortAddr, shortHash, timeOnly } from '@/utils/format';
+import { EventLog } from '@/components/operator/EventLog';
+import { useMoney } from '@/components/operator/common';
+import { dateTime, shortAddr, shortHash } from '@/utils/format';
 
-/** ainize LogViewer port: bordered panel, PALE_GREY header, alternating rows, Inconsolata 12px. */
-const Viewer = styled.div`position: relative; display: flex; flex-direction: column; border: 1px solid rgba(0, 0, 0, 0.25); margin-top: 16px;`;
-const ViewerHeader = styled.div`
-  display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 4px 8px; background: ${(p) => p.theme.color.PALE_GREY};
-`;
-const HeaderLabel = styled.div`font-size: 10px; color: ${(p) => p.theme.color.DARK_GREY};`;
-const Filler = styled.div`flex: 1;`;
-const LoadOlder = styled.button`
-  border: 0; background: transparent; padding: 0; font-size: 10px; font-weight: 700; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; }
-`;
-const Body = styled.div`max-height: 520px; overflow: auto;`;
-const showLog = keyframes`from { opacity: 0.2; } to { opacity: 1; }`;
-const LogRow = styled.div<{ $even: boolean; $clickable?: boolean }>`
-  display: flex; flex-direction: row; align-items: flex-start; gap: 8px; padding: 8px; background: ${(p) => (p.$even ? '#f2f2f2' : '#ffffff')};
-  border-bottom: 1px solid #e0e0e0; animation: ${showLog} 0.4s ease-in; cursor: ${(p) => (p.$clickable ? 'pointer' : 'default')};
-  &:first-child { border-top: 1px solid #e0e0e0; }
-`;
-const Cell = styled.div<{ $flex?: number; $align?: string; $color?: string; $weight?: number }>`
-  flex: ${(p) => p.$flex ?? 1}; min-width: 0; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; text-align: ${(p) => p.$align ?? 'left'};
-  font-weight: ${(p) => p.$weight ?? 400}; color: ${(p) => p.$color ?? p.theme.color.DARK_GREY}; overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap; word-break: break-word;
-`;
-const Footer = styled.div`padding: 4px 8px; font-size: 10px; color: ${(p) => p.theme.color.GREY}; background: ${(p) => p.theme.color.PALE_GREY};`;
 const Timeline = styled.ol`list-style: none; margin: 16px 0 0; padding: 0; border-left: 2px solid #e0e0e0;`;
 const TItem = styled.li`position: relative; padding: 0 0 20px 20px; font-size: 13px;
   &::before { content: ''; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: #8b3eeb; border: 2px solid #fff; box-shadow: 0 0 0 1px #8b3eeb; }
 `;
 const Kind = styled.span`display: inline-block; min-width: 72px; font-weight: 700; color: #5b1ca8; font-size: 11px; letter-spacing: 0.04em; cursor: help;`;
-
-const LEVEL_COLOR: Record<EventRow['level'], string> = { debug: '#828282', info: '#333333', warn: '#f6981d', error: '#e7711b' };
 
 export default function LogsPage() {
   const { t } = useT();
@@ -45,9 +22,12 @@ export default function LogsPage() {
   const { author = '', patchId = '' } = useParams();
   const [limit, setLimit] = useState(100);
   const [level, setLevel] = useState('all');
-  const [open, setOpen] = useState<number | null>(null);
-  const events = usePatchEventsQuery({ id: patchId, limit }, { pollingInterval: 5000 });
-  const records = usePatchRecordsQuery(patchId);
+  // Finding 79: the log page never asked whether the knowledge exists, so a mistyped or removed id rendered as a
+  // healthy, quiet, empty log — while the manage page for the same id correctly said "Knowledge not found".
+  const patch = usePatchQuery(patchId);
+  const missing = patch.isError || (!patch.isLoading && !patch.data);
+  const events = usePatchEventsQuery({ id: patchId, limit }, { pollingInterval: missing ? 0 : 5000, skip: missing });
+  const records = usePatchRecordsQuery(patchId, { skip: missing });
   useTitle(t('op.logs.title', { id: patchId }));
 
   const LEVELS = [
@@ -88,37 +68,39 @@ export default function LogsPage() {
     }
   };
 
+  if (patch.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (missing) {
+    return (
+      <PageWrapper>
+        <Title>{t('op.manage.notfound')}</Title>
+        <Description data-testid="logs-notfound">
+          {t('op.logs.notfound.desc', { id: patchId })}{' '}
+          <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink>{' · '}
+          <StyledLink to="/logs">{t('op.logs.notfound.node')}</StyledLink>
+        </Description>
+      </PageWrapper>
+    );
+  }
+
   return (
     <PageWrapper $wide>
       <TitleRow>
         <Title>{t('op.logs.title', { id: patchId })}</Title>
         <SelectBox options={LEVELS} value={level} onChange={setLevel} label={t('common.level_aria')} />
       </TitleRow>
-      <Description>{t('op.logs.desc')} <StyledLink to={`/project/${author}/${patchId}`}>{t('op.logs.back')}</StyledLink></Description>
+      <Description>
+        {t('op.logs.desc')} <StyledLink to={`/project/${author}/${patchId}`}>{t('op.logs.back')}</StyledLink>
+        {' · '}<StyledLink to="/logs">{t('op.logs.notfound.node')}</StyledLink>
+      </Description>
 
-      <Viewer>
-        <ViewerHeader>
-          <HeaderLabel>{t('op.logs.rows', { n: rows.length })}{events.isFetching ? t('op.logs.refreshing') : ''}</HeaderLabel>
-          <Filler />
-          <LoadOlder onClick={() => setLimit((l) => l + 200)}>{t('op.logs.older')}</LoadOlder>
-        </ViewerHeader>
-        <Body>
-          {events.isLoading && <CenterProgress />}
-          {rows.map((e, i) => (
-            <div key={e.seq}>
-              <LogRow $even={i % 2 === 1} $clickable={e.data !== null && e.data !== undefined} onClick={() => setOpen(open === e.seq ? null : e.seq)}>
-                <Cell $flex={0} style={{ minWidth: 70 }} title={dateTime(e.ts)}>{timeOnly(e.ts)}</Cell>
-                <Cell $flex={0} style={{ minWidth: 52 }} $color={LEVEL_COLOR[e.level]} $weight={700}>{e.level.toUpperCase()}</Cell>
-                <Cell $flex={0} style={{ minWidth: 72 }} $color="#5b1ca8">{e.kind}</Cell>
-                <Cell $flex={1}>{e.message}{e.data !== null && e.data !== undefined ? '  ⋯' : ''}</Cell>
-              </LogRow>
-              {open === e.seq && e.data !== null && e.data !== undefined && <Pre style={{ borderRadius: 0 }}>{JSON.stringify(e.data, null, 2)}</Pre>}
-            </div>
-          ))}
-          {!events.isLoading && rows.length === 0 && <LogRow $even={false}><Cell $align="center">{t('op.logs.empty')}</Cell></LogRow>}
-        </Body>
-        <Footer>{t('op.logs.footer', { n: limit })}</Footer>
-      </Viewer>
+      <EventLog
+        rows={rows}
+        loading={events.isLoading}
+        fetching={events.isFetching}
+        onOlder={() => setLimit((l) => l + 200)}
+        empty={t('op.logs.empty')}
+        footer={t('op.logs.footer', { n: limit })}
+      />
 
       <SubTitle $mt={48}>{t('op.logs.ledger.title')}</SubTitle>
       <Description>{t('op.logs.ledger.desc')}</Description>
