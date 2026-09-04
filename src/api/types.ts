@@ -55,7 +55,12 @@ export interface InfoResponse {
 export interface CatalogResponse { total: number; items: CatalogEntry[]; models: string[]; schemas: string[]; }
 
 export interface LineageRef { id: string; name: string; author: string; status: PatchStatus; }
-export interface ConflictInfo { patch_id: string; overlap_rows: number; same_schema: boolean; status: string; }
+/**
+ * An address-set overlap with another knowledge on this node. `cross_branch` and `branch` come straight from the
+ * node (market.ts:459) and decide the supersede rule with `same_schema`: only a same-schema overlap that is NOT
+ * cross-branch and is LISTED / VERIFYING / ANNOUNCED is retired when this one reaches quorum.
+ */
+export interface ConflictInfo { patch_id: string; overlap_rows: number; same_schema: boolean; status: string; branch?: string; cross_branch?: boolean; }
 
 export interface PatchDetail extends CatalogEntry {
   lineage: { parents: LineageRef[]; children: LineageRef[] };

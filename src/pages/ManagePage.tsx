@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAnnounceMutation, useApplyMutation, useChallengeMutation, useDeletePatchMutation, usePatchQuery, useRemoveMutation, useRuntimeQuery,
-  useUpdatePatchMutation, useVerifyMutation,
+  errorMessage, useAnnounceMutation, useApplyMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, usePatchQuery, useRemoveMutation,
+  useRuntimeQuery, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -14,6 +14,7 @@ import { Alert, FormRow, Select, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { CheckItem, Checklist, DevBox, ExternalAnchor, ExternalRow, ExternalTitle, MonoBox, Muted, Row, SectionBody, SmallSpinner, Stack, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { Sheet, SheetFooter } from '@/components/chat/Sheet';
 import { bytes, dateTime, num, scoreText, shortAddr, shortHash } from '@/utils/format';
 
 const ProjectName = styled.h1`margin: 0; font-size: 28px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; word-break: break-all;`;
@@ -27,6 +28,16 @@ const Snippet = styled.textarea`
   width: 100%; min-height: 64px; padding: 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; resize: none; background: #fafafa;
 `;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
+/** Item 150: what publishing retires, as a list — a four-column table put the sales and the status off a phone screen. */
+const RetireList = styled.ul`
+  margin: 0; padding: 0; list-style: none; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
+`;
+const RetireRow = styled.li`
+  display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline;
+  padding: 12px 2px; border-bottom: 1px solid #f4f4f4;
+`;
+const RetireWhat = styled.div`min-width: 0; flex: 1 1 200px; font-size: 14px; display: flex; flex-direction: column; gap: 2px;`;
+const RetireFacts = styled.div`flex: 0 0 auto; text-align: right; font-size: 13px; display: flex; flex-direction: column; gap: 2px; align-items: flex-end;`;
 
 export default function ManagePage() {
   const { t, term, help, tech } = useT();
@@ -40,6 +51,8 @@ export default function ManagePage() {
   const inFlight = !!p && isInFlight(p.status);
   useEffect(() => { setPoll(inFlight); }, [inFlight]);
   const runtime = useRuntimeQuery();
+  // The retired items are knowledge this node already knows: their names, sales and revenue are on the catalogue.
+  const catalog = useCatalogQuery({ limit: 200, include_drafts: true });
   useTitle(p ? p.anchor.name || p.anchor.id : undefined);
 
   const [update, updateState] = useUpdatePatchMutation();
@@ -61,6 +74,9 @@ export default function ManagePage() {
   const [reason, setReason] = useState('');
   const [confirmMode, setConfirmMode] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  /** Item 150: publishing over your own listed knowledge retires it — the sheet that has to be crossed first. */
+  const [retireOpen, setRetireOpen] = useState(false);
+  const [retireText, setRetireText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -109,7 +125,16 @@ export default function ManagePage() {
   const a = p.anchor;
   const patchPage = `${window.location.origin}/${a.author}/${a.id}`;
   const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${a.id}`;
-  const sameSchemaOverlaps = p.conflicts.filter((c) => c.same_schema).length;
+  /**
+   * What `announce` will actually retire. The node records `pending_supersede` from the same-schema overlaps that are
+   * NOT cross-branch and are still LISTED / VERIFYING / ANNOUNCED (market.ts:499), and `reconcileSupersedes` turns
+   * each one into a permanent `supersede` record the moment this anchor reaches quorum. The checklist used to count
+   * every same-subject overlap — including the cross-branch ones that deliberately coexist — and the Publish button
+   * ignored the count entirely.
+   */
+  const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && ['LISTED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
+  const coexisting = p.conflicts.filter((c) => c.same_schema && c.cross_branch).length;
+  const byId = new Map((catalog.data?.items ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
 
   // An attestation this node wrote on its own anchor and excluded from the count (item 146).
@@ -166,11 +191,15 @@ export default function ManagePage() {
             <CheckItem ok={!!a.benchmark.schema}>{t('op.manage.check.schema', { schema: a.benchmark.schema || t('op.manage.check.schema.missing') })}</CheckItem>
             <CheckItem ok={(a.benchmark.samples?.length ?? 0) > 0}>{t('op.manage.check.samples', { n: a.benchmark.samples?.length ?? 0 })}</CheckItem>
             <CheckItem ok={!!a.description}>{t('op.manage.check.desc')}</CheckItem>
-            <CheckItem ok={sameSchemaOverlaps === 0}>{t('op.manage.check.conflict', { n: sameSchemaOverlaps })}</CheckItem>
+            <CheckItem ok={retires.length === 0}>
+              <span data-testid="check-retire">{retires.length === 0 ? t('op.manage.check.conflict', { n: 0 }) : t('op.manage.check.conflict.retire', { n: retires.length }, retires.length)}</span>
+            </CheckItem>
           </Checklist>
+          {coexisting > 0 && <Muted style={{ display: 'block', marginTop: 8 }}>{t('op.manage.retire.crossbranch', { n: coexisting })}</Muted>}
           <SaveRow>
             <Button variant="contained" disabled={!p.has_body || !a.benchmark.schema} loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
-              onClick={() => run(() => announce(a.id).unwrap(), t('op.manage.announced'))}>{t('op.manage.announce')}</Button>
+              data-testid="announce"
+              onClick={() => { if (retires.length > 0) { setRetireText(''); setRetireOpen(true); } else void run(() => announce(a.id).unwrap(), t('op.manage.announced')); }}>{t('op.manage.announce')}</Button>
             <Muted title={t('op.tech.announce')}>{t('op.manage.announce.note')}</Muted>
           </SaveRow>
         </SectionBody>
@@ -187,6 +216,42 @@ export default function ManagePage() {
             <div><Button color="secondary" size="small" disabled={!reason.trim()} loading={challengeState.isLoading} onClick={() => run(() => challenge({ id: a.id, reason }).unwrap(), t('op.manage.challenge.ok'))}>{t('op.manage.challenge.button')}</Button></div>
           </Stack>
         </SectionBody>
+      )}
+
+      {/* Item 150 — publishing retires your own listed knowledge; nothing is announced until this is crossed. */}
+      {retireOpen && (
+        <Sheet title={t('op.manage.retire.title')} onClose={() => setRetireOpen(false)} width={680} testId="retire-sheet">
+          <span>{t('op.manage.retire.body', { schema: a.benchmark.schema, id: a.id })}</span>
+          <RetireList>
+            {retires.map((c) => {
+              const e = byId.get(c.patch_id);
+              return (
+                <RetireRow key={c.patch_id} data-testid="retire-row" data-id={c.patch_id}>
+                  <RetireWhat>
+                    <Row $gap={8} $wrap><StyledLink to={`/${e?.anchor.author ?? a.author}/${c.patch_id}`}>{e?.anchor.name || c.patch_id}</StyledLink><StatusChip status={e?.status ?? c.status} /></Row>
+                    <Muted><Mono>{c.patch_id}</Mono></Muted>
+                    {e?.status === 'LISTED' && <Muted>{t('op.manage.retire.selling')}</Muted>}
+                  </RetireWhat>
+                  <RetireFacts>
+                    <span data-testid="retire-sales">{t('op.manage.retire.col.sales')}: {e && e.downloads > 0
+                      ? t('op.manage.retire.sold', { n: e.downloads, revenue: money.revenue(e.revenue, e.anchor.currency) })
+                      : t('op.manage.retire.sold_none')}</span>
+                    <Muted>{t('op.manage.retire.col.overlap')}: {t('units.rows', { n: num(c.overlap_rows) })}</Muted>
+                  </RetireFacts>
+                </RetireRow>
+              );
+            })}
+          </RetireList>
+          {coexisting > 0 && <Muted>{t('op.manage.retire.crossbranch', { n: coexisting })}</Muted>}
+          <TextField label={t('op.manage.retire.type', { id: a.id })} value={retireText} onChange={(e) => setRetireText(e.target.value)} data-testid="retire-type" />
+          {error && <Alert $tone="error" role="alert">{error}</Alert>}
+          <SheetFooter>
+            <Button variant="text" color="default" onClick={() => setRetireOpen(false)}>{t('op.manage.retire.cancel')}</Button>
+            <Button variant="contained" color="secondary" disabled={retireText.trim() !== a.id} loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
+              data-testid="retire-confirm"
+              onClick={() => run(async () => { await announce(a.id).unwrap(); setRetireOpen(false); }, t('op.manage.announced'))}>{t('op.manage.retire.confirm')}</Button>
+          </SheetFooter>
+        </Sheet>
       )}
 
       {/* ------------------------------------------------------------ verification results */}
