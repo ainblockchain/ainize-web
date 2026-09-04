@@ -13,6 +13,7 @@ import { Alert, Checkbox, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { Muted, RadioGroup, Row, SmallSpinner, Stack, useElapsed, useMoney } from '@/components/operator/common';
+import { ApproveLessonSheet } from '@/components/operator/ApproveLessonSheet';
 import { dateTime, shortAddr, shortHash } from '@/utils/format';
 
 /**
@@ -35,6 +36,11 @@ const Tile = styled.div<{ $tone?: 'bad' | 'ok' | 'warn' }>`
   .k { font-size: 12px; color: #8d8d8f; } .v { font-size: 22px; font-weight: 700; color: ${(p) => (p.$tone === 'bad' ? '#a0102c' : p.$tone === 'ok' ? '#1e6b36' : p.$tone === 'warn' ? '#8a4b00' : '#333')}; }
 `;
 const ReasonRow = styled.div`display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; flex-wrap: wrap;`;
+/** Item 8: an option that publishes a stranger's text under your own name has to say so next to its own radio. */
+const OptionText = styled.span`
+  display: flex; flex-direction: column; gap: 2px;
+  em { font-style: normal; font-size: 13px; line-height: 1.5; color: ${(p) => p.theme.color.GREY}; }
+`;
 
 const ACTIVE = new Set(['QUEUED', 'PREFLIGHT', 'LOADING', 'TRAINING', 'EXPORTED', 'CHECKING']);
 const statusTone = (s: string): 'ok' | 'warn' | 'bad' | 'muted' | 'busy' =>
@@ -64,7 +70,11 @@ export default function TeachingTab() {
 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** A failure of the approve call belongs INSIDE the sheet — a page-level alert would be hidden behind it. */
+  const [approveError, setApproveError] = useState<string | null>(null);
   const [declining, setDeclining] = useState<string | null>(null);
+  /** The lesson whose Approve was clicked — nothing is announced until this sheet is confirmed (item 8). */
+  const [approving, setApproving] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [banReason, setBanReason] = useState('');
 
@@ -150,9 +160,13 @@ export default function TeachingTab() {
             <FieldLabel>{t('op.teach.settings.publish')}</FieldLabel>
             <RadioGroup role="radiogroup" aria-label={t('op.teach.settings.publish')} data-testid="teach-publish">
               {(['review', 'auto', 'never'] as const).map((o) => (
-                <label key={o}><input type="radio" name="teach-publish" value={o} checked={form.publish === o} onChange={() => setForm({ ...form, publish: o })} />{t(`op.teach.settings.publish.${o}`)}</label>
+                <label key={o}>
+                  <input type="radio" name="teach-publish" value={o} checked={form.publish === o} onChange={() => setForm({ ...form, publish: o })} />
+                  <OptionText><span>{t(`op.teach.settings.publish.${o}`)}</span><em>{t(`op.teach.settings.publish.${o}.what`)}</em></OptionText>
+                </label>
               ))}
             </RadioGroup>
+            {form.publish === 'auto' && <Alert $tone="warning" role="alert" style={{ marginTop: 12 }} data-testid="teach-auto-warning">{t('op.teach.settings.publish.auto.warn')}</Alert>}
           </div>
           <Grid>
             <TextField type="number" min={1} max={8} label={t('op.teach.settings.facts')} value={form.facts} onChange={(e) => setForm({ ...form, facts: num(e.target.value, 1, 8) })} data-testid="teach-facts" />
@@ -176,7 +190,7 @@ export default function TeachingTab() {
 
       {/* ---------------------------------------------------------------- queue */}
       <SubTitle $mt={56}>{t('op.teach.queue.title')}{pendingReview > 0 && <Chip $tone="warn" style={{ marginLeft: 12, verticalAlign: 'middle' }} data-testid="teach-review-count">{t('op.teach.queue.review_count', { n: pendingReview })}</Chip>}</SubTitle>
-      <Description>{t('op.teach.queue.desc')}</Description>
+      <Description data-testid="teach-queue-desc">{t(eff?.publish === 'auto' ? 'op.teach.queue.desc.auto' : eff?.publish === 'never' ? 'op.teach.queue.desc.never' : 'op.teach.queue.desc')}</Description>
       <TableWrapper style={{ marginTop: 16 }}>
         <Table data-testid="teach-queue">
           <TableHeader>
@@ -213,7 +227,7 @@ export default function TeachingTab() {
                   <TableData $align="left">
                     {j.status === 'PENDING_REVIEW' && declining !== j.id && (
                       <Row $gap={6}>
-                        <Button size="small" variant="contained" loading={busy} onClick={() => run(() => approve(j.id).unwrap())} data-testid="teach-approve">{t('op.teach.queue.approve')}</Button>
+                        <Button size="small" variant="contained" loading={busy} onClick={() => { setError(null); setNotice(null); setApproving(j.id); }} data-testid="teach-approve">{t('op.teach.queue.approve')}</Button>
                         <Button size="small" color="secondary" disabled={busy} onClick={() => { setDeclining(j.id); setReason(''); }} data-testid="teach-decline">{t('op.teach.queue.decline')}</Button>
                       </Row>
                     )}
@@ -234,6 +248,31 @@ export default function TeachingTab() {
           </TableBody>
         </Table>
       </TableWrapper>
+
+      {/* Item 8 — the confirm step in front of Approve: the lesson's own text, who wrote it, and what announcing does. */}
+      {approving && (() => {
+        const j = items.find((x) => x.id === approving);
+        if (!j) return null;
+        const c = (contributors.data?.items ?? []).find((x) => x.address.toLowerCase() === j.contributor.address.toLowerCase());
+        return (
+          <ApproveLessonSheet
+            job={j}
+            contributor={c}
+            nodeName={info?.node.name ?? ''}
+            nodeAddress={nodeAddress}
+            currency={currency}
+            busy={approveState.isLoading}
+            error={approveError}
+            onClose={() => { setApproving(null); setApproveError(null); }}
+            onDecline={() => { setApproving(null); setApproveError(null); setDeclining(j.id); setReason(''); }}
+            onApprove={async () => {
+              setApproveError(null); setError(null); setNotice(null);
+              try { await approve(j.id).unwrap(); setApproving(null); setNotice(t('op.teach.approve.announced', { name: j.name || j.id })); }
+              catch (err) { setApproveError(errorMessage(err)); }
+            }}
+          />
+        );
+      })()}
 
       {/* ---------------------------------------------------------------- contributors */}
       <SubTitle $mt={56}>{t('op.teach.contrib.title')}</SubTitle>
