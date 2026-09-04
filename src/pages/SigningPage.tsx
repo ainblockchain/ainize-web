@@ -27,12 +27,17 @@ const VisitorCta = styled(Link)`
   font-weight: 700; color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; white-space: nowrap; &:hover { text-decoration: underline; }
 `;
 const SubTitleText = styled.p`margin: 6px 0 0; font-size: 14px; color: #8d8d8f;`;
+/** Finding 71: the invited person could not fill this field because nothing said where the password comes from. */
+const Hint = styled.p`
+  margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;
+  code { font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; background: #f4f4f5; border-radius: 3px; padding: 1px 5px; color: ${(p) => p.theme.color.BLACK}; }
+`;
 const NodeBox = styled.div`
   margin-top: 40px; padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fafafa; max-width: 560px;
 `;
 
 export default function SigningPage() {
-  const { t, tech } = useT();
+  const { t, tech, locale } = useT();
   useTitle(t('nav.signin'));
   const auth = useAuth();
   const { data: me } = useMeQuery();
@@ -63,8 +68,23 @@ export default function SigningPage() {
   };
 
   const busy = setupState.isLoading || loginState.isLoading;
-  const err = localError ?? (setupState.error ? errorMessage(setupState.error) : loginState.error ? errorMessage(loginState.error) : null);
+  /*
+   * Finding 89: the node answers a bad password with `HttpError(401, 'wrong password')`, and this page used to print
+   * that string verbatim — lowercase, English even for a Korean reader, and with no way out for somebody who has
+   * genuinely forgotten it. 401 is the one status this form can explain better than the server can, so it gets the
+   * translated sentence and the command that actually recovers the node (`ainize password --reset`); anything else
+   * still shows what the server said, which is the only honest thing to do with an error nobody anticipated.
+   */
+  const signInError = (e: unknown): string =>
+    ((e as { status?: number | string } | null | undefined)?.status === 401 ? t('op.sign.err.wrong') : errorMessage(e));
+  const err = localError ?? (setupState.error ? signInError(setupState.error) : loginState.error ? signInError(loginState.error) : null);
+  // The Korean docs slugify their own headings, so the anchor differs by language: `## 5. Log in` → `#5-log-in`,
+  // `## 5. 로그인` → `#5-로그인` (components/docs/markdown.ts, slugify keeps \p{L}).
+  const loginDocs = locale === 'ko' ? '/docs/ko/get-started/quickstart#5-로그인' : '/docs/get-started/quickstart#5-log-in';
   const roleLabel = (r: string) => { const k = `op.role.${r}`; const v = t(k); return v === k ? r : v; };
+  // Korean puts the particle straight onto the command (`ainize login`을) where English needs a space after it, so
+  // the sentence carries the command as a placeholder and is split around it — the same trick as op.sign.agree below.
+  const [whereBefore, whereAfter] = t('op.sign.login.where', { cmd: '|' }).split('|');
   // "{terms}에 동의합니다 (필수)" → split around the placeholder so the link stays a real <Link>.
   const [agreeBefore, agreeAfter] = t('op.sign.agree', { terms: '|' }).split('|');
 
@@ -93,7 +113,11 @@ export default function SigningPage() {
           <Description>{t('op.sign.login.desc')}</Description>
           <OptionContainer>
             <TextField type="password" label={t('op.sign.login.password')} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
-            {err && <Alert $tone="error" style={{ marginTop: 16 }}>{err}</Alert>}
+            <Hint data-testid="password-origin">
+              {whereBefore}<code>ainize login</code>{whereAfter}{' '}
+              <StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink>
+            </Hint>
+            {err && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{err}</Alert>}
             <ConfirmButton type="submit" disabled={busy}>{busy ? t('op.sign.login.busy') : t('op.sign.login.button')}</ConfirmButton>
           </OptionContainer>
         </form>

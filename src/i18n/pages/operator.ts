@@ -73,6 +73,12 @@ export const operatorSign: Dict = {
   'op.sign.err.short': { ko: '비밀번호는 4자 이상이어야 합니다.', en: 'Password must be at least 4 characters.' },
   'op.sign.err.mismatch': { ko: '비밀번호가 서로 다릅니다.', en: 'Passwords do not match.' },
   'op.sign.err.terms': { ko: '이용약관에 동의해 주세요.', en: 'Please agree to the Terms and Policies.' },
+  // Finding 89: the node answers 401 with the bare string "wrong password". This is what the reader sees instead —
+  // in their own language, and with the one command that gets a forgotten node back.
+  'op.sign.err.wrong': { ko: '이 노드의 운영자 비밀번호가 아닙니다. 노드가 도는 컴퓨터에서 `ainize login`을 처음 실행할 때 정한 비밀번호입니다. 잊었다면 그 컴퓨터에서 `ainize stop` 뒤 `ainize password --reset`으로 새로 정할 수 있습니다.', en: 'That is not this node’s operator password. It is the one set the first time `ainize login` ran on the machine the node runs on. If it is lost, run `ainize stop` and then `ainize password --reset` there to set a new one.' },
+  // Finding 71: "Open the operator console" led here, and nothing on the page said where the password comes from.
+  'op.sign.login.where': { ko: '이 노드를 직접 운영하고 있다면, 노드가 도는 컴퓨터에서 {cmd}을 처음 실행할 때 정한 비밀번호입니다. 이 화면에서는 비밀번호를 새로 만들거나 되돌릴 수 없습니다.', en: 'Running this node yourself? It is the password set the first time {cmd} ran on the machine the node runs on — this page can neither create one nor reset one.' },
+  'op.sign.login.where_link': { ko: '노드 설치·로그인 안내', en: 'Node setup and log-in guide' },
   'op.sign.login.title': { ko: '내 노드에 로그인', en: 'Sign in to your node' },
   'op.sign.login.subtitle': { ko: '이 노드를 운영하는 사람만 비밀번호가 필요합니다.', en: 'Only the person who runs this node needs a password.' },
   'op.sign.visitor_notice': { ko: '모델을 써보거나 가르치고 싶다면 로그인이 필요 없습니다. 로그인은 이 노드를 운영하는 사람만 합니다.', en: 'Want to try or teach the model? You do not need to sign in — that is only for the person who runs this node.' },
@@ -99,6 +105,25 @@ export const operatorDash: Dict = {
   'op.dash.sales.cell': { ko: '{n}건 · {revenue}', en: '{n} · {revenue}' },
   'op.dash.sales.hint': { ko: '판매 건수 · 누적 수익', en: 'sales count · total revenue' },
   'op.dash.empty': { ko: '아직 등록한 지식이 없습니다. 첫 지식을 등록해 보세요.', en: 'No knowledge yet — register your first one.' },
+  // Finding 31 — the inventory grew past a screenful (103 rows, 28 of them sharing one name) with no way to search,
+  // narrow, order or count it. The same controls /explore already uses, over the operator's own list.
+  'op.dash.search': { ko: '이름·ID·모델·검증 질문으로 검색', en: 'Search name, id, model or benchmark' },
+  'op.dash.filter.status': { ko: '상태', en: 'Status' },
+  'op.dash.filter.all': { ko: '전체 {n}개', en: 'All {n}' },
+  'op.dash.filter.count': { ko: '{label} {n}개', en: '{label} {n}' },
+  'op.dash.sort.status': { ko: '손이 필요한 순서', en: 'Needs attention first' },
+  'op.dash.sort.status.help': { ko: '초안 → 검증 대기 → 이의 제기 → 판매 중 → 교체됨 → 내림 → 거부됨 순, 같은 상태 안에서는 최신순입니다.', en: 'Draft → awaiting verification → challenged → for sale → superseded → retired → rejected, newest first within each.' },
+  'op.dash.sort.new': { ko: '최신순', en: 'Newest first' },
+  'op.dash.sort.name': { ko: '이름순', en: 'Name (A→Z)' },
+  'op.dash.sort.sales': { ko: '많이 팔린 순', en: 'Most sales' },
+  'op.dash.count': { ko: '{total}개 중 {from}–{to}번째', en: '{from}–{to} of {total}' },
+  'op.dash.count.filtered': { ko: '{total}개 중 {shown}개가 조건에 맞습니다 · {from}–{to}번째 표시 중', en: '{shown} of {total} match · showing {from}–{to}' },
+  'op.dash.nomatch': { ko: '조건에 맞는 지식이 없습니다.', en: 'No knowledge matches these filters.' },
+  'op.dash.clear': { ko: '조건 지우기', en: 'Clear filters' },
+  // Finding 133 — every node-wide event (p2p pushes, payout failures, "trainer slot busy") had no screen at all.
+  'op.dash.nodelog': { ko: '노드 기록 전체 보기', en: 'Open the node log' },
+  'op.dash.nodelog.badge': { ko: '주의·오류 {n}건', en: '{n} warning(s) / error(s)' },
+  'op.dash.nodelog.badge.help': { ko: '지난번 노드 기록을 열어 본 뒤로 이 노드가 남긴 주의·오류 줄 수입니다.', en: 'Warning and error lines this node has written since you last opened the node log.' },
   'op.dash.purchases.title': { ko: '구매한 지식', en: 'Purchased knowledge' },
   'op.dash.purchases.desc': { ko: '이 노드가 자동 결제로 구매한 지식입니다. 파일은 이 노드에 보관되며, 버튼 한 번으로 모델에 넣거나 뺄 수 있습니다.', en: 'Knowledge this node bought with automatic payment. Files are kept on this node; one click loads them into the model or takes them out.' },
   'op.dash.purchases.col.paid': { ko: '결제 금액', en: 'Paid' },
@@ -110,7 +135,10 @@ export const operatorDash: Dict = {
   'op.dash.purchases.scheme.credit': { ko: '노드 크레딧', en: 'node credit' },
   'op.dash.purchases.empty': { ko: '아직 구매한 지식이 없습니다. 지식 둘러보기에서 검증 완료된 지식을 골라 보세요.', en: 'No purchases yet — pick verified knowledge in Explore.' },
   'op.dash.branches.title': { ko: '지식 묶음(브랜치)과 구독', en: 'Knowledge tracks & subscriptions' },
-  'op.dash.branches.desc': { ko: '서로 다른 전제의 지식(예: 한국법 vs 미국법)을 묶음으로 따로 관리합니다. 구독하면 이 노드가 그 묶음의 “현재” 지식(교체된 지난 판은 제외)을 사서 모델에 넣고, 그 뒤로도 새로 올라오는 지식을 자동으로 받아 최신 상태를 유지하며, 요청 상황에 맞는 묶음으로 자동 전환합니다.', en: 'Keep knowledge with different premises (e.g. KR law vs US law) in separate tracks. Subscribing buys the track’s CURRENT knowledge (not the versions it has replaced), loads it, keeps up with whatever the track publishes next, and switches tracks automatically by request context.' },
+  // Finding 265 — this sentence promised a per-request track switch that no code performs: `route()` only lists the
+  // nodes already subscribed to a track, and an applied set is never changed by an incoming request. What ships is
+  // the buy-load-keep-up loop (reconcileSubscriptions, every 20 s) and a router that picks a NODE, not a track.
+  'op.dash.branches.desc': { ko: '서로 다른 전제의 지식(예: 한국법 vs 미국법)을 묶음으로 따로 관리합니다. 구독하면 이 노드가 그 묶음의 “현재” 지식(교체된 지난 판은 제외)을 사서 모델에 넣고, 그 뒤로도 새로 올라오는 지식을 자동으로 받아 최신 상태를 유지합니다. 게이트웨이는 요청 상황에 맞는 묶음을 구독 중인 노드로 연결합니다 — 한 노드가 요청마다 묶음을 바꿔 끼우지는 않습니다.', en: 'Keep knowledge with different premises (e.g. KR law vs US law) in separate tracks. Subscribing buys the track’s CURRENT knowledge (not the versions it has replaced), loads it into this node’s model, and keeps up with whatever the track publishes next. The gateway routes a request to a node that subscribes to the fitting track — one node does not swap tracks per request.' },
   'op.dash.branches.subscribed': { ko: '구독 중', en: 'subscribed' },
   'op.dash.branches.nodesc': { ko: '설명 없음', en: 'no description' },
   'op.dash.branches.noctx': { ko: '조건 없음', en: 'no context' },
@@ -121,6 +149,13 @@ export const operatorDash: Dict = {
   'op.dash.branches.owner.you': { ko: '이 노드', en: 'this node' },
   'op.dash.branches.sync': { ko: '지금 최신으로', en: 'Sync now' },
   'op.dash.branches.syncing': { ko: '받는 중…', en: 'Syncing…' },
+  // Finding 262 — the card counted the track's knowledge and never said what THIS node had loaded of it, so a
+  // subscriber a day behind had to correlate three screens to find out. The comparison is on the card now.
+  'op.dash.branches.loaded': { ko: '이 노드 모델에 {n}/{total}개 들어가 있음 — 최신 상태입니다', en: 'This node has {n} of {total} loaded — up to date' },
+  'op.dash.branches.behind': { ko: '이 노드 모델에 {n}/{total}개만 들어가 있습니다 — 아직 안 들어간 지식: {ids}', en: 'This node has only {n} of {total} loaded — still missing: {ids}' },
+  'op.dash.branches.behind.more': { ko: '{ids} 외 {n}개', en: '{ids} and {n} more' },
+  'op.dash.branches.behind.help': { ko: '“지금 최신으로”를 누르면 이 묶음의 현재 지식 중 없는 것을 사서 모델에 넣고, 교체된 지난 판을 빼냅니다.', en: '“Sync now” buys what is missing from the track’s current knowledge, loads it, and unloads the versions it replaces.' },
+  'op.dash.branches.loaded.unknown': { ko: '모델 실행 환경을 쓸 수 없어 무엇이 들어가 있는지 확인할 수 없습니다.', en: 'The model runtime is unavailable, so what is loaded cannot be read.' },
   'op.dash.branches.keepsup': { ko: '이 묶음에 새 지식이 올라오면 이 노드가 자동으로 구매해 모델에 넣고, 지난 판은 빼냅니다(20초마다 확인).', en: 'When this track publishes something new this node buys it, loads it and unloads the version it replaces — checked every 20 seconds.' },
   'op.dash.branches.done.bought': { ko: '{n}개 구매 · {total}', en: 'bought {n} · {total}' },
   'op.dash.branches.done.loaded': { ko: '모델에 넣음: {ids}', en: 'loaded into the model: {ids}' },
@@ -221,7 +256,7 @@ export const operatorManage: Dict = {
   'op.manage.check.schema.missing': { ko: '없음', en: 'missing' },
   'op.manage.check.samples': { ko: '검증 질문 예시 {n}개 — 검증 노드가 실제 모델로 채점합니다', en: '{n} sample question(s) — verifiers score them on the real model' },
   'op.manage.check.desc': { ko: '설명을 적음', en: 'Description written' },
-  'op.manage.check.conflict': { ko: '같은 주제의 검증 완료 지식과 겹치지 않음 (겹침 {n}건)', en: 'No overlap with verified knowledge on the same subject ({n} overlap(s))' },
+  'op.manage.check.conflict': { ko: '같은 주제의 검증 완료 지식과 겹치지 않습니다', en: 'No overlap with verified knowledge on the same subject' },
   // Item 150 — the checklist counted every same-subject overlap; only the ones the node will actually retire matter here.
   'op.manage.check.conflict.retire': { ko: '등록하면 지금 팔고 있는 내 지식 {n}건이 “최신 버전 있음”으로 바뀝니다', en: 'Publishing retires {n} of your own listed knowledge as “newer version available”' },
   'op.manage.check.conflict.retire_one': { ko: '등록하면 지금 팔고 있는 내 지식 {n}건이 “최신 버전 있음”으로 바뀝니다', en: 'Publishing retires {n} of your own listed knowledge as “newer version available”' },
@@ -241,7 +276,35 @@ export const operatorManage: Dict = {
   'op.manage.announcing': { ko: '등록 중…', en: 'Publishing…' },
   'op.manage.announced': { ko: '등록했습니다. 공개 기록에 올라갔고 검증 노드들에 알렸습니다.', en: 'Published — it is on the public record and verifiers were notified.' },
   'op.manage.announce.note': { ko: '등록하면 이름·가격·검증 질문은 더 이상 바꿀 수 없습니다. 지식 파일은 팔리기 전까지 이 노드에만 있습니다.', en: 'After publishing, name, price and benchmark are sealed. The file stays only on this node until it is bought.' },
+  // Finding 32 — publishing is the permanent, public, paid act and it was one unguarded click, while deleting a
+  // local draft demanded the full id typed out. The sheet below is now crossed before ANY publish; the typed id
+  // stays only for the publish that also retires knowledge people are buying right now.
+  'op.manage.publish.title': { ko: '네트워크에 등록: {name}', en: 'Publish to the network: {name}' },
+  'op.manage.publish.sub': { ko: '등록은 되돌릴 수 없습니다. 아래 내용이 공개 기록에 영구히 올라가고 모든 노드에 전파됩니다.', en: 'Publishing cannot be undone. What is below goes onto the public record permanently and is broadcast to every node.' },
+  'op.manage.publish.sealed.title': { ko: '지금 고정되는 값', en: 'Sealed the moment you publish' },
+  'op.manage.publish.f.id': { ko: '지식 ID', en: 'Knowledge id' },
+  'op.manage.publish.f.name': { ko: '이름', en: 'Name' },
+  'op.manage.publish.f.price': { ko: '가격', en: 'Price' },
+  'op.manage.publish.f.billing': { ko: '과금 방식', en: 'Billing' },
+  'op.manage.publish.f.license': { ko: '이용 조건(라이선스)', en: 'Licence' },
+  'op.manage.publish.f.license.none': { ko: '적지 않음 — 구매자에게는 이 노드의 기본 조건으로 안내됩니다', en: 'not set — buyers are shown this node’s default terms' },
+  'op.manage.publish.f.bench': { ko: '검증 질문', en: 'Benchmark' },
+  'op.manage.publish.f.bench.value': { ko: '{schema} · 질문 {queries}개 · 예시 {samples}개', en: '{schema} · {queries} question(s) · {samples} sample(s)' },
+  'op.manage.publish.f.file': { ko: '파일 지문', en: 'File fingerprint' },
+  'op.manage.publish.f.payee': { ko: '판매 대금 수취 주소', en: 'Sales are paid to' },
+  'op.manage.publish.why.sealed': { ko: '이름·가격·과금 방식·이용 조건·검증 질문은 등록 뒤 바꿀 수 없습니다. 고치려면 새 지식으로 다시 등록해야 합니다.', en: 'Name, price, billing, licence and benchmark cannot be changed after this. Correcting one means publishing a new knowledge.' },
+  'op.manage.publish.why.record': { ko: '등록 기록은 영구적입니다. 판매를 멈출 수는 있어도 기록을 지울 수는 없습니다.', en: 'The registration record is permanent. You can stop selling, but you cannot erase the record.' },
+  'op.manage.publish.why.verify': { ko: '다른 노드들이 실제 모델로 채점합니다. 정족수를 못 채우면 “거부됨”으로 공개됩니다.', en: 'Other nodes score it on a real model. If it does not reach the quorum, it is published as rejected.' },
+  'op.manage.publish.why.file': { ko: '파일 자체는 팔리기 전까지 이 노드에만 있습니다. 공개되는 것은 지문과 위 값들입니다.', en: 'The file itself stays on this node until someone buys it — what goes public is its fingerprint and the values above.' },
+  'op.manage.publish.confirm': { ko: '등록하기', en: 'Publish' },
+  'op.manage.publish.cancel': { ko: '등록하지 않기', en: 'Do not publish' },
+  // Finding 33 — both buttons ran without saying what they spend. `verifier.stake` is ignored by the node since
+  // 2026-09 (nothing is escrowed or slashed), so the cost that IS real is this node's model time and a permanent
+  // signed record in its name — plus, when the runtime is down, that the run degrades to a fingerprint check.
   'op.manage.verify_now': { ko: '이 노드에서 지금 검증', en: 'Verify now (this node)' },
+  'op.manage.verify.cost.run': { ko: '이 노드가 지식을 실제 모델에 넣고 검증 질문 {n}개를 채점합니다 — 그동안 이 노드의 모델은 다른 일에 쓸 수 없고, 몇 분이 걸립니다. 결과는 통과든 실패든 이 노드 이름으로 서명되어 공개 기록에 남습니다. 걸어 두는 보증금은 없습니다.', en: 'This node loads the knowledge into its real model and scores {n} benchmark question(s) — its model is busy for the duration, which is minutes. The result, pass or fail, is signed in this node’s name on the permanent public record. No deposit is staked.' },
+  'op.manage.verify.cost.hash': { ko: '지금은 모델 실행 환경을 쓸 수 없어 파일 지문과 검증 질문 지문만 맞는지 확인하는 무결성 검사만 됩니다. 무결성 검사는 검증 정족수에 반영되지 않습니다.', en: 'The model runtime is unavailable, so this can only run an integrity check — the file and benchmark fingerprints, nothing scored. An integrity check does not count toward the verification quorum.' },
+  'op.manage.verify.elapsed': { ko: '검증 중… {elapsed} 경과 — 창을 닫아도 계속됩니다', en: 'Verifying… {elapsed} elapsed — it keeps going if you leave this page' },
   'op.manage.verifying': { ko: '검증 중…', en: 'Verifying…' },
   'op.manage.verified_ok': { ko: '검증 결과를 올렸습니다.', en: 'Verification result published.' },
   'op.manage.already': { ko: '이 노드는 이미 이 지식을 검증했습니다.', en: 'This node already verified this knowledge.' },
@@ -249,6 +312,7 @@ export const operatorManage: Dict = {
   'op.manage.challenge.ph': { ko: '이유 — 예: 2026-08 상장폐지 이후 답이 오래됨', en: 'reason — e.g. answers look stale after the 2026-08 delisting' },
   'op.manage.challenge.button': { ko: '재검증 요청 보내기', en: 'Send request' },
   'op.manage.challenge.ok': { ko: '재검증 요청을 기록했습니다.', en: 'Re-verification request recorded.' },
+  'op.manage.challenge.cost': { ko: '요청을 보내면 이 노드 이름과 위에 적은 이유가 공개 기록에 남고, 검증 노드들이 다시 채점할 때까지 이 지식은 팔리지 않습니다. 취소할 수 없습니다 — 걸어 두는 보증금은 없습니다.', en: 'Sending this puts this node’s name and the reason you typed on the permanent public record, and stops the knowledge selling until verifiers have re-scored it. It cannot be withdrawn — and nothing is staked.' },
   'op.manage.attest.title': { ko: '검증 결과', en: 'Verification results' },
   'op.manage.attest.desc': { ko: '검증 노드들이 남긴 결과입니다. 실행 검증은 실제 모델에 넣어 채점한 것이고, 무결성 검사는 파일 지문만 확인한 것입니다. 각 결과는 그 노드의 키로 서명되어 공개 기록에 남습니다 — 걸어 둔 보증금은 없습니다. 이 노드가 스스로 남긴 검증은 \'집계 제외\'로 표시되며 검증 완료에 반영되지 않습니다.', en: 'Results left by verifier nodes. Executed verifications scored the knowledge on a real model; integrity checks only confirmed the file fingerprint. Each result is signed with that node\u2019s key on the public record — no deposit is escrowed. A result left by this node on its own knowledge is marked \u201cnot counted\u201d and never adds to Verified.' },
   'op.manage.attest.verifier': { ko: '검증 노드', en: 'Verifier' },
@@ -306,8 +370,15 @@ export const operatorManage: Dict = {
   'op.manage.runtime.is_loaded': { ko: '지금 모델에 들어 있음', en: 'currently loaded' },
   'op.manage.runtime.not_loaded': { ko: '모델에 없음', en: 'not loaded' },
   'op.manage.runtime.try': { ko: '라이브 테스트로 확인하기', en: 'Check it in a live test' },
+  // Finding 167 — the badge was a 12-px tick with no text pointing at the x402 endpoint, which answers a browser
+  // with a 402 JSON body rather than a page, and the section was offered on drafts and rejected items alike.
   'op.manage.badge.title': { ko: 'README 배지', en: 'README badge' },
-  'op.manage.badge.desc': { ko: '이 배지를 README에 붙이면 이 지식의 자동 결제 주소로 바로 연결됩니다. 사람도, AI 에이전트도 바로 구매할 수 있습니다.', en: 'Paste this badge into a README — it links straight to this knowledge’s auto-payment address so people and AI agents can buy it.' },
+  'op.manage.badge.desc': { ko: '이 배지를 README에 붙이면 이 지식의 판매 페이지로 연결됩니다 — 사람이 읽을 수 있는 페이지이고, 거기서 사람도 AI 에이전트도 구매할 수 있습니다.', en: 'Paste this badge into a README — it links to this knowledge’s page, which is a page a person can read, and where both people and AI agents can buy it.' },
+  'op.manage.badge.preview': { ko: '보이는 모습', en: 'How it looks' },
+  'op.manage.badge.alt': { ko: 'Ainize 지식: {name}', en: 'Ainize knowledge: {name}' },
+  'op.manage.badge.notyet': { ko: '배지는 이 지식이 검증을 통과해 판매 중이 된 뒤에 쓸 수 있습니다. 지금 상태는 “{status}”입니다 — 아직 아무도 살 수 없는 주소를 README에 붙이지 않도록 여기서는 감춰 둡니다.', en: 'The badge becomes available once this knowledge is verified and on sale. Right now it is “{status}” — the badge is held back so a README never advertises an address nobody can buy from yet.' },
+  'op.manage.badge.agents.title': { ko: '에이전트용 주소', en: 'For agents' },
+  'op.manage.badge.agents.desc': { ko: 'AI 에이전트가 사람 없이 결제하고 내려받는 주소입니다. 브라우저로 열면 페이지가 아니라 결제 조건(402) JSON이 나옵니다 — README에 사람이 누를 링크로 붙이지 마세요.', en: 'The address an AI agent pays and downloads from without a human. Opened in a browser it answers with a 402 payment-requirements JSON body, not a page — do not paste it as a link for people to click.' },
   'op.manage.delete.title': { ko: '초안 삭제', en: 'Delete draft' },
   'op.manage.delete.sealed': { ko: '등록된 지식은 삭제할 수 없습니다. 공개 기록에 영구히 남기 때문입니다. 대신 판매를 완전히 멈출 수 있습니다.', en: 'Published knowledge cannot be deleted — its record is permanent. What you can do is stop selling it, for good.' },
   // Item 148: the takedown the manage page used to point at `patch forget` for — which deletes the local file and
@@ -331,9 +402,15 @@ export const operatorManage: Dict = {
   'op.manage.takedown.sales': { ko: '지금까지 {n}회 팔렸습니다 — 그 구매자들은 파일을 계속 씁니다.', en: 'It has sold {n} time(s) — those buyers keep their copy.' },
   'op.manage.delete.desc': { ko: '초안을 삭제하면 이 노드에서 사라집니다. 아직 네트워크에 등록하지 않았으므로 공개 기록은 없습니다.', en: 'Deleting a draft removes it from this node. Nothing was published yet, so there is no public record.' },
   'op.manage.delete.button': { ko: '삭제', en: 'Delete' },
-  'op.manage.delete.type': { ko: '계속하려면 {id} 를 입력하세요.', en: 'Type {id} to proceed.' },
-  'op.manage.delete.confirm': { ko: '삭제 확정', en: 'Confirm delete' },
+  'op.manage.delete.confirm': { ko: '초안 삭제', en: 'Delete draft' },
   'op.manage.delete.deleting': { ko: '삭제 중…', en: 'Deleting…' },
+  // Finding 32 (other half) — a local, unpublished, unpaid draft asked for its full id to be typed out. It gets a
+  // plain confirmation now; the sentences say exactly what goes and what does not.
+  'op.manage.delete.sheet.title': { ko: '초안 삭제: {name}', en: 'Delete draft: {name}' },
+  'op.manage.delete.why.local': { ko: '이 초안은 이 노드 밖으로 나간 적이 없습니다. 공개 기록도, 구매자도 없습니다.', en: 'This draft has never left this node — there is no public record of it and nobody has bought it.' },
+  'op.manage.delete.why.file': { ko: '이 노드가 보관 중인 지식 파일 사본도 함께 지워집니다. 원본이 다른 곳에 있다면 다시 등록할 수 있습니다.', en: 'This node’s copy of the knowledge file goes with it. If you still have the original elsewhere, you can register it again.' },
+  'op.manage.delete.why.free': { ko: '되돌리는 비용은 파일을 다시 올리는 것뿐입니다 — 결제도, 검증도 다시 필요하지 않습니다.', en: 'Undoing this costs no more than uploading the file again — nothing was paid and nothing was verified.' },
+  'op.manage.delete.cancel': { ko: '두기', en: 'Keep it' },
   'op.manage.logs_link': { ko: '→ {id}의 기록과 공개 기록 타임라인 보기', en: '→ View logs & public-record timeline for {id}' },
   'op.manage.dev.forget': { ko: '이 노드의 파일 사본만 지우기 (판매는 계속됩니다):', en: 'Delete only this node\'s copy of the file (it stays on sale):' },
 };
@@ -369,6 +446,27 @@ export const operatorLogs: Dict = {
   'op.logs.d.challenge': { ko: '{who}의 재검증 요청: {reason}', en: 'challenged by {who}: {reason}' },
   'op.logs.d.supersede': { ko: '{newer}이(가) {older}를 대체 (겹치는 항목 {n}개)', en: '{newer} replaces {older} ({n} shared entries)' },
   'op.logs.royalty.none': { ko: '없음', en: 'none' },
+  // Finding 79 — /project/<author>/<id>/logs for an id that does not exist rendered a healthy, quiet, empty log,
+  // which is the most expensive wrong answer a log page can give. It now says what the manage page says.
+  'op.logs.notfound.desc': { ko: '이 노드는 “{id}”라는 지식을 모릅니다. 기록이 조용한 것이 아니라 볼 대상이 없는 것입니다 — ID를 잘못 입력했거나 이미 지운 지식일 수 있습니다.', en: 'This node knows no knowledge called “{id}”. The log is not quiet — there is nothing to log about. The id may be mistyped, or the knowledge may already have been removed.' },
+  'op.logs.notfound.node': { ko: '이 노드가 남긴 기록 전체 보기', en: 'Open the whole node log' },
+  // Finding 133 — `/api/events` and `useEventsQuery` existed and no page rendered them, so every node-wide event
+  // (p2p pushes, payout failures, self-registration failures, "trainer slot busy") had no screen in the console.
+  'op.nodelog.title': { ko: '노드 기록', en: 'Node log' },
+  'op.nodelog.desc': { ko: '이 노드가 하는 일 전체입니다 — 지식별 기록뿐 아니라 다른 노드와의 통신, 검증 루프, 결제·정산, 학습 대기열까지 한 화면에 모입니다. 줄을 누르면 자세한 내용이 펼쳐집니다.', en: 'Everything this node does — not just one knowledge at a time, but peer traffic, the verifier loop, payments and payouts, and the training queue, on one screen. Click a line to expand its details.' },
+  'op.nodelog.back': { ko: '내 지식으로', en: 'Back to My knowledge' },
+  'op.nodelog.kind': { ko: '종류', en: 'Kind' },
+  'op.nodelog.kind.all': { ko: '모든 종류', en: 'All kinds' },
+  'op.nodelog.follow': { ko: '실시간 따라가기', en: 'Follow' },
+  'op.nodelog.follow.help': { ko: '켜 두면 5초마다 새 줄을 가져옵니다. 끄면 지금 화면이 그대로 멈춥니다.', en: 'On, new lines are fetched every 5 seconds. Off, the screen stays exactly as it is.' },
+  'op.nodelog.summary.clean': { ko: '최근 {n}줄에 주의·오류가 없습니다.', en: 'No warnings or errors in the {n} newest lines.' },
+  'op.nodelog.summary.bad': { ko: '최근 {n}줄에 주의 {warn}건, 오류 {err}건이 있습니다.', en: '{warn} warning(s) and {err} error(s) in the {n} newest lines.' },
+  'op.nodelog.since': { ko: '이 중 {n}건은 지난번에 이 화면을 연 뒤에 생겼습니다.', en: '{n} of them arrived since you last opened this screen.' },
+  'op.nodelog.new': { ko: '지난번 이후 새로 생긴 줄', en: 'new since your last visit' },
+  'op.nodelog.empty': { ko: '아직 기록이 없습니다. 이 노드가 방금 시작했을 수 있습니다.', en: 'Nothing logged yet — this node may have just started.' },
+  'op.nodelog.empty.filtered': { ko: '이 조건에 맞는 줄이 없습니다.', en: 'No lines match these filters.' },
+  'op.nodelog.of': { ko: '{id} 관련', en: 'about {id}' },
+  'op.nodelog.cli': { ko: '같은 내용을 터미널에서 따라가려면:', en: 'The same stream in a terminal:' },
 };
 
 export const operatorNew: Dict = {
@@ -398,11 +496,37 @@ export const operatorNew: Dict = {
   'op.new.topic.helper': { ko: '예: finance/krx. 비워 두면 모델별 기본 분류에 들어갑니다.', en: 'e.g. finance/krx. Empty = the model’s default category.' },
   'op.new.sec.price': { ko: '가격과 원본 지식', en: 'Price & source knowledge' },
   'op.new.price': { ko: '가격 ({unit})', en: 'Price ({unit})' },
-  'op.new.price.helper': { ko: '0이면 무료입니다. 결제는 자동 결제로 이뤄지고 판매될 때마다 정산됩니다.', en: '0 = free. Buyers pay automatically and you are settled per sale.' },
-  'op.new.billing': { ko: '과금 방식', en: 'Billing' },
+  'op.new.price.helper': { ko: '0이면 무료입니다. 구매자는 이 금액을 한 번 내고 파일을 받아 갑니다. 등록하는 순간 기록에 새겨지며 그 뒤에는 바꿀 수 없습니다.', en: '0 = free. The buyer pays this once, per download, and keeps the file. It is written into the record when you publish and cannot be changed afterwards.' },
+  // Item 162 — the price used to be typed with no idea what anything else on this node costs, and the silent 0.1
+  // default undercut the version it replaced by 250×. The catalogue the buyer sees is now beside the field.
+  'op.new.price.market': { ko: '이 노드의 다른 지식: {min} ~ {max} · 중앙값 {median} ({n}건)', en: 'Priced on this node: {min} – {max} · median {median} · {n} listed' },
+  'op.new.price.market.none': { ko: '이 노드에는 아직 값이 매겨진 지식이 없어 견줄 기준이 없습니다.', en: 'Nothing else is priced on this node yet, so there is nothing to compare with.' },
+  'op.new.price.same': { ko: '같은 주제({schema})의 {name} — 지금 {price}에 팔립니다.', en: '{name}, on this same subject ({schema}), sells for {price} today.' },
+  'op.new.price.same.use': { ko: '같은 값으로 맞추기', en: 'Match that price' },
   'op.new.license': { ko: '라이선스', en: 'License' },
+  // Item 161 — a free-text box with no guidance wrote whatever was typed into the immutable anchor, and an empty
+  // one silently granted terms the publisher had never read. The five identifiers are the ones the teach publish
+  // sheet offers, each with the sentence a buyer would need, and the node default is shown before it is chosen.
+  'op.new.license.helper': { ko: '구매자가 판매 조건으로 그대로 읽습니다. 등록하면 기록에 남고 바꿀 수 없습니다.', en: 'Buyers read this as the terms of the sale. It is written into the record at publish and cannot be changed.' },
+  'op.new.license.default': { ko: '이 노드 기본 조건이 적용됩니다: {terms}', en: 'This node’s standard terms apply: {terms}' },
+  'op.new.license.opt.default': { ko: '이 노드 기본 조건 (비워 둠)', en: 'This node’s standard terms (leave blank)' },
+  'op.new.license.opt.cc_by': { ko: 'CC-BY-4.0 — 출처만 밝히면 자유롭게', en: 'CC-BY-4.0 — anything, with credit' },
+  'op.new.license.opt.cc_by_sa': { ko: 'CC-BY-SA-4.0 — 출처를 밝히고, 파생물도 같은 조건으로', en: 'CC-BY-SA-4.0 — with credit, and derivatives keep these terms' },
+  'op.new.license.opt.cc0': { ko: 'CC0-1.0 — 조건 없음 (퍼블릭 도메인)', en: 'CC0-1.0 — no conditions at all (public domain)' },
+  'op.new.license.opt.odc_by': { ko: 'ODC-By-1.0 — 데이터베이스용, 출처 표시', en: 'ODC-By-1.0 — for databases, with credit' },
+  'op.new.license.opt.proprietary': { ko: 'Proprietary — 산 사람만 사용, 재배포 금지', en: 'Proprietary — buyers only, no redistribution' },
+  'op.new.license.opt.other': { ko: '직접 입력', en: 'Other — type it in' },
+  'op.new.license.other': { ko: '라이선스 직접 입력', en: 'License, in your own words' },
+  'op.new.license.other.ph': { ko: 'SPDX 식별자 또는 조건 한 줄', en: 'an SPDX id, or one line of terms' },
   'op.new.parents': { ko: '원본 지식 (선택)', en: 'Source knowledge (optional)' },
-  'op.new.parents.helper': { ko: '이 지식이 바탕으로 삼은 지식의 ID를 쉼표로 적습니다. 이 지식이 팔릴 때마다 원작자에게 자동으로 수익이 나뉩니다 (원작자 수익 분배).', en: 'Comma-separated ids of the knowledge this one builds on. Their creators automatically get a share of every sale (creator revenue share).' },
+  'op.new.parents.helper': { ko: '이 지식이 바탕으로 삼은 지식의 ID를 쉼표로 적습니다. 적는 순간 판매 수익의 일부가 그 원작자들에게 넘어갑니다 — 얼마인지는 아래에 그대로 나옵니다.', en: 'Comma-separated ids of the knowledge this one builds on. Naming one hands part of every sale to its creator — the exact share is spelled out below.' },
+  // Item 163 — the rate (30 %) lived only on the BUYER's page. It is now computed as the publisher types, from the
+  // same rule the node uses at publish: this node's share, floored by what every named parent already promised.
+  'op.new.parents.split': { ko: '원본 지식 {n}건 — 판매액의 {pct}%가 그 원작자들에게 나뉘어 가고, {keep}%가 내 몫입니다. 등록 뒤에는 바꿀 수 없습니다.', en: '{n} source knowledge named — {pct}% of every sale goes to their creators, split between them, and you keep {keep}%. This cannot be changed after publishing.' },
+  'op.new.parents.split_one': { ko: '원본 지식 1건 — 판매액의 {pct}%가 그 원작자에게 가고, {keep}%가 내 몫입니다. 등록 뒤에는 바꿀 수 없습니다.', en: '1 source knowledge named — {pct}% of every sale goes to its creator, and you keep {keep}%. This cannot be changed after publishing.' },
+  'op.new.parents.split.inherited': { ko: '기록에서 {pct}%를 약속한 원본({id})이 있어, 이 지식도 그보다 낮출 수 없습니다.', en: 'One of them ({id}) promises {pct}% on the record, so this knowledge cannot promise less.' },
+  'op.new.parents.unknown': { ko: '이 노드가 모르는 ID: {ids} — 이대로 저장하면 거절됩니다.', en: 'This node does not know: {ids} — saving with these will be refused.' },
+  'op.new.parents.none': { ko: '원본 지식을 적지 않으면 판매액은 모두 내 몫입니다.', en: 'Name none and every sale is yours alone.' },
   'op.new.branch': { ko: '지식 묶음(브랜치) (선택)', en: 'Knowledge track (optional)' },
   'op.new.branch.helper': { ko: '서로 다른 전제의 지식은 다른 묶음에 둡니다 (예: law/KR).', en: 'Knowledge with different premises lives in different tracks (e.g. law/KR).' },
   'op.new.sec.bench': { ko: '검증 질문', en: 'Benchmark questions' },
@@ -410,7 +534,14 @@ export const operatorNew: Dict = {
   'op.new.schema': { ko: '주제 이름', en: 'Subject' },
   'op.new.schema.helper': { ko: '같은 주제 이름을 쓰는 지식끼리 비교되고, 겹침·충돌 검사 대상이 됩니다. 예: krx-ticker-codes', en: 'Knowledge sharing a subject is compared and overlap-checked together. e.g. krx-ticker-codes' },
   'op.new.queries': { ko: '담긴 사실 수', en: 'Facts covered' },
-  'op.new.queries.helper': { ko: '이 지식이 답할 수 있는 질문(사실)의 전체 개수입니다. 아래 예시보다 많을 수 있습니다.', en: 'Total number of questions (facts) this knowledge can answer. May exceed the samples below.' },
+  'op.new.queries.helper': { ko: '이 지식이 답할 수 있는 사실의 개수입니다. 지식 페이지에 대표 숫자로 그대로 실리지만 검증 노드는 이 숫자를 확인하지 않습니다 — 실제로 채점되는 것은 아래 예시 질문뿐입니다.', en: 'How many facts this knowledge answers. It is published as a headline number on the knowledge page, and no verifier checks it — only the sample questions below are ever scored.' },
+  // Item 165 — the declared count is now weighed against the file itself (the .npz addrs member, read in the
+  // browser), so "250,000 facts" in a file with 2,992 memory entries is caught before it is written into the anchor.
+  'op.new.queries.rows': { ko: '고른 파일에는 기억 항목이 {rows}개 있습니다.', en: 'The file you picked holds {rows} memory entries.' },
+  'op.new.queries.over': { ko: '{q}개라고 적었지만 이 파일의 기억 항목은 {rows}개입니다. 구매자는 {q}를 대표 숫자로 봅니다.', en: 'You declared {q} facts, but this file holds {rows} memory entries. Buyers see {q} as the headline number.' },
+  'op.new.queries.use_rows': { ko: '{rows}개로 맞추기', en: 'Use {rows}' },
+  'op.new.collateral': { ko: '부작용 허용치 (선택)', en: 'Side-effect limit (optional)' },
+  'op.new.collateral.helper': { ko: '이 지식을 넣었을 때 관련 없는 답이 얼마나 흔들려도 되는지를 nat 단위로 선언합니다. 참고값은 0.08입니다. 비워 두면 아무 값도 선언하지 않고, 지식 페이지에는 기준 없음(—)으로 표시됩니다.', en: 'How much the model’s unrelated answers may drift when this knowledge is loaded, in nats. The reference value is 0.08. Leave it empty to declare nothing — the knowledge page then shows no limit at all.' },
   'op.new.samples': { ko: '검증 질문 예시', en: 'Sample questions' },
   'op.new.sample.prompt': { ko: '질문', en: 'Question' },
   'op.new.sample.prompt.ph': { ko: '종목코드 픽셀플러스 ', en: 'Ticker code for Pixelplus ' },
@@ -423,12 +554,26 @@ export const operatorNew: Dict = {
   'op.new.file.upload.note': { ko: '이 노드의 저장소로 복사됩니다', en: 'copied into this node’s storage' },
   'op.new.file.path': { ko: '노드에 있는 파일 경로', en: 'Path on the node' },
   'op.new.file.path.note': { ko: '복사 없이 그 자리에서 참조합니다 (큰 학습 결과물용)', en: 'referenced in place, no copy (for large training outputs)' },
+  'op.new.file.path.helper': { ko: '이 노드가 돌고 있는 컴퓨터의 절대 경로', en: 'an absolute path on the machine this node runs on' },
   'op.new.file.size': { ko: '{name} · {mb} MB', en: '{name} · {mb} MB' },
   'op.new.err.json': { ko: '검증 질문 JSON이 잘못되었습니다: {message}', en: 'Benchmark JSON is invalid: {message}' },
   'op.new.err.schema': { ko: '주제 이름을 적어 주세요 (예: krx-ticker-codes).', en: 'Subject is required (e.g. "krx-ticker-codes").' },
   'op.new.err.file': { ko: '올릴 .npz 파일을 골라 주세요.', en: 'Choose a .npz file to upload.' },
   'op.new.err.path': { ko: '노드에 있는 .npz 파일 경로를 적어 주세요.', en: 'Give the path of the .npz on the node.' },
-  'op.new.uploading': { ko: '{name} ({mb} MB) 올리는 중, 파일 지문 계산 중…', en: 'Uploading {name} ({mb} MB) and computing the fingerprint…' },
+  'op.new.err.network': { ko: '노드에 연결하지 못했습니다. 노드가 아직 돌고 있는지 확인하고 다시 시도해 주세요.', en: 'Could not reach the node. Check that it is still running, then try again.' },
+  // Item 95 — a multi-hundred-megabyte upload used to show one static alert: no bytes, no percent, no cancel, and a
+  // refresh threw the whole form away. Progress comes from XHR upload events, so every number here is measured.
+  'op.new.uploading': { ko: '{name} 올리는 중', en: 'Uploading {name}' },
+  'op.new.upload.progress': { ko: '{sent} / {total} MB · {pct}%', en: '{sent} / {total} MB · {pct}%' },
+  'op.new.upload.eta': { ko: '남은 시간 약 {eta}', en: 'about {eta} left' },
+  'op.new.upload.eta.sec': { ko: '{n}초', en: '{n} s' },
+  'op.new.upload.eta.min': { ko: '{n}분', en: '{n} min' },
+  'op.new.upload.hashing': { ko: '전송 끝 — 노드가 파일 지문과 기억 항목을 계산하는 중입니다. 파일이 크면 몇 분 걸립니다.', en: 'Upload complete — the node is computing the fingerprint and reading the memory entries. On a large file this takes minutes.' },
+  'op.new.upload.cancel': { ko: '올리기 취소', en: 'Cancel upload' },
+  'op.new.upload.cancelled': { ko: '올리기를 취소했습니다. 적어 둔 내용은 그대로 있습니다.', en: 'Upload cancelled — everything you typed is still here.' },
+  'op.new.draft.kept': { ko: '적은 내용은 이 탭에 저장되어 새로 고쳐도 사라지지 않습니다.', en: 'What you type is kept in this tab, so a refresh will not lose it.' },
+  'op.new.draft.restored': { ko: '작성하던 내용을 되살렸습니다. 파일은 브라우저가 기억할 수 없으니 다시 골라 주세요.', en: 'Brought back what you had typed. The file itself cannot be kept by the browser — pick it again.' },
+  'op.new.draft.discard': { ko: '새로 시작', en: 'Start over' },
   'op.new.submit': { ko: '초안 저장', en: 'Save draft' },
   'op.new.submitting': { ko: '초안 저장 중…', en: 'Saving draft…' },
   'op.new.dev.npz': { ko: '.npz 배열: addrs (int64), before / after (float32 행). 노드가 sha256, 행 수, 주소 집합을 계산합니다. JSON의 collateral_bound_nat = 부작용 검사 허용치(nats).', en: '.npz arrays: addrs (int64), before / after (float32 rows). The node computes sha256, row count and address set. collateral_bound_nat in the JSON = side-effect tolerance (nats).' },
