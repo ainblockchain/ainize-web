@@ -1,9 +1,8 @@
-import { useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useTeachPolicyQuery } from '@/api/api';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import { policyLine } from '@/components/chat/teachUtil';
@@ -22,15 +21,37 @@ const Doors = styled.div`
   display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 24px;
   @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { grid-template-columns: 3fr 2fr; align-items: stretch; }
 `;
-const Door = styled.section<{ $primary?: boolean }>`
-  display: flex; flex-direction: column; gap: 10px; border-radius: 10px;
+/**
+ * A door is ONE click target (ux-critique-owner O-9): the whole card is the link — both doors are navigations, so a
+ * link is the honest element, it is reachable with Tab and fires on Enter, and a heading may live inside it — and the
+ * "button" at the bottom is a visual label of that same link, never a second control. Hover lifts the card and
+ * darkens its border; focus draws the same 3 px ring the rest of the app uses; a node that is not teaching sets
+ * `aria-disabled` and the card goes flat.
+ */
+const Door = styled(Link)<{ $primary?: boolean }>`
+  display: flex; flex-direction: column; gap: 10px; border-radius: 10px; text-decoration: none; color: inherit; cursor: pointer;
   padding: ${(p) => (p.$primary ? '28px 28px 24px' : '20px')};
   background: ${(p) => (p.$primary ? p.theme.color.PALE_GREY : '#fff')};
   border: ${(p) => (p.$primary ? `2px solid ${p.theme.color.PRIMARY}` : `1px solid ${p.theme.color.LIGHT_GREY}`)};
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   h2 { margin: 0; font-size: ${(p) => (p.$primary ? '22px' : '16px')}; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
   p { margin: 0; font-size: ${(p) => (p.$primary ? '15px' : '14px')}; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY}; flex: 1; }
   small { font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
+  &:hover { border-color: ${(p) => p.theme.color.HOVER}; box-shadow: 0 6px 18px rgba(48, 49, 51, 0.12); transform: translateY(-1px); }
+  &:hover .cta { background: ${(p) => (p.$primary ? p.theme.color.HOVER : `${p.theme.color.PRIMARY}0f`)}; border-color: ${(p) => p.theme.color.HOVER}; }
+  &:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 3px; }
+  &[aria-disabled='true'] { cursor: not-allowed; opacity: 0.55; box-shadow: none; transform: none; border-color: ${(p) => (p.$primary ? p.theme.color.PRIMARY : p.theme.color.LIGHT_GREY)}; }
+  &[aria-disabled='true'] .cta { background: ${(p) => (p.$primary ? p.theme.color.PRIMARY : 'transparent')}; border-color: ${(p) => (p.$primary ? p.theme.color.PRIMARY : `${p.theme.color.PRIMARY}80`)}; }
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: ${(p) => (p.$primary ? '22px 20px 20px' : '18px 16px')}; }
+`;
+/** The visual label at the foot of a door — the same shape as the app's buttons, but it is the card that is the control. */
+const Cta = styled.span<{ $primary?: boolean }>`
+  display: inline-flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; border-radius: 4px;
+  padding: ${(p) => (p.$primary ? '10px 22px' : '6px 16px')}; font-size: ${(p) => (p.$primary ? '15px' : '14px')}; font-weight: 500; line-height: 1.75; letter-spacing: 0.02em;
+  color: ${(p) => (p.$primary ? '#fff' : p.theme.color.PRIMARY)};
+  background: ${(p) => (p.$primary ? p.theme.color.PRIMARY : 'transparent')};
+  border: 1px solid ${(p) => (p.$primary ? p.theme.color.PRIMARY : `${p.theme.color.PRIMARY}80`)};
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 `;
 /** The secondary door's eyebrow: says who it is for before the visitor reads the card. */
 const Eyebrow = styled.span`
@@ -44,7 +65,6 @@ const Steps = styled.div`
 export default function TeachPage() {
   const { t } = useT();
   useTitle(t('teach.entry.title'));
-  const navigate = useNavigate();
   const { data: policy, isLoading } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
   const pol = policyLine(policy, t);
   const open = !!policy?.enabled && policy.trainer !== 'paused';
@@ -56,16 +76,22 @@ export default function TeachPage() {
       <Description style={{ marginTop: 6 }}>{t('teach.entry.no_account')}</Description>
 
       <Doors>
-        <Door $primary data-testid="door-chat-card">
-          <h2>{t('teach.entry.chat.title')}</h2>
-          <p>{t('teach.entry.chat.body')}</p>
-          <Button variant="contained" size="large" onClick={() => navigate('/chat?teach=1')} disabled={!open} data-testid="door-chat">{t('teach.entry.chat.cta')}</Button>
+        <Door
+          $primary to="/chat?teach=1" data-testid="door-chat" aria-labelledby="door-chat-title door-chat-cta" aria-describedby="door-chat-body"
+          aria-disabled={open ? undefined : true} tabIndex={open ? undefined : -1} onClick={(e) => { if (!open) e.preventDefault(); }}
+        >
+          <h2 id="door-chat-title">{t('teach.entry.chat.title')}</h2>
+          <p id="door-chat-body">{t('teach.entry.chat.body')}</p>
+          <Cta $primary className="cta" id="door-chat-cta" data-testid="door-chat-cta">{t('teach.entry.chat.cta')}</Cta>
         </Door>
-        <Door data-testid="door-file-card">
+        <Door
+          to="/teach/upload" data-testid="door-file" aria-labelledby="door-file-title door-file-cta" aria-describedby="door-file-body"
+          aria-disabled={open ? undefined : true} tabIndex={open ? undefined : -1} onClick={(e) => { if (!open) e.preventDefault(); }}
+        >
           <Eyebrow>{t('teach.entry.file.eyebrow')}</Eyebrow>
-          <h2>{t('teach.entry.file.title')}</h2>
-          <p>{t('teach.entry.file.body')}</p>
-          <Button onClick={() => navigate('/teach/upload')} disabled={!open} data-testid="door-file">{t('teach.entry.file.cta')}</Button>
+          <h2 id="door-file-title">{t('teach.entry.file.title')}</h2>
+          <p id="door-file-body">{t('teach.entry.file.body')}</p>
+          <Cta className="cta" id="door-file-cta" data-testid="door-file-cta">{t('teach.entry.file.cta')}</Cta>
           <small>{t('teach.entry.file.formats', { max: policy?.limits?.dataset_max_rows ?? rowsPerJob(policy) })}</small>
         </Door>
       </Doors>
