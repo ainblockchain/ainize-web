@@ -42,6 +42,10 @@ const Pill = styled.span<{ $tone: Tone }>`
   color: ${(p) => (p.$tone === 'ok' ? '#1e6b36' : p.$tone === 'bad' ? '#a0102c' : p.$tone === 'warn' ? '#8a4b00' : '#555')};
   background: ${(p) => (p.$tone === 'ok' ? '#e6f4ea' : p.$tone === 'bad' ? '#fde8ec' : p.$tone === 'warn' ? '#fff3e0' : '#f2f2f2')};
 `;
+const Chip = styled.span<{ $warn?: boolean }>`
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  color: ${(p) => (p.$warn ? '#8a4b00' : '#555')}; background: ${(p) => (p.$warn ? '#fff3e0' : '#f2f2f2')};
+`;
 const Help = styled.span<{ $warn?: boolean }>`
   display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.5;
   color: ${(p) => (p.$warn ? '#8a4b00' : p.theme.color.GREY)};
@@ -70,10 +74,12 @@ export interface DatasetTableProps {
   positions?: boolean;
   /** this node's checks are simulated (policy.simulated_checks): the quoted answer is not a model's */
   simulated?: boolean;
+  /** the knowledge this set was copied from — its NAME on the inherited-row chips (SC-5) */
+  baseName?: string;
   busy?: boolean;
 }
 
-export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onEdit, onRemove, onKeep, positions, simulated, busy }: DatasetTableProps) {
+export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onEdit, onRemove, onKeep, positions, simulated, baseName, busy }: DatasetTableProps) {
   const { t } = useT();
   const nHead = t(positions ? 'teach.rows.h.pos' : 'teach.rows.h.n');
   return (
@@ -113,7 +119,12 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                   </td>
                 )}
                 <td className="n" data-label={nHead}>{row.line}</td>
-                <td className="q" data-label={t('teach.rows.h.q')}>{row.prompt ?? (row.raw ? row.raw.slice(0, 120) : '—')}</td>
+                <td className="q" data-label={t('teach.rows.h.q')}>
+                  {row.prompt ?? (row.raw ? row.raw.slice(0, 120) : '—')}
+                  {/* SC-5: where this question came from — the pointer is in the published bytes, so it is a fact, not a label */}
+                  {row.from && <Chip data-testid="row-from">{t('teach.rows.from', { name: baseName ?? row.from.split('#')[0] })}</Chip>}
+                  {row.replaces && <Chip $warn data-testid="row-changed">{t('teach.rows.changed_badge', { name: baseName ?? row.replaces.split('#')[0] })}</Chip>}
+                </td>
                 <td className="a" data-label={t('teach.rows.h.a')}>{row.answer ?? '—'}</td>
                 <td className="alt" data-label={t('teach.rows.h.alt')}>{row.alt_prompt ?? ''}</td>
                 <td data-label={t('teach.rows.h.status')}>

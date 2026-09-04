@@ -310,7 +310,11 @@ export type PublishResponse = { status: 'PENDING_REVIEW' } | { status: 'ANNOUNCE
 // ---------------- teach mode v2: dataset requests and responses (design §7)
 export interface DatasetReport { summary: TeachDatasetSummary; rows: TeachDatasetRow[] }
 export interface DatasetResult { dataset: TeachDataset; report: DatasetReport; created: boolean }
-export interface DatasetRowsPage { total: number; source_rows: number; offset: number; limit: number; summary: TeachDatasetSummary; items: TeachDatasetRow[] }
+export interface DatasetRowsPage {
+  total: number; source_rows: number; offset: number; limit: number; summary: TeachDatasetSummary; items: TeachDatasetRow[];
+  /** SC-5 filter counts over the WHOLE set (not the page): mine / inherited / changed / conflicts. */
+  origins?: { mine: number; inherited: number; changed: number; conflicts: number };
+}
 export interface DatasetSample { kind: string; name: string; description?: string; rows: number; sha256: string; preview: TeachDatasetRow[]; download_url: string }
 export interface DatasetParseOptions { format?: TeachDatasetFormat; delimiter?: string; has_header?: boolean; encoding?: string; layout?: string; columns?: Record<string, string | number> }
 export type DatasetRowInput = { prompt: string; answer: string; alt_prompt?: string; note?: string };

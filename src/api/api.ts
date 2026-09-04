@@ -176,7 +176,7 @@ export const api = createApi({
     }),
     teachDatasets: b.query<{ items: TeachDataset[] }, void>({ query: () => 'api/teach/datasets', providesTags: ['TeachDataset'] }),
     teachDataset: b.query<{ dataset: TeachDataset }, string>({ query: (id) => `api/teach/datasets/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'TeachDataset', id }] }),
-    teachDatasetRows: b.query<DatasetRowsPage, { id: string; offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected' }>({
+    teachDatasetRows: b.query<DatasetRowsPage, { id: string; offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected'; origin?: 'all' | 'mine' | 'inherited' | 'changed' | 'conflicts' }>({
       query: ({ id, ...q }) => `api/teach/datasets/${encodeURIComponent(id)}/rows${toQuery({ ...q })}`,
       providesTags: (_r, _e, a) => [{ type: 'TeachDataset', id: a.id }],
     }),

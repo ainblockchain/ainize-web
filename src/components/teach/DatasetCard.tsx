@@ -62,6 +62,16 @@ export function DatasetCard({ dataset, lessons, ttlDays, onRetrain, onContinue, 
         <span>{t('teach.data.count', { n: dataset.rows })}</span>
         <span>{t('teach.data.fingerprint', { short: shortSha(dataset.sha256) })}</span>
       </Head>
+      {/* SC-16: a set copied out of a knowledge says so on its card — otherwise "5 questions" hides that 3 are someone else's */}
+      {dataset.parent_patch && (
+        <Gone data-testid="ds-copied-from">
+          {t('teach.ds.card_from', {
+            name: dataset.parent_patch,
+            inherited: dataset.inherited_rows ?? 0,
+            mine: Math.max(0, dataset.rows - (dataset.inherited_rows ?? 0)),
+          })}
+        </Gone>
+      )}
       <Meta>
         <div><dt>{t('teach.data.h.source')}</dt><dd data-testid="ds-source">{sourceKind(dataset.source, t)}</dd></div>
         <div><dt>{t('teach.data.h.created')}</dt><dd>{dateTime(dataset.created_at)}</dd></div>

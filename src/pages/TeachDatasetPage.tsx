@@ -65,7 +65,8 @@ export default function TeachDatasetPage() {
   const { data: policy } = useTeachPolicyQuery();
   const { data: dsData, isLoading, error: loadError } = useTeachDatasetQuery(dsId, { skip: !dsId });
   const [offset, setOffset] = useState(0);
-  const { data: page } = useTeachDatasetRowsQuery({ id: dsId, offset, limit: PAGE }, { skip: !dsId });
+  const [origin, setOrigin] = useState<'all' | 'mine' | 'inherited' | 'changed' | 'conflicts'>('all');
+  const { data: page } = useTeachDatasetRowsQuery({ id: dsId, offset, limit: PAGE, origin }, { skip: !dsId });
   const [patch, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [reparse, { isLoading: reparsing }] = useReparseTeachDatasetMutation();
   const [preflight, { isLoading: checking }] = useTeachPreflightMutation();
@@ -197,6 +198,9 @@ export default function TeachDatasetPage() {
   const known = Object.values(flight).filter((f) => f.status === 'already_known').length;
   const willTrain = Object.values(flight).filter((f) => f.status === 'will_train').length;
   const bad = (summary?.conflicts ?? 0) + (summary?.too_long ?? 0) + (summary?.empty ?? 0) + (summary?.blocked ?? 0) + (summary?.not_parsed ?? 0);
+  const origins = page?.origins ?? { mine: dataset.rows, inherited: 0, changed: 0, conflicts: summary?.conflicts ?? 0 };
+  const inherited = origins.inherited + origins.changed;
+  const baseName = dataset.parent_patch ?? '';
   const parsedRows = rows.filter((r) => r.status !== 'not_parsed');
   const droppedRows = rows.filter((r) => r.status === 'not_parsed');
   const total = page?.total ?? rows.length;
@@ -251,8 +255,31 @@ export default function TeachDatasetPage() {
         {dataset.status === 'staged' && <Button color="secondary" onClick={() => setReparseOpen(true)} data-testid="open-reparse">{t('teach.rows.reparse')}</Button>}
       </Actions>
 
+      {/*
+        SC-5 — a set copied from someone else's knowledge is two things at once: their questions and mine. The chips
+        count the WHOLE set (the node counts them, not this page), and the summary line is the sentence the publish
+        sheet will repeat: adds x, changes y, keeps z of theirs.
+      */}
+      {inherited > 0 && (
+        <>
+          <Pills data-testid="inherit-summary">
+            {t('teach.rows.summary_inherit', { x: origins.mine, y: origins.changed, z: origins.inherited, name: baseName })}
+            {' '}{t('teach.rows.inherited_note')}
+          </Pills>
+          <Bar data-testid="origin-filters">
+            {([['all', t('teach.rows.f_all')], ['mine', t('teach.rows.f_mine', { n: origins.mine })], ['inherited', t('teach.rows.f_inherited', { n: origins.inherited })],
+              ['changed', t('teach.rows.f_changed', { n: origins.changed })], ['conflicts', t('teach.rows.f_conflicts', { n: origins.conflicts })]] as const).map(([key, label]) => (
+                <Button
+                  key={key} size="small" variant={origin === key ? 'contained' : 'outlined'}
+                  onClick={() => { setOrigin(key); setOffset(0); }} data-testid={`origin-${key}`}
+                >{label}</Button>
+              ))}
+          </Bar>
+        </>
+      )}
+
       <DatasetTable
-        rows={parsedRows} limits={limits} preflight={flight} busy={patching} positions={dataset.revision > 1} simulated={simulated}
+        rows={parsedRows} limits={limits} preflight={flight} busy={patching} positions={dataset.revision > 1} simulated={simulated} baseName={baseName}
         selectable={picking} selected={selected} onToggle={toggle}
         onEdit={(r) => setEditing(r)} onRemove={removeRow}
         onKeep={keepAnswer}
