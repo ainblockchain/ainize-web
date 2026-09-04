@@ -180,6 +180,11 @@ const HowTitle = styled.h3`margin: 6px 0 0; font-family: ${(p) => p.theme.font.d
 const HowDesc = styled.p`margin: 16px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 15px; line-height: 1.6; color: #333333; max-width: 38ch; word-break: keep-all;`;
 
 /* ---------------------------------------------------------------- trending */
+const TrendLegend = styled.p`
+  margin: 14px auto 0; max-width: 68ch; font-family: ${(p) => p.theme.font.display}; font-size: 12px; line-height: 1.7;
+  color: #6f6f6f; text-align: center; word-break: keep-all;
+  b { font-weight: 700; color: #4a4a4a; }
+`;
 const CardGrid = styled.div`
   min-height: 200px; margin: 56px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 400px)); gap: 32px; justify-content: center;
 `;
@@ -290,10 +295,14 @@ export default function LandingPage() {
     : listed > 0 ? t('landing.hero.count', { n: num(listed) }, listed)
       : verifying ? t('landing.hero.lead_verifying', { n: num(verifying) }, verifying)
         : t('landing.hero.lead_empty');
+  /**
+   * Finding 80 — "verified" is the word the whole product rests on and its only definition on this page was a hover
+   * `title` on the headline, which no phone and no keyboard can reach. The clause under the headline is now always
+   * there when there IS something listed, not only in the two-or-three-knowledges case.
+   */
   const heroExplain = listed === undefined ? null
-    : namesLead ? t('landing.hero.lead_sub')
-      : listed === 0 ? (verifying ? t('landing.hero.lead_verifying_sub') : t('landing.hero.lead_empty_sub'))
-        : null;
+    : namesLead || listed > 0 ? t('landing.hero.lead_sub')
+      : verifying ? t('landing.hero.lead_verifying_sub') : t('landing.hero.lead_empty_sub');
 
   const user = audience('user');
   const creator = audience('creator');
@@ -371,6 +380,9 @@ export default function LandingPage() {
                 <li><b>1</b><span title={help('liveTest')}>{t('landing.audience.creator.s1')}</span></li>
                 <li><b>2</b><span>{t('landing.audience.creator.s2')}</span></li>
                 <li><b>3</b><span title={`${term('lineage')}: ${help('lineage')} (${tech('lineage')})`}>{t('landing.audience.creator.s3')}</span></li>
+                {/* Finding 200: the creator path started from a blank page — nothing on the landing said you could
+                    start from someone else's knowledge, which is the whole of step 8 of the lifecycle above. */}
+                <li data-testid="landing-creator-s4"><b>4</b><span>{t('landing.audience.creator.s4')}</span></li>
               </Steps>
               <AudienceCta to="/chat?teach=1" data-testid="landing-teach-cta">{t('landing.audience.creator.cta')}</AudienceCta>
               {info && !info.accepts_contributions && <AudienceOff>{t('landing.audience.creator.off')}</AudienceOff>}
@@ -424,6 +436,10 @@ export default function LandingPage() {
         <Inner>
           <SectionTitle>{t('landing.trending.title')}</SectionTitle>
           <SectionSub>{t('landing.trending.sub')}</SectionSub>
+          {/* Finding 80: the two numbers on every card below were named only in hover tooltips. */}
+          <TrendLegend data-testid="trending-legend">
+            <b>{term('facts')}</b> — {t('explore.legend.facts')} · <b>{term('accuracy')}</b> — {t('explore.legend.accuracy')}
+          </TrendLegend>
           <CardGrid>
             {isLoading && Array.from({ length: 3 }).map((_, i) => <Shimmer key={i} $w="100%" $h="320px" style={{ borderRadius: 24 }} />)}
             {trending?.items.map((e) => {

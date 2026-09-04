@@ -52,6 +52,7 @@ export const landing: Dict = {
   'landing.audience.creator.s1': { ko: '라이브 테스트에서 물어보고, 틀리면 바로잡습니다.', en: 'Ask the model in Live test and correct it when it is wrong.' },
   'landing.audience.creator.s2': { ko: '이 노드가 내 바로잡기를 지식으로 학습합니다. 로그인도 내 서버도 필요 없습니다.', en: 'This node trains your corrections into knowledge — no sign-in, no server of your own.' },
   'landing.audience.creator.s3': { ko: '나만 쓰거나, 공개해서 팔릴 때마다 정산받습니다.', en: 'Keep it private, or publish it and get paid on every sale.' },
+  'landing.audience.creator.s4': { ko: '남이 만든 지식 위에 얹어 만들 수도 있습니다. 그러면 내 지식이 팔릴 때마다 원작자에게도 수익이 나뉩니다.', en: 'Or build on someone else’s knowledge instead of starting over — they get a share of every sale of yours.' },
   'landing.audience.creator.cta': { ko: '모델 가르치기', en: 'Teach the model' },
   'landing.audience.creator.operator_link': { ko: '이미 지식 파일(.npz)이 있고 노드를 운영하나요? 파일 등록 →', en: 'Already have a knowledge file (.npz) and run a node? Register a file →' },
   'landing.audience.creator.off': { ko: '이 노드는 지금 수업을 받지 않습니다. 라이브 테스트는 그대로 쓸 수 있습니다.', en: 'This node is not accepting lessons right now. Live test still works.' },
