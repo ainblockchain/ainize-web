@@ -20,11 +20,29 @@ export const chat: Dict = {
   // multi-knowledge (spec §5.3 — kept in chat.ts because the picker owns them)
   'chat.picker.multi_title': { ko: '넣을 지식 (최대 3개)', en: 'Knowledge to load (pick up to 3)' },
   'chat.picker.multi_help': { ko: '체크한 순서대로 넣습니다. 겹치면 나중에 체크한 쪽이 이깁니다.', en: 'They load in the order you tick them. If two overlap, the one ticked last wins.' },
-  'chat.picker.overlap': { ko: '이 둘은 메모리 항목 {n}개가 겹칩니다.', en: 'These two overlap on {n} memory entries.' },
-  'chat.picker.overlap_pair': { ko: '{a}와(과) {b}: 메모리 항목 {n}개가 겹칩니다 — 나중에 체크한 {winner}이(가) 이깁니다.', en: '{a} and {b} overlap on {n} memory entries — {winner}, ticked last, wins.' },
-  'chat.picker.contaminated': { ko: '이 노드에는 {names}이(가) 항상 넣어져 있어 "넣기 전"에도 포함됩니다.', en: 'This node also has {names} loaded for everyone, so "Before loading" already includes it.' },
+  // Finding 62 — ONE alert for the whole selection. Each line names the knowledge by the number on its card
+  // (#1, #2, #3) instead of repeating two 50-character titles and the winner's title again.
+  'chat.picker.overlap_head': { ko: '아래 지식들이 같은 기억 항목을 공유합니다 (번호는 카드에 적힌 넣는 순서):', en: 'These share memory entries — the numbers are the load order on the cards:' },
+  'chat.picker.overlap_line': { ko: '{a}과 {b}: 기억 항목 {n}개를 공유합니다 — 겹치는 자리는 나중에 넣는 {winner}이 가져갑니다.', en: '{a} and {b}: {n} shared memory entries — {winner} loads later and wins where they collide.' },
+  // Finding 225 — an overlap with knowledge the OPERATOR keeps loaded was never shown, although the visitor
+  // cannot untick that one: it is on the model before anything they choose, so anything they tick wins over it.
+  'chat.picker.overlap_line_pinned': { ko: '{a}은 이 노드가 항상 넣어 두는 지식과 기억 항목 {n}개를 공유합니다("{name}") — 나중에 넣는 {a}이 가져갑니다.', en: '{a} shares {n} memory entries with “{name}”, which this node keeps loaded — {a} loads after it and wins.' },
+  'chat.picker.contaminated': { ko: '이 노드가 항상 넣어 두는 지식이 있어 "넣기 전" 답에도 포함됩니다: {names}', en: 'This node also has {names} loaded for everyone, so "Before loading" already includes it.' },
+  // Finding 225 — the same card used to read "Always loaded · Loads 1.", two statements that contradict each other.
+  'chat.picker.pinned_ticked': { ko: '이미 모델에 들어 있습니다 — "넣기 전" 답을 받을 때 잠시 빼냈다가 다시 넣습니다.', en: 'Already in the model — unloaded for the "Before loading" answer, then put back.' },
+  'chat.picker.count_pinned': { ko: '이 노드에 항상 넣어 둔 지식 {n}개 더', en: '{n} more always loaded here' },
+  'chat.picker.count_pinned_one': { ko: '이 노드에 항상 넣어 둔 지식 1개 더', en: '1 more always loaded here' },
+  // Finding 224 — the load order is a control now, not something you can only change by unticking everything.
+  'chat.picker.move_up': { ko: '먼저 넣기 (Alt+↑)', en: 'Load this earlier (Alt+↑)' },
+  'chat.picker.move_down': { ko: '나중에 넣기 (Alt+↓)', en: 'Load this later (Alt+↓)' },
+  'chat.picker.loaded_section': { ko: '넣는 순서', en: 'Loaded, in this order' },
+  'chat.picker.rest_section': { ko: '고를 수 있는 다른 지식', en: 'Other knowledge you can pick' },
+  // Finding 218 — a node holding 136 testable knowledges listed all 136 and offered no way to find one.
+  'chat.picker.filter': { ko: '지식 {n}개에서 찾기', en: 'Search {n} knowledges' },
+  'chat.picker.filter_count': { ko: '{total}개 중 {n}개 표시 중', en: 'showing {n} of {total}' },
+  'chat.picker.filter_none': { ko: '"{q}"와(과) 맞는 지식이 없습니다.', en: 'No knowledge matches “{q}”.' },
   // Item 211 — a body on the shared model that this node never loaded (another node's verification, a crashed test).
-  'chat.picker.dirty': { ko: '무언가가 {names}을(를) 이 모델에 남겨 뒀습니다 — 이 노드가 넣은 것이 아닙니다.', en: 'Something left {names} on this model — this node did not load it.' },
+  'chat.picker.dirty': { ko: '무언가가 이 모델에 남겨 둔 지식이 있습니다 — 이 노드가 넣은 것이 아닙니다: {names}', en: 'Something left {names} on this model — this node did not load it.' },
   'chat.picker.dirty_detail': { ko: '테스트할 때 먼저 빼내고 "넣기 전" 답을 받으며, 테스트가 끝나도 다시 넣지 않습니다.', en: 'A live test unloads it first so the "before" answer is the plain model, and does not put it back afterwards.' },
   // Item 297 — knowledge this node's model could run but does not hold, or holds only because it verified it.
   'chat.picker.elsewhere': { ko: '이 노드에 없는 지식', en: 'Not on this node' },
@@ -36,7 +54,9 @@ export const chat: Dict = {
   'chat.picker.buying': { ko: '구매하는 중…', en: 'Buying…' },
   'chat.picker.ask': { ko: '이 지식을 받아 달라고 요청', en: 'Ask this node to get it' },
   'chat.picker.asked_done': { ko: '요청했습니다 — 운영자 기록에 남았습니다', en: 'Asked — it is in the operator’s log' },
-  'chat.picker.asked': { ko: '{n}명이 이 지식을 요청했습니다.', en: '{n} visitor(s) have asked for this.' },
+  'chat.picker.asked': { ko: '{n}명이 이 지식을 요청했습니다.', en: '{n} visitors have asked for this.' },
+  // finding 88 — "1 visitor(s) have asked" was the placeholder plural reaching a real page
+  'chat.picker.asked_one': { ko: '한 명이 이 지식을 요청했습니다.', en: '1 visitor has asked for this.' },
   'chat.picker.mine': { ko: '내 수업', en: 'Your lessons' },
   'chat.picker.max': { ko: '최대 3개까지입니다. 하나를 해제한 뒤 고르세요.', en: 'Up to 3 — untick one first.' },
   'chat.picker.order': { ko: '{n}번째로 넣음', en: 'Loads {n}.' },
@@ -46,6 +66,16 @@ export const chat: Dict = {
   'chat.picker.count': { ko: '{n}/3 선택', en: '{n}/3 selected' },
   'chat.head.multi': { ko: '지식 {n}개 함께 넣음', en: '{n} knowledges loaded together' },
   'chat.head.multi_help': { ko: '왼쪽 순서대로 넣습니다. 겹치는 항목은 마지막 지식이 이깁니다.', en: 'Loaded in the order on the left; the last one wins on overlapping entries.' },
+  // Finding 63 — knowledge that shares memory entries cannot have its fact counts added up.
+  'chat.head.facts_each': { ko: '각각 최대 사실 {n}건 (겹치는 부분이 있어 합계로 셀 수 없습니다)', en: 'up to {n} facts each (they overlap, so the counts do not add up)' },
+  // Finding 218 — the set as something you can send to someone.
+  'chat.head.copy': { ko: '이 조합 링크 복사', en: 'Copy link to this set' },
+  'chat.head.copied': { ko: '복사했습니다', en: 'Link copied' },
+  // Finding 228 — what owning the whole stack costs, on the node you run yourself.
+  'chat.head.own': { ko: '이 {n}개를 모두 소유하려면: {price}', en: 'To own all {n}: {price}' },
+  'chat.head.own_help': { ko: '각 지식의 판매 가격을 더한 값입니다. 구매는 지식마다 따로 이루어지며, 내 노드에서 구매하면 횟수 제한 없이 쓸 수 있습니다.', en: 'The listed prices added up. Each is bought separately, on your own node, and then runs without a free-try limit.' },
+  'chat.head.replaced': { ko: '대체 버전 {id}', en: 'replaced by {id}' },
+  'chat.head.replaced_help': { ko: '더 새로운 버전이 이 지식을 대체했습니다. 새 버전이 같은 내용을 담고 있을 수 있으니 구매 전에 확인하세요.', en: 'A newer version has replaced this one — it may already cover the same facts, so check it before buying this.' },
   'chat.bubble.patched_multi': { ko: '지식 {n}개 넣은 후', en: 'After loading {n}' },
   'chat.hit.per_patch': { ko: '{id}의 검증 문제', en: 'benchmark item of {id}' },
   'chat.samples.from': { ko: '{id}의 예시', en: 'from {id}' },
@@ -55,7 +85,16 @@ export const chat: Dict = {
   'chat.runtime.off_detail': { ko: '노드 운영자가 모델 서버를 켜면 다시 사용할 수 있습니다.', en: 'It comes back once the node operator starts the model server.' },
   // "try again in a moment" is deliberately gone: the request is queued and will be answered, so retry language
   // made a wait read as a rejection (D3). A queued request gets its own live line in the transcript (chat.queue.*).
-  'chat.lock.busy': { ko: '지금 다른 사람이 공유 모델에서 테스트 중입니다.', en: 'Someone else is testing on the shared model right now.' },
+  'chat.lock.busy': { ko: '지금 공유 모델을 다른 작업이 쓰고 있습니다.', en: 'Something else has the shared model right now.' },
+  // Finding 65 — the visitor is told WHAT is running, never the internal lock key or the node's process id; and a
+  // lock on the lesson this page is showing is their own lesson being checked, not a stranger's test.
+  'chat.lock.busy_mine_lesson': { ko: '내 수업을 공유 모델에서 확인하는 중입니다.', en: 'Your lesson is being checked on the shared model.' },
+  'chat.lock.kind.chat': { ko: '다른 사람의 라이브 테스트 — {since}', en: 'Someone else’s live test — {since}' },
+  'chat.lock.kind.teach': { ko: '수업 하나를 학습·확인하는 중 — {since}', en: 'A lesson being trained and checked — {since}' },
+  'chat.lock.kind.teach_mine': { ko: '내 수업을 확인하는 중 — {since}', en: 'Your lesson being checked — {since}' },
+  'chat.lock.kind.verify': { ko: '지식 하나를 검증하는 중 — {since}', en: 'A knowledge being verified — {since}' },
+  'chat.lock.kind.apply': { ko: '운영자가 지식을 넣거나 빼는 중 — {since}', en: 'The operator is loading or unloading knowledge — {since}' },
+  'chat.lock.kind.other': { ko: '이 모델에서 다른 작업이 실행 중 — {since}', en: 'Another job on this model — {since}' },
   'chat.lock.holder': { ko: '다른 테스트 진행 중 ({label}, 노드 프로세스 {pid}) — {since}', en: 'Another test in progress ({label}, node process {pid}) — {since}' },
   'chat.lock.mine': { ko: '지금은 이 테스트가 공유 모델을 쓰고 있습니다 — {since}', en: 'Your test has the shared model — {since}' },
   'chat.lock.stale': { ko: '이전 테스트가 공유 모델을 사용 중으로 남겨 두었습니다. 다음 테스트가 자동으로 정리합니다.', en: 'A previous test left the shared model marked as busy; the next test clears it automatically.' },
@@ -80,6 +119,14 @@ export const chat: Dict = {
   'chat.quota.left': { ko: '이 시간 무료 체험 {n}회 남음', en: '{n} free tries left this hour' },
   'chat.quota.left_of': { ko: '무료 체험 {n}/{limit} 남음 (이 시간)', en: 'Free trial {n}/{limit} left this hour' },
   'chat.quota.none': { ko: '이 시간 무료 체험을 모두 사용했습니다. 한 시간 뒤 다시 시도하거나 지식을 구매하세요.', en: 'You used all free tries for this hour. Try again in an hour or buy the knowledge.' },
+  // Finding 57 — the same sentence used to render in the page alert, the error bubble, the placeholder AND the
+  // footer. The short line is what the placeholder and the transcript say; the offer below is made once.
+  'chat.quota.none_short': { ko: '이 시간 무료 체험을 모두 썼습니다', en: 'No free tries left this hour' },
+  'chat.quota.spent': { ko: '이 시간 무료 체험을 모두 썼습니다.', en: 'You have used every free try for this hour.' },
+  'chat.quota.spent_of': { ko: '이 시간 무료 체험 {limit}회를 모두 썼습니다.', en: 'You have used all {limit} free tries for this hour.' },
+  'chat.quota.buy_price': { ko: '{name} 구매 · {price}', en: 'Buy {name} · {price}' },
+  'chat.quota.buy_free': { ko: '{name} 받기 (무료)', en: 'Get {name} (free)' },
+  'chat.quota.resets_hour': { ko: '무료 체험은 한 시간 뒤 다시 채워집니다', en: 'Free tries come back within the hour' },
   'chat.quota.buy': { ko: '이 지식 구매하기', en: 'Buy this knowledge' },
   'chat.quota.resets_at': { ko: '무료 체험은 {time}에 다시 채워집니다', en: 'Free tries reset at {time}' },
   'chat.quota.visitor': { ko: '무료 체험은 시간당 횟수가 제한됩니다. 로그인 없이 바로 써 볼 수 있습니다.', en: 'Free tries are limited per hour. No sign-in needed.' },
@@ -101,6 +148,10 @@ export const chat: Dict = {
   'chat.samples.title': { ko: '이 지식이 답할 수 있는 질문 예시', en: 'Sample questions this knowledge answers' },
   'chat.samples.help': { ko: '누르면 입력창에 들어갑니다. 보내기 전에 고쳐도 됩니다.', en: 'Click to put it in the box. You can edit before sending.' },
   'chat.samples.expect': { ko: '기대 답: {expect}', en: 'Expected: {expect}' },
+  // Finding 87 — the chips are Korean and their answers are six-character codes; an English-reading first-timer
+  // had no way to know what the comparison they are about to run even asks. Both halves come from the anchor.
+  'chat.samples.gloss': { ko: '{name}의 검증 문제입니다. 답은 "{expect}"처럼 정확히 일치해야 하는 짧은 값입니다.', en: 'These are the benchmark questions {name} publishes. Each answer is one short exact value, like “{expect}”.' },
+  'chat.samples.gloss_stack': { ko: '넣은 지식 {n}개가 공개한 검증 문제입니다. 답은 "{expect}"처럼 정확히 일치해야 하는 짧은 값이고, 각 질문 아래에 어느 지식의 문제인지 적혀 있습니다.', en: 'These are the benchmark questions published by the {n} knowledges you loaded. Each answer is one short exact value, like “{expect}”, and every chip says which knowledge it came from.' },
   // D2: the trained prompt ends with a space, and that space is part of what was trained. The chip shows a ␣
   // marker and sends the text exactly as trained (its accessible name stays the plain prompt).
   'chat.samples.trailing_space': { ko: '끝의 공백까지가 학습된 프롬프트입니다 — 누르면 공백을 포함해 그대로 입력되고 그대로 전송됩니다.', en: 'The trailing space is part of the trained prompt — clicking inserts it, and it is sent, exactly as trained.' },
@@ -113,6 +164,12 @@ export const chat: Dict = {
   'chat.input.send': { ko: '보내기', en: 'Send' },
   'chat.input.sending': { ko: '답변 기다리는 중…', en: 'Waiting for the answer…' },
   'chat.input.clear': { ko: '대화 지우기', en: 'Clear conversation' },
+  // Finding 66 — one misclick beside Send used to destroy a transcript bought with a capped twenty tries an hour.
+  'chat.input.clear_confirm': { ko: '지울까요? 한 번 더 누르세요', en: 'Clear — are you sure?' },
+  // Finding 61 — the node refuses a message longer than 4,000 characters, and the box used to say nothing.
+  'chat.input.limit': { ko: '{n} / {max}자', en: '{n} / {max}' },
+  'chat.input.limit_hit': { ko: '{max}자까지', en: '{max} character limit' },
+  'chat.input.limit_help': { ko: '한 질문은 {max}자까지 보낼 수 있습니다. 더 길면 노드가 받지 않습니다.', en: 'One question can be at most {max} characters — the node refuses anything longer.' },
   'chat.input.pick_first': { ko: '먼저 왼쪽에서 테스트할 지식을 고르세요.', en: 'Pick the knowledge to test on the left first.' },
   'chat.input.cancel': { ko: '취소', en: 'Cancel' },
   'chat.input.in_flight': { ko: '답을 기다리는 중입니다. 오래 걸리면 취소할 수 있습니다.', en: 'Waiting for the answer — you can cancel if it takes too long.' },
@@ -130,13 +187,13 @@ export const chat: Dict = {
   'chat.improve.dismiss': { ko: '닫기', en: 'Dismiss' },
 
   // transcript — the mark that says which knowledge a run of questions was asked with (finding 14)
-  'chat.turn.stack': { ko: '여기부터: {names}을(를) 넣고 물어봤습니다', en: 'From here: asked with {names} loaded' },
+  'chat.turn.stack': { ko: '여기부터는 다음 지식을 넣고 물어봤습니다: {names}', en: 'From here: asked with {names} loaded' },
   'chat.turn.stack_none': { ko: '여기부터: 아무 지식도 넣지 않고 물어봤습니다', en: 'From here: asked with no knowledge loaded' },
   'chat.turn.stack_help': { ko: '지식을 체크하거나 해제해도 질문과 답은 지워지지 않습니다. 모두 여기 남고, 물어볼 당시 넣어져 있던 지식이 표시됩니다. 이어지는 질문에는 같은 조합으로 받은 답만 모델에 다시 보냅니다.', en: 'Ticking or unticking a knowledge never deletes your questions — they all stay here, marked with what was loaded when you asked them. Follow-up questions replay only the answers from the same combination.' },
 
   // the lesson kept under another selection (finding 14)
-  'chat.basket.stranded': { ko: '{names}을(를) 넣었을 때 만든 바로잡기 {n}개가 그대로 저장되어 있습니다.', en: '{n} corrections you made with {names} loaded are still saved.' },
-  'chat.basket.stranded_one': { ko: '{names}을(를) 넣었을 때 만든 바로잡기 1개가 그대로 저장되어 있습니다.', en: '1 correction you made with {names} loaded is still saved.' },
+  'chat.basket.stranded': { ko: '다음 지식을 넣었을 때 만든 바로잡기 {n}개가 그대로 저장되어 있습니다: {names}', en: '{n} corrections you made with {names} loaded are still saved.' },
+  'chat.basket.stranded_one': { ko: '다음 지식을 넣었을 때 만든 바로잡기 1개가 그대로 저장되어 있습니다: {names}', en: '1 correction you made with {names} loaded is still saved.' },
   'chat.basket.stranded_none': { ko: '아무 지식도 넣지 않았을 때 만든 바로잡기 {n}개가 그대로 저장되어 있습니다.', en: '{n} corrections you made with no knowledge loaded are still saved.' },
   'chat.basket.stranded_none_one': { ko: '아무 지식도 넣지 않았을 때 만든 바로잡기 1개가 그대로 저장되어 있습니다.', en: '1 correction you made with no knowledge loaded is still saved.' },
   'chat.basket.stranded_go': { ko: '그 수업 열기', en: 'Open that lesson' },
@@ -154,9 +211,18 @@ export const chat: Dict = {
   'chat.bubble.already_applied': { ko: '이미 넣어져 있던 지식', en: 'was already loaded' },
   'chat.bubble.thinking_pending': { ko: '답변 생성 중…', en: 'Generating…' },
   'chat.bubble.compare_pending': { ko: '지식을 넣었다 빼는 과정이 포함되어 수십 초 걸릴 수 있습니다.', en: 'Includes loading and unloading — this can take tens of seconds.' },
+  // Finding 229 — the wait grows with what was ticked (a measured two-knowledge turn took 317 s), so the line says
+  // how much is being loaded. The only number of seconds ever printed is one this session actually measured.
+  'chat.bubble.loading': { ko: '지식 {n}개를 모델에 넣었다 빼는 중입니다 — 넣는 양이 많을수록 오래 걸립니다.', en: 'Loading {n} knowledges into the model and taking them out again — the more you load, the longer it takes.' },
+  'chat.bubble.loading_one': { ko: '지식을 모델에 넣었다 빼는 중입니다 — 수십 초 걸릴 수 있습니다.', en: 'Loading the knowledge into the model and taking it out again — this can take tens of seconds.' },
+  'chat.bubble.loading_size': { ko: '지식 {n}개({mb} MB)를 모델에 넣었다 빼는 중입니다 — 넣는 양이 많을수록 오래 걸립니다.', en: 'Loading {n} knowledges ({mb} MB) into the model and taking them out again — the more you load, the longer it takes.' },
+  'chat.bubble.loading_size_one': { ko: '지식({mb} MB)을 모델에 넣었다 빼는 중입니다 — 수십 초 걸릴 수 있습니다.', en: 'Loading the knowledge ({mb} MB) into the model and taking it out again — this can take tens of seconds.' },
+  'chat.bubble.last_time': { ko: '같은 조합이 지난번에는 {n}초 걸렸습니다', en: 'the same set took {n}s last time' },
   'chat.bubble.empty_answer': { ko: '(빈 답변)', en: '(empty answer)' },
   // D1 — what the visitor is told when the guard cut a runaway answer
   'chat.trunc.repetition': { ko: '모델이 같은 말을 반복하기 시작해서 답을 여기서 잘랐습니다. 보통은 이 지식이 다루지 않는 질문일 때 이렇게 됩니다.', en: 'The model started repeating itself, so the answer is cut off here — that usually means the question is outside what this knowledge covers.' },
+  // Finding 64 — the out-of-scope hypothesis is dropped where the same bubble just marked the answer correct.
+  'chat.trunc.repetition_hit': { ko: '답을 낸 뒤 모델이 같은 말을 반복하기 시작해서 나머지를 잘랐습니다.', en: 'The model repeated itself after this answer, so the rest was cut.' },
   'chat.trunc.length': { ko: '길이 제한에 걸려 답이 끝나기 전에 멈췄습니다.', en: 'The answer stopped at the length limit before it was finished.' },
   'chat.trunc.empty': { ko: '모델이 생각하는 데 길이를 다 써서 답이 비어 있습니다. 생각 과정을 끄고 다시 물어보세요.', en: 'The model spent its whole length limit thinking, so the answer came back empty. Turn thinking off and ask again.' },
   'chat.trunc.show_raw': { ko: '원본 답변 보기 ({raw}자 전체)', en: 'Show the raw answer (all {raw} characters)' },
@@ -168,11 +234,17 @@ export const chat: Dict = {
   'chat.hit.help': { ko: '이 질문은 이 지식의 검증 문제 중 하나라 기대 답과 자동으로 비교했습니다. 기대 답: {expect}', en: 'This question is one of the knowledge’s benchmark items, so the answer was checked automatically. Expected: {expect}' },
   'chat.hit.expected': { ko: '기대 답:', en: 'Expected:' },
   'chat.hit.unknown': { ko: '자유 질문 — 자동 채점 없음', en: 'Free question — not auto-scored' },
+  // Finding 223 — two ticks under one answer are not two confirmations: there is ONE answer, checked against each
+  // knowledge's own expected value, which is also why a ✓ and a ✗ can sit side by side.
+  'chat.hit.one_answer': { ko: '답은 하나입니다 — 넣은 지식마다 자기 기대 답과 비교했습니다:', en: 'One answer, checked against each knowledge’s own expected value:' },
   'chat.turn.retry': { ko: '다시 시도', en: 'Retry' },
+  // Finding 58 — thinking shares the answer's token budget, so a thinking turn often comes back cut off or empty.
+  'chat.turn.ask_again': { ko: '생각 과정 끄고 다시 물어보기', en: 'Ask again without thinking' },
 
   // errors (plain Korean; server messages are mapped in ChatPage)
   'chat.err.no_body': { ko: '이 노드에 지식 본문이 없습니다. 판매 노드에서 테스트하거나 먼저 구매하세요.', en: 'This node does not have the knowledge body. Test it on the seller’s node or buy it first.' },
-  'chat.err.quota': { ko: '이 시간 무료 체험 횟수를 모두 사용했습니다. 한 시간 뒤 다시 시도하거나 지식을 구매해 내 노드에서 제한 없이 쓰세요.', en: 'You used all free tries for this hour. Try again in an hour, or buy the knowledge and use it without limits on your own node.' },
+  // Finding 57 — the bubble says what became of THIS question; the offer is made once, under the question box.
+  'chat.err.quota': { ko: '이 질문은 보내지 않았습니다 — 이 시간 무료 체험을 모두 썼습니다.', en: 'This question was not sent — you have no free tries left this hour.' },
   'chat.err.busy': { ko: '공유 모델이 오래 잡혀 있어 기다리다 포기했습니다. 잠시 후 다시 시도하세요.', en: 'The shared model stayed busy for too long, so this request gave up waiting. Try again in a moment.' },
   'chat.err.runtime': { ko: '모델 서버가 꺼져 있거나 응답하지 않습니다. 잠시 후 다시 시도하세요.', en: 'The model server is off or not responding. Try again in a moment.' },
   'chat.err.model': { ko: '이 지식은 이 노드가 서비스하는 모델과 다른 모델용이라 테스트할 수 없습니다.', en: 'This knowledge targets a different model than the one this node serves.' },
@@ -181,7 +253,9 @@ export const chat: Dict = {
   'chat.err.timeout': { ko: '답을 기다리다 시간이 초과되었습니다. 생각 과정을 끄거나 잠시 후 다시 시도하세요.', en: 'Timed out waiting for the answer. Turn thinking off or try again shortly.' },
   'chat.err.generic': { ko: '테스트 중 문제가 생겼습니다: {message}', en: 'Something went wrong during the test: {message}' },
   'chat.err.cancelled': { ko: '요청을 취소했습니다.', en: 'Request cancelled.' },
-  'chat.err.too_long': { ko: '요청이 너무 길거나 형식이 맞지 않습니다. 대화를 지우고 다시 시도하세요.', en: 'The request was too long or malformed. Clear the conversation and try again.' },
+  // Finding 61 — this used to blame the conversation and tell the visitor to clear it, which could not help: the
+  // node refuses ONE message longer than 4,000 characters. The question is now back in the box to be shortened.
+  'chat.err.too_long': { ko: '질문이 4,000자를 넘습니다. 줄여서 다시 보내 주세요 — 질문은 입력창에 그대로 있습니다.', en: 'That question is longer than 4,000 characters. Shorten it and send again — it is back in the box.' },
 
   // developer note
   'chat.dev.title': { ko: '노드 운영자·개발자', en: 'Node operators & developers' },

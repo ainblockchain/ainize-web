@@ -70,5 +70,7 @@ export const common: Dict = {
   'price.ain_note': { ko: 'AIN = AI Network 토큰 (이 데모는 로컬 개발 체인)', en: 'AIN = AI Network token (this demo runs a local dev chain)' },
   'units.rows': { ko: '기억 항목 {n}개', en: '{n} memory entries' },
   'units.facts': { ko: '사실 {n}건', en: '{n} facts' },
+  // Finding 88 — called without a count this read "1 facts" on every single-fact knowledge in the live-test picker.
+  'units.facts_one': { ko: '사실 1건', en: '1 fact' },
   'units.verified_by': { ko: '검증 노드 {passed}/{quorum}', en: '{passed}/{quorum} verifiers' },
 };
