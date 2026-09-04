@@ -141,7 +141,8 @@ export const api = createApi({
     verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     /** Item 270 — `with_required` buys the bases this knowledge needs underneath it too, deepest first. */
-    buy: b.mutation<PurchaseResult, { id: string; apply?: boolean; with_required?: boolean }>({ query: ({ id, apply, with_required }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply, with_required } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
+    // `again` is the deliberate second payment (item 271): without it the node collects on the receipt it already has.
+    buy: b.mutation<PurchaseResult, { id: string; apply?: boolean; with_required?: boolean; again?: boolean }>({ query: ({ id, apply, with_required, again }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply, with_required, again } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
     /** Item 273 — collect a knowledge this node already paid for: a re-issued manifest, no second charge. */
     collect: b.mutation<PurchaseResult, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/collect`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Events', 'Runtime'] }),
     /** Item 364 — where this node's local credit came from, and the fact that it is not money. */

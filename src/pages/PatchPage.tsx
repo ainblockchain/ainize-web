@@ -893,7 +893,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         <H3>{isOperator ? t('detail.buy.from_node') : t('detail.buy.visitor_title')}</H3>
         {isOperator && d.owned && <P>{t('detail.buy.owned')}<StyledLink to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.buy.owned_manage')}</StyledLink></P>}
         {isOperator && !d.owned && d.purchased && (
-          <PaidFor d={d} priceText={priceText} runtimeReady={runtimeReady} buying={isLoading} onBuyAgain={() => { reset(); void buy({ id: a.id }); }} />
+          <PaidFor d={d} priceText={priceText} runtimeReady={runtimeReady} buying={isLoading} onBuyAgain={() => { reset(); void buy({ id: a.id, again: true }); }} />
         )}
         {/* Item 3: why it cannot be bought is public — a visitor used to be shown the price and no reason at all. */}
         {!d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
