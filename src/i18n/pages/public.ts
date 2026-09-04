@@ -171,6 +171,19 @@ export const listing: Dict = {
   'explore.hidden_show': { ko: '보기', en: 'show' },
   'explore.count': { ko: '지식 {n}개', en: '{n} knowledge' },
   'explore.updating': { ko: '새로고침 중…', en: 'updating…' },
+  // Finding 70 — the hero says "verified"; this line used to say only how many rows it was showing, so a visitor
+  // told there was 1 verified knowledge and then shown 4 could not tell which page was wrong. Both pages count in
+  // the same word now, and this count is of what is ON SCREEN, never a node-wide figure that would not match.
+  'explore.count_verified': { ko: '그중 {term} {n}개', en: '{n} of them {term}' },
+  'explore.count_all_verified': { ko: '모두 {term}', en: 'all of them {term}' },
+  'explore.count_all_verified_one': { ko: '{term}', en: '{term}' },
+  // Finding 81 — the first result was the 19th focusable element on the page.
+  'explore.skip': { ko: '검색 결과로 건너뛰기', en: 'Skip to results' },
+  'explore.results': { ko: '전체 지식', en: 'All knowledge' },
+  // Finding 76 — the catalogue used to fail with the raw exception text and nothing to do about it.
+  'explore.unreachable': { ko: '이 노드의 지식 목록을 불러오지 못했습니다. 노드가 잠시 응답하지 않거나 네트워크가 끊겼을 수 있습니다.', en: 'Could not reach this node’s catalogue. The node may be briefly down, or the network unreachable.' },
+  'explore.retry': { ko: '다시 시도', en: 'Try again' },
+  'explore.error_detail': { ko: '기술 정보', en: 'Technical detail' },
   'explore.empty': { ko: '조건에 맞는 지식이 없습니다. 다른 모델·주제·검색어를 시도해 보세요.', en: 'No knowledge matches. Try another model, topic or search term.' },
 
   // benchmark (same-topic) page
@@ -195,6 +208,14 @@ export const listing: Dict = {
   'bench.empty': { ko: '이 주제의 지식이 아직 없습니다.', en: 'No knowledge on this topic yet.' },
   'bench.notfound': { ko: '"{schema}" 주제로 등록된 지식이 없습니다.', en: 'No knowledge is registered under the topic "{schema}".' },
 
+  // Finding 80 — the words this list is made of, defined ON the page instead of only inside hover `title`
+  // attributes that no phone and no keyboard could ever reach. One line per list, never one per card.
+  'explore.legend.verified': { ko: '독립된 노드가 실제 모델에 넣어 채점했습니다', en: 'independent nodes loaded it into the real model and scored it' },
+  'explore.legend.facts': { ko: '이 지식이 답할 수 있는 질문 수', en: 'how many questions it can answer' },
+  'explore.legend.rows': { ko: '모델 기억에서 바뀌는 항목 수', en: 'how many entries it changes in the model’s memory' },
+  'explore.legend.accuracy': { ko: '지식을 넣은 모델이 검증 질문을 맞힌 비율', en: 'the share of the benchmark questions the model got right with it loaded' },
+  'explore.legend.livetest': { ko: '사기 전에 넣기 전·후 답을 무료로 비교', en: 'compare the before and after answers, free, before you buy' },
+
   // list item
   'item.verified_by': { ko: '검증 완료 (독립 검증 {passed}/{quorum})', en: 'Verified ({passed}/{quorum} independent verifiers)' },
   'item.verified_extra': { ko: '(+{n}건 더)', en: '(+{n} more)' },
@@ -215,6 +236,23 @@ export const listing: Dict = {
   'item.price_credit': { ko: '{n} 노드 크레딧', en: '{n} node credits' },
   'item.price_usdc': { ko: '{n} USDC', en: '{n} USDC' },
   'item.price_note_usdc': { ko: 'USDC = 달러 연동 스테이블코인', en: 'USDC = dollar-pegged stablecoin' },
+
+  // Finding 282 — nothing on the browse surfaces said a knowledge was an add-on, so a buyer comparing a 5-credit
+  // base with a 3-credit item built on it could not tell which was which until the fourth tab of the detail page.
+  // `base.stack` is the table state the body was trained against: without it underneath, the rows mean nothing.
+  'item.addon': { ko: '애드온 · {names} 위에서 동작', en: 'Add-on · runs on {names}' },
+  'item.addon_help': { ko: '이 지식만으로는 동작하지 않습니다. {names}를 함께 가지고 있어야 하고, 모델에 넣을 때도 그 아래에 먼저 들어가야 합니다. 가격 비교를 할 때는 두 지식의 값을 함께 보세요.', en: 'This does not work on its own: you have to hold the knowledge it names as well, and load that underneath it. Compare its price together with what its base costs.' },
+  'item.built_on': { ko: '{names} 위에 만든 지식', en: 'Built on {names}' },
+  'item.built_on_help': { ko: '이 지식은 앞선 지식에서 갈라져 나왔습니다. 따로 동작하지만, 팔릴 때마다 원작자에게도 수익이 나뉩니다.', en: 'This one grew out of the knowledge it names. It works on its own, and every sale shares revenue with that creator.' },
+  // Finding 200 — the two facts a creator needs before building on someone's knowledge, on the card where they
+  // are comparing. Both are absent from every anchor written before the lineage fields, and absent means absent:
+  // no chip is drawn rather than a default that would be a claim this node cannot make.
+  'item.license': { ko: '라이선스 {name}', en: 'Licence {name}' },
+  'item.license_help': { ko: '이 지식과 학습 데이터에 붙은 이용 조건입니다. 위에 얹어 새 지식을 만들려면 이 조건을 따라야 합니다.', en: 'The terms attached to this knowledge and its training set. Anything you build on top has to follow them.' },
+  'item.dataset_public': { ko: '학습 데이터 공개', en: 'Training set: public' },
+  'item.dataset_derivative': { ko: '학습 데이터: 파생 제작자에게 공개', en: 'Training set: open to people building on it' },
+  'item.dataset_private': { ko: '학습 데이터 비공개', en: 'Training set: private' },
+  'item.dataset_help': { ko: '이 지식을 만든 질문·정답 묶음을 누가 읽을 수 있는지입니다. 읽을 수 있어야 그 위에 더 가르쳐서 새 지식을 만들 수 있습니다.', en: 'Who may read the questions and answers this was trained from. You need that access to teach on top of it.' },
 };
 
 export const misc: Dict = {

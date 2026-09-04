@@ -2,8 +2,10 @@ import type { HTMLAttributes } from 'react';
 import { Link, useNavigate } from 'react-router';
 import styled, { css, keyframes } from 'styled-components';
 import type { CatalogEntry } from '@/api/types';
+import { Explain } from '@/components/ui/Explain';
 import { Certified, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { browseDescription } from '@/lib/describe';
 import { bytes, denominator, num, pct, shortAddr } from '@/utils/format';
 
 /* ------------------------------------------------------------------ shared helpers (used by landing / explore / benchmark) */
@@ -61,7 +63,15 @@ export function useVerificationLabel() {
 
 /* ------------------------------------------------------------------ list item */
 
-const Wrapper = styled(Link)`
+/**
+ * Finding 81 — the whole card used to be one anchor, so a screen reader announced a 723-character link instead of a
+ * name and the list offered no headings to skim (`document.querySelectorAll('h1,h2,h3,h4')` on /explore returned
+ * exactly ["H1:Explore knowledge"]). The card is a plain box now; the NAME is the link, and it stretches an
+ * invisible overlay across the box so the whole row still opens the knowledge. Everything interactive inside sits
+ * above that overlay on `z-index: 1`.
+ */
+const Wrapper = styled.div`
+  position: relative;
   padding: 16px 32px;
   display: flex;
   flex-direction: row;
@@ -69,11 +79,10 @@ const Wrapper = styled(Link)`
   gap: 16px;
   background-color: ${(p) => p.theme.color.WHITE};
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
-  text-decoration: none;
   transition: box-shadow 0.4s ease;
   box-shadow: 0 0 0 rgba(0, 0, 0, 0.3);
   &:not(:last-child) { margin-bottom: 16px; }
-  &:hover {
+  &:hover, &:focus-within {
     box-shadow: 0 2px 6px 0 #e0e4e7, inset -1px 0 0 0 rgba(224, 227, 231, 0.3), inset 0 -1px 0 0 #e0e4e7, inset 1px 0 0 0 rgba(224, 227, 231, 0.2);
   }
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 16px; }
@@ -102,8 +111,16 @@ const NameRow = styled.div`
   display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px;
 `;
 
-const Name = styled.div`
-  font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; word-break: keep-all;
+/** An `h3`: under the list's own `h2`, and under the question-set `h2` on /benchmarks/:schema. */
+const Name = styled.h3`
+  margin: 0; font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; word-break: keep-all;
+`;
+const NameLink = styled(Link)`
+  color: inherit; text-decoration: none;
+  /* the stretched link: the accessible name is the knowledge's name, the click target is the whole card */
+  &::after { content: ''; position: absolute; inset: 0; }
+  &:hover { text-decoration: underline; }
+  &:focus-visible { outline: 2px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 3px; }
 `;
 
 const Ident = styled.div`
@@ -113,14 +130,27 @@ const Ident = styled.div`
 const Meta = styled.div<{ $mt?: number }>`
   margin-top: ${(p) => p.$mt ?? 8}px; font-size: 12px; color: ${(p) => p.theme.color.BLACK}; line-height: 1.6;
   b { font-weight: 500; color: ${(p) => p.theme.color.GREY}; }
-  abbr { text-decoration: none; border-bottom: 1px dotted ${(p) => p.theme.color.LIGHT_GREY}; cursor: help; }
 `;
 
 const Good = styled.span`color: ${(p) => p.theme.color.SUCCESS}; font-weight: 600;`;
-const TaughtChip = styled.span`
-  display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; background: #e1eef3; color: #0b5468; margin-right: 6px;
+const chipCss = `display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.7;`;
+const TaughtChip = styled.span`${chipCss} background: #e1eef3; color: #0b5468; margin-right: 6px;`;
+/**
+ * Findings 282 and 200 — the browse surfaces said nothing about a knowledge's family or its terms: a buyer choosing
+ * between a 5-credit base and a 3-credit item built on it could not tell which was which until the fourth tab of the
+ * detail page, and a creator could not tell whether they were allowed to build on it at all. These chips carry the
+ * three facts that decide both: what it sits on, what licence it is under, and who may read its training set.
+ */
+const Chips = styled.div`margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;`;
+const Tag = styled.span<{ $tone: 'base' | 'family' | 'terms' }>`
+  ${chipCss}
+  position: relative; z-index: 1;
+  background: ${(p) => (p.$tone === 'base' ? '#fff1de' : p.$tone === 'family' ? '#f0eafd' : '#eef1f4')};
+  color: ${(p) => (p.$tone === 'base' ? '#8a4b00' : p.$tone === 'family' ? '#5b1ca8' : '#4a5560')};
+  button { border-bottom-color: currentColor; opacity: 1; }
 `;
 const UseBtn = styled.button`
+  position: relative; z-index: 1;
   background: none; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; &:hover { text-decoration: underline; }
 `;
 const Soft = styled.span`color: ${(p) => p.theme.color.GREY};`;
@@ -167,7 +197,49 @@ export function PriceUnitNote({ entries, currency, ...rest }: { entries: Catalog
   return <UnitNote {...rest}>{notes.join(' · ')}</UnitNote>;
 }
 
-export function PatchListItem({ entry, currency }: { entry: CatalogEntry; currency?: string }) {
+const LegendLine = styled.p`
+  margin: 0 0 16px; font-size: 12px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;
+  b { font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; }
+`;
+
+/**
+ * Finding 80 — the words a browse list is made of ("Verified", "facts covered", "learned memory entries",
+ * "accuracy") were defined ONLY inside hover `title` attributes on `<abbr>` elements with no tabindex, so on a phone
+ * and at the keyboard the definitions did not exist and what was left on screen was bare jargon. They are on the
+ * page now, visibly, in one 12 px line — once per list rather than once per card, the same rule `PriceUnitNote`
+ * follows, because ten copies of a definition is what drove them into tooltips to begin with.
+ */
+export function TermsLegend(props: HTMLAttributes<HTMLParagraphElement>) {
+  const { t, term } = useT();
+  const items: [Parameters<typeof term>[0], string][] = [
+    ['verified', 'explore.legend.verified'],
+    ['facts', 'explore.legend.facts'],
+    ['rows', 'explore.legend.rows'],
+    ['accuracy', 'explore.legend.accuracy'],
+    ['liveTest', 'explore.legend.livetest'],
+  ];
+  return (
+    <LegendLine data-testid="terms-legend" {...props}>
+      {items.map(([k, key], i) => (
+        <span key={k}>{i > 0 && ' · '}<b>{term(k)}</b> — {t(key)}</span>
+      ))}
+    </LegendLine>
+  );
+}
+
+/** The knowledges this one sits on, and whether it can stand without them (findings 282, 200). */
+function useFamily(entry: CatalogEntry, nameOf?: (id: string) => string | undefined) {
+  const { t } = useT();
+  const a = entry.anchor;
+  const label = (ids: string[]) => ids.map((id) => nameOf?.(id) ?? id).join(', ');
+  // `base.stack` is the table state the body was trained against: without it underneath, the rows mean nothing.
+  const stack = a.base?.stack?.map((s) => s.patch_id) ?? [];
+  if (stack.length) return { tone: 'base' as const, text: t('item.addon', { names: label(stack) }), help: t('item.addon_help') };
+  if (a.parents?.length) return { tone: 'family' as const, text: t('item.built_on', { names: label(a.parents) }), help: t('item.built_on_help') };
+  return null;
+}
+
+export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry; currency?: string; nameOf?: (id: string) => string | undefined }) {
   const { t, term, help, tech } = useT();
   const priceLabel = usePriceLabel();
   const verification = useVerificationLabel();
@@ -183,13 +255,19 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
     : (entry.status === 'VERIFYING' || entry.status === 'ANNOUNCED' ? 'pending' : null);
   /** How the verifiers asked their questions — two knowledges scored on different forms are different exams. */
   const formats = a.benchmark.format?.length ? a.benchmark.format.join(' + ') : null;
+  const family = useFamily(entry, nameOf);
+  /** Who may read the questions this was trained from — the thing that decides whether anyone can build on it. */
+  const access = a.dataset?.access;
+  /** Item 200: how often somebody has built on this, from the children the ledger records. */
+  const builtOn = entry.children.length;
+  const description = browseDescription(a.description);
 
   return (
-    <Wrapper to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}`}>
+    <Wrapper data-testid="patch-card">
       {seal && <Icon src="/static/images/ic-certified.svg" alt="" data-testid={`seal-${seal}`} title={t(`item.seal_${seal}`)} $tone={seal} />}
       <Info>
         <NameRow>
-          <Name>{a.name || a.id}</Name>
+          <Name><NameLink to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}`}>{a.name || a.id}</NameLink></Name>
           {/* Item 153: no green "Verified" badge while a verifier's challenge is open — the chip beside it says
               "Re-verification requested", and the two together would read as a bug. `sellable` is undefined on a node
               running an older build, which keeps the old behaviour there. */}
@@ -206,25 +284,46 @@ export function PatchListItem({ entry, currency }: { entry: CatalogEntry; curren
           </Meta>
         )}
 
+        {(family || a.license || access) && (
+          <Chips data-testid="item-chips">
+            {family && (
+              <Tag $tone={family.tone} data-testid="item-family">
+                <Explain text={family.help} label={family.text}>{family.text}</Explain>
+              </Tag>
+            )}
+            {a.license && (
+              <Tag $tone="terms" data-testid="item-license">
+                <Explain text={t('item.license_help')} label={t('item.license', { name: a.license })}>{t('item.license', { name: a.license })}</Explain>
+              </Tag>
+            )}
+            {access && (
+              <Tag $tone="terms" data-testid="item-dataset">
+                <Explain text={t('item.dataset_help')} label={t(`item.dataset_${access}`)}>{t(`item.dataset_${access}`)}</Explain>
+              </Tag>
+            )}
+          </Chips>
+        )}
+
         <Meta $mt={12}>
           <b>{t('common.author')}:</b> {author} · <b>{t('common.model')}:</b> {a.model.id_M}
-          {' · '}<b>{t('item.topic')}:</b> <abbr title={t('explore.filter.schema_help')}>{a.benchmark.schema}</abbr>
+          {' · '}<b>{t('item.topic')}:</b> {a.benchmark.schema}
         </Meta>
         <Meta>
           <PriceInline data-testid="item-price-inline">{p.text}</PriceInline>
-          <abbr title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(a.benchmark.queries) })}</abbr>
-          {' · '}<abbr title={`${help('rows')} (${tech('rows')})`}>{t('units.rows', { n: num(a.rows) })}</abbr>
+          {t('units.facts', { n: num(a.benchmark.queries) })}
+          {' · '}{t('units.rows', { n: num(a.rows) })}
           {' · '}{t('item.size', { size: bytes(a.size_bytes) })}
           {' · '}{t('item.downloads', { n: num(entry.downloads) })}
+          {builtOn > 0 && <>{' · '}<span data-testid="item-built-on">{t('explore.card.built_on', { c: num(builtOn) })}</span></>}
         </Meta>
         <Meta>
-          <abbr title={`${help('verified')} (${tech('verified')})`}>{entry.quorum_ok && entry.sellable !== false ? <Good>{verification(entry)}</Good> : verification(entry)}</abbr>
-          {entry.integrity_checks > 0 && <>{' · '}<Soft><abbr title={t('item.integrity_help')}>{t('item.integrity_only', { n: entry.integrity_checks })}</abbr></Soft></>}
-          {acc && <>{' · '}<abbr title={`${t('item.accuracy_raw', { raw: acc.raw })} — ${help('accuracy')}`}><Good>{t('item.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</Good></abbr></>}
+          {entry.quorum_ok && entry.sellable !== false ? <Good>{verification(entry)}</Good> : verification(entry)}
+          {entry.integrity_checks > 0 && <>{' · '}<Soft><Explain text={t('item.integrity_help')}>{t('item.integrity_only', { n: entry.integrity_checks })}</Explain></Soft></>}
+          {acc && <>{' · '}<Explain text={`${t('item.accuracy_raw', { raw: acc.raw })} — ${help('accuracy')}`} tech={tech('accuracy')}><Good>{t('item.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</Good></Explain></>}
           {/* Finding 24: an accuracy is only comparable with one measured on the same question set, in the same form. */}
-          {formats && <>{' · '}<Soft data-testid="item-format"><abbr title={t('item.format_help')}>{t('item.format', { formats })}</abbr></Soft></>}
+          {formats && <>{' · '}<Soft data-testid="item-format"><Explain text={t('item.format_help')}>{t('item.format', { formats })}</Explain></Soft></>}
         </Meta>
-        {a.description && <Desc>{a.description}</Desc>}
+        {description && <Desc>{description}</Desc>}
       </Info>
       <PriceCol>
         <Price>{p.text}</Price>
