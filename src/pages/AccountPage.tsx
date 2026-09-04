@@ -266,9 +266,11 @@ export default function AccountPage() {
               {/* Item 311: a settle record naming this address is the SELLER's promise, not a receipt. Every row now
                   carries the state this node can actually defend, and the three totals can be reconciled. */}
               {wallet.data.royalty_totals && (
+                /* `revenue`, not `fmt`: these four are amounts this node EARNED, and `fmt` renders a zero as the
+                   word "Free" — so a node that has been paid nothing read "transferred Free · unconfirmed Free". */
                 <Muted style={{ display: 'block', marginTop: 6 }} data-testid="royalty-totals">{t('op.account.royalties.totals', {
-                  owed: money.fmt(wallet.data.royalty_totals.owed, currency), credited: money.fmt(wallet.data.royalty_totals.credited, currency),
-                  paid: money.fmt(wallet.data.royalty_totals.paid, currency), unconfirmed: money.fmt(wallet.data.royalty_totals.unconfirmed, currency),
+                  owed: money.revenue(wallet.data.royalty_totals.owed, currency), credited: money.revenue(wallet.data.royalty_totals.credited, currency),
+                  paid: money.revenue(wallet.data.royalty_totals.paid, currency), unconfirmed: money.revenue(wallet.data.royalty_totals.unconfirmed, currency),
                 })}</Muted>
               )}
               <TableWrapper style={{ marginTop: 8 }}>
@@ -300,7 +302,7 @@ export default function AccountPage() {
               {/* Item 325: the fourth party in this economy — the one that only paid — can now see what it earned. */}
               <strong style={{ fontSize: 14, display: 'block', marginTop: 20 }}>{t('op.account.verification')}</strong>
               <Muted style={{ display: 'block', marginTop: 6 }} data-testid="verification-earned">{wallet.data.verification?.length
-                ? t('op.account.verification.some', { n: wallet.data.verification.length, amount: money.fmt(wallet.data.verification_total ?? '0', currency) })
+                ? t('op.account.verification.some', { n: wallet.data.verification.length, amount: money.revenue(wallet.data.verification_total ?? '0', currency) })
                 : t('op.account.verification.none', { pct: Math.round((wallet.data.verifier_share ?? 0.05) * 100) })}</Muted>
             </div>
           </Grid>
