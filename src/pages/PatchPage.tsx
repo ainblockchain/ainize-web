@@ -469,7 +469,7 @@ export default function PatchPage() {
             {/* SC-9 *Build on this* — the flag holds it back, and a private training set says why nobody can. */}
             <BuildOn type="button" data-testid="build-on" disabled={!canBuildOn || noBase}
               title={datasetPrivate ? t('detail.build_on_private') : datasetNone ? t('detail.build_on_none') : undefined}
-              onClick={() => { window.location.href = `/teach/settings?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
+              onClick={() => { window.location.href = `/teach/upload?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
             <ViewAll to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{t('detail.patch.view_same_subject')}</ViewAll>
           </HeadRight>
         </BandContent>

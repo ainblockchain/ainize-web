@@ -168,10 +168,10 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate, dataset
 
       <Buttons>
         {/* Gated by `teach.lineage` (§18): reading the family is always allowed, building on it is what the flag holds back. */}
-        <a className="primary" href={blocked ? undefined : `/teach/settings?on=${encodeURIComponent(id)}`}
+        <a className="primary" href={blocked ? undefined : `/teach/upload?on=${encodeURIComponent(id)}`}
           aria-disabled={blocked} data-testid="tree-teach-on"
           style={blocked ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_teach')}</a>
-        <a href={blocked ? undefined : `/teach/settings?on=${encodeURIComponent(id)}&copy=1`} data-testid="tree-copy"
+        <a href={blocked ? undefined : `/teach/upload?on=${encodeURIComponent(id)}&copy=1`} data-testid="tree-copy"
           aria-disabled={blocked} style={blocked ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.tree.btn_copy')}</a>
         {/* The other half of the owner's question ("why can I not MERGE someone else's?"): the merge screen is only
             reachable from here, and only where building on this is (§9 needs its questions like every other build).

@@ -480,6 +480,8 @@ export const teach: Dict = {
   'teach.up.sample_hint': { ko: '질문 몇 개짜리 jsonl — 열어서 내용만 바꿔 다시 올리세요.', en: 'A handful of questions in jsonl — open it, replace the text with yours, upload it back.' },
   'teach.up.sample_use': { ko: '이 예시로 시작하기', en: 'Start from this sample' },
   'teach.up.sample_rows': { ko: '질문 {n}개', en: '{n} questions' },
+  // SC-9 — the visitor arrived from a knowledge page with `?on=`: they may copy its questions, or bring their own file.
+  'teach.up.on_own': { ko: '아니면 내 질문 파일을 올리세요 — 그 지식 위에 얹어서 학습합니다.', en: 'Or bring your own questions below — they are taught on top of it.' },
   'teach.up.privacy': { ko: '학습하는 동안 파일이 이 노드에 저장되고 노드 운영자가 볼 수 있습니다. 개인정보나 공유할 수 없는 내용은 올리지 마세요.', en: 'Your file is stored on this node while it trains, and the node operator can see it. Do not upload personal data or anything you are not allowed to share.' },
   'teach.up.next': { ko: '이 질문들 확인하기', en: 'Check these questions' },
   'teach.up.encoding': { ko: '{encoding}(으)로 읽었습니다. 글자가 깨져 보이면 UTF-8로 저장해 다시 올리세요.', en: 'Read as {encoding}. If the text looks wrong, save the file as UTF-8 and upload it again.' },

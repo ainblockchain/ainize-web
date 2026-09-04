@@ -43,7 +43,7 @@ export function TrainingSetBlock({ d, canBuildOn }: { d: PatchDetail; canBuildOn
       {!d.dataset_held && access !== 'private' && <Note data-testid="ds-unavailable">{t('detail.ds.unavailable')}</Note>}
       <Buttons>
         <button type="button" onClick={() => setOpen((x) => !x)} disabled={access === 'private'} data-testid="ds-preview">{t('detail.ds.btn_preview')}</button>
-        <a href={canBuildOn && access !== 'private' ? `/teach/settings?on=${encodeURIComponent(a.id)}&copy=1` : undefined}
+        <a href={canBuildOn && access !== 'private' ? `/teach/upload?on=${encodeURIComponent(a.id)}&copy=1` : undefined}
           aria-disabled={!canBuildOn || access === 'private'} data-testid="ds-copy"
           style={!canBuildOn || access === 'private' ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.ds.btn_copy')}</a>
         {access === 'public' && d.dataset_held && (
