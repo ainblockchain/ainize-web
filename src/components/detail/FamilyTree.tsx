@@ -79,6 +79,9 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate }: { id:
   const kindsShown = [...new Set(data.edges.map((e) => e.kind))];
   // SC-9's "{names}" are the knowledges whose creators share the lineage pool — not every address on the split
   const names = data.money.lineage_names.join(', ');
+  // …and the people credited on THIS knowledge, named the same way the money names them: a name when the record
+  // carries one, the address otherwise. Never "someone", which would hide who a creator is actually paying.
+  const credited = data.money.recipients.filter((r) => r.kind === 'contributor').map((r) => r.name ?? shortAddr(r.address, 6)).join(', ');
 
   return (
     <Wrap>
@@ -149,6 +152,9 @@ export function FamilyTree({ id, authorSlug, canBuildOn, datasetPrivate }: { id:
         <div data-testid="tree-family">{t('detail.tree.family', { sales: num(data.family.sales), n: num(data.family.knowledges), authors: num(data.family.authors) })}</div>
         {data.money.lineage_pct > 0 && (
           <div data-testid="tree-money">{t('detail.tree.money', { seller: data.money.seller_pct, seller_name: data.money.seller_name ?? shortAddr(data.nodes.find((n) => n.id === data.root)?.author ?? '', 6), lineage: data.money.lineage_pct, names })}</div>
+        )}
+        {data.money.contributor_pct > 0 && (
+          <div data-testid="tree-money-contrib">{t('detail.tree.money_contrib', { pct: data.money.contributor_pct, names: credited })}</div>
         )}
         {/* Item 325: the same sale also pays the verifiers that keep it on sale — this line is computed by the real
             splitter, so the percentages here are the ones that will move. */}

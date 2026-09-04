@@ -28,6 +28,9 @@ export const lineageTree: Dict = {
   'detail.tree.legacy': { ko: '부모로 표시됨 — 그 위에서 학습되진 않음', en: 'Declared parent — not trained on top' },
   'detail.tree.family': { ko: '이 계보: 판매 {sales} · 지식 {n}개 · 제작자 {authors}명', en: 'This family: {sales} sales · {n} knowledges · {authors} creators' },
   'detail.tree.money': { ko: '판매 1건당: {seller_name}에게 {seller}%, {lineage}%는 {names} 제작자에게', en: 'Each sale: {seller}% to {seller_name}, {lineage}% shared by the creators of {names}' },
+  // The other half of the same sale. SC-9 writes only the lineage line, but a page that says where 30 % goes and
+  // stays silent about the other 70 % reads as if the rest were the seller's — on a teaching node it is not.
+  'detail.tree.money_contrib': { ko: '같은 판매에서 {pct}%는 이 지식에 이름이 올라간 제작자({names})에게 갑니다.', en: 'Of the same sale, {pct}% goes to the creators credited on this knowledge: {names}.' },
   // item 325 — the fourth party in every sale: the nodes whose verification keeps it on sale.
   'detail.tree.money_verify': { ko: '같은 판매에서 {pct}%는 이 지식을 검증한 노드 {n}곳이 나눠 받습니다.', en: 'Of the same sale, {pct}% is divided among the {n} node(s) whose verification keeps it on sale.' },
   'detail.tree.btn_teach': { ko: '이 위에 가르치기', en: 'Teach on top of this' },

@@ -579,7 +579,8 @@ export interface TreeResponse {
     /** what the verifiers keeping this knowledge on sale are paid out of one sale (item 325) */
     verifier_pct?: number; verifier_count?: number;
     seller_name: string | null; lineage_names: string[];
-    recipients: { address: string; pct: number; name: string | null; kind: 'lineage' | 'contributor' | 'verifier' }[];
+    /** `for_id`/`for_name` name the ancestor a lineage share is paid FOR (the base whose creator this pays). */
+    recipients: { address: string; pct: number; name: string | null; kind: 'lineage' | 'contributor' | 'verifier'; for_id?: string; for_name?: string }[];
   };
 }
 export interface SignalsResponse {
