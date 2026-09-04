@@ -53,7 +53,15 @@ const SchemaBox = styled.details`
   pre { margin: 0; padding: 10px 14px; font-size: 12px; overflow-x: auto; background: #f7f7f9; }
 `;
 
+const PromiseList = styled.ul`
+  margin: 12px 0 8px; padding-left: 18px;
+  li { font-size: 13.5px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; }
+`;
+
 const METHODS = ['get', 'post', 'patch', 'delete'] as const;
+
+/** The one line that connects an MCP client to THIS node. `node` is the base URL the node reports for itself. */
+const MCP_ADD = (node: string) => `claude mcp add ainize -e AINIZE_NODE_URL=${node} -- node <repo>/packages/mcp/dist/bin.js`;
 
 export default function DocsPage() {
   const { t, locale } = useT();
@@ -111,6 +119,16 @@ export default function DocsPage() {
       </OneLineGrid>
       <SubTitle $mt={24}>{t('docs.install')}</SubTitle>
       <Cmd style={{ marginTop: 10 }}>{cli.install.join('\n')}</Cmd>
+
+      <SubTitle $mt={32}>{t('docs.mcp.title')}</SubTitle>
+      <Lede>{t('docs.mcp.lede')}</Lede>
+      <CmdRow style={{ marginTop: 10 }}><Cmd>{MCP_ADD(node)}</Cmd><CopyButton text={MCP_ADD(node)} label={t('docs.copy')} /></CmdRow>
+      <PromiseList>
+        <li>{t('docs.mcp.promise1')}</li>
+        <li>{t('docs.mcp.promise2')}</li>
+        <li>{t('docs.mcp.promise3')}</li>
+      </PromiseList>
+      <Description>{t('docs.mcp.more')}</Description>
 
       <div style={{ marginTop: 40 }}>
         <Tabs tabs={[{ id: 'cli', label: t('docs.cli.title') }, { id: 'api', label: t('docs.api.title') }]} value={tab} onChange={(id) => setTab(id as 'cli' | 'api')} />
