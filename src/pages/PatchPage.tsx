@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useApplyMutation, useBenchmarkQuery, useBuyMutation, useInfoQuery, useMyPurchasesQuery,
+  errorMessage, useApplyMutation, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery,
   usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery,
 } from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
@@ -709,6 +709,7 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
   const f = useDetailFormat();
   const [again, setAgain] = useState(false);
   const [apply, applyState] = useApplyMutation();
+  const [collect, collectState] = useCollectMutation();
   const { data: purchases } = useMyPurchasesQuery();
   const row = purchases?.items.find((x) => x.patch_id === d.anchor.id);
   return (
@@ -719,7 +720,21 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
           {t('detail.buy.paid_when', { amount: f.priceLabel(row.amount, d.anchor.currency), when: f.ago(row.created_at), tx: shortHash(row.tx_hash, 16) })}
         </Note>
       )}
-      {!d.has_body && <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-paid-gone">{t('detail.buy.paid_gone', { price: priceText })}</Alert>}
+      {/* Item 273: the body is gone but the payment is not. The seller re-issues the manifest against the
+          settlement it already recorded, so getting it back is free — it used to say the opposite. */}
+      {!d.has_body && (
+        <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-paid-gone">
+          {t('detail.buy.paid_gone')}
+          <Actions>
+            <Button
+              variant="contained" loading={collectState.isLoading} loadingText={t('detail.buy.collecting')}
+              onClick={() => { void collect(d.anchor.id); }} data-testid="buy-collect"
+            >{t('detail.buy.collect')}</Button>
+          </Actions>
+        </Alert>
+      )}
+      {collectState.error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(collectState.error)}</Alert>}
+      {collectState.data && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="buy-collected">{t('detail.buy.collected', { amount: f.priceLabel(collectState.data.amount, d.anchor.currency), tx: shortHash(collectState.data.tx_hash, 16) })}</Alert>}
       <Actions>
         {d.has_body && !d.applied && (
           <Button
@@ -752,7 +767,13 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const [buy, { data: result, isLoading, error, reset }] = useBuyMutation();
-  const gw = d.gateway_url ?? `${window.location.origin}/x402/patch/${d.anchor.id}`;
+  /**
+   * Item 275: `gateway_url` is frozen into the anchor and stops resolving the moment the seller changes its port,
+   * so what a visitor is told to call is the address the node says answers TODAY; the record's is shown only when
+   * it differs, as the stale hint it is.
+   */
+  const gw = d.gateway?.url ?? d.gateway_url ?? `${window.location.origin}/x402/patch/${d.anchor.id}`;
+  const gwStale = !!d.gateway_url && d.gateway?.url !== undefined && d.gateway.url !== d.gateway_url;
   const a = d.anchor;
   /**
    * Item 4: a retired version used to sell exactly like the current one — the only warning sat in the Origins tab,
@@ -777,6 +798,16 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const priceText = f.priceLabel(a.price, a.currency);
   const note = f.priceNote(a.currency);
   const mine = scoreOf(d);
+  /**
+   * Item 270: buying a child bought the child alone, and this page said nothing about whether its base was needed,
+   * already inside it, or a second unbudgeted purchase from another node. The node answers all three now.
+   */
+  const quote = d.quote;
+  const needs = quote?.requires ?? [];
+  const missing = needs.filter((r) => !r.licensed && !r.mine);
+  const totalText = quote ? f.priceLabel(quote.total, quote.currency) : priceText;
+  // Item 364: on a local-credit node the money is issued BY this node — say so where it is about to be spent.
+  const { data: credit } = useMyCreditQuery(undefined, { skip: !isOperator || a.currency !== 'CREDIT' });
   return (
     <>
       {superseded && (
@@ -814,8 +845,40 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         <P>{t('detail.buy.explain')}</P>
         <KeyValue>
           <dt>{t('detail.buy.price')}</dt><dd>{priceText} · {f.billingLabel(a.billing)}{note && <div style={{ fontSize: 12, color: '#8d8d8f' }}>{note}</div>}</dd>
+          {/* One sentence that answers "is this file complete on its own?" — and, when it is not, what the rest costs. */}
+          <dt>{t('detail.buy.needs')}</dt>
+          <dd data-testid="buy-requires">
+            {needs.length === 0
+              ? t('detail.buy.needs_none')
+              : (
+                <>
+                  <div>{t('detail.buy.needs_lead')}</div>
+                  {needs.map((r) => (
+                    <div key={r.id} style={{ marginTop: 4 }}>
+                      <StyledLink to={`/${encodeURIComponent(r.author ?? authorSlug)}/${encodeURIComponent(r.id)}`}>{r.name || r.id}</StyledLink>
+                      {' — '}
+                      {r.mine ? t('detail.buy.needs_mine')
+                        : r.licensed ? t('detail.buy.needs_have')
+                        : r.known ? t('detail.buy.needs_buy', { price: f.priceLabel(r.price ?? '0', r.currency ?? a.currency), who: r.author_name ?? shortAddr(r.author ?? '', 6) })
+                        : t('detail.buy.needs_unknown')}
+                    </div>
+                  ))}
+                  {missing.length > 0 && <div style={{ marginTop: 6, fontWeight: 600 }}>{t('detail.buy.needs_total', { total: totalText, n: missing.length })}</div>}
+                </>
+              )}
+            {quote?.export === 'squash' && needs.length === 0 && <div style={{ fontSize: 12, color: '#8d8d8f' }}>{t('detail.buy.needs_squash')}</div>}
+          </dd>
           <dt>{t('detail.buy.seller')}</dt><dd>{a.author_name ? <>{a.author_name} <Mono style={{ color: '#8d8d8f' }}>{shortAddr(a.author, 8)}</Mono></> : <Mono>{a.author}</Mono>}</dd>
-          <dt title={t('detail.tech.gateway')}>{t('detail.buy.gateway')}</dt><dd><ExternalLink href={gw} target="_blank" rel="noopener noreferrer">{gw}</ExternalLink></dd>
+          <dt title={t('detail.tech.gateway')}>{t('detail.buy.gateway')}</dt>
+          <dd>
+            <ExternalLink href={gw} target="_blank" rel="noopener noreferrer">{gw}</ExternalLink>
+            {gwStale && (
+              <div style={{ fontSize: 12, color: '#8d8d8f' }} data-testid="buy-gateway-moved">
+                {t('detail.buy.gateway_moved', { old: d.gateway_url ?? '' })}
+                {d.gateway?.via === 'peer' && d.gateway.last_seen ? ` ${t('detail.buy.gateway_seen', { when: f.ago(d.gateway.last_seen) })}` : ''}
+              </div>
+            )}
+          </dd>
         </KeyValue>
         <Alert $tone="info" style={{ marginTop: 16 }}>
           <b>{t('detail.buy.agent_title')}</b> — {t('detail.buy.agent_text')} <StyledLink to="/docs">{t('detail.buy.agent_link')}</StyledLink>
@@ -854,12 +917,18 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
                 stays possible, but as an outlined button that says which version the money buys. */}
             <Button
               variant={superseded ? 'outlined' : 'contained'} loading={isLoading} loadingText={t('detail.buy.paying')}
-              onClick={() => { reset(); void buy({ id: a.id }); }} title={help('autoPay')} data-testid="buy-button"
+              onClick={() => { reset(); void buy({ id: a.id, with_required: missing.length > 0 }); }} title={help('autoPay')} data-testid="buy-button"
             >
-              {superseded ? t('detail.buy.button_old', { price: priceText }) : t('detail.buy.button', { price: priceText })}
+              {/* The button says what leaves the wallet: the family total when a base has to come with it. */}
+              {missing.length > 0 ? t('detail.buy.button_family', { price: totalText, n: missing.length + 1 })
+                : superseded ? t('detail.buy.button_old', { price: priceText })
+                : t('detail.buy.button', { price: priceText })}
             </Button>
             {superseded && head && <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{t('detail.buy.old_open')} →</StyledLink>}
             <Quorum>{a.currency === 'AIN' ? t('detail.buy.pays_from_ain') : t('detail.buy.pays_from_credit')}{note && <> · {note}</>}</Quorum>
+            {credit && credit.issuance.issues && (
+              <Quorum data-testid="buy-credit-note">{t('detail.buy.credit_issued', { balance: credit.balance, currency: credit.currency, node: credit.issued_by.name ?? shortAddr(credit.issued_by.address, 6), n: credit.issuance.addresses, cap: credit.issuance.cap })}</Quorum>
+            )}
           </div>
         )}
         {error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(error)}</Alert>}

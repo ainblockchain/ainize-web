@@ -101,19 +101,53 @@ export interface ConflictInfo {
   author?: string; author_name?: string | null; same_author?: boolean; created_at?: number; sales?: number;
 }
 
+/**
+ * One knowledge that has to be UNDER this one for it to mean anything (lineage §12.5, item 270), with what it
+ * costs and whether this node may already use it. `licensed` is the one that decides whether it still has to be
+ * bought: a verifier holds the bytes of everything it scored without ever paying for them.
+ */
+export interface RequiredBase {
+  id: string; name: string; held: boolean; price: string | null;
+  currency?: string; author?: string; author_name?: string | null; gateway_url?: string | null;
+  depth?: number; known?: boolean; licensed?: boolean; purchased?: boolean; mine?: boolean;
+}
+
+/** `GET /api/patches/:id/quote` — the price of the purchase, not of the item (item 270). */
+export interface PatchQuote {
+  patch_id: string; price: string; currency: string;
+  requires: (RequiredBase & { licensed: boolean; known: boolean; mine: boolean; depth: number; currency: string; author: string })[];
+  missing: string[]; unknown: string[]; total: string; self_contained: boolean;
+  export: 'delta' | 'squash' | null; derivation: string | null;
+}
+
+/** `GET /api/me/credit` — local credit is ISSUED by the node, once per address, capped and recorded (item 364). */
+export interface CreditInfo {
+  address: string; currency: string; balance: number;
+  grant: { amount: string; reason: string; granted_at: number } | null;
+  would_grant: string | null;
+  issued_by: { address: string; name: string | null; url: string };
+  issuance: { cap: number; addresses: number; amount: number; per_address: string; currency: string; issues: boolean };
+  note: string;
+}
+
 export interface PatchDetail extends CatalogEntry {
   lineage: { parents: LineageRef[]; children: LineageRef[] };
   conflicts: ConflictInfo[];
   branches: { name: string; context: Record<string, string> }[];
   /** Lineage §12.5: the bases a buyer must load under this knowledge, and whether this node holds them. */
-  requires?: { id: string; name: string; held: boolean; price: string | null }[];
+  requires?: RequiredBase[];
+  /** What the whole purchase costs from here — this knowledge plus the bases it needs (item 270). */
+  quote?: PatchQuote;
   /** Whether the published training set's bytes are on this node (a preview or download can only come from here). */
   dataset_held?: boolean;
   owned: boolean;
   purchased: boolean;
   has_body: boolean;
   applied: boolean;
+  /** The address frozen into the immutable anchor at announce time — a hint, and it can be stale (item 275). */
   gateway_url: string | null;
+  /** Where the seller answers today, resolved by this node from the peers it currently sees, and where that came from. */
+  gateway?: { url: string; via: 'self' | 'peer' | 'ledger' | 'record'; source: string; last_seen: number | null } | null;
   /** Set when the author retired it (item 148): off sale for good, the record kept. */
   retired_at?: number | null;
   retire_reason?: string | null;
@@ -185,7 +219,15 @@ export interface WalletResponse extends ChainResponse { sales: Settlement[]; roy
   royalty_totals?: { owed: string; credited: string; paid: string; unconfirmed: string };
   /** The share of other people's sales this node earned by verifying their knowledge (item 325). */
   verification?: RoyaltyRow[]; verification_total?: string; verifier_share?: number; }
-export interface PurchaseResult { patch_id: string; steps: { step: string; detail: string; at: number }[]; manifest: PatchManifest; path: string; tx_hash: string; amount: string; scheme: string; }
+export interface PurchaseResult {
+  patch_id: string; steps: { step: string; detail: string; at: number }[]; manifest: PatchManifest; path: string;
+  tx_hash: string; amount: string; scheme: string;
+  /** Every knowledge this purchase paid for, bases first (item 270). */
+  purchases?: { patch_id: string; amount: string; currency: string; scheme: string; tx_hash: string; free?: boolean }[];
+  total?: string; currency?: string;
+  /** The payment was already settled and the seller re-issued the manifest — nothing was charged (item 273). */
+  redeemed?: boolean;
+}
 export interface RuntimeResponse extends Omit<RuntimeStatus, 'applied'> { applied: { patch_id: string; sha256: string; applied_at: number; reason: string }[]; }
 export interface DriveResponse {
   configured: boolean; running: boolean; pid: number | null; folder: string; server: string | null; drive_id: string | null; url: string | null;

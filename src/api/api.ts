@@ -11,7 +11,7 @@ import type {
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
-  SubscribeResult, TrackQuote,
+  SubscribeResult, TrackQuote, CreditInfo,
 } from './types';
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
 
@@ -140,7 +140,12 @@ export const api = createApi({
     retire: b.mutation<{ patch_id: string; retired_at: number; reason: string }, { id: string; reason?: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/retire`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
-    buy: b.mutation<PurchaseResult, { id: string; apply?: boolean }>({ query: ({ id, apply }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
+    /** Item 270 — `with_required` buys the bases this knowledge needs underneath it too, deepest first. */
+    buy: b.mutation<PurchaseResult, { id: string; apply?: boolean; with_required?: boolean }>({ query: ({ id, apply, with_required }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply, with_required } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
+    /** Item 273 — collect a knowledge this node already paid for: a re-issued manifest, no second charge. */
+    collect: b.mutation<PurchaseResult, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/collect`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Events', 'Runtime'] }),
+    /** Item 364 — where this node's local credit came from, and the fact that it is not money. */
+    myCredit: b.query<CreditInfo, void>({ query: () => 'api/me/credit', providesTags: ['Me', 'Ledger'] }),
     apply: b.mutation<{ result: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/apply`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Runtime', 'Events', 'Me'] }),
     remove: b.mutation<{ result: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/remove`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Runtime', 'Events', 'Me'] }),
     createBranch: b.mutation<unknown, { name: string; description: string; context: Record<string, string>; patch_ids: string[] }>({ query: (body) => ({ url: 'api/branches', method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger'] }),
@@ -274,7 +279,7 @@ export const {
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation,
-  useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
+  useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
