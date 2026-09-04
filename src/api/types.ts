@@ -60,6 +60,14 @@ export interface PeerStatus {
   mismatched: { endpoint: string; name: string | null; ledger: string }[];
 }
 
+/** Bytes this node holds, and what is free on the volume its data directory sits on (item 128). */
+export interface DiskReport {
+  path: string;
+  blobs: number; datasets: number; uploads: number; db: number; log: number; total: number;
+  free: number | null; size: number | null;
+  blob_files: number; reclaimable_files: number; reclaimable_bytes: number;
+}
+
 export interface InfoResponse {
   node: PeerInfo;
   ledger: LedgerInfo;
@@ -68,6 +76,7 @@ export interface InfoResponse {
   currency: 'AIN' | 'CREDIT' | 'USDC';
   peers: number;
   peer_status?: PeerStatus;
+  disk?: DiskReport;
   initial_credit?: string;
   /** Lineage share of each sale distributed to source creators. */
   royalty_share?: number;
@@ -119,7 +128,30 @@ export interface GraphResponse {
   edges: { from: string; to: string; type: string }[];
   chain: unknown;
 }
-export interface BranchesResponse { branches: (BranchInfo & { subscribers: Partial<PeerInfo>[] })[]; mine: string[]; }
+export interface BranchesResponse {
+  /** `current` = what a subscriber really loads; `patch_ids` is the track's whole history, retired versions included (item 257). */
+  branches: (BranchInfo & { subscribers: Partial<PeerInfo>[]; current?: string[] })[];
+  mine: string[];
+}
+/** One item of a track as the NODE resolves it (POST /api/branches/:name/quote) — the same rules `subscribe` follows. */
+export interface TrackItem {
+  patch_id: string; name: string | null; author: string | null; author_name: string | null;
+  price: string; currency: string; status: string | null;
+  plan: 'buy' | 'held' | 'own' | 'retired' | 'blocked' | 'wrong_model' | 'unknown';
+  reason: string; superseded_by: string[];
+}
+export interface TrackQuote {
+  branch: string; owner: string; description: string; subscribed: boolean;
+  items: TrackItem[]; current: string[]; retired: string[]; buy: string[];
+  total: { currency: string; amount: string }[]; currency: string; balance: number | null;
+  runtime_available: boolean; runtime_error: string | null;
+}
+/** What a subscribe / unsubscribe / sync actually did (item 357) — `{ok:true}` used to be the whole answer. */
+export interface SubscribeResult {
+  ok: true; branch: string; action: 'subscribe' | 'unsubscribe' | 'sync';
+  acquired: string[]; failed: { patch_id: string; error: string }[]; applied: string[];
+  skipped: { patch_id: string; reason: string }[]; removed: string[]; spent: { currency: string; amount: string }[];
+}
 export interface RouteResponse { branch: BranchInfo | null; nodes: PeerInfo[]; }
 export interface NodesResponse {
   /** `blobs` is filtered through THIS node's catalogue; `blobs_advertised` is what the node itself says it holds (item 170). */
@@ -200,6 +232,14 @@ export interface ChatOverlap { a: string; b: string; rows: number }
  * shown as "someone is testing". `mine` = this node's own request holds it.
  */
 export interface ChatLock { owner: string; label: string; since: number; alive: boolean; stale: boolean; mine: boolean }
+/** A knowledge this node cannot live-test, and why — the picker shows it instead of hiding it (item 297). */
+export interface ElsewhereRow {
+  patch_id: string; name: string; author: string; author_name: string | null;
+  price: string; currency: string; status: string; rows: number; queries: number;
+  /** not_held = the body is not on this node; verify_only = it is here because this node verified it, which is not a licence. */
+  reason: 'not_held' | 'not_licensed' | 'verify_only';
+  buyable: boolean; requests: number; gateway_url: string | null;
+}
 export interface ChatPatchesResponse {
   items: CatalogEntry[]; runtime: RuntimeStatus; lock: ChatLock | null;
   /** The node's clock, so elapsed times are measured against it rather than the browser's. */
@@ -208,6 +248,12 @@ export interface ChatPatchesResponse {
   queue?: { running: { label: string; since: number } | null; waiting: number };
   /** knowledge the operator keeps loaded for everyone — it is part of every "before" answer (contamination banner) */
   applied?: string[];
+  /** bodies a recent live test found on the shared model that this node never loaded (item 211) */
+  dirty?: string[];
+  /** knowledge this node's model could run but cannot load: not held, or held only because this node verified it (item 297) */
+  elsewhere?: ElsewhereRow[];
+  /** is the caller the operator? (only they can buy) */
+  operator?: boolean;
   overlaps?: ChatOverlap[];
   /** the caller's private lessons (only with a verified teach signature; filled by teach mode) */
   lessons?: CatalogEntry[];

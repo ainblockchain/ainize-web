@@ -7,7 +7,7 @@ import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageW
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { num, shortAddr } from '@/utils/format';
+import { bytes, num, shortAddr } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;`;
@@ -58,6 +58,8 @@ export default function NetworkPage() {
   const self = info.node;
   const rt = info.runtime;
   const peers = nodes?.peers ?? [];
+  // item 170: a peer on the other ledger answers everything and serves an empty record set forever
+  const ps = info.peer_status ?? nodes?.peer_status;
   const known = (nodes?.nodes ?? []).filter((n) => n.address !== self.address);
   const ledgerKind = (k: string) => (k === 'ain' ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local'));
   const roles = (rs: string[]) => rs.map((r) => <RoleChip key={r} $role={r} title={r}>{f.roleLabel(r)}</RoleChip>);
@@ -77,8 +79,18 @@ export default function NetworkPage() {
             <dt>{t('detail.net.endpoint')}</dt><dd><ExternalLink href={`${self.endpoint}/api/info`} target="_blank" rel="noopener noreferrer">{self.endpoint}</ExternalLink></dd>
             <dt>{t('detail.net.roles')}</dt><dd>{roles(self.roles)}</dd>
             <dt title={tech('ledger')}>{t('detail.net.ledger')}</dt><dd>{t('detail.net.ledger_records', { kind: info.ledger.kind === 'ain' ? `${t('detail.ledger_kind.ain')} (${info.ledger.provider ?? ''})` : t('detail.ledger_kind.local'), n: num(info.ledger.records) })}</dd>
-            <dt>{t('detail.net.peers')}</dt><dd>{t('detail.net.peers_value', { peers: num(info.peers), known: num(known.length) })}</dd>
+            <dt>{t('detail.net.peers')}</dt><dd>{ps
+              ? t('detail.net.peers_value_health', { peers: num(ps.known), answered: num(ps.reachable), verifiers: num(ps.verifiers), known: num(known.length) })
+              : t('detail.net.peers_value', { peers: num(info.peers), known: num(known.length) })}</dd>
             <dt title={t('detail.tech.blobs')}>{t('detail.net.bodies')}</dt><dd>{t('detail.net.bodies_value', { n: num(self.blobs.length) })}</dd>
+            {info.disk && (<>
+              <dt>{t('detail.net.disk')}</dt>
+              <dd>
+                {t('detail.net.disk_value', { total: bytes(info.disk.total), bodies: bytes(info.disk.blobs), sets: bytes(info.disk.datasets), uploads: bytes(info.disk.uploads), db: bytes(info.disk.db) })}
+                {info.disk.free !== null && <>{' · '}{t('detail.net.disk_free', { free: bytes(info.disk.free) })}</>}
+                {info.disk.reclaimable_bytes > 0 && <div style={{ fontSize: 12, marginTop: 2 }}>{t('detail.net.disk_reclaimable', { bytes: bytes(info.disk.reclaimable_bytes), n: num(info.disk.reclaimable_files) })}</div>}
+              </dd>
+            </>)}
             <dt title={tech('branch')}>{t('detail.net.tracks')}</dt><dd>{self.branches.length ? self.branches.join(', ') : t('detail.net.no_tracks')}</dd>
             <dt>{t('detail.net.version')}</dt><dd>{self.version}</dd>
           </KeyValue>
@@ -97,6 +109,16 @@ export default function NetworkPage() {
       </Cards>
 
       <SubTitle $mt={40}>{t('detail.net.peers_title')}</SubTitle>
+      {!!ps?.mismatched.length && (
+        <Alert $tone="warning" style={{ marginTop: 12 }}>
+          {ps.mismatched.map((m) => (
+            <div key={m.endpoint}>
+              {t('detail.net.ledger_mismatch', { node: m.name ?? m.endpoint, their: ledgerKind(m.ledger), ours: ledgerKind(ps.ledger) })}
+              <br /><Mono style={{ fontSize: 12 }}>{`ainize patch ls --node ${m.endpoint}`}</Mono>
+            </div>
+          ))}
+        </Alert>
+      )}
       {peers.length === 0 && known.length === 0 && <Empty style={{ marginTop: 12 }}>{t('detail.net.peers_empty')}</Empty>}
       {(peers.length > 0 || known.length > 0) && (
         <TableWrapper style={{ marginTop: 12, background: '#fff', border: '1px solid #dadada' }}>
@@ -128,7 +150,7 @@ export default function NetworkPage() {
                   <TableData $align="left">{roles(n.roles)}</TableData>
                   <TableData>{ledgerKind(n.ledger)}</TableData>
                   <TableData title={n.model ?? ''}>{n.model ?? '—'}</TableData>
-                  <TableData>{num(n.blobs.length)}</TableData>
+                  <TableData>{num(n.blobs_advertised ?? n.blobs.length)}</TableData>
                   <TableData title={n.branches.join(', ')}>{n.branches.length}</TableData>
                   <TableData $align="right" $padding="0 24px 0 8px">{n.last_seen ? t('detail.net.seen_ledger', { ago: f.ago(n.last_seen) }) : '—'}</TableData>
                 </TableRow>
