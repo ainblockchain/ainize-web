@@ -9,7 +9,7 @@
  */
 import type { PreflightFact, TeachDatasetRow, TeachEffort, TeachJob, TeachPolicy } from '@/api/types';
 
-type Tr = (key: string, vars?: Record<string, string | number>) => string;
+type Tr = (key: string, vars?: Record<string, string | number>, count?: number) => string;
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'muted' | 'info';
 export interface StatusView { text: string; tone: Tone; help?: string; /** tone of the help line (default: muted grey) */ helpTone?: Tone }
@@ -144,6 +144,39 @@ export function etaLine(job: TeachJob, policy: TeachPolicy | undefined, t: Tr): 
   const eta = job.eta_s;
   if (!measured || !eta) return t('teach.run.eta_none');
   return eta < 90 ? t('teach.run.eta_soon') : t('teach.run.eta', { min: Math.max(1, Math.round(eta / 60)) });
+}
+
+/**
+ * The entry page's readiness line (ux-critique-owner O-5): one plain sentence that answers "can I start now?", and
+ * the technical detail — the node's own status sentence, the queue, the measured percentiles — kept for a disclosure.
+ *
+ *  - not teaching / paused → the node's own sentence, warning tone, no disclosure (it is already plain language);
+ *  - queue full            → "The queue is full right now — try again in a little while." (the node would refuse);
+ *  - otherwise             → "You can start now — nobody is waiting." / "… 1 lesson is ahead of you." / "… N lessons …",
+ *                            plus a minute figure ONLY under design §10: ≥ 3 gradient samples on THIS node and timing
+ *                            not simulated. A demo node says so in the detail and prints no minutes anywhere.
+ */
+export interface Readiness { text: string; ok: boolean; detail: string[] }
+export function readiness(policy: TeachPolicy | undefined, t: Tr, technical: string): Readiness {
+  if (!policy) return { text: '', ok: false, detail: [] };
+  if (!policy.enabled) return { text: t('teach.basket.policy_off'), ok: false, detail: [] };
+  if (policy.trainer === 'paused') return { text: t('teach.basket.policy_paused', { reason: policy.paused_reason ?? '' }).trim(), ok: false, detail: [] };
+  const depth = policy.queue?.depth ?? 0;
+  const max = policy.queue?.max ?? 0;
+  const timing = policy.timing;
+  const measured = !!timing && !timing.simulated && timing.samples >= 3 && timing.p50_s !== null;
+  const detail = [technical, t('teach.ready.queue_detail', { depth, max })];
+  if (measured) detail.push(t('teach.ready.measured', { n: timing.samples, p50: Math.round(timing.p50_s!), p90: Math.round(timing.p90_s ?? timing.p50_s!) }));
+  if (max > 0 && depth >= max) return { text: t('teach.ready.full'), ok: false, detail };
+  let text = depth === 0 ? t('teach.ready.now') : t('teach.ready.queue', { n: depth }, depth);
+  if (measured) {
+    const p50s = timing.p50_s!;
+    const p90s = timing.p90_s ?? p50s;
+    const min = (sec: number) => Math.max(1, Math.round(sec / 60));
+    const took = p90s < 60 ? t('teach.ready.took_fast') : min(p50s) === min(p90s) ? t('teach.ready.took_about', { p50: min(p50s) }) : t('teach.ready.took_range', { p50: min(p50s), p90: min(p90s) });
+    text = `${text} ${took}`;
+  }
+  return { text, ok: true, detail };
 }
 
 /**

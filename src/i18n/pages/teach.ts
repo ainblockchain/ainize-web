@@ -40,6 +40,7 @@ export const teach: Dict = {
   'teach.basket.policy_open_about': { ko: '이 노드에서 가르치기: 가능 · 대기 {q} · 최근 수업 약 {p50}분', en: 'Teaching on this node: open · {q} waiting · recent lessons took about {p50} min' },
   'teach.basket.policy_open_fast': { ko: '이 노드에서 가르치기: 가능 · 대기 {q} · 최근 수업은 1분 이내에 끝났습니다', en: 'Teaching on this node: open · {q} waiting · recent lessons finished in under a minute' },
   'teach.basket.policy_untimed': { ko: '이 노드에서 가르치기: 가능 · 아직 측정된 수업이 없어 첫 수업은 최대 30분 걸릴 수 있습니다', en: 'Teaching on this node: open · this node has not timed a lesson yet — the first one may take up to 30 minutes' },
+  'teach.basket.policy_open_demo': { ko: '이 노드에서 가르치기: 가능 · 대기 {q} · 시연용 노드 — 수업은 흉내만 내고 실제 학습은 없습니다', en: 'Teaching on this node: open · {q} waiting · demo node — lessons are simulated, nothing is trained' },
   'teach.basket.policy_paused': { ko: '지금은 이 노드에서 가르치기가 잠시 중단되었습니다. {reason}', en: 'Teaching is paused on this node right now. {reason}' },
   'teach.basket.policy_off': { ko: '이 노드는 수업을 받지 않습니다. 다른 노드를 쓰거나 직접 노드를 운영하세요.', en: 'This node does not accept lessons. Try another node or run your own.' },
   'teach.basket.builds_on': { ko: '지금 넣은 지식을 바탕으로 합니다 (그 제작자도 수익을 나눕니다)', en: 'This builds on the knowledge I have loaded (its creators share in sales)' },
@@ -312,6 +313,17 @@ export const teach: Dict = {
   // O-4: the file door's limits are two chips beside the picker label — the formats chip is the node's own list joined with " · "
   'teach.entry.file.cap': { ko: '질문 최대 {max}개', en: 'up to {max} questions' },
   'teach.entry.file.limits_aria': { ko: '파일 조건', en: 'File limits' },
+  // O-5: the readiness line — plain language first, the node's own status sentence behind "Details"
+  'teach.ready.now': { ko: '지금 바로 시작할 수 있습니다 — 기다리는 사람이 없습니다.', en: 'You can start now — nobody is waiting.' },
+  'teach.ready.queue': { ko: '지금 시작할 수 있습니다 — 앞에 수업 {n}개가 있습니다.', en: 'You can start now — {n} lessons are ahead of you.' },
+  'teach.ready.queue_one': { ko: '지금 시작할 수 있습니다 — 앞에 수업 1개가 있습니다.', en: 'You can start now — 1 lesson is ahead of you.' },
+  'teach.ready.full': { ko: '지금은 대기열이 가득 찼습니다 — 잠시 후 다시 시도하세요.', en: 'The queue is full right now — try again in a little while.' },
+  'teach.ready.took_fast': { ko: '최근 수업은 1분 이내에 끝났습니다.', en: 'Recent lessons finished in under a minute.' },
+  'teach.ready.took_about': { ko: '최근 수업은 하나당 약 {p50}분 걸렸습니다.', en: 'Recent lessons took about {p50} min each.' },
+  'teach.ready.took_range': { ko: '최근 수업은 하나당 {p50}–{p90}분 걸렸습니다.', en: 'Recent lessons took {p50}–{p90} min each.' },
+  'teach.ready.details': { ko: '자세히', en: 'Details' },
+  'teach.ready.queue_detail': { ko: '대기열: 수업 {depth}개 / 최대 {max}개', en: 'Queue: {depth} of {max} lessons' },
+  'teach.ready.measured': { ko: '이 노드에서 실제 학습 {n}건을 측정: 중앙값 {p50}초, 상위 90% {p90}초', en: 'Measured on this node over {n} real lessons: median {p50} s, 90th percentile {p90} s' },
   // O-2: a sentence, not a stepper — "What happens next: Dataset → Check → … — the same five steps, whichever door you pick"
   'teach.entry.next_label': { ko: '다음 단계', en: 'What happens next' },
   'teach.entry.next_same': { ko: '어느 쪽으로 들어와도 같은 다섯 단계입니다', en: 'the same five steps, whichever door you pick' },

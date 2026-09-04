@@ -124,6 +124,9 @@ export function policyLine(policy: TeachPolicy | undefined, t: Tr): { text: stri
   if (!policy) return { text: '', ok: false };
   if (!policy.enabled) return { text: t('teach.basket.policy_off'), ok: false };
   if (policy.trainer === 'paused') return { text: t('teach.basket.policy_paused', { reason: policy.paused_reason ?? '' }).trim(), ok: false };
+  // design §D7 / openapi: a node whose trainer is the stub reports `timing.simulated` and shows no minutes at all — its
+  // three-second demo runs are not lessons, and any gradient samples left in its stats are not what it would do now
+  if (policy.timing.simulated) return { text: t('teach.basket.policy_open_demo', { q: policy.queue.depth }), ok: true };
   // §8.4: only measured p50/p90 from ≥ 3 samples; never "1–1 min" — equal minutes collapse to "about N min", sub-minute lessons say so.
   if (policy.timing.samples >= 3 && policy.timing.p50_s !== null) {
     const p50s = policy.timing.p50_s;

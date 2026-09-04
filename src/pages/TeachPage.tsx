@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/Form';
 import { Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import { policyLine } from '@/components/chat/teachUtil';
 import { STEP_KEYS } from '@/components/teach/Stepper';
-import { rowsPerJob } from '@/components/teach/util';
+import { readiness, rowsPerJob } from '@/components/teach/util';
 
 /**
  * `/teach` — the entry choice (design §5.2, ux-critique-owner O-1). Two doors, one pipeline — and one of them leads.
@@ -66,6 +66,19 @@ const Limits = styled.ul`
 const Eyebrow = styled.span`
   font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: ${(p) => p.theme.color.GREY};
 `;
+/**
+ * The readiness line (O-5): the Alert palette, one plain sentence, and the node's own sentence behind a native
+ * <details>. A node that is off or paused renders the sentence alone — it is already plain language.
+ */
+const Ready = styled(Alert)`
+  margin-top: 16px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  p { margin: 0; }
+  details { flex: 1 0 100%; font-size: 13px; }
+  details[open] { margin-top: 2px; }
+  summary { cursor: pointer; width: fit-content; font-weight: 600; border-radius: 4px; padding: 1px 4px; margin-left: -4px; }
+  summary:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
+  details p { margin: 6px 0 0; opacity: 0.9; }
+`;
 /** One line under the title (O-7): wider than `Description`'s 72ch so the English sentence stays on one line at 944 px. */
 const Intro = styled(Description)`max-width: none; font-size: 15px;`;
 /** The longer story, behind a disclosure (O-7): a native <details> — keyboard-operable, announced as expandable, no script. */
@@ -91,7 +104,7 @@ export default function TeachPage() {
   const { t } = useT();
   useTitle(t('teach.entry.title'));
   const { data: policy, isLoading } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
-  const pol = policyLine(policy, t);
+  const ready = readiness(policy, t, policyLine(policy, t).text);
   const open = !!policy?.enabled && policy.trainer !== 'paused';
   const formats = policy?.limits?.formats?.length ? policy.limits.formats : ['jsonl', 'csv', 'tsv', 'txt'];
 
@@ -99,6 +112,18 @@ export default function TeachPage() {
     <PageWrapper data-testid="teach-entry">
       <TitleRow><Title>{t('teach.entry.title')}</Title></TitleRow>
       <Intro>{t('teach.entry.sub')}</Intro>
+
+      {!isLoading && ready.text && (
+        <Ready $tone={ready.ok ? 'info' : 'warning'} role="status" data-testid="teach-policy">
+          <p data-testid="teach-ready">{ready.text}</p>
+          {ready.detail.length > 0 && (
+            <details data-testid="teach-ready-detail">
+              <summary>{t('teach.ready.details')}</summary>
+              {ready.detail.map((line) => <p key={line}>{line}</p>)}
+            </details>
+          )}
+        </Ready>
+      )}
 
       <Doors>
         <Door
@@ -123,10 +148,6 @@ export default function TeachPage() {
           <Cta className="cta" id="door-file-cta" data-testid="door-file-cta">{t('teach.entry.file.cta')}</Cta>
         </Door>
       </Doors>
-
-      {!isLoading && pol.text && (
-        <Alert $tone={pol.ok ? 'info' : 'warning'} role="status" data-testid="teach-policy" style={{ marginTop: 16 }}>{pol.text}</Alert>
-      )}
 
       <Next data-testid="teach-next">
         <b>{t('teach.entry.next_label')}:</b>{' '}
