@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useBuyMutation, useInfoQuery, usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery } from '@/api/api';
-import type { Attestation, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
+import type { Attestation, CatalogEntry, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -136,7 +136,7 @@ const TreeNode = styled(Link)<{ $me?: boolean }>`
 type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
 
 /** Accuracy shown in the header comes only from attestations that ran the real model — never from integrity-only checks. */
-function scoreOf(d: PatchDetail): Score {
+function scoreOf(d: CatalogEntry): Score {
   const real = d.attestations.filter((a) => a.passed && isExecuted(a.verified_on));
   if (!real.length) return { text: '—', pct: null, tested: null, before: null };
   const s = real[real.length - 1].score;
@@ -146,12 +146,56 @@ function scoreOf(d: PatchDetail): Score {
   return { text: scoreText(s), pct: pct(raw), tested: denominator(raw), before: preApplyText(s) };
 }
 
+/** RTK Query reports either an HTTP status or a client-side marker ('FETCH_ERROR', 'TIMEOUT_ERROR', 'PARSING_ERROR'). */
+function httpStatus(err: unknown): number | null {
+  const s = (err as { status?: unknown } | undefined)?.status;
+  return typeof s === 'number' ? s : null;
+}
+
+/**
+ * Item 11: only a 404 from api/patches/:id means "this node does not know it". Every other failure — a 5xx, a
+ * dropped connection, a node restarting under the 10 s poll — keeps the page and offers a retry, because the
+ * knowledge behind the link may well be listed, verified and on sale.
+ */
+function LoadFailed({ id, error, busy, onRetry }: { id: string; error: unknown; busy: boolean; onRetry: () => void }) {
+  const { t } = useT();
+  const status = httpStatus(error);
+  useTitle(id);
+  return (
+    <Wrapper>
+      <Band>
+        <BandContent>
+          <HeadLeft>
+            <PatchTitle>{id}</PatchTitle>
+            <IdLine><span>{t('detail.patch.id')} <code>{id}</code></span></IdLine>
+          </HeadLeft>
+        </BandContent>
+      </Band>
+      <Divider />
+      <Content>
+        <ContentInner>
+          <Section style={{ marginTop: 0 }} data-testid="patch-load-failed">
+            <H3>{t('detail.patch.error_title')}</H3>
+            <P>{status !== null ? t('detail.patch.error_http', { id, status }) : t('detail.patch.error_offline', { id })}</P>
+            <Note style={{ margin: '8px 0 0' }}><Mono>{errorMessage(error)}</Mono></Note>
+            <div style={{ marginTop: 16, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Button variant="contained" loading={busy} loadingText={t('detail.patch.error_retrying')} onClick={onRetry}>{t('detail.patch.error_retry')}</Button>
+              <StyledLink to="/explore">{t('detail.patch.error_explore')} →</StyledLink>
+            </div>
+            <Note style={{ margin: '12px 0 0' }}>{t('detail.patch.error_auto')}</Note>
+          </Section>
+        </ContentInner>
+      </Content>
+    </Wrapper>
+  );
+}
+
 export default function PatchPage() {
   const { author = '', patchId = '' } = useParams();
   const { isSignedIn } = useAuth();
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
-  const { data, isLoading, error } = usePatchQuery(patchId, { pollingInterval: 10_000 });
+  const { data, isLoading, error, isFetching, refetch } = usePatchQuery(patchId, { pollingInterval: 10_000 });
   // `teach.lineage` gates the CREATOR affordances only (§18): the tree, the strip and the open questions are read-only
   // and ship on every node, including the demo cluster where the flag is off.
   const { data: policy } = useTeachPolicyQuery();
@@ -161,7 +205,10 @@ export default function PatchPage() {
   useTitle(data ? data.anchor.name || data.anchor.id : undefined);
 
   if (isLoading) return <Wrapper><CenterProgress /></Wrapper>;
-  if (error || !data) return <NotFoundPage message={t('detail.patch.not_found', { id: patchId })} />;
+  if (!data) {
+    if (error && httpStatus(error) !== 404) return <LoadFailed id={patchId} error={error} busy={isFetching} onRetry={() => { void refetch(); }} />;
+    return <NotFoundPage message={t('detail.patch.not_found', { id: patchId })} />;
+  }
 
   const a = data.anchor;
   const authorLabel = a.author_name ?? shortAddr(a.author);
@@ -235,6 +282,12 @@ export default function PatchPage() {
             <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="challenge-banner">
               {t('detail.challenge.banner', { who: shortAddr(data.open_challenge.challenger, 8), reason: data.open_challenge.reason, when: f.ago(data.open_challenge.created_at) })}
               {' '}{t('detail.challenge.what_next')}
+            </Alert>
+          )}
+          {error && (
+            <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="patch-stale">
+              {t('detail.patch.stale', { message: errorMessage(error) })}{' '}
+              <Button size="small" variant="text" loading={isFetching} loadingText={t('detail.patch.error_retrying')} onClick={() => { void refetch(); }}>{t('detail.patch.error_retry')}</Button>
             </Alert>
           )}
           <Info>

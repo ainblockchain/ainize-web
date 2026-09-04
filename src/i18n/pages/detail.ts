@@ -62,6 +62,16 @@ export const detailShared: Dict = {
 /* ---------------------------------------------------------------- PatchPage */
 export const detailPatch: Dict = {
   'detail.patch.not_found': { ko: '이 노드에는 "{id}" 지식이 없습니다. 아직 네트워크에서 전파되지 않았거나 주소가 잘못되었을 수 있습니다.', en: 'This node does not know the knowledge "{id}". It may not have propagated yet, or the address is wrong.' },
+  /* Item 11: a 5xx or a dropped connection is this node failing to answer, not proof the knowledge is gone —
+     these strings belong to the page that stays put and retries instead of the 404 page that used to replace it. */
+  'detail.patch.error_title': { ko: '이 노드가 지금 이 지식 정보를 주지 못했습니다', en: 'This node could not answer for this knowledge' },
+  'detail.patch.error_http': { ko: '"{id}" 정보를 요청했더니 이 노드가 {status} 오류로 답했습니다. 지식이 사라졌다는 뜻이 아니라, 이 노드가 지금 답하지 못한다는 뜻입니다 — 여전히 검증 완료 상태로 판매 중일 수 있습니다.', en: 'The node answered {status} when this page asked for "{id}". That means this node could not answer just now, not that the knowledge is gone — it may well still be verified and on sale.' },
+  'detail.patch.error_offline': { ko: '"{id}" 정보를 요청하는 동안 이 브라우저가 노드에 닿지 못했습니다. 노드가 재시작 중이거나 연결이 끊겼을 수 있습니다.', en: 'This browser could not reach the node while asking for "{id}". The node may be restarting, or the connection dropped.' },
+  'detail.patch.error_retry': { ko: '다시 시도', en: 'Try again' },
+  'detail.patch.error_retrying': { ko: '다시 시도 중…', en: 'Trying…' },
+  'detail.patch.error_explore': { ko: '이 노드에 있는 지식 둘러보기', en: 'Browse the knowledge this node does have' },
+  'detail.patch.error_auto': { ko: '이 페이지는 10초마다 스스로 다시 물어봅니다. 노드가 답하는 순간 원래 화면으로 돌아옵니다.', en: 'This page keeps asking every 10 seconds on its own, and comes back by itself the moment the node answers.' },
+  'detail.patch.stale': { ko: '아래는 이 노드가 마지막으로 준 정보입니다 — 방금 새로 고침이 실패했습니다({message}). 숫자가 최신이 아닐 수 있습니다.', en: 'Below is the last answer this node gave — the newest refresh failed ({message}), so the numbers may be out of date.' },
   'detail.patch.id': { ko: 'ID', en: 'ID' },
   'detail.patch.track_topic': { ko: '지식 묶음 {branch} · 주제 {topic}', en: 'Track {branch} · topic {topic}' },
   'detail.patch.view_same_subject': { ko: '같은 주제의 다른 지식 보기 ›', en: 'Other knowledge on this subject ›' },
