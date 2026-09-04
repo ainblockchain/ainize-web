@@ -36,7 +36,6 @@ const Door = styled(Link)<{ $primary?: boolean }>`
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   h2 { margin: 0; font-size: ${(p) => (p.$primary ? '22px' : '16px')}; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
   p { margin: 0; font-size: ${(p) => (p.$primary ? '15px' : '14px')}; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY}; flex: 1; }
-  small { font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
   &:hover { border-color: ${(p) => p.theme.color.HOVER}; box-shadow: 0 6px 18px rgba(48, 49, 51, 0.12); transform: translateY(-1px); }
   &:hover .cta { background: ${(p) => (p.$primary ? p.theme.color.HOVER : `${p.theme.color.PRIMARY}0f`)}; border-color: ${(p) => p.theme.color.HOVER}; }
   &:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 3px; }
@@ -52,6 +51,16 @@ const Cta = styled.span<{ $primary?: boolean }>`
   background: ${(p) => (p.$primary ? p.theme.color.PRIMARY : 'transparent')};
   border: 1px solid ${(p) => (p.$primary ? p.theme.color.PRIMARY : `${p.theme.color.PRIMARY}80`)};
   transition: background-color 0.2s ease, border-color 0.2s ease;
+`;
+/**
+ * The file door's hard limits (ux-critique-owner O-4), as two chips beside the picker label instead of small print
+ * under it: the formats this node reads and the question cap — both from GET /api/teach/policy, never a constant
+ * in the bundle. The upload page then refuses a wrong type or an oversized file at selection, before any upload.
+ */
+const Limits = styled.ul`
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
+  li { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    color: ${(p) => p.theme.color.HOVER}; background: ${(p) => p.theme.color.PALE_GREY}; white-space: nowrap; }
 `;
 /** The secondary door's eyebrow: says who it is for before the visitor reads the card. */
 const Eyebrow = styled.span`
@@ -84,6 +93,7 @@ export default function TeachPage() {
   const { data: policy, isLoading } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
   const pol = policyLine(policy, t);
   const open = !!policy?.enabled && policy.trainer !== 'paused';
+  const formats = policy?.limits?.formats?.length ? policy.limits.formats : ['jsonl', 'csv', 'tsv', 'txt'];
 
   return (
     <PageWrapper data-testid="teach-entry">
@@ -106,8 +116,11 @@ export default function TeachPage() {
           <Eyebrow>{t('teach.entry.file.eyebrow')}</Eyebrow>
           <h2 id="door-file-title">{t('teach.entry.file.title')}</h2>
           <p id="door-file-body">{t('teach.entry.file.body')}</p>
+          <Limits aria-label={t('teach.entry.file.limits_aria')} data-testid="door-file-limits">
+            <li>{formats.join(' · ')}</li>
+            <li>{t('teach.entry.file.cap', { max: policy?.limits?.dataset_max_rows ?? rowsPerJob(policy) })}</li>
+          </Limits>
           <Cta className="cta" id="door-file-cta" data-testid="door-file-cta">{t('teach.entry.file.cta')}</Cta>
-          <small>{t('teach.entry.file.formats', { max: policy?.limits?.dataset_max_rows ?? rowsPerJob(policy) })}</small>
         </Door>
       </Doors>
 

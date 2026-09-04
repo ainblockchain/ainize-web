@@ -309,7 +309,9 @@ export const teach: Dict = {
   'teach.entry.how.title': { ko: '어떻게 되나요', en: 'How it works' },
   'teach.entry.how.body': { ko: '어느 쪽으로 들어와도 같습니다. 질문과 정답이 이 노드에 데이터셋으로 저장되고, 한 줄씩 확인한 뒤 모델에 학습시키고, 결과를 다시 확인합니다. 그렇게 만들어진 지식은 라이브 테스트에서 써보고, 나만 쓰고, 내려받고, 다른 사람이 살 수 있게 공개할 수 있습니다. 계정도, 내 서버도, 코드도 필요 없습니다.', en: 'Whichever door you pick: your questions and answers are saved as a dataset on this node, checked line by line, trained into the model, and the result is checked again. What comes out is knowledge you can try in Live test, keep private, download, or publish for others to buy. No account, no server of your own, no code.' },
   'teach.entry.file.cta': { ko: '파일 고르기', en: 'Choose a file' },
-  'teach.entry.file.formats': { ko: 'jsonl, csv, tsv, 일반 텍스트 · 질문 최대 {max}개', en: 'jsonl, csv, tsv or plain text · up to {max} questions' },
+  // O-4: the file door's limits are two chips beside the picker label — the formats chip is the node's own list joined with " · "
+  'teach.entry.file.cap': { ko: '질문 최대 {max}개', en: 'up to {max} questions' },
+  'teach.entry.file.limits_aria': { ko: '파일 조건', en: 'File limits' },
   // O-2: a sentence, not a stepper — "What happens next: Dataset → Check → … — the same five steps, whichever door you pick"
   'teach.entry.next_label': { ko: '다음 단계', en: 'What happens next' },
   'teach.entry.next_same': { ko: '어느 쪽으로 들어와도 같은 다섯 단계입니다', en: 'the same five steps, whichever door you pick' },
