@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import type { ChatResponse, ChatResult } from '@/api/types';
 import { useT } from '@/i18n';
@@ -18,6 +17,11 @@ export interface Turn {
   error?: string;
   /** Benchmark sample matched to this prompt (client-side), used to label ✓/✗ and the base bubble. */
   expect?: string;
+  /**
+   * Finding 223 — one answer is scored against EVERY loaded knowledge's own sample, so the bubble can carry two
+   * ticks (or a ✓ and a ✗) for a single text. This is what each of them expected, by id, so the row can say so.
+   */
+  expects?: Record<string, string>;
   baseHit?: boolean | null;
   /** Knowledge loaded for this turn, in load order (mirrors the request; the response repeats it as patch_ids). */
   patchIds?: string[];
@@ -32,8 +36,12 @@ export interface Turn {
    * whose Retry does send.
    */
   retryable?: boolean;
-  /** Quota exhausted (429): what CAN be done instead of retrying — buy the knowledge, or wait out the measured hour. */
+  /** Quota exhausted (429): the offer lives in the composer footer now (finding 57); the bubble only says what happened. */
   quota?: { resetAt: number | null; buyHref: string | null };
+  /** Finding 229 — how long the same stack took last time, measured in this session (never an invented estimate). */
+  estimateMs?: number | null;
+  /** Total size of the knowledge being loaded for this turn, in bytes — the honest reason a stacked compare is slow. */
+  loadBytes?: number | null;
 }
 
 const Wrap = styled.article`display: flex; flex-direction: column; gap: 10px;`;
@@ -112,11 +120,6 @@ const MiniHit = styled.span<{ $ok: boolean }>`
   code { font-family: inherit; font-weight: 500; }
 `;
 const ErrRow = styled.div`display: flex; flex-direction: column; gap: 8px; align-items: flex-start;`;
-/** What replaces Retry on a quota error: the way out (buy) and the measured instant the free hour resets. */
-const QuotaRow = styled.div`
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font-size: 12px; color: ${(p) => p.theme.color.GREY};
-  a { color: ${(p) => p.theme.color.PRIMARY}; font-weight: 600; text-decoration: none; &:hover { text-decoration: underline; } }
-`;
 const TeachBtn = styled.button`
   align-self: flex-start; margin-top: 2px; padding: 3px 10px; border-radius: 12px; border: 1px dashed ${(p) => p.theme.color.PRIMARY}; background: #fff; color: ${(p) => p.theme.color.PRIMARY}; font-size: 12px; font-weight: 600; cursor: pointer;
   &:hover { background: ${(p) => p.theme.color.PALE_GREY}; }
@@ -125,8 +128,13 @@ const TeachBtn = styled.button`
 /**
  * D1 — the answer was cut. One plain sentence about WHY, and the model's raw output one click away: the guard
  * has precision 1.000 on 293 real answers but no content-only rule can be perfect, so nothing is ever deleted.
+ *
+ * Finding 64 — the sentence used to be one string for every repetition, including the hypothesis "that usually
+ * means the question is outside what this knowledge covers". On an answer the same bubble had just marked ✓
+ * Correct, the two strongest signals in the bubble said opposite things. The guess is kept only where the verdict
+ * does not contradict it.
  */
-function Truncation({ result }: { result: ChatResult }) {
+function Truncation({ result, hit }: { result: ChatResult; hit?: boolean | null }) {
   const { t } = useT();
   const [raw, setRaw] = useState(false);
   if (!result.truncated) return null;
@@ -135,7 +143,7 @@ function Truncation({ result }: { result: ChatResult }) {
   const empty = !result.content.trim();
   return (
     <TruncNote role="note" data-testid="chat-truncated" data-truncated={result.truncated}>
-      {result.truncated === 'repetition' ? t('chat.trunc.repetition') : empty ? t('chat.trunc.empty') : t('chat.trunc.length')}
+      {result.truncated === 'repetition' ? t(hit === true ? 'chat.trunc.repetition_hit' : 'chat.trunc.repetition') : empty ? t('chat.trunc.empty') : t('chat.trunc.length')}
       {result.truncated === 'repetition' && (
         <>
           <small>{t('chat.trunc.shown', { shown, raw: full })}</small>
@@ -159,9 +167,25 @@ function Truncation({ result }: { result: ChatResult }) {
  * itself says it is queued, who holds the model, and for how long — with a ticking second counter.
  */
 function QueuePending({ turn }: { turn: Turn }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const q = turn.queue;
-  const base = `${turn.mode === 'compare' ? t('chat.bubble.compare_pending') : t('chat.bubble.thinking_pending')}${turn.thinking ? ` · ${t('chat.thinking.slow')}` : ''}`;
+  /**
+   * Finding 229 — "this can take tens of seconds" was a constant, printed the same for one 265 MB knowledge and
+   * for three 300 MB ones (a measured 2-stack turn took 317 s). The wait scales with what was ticked, so the line
+   * says how much is being loaded — and, when this session has already timed the same stack, how long that took.
+   * Nothing here is an estimate the product has not measured.
+   */
+  const n = turn.patchIds?.length ?? 0;
+  const mb = turn.loadBytes ? Math.round(turn.loadBytes / 1024 / 1024) : null;
+  const load = turn.mode !== 'base' && n > 0
+    ? (mb !== null ? t('chat.bubble.loading_size', { n, mb: mb.toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US') }, n) : t('chat.bubble.loading', { n }, n))
+    : null;
+  const seen = turn.estimateMs ? t('chat.bubble.last_time', { n: Math.round(turn.estimateMs / 1000) }) : null;
+  const base = [
+    load ?? (turn.mode === 'compare' ? t('chat.bubble.compare_pending') : t('chat.bubble.thinking_pending')),
+    seen,
+    turn.thinking ? t('chat.thinking.slow') : null,
+  ].filter(Boolean).join(' · ');
   if (!q || q.state === 'running') {
     return <PendingNote>{q?.state === 'running' ? `${t('chat.queue.mine')} ${base}` : base}</PendingNote>;
   }
@@ -178,16 +202,23 @@ function QueuePending({ turn }: { turn: Turn }) {
   );
 }
 
-function AnswerBubble({ kind, result, turn, hit, onTeach, nameOf }: { kind: 'base' | 'patched'; result: ChatResult | null | undefined; turn: Turn; hit: boolean | null | undefined; onTeach?: (answer: string) => void; nameOf?: (id: string) => string }) {
+function AnswerBubble({ kind, result, turn, hit, onTeach, onAskAgain, nameOf }: { kind: 'base' | 'patched'; result: ChatResult | null | undefined; turn: Turn; hit: boolean | null | undefined; onTeach?: (answer: string) => void; onAskAgain?: () => void; nameOf?: (id: string) => string }) {
   const { t, help, locale } = useT();
   const pending = turn.status === 'pending';
   const applied = kind === 'patched' && turn.response ? turn.response.applied_ms : null;
   const ids = turn.response?.patch_ids?.length ? turn.response.patch_ids : turn.patchIds ?? [];
   const multi = ids.length > 1;
   const perPatch = multi ? turn.response?.applied ?? [] : [];
+  // Finding 60 — the node's sample matcher also accepts a TRUNCATION of a sample, so a question about one company
+  // could come back scored against another company's ticker. A verdict is shown only where this browser matched
+  // the same sample itself, which is also what makes the expected value below it printable.
   const hits = multi ? turn.response?.benchmark_hits ?? {} : {};
-  const scored = Object.entries(hits).filter(([, h]) => h === true || h === false) as [string, boolean][];
+  const scored = (Object.entries(hits).filter(([id, h]) => (h === true || h === false) && turn.expects?.[id]) as [string, boolean][]);
+  const expectValues = new Set(scored.map(([id]) => turn.expects?.[id]));
   const patchedLabel = multi ? t('chat.bubble.patched_multi', { n: ids.length }) : t('chat.bubble.patched');
+  /** Finding 58 — a thinking turn that came back cut off or empty; the way out is one button, not retyping. */
+  const brokeOnThinking = kind === 'patched' && turn.thinking && !pending && !!result
+    && (!result.content.trim() || result.truncated === 'length' || result.finish_reason === 'length');
   return (
     <Bubble $kind={kind} aria-busy={pending}>
       <BubbleHead>
@@ -212,12 +243,21 @@ function AnswerBubble({ kind, result, turn, hit, onTeach, nameOf }: { kind: 'bas
           ))}
         </LoadList>
       )}
+      {/* Finding 223 — the node answers ONCE with everything loaded and checks that one text against each
+          knowledge's own expected value, so two ticks are not two independent confirmations and a ✓ beside a ✗ is
+          not a bug. Say that, and print the expected values whenever they differ. */}
       {kind === 'patched' && !pending && scored.length > 0 && (
-        <HitRow>
-          {scored.map(([id, ok]) => (
-            <MiniHit key={id} $ok={ok} title={t('chat.hit.per_patch', { id })}><code>{id}</code> {ok ? '✓' : '✗'} {ok ? t('chat.hit.yes') : t('chat.hit.no')}</MiniHit>
-          ))}
-        </HitRow>
+        <>
+          {multi && <HitRow data-testid="chat-hits-caption">{t('chat.hit.one_answer')}</HitRow>}
+          <HitRow>
+            {scored.map(([id, ok]) => (
+              <MiniHit key={id} $ok={ok} title={t('chat.hit.per_patch', { id })}>
+                <code>{nameOf?.(id) ?? id}</code> {ok ? '✓' : '✗'} {ok ? t('chat.hit.yes') : t('chat.hit.no')}
+                {multi && expectValues.size > 1 && turn.expects?.[id] && <> · {t('chat.hit.expected')} <code>{turn.expects[id]}</code></>}
+              </MiniHit>
+            ))}
+          </HitRow>
+        </>
       )}
       {pending ? (
         <>
@@ -227,8 +267,17 @@ function AnswerBubble({ kind, result, turn, hit, onTeach, nameOf }: { kind: 'bas
       ) : (
         <>
           <Answer>{result?.content?.trim() ? result.content.trim() : <EmptyAnswer>{t('chat.bubble.empty_answer')}</EmptyAnswer>}</Answer>
-          {result && <Truncation result={result} />}
-          {result?.reasoning && (<Reasoning><summary>{t('chat.bubble.reasoning')}</summary><pre>{result.reasoning}</pre></Reasoning>)}
+          {result && <Truncation result={result} hit={hit} />}
+          {/* Finding 58 — when thinking ate the whole budget the answer is empty and 600 characters of usable
+              reasoning sat collapsed behind a summary nobody opens. Open it. */}
+          {result?.reasoning && (
+            <Reasoning open={!result.content.trim()}><summary>{t('chat.bubble.reasoning')}</summary><pre>{result.reasoning}</pre></Reasoning>
+          )}
+          {/* Finding 58 — the composer was cleared on submit and the checkbox stayed on, so recovering from a
+              truncated thinking answer meant retyping the question from memory. One button re-asks it without. */}
+          {brokeOnThinking && onAskAgain && (
+            <Button size="small" onClick={onAskAgain} data-testid="chat-ask-again">{t('chat.turn.ask_again')}</Button>
+          )}
           {onTeach && result && <TeachBtn type="button" onClick={() => onTeach(result.content?.trim() ?? '')} data-testid={`teach-${kind}`}>{t('chat.turn.teach')}</TeachBtn>}
           {/* SC-13: only under the answer the loaded knowledge produced — the bare model's answer is not its creator's business. */}
           {kind === 'patched' && result && turn.response?.turn_id && ids.length > 0 && (
@@ -240,34 +289,38 @@ function AnswerBubble({ kind, result, turn, hit, onTeach, nameOf }: { kind: 'bas
   );
 }
 
-export function TurnView({ turn, onRetry, onTeach, nameOf, innerRef }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void; /** id → the knowledge's name, for the SC-13 consent line */ nameOf?: (id: string) => string;
+export function TurnView({ turn, onRetry, onTeach, onAskAgain, nameOf, innerRef }: { turn: Turn; onRetry?: (turn: Turn) => void; /** teach mode: "Teach the right answer" under each reply */ onTeach?: (turn: Turn, answer: string) => void;
+  /** Finding 58 — re-ask this exact question with the thinking box off, in place of the turn thinking spoiled. */
+  onAskAgain?: (turn: Turn) => void; /** id → the knowledge's name, for the SC-13 consent line */ nameOf?: (id: string) => string;
   /**
    * Finding 19 — the page puts THIS element on screen when it is the newest turn. Scrolling the transcript box to its
    * own bottom does nothing below md, where the panel is un-clamped and the page is the scroller.
    */
   innerRef?: React.Ref<HTMLElement> }) {
-  const { t, locale } = useT();
+  const { t } = useT();
   const showBase = turn.mode === 'compare' || turn.mode === 'base';
   const showPatched = turn.mode === 'compare' || turn.mode === 'patched';
   const r = turn.response;
-  const patchedHit = r?.benchmark_hit ?? null;
+  // Finding 60 — the node scores a looser match than this browser does; a verdict with no expected value to show
+  // is a claim about an answer nobody can check, so it is reported as a free question instead.
+  const patchedHit = turn.expect ? r?.benchmark_hit ?? null : null;
   return (
     <Wrap ref={innerRef}>
       <UserRow><UserBubble><span>{t('chat.turn.you')}</span>{turn.prompt}</UserBubble></UserRow>
       {turn.status === 'error' ? (
         <ErrRow>
           <Alert $tone="error" role="alert">{turn.error}</Alert>
-          {turn.quota ? (
-            <QuotaRow data-testid="chat-quota-actions">
-              {turn.quota.buyHref && <Link to={turn.quota.buyHref}>{t('chat.quota.buy')}</Link>}
-              {turn.quota.resetAt !== null && <span>{t('chat.quota.resets_at', { time: new Date(turn.quota.resetAt).toLocaleTimeString(locale === 'ko' ? 'ko-KR' : 'en-US', { hour: '2-digit', minute: '2-digit' }) })}</span>}
-            </QuotaRow>
-          ) : onRetry && turn.retryable !== false && <Button size="small" onClick={() => onRetry(turn)}>{t('chat.turn.retry')}</Button>}
+          {/* Finding 57 — the offer (the knowledge, its price, the hour it comes back) is made ONCE, in the
+              composer footer right below; this bubble only says what became of this question. */}
+          {!turn.quota && onRetry && turn.retryable !== false && <Button size="small" onClick={() => onRetry(turn)}>{t('chat.turn.retry')}</Button>}
         </ErrRow>
       ) : (
         <Pair $cols={showBase && showPatched ? 2 : 1}>
           {showBase && <AnswerBubble kind="base" result={r?.base} turn={turn} hit={turn.expect ? turn.baseHit : null} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined} />}
-          {showPatched && <AnswerBubble kind="patched" result={r?.patched} turn={turn} hit={patchedHit} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined} nameOf={nameOf} />}
+          {showPatched && (
+            <AnswerBubble kind="patched" result={r?.patched} turn={turn} hit={patchedHit} onTeach={onTeach ? (a) => onTeach(turn, a) : undefined}
+              onAskAgain={onAskAgain ? () => onAskAgain(turn) : undefined} nameOf={nameOf} />
+          )}
         </Pair>
       )}
     </Wrap>
