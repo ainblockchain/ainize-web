@@ -36,12 +36,18 @@ const Tools = styled.div`
 const Policy = styled.p<{ $ok: boolean }>`margin: 0; font-size: 12px; line-height: 1.5; color: ${(p) => (p.$ok ? p.theme.color.SUCCESS : p.theme.color.WARNING)};`;
 const Hint = styled.p`margin: 0; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY};`;
 const List = styled.ol`margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px;`;
+/**
+ * Finding 92 — "Remove ×" was `position: absolute` over a question that wrapped underneath it, so at 360 px the
+ * button sat on top of the correction it deletes. The item is a two-column grid instead: the text can never run
+ * under the control, and the control keeps a 32 px touch target of its own.
+ */
 const Item = styled.li`
-  position: relative; padding: 10px 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fafafa; font-size: 13px; line-height: 1.5;
-  .q { color: ${(p) => p.theme.color.BLACK}; font-weight: 600; word-break: break-word; padding-right: 56px; }
-  .a { color: ${(p) => p.theme.color.DARK_GREY}; word-break: break-word; b { color: ${(p) => p.theme.color.PRIMARY}; font-weight: 600; } }
-  .alt { color: ${(p) => p.theme.color.GREY}; font-size: 12px; word-break: break-word; }
-  button { position: absolute; top: 6px; right: 6px; background: none; border: 0; font-size: 12px; color: ${(p) => p.theme.color.GREY}; cursor: pointer; &:hover { color: ${(p) => p.theme.color.ERROR}; } }
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: start;
+  padding: 10px 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fafafa; font-size: 13px; line-height: 1.5;
+  .q { grid-column: 1; color: ${(p) => p.theme.color.BLACK}; font-weight: 600; word-break: break-word; }
+  .a { grid-column: 1; color: ${(p) => p.theme.color.DARK_GREY}; word-break: break-word; b { color: ${(p) => p.theme.color.PRIMARY}; font-weight: 600; } }
+  .alt { grid-column: 1; color: ${(p) => p.theme.color.GREY}; font-size: 12px; word-break: break-word; }
+  button { grid-column: 2; grid-row: 1; align-self: start; min-height: 32px; padding: 0 2px; background: none; border: 0; font: inherit; font-size: 12px; white-space: nowrap; color: ${(p) => p.theme.color.GREY}; cursor: pointer; &:hover { color: ${(p) => p.theme.color.ERROR}; } }
 `;
 const BaseRow = styled.div`
   display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fafafa;
@@ -71,10 +77,12 @@ export interface LessonBasketProps {
   onOpenMine: () => void;
   /** "Teaching as {name} · {short}" when this browser already has a key */
   keyLabel?: string;
+  /** this node's own display name — it is a payee in the split sentence under "builds on" (finding 300) */
+  nodeName?: string;
 }
 
 /** §5.5 / v2 §5.9 — the corrections collected for the current knowledge stack; persists in localStorage across reloads. */
-export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], onBase, expanded, onToggle, onRemove, onBuildsOn, onTrain, onOpenMine, keyLabel }: LessonBasketProps) {
+export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], onBase, expanded, onToggle, onRemove, onBuildsOn, onTrain, onOpenMine, keyLabel, nodeName }: LessonBasketProps) {
   const { t } = useT();
   const [viewing, setViewing] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -103,6 +111,22 @@ export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], 
   // a loaded knowledge that CANNOT be built on says why here, where the visitor is deciding
   const blockedNote = !base ? (marked.filter((c) => c.loaded && c.blocked).map((c) => baseBlocked(c, t)).find(Boolean) ?? null) : null;
   const lineagePct = Math.round((policy?.shares?.lineage ?? 0) * 100);
+  /**
+   * Finding 300 — the v1 tick was eleven words that named neither a rate nor a person, and it is the creator's
+   * biggest revenue decision. `royaltySplit` pays the lineage pool off the top and carves the contributor's share
+   * out of what is left, so ticking it moves the teacher from 70 % to 49 % on this node's own numbers — say both,
+   * name the creators being credited, and say that it lasts as long as the lesson sells.
+   */
+  const loadedCreators = [...new Set(marked.filter((c) => c.loaded).map((c) => c.author))].join(', ');
+  const shareContributor = policy?.shares?.contributor ?? 0;
+  const shareLineage = policy?.shares?.lineage ?? 0;
+  const pct = (x: number) => Math.round(x * 1000) / 10;
+  const buildsOnMoney = {
+    names: stackNames.join(', '), creators: loadedCreators, node: nodeName ?? t('teach.pub.split_node'),
+    lineage: pct(shareLineage), contributor: pct(shareContributor * (1 - shareLineage)),
+    nodePct: pct(1 - shareLineage - shareContributor * (1 - shareLineage)),
+  };
+  const plainMoney = { node: nodeName ?? t('teach.pub.split_node'), contributor: pct(shareContributor), nodePct: pct(1 - shareContributor) };
 
   return (
     <Panel aria-label={heading} data-testid="lesson-basket">
@@ -120,9 +144,9 @@ export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], 
               {basket.facts.map((f, i) => (
                 <Item key={f.id} data-testid="basket-item">
                   <div className="q">{i + 1}. {f.prompt}</div>
+                  <button type="button" onClick={() => onRemove(f.id)} aria-label={`${t('teach.basket.remove')} ${i + 1}`}>{t('teach.basket.remove')} ×</button>
                   <div className="a">{t('teach.basket.answer_label')}: <b>{f.answer}</b></div>
                   {f.alt_prompt && <div className="alt">{t('teach.basket.alt_label')}: {f.alt_prompt}</div>}
-                  <button type="button" onClick={() => onRemove(f.id)} aria-label={`${t('teach.basket.remove')} ${i + 1}`}>{t('teach.basket.remove')} ×</button>
                 </Item>
               ))}
             </List>
@@ -156,7 +180,16 @@ export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], 
               {blockedNote && <p className="warn" data-testid="basket-base-blocked">{blockedNote}</p>}
             </BaseRow>
           ) : stackNames.length > 0 && (
-            <Checkbox checked={basket.builds_on} onChange={(e) => onBuildsOn(e.target.checked)} label={<span style={{ fontSize: 13 }}>{t('teach.basket.builds_on')}</span>} />
+            <BaseRow data-testid="basket-builds-on">
+              <Checkbox checked={basket.builds_on} onChange={(e) => onBuildsOn(e.target.checked)} label={<span style={{ fontSize: 13 }}>{t('teach.basket.builds_on')}</span>} />
+              {/* finding 300 — the rate, the people it pays and how long it lasts, from this node's own shares */}
+              <p data-testid="builds-on-money">
+                {basket.builds_on ? t('teach.basket.builds_on_money', buildsOnMoney) : t('teach.basket.builds_on_off', plainMoney)}
+              </p>
+              {/* on-top training has not shipped: the parent reaches the trainer as contrast samples only, so a
+                  buyer of this lesson does not need the base loaded. Say so where the tick is made. */}
+              <p data-testid="builds-on-standalone">{t('teach.basket.builds_on_standalone', { names: stackNames.join(', ') })}</p>
+            </BaseRow>
           )}
           {n >= max && <Alert $tone="info">{t('teach.drawer.v_full', { n: max })}</Alert>}
           <Button variant="contained" fullWidth disabled={!canTrain} onClick={onTrain} data-testid="train-lesson">{t('teach.basket.train_ds', { n })}</Button>

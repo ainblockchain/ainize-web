@@ -7,6 +7,7 @@ import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { StyledLink } from '@/components/ui/Misc';
+import { useDateTime } from '@/utils/useFormat';
 import { basketFilename } from '@/lib/teachDataset';
 import { BuiltOnLines } from '@/components/teach/BuiltOn';
 import { ACTIVE, cardStatusKey, etaText, failedKey, isFullJob, mapTeachError } from './teachUtil';
@@ -27,15 +28,45 @@ const State = styled.span<{ $tone: string }>`
   background: ${(p) => (p.$tone === 'ok' ? '#e6f4ea' : p.$tone === 'warn' ? '#fff3e0' : p.$tone === 'bad' ? '#fde8ec' : p.$tone === 'muted' ? '#f2f2f2' : '#f5eefc')};
 `;
 const Bar = styled.div`height: 6px; border-radius: 3px; background: #eee; overflow: hidden; span { display: block; height: 100%; background: ${(p) => p.theme.color.PRIMARY}; transition: width 0.4s ease; }`;
-const Checks = styled.ul`margin: 0; padding: 0 0 0 18px; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY}; li { margin: 2px 0; }`;
+/**
+ * Finding 44 — the three checks are a verdict, not trivia. Each bullet is driven by its own `ok` flag: a tick or a
+ * cross in the same green/red the rest of the card uses, and the failing one carries the consequence in words ("that
+ * is why this cannot be published") instead of leaving "8/12" to be read as a neutral score.
+ */
+const Checks = styled.ul`
+  margin: 0; padding: 0; list-style: none; font-size: 12px; color: ${(p) => p.theme.color.DARK_GREY};
+  li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; margin: 3px 0; }
+  li > b { font-weight: 700; }
+  li[data-ok='1'] > b { color: #1e6b36; }
+  li[data-ok='0'] > b { color: #a0102c; }
+  li[data-ok='0'] > span { color: #a0102c; }
+  li > span > em { display: block; font-style: normal; margin-top: 2px; }
+`;
 const FactsWrap = styled.div`max-width: 100%; overflow-x: auto;`;
+/**
+ * Finding 91 — at 360 px this table used to squeeze to four ~60 px columns inside a wrapper that never scrolled,
+ * and every answer was cut at 60 px of height with no ellipsis and no way to see the rest. Below 560 px each fact
+ * becomes its own labelled block (the same stacked treatment the dataset preview uses), and a long answer is
+ * clamped with a disclosure rather than clipped.
+ */
 const Facts = styled.table`
   width: 100%; border-collapse: collapse; font-size: 12px;
   th { text-align: left; font-weight: 600; color: ${(p) => p.theme.color.GREY}; padding: 4px 8px 4px 0; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; }
   td { padding: 6px 8px 6px 0; vertical-align: top; border-bottom: 1px solid #f0f0f0; word-break: break-word; max-width: 260px; }
   td.q { font-weight: 600; color: ${(p) => p.theme.color.BLACK}; }
   .ok { color: #1e6b36; font-weight: 700; } .no { color: #a0102c; font-weight: 700; }
-  .ans { color: ${(p) => p.theme.color.GREY}; display: block; white-space: pre-wrap; max-height: 60px; overflow: hidden; }
+  .ans { color: ${(p) => p.theme.color.GREY}; display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ans.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  details.more { margin-top: 2px; summary { cursor: pointer; color: ${(p) => p.theme.color.PRIMARY}; font-size: 11px; } }
+  details.more[open] .ans.clamp { -webkit-line-clamp: unset; overflow: visible; }
+  @media (max-width: 560px) {
+    thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    tr { display: block; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+    td { display: block; border: 0; padding: 3px 0; max-width: none; }
+    td::before { content: attr(data-label) ': '; font-size: 11px; color: ${(p) => p.theme.color.GREY}; }
+    td.q::before { content: none; }
+    td:empty { display: none; }
+  }
 `;
 const Actions = styled.div`display: flex; flex-wrap: wrap; gap: 8px; align-items: center;`;
 const Tip = styled.p`margin: 0; font-size: 11px; color: ${(p) => p.theme.color.GREY};`;
@@ -58,6 +89,21 @@ export interface LessonCardProps {
   onHide: () => void;
 }
 
+/** Longer than this and the cell is clamped to three lines with a "show the full answer" disclosure (finding 91). */
+const ANSWER_CLAMP = 120;
+function Answer({ text, empty = '' }: { text: string | undefined; empty?: string }) {
+  const { t } = useT();
+  const value = (text ?? '').trim();
+  if (!value) return <span className="ans">{empty}</span>;
+  if (value.length <= ANSWER_CLAMP) return <span className="ans">{value}</span>;
+  return (
+    <details className="more">
+      <span className="ans clamp">{value}</span>
+      <summary>{t('teach.card.show_full')}</summary>
+    </details>
+  );
+}
+
 const toneOf = (j: TeachJob): 'busy' | 'ok' | 'warn' | 'bad' | 'muted' => {
   if (['READY', 'ANNOUNCED'].includes(j.status)) return 'ok';
   if (['NEEDS_MORE', 'PENDING_REVIEW'].includes(j.status)) return 'warn';
@@ -69,6 +115,7 @@ const toneOf = (j: TeachJob): 'busy' | 'ok' | 'warn' | 'bad' | 'muted' => {
 /** §5.8 — the "Your lesson" card at the top of the transcript: polls the job every 5 s while it moves, then offers Try / Publish / Keep. */
 export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, onPublish, onKeep, onImprove, onHide }: LessonCardProps) {
   const { t } = useT();
+  const dateTime = useDateTime();
   const dispatch = useDispatch();
   const [poll, setPoll] = useState(5000);
   const { data, error } = useTeachJobQuery(jobId, { pollingInterval: poll });
@@ -189,7 +236,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
       <Head>
         <h3>{t('teach.card.title', { name })}</h3>
         <State $tone={tone} data-testid="lesson-status">{t(cardStatusKey(j.status, j.publish_status))}</State>
-        <span style={{ fontSize: 11, color: '#8d8d8f' }}>{t('teach.card.facts', { n: j.facts.length })}</span>
+        <span style={{ fontSize: 11, color: '#8d8d8f' }}>{t('teach.card.facts', { n: j.facts.length }, j.facts.length)}</span>
         <button type="button" className="x" onClick={onHide}>{t('teach.card.hide')}</button>
       </Head>
       <div data-testid="lesson-body">{body}</div>
@@ -212,8 +259,16 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
       {(simulated || stub) && showChecks && <Tip data-testid="lesson-simulated">{t(simulated ? 'teach.card.simulated' : 'teach.card.stub_only')}</Tip>}
       {c?.reverted_and_reapplied && <Tip>{t('teach.card.revert_note')}</Tip>}
       {showChecks && (
-        <Checks>
-          {c.parent_regression.total > 0 && <li>{t('teach.card.check_parent', { m: c.parent_regression.hit, n: c.parent_regression.total })}</li>}
+        <Checks data-testid="lesson-checks">
+          {c.parent_regression.total > 0 && (
+            <li data-ok={c.parent_regression.ok ? '1' : '0'} data-testid="check-parent">
+              <b aria-hidden>{c.parent_regression.ok ? '✓' : '✗'}</b>
+              <span>
+                {t('teach.card.check_parent', { m: c.parent_regression.hit, n: c.parent_regression.total })}
+                {!c.parent_regression.ok && <em>{t('teach.card.check_parent_bad', { n: Math.max(0, c.parent_regression.total - c.parent_regression.hit) })}</em>}
+              </span>
+            </li>
+          )}
           {/* SC-14 `merge.result`: a combined knowledge is scored per source, so a merge that keeps 95 % overall by
               losing one parent entirely cannot read as a pass (design §9 step 4). */}
           {/* only where the node scored BOTH sides: a parent whose questions the other one already covers has no
@@ -232,8 +287,24 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
               })}</li>
             );
           })()}
-          <li>{t('teach.card.check_locality', { m: c.locality.same, n: c.locality.total })}</li>
-          {c.heldout.total > 0 && <li>{t('teach.card.check_heldout', { m: c.heldout.hits, n: c.heldout.total })}</li>}
+          <li data-ok={c.locality.ok ? '1' : '0'} data-testid="check-locality">
+            <b aria-hidden>{c.locality.ok ? '✓' : '✗'}</b>
+            <span>
+              {t('teach.card.check_locality', { m: c.locality.same, n: c.locality.total })}
+              {!c.locality.ok && <em>{t('teach.card.check_locality_bad', { n: Math.max(0, c.locality.total - c.locality.same) }, Math.max(0, c.locality.total - c.locality.same))}</em>}
+            </span>
+          </li>
+          {c.heldout.total > 0 && (
+            /* the other-phrasing check is evidence, not a gate: a miss says the fact may have been learned as a
+               sentence, and it never blocks a publish — so it is marked, but never with the publish cross. */
+            <li data-ok={c.heldout.hits === c.heldout.total ? '1' : undefined} data-testid="check-heldout">
+              <b aria-hidden>{c.heldout.hits === c.heldout.total ? '✓' : '·'}</b>
+              <span>
+                {t('teach.card.check_heldout', { m: c.heldout.hits, n: c.heldout.total })}
+                {c.heldout.hits < c.heldout.total && <em>{t('teach.card.check_heldout_weak', { n: c.heldout.total - c.heldout.hits }, c.heldout.total - c.heldout.hits)}</em>}
+              </span>
+            </li>
+          )}
         </Checks>
       )}
       {showFacts && (
@@ -243,17 +314,21 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
             <tbody>
               {j.facts.map((f, i) => (
                 <tr key={i}>
-                  <td className="q">{f.prompt}<span className="ans">→ {f.answer}</span></td>
-                  <td><span className="ans">{f.base_answer?.trim() || '—'}</span></td>
-                  <td>{f.hit === undefined ? '—' : <span className={f.hit ? 'ok' : 'no'}>{f.hit ? '✓' : '✗'}</span>}<span className="ans">{f.after_answer?.trim() || ''}</span></td>
-                  <td>{f.alt_prompt ? (f.heldout_hit === undefined ? '—' : <span className={f.heldout_hit ? 'ok' : 'no'}>{f.heldout_hit ? '✓' : '✗'}</span>) : '—'}</td>
+                  <td className="q" data-label={t('teach.drawer.question')}>{f.prompt}<Answer text={`→ ${f.answer}`} /></td>
+                  <td data-label={t('teach.card.before')}><Answer text={f.base_answer} empty="—" /></td>
+                  <td data-label={t('teach.card.after')}>{f.hit === undefined ? '—' : <span className={f.hit ? 'ok' : 'no'}>{f.hit ? '✓' : '✗'}</span>}<Answer text={f.after_answer} /></td>
+                  <td data-label={t('teach.card.other')}>{f.alt_prompt ? (f.heldout_hit === undefined ? '—' : <span className={f.heldout_hit ? 'ok' : 'no'}>{f.heldout_hit ? '✓' : '✗'}</span>) : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </Facts>
         </FactsWrap>
       )}
-      {j.status === 'READY' && gated && c?.executed && <Alert $tone="warning" data-testid="publish-gated">{t('teach.card.publish_gated')}</Alert>}
+      {/* finding 44 — the alert that says WHY this can never be published was gated to READY, so a NEEDS_MORE
+          lesson that broke four unrelated answers showed "8/12" and no consequence anywhere on the card. */}
+      {['READY', 'NEEDS_MORE'].includes(j.status) && gated && c?.executed && (!c.locality.ok || !c.parent_regression.ok) && (
+        <Alert $tone="warning" data-testid="publish-gated">{t('teach.card.publish_gated')}</Alert>
+      )}
       {j.status === 'READY' && publishOff && <Alert $tone="info">{t('teach.pub.off')}</Alert>}
       {actionError && <Alert $tone="error" role="alert">{actionError}</Alert>}
       <Actions>
@@ -266,7 +341,16 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
         {['PENDING_REVIEW', 'ANNOUNCED'].includes(j.status) && teacherAddress && <StyledLink to={`/teacher/${teacherAddress}`} style={{ fontSize: 12 }}>{t('teach.pub.link_earnings')} →</StyledLink>}
       </Actions>
       {ACTIVE.has(j.status) && !stub && <Tip>{t('teach.card.timing_tip')}</Tip>}
-      {['READY', 'NEEDS_MORE'].includes(j.status) && <Tip>{t('teach.card.expiry')}</Tip>}
+      {/*
+        Findings 36 + 305 — this card used to say "Unsaved lessons are deleted after 7 days" while the sheet behind
+        it congratulated the visitor on keeping it. The node sends the deadline (`expires_at`), so say the DATE, say
+        that opening or trying the lesson moves it, and say what happens when it passes.
+      */}
+      {['READY', 'NEEDS_MORE'].includes(j.status) && (
+        <Tip data-testid="lesson-expiry">
+          {j.expires_at ? t('teach.card.expiry_at', { when: dateTime(j.expires_at) }) : t('teach.card.expiry', { days: policy?.draft_ttl_days ?? 7 })}
+        </Tip>
+      )}
     </Card>
   );
 }

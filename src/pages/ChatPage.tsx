@@ -698,7 +698,7 @@ export default function ChatPage() {
       <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
         baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
         onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
-        onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} />
+        onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} nodeName={info?.node.name} />
     </div>
   );
 
@@ -783,7 +783,10 @@ export default function ChatPage() {
                         than a made-up number.) */}
                     <small title={`${help('facts')} (${tech('facts')})`}>
                       {factsKnown
-                        ? (stackOverlaps ? t('chat.head.facts_each', { n: num(Math.max(...selectedList.map((e) => e.anchor.benchmark.queries))) }) : t('units.facts', { n: num(selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)) }))
+                        ? (stackOverlaps
+                          ? t('chat.head.facts_each', { n: num(Math.max(...selectedList.map((e) => e.anchor.benchmark.queries))) })
+                          // finding 88 — the count decides "1 fact" vs "1 facts"; it was never passed here
+                          : t('units.facts', { n: num(selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)) }, selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)))
                         : t('units.facts', { n: num(null) })}
                     </small>
                     <small style={{ marginLeft: 'auto' }}>{t('chat.head.multi_help')}</small>

@@ -44,6 +44,14 @@ export const teach: Dict = {
   'teach.basket.policy_paused': { ko: '지금은 이 노드에서 가르치기가 잠시 중단되었습니다. {reason}', en: 'Teaching is paused on this node right now. {reason}' },
   'teach.basket.policy_off': { ko: '이 노드는 수업을 받지 않습니다. 다른 노드를 쓰거나 직접 노드를 운영하세요.', en: 'This node does not accept lessons. Try another node or run your own.' },
   'teach.basket.builds_on': { ko: '지금 넣은 지식을 바탕으로 합니다 (그 제작자도 수익을 나눕니다)', en: 'This builds on the knowledge I have loaded (its creators share in sales)' },
+  /*
+   * Finding 300 — the tick above is a permanent royalty declaration, and it used to name neither the rate nor the
+   * person. These three lines are computed from THIS node's `shares` with the same arithmetic `royaltySplit` uses:
+   * the creator pool comes off the top and the teacher's share is carved out of what is left.
+   */
+  'teach.basket.builds_on_money': { ko: '{names}의 제작자({creators})가 이 수업 판매마다 {lineage}%를 받습니다 — 이 수업이 팔리는 한 계속입니다. 나는 {contributor}%, {node}는 {nodePct}%를 받습니다.', en: 'The creators of {names} ({creators}) receive {lineage}% of every sale of this lesson, for as long as it sells. You keep {contributor}%, {node} keeps {nodePct}%.' },
+  'teach.basket.builds_on_off': { ko: '켜지 않으면 이 수업 판매는 나와 {node}에게만 갑니다 — 나 {contributor}%, {node} {nodePct}%.', en: 'Left unticked, a sale pays only you and {node} — you keep {contributor}%, {node} keeps {nodePct}%.' },
+  'teach.basket.builds_on_standalone': { ko: '내 수업은 따로 학습됩니다 — 구매자가 이 수업을 쓰려고 {names}을(를) 넣어야 하는 것은 아닙니다.', en: 'Your lesson is trained on its own — buyers do not need {names} loaded to use it.' },
   'teach.basket.remove': { ko: '빼기', en: 'Remove' },
   'teach.basket.answer_label': { ko: '정답', en: 'Answer' },
   'teach.basket.alt_label': { ko: '다른 표현', en: 'Other phrasing' },
@@ -125,6 +133,7 @@ export const teach: Dict = {
   'teach.pub.split_lineage': { ko: '판매마다: {names} 제작자에게 {lineage}%, 나에게 {contributor}%, {node}에게 {nodePct}%. 제작자 몫이 먼저 나가고, 내 몫은 그 나머지에서 계산됩니다.', en: 'Every sale: {lineage}% to the creators of {names}, {contributor}% to you, {nodePct}% to {node}. The creators are paid first, and your share is a share of what is left.' },
   'teach.pub.split_at': { ko: '{price} {currency}에 팔면 — {lines}.', en: 'At {price} {currency} that is {lines}.' },
   'teach.pub.split_you': { ko: '나', en: 'you' },
+  'teach.pub.split_node': { ko: '이 노드', en: 'this node' },
   'teach.pub.you_get': { ko: '이 가격이면 판매마다 {amount} {currency}를 받습니다 ({percent}%).', en: 'At this price you receive {amount} {currency} per sale ({percent}%).' },
   'teach.pub.parent_price': { ko: '{name}은(는) {price} {currency}에 팔립니다. 0으로 두면 기반 지식 제작자도 0을 받습니다.', en: '{name} sells for {price} {currency}. Priced at 0, the creators you built on receive 0 too.' },
   // Item 298 — a node with fewer verifier peers than its quorum cannot put anything on sale, whatever the sheet says.
@@ -233,14 +242,26 @@ export const teach: Dict = {
   'teach.card.improve': { ko: '보완해서 다시', en: 'Improve & retry' },
   'teach.card.cancel': { ko: '취소', en: 'Cancel' },
   'teach.card.delete': { ko: '삭제', en: 'Delete' },
-  'teach.card.expiry': { ko: '저장하지 않은 수업은 7일 뒤 삭제됩니다.', en: 'Unsaved lessons are deleted after 7 days.' },
+  // Findings 36 + 305 — the deadline, as a date, with what moves it and what happens when it passes.
+  'teach.card.expiry': { ko: '마지막으로 쓴 뒤 {days}일 동안 이 노드에 보관합니다. 그 뒤에는 수업과 파일이 삭제되니, 내려받거나 공개해서 남기세요.', en: 'Kept on this node for {days} days after you last use it. It is deleted then — download or publish it to keep it.' },
+  'teach.card.expiry_at': { ko: '이 노드에 {when}까지 보관합니다 — 이 수업을 열거나 써볼 때마다 날짜가 미뤄집니다. 그 뒤에는 수업과 파일이 삭제되니, 내려받거나 공개해서 남기세요.', en: 'Kept on this node until {when} — that date moves every time you open or try this lesson. After it the lesson and its file are deleted; download or publish it to keep it.' },
+  // finding 91 — a long answer is clamped to three lines, never cut off with nothing to click
+  'teach.card.show_full': { ko: '전체 답 보기', en: 'Show the full answer' },
+  // finding 44 — what a failed check MEANS, in the bullet that failed
+  'teach.card.check_locality_bad': { ko: '내 바로잡기와 상관없는 질문 {n}개의 답이 바뀌었습니다 — 그래서 이 수업은 공개할 수 없습니다.', en: 'It changed the answer to {n} questions that had nothing to do with your correction — that is why this cannot be published.' },
+  'teach.card.check_locality_bad_one': { ko: '내 바로잡기와 상관없는 질문 1개의 답이 바뀌었습니다 — 그래서 이 수업은 공개할 수 없습니다.', en: 'It changed the answer to 1 question that had nothing to do with your correction — that is why this cannot be published.' },
+  'teach.card.check_parent_bad': { ko: '넣어 둔 지식이 원래 맞히던 답 {n}개를 이 수업이 망가뜨렸습니다 — 그래서 그 위에는 공개할 수 없습니다.', en: 'Your lesson broke {n} answers the knowledge you had loaded used to get right — that is why it cannot be published on top of it.' },
+  'teach.card.check_heldout_weak': { ko: '다른 표현 {n}개는 틀렸습니다 — 문장이 아니라 사실로 배우지 못했을 수 있습니다. 공개는 막지 않습니다.', en: 'It got {n} of the other phrasings wrong — the fact may have been learned as a sentence rather than a fact. This does not block publishing.' },
+  'teach.card.check_heldout_weak_one': { ko: '다른 표현 1개는 틀렸습니다 — 문장이 아니라 사실로 배우지 못했을 수 있습니다. 공개는 막지 않습니다.', en: 'It got 1 of the other phrasings wrong — the fact may have been learned as a sentence rather than a fact. This does not block publishing.' },
   'teach.card.before': { ko: '넣기 전', en: 'Before' },
   'teach.card.after': { ko: '넣은 후', en: 'After' },
   'teach.card.other': { ko: '다른 표현', en: 'Other phrasing' },
   'teach.card.hide': { ko: '카드 숨기기', en: 'Hide card' },
   'teach.card.page_link': { ko: '내 지식 페이지', en: 'Your knowledge page' },
   'teach.card.not_yours': { ko: '이 수업은 다른 가르치기 키의 것입니다 — 상태만 보입니다: {status}', en: 'This lesson belongs to a different teaching key — only its status is visible: {status}' },
-  'teach.card.facts': { ko: '바로잡기 {n}개', en: '{n} correction(s)' },
+  // finding 88 — "1 correction(s)" was the headline of the card a visitor stares at through a training wait.
+  'teach.card.facts': { ko: '바로잡기 {n}개', en: '{n} corrections' },
+  'teach.card.facts_one': { ko: '바로잡기 1개', en: '1 correction' },
 
   // §5.9 publish sheet
   'teach.pub.title': { ko: '내 지식 공개하기', en: 'Publish your knowledge' },
