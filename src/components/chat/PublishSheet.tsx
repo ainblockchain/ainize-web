@@ -212,13 +212,15 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
           <label><input type="radio" name="ds-access" checked={access === 'derivative'} onChange={() => setAccess('derivative')} />{t('teach.pub.ds_derivative')}</label>
           <label><input type="radio" name="ds-access" checked={access === 'private'} onChange={() => setAccess('private')} />{t('teach.pub.ds_private')}</label>
         </Radios>
-        <HelperText data-testid="pub-ds-honesty">{t('teach.pub.ds_honesty', { n: Math.min(job.facts.length, TEACH_SAMPLES_ON_CHAIN) })}</HelperText>
+        {/* HelperText is a <span>: two of them in a row render as one sentence — "…protects only notes and untrained
+            rows.Whoever takes them is recorded…" — so each of these two gets its own line. */}
+        <HelperText style={{ display: 'block' }} data-testid="pub-ds-honesty">{t('teach.pub.ds_honesty', { n: Math.min(job.facts.length, TEACH_SAMPLES_ON_CHAIN) })}</HelperText>
         {/*
           Item 312 — "derivative" is not "on request": it is a recorded commitment. Whoever takes these questions is
           written down against their teaching key, and this node refuses to publish a lesson trained on them unless it
           names this knowledge as its base. The creator is told that before they choose, not after.
         */}
-        <HelperText data-testid="pub-ds-terms">
+        <HelperText style={{ display: 'block', marginTop: 4 }} data-testid="pub-ds-terms">
           {access === 'public' ? t('teach.pub.ds_terms_public') : access === 'derivative' ? t('teach.pub.ds_terms_derivative') : t('teach.pub.ds_terms_private')}
         </HelperText>
       </div>

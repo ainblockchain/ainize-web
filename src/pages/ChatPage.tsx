@@ -758,7 +758,7 @@ export default function ChatPage() {
                     <StatusChip status={selected.status} />
                     <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selected.anchor.benchmark.queries) }, selected.anchor.benchmark.queries)}</small>
                     {/* Finding 228 — a retired version is pickable here; say what replaces it before the visitor
-                        spends a free try, or a purchase, on an epoch the newer one already covers. */}
+                        spends a free try, or a purchase, on a version the newer one already covers. */}
                     {selected.superseded_by?.[0] && (
                       <Replaced title={t('chat.head.replaced_help')}>{t('chat.head.replaced', { id: selected.superseded_by[0] })}</Replaced>
                     )}
