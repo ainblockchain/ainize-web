@@ -26,14 +26,14 @@ const Content = styled.div`
  * spilled 65 px over the first nav link ("AI N[Explore knowledge]"). Nav takes the slack instead.
  */
 const Home = styled(Link)`
-  flex: 0 0 auto; text-decoration: none; display: flex; align-items: center; gap: 10px;
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 0 100%; padding: 12px 0 2px; }
+  flex: 0 0 auto; order: 0; text-decoration: none; display: flex; align-items: center; gap: 10px;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 1 auto; padding: 12px 0 2px; }
 `;
 const Logo = styled.img`width: 121px; object-fit: contain;`;
 /** Takes the whole slack and right-aligns inside it, so the row's spare width lives between the logo and the links. */
 const Nav = styled.nav`
-  flex: 1 1 auto; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; min-width: 0;
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 0 100%; justify-content: flex-start; padding: 0 0 8px; margin-left: -8px; }
+  flex: 1 1 auto; order: 1; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; min-width: 0;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { order: 2; flex: 1 0 100%; justify-content: flex-start; padding: 0 0 8px; margin-left: -8px; }
 `;
 /**
  * 10 px of horizontal padding, not 16. Home (121 px logo + 75 px badge, neither shrinkable) and the seven English
@@ -75,9 +75,17 @@ const LedgerBadge = styled.span<{ $ain: boolean }>`
   padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap;
   color: ${(p) => (p.$ain ? '#0b5468' : '#5b1ca8')}; background: ${(p) => (p.$ain ? '#e1eef3' : '#f5eefc')};
 `;
+/**
+ * The language toggle is a system setting, not a navigation item (ux-critique-owner O-8): it is the header's last
+ * child, outside the nav, in the top-right corner at every width. On a phone the nav wraps under the logo (order 2)
+ * and the toggle stays on the logo row (order 1) — the DOM order home → nav → language never changes, so neither
+ * does the Tab order. The same corner holds the same toggle on the landing page and in the teach flow's slim header.
+ */
 const LocaleButton = styled.button`
-  margin-left: 4px; padding: 4px 8px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 12px; background: #fff; font-size: 12px; color: ${(p) => p.theme.color.GREY}; cursor: pointer;
+  flex: 0 0 auto; order: 2; margin-left: 12px; padding: 4px 8px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 12px; background: #fff; font-size: 12px; color: ${(p) => p.theme.color.GREY}; cursor: pointer;
   &:hover { color: ${(p) => p.theme.color.HOVER}; border-color: ${(p) => p.theme.color.HOVER}; }
+  &:focus-visible { outline: 3px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { order: 1; margin-left: auto; }
 `;
 
 export function Header() {
@@ -130,8 +138,8 @@ export function Header() {
               </Menu>
             </div>
           )}
-          <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
         </Nav>
+        <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
       </Content>
     </Wrapper>
   );
