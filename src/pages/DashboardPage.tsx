@@ -2,17 +2,17 @@ import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddToBranchMutation, useApplyMutation, useBranchesQuery, useCreateBranchMutation, useInfoQuery, useMyPatchesQuery, useMyPurchasesQuery,
-  useRemoveMutation, useRuntimeQuery,
+  errorMessage, useAddToBranchMutation, useApplyMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMyPatchesQuery,
+  useMyPurchasesQuery, useRemoveMutation, useRuntimeQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
-import { Alert, Checkbox, Select, TextField } from '@/components/ui/Form';
+import { Alert, Checkbox, Input, Select, TextField } from '@/components/ui/Form';
 import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
-import { CenterProgress, PageWrapper, StatusChip, SubTitle, Tabs, Title, TitleRow, Description } from '@/components/ui/Misc';
+import { CenterProgress, Empty, Pagination, PageWrapper, SelectBox, StatusChip, SubTitle, Tabs, Title, TitleRow, Description } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { IconButton, LiveTestIcon, QueryError, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
 import { TrackCard } from '@/components/operator/TrackCard';
@@ -30,6 +30,50 @@ const MiniForm = styled.form`
 `;
 const ContextRow = styled.div`display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;`;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
+
+/**
+ * Finding 31 — the inventory was `items.map` over the whole catalogue: 103 rows in a 12,134 px page with no filter,
+ * no sort, no paging and no count, and 28 of those rows shared one name. These are the controls /explore already
+ * uses, over the operator's own list, so picking the right row among the duplicates stops being guesswork.
+ */
+const Toolbar = styled.div`
+  display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+`;
+const FilterGroup = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  span.label { font-size: 12px; color: ${(p) => p.theme.color.GREY}; margin-right: 2px; cursor: default; }
+`;
+const FilterChip = styled.button<{ $active: boolean }>`
+  padding: 3px 12px; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  border: 1px solid ${(p) => (p.$active ? p.theme.color.PRIMARY : p.theme.color.LIGHT_GREY)};
+  background: ${(p) => (p.$active ? p.theme.color.PALE_GREY : '#fff')};
+  color: ${(p) => (p.$active ? p.theme.color.HOVER : p.theme.color.BLACK)};
+  &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
+`;
+const Search = styled(Input)`max-width: 300px; margin-left: auto;`;
+const IdText = styled.span`
+  font-family: ${(p) => p.theme.font.mono}; font-weight: 600; color: ${(p) => p.theme.color.DARK_GREY}; user-select: all;
+`;
+const CountLine = styled.div`
+  font-size: 12px; color: ${(p) => p.theme.color.GREY}; padding-bottom: 8px;
+  button { padding: 0; margin-left: 8px; border: 0; background: none; font: inherit; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; text-decoration: underline; }
+`;
+/** Finding 133 — the way into the node-wide log, with what it has to say about itself since the last visit. */
+const LogLink = styled(Link)`
+  display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; text-decoration: none;
+  color: ${(p) => p.theme.color.PRIMARY};
+  &:hover { text-decoration: underline; }
+`;
+const LogBadge = styled.span`
+  padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: #fff3e0; color: #8a4b00;
+`;
+
+const PAGE_SIZE = 25;
+/** Needs-attention order: what the operator has to act on, then what is merely on sale, then what is over. */
+const STATUS_ORDER = ['DRAFT', 'ANNOUNCED', 'VERIFYING', 'CHALLENGED', 'LISTED', 'SUPERSEDED', 'RETIRED', 'REJECTED'];
+const statusRank = (s: string) => { const i = STATUS_ORDER.indexOf(s); return i < 0 ? STATUS_ORDER.length : i; };
+const recency = (e: CatalogEntry) => e.listed_at ?? e.anchor.created_at ?? 0;
+const NODELOG_SEEN = 'ainize.nodelog.seen';
 
 /** Teaching tab (spec §5.13) is code-split: most operators open My knowledge far more often than the teach queue. */
 const TeachingTab = lazy(() => import('@/components/operator/TeachingTab'));
@@ -71,6 +115,45 @@ export default function DashboardPage() {
   const listedMine = useMemo(() => items.filter((e) => e.status === 'LISTED'), [items]);
   const ownedBranches = useMemo(() => (branches.data?.branches ?? []).filter((b) => b.owner === address), [branches.data, address]);
 
+  // ---------------------------------------------------------------- finding 31: search, status filter, sort, paging
+  const [q, setQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sort, setSort] = useState<'status' | 'new' | 'name' | 'sales'>('status');
+  const [page, setPage] = useState(1);
+  const resetPage = () => setPage(1);
+
+  const statusCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of items) m.set(e.status, (m.get(e.status) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => statusRank(a[0]) - statusRank(b[0]));
+  }, [items]);
+
+  const matched = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const hit = (e: CatalogEntry) => !needle || [e.anchor.id, e.anchor.name, e.anchor.model.id_M, e.anchor.benchmark.schema, e.anchor.branch]
+      .some((v) => (v ?? '').toLowerCase().includes(needle));
+    const list = items.filter((e) => (statusFilter === 'all' || e.status === statusFilter) && hit(e));
+    const by = {
+      // Within one status the newest first: an operator scanning drafts wants the one they just made.
+      status: (a: CatalogEntry, b: CatalogEntry) => statusRank(a.status) - statusRank(b.status) || recency(b) - recency(a),
+      new: (a: CatalogEntry, b: CatalogEntry) => recency(b) - recency(a),
+      name: (a: CatalogEntry, b: CatalogEntry) => (a.anchor.name || a.anchor.id).localeCompare(b.anchor.name || b.anchor.id) || a.anchor.id.localeCompare(b.anchor.id),
+      sales: (a: CatalogEntry, b: CatalogEntry) => b.downloads - a.downloads || recency(b) - recency(a),
+    }[sort];
+    return [...list].sort(by);
+  }, [items, q, statusFilter, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const visible = useMemo(() => matched.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [matched, currentPage]);
+  const narrowed = statusFilter !== 'all' || !!q.trim();
+  const clearFilters = () => { setQ(''); setStatusFilter('all'); resetPage(); };
+
+  // ---------------------------------------------------------------- finding 133: what the node log has to say
+  const [logSeen] = useState(() => { try { return Number(localStorage.getItem(NODELOG_SEEN)) || 0; } catch { return 0; } });
+  const recentEvents = useEventsQuery({ limit: 200 });
+  const unseenBad = (recentEvents.data?.events ?? []).filter((e) => (e.level === 'warn' || e.level === 'error') && e.ts > logSeen).length;
+
   const onCreateBranch = async (e: FormEvent) => {
     e.preventDefault();
     setActionError(null);
@@ -106,6 +189,10 @@ export default function DashboardPage() {
     <PageWrapper $wide>
       <TitleRow>
         <Title>{t('op.dash.title')}</Title>
+        <LogLink to="/logs" data-testid="nodelog-link">
+          {t('op.dash.nodelog')}
+          {unseenBad > 0 && <LogBadge title={t('op.dash.nodelog.badge.help')} data-testid="nodelog-badge">{t('op.dash.nodelog.badge', { n: unseenBad })}</LogBadge>}
+        </LogLink>
         {tab === 'knowledge' && <Button variant="outlined" color="primary" onClick={() => navigate('/new-patch')}>{t('op.dash.register')}</Button>}
       </TitleRow>
       <div style={{ marginBottom: 24 }}>
@@ -117,7 +204,38 @@ export default function DashboardPage() {
 
       {/* ---------------------------------------------------------------- my knowledge */}
       {patches.isError && <QueryError error={patches.error} what={t('op.error.what.patches')} retrying={patches.isFetching} onRetry={() => void patches.refetch()} />}
-      {patches.isLoading ? <CenterProgress /> : patches.isError ? null : (
+      {patches.isLoading ? <CenterProgress /> : patches.isError ? null : (<>
+        {/* Finding 31: search, narrow, order and count — the list stopped fitting on a screen long ago. */}
+        {items.length > PAGE_SIZE / 2 && (
+          <Toolbar>
+            <FilterGroup>
+              <span className="label">{t('op.dash.filter.status')}</span>
+              <FilterChip type="button" $active={statusFilter === 'all'} onClick={() => { setStatusFilter('all'); resetPage(); }}>{t('op.dash.filter.all', { n: items.length })}</FilterChip>
+              {statusCounts.map(([s, n]) => (
+                <FilterChip key={s} type="button" $active={statusFilter === s} onClick={() => { setStatusFilter(statusFilter === s ? 'all' : s); resetPage(); }}>
+                  {t('op.dash.filter.count', { label: t(`status.${s}`) === `status.${s}` ? s : t(`status.${s}`), n })}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+            <span title={t('op.dash.sort.status.help')}>
+              <SelectBox
+                label={t('common.sort_aria')}
+                value={sort}
+                onChange={(v) => { setSort(v as typeof sort); resetPage(); }}
+                options={(['status', 'new', 'name', 'sales'] as const).map((s) => ({ value: s, label: t(`op.dash.sort.${s}`) }))}
+              />
+            </span>
+            <Search placeholder={t('op.dash.search')} aria-label={t('op.dash.search')} value={q} onChange={(e) => { setQ(e.target.value); resetPage(); }} data-testid="dash-search" />
+          </Toolbar>
+        )}
+        {items.length > 0 && (
+          <CountLine data-testid="dash-count">
+            {narrowed
+              ? t('op.dash.count.filtered', { shown: matched.length, total: items.length, from: matched.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1, to: Math.min(currentPage * PAGE_SIZE, matched.length) })
+              : t('op.dash.count', { total: items.length, from: (currentPage - 1) * PAGE_SIZE + 1, to: Math.min(currentPage * PAGE_SIZE, matched.length) })}
+            {narrowed && <button type="button" onClick={clearFilters}>{t('op.dash.clear')}</button>}
+          </CountLine>
+        )}
         <TableWrapper>
           <Table>
             <TableHeader>
@@ -130,14 +248,16 @@ export default function DashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((e) => {
+              {visible.map((e) => {
                 const a = e.anchor;
                 const author = a.author;
                 return (
                   <TableRow key={a.id}>
                     <TableData $align="left" $padding="8px 0 8px 32px" $maxWidth="360px">
                       <NameLink to={`/${author}/${a.id}`}>{a.name || a.id}</NameLink>
-                      <SubText title={a.id}>{a.id} · {a.model.id_M} · {t('units.facts', { n: num(a.benchmark.queries) })}</SubText>
+                      {/* Finding 31: with 28 rows called "O69 grace period" the id is the identity, not a footnote —
+                          it reads in the mono face, at full length, and one click selects the whole of it. */}
+                      <SubText title={a.id}><IdText>{a.id}</IdText> · {a.model.id_M} · {t('units.facts', { n: num(a.benchmark.queries) })}</SubText>
                     </TableData>
                     <TableData>
                       <StatusText style={{ justifyContent: 'center' }}>
@@ -168,10 +288,19 @@ export default function DashboardPage() {
                 );
               })}
               {items.length === 0 && <TableRowEmpty $height={160}><td colSpan={HEADERS.length}>{t('op.dash.empty')}</td></TableRowEmpty>}
+              {items.length > 0 && matched.length === 0 && (
+                <TableRowEmpty $height={120}><td colSpan={HEADERS.length}>
+                  <Empty style={{ padding: 0, border: 0 }} data-testid="dash-nomatch">
+                    {t('op.dash.nomatch')}
+                    <div style={{ marginTop: 10 }}><Button size="small" variant="text" onClick={clearFilters}>{t('op.dash.clear')}</Button></div>
+                  </Empty>
+                </td></TableRowEmpty>
+              )}
             </TableBody>
           </Table>
         </TableWrapper>
-      )}
+        {matched.length > PAGE_SIZE && <Pagination page={currentPage} pageCount={pageCount} onChange={setPage} />}
+      </>)}
 
       {/* ---------------------------------------------------------------- purchases */}
       <SubTitle $mt={56}>{t('op.dash.purchases.title')}</SubTitle>
