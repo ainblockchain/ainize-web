@@ -66,4 +66,7 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
   // old grey-on-grey was 2.96:1 — under AA for 11 px text, and quieter than the green Verified label beside it,
   // so a retired item read as endorsed.
   SUPERSEDED: { label: 'Superseded', color: '#8a4b00', bg: '#fff3e0', hint: 'A newer patch on the same benchmark replaced this one' },
+  // The author's own takedown (item 148): not a failure and not a dispute, so it gets the neutral grey rather than
+  // the red REJECTED palette — but it is terminal, so it never wears the green LISTED one either.
+  RETIRED: { label: 'Retired', color: '#5a5a5c', bg: '#f2f2f2', hint: 'The publisher took this knowledge off sale — the record stays, and buyers keep the copy they paid for' },
 };

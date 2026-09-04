@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
   errorMessage, useAnnounceMutation, useApplyMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, usePatchQuery, useRemoveMutation,
-  useRuntimeQuery, useUpdatePatchMutation, useVerifyMutation,
+  useRetireMutation, useRuntimeQuery, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -62,6 +62,7 @@ export default function ManagePage() {
   const [apply, applyState] = useApplyMutation();
   const [remove, removeState] = useRemoveMutation();
   const [del, delState] = useDeletePatchMutation();
+  const [retire, retireState] = useRetireMutation();
 
   // editable fields (drafts only)
   const [desc, setDesc] = useState('');
@@ -77,6 +78,10 @@ export default function ManagePage() {
   /** Item 150: publishing over your own listed knowledge retires it — the sheet that has to be crossed first. */
   const [retireOpen, setRetireOpen] = useState(false);
   const [retireText, setRetireText] = useState('');
+  /** Item 148: the author's own takedown of a PUBLISHED knowledge — the exit `patch forget` was mistaken for. */
+  const [downMode, setDownMode] = useState(false);
+  const [downText, setDownText] = useState('');
+  const [downReason, setDownReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -374,12 +379,35 @@ export default function ManagePage() {
         <div style={{ marginTop: 12 }}><CopyButton text={snippet} label={t('common.copy')} /></div>
       </SectionBody>
 
-      {/* ------------------------------------------------------------ delete */}
-      <SubTitle $mt={56}>{t('op.manage.delete.title')}</SubTitle>
+      {/* ------------------------------------------------------------ delete (draft) / take off sale (published) */}
+      <SubTitle $mt={56}>{isDraft ? t('op.manage.delete.title') : t('op.manage.takedown.title')}</SubTitle>
       {!isDraft ? (
         <>
-          <DeleteDesc>{t('op.manage.delete.sealed')}</DeleteDesc>
-          <DevBox style={{ marginTop: 0 }}>
+          {p.status === 'RETIRED' ? (
+            <DeleteDesc data-testid="retired-note">
+              {t('op.manage.takedown.already', { when: p.retired_at ? dateTime(p.retired_at) : '—' })}
+              {p.retire_reason ? ` ${t('op.manage.takedown.already.reason', { reason: p.retire_reason })}` : ''}
+            </DeleteDesc>
+          ) : !downMode ? (
+            <>
+              <DeleteDesc>{t('op.manage.delete.sealed')} {t('op.manage.takedown.desc')}</DeleteDesc>
+              <Button color="secondary" data-testid="takedown" onClick={() => { setDownText(''); setDownReason(''); setDownMode(true); }}>{t('op.manage.takedown.button')}</Button>
+            </>
+          ) : (
+            <Stack $gap={16} style={{ maxWidth: 560 }}>
+              <DeleteDesc style={{ margin: 0 }}>{t('op.manage.takedown.desc')}</DeleteDesc>
+              {p.downloads > 0 && <Muted>{t('op.manage.takedown.sales', { n: p.downloads })}</Muted>}
+              <TextField label={t('op.manage.takedown.reason')} placeholder={t('op.manage.takedown.reason.ph')} value={downReason} onChange={(e) => setDownReason(e.target.value)} data-testid="takedown-reason" />
+              <TextField label={t('op.manage.takedown.type', { id: a.id })} value={downText} onChange={(e) => setDownText(e.target.value)} data-testid="takedown-type" />
+              <Row $gap={12}>
+                <Button variant="contained" color="secondary" disabled={downText.trim() !== a.id} loading={retireState.isLoading} loadingText={t('op.manage.takedown.working')}
+                  data-testid="takedown-confirm"
+                  onClick={() => run(async () => { await retire({ id: a.id, reason: downReason.trim() || undefined }).unwrap(); setDownMode(false); }, t('op.manage.takedown.done'))}>{t('op.manage.takedown.confirm')}</Button>
+                <Button variant="text" color="default" onClick={() => setDownMode(false)}>{t('op.manage.takedown.cancel')}</Button>
+              </Row>
+            </Stack>
+          )}
+          <DevBox style={{ marginTop: 24 }}>
             <Muted style={{ display: 'block', marginBottom: 6 }}>{t('op.manage.dev.forget')}</Muted>
             <MonoBox>ainize patch forget {a.id}</MonoBox>
           </DevBox>

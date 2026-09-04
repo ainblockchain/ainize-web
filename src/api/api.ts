@@ -18,7 +18,7 @@ import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/te
  * Endpoints that carry the visitor's signed `x-ngram-auth` when this browser has a teaching key (spec §6.1).
  * `chat` is included because a private draft (a taught lesson before publishing) can be live-tested only by its owner.
  */
-const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishTeachJob', 'saveTeachJob',
+const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishPreview', 'publishTeachJob', 'saveTeachJob',
   // teach mode v2 — the dataset routes (design §7)
   'forkPatch', 'teachDatasets', 'teachDataset', 'teachDatasetRows', 'createTeachDataset', 'uploadTeachDataset', 'reparseTeachDataset', 'patchTeachDataset', 'forkTeachDataset', 'deleteTeachDataset',
   'retrainTeachJob', 'teachJobEvents']);
@@ -134,7 +134,9 @@ export const api = createApi({
     createPatch: b.mutation<{ anchor: PatchAnchor }, FormData>({ query: (body) => ({ url: 'api/patches', method: 'POST', body }), invalidatesTags: ['Catalog', 'Me'] }),
     updatePatch: b.mutation<{ anchor: PatchAnchor }, { id: string; patch: Partial<PatchAnchor> }>({ query: ({ id, patch }) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'PATCH', body: patch }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me'] }),
     deletePatch: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Catalog', 'Me'] }),
-    announce: b.mutation<{ record: LedgerRecord }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/announce`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
+    announce: b.mutation<{ record: LedgerRecord; verifiers?: { known: number; reachable: number; verifiers: number; quorum: number; self_attest: boolean }; visibility?: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/announce`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
+    // The takedown (item 148): the anchor stays on the record, the knowledge goes off sale everywhere.
+    retire: b.mutation<{ patch_id: string; retired_at: number; reason: string }, { id: string; reason?: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/retire`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     buy: b.mutation<PurchaseResult, { id: string; apply?: boolean }>({ query: ({ id, apply }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
@@ -179,6 +181,14 @@ export const api = createApi({
     retryTeachJob: b.mutation<CreateTeachJobResponse, { id: string; facts: TeachFactInput[]; name?: string }>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/retry`, method: 'POST', body }), invalidatesTags: ['Teach'] }),
     recheckTeachJob: b.mutation<{ ok: boolean; status: 'EXPORTED' }, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/recheck`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Teach', id }, 'Teach'] }),
     publishChallenge: b.mutation<PublishChallenge, { id: string; payout_address?: string | null }>({
+      query: ({ id, payout_address }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish-challenge${toQuery({ payout_address: payout_address === null ? 'none' : payout_address })}`, method: 'GET' }),
+    }),
+    /**
+     * The same route, read as a QUERY: the challenge is a pure computation (no nonce, no side effect), and the publish
+     * sheet has to show what a sale would pay BEFORE the creator commits to a price (item 186). The mutation above
+     * still fetches a fresh one at submit time, so the claim that is signed is never a cached one.
+     */
+    publishPreview: b.query<PublishChallenge, { id: string; payout_address?: string | null }>({
       query: ({ id, payout_address }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish-challenge${toQuery({ payout_address: payout_address === null ? 'none' : payout_address })}`, method: 'GET' }),
     }),
     publishTeachJob: b.mutation<PublishResponse, { id: string } & PublishRequest>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Teach', id: a.id }, 'Teach', 'Chat', 'Catalog', 'Teacher'] }),
@@ -256,7 +266,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation,
-  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation,
+  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,

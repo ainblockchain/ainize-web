@@ -279,14 +279,34 @@ export const operatorManage: Dict = {
   'op.manage.badge.title': { ko: 'README 배지', en: 'README badge' },
   'op.manage.badge.desc': { ko: '이 배지를 README에 붙이면 이 지식의 자동 결제 주소로 바로 연결됩니다. 사람도, AI 에이전트도 바로 구매할 수 있습니다.', en: 'Paste this badge into a README — it links straight to this knowledge’s auto-payment address so people and AI agents can buy it.' },
   'op.manage.delete.title': { ko: '초안 삭제', en: 'Delete draft' },
-  'op.manage.delete.sealed': { ko: '등록된 지식은 삭제할 수 없습니다. 공개 기록에 영구히 남기 때문입니다. 이 노드에서 파일 제공만 멈추려면 아래 개발자 명령을 사용하세요.', en: 'Published knowledge cannot be deleted — its record is permanent. To stop serving the file from this node, use the developer command below.' },
+  'op.manage.delete.sealed': { ko: '등록된 지식은 삭제할 수 없습니다. 공개 기록에 영구히 남기 때문입니다. 대신 판매를 완전히 멈출 수 있습니다.', en: 'Published knowledge cannot be deleted — its record is permanent. What you can do is stop selling it, for good.' },
+  // Item 148: the takedown the manage page used to point at `patch forget` for — which deletes the local file and
+  // keeps the listing (and the gateway) selling it. `op.manage.retire.*` is the publish-time supersede sheet;
+  // these keys are the author's own withdrawal of a published knowledge.
+  // Status chip for a knowledge its author took off sale (item 148). It lives here rather than in the shared
+  // status.* block because the takedown is an operator action; the chip reads the same key wherever it renders.
+  'status.RETIRED': { ko: '판매 중단됨', en: 'Off sale' },
+  'status.RETIRED_help': { ko: '만든 사람이 판매를 멈췄습니다. 기록은 남아 있고, 이미 산 사람은 계속 쓸 수 있습니다.', en: 'The publisher took it off sale. The record stays, and everyone who already bought it keeps their copy.' },
+  'op.manage.takedown.title': { ko: '판매 중단 (영구)', en: 'Take off sale (permanent)' },
+  'op.manage.takedown.desc': { ko: '이 지식을 목록에서 내리고 판매를 영구히 멈춥니다. 공개 기록의 앵커는 그대로 남고, 이미 구매한 사람은 받은 파일을 계속 쓸 수 있습니다. 결제 게이트웨이는 이후 410(사라짐)으로 답합니다. 되돌릴 수 없습니다.', en: 'Takes this knowledge off the catalogue and stops selling it, for good. The anchor stays on the public record and everyone who already bought it keeps the file they paid for; the payment gateway answers 410 Gone from then on. This cannot be undone.' },
+  'op.manage.takedown.button': { ko: '판매 중단', en: 'Take off sale' },
+  'op.manage.takedown.reason': { ko: '이유 (선택) — 이후 이 지식을 찾는 사람에게 보입니다', en: 'Reason (optional) — shown to anyone who looks for it afterwards' },
+  'op.manage.takedown.reason.ph': { ko: '예: 원본 데이터가 바뀌었습니다. krx-codes-2026-09를 쓰세요.', en: 'e.g. the source feed changed — use krx-codes-2026-09 instead' },
+  'op.manage.takedown.type': { ko: '계속하려면 {id} 를 입력하세요.', en: 'Type {id} to proceed.' },
+  'op.manage.takedown.confirm': { ko: '판매 중단 확정', en: 'Confirm — take off sale' },
+  'op.manage.takedown.cancel': { ko: '그대로 두기', en: 'Leave it on sale' },
+  'op.manage.takedown.working': { ko: '중단 중…', en: 'Taking off sale…' },
+  'op.manage.takedown.done': { ko: '판매를 중단했습니다. 이 지식은 더 이상 팔리지 않습니다.', en: 'Taken off sale — this knowledge is not sold any more.' },
+  'op.manage.takedown.already': { ko: '{when}에 판매를 중단했습니다.', en: 'Taken off sale on {when}.' },
+  'op.manage.takedown.already.reason': { ko: '이유: {reason}', en: 'Reason: {reason}' },
+  'op.manage.takedown.sales': { ko: '지금까지 {n}회 팔렸습니다 — 그 구매자들은 파일을 계속 씁니다.', en: 'It has sold {n} time(s) — those buyers keep their copy.' },
   'op.manage.delete.desc': { ko: '초안을 삭제하면 이 노드에서 사라집니다. 아직 네트워크에 등록하지 않았으므로 공개 기록은 없습니다.', en: 'Deleting a draft removes it from this node. Nothing was published yet, so there is no public record.' },
   'op.manage.delete.button': { ko: '삭제', en: 'Delete' },
   'op.manage.delete.type': { ko: '계속하려면 {id} 를 입력하세요.', en: 'Type {id} to proceed.' },
   'op.manage.delete.confirm': { ko: '삭제 확정', en: 'Confirm delete' },
   'op.manage.delete.deleting': { ko: '삭제 중…', en: 'Deleting…' },
   'op.manage.logs_link': { ko: '→ {id}의 기록과 공개 기록 타임라인 보기', en: '→ View logs & public-record timeline for {id}' },
-  'op.manage.dev.forget': { ko: '이 노드에서 파일 제공 중단:', en: 'Stop serving the file from this node:' },
+  'op.manage.dev.forget': { ko: '이 노드의 파일 사본만 지우기 (판매는 계속됩니다):', en: 'Delete only this node\'s copy of the file (it stays on sale):' },
 };
 
 export const operatorLogs: Dict = {

@@ -35,6 +35,21 @@ export interface CatalogEntry {
   listed_at?: number;
 }
 
+/**
+ * What this node knows about its peers beyond the bare count (item 170): how many ANSWERED the last gossip round,
+ * how many of those verify, and which publish on a ledger this node cannot read — whose knowledge therefore never
+ * reaches this catalogue, however green every other indicator looks.
+ */
+export interface PeerStatus {
+  known: number;
+  reachable: number;
+  unreachable: number;
+  verifiers: number;
+  ledger_mismatch: number;
+  ledger: 'local' | 'ain';
+  mismatched: { endpoint: string; name: string | null; ledger: string }[];
+}
+
 export interface InfoResponse {
   node: PeerInfo;
   ledger: LedgerInfo;
@@ -42,6 +57,7 @@ export interface InfoResponse {
   quorum: number;
   currency: 'AIN' | 'CREDIT' | 'USDC';
   peers: number;
+  peer_status?: PeerStatus;
   initial_credit?: string;
   /** Lineage share of each sale distributed to source creators. */
   royalty_share?: number;
@@ -60,7 +76,11 @@ export interface LineageRef { id: string; name: string; author: string; status: 
  * node (market.ts:459) and decide the supersede rule with `same_schema`: only a same-schema overlap that is NOT
  * cross-branch and is LISTED / VERIFYING / ANNOUNCED is retired when this one reaches quorum.
  */
-export interface ConflictInfo { patch_id: string; overlap_rows: number; same_schema: boolean; status: string; branch?: string; cross_branch?: boolean; }
+export interface ConflictInfo {
+  patch_id: string; overlap_rows: number; same_schema: boolean; status: string; branch?: string; cross_branch?: boolean;
+  /** who published the overlapping knowledge — only your OWN overlaps are ever retired by a publish (items 151, 363) */
+  author?: string; author_name?: string | null; same_author?: boolean; created_at?: number; sales?: number;
+}
 
 export interface PatchDetail extends CatalogEntry {
   lineage: { parents: LineageRef[]; children: LineageRef[] };
@@ -75,6 +95,9 @@ export interface PatchDetail extends CatalogEntry {
   has_body: boolean;
   applied: boolean;
   gateway_url: string | null;
+  /** Set when the author retired it (item 148): off sale for good, the record kept. */
+  retired_at?: number | null;
+  retire_reason?: string | null;
 }
 
 export interface EventRow { seq: number; ts: number; level: 'debug' | 'info' | 'warn' | 'error'; kind: string; patch_id: string | null; message: string; data: unknown; }
@@ -88,7 +111,14 @@ export interface GraphResponse {
 }
 export interface BranchesResponse { branches: (BranchInfo & { subscribers: Partial<PeerInfo>[] })[]; mine: string[]; }
 export interface RouteResponse { branch: BranchInfo | null; nodes: PeerInfo[]; }
-export interface NodesResponse { nodes: PeerInfo[]; peers: { endpoint: string; address: string | null; info: PeerInfo | null; last_seen: number; failures: number }[]; self: string; }
+export interface NodesResponse {
+  /** `blobs` is filtered through THIS node's catalogue; `blobs_advertised` is what the node itself says it holds (item 170). */
+  nodes: (PeerInfo & { blobs_advertised?: number; ledger_mismatch?: boolean })[];
+  peers: { endpoint: string; address: string | null; info: PeerInfo | null; last_seen: number; failures: number; ledger?: string | null; ledger_mismatch?: boolean }[];
+  self: string;
+  ledger?: 'local' | 'ain';
+  peer_status?: PeerStatus;
+}
 export interface ChainResponse extends LedgerInfo { address: string; balance: number | null; }
 
 export interface AuthMe { signedIn: boolean; address: string; name: string; roles: string[]; needsSetup: boolean; }
@@ -297,6 +327,28 @@ export interface TeachPolicy {
   draft_ttl_days: number;
   /** `teach.lineage` — whether this node lets a lesson be built on top of another knowledge (design §18 gating). */
   lineage?: boolean;
+  /**
+   * Can anything published here actually be SOLD? (item 298) `verifiers` counts peers that answered recently and
+   * advertise the verifier role; a lesson needs `quorum` independent attestations, and this node's own does not count.
+   * Absent on a node built before this field existed — treat that as "unknown", never as "yes".
+   */
+  verification?: { quorum: number; peers: number; reachable: number; verifiers: number; self_verifier: boolean };
+  /** How this node settles a sale. `local` is development play money nobody can spend (item 299). */
+  ledger?: { kind: 'local' | 'ain'; currency: string };
+}
+/**
+ * What one sale would actually pay, and to whom (item 186). Computed by the node with the same `royaltySplit` that
+ * settles a real sale, on a UNIT price — every branch of it is proportional, so a share scales exactly.
+ */
+export interface SplitPreview {
+  currency: string;
+  royalty_share: number;
+  contributor_share: number;
+  parents: { id: string; name: string; author?: string; price?: string }[];
+  /** fraction of one sale, per address; `kind` says which line of the sheet it is */
+  shares: { address: string; share: number; kind: 'you' | 'node' | 'lineage'; name?: string }[];
+  /** the direct parent's price when there is one, else this node's default — a child priced 0 pays its parents 0 */
+  suggested_price: string;
 }
 /** `POST /api/patches/:id/fork` — Story B, *Copy and continue*. */
 export interface ForkPatchResponse {
@@ -315,7 +367,13 @@ export interface PreflightResponse { facts: PreflightFact[]; trainable: number; 
 export interface TeachJobResponse { job: TeachJob }
 export interface CreateTeachJobResponse { job: TeachJob; quota: TeachQuota }
 export interface TeachSaveResponse { download: { npz_url: string; recipe_url: string; readme_url: string; expires_at: number }; sha256: string; rows: number; size_bytes: number; filename: string }
-export interface PublishChallenge { patch_sha256: string; benchmark_hash: string; address: string; signer: string; share: number; claim: string }
+export interface PublishChallenge {
+  patch_sha256: string; benchmark_hash: string; address: string; signer: string; share: number; claim: string;
+  /** items 186 / 298 / 299 — what a sale pays, whether it can be sold here at all, and in what money. */
+  split_preview?: SplitPreview;
+  verification?: { quorum: number; peers: number; reachable: number; verifiers: number; self_verifier: boolean };
+  ledger?: { kind: 'local' | 'ain'; currency: string };
+}
 export interface PublishRequest {
   name: string; description?: string; price?: string; license?: string; payout_address?: string | null; claim_sig: string;
   consent: { permanent: boolean; rights: boolean }; contributor?: { name?: string };
@@ -343,10 +401,18 @@ export type DatasetRowsOp =
   | { op: 'replace'; index: number; row: DatasetRowInput };
 export interface TeachEventRow { seq: number; ts: number; level: string; message: string; data: unknown }
 
-export interface TeacherLesson { id: string; name: string; status: string; verified: boolean; downloads: number; revenue: string }
+export interface TeacherLesson {
+  id: string; name: string; status: string; verified: boolean; downloads: number; revenue: string;
+  /** item 298: how long it has been waiting, and how many independent verifiers have actually looked. */
+  created_at?: number; attestations?: number; quorum?: number;
+}
 export interface TeacherEarningItem { patch_id: string; seller: string; settle_hash: string; amount: string; currency: string; scheme: string; status: 'paid' | 'pending' | 'failed'; tx_hash?: string; attempts?: number; created_at: number; paid_at?: number }
 export interface TeacherProfile {
   address: string; name?: string; hidden: boolean; lessons: TeacherLesson[];
+  /** item 298 — whether a lesson published on this node can ever reach quorum here. */
+  verification?: { quorum: number; peers: number; reachable: number; verifiers: number; self_verifier: boolean };
+  /** item 299 — `local` means every number on this page is node credit, not money. */
+  ledger?: { kind: 'local' | 'ain'; currency: string };
   earnings: { currency: string; owed: string; paid: string; pending: string; failed: string; sales: number; items: TeacherEarningItem[] };
 }
 
