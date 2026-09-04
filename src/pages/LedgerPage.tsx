@@ -5,6 +5,7 @@ import { useGraphQuery, useLedgerQuery, useLedgerVerifyQuery } from '@/api/api';
 import type { GraphResponse } from '@/api/types';
 import { STATUS_META } from '@/theme/theme';
 import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, SelectBox, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
+import { Offline } from '@/components/ui/Offline';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -131,7 +132,14 @@ export default function LedgerPage() {
   const f = useDetailFormat();
   const [kind, setKind] = useState('');
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useLedgerQuery({ kind: kind || undefined, limit: 1000 }, { pollingInterval: 10_000 });
+  const ledger = useLedgerQuery({ kind: kind || undefined, limit: 1000 }, { pollingInterval: 10_000 });
+  const { data, isLoading } = ledger;
+  /*
+   * Finding 77: with the node unreachable this page drew its whole frame anyway — every stat an em-dash,
+   * "Integrity checking…" for ever, and "No records yet." under it. On a public record an outage rendered as
+   * "no records" is the worst possible lie, so nothing derived from the record is drawn while the query is failing.
+   */
+  const unreachable = !data && (ledger.isError || (!ledger.isLoading && !ledger.isFetching));
   const { data: verify } = useLedgerVerifyQuery(undefined, { pollingInterval: 30_000 });
   const { data: graph } = useGraphQuery(undefined, { pollingInterval: 20_000 });
 
@@ -151,6 +159,9 @@ export default function LedgerPage() {
       </TitleRow>
       <Description style={{ marginTop: -12 }}>{help('ledger')}</Description>
 
+      {unreachable && <Offline error={ledger.error} what={t('offline.what.ledger')} retrying={ledger.isFetching} onRetry={() => { void ledger.refetch(); }} />}
+
+      {!unreachable && (<>
       <InfoCard>
         <InfoCell><div className="k">{t('detail.ledger.kind')}</div><div className="v">{info ? (ain ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local')) : '—'}</div></InfoCell>
         <InfoCell><div className="k">{t('detail.ledger.network')}</div><div className="v small">{info?.network ?? '—'}</div></InfoCell>
@@ -209,10 +220,14 @@ export default function LedgerPage() {
         </>
       )}
 
+      </>)}
+
+      {!unreachable && (<>
       <SubTitle $mt={40} title={tech('lineage')}>{t('detail.ledger.graph_title')}</SubTitle>
       <Description>{t('detail.ledger.graph_note')}</Description>
       {!graph && <CenterProgress />}
       {graph && <KnowledgeGraph g={graph} />}
+      </>)}
     </PageWrapper>
   );
 }
