@@ -142,6 +142,20 @@ const Versions = styled.div`
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 11px; opacity: 0.85; word-break: break-all; }
 `;
 
+/** The two ways to buy that need no account here (item 3): a numbered path, its sentence, its one line to copy. */
+const Ways = styled.ol`
+  margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 18px;
+  li { display: grid; gap: 6px; }
+  b { font-size: 13px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
+  li > span { font-size: 13px; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY}; word-break: keep-all; }
+`;
+const CmdRow = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  code {
+    flex: 1 1 260px; min-width: 0; padding: 10px 14px; border-radius: 4px; background: #303133; color: #f2f2f2;
+    font-family: ${(p) => p.theme.font.mono}; font-size: 12px; line-height: 1.6; word-break: break-all;
+  }
+`;
 type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
 
 /** Accuracy shown in the header comes only from attestations that ran the real model — never from integrity-only checks. */
@@ -592,6 +606,39 @@ function Lineage({ d, authorSlug }: { d: PatchDetail; authorSlug: string }) {
   );
 }
 
+/**
+ * Item 3: a signed-out visitor used to get one sentence — "sign in as this node's operator" — under an explainer
+ * that promises no sign-up, with the only real paths (a raw gateway URL, a curl snippet) folded away behind a
+ * developer disclosure. Both doors that need no account here are now open on the page, and the sign-in is last
+ * because it is the only one that needs one.
+ *
+ * The command is byte-identical to lifecycle step 3 (components/public/lifecycleSteps.ts), which the landing page
+ * and README are tested against — `ainize use` checks the verification, pays, downloads and loads in one line.
+ */
+function VisitorBuy({ id, gw, priceText }: { id: string; gw: string; priceText: string }) {
+  const { t } = useT();
+  const cmd = `ainize login && ainize use ${id}`;
+  return (
+    <>
+      <P>{t('detail.buy.visitor_lead')}</P>
+      <Ways data-testid="buy-visitor">
+        <li>
+          <b>{t('detail.buy.way_cli')}</b>
+          <span>{t('detail.buy.way_cli_note', { price: priceText })}</span>
+          <CmdRow><code>{cmd}</code><CopyButton text={cmd} label={t('common.copy')} /></CmdRow>
+          <StyledLink to="/docs/get-started/install">{t('detail.buy.way_cli_link')} →</StyledLink>
+        </li>
+        <li>
+          <b>{t('detail.buy.way_gw')}</b>
+          <span>{t('detail.buy.way_gw_note')}</span>
+          <CmdRow><code>{gw}</code><CopyButton text={gw} label={t('common.copy')} /></CmdRow>
+        </li>
+      </Ways>
+      <Note style={{ margin: '18px 0 0' }}>{t('detail.buy.visitor_operator')}<StyledLink to="/signing">{t('detail.buy.visitor_signin')}</StyledLink></Note>
+    </>
+  );
+}
+
 /* ---------------------------------------------------------------- 구매 */
 function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
   const { t, term, help, tech } = useT();
@@ -669,16 +716,18 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         </Details>
       </Section>
       <Section>
-        <H3>{t('detail.buy.from_node')}</H3>
-        {!isOperator && <P>{t('detail.buy.signin')}</P>}
+        <H3>{isOperator ? t('detail.buy.from_node') : t('detail.buy.visitor_title')}</H3>
         {isOperator && d.owned && <P>{t('detail.buy.owned')}<StyledLink to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.buy.owned_manage')}</StyledLink></P>}
         {isOperator && !d.owned && d.purchased && <Alert $tone="success">{t('detail.buy.purchased', { applied: d.applied ? t('detail.buy.purchased_applied') : '', stored: d.has_body ? t('detail.buy.stored_yes') : t('detail.buy.stored_no') })}</Alert>}
-        {isOperator && !d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
+        {/* Item 3: why it cannot be bought is public — a visitor used to be shown the price and no reason at all. */}
+        {!d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
         {!d.owned && d.quorum_ok && !d.sellable && (
           <Alert $tone="warning" data-testid="buy-challenged">
             {t('detail.buy.challenged')}{d.open_challenge ? ` ${t('detail.challenge.banner', { who: shortAddr(d.open_challenge.challenger, 8), reason: d.open_challenge.reason, when: f.ago(d.open_challenge.created_at) })}` : ''}
           </Alert>
         )}
+        {/* Item 3: the two doors that need no account here — shown only while the knowledge is actually on sale. */}
+        {!isOperator && d.sellable && <VisitorBuy id={a.id} gw={gw} priceText={priceText} />}
         {isOperator && canBuy && (
           <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             {/* Item 4: on a replaced version the loud control is the link to the successor; paying for the old one

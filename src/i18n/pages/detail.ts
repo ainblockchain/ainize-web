@@ -203,7 +203,9 @@ export const detailPatch: Dict = {
   'detail.lin.superseded_tail': { ko: '. 구독 중인 노드는 업데이트를 권장합니다.', en: '. Subscribed nodes should update.' },
 
   'detail.buy.title': { ko: '자동 결제로 구매', en: 'Buy with automatic payment' },
-  'detail.buy.explain': { ko: '지식을 요청하면 판매 노드가 가격을 알려주고, 결제가 확인되는 즉시 내려받습니다. 결제 수단은 지갑(AIN) 또는 노드 크레딧이며 별도 회원가입은 없습니다. 내려받은 파일은 공개 기록의 내용 해시와 대조해 위·변조가 없는지 확인한 뒤 몇 초 만에 모델에 넣습니다(재시작 없음). 판매 대금은 원작자 수익 분배 규칙에 따라 자동으로 나뉩니다.', en: 'Ask for the knowledge and the selling node quotes a price; once payment is confirmed you download immediately. Pay with a wallet (AIN) or node credit — no sign-up. The file is checked against the content hash on the public record, then loaded into the model in seconds (no restart). Revenue is split automatically with the original creators.' },
+  /* Item 3: “no sign-up” used to sit above a section whose only control was an operator sign-in. The claim is true — of
+     the buyer’s own node and of any x402 client — so it stays, but it now says which door needs a login and which does not. */
+  'detail.buy.explain': { ko: '지식을 요청하면 판매 노드가 가격을 알려주고, 결제가 확인되는 즉시 내려받습니다. 결제는 본인 지갑(AIN)이나 본인 노드의 크레딧으로 하며, 이 사이트에 따로 가입할 필요는 없습니다 — 로그인은 바로 이 노드의 지갑으로 결제할 때만 필요합니다. 내려받은 파일은 공개 기록의 내용 해시와 대조해 위·변조가 없는지 확인한 뒤 몇 초 만에 모델에 넣습니다(재시작 없음). 판매 대금은 원작자 수익 분배 규칙에 따라 자동으로 나뉩니다.', en: 'Ask for the knowledge and the selling node quotes a price; once payment is confirmed you download immediately. Pay from your own wallet (AIN) or your own node’s credit — there is no account to create on this site; signing in is only needed to pay with THIS node’s wallet. The file is checked against the content hash on the public record, then loaded into the model in seconds (no restart). Revenue is split automatically with the original creators.' },
   'detail.buy.price': { ko: '가격', en: 'Price' },
   'detail.buy.seller': { ko: '판매 노드', en: 'Selling node' },
   'detail.buy.gateway': { ko: '구매 주소', en: 'Purchase address' },
@@ -217,7 +219,17 @@ export const detailPatch: Dict = {
   'detail.buy.curl_3': { ko: '# 또는 CLI가 전체 과정을 대신 수행', en: '# or let the CLI do the whole loop' },
   'detail.buy.curl_4': { ko: '# AI 에이전트: 모르는 답 감지 → 검색 → 자동 결제 → 모델에 넣기', en: '# AI agent: detect unknown answer → search → auto-pay → load' },
   'detail.buy.from_node': { ko: '이 노드에서 구매', en: 'Buy from this node' },
-  'detail.buy.signin': { ko: '이 노드의 운영자로 로그인하면 노드 지갑으로 바로 구매할 수 있습니다.', en: 'Sign in as this node’s operator to buy with the node’s wallet.' },
+  /* Item 3: a visitor used to get this one sentence and nothing to click, under an explainer promising no sign-up.
+     The two doors that need no account here are now on the page; the sign-in is the third, and it goes last. */
+  'detail.buy.visitor_title': { ko: '이 지식을 사는 방법', en: 'How to buy this knowledge' },
+  'detail.buy.visitor_lead': { ko: '이 사이트에는 계정이 없습니다. 구매는 본인 노드가 하고, 결제도 파일도 그 노드에 남습니다. 방법은 두 가지입니다.', en: 'There are no accounts on this site. Your own node does the buying, and both the payment and the file stay with it. There are two ways in.' },
+  'detail.buy.way_cli': { ko: '① 내 노드에서 한 줄로', en: '1 · One line on your own node' },
+  'detail.buy.way_cli_note': { ko: '검증 확인 → 자동 결제({price}) → 내려받기 → 재시작 없이 모델에 넣기까지 한 번에 끝납니다. 로그인은 본인 노드에 하는 것이라 이 사이트 계정과는 상관없습니다.', en: 'Checks it is verified, pays automatically ({price}), downloads it and loads it into your model with no restart. The login is to your own node, not to this site.' },
+  'detail.buy.way_cli_link': { ko: '노드를 아직 안 돌리고 있다면 — 설치부터 보기', en: 'No node yet — start from the install' },
+  'detail.buy.way_gw': { ko: '② 결제 주소로 바로 (에이전트·다른 프로그램)', en: '2 · Straight to the purchase address (agents, other programs)' },
+  'detail.buy.way_gw_note': { ko: 'x402를 아는 프로그램이 이 주소를 부르면 402 응답으로 가격을 받고, 결제 증빙을 붙여 다시 부르면 파일 정보를 받습니다. 사람이 거칠 필요도, 계정도 없습니다.', en: 'Any program that speaks x402 calls this address, gets the price back as a 402, and calls again with the payment proof to receive the file. No person in the loop, and no account.' },
+  'detail.buy.visitor_operator': { ko: '이 노드의 운영자인가요? ', en: 'Are you this node’s operator? ' },
+  'detail.buy.visitor_signin': { ko: '로그인하고 이 노드의 지갑으로 구매하기', en: 'Sign in and buy with this node’s wallet' },
   'detail.buy.owned': { ko: '이 지식은 내가 만든 지식입니다. ', en: 'You published this knowledge. ' },
   'detail.buy.owned_manage': { ko: '관리하기', en: 'Manage it' },
   'detail.buy.purchased': { ko: '이미 구매했습니다{applied}. 파일은 {stored}.', en: 'Already purchased{applied}. The file {stored}.' },
