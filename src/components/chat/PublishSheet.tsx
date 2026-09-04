@@ -14,8 +14,39 @@ import { mapTeachError, pct } from './teachUtil';
 const Radios = styled.div`display: flex; flex-direction: column; gap: 8px; label { display: flex; gap: 10px; align-items: center; font-size: 14px; cursor: pointer; input { accent-color: #8b3eeb; } }`;
 const Two = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 16px; @media (max-width: 600px) { grid-template-columns: 1fr; }`;
 const Consents = styled.div`display: flex; flex-direction: column; gap: 10px; label { align-items: flex-start; font-size: 13px; line-height: 1.5; input { margin-top: 2px; flex: none; } }`;
+/**
+ * Finding 39 — the consent says "the questions, answers, my display name and payout address cannot be edited or
+ * deleted", and the sheet showed none of them. This is that list, read-only, immediately above the checkboxes: every
+ * question and answer as it will be written, the name and the address exactly as they will appear, and which of the
+ * questions go into the public record itself rather than into the training set the access choice governs.
+ */
+const Record = styled.section`
+  border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 6px; background: #fafafa; padding: 12px 14px;
+  h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
+  p.sub { margin: 0 0 8px; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.GREY}; }
+  ol { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  li { font-size: 12.5px; line-height: 1.5; color: ${(p) => p.theme.color.DARK_GREY}; word-break: break-word; }
+  li .q { font-weight: 600; color: ${(p) => p.theme.color.BLACK}; }
+  li .a b { color: ${(p) => p.theme.color.PRIMARY}; }
+  li .alt { color: ${(p) => p.theme.color.GREY}; }
+  li .on { margin-left: 6px; padding: 1px 7px; border-radius: 9px; font-size: 11px; font-weight: 600; background: #f5eefc; color: #5b1ca8; white-space: nowrap; }
+  dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 10px 0 0; font-size: 12px; }
+  dt { color: ${(p) => p.theme.color.GREY}; }
+  dd { margin: 0; color: ${(p) => p.theme.color.DARK_GREY}; word-break: break-all; }
+`;
 
-const LICENSES = ['CC-BY-4.0', 'CC-BY-SA-4.0', 'CC0-1.0', 'ODC-By-1.0', 'Proprietary'];
+/**
+ * Finding 40 — an irreversible legal choice was five raw SPDX identifiers with no helper text, in one list with
+ * "Proprietary", defaulting to CC-BY-4.0, on a flow whose premise is "no account needed". Each option now says in
+ * plain language what it lets a reader do, in both locales, and the field says the choice cannot be changed.
+ */
+const LICENSES: { id: string; key: string }[] = [
+  { id: 'CC-BY-4.0', key: 'teach.pub.lic.cc_by' },
+  { id: 'CC-BY-SA-4.0', key: 'teach.pub.lic.cc_by_sa' },
+  { id: 'CC0-1.0', key: 'teach.pub.lic.cc0' },
+  { id: 'ODC-By-1.0', key: 'teach.pub.lic.odc_by' },
+  { id: 'Proprietary', key: 'teach.pub.lic.proprietary' },
+];
 
 export interface PublishSheetProps {
   job: TeachJob;
@@ -186,7 +217,10 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
       </Two>
       <Field>
         <FieldLabel>{t('teach.pub.license')}</FieldLabel>
-        <Select value={license} onChange={(e) => setLicense(e.target.value)} aria-label={t('teach.pub.license')}>{LICENSES.map((l) => <option key={l} value={l}>{l}</option>)}</Select>
+        <Select value={license} onChange={(e) => setLicense(e.target.value)} aria-label={t('teach.pub.license')} data-testid="pub-license">
+          {LICENSES.map((l) => <option key={l.id} value={l.id}>{t(l.key)}</option>)}
+        </Select>
+        <HelperText data-testid="pub-license-permanent">{t('teach.pub.license_permanent')}</HelperText>
       </Field>
 
       {/* SC-8: what this was built on is part of the publish decision — it is who gets paid, and what buyers will need */}
@@ -229,7 +263,9 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
         <Two>
           <Field>
             <FieldLabel>{t('teach.pub.ds_license')}</FieldLabel>
-            <Select value={dsLicense} onChange={(e) => setDsLicense(e.target.value)} aria-label={t('teach.pub.ds_license')} data-testid="pub-ds-license">{LICENSES.map((l) => <option key={l} value={l}>{l}</option>)}</Select>
+            <Select value={dsLicense} onChange={(e) => setDsLicense(e.target.value)} aria-label={t('teach.pub.ds_license')} data-testid="pub-ds-license">
+              {LICENSES.map((l) => <option key={l.id} value={l.id}>{t(l.key)}</option>)}
+            </Select>
           </Field>
           {needsDeclaration && (
             <Field>
@@ -270,6 +306,8 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
             ? t('teach.pub.split_lineage', { contributor: `${mine.percent}`, lineage: `${lineagePct}`, names: lineageNames, node: nodeName, nodePct: `${nodeLine?.percent ?? 0}` })
             : t('teach.pub.split_plain', { contributor: `${mine.percent}`, node: nodeName, nodePct: `${nodeLine?.percent ?? 0}` })
           : t('teach.pub.split', { contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName, lineage: pct(policy.shares.lineage) })}
+        {/* finding 342 — the node's cut does not pay for verification; the peers who do it are unpaid by this sale */}
+        <span style={{ display: 'block', marginTop: 4 }} data-testid="pub-split-verify">{t('teach.pub.split_verify')}</span>
         {money && !priceBad && Number(price) > 0 && (
           <span data-testid="pub-split-amounts">{' '}{t('teach.pub.split_at', {
             price: price.trim(), currency,
@@ -290,8 +328,43 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
           />
         </Alert>
       )}
+      {/*
+        Finding 39 — you cannot consent to irreversibility for content you cannot see. Everything the consent below
+        enumerates, rendered read-only and directly above it: each question with its answer and its other phrasing,
+        which of them go into the public record itself, and the name, address, price and licence as they will appear.
+        (The reviewer asked for it "at the top"; it sits here instead, because the name, payout and price it must
+        quote are typed above — at the top it would show empty fields, and the checkboxes it belongs to are here.)
+      */}
+      <Record data-testid="pub-record">
+        <h3>{t('teach.pub.record_title')}</h3>
+        <p className="sub">{t('teach.pub.record_sub', { n: job.facts.length, onchain: Math.min(job.facts.length, TEACH_SAMPLES_ON_CHAIN) })}</p>
+        <ol data-testid="pub-record-facts">
+          {job.facts.map((f, i) => (
+            <li key={i}>
+              <span className="q">{f.prompt}</span>
+              {i < TEACH_SAMPLES_ON_CHAIN && <span className="on">{t('teach.pub.record_onchain')}</span>}
+              <div className="a">{t('teach.basket.answer_label')}: <b>{f.answer}</b></div>
+              {f.alt_prompt && <div className="alt">{t('teach.basket.alt_label')}: {f.alt_prompt}</div>}
+            </li>
+          ))}
+        </ol>
+        <dl>
+          <dt>{t('teach.pub.shown_as')}</dt>
+          <dd data-testid="pub-record-name">{job.contributor.name ?? teacherKey.name ?? t('teach.pub.shown_as_visitor')}</dd>
+          <dt>{t('teach.pub.payout')}</dt>
+          <dd data-testid="pub-record-payout">{payoutMode === 'none' ? t('teach.pub.payout_none') : payoutMode === 'wallet' ? (wallet.trim() || t('teach.pub.wallet_ph')) : teacherKey.address}</dd>
+          <dt>{t('teach.pub.name')}</dt>
+          <dd>{name.trim() || '—'}</dd>
+          <dt>{t('teach.pub.price', { currency })}</dt>
+          <dd>{price.trim() || '0'} {currency}</dd>
+          <dt>{t('teach.pub.license')}</dt>
+          <dd>{license}</dd>
+        </dl>
+      </Record>
       <Consents>
-        <Checkbox checked={consentPermanent} onChange={(e) => setConsentPermanent(e.target.checked)} label={t('teach.pub.consent_permanent')} data-testid="consent-permanent" />
+        {/* finding 41 — the share is written next to the name on the public page; the consent has to name it too */}
+        <Checkbox checked={consentPermanent} onChange={(e) => setConsentPermanent(e.target.checked)} data-testid="consent-permanent"
+          label={t('teach.pub.consent_permanent', { share: mine ? `${mine.percent}` : pct(policy.shares.contributor) })} />
         <Checkbox checked={consentRights} onChange={(e) => setConsentRights(e.target.checked)} label={t('teach.pub.consent_rights')} data-testid="consent-rights" />
         {needsDeclaration && (
           <Checkbox

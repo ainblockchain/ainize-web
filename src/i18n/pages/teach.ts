@@ -129,7 +129,13 @@ export const teach: Dict = {
   // Item 186 — the split the node actually settles, not the raw policy share. `contributor` / `lineage` / `nodePct`
   // are whole percentages computed by `royaltySplit` on this anchor's real parents, so a built-on lesson reads 49 %
   // where the old sentence promised 70 %, and nothing hedges with "if you ticked".
-  'teach.pub.split_plain': { ko: '판매마다: 나에게 {contributor}%, {node}에게 {nodePct}% (학습·호스팅·검증 비용).', en: 'Every sale: {contributor}% to you, {nodePct}% to {node} for training, hosting and verification.' },
+  'teach.pub.split_plain': { ko: '판매마다: 나에게 {contributor}%, {node}에게 {nodePct}% (학습과 호스팅 비용).', en: 'Every sale: {contributor}% to you, {nodePct}% to {node} for training and hosting.' },
+  /*
+   * Finding 342 — the node's cut was justified with a cost the node does not bear. `royaltySplit` has no verifier
+   * payee: verification runs on other peers' GPUs and this sale pays them nothing. Say that, rather than letting a
+   * teacher negotiate their share believing part of the node's cut funds it.
+   */
+  'teach.pub.split_verify': { ko: '검증은 다른 노드들이 자기 GPU로 합니다. 이 판매금은 그들에게 가지 않습니다.', en: 'Verification is done by other nodes on their own GPUs. This sale pays them nothing.' },
   'teach.pub.split_lineage': { ko: '판매마다: {names} 제작자에게 {lineage}%, 나에게 {contributor}%, {node}에게 {nodePct}%. 제작자 몫이 먼저 나가고, 내 몫은 그 나머지에서 계산됩니다.', en: 'Every sale: {lineage}% to the creators of {names}, {contributor}% to you, {nodePct}% to {node}. The creators are paid first, and your share is a share of what is left.' },
   'teach.pub.split_at': { ko: '{price} {currency}에 팔면 — {lines}.', en: 'At {price} {currency} that is {lines}.' },
   'teach.pub.split_you': { ko: '나', en: 'you' },
@@ -280,8 +286,20 @@ export const teach: Dict = {
   'teach.pub.payout_key': { ko: '이 브라우저의 가르치기 키 ({short})', en: 'This browser\'s teaching key ({short})' },
   'teach.pub.payout_wallet': { ko: '내 지갑 주소', en: 'My own wallet address' },
   'teach.pub.payout_none': { ko: '정산 없이 이름만', en: 'No payment, just credit me' },
-  'teach.pub.split': { ko: '판매마다 {contributor}%를 받습니다. 나머지는 {node}가 학습·호스팅·검증 비용으로 가집니다. "바탕으로 합니다"를 켰다면 그 지식의 제작자가 먼저 제작자 몫({lineage}%)을 받습니다.', en: 'You receive {contributor}% of every sale. {node} keeps the rest for training, hosting and verification. If you ticked "builds on", the creators of that knowledge receive the network\'s creator share ({lineage}%) first.' },
-  'teach.pub.consent_permanent': { ko: '영구 공개 기록이 된다는 것을 이해합니다: 질문, 정답, 표시 이름, 정산 주소는 수정·삭제할 수 없고 검증 노드가 읽습니다.', en: 'I understand this becomes a permanent public record: the questions, answers, my display name and payout address cannot be edited or deleted, and verifier nodes will read them.' },
+  'teach.pub.split': { ko: '판매마다 {contributor}%를 받습니다. 나머지는 {node}가 학습과 호스팅 비용으로 가집니다. "바탕으로 합니다"를 켰다면 그 지식의 제작자가 먼저 제작자 몫({lineage}%)을 받고, 내 몫은 그 나머지에서 계산됩니다.', en: 'You receive {contributor}% of every sale. {node} keeps the rest for training and hosting. If you ticked "builds on", the creators of that knowledge are paid the network\'s creator share ({lineage}%) first and your share is a share of what is left.' },
+  // Finding 41 — the share IS part of the record, printed next to the name on the public page; the consent says so.
+  'teach.pub.consent_permanent': { ko: '영구 공개 기록이 된다는 것을 이해합니다: 아래 질문과 정답, 표시 이름, 정산 주소, 그리고 내 몫 {share}%는 수정·삭제할 수 없고 검증 노드가 읽습니다.', en: 'I understand this becomes a permanent public record: the questions and answers above, my display name, my payout address and my {share}% share of each sale cannot be edited or deleted, and verifier nodes will read them.' },
+  // Finding 39 — what the consent enumerates, shown before it is given.
+  'teach.pub.record_title': { ko: '기록에 남는 것', en: 'What goes on the record' },
+  'teach.pub.record_sub': { ko: '질문 {n}개와 그 정답, 표시 이름, 정산 주소입니다. 앞의 {onchain}개는 공개 기록 자체에 들어가고, 나머지는 아래 "내 질문"에서 고른 조건을 따릅니다.', en: '{n} questions with their answers, your display name and your payout address. The first {onchain} go into the public record itself; the rest follow the choice you make under "Your questions" below.' },
+  'teach.pub.record_onchain': { ko: '공개 기록', en: 'on the record' },
+  // Finding 40 — the licence in plain language, in both locales, and the fact that it is permanent.
+  'teach.pub.lic.cc_by': { ko: 'CC-BY-4.0 — 출처를 밝히면 누구나 다시 쓸 수 있습니다', en: 'CC-BY-4.0 — anyone may reuse it if they credit you' },
+  'teach.pub.lic.cc_by_sa': { ko: 'CC-BY-SA-4.0 — 출처를 밝히고 같은 조건으로 공유하면 누구나 다시 쓸 수 있습니다', en: 'CC-BY-SA-4.0 — anyone may reuse it if they credit you and share their version on the same terms' },
+  'teach.pub.lic.cc0': { ko: 'CC0-1.0 — 출처를 밝히지 않아도 누구나 무엇에든 쓸 수 있습니다', en: 'CC0-1.0 — anyone may reuse it for anything, with no credit' },
+  'teach.pub.lic.odc_by': { ko: 'ODC-By-1.0 — 데이터용 라이선스: 출처를 밝히면 다시 쓸 수 있습니다', en: 'ODC-By-1.0 — a licence written for data: reuse with credit' },
+  'teach.pub.lic.proprietary': { ko: '독점 — 구매한 사람만 쓸 수 있습니다', en: 'Proprietary — only buyers may use it' },
+  'teach.pub.license_permanent': { ko: '공개한 뒤에는 바꿀 수 없습니다.', en: 'This cannot be changed after publishing.' },
   'teach.pub.declaration': { ko: '질문 {n}개를 공개합니다. 이 데이터를 공유할 권리가 있고 개인정보가 없음을 확인합니다 — 공개된 수업은 삭제할 수 없습니다.', en: 'You are publishing {n} questions. Confirm you have the right to share this data and that it contains no personal information — published lessons cannot be deleted.' },
   'teach.pub.consent_rights': { ko: '이 정보를 공유할 권리가 있으며, 사적이거나 개인적인 정보가 아닙니다.', en: 'I have the right to share this information, and it is not private or personal data.' },
   'teach.pub.button': { ko: '공개하기', en: 'Publish' },
@@ -365,7 +383,12 @@ export const teach: Dict = {
   // §5.12 catalog / knowledge page
   'detail.taught_by': { ko: '{name} 님이 가르침', en: 'Taught by {name}' },
   'detail.taught_by_anon': { ko: '방문자가 가르침', en: 'Taught by a visitor' },
-  'detail.people': { ko: '제작 노드: {author_name} · 데이터 제공자: {name} ({share}%)', en: 'Creator node: {author_name} · Data provider: {name} ({share}%)' },
+  /*
+   * Finding 41 — this line printed the creator node a second time (the id line directly above already names it) and
+   * published the contributor's revenue share next to their name, which the publish consent never mentioned. The
+   * share is in the ledger record where it belongs; the person gets the one word the rest of the product uses.
+   */
+  'detail.people': { ko: '{name} 님이 가르침', en: 'Taught by {name}' },
   'detail.taught_badge': { ko: '가르친 수업', en: 'Taught lesson' },
   'detail.use_yourself': { ko: '직접 쓰기', en: 'Use it yourself' },
   'detail.published_by': { ko: '{name} 님이 가르침 · {node}이(가) 공개', en: 'Taught by {name} · published by {node}' },
@@ -726,7 +749,13 @@ export const teach: Dict = {
   'teach.res.try_without': { ko: '넣지 않음', en: 'Without it' },
   'teach.res.next': { ko: '이제 무엇을 할까요?', en: 'What now?' },
   'teach.res.publish_title': { ko: '공개하고 정산받기', en: 'Publish it and get paid' },
+  /*
+   * Finding 301 — this promised the raw configured share on every lesson. `royaltySplit` pays the creators of what
+   * a lesson was built on first and carves the teacher's share out of the remainder, so a lesson with a base pays
+   * 0.7 x 0.7 = 49 %. Two strings: one for a lesson that owes nobody, one that says where the difference went.
+   */
   'teach.res.publish_body': { ko: '이 노드를 통해 마켓에 올라가고 내 이름으로 남으며, 판매마다 {share}%를 받습니다.', en: 'It goes on the marketplace through this node, credited to you, and you receive {share}% of every sale.' },
+  'teach.res.publish_body_lineage': { ko: '이 노드를 통해 마켓에 올라가고 내 이름으로 남습니다. 바탕이 된 {names}의 제작자가 먼저 {lineage}%를 받고, 그 나머지에서 내 몫이 계산되어 판매마다 {share}%를 받습니다.', en: 'It goes on the marketplace through this node, credited to you. The creators of {names}, which it was built on, are paid {lineage}% first, and your share comes out of what is left: {share}% of every sale.' },
   'teach.res.keep_title': { ko: '나만 쓰기', en: 'Keep it private' },
   'teach.res.keep_body': { ko: '아무것도 공개되지 않습니다. 이 노드에 두거나, 지식 파일을 내려받거나, 내 컴퓨터에서 돌리는 명령어를 받으세요.', en: 'Nothing is published. Keep it on this node, download the knowledge file, or get the commands to run it on your own machine.' },
   'teach.res.again_title': { ko: '다시 학습하기', en: 'Train it again' },

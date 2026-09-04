@@ -225,6 +225,11 @@ export default function TeachLessonPage() {
   const teacherKey = currentTeacherKey();
   const gated = !!c && (!c.ok || !c.executed || !!c.skipped);
   const publishOff = policy?.publish === 'never';
+  /** Finding 301 — the share a sale of THIS lesson pays, with the lineage pool taken off the top first. */
+  const contributorShare = policy?.shares?.contributor ?? 0.7;
+  const lineageShare = j.bases?.length ? (policy?.shares?.lineage ?? 0) : 0;
+  const baseNames = (j.bases ?? []).map((b) => b.name ?? b.patch_id).join(', ');
+  const sharePct = (x: number) => Math.round(x * 1000) / 10;
 
   return (
     <PageWrapper data-testid="teach-lesson" data-status={j.status}>
@@ -350,7 +355,14 @@ export default function TeachLessonPage() {
           {!demo && (
             <Choice $primary>
               <b>{t('teach.res.publish_title')}</b>
-              <span>{t('teach.res.publish_body', { share: Math.round((policy?.shares?.contributor ?? 0.7) * 100) })}</span>
+              {/*
+                Finding 301 — this printed the node's raw configured share on every lesson. `royaltySplit` pays the
+                creators of what the lesson was built on off the top and carves the teacher's share out of what is
+                left, so a lesson with a base pays 49 % where this said 70 %. Same arithmetic, both numbers named.
+              */}
+              <span data-testid="publish-share">{lineageShare > 0
+                ? t('teach.res.publish_body_lineage', { share: sharePct(contributorShare * (1 - lineageShare)), lineage: sharePct(lineageShare), names: baseNames })
+                : t('teach.res.publish_body', { share: sharePct(contributorShare) })}</span>
               <Button
                 variant="contained" onClick={() => setSheet('publish')} data-testid="go-publish"
                 disabled={publishOff || gated || !teacherKey || j.status !== 'READY'}
