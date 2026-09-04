@@ -19,7 +19,10 @@ import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/te
  * Endpoints that carry the visitor's signed `x-ngram-auth` when this browser has a teaching key (spec §6.1).
  * `chat` is included because a private draft (a taught lesson before publishing) can be live-tested only by its owner.
  */
-const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'mergePreview', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishPreview', 'publishTeachJob', 'saveTeachJob',
+const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'mergePreview',
+  // the training-set preview: a `derivative` set is readable by anyone holding a teaching key, and the refusal says
+  // exactly that — so the request has to carry the key the reader already has (lineage design §6.1, SC-10)
+  'patchDataset', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishPreview', 'publishTeachJob', 'saveTeachJob',
   // teach mode v2 — the dataset routes (design §7)
   'forkPatch', 'teachDatasets', 'teachDataset', 'teachDatasetRows', 'createTeachDataset', 'uploadTeachDataset', 'reparseTeachDataset', 'patchTeachDataset', 'forkTeachDataset', 'deleteTeachDataset',
   'retrainTeachJob', 'teachJobEvents']);
