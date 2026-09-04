@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useBranchesQuery, useInfoQuery, useLazyRouteQuery, useNodesQuery } from '@/api/api';
+import { errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, useLazyRouteQuery, useNodesQuery } from '@/api/api';
+import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
+import { Offline } from '@/components/ui/Offline';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
@@ -9,6 +11,7 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { bytes, num, shortAddr } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
+import { trackHref } from './TrackPage';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;`;
 const Card = styled.div`
@@ -45,16 +48,34 @@ export default function NetworkPage() {
   const { t, term, help, tech } = useT();
   useTitle(t('detail.net.title'));
   const f = useDetailFormat();
-  const { data: info, isLoading } = useInfoQuery(undefined, { pollingInterval: 15_000 });
+  const { isSignedIn } = useAuth();
+  const infoQ = useInfoQuery(undefined, { pollingInterval: 15_000 });
+  const info = infoQ.data;
   const { data: nodes } = useNodesQuery(undefined, { pollingInterval: 15_000 });
   const { data: branches } = useBranchesQuery(undefined, { pollingInterval: 20_000 });
+  // Finding 268: the track table said what a track contains but not what a subscriber would get today, nor how old
+  // it is. Both come from the catalogue, which is one cached request shared with /explore.
+  const { data: catalog } = useCatalogQuery({ limit: 200 });
   const [routeKey, setRouteKey] = useState('jurisdiction');
   const [routeValue, setRouteValue] = useState('KR');
   const [route, { data: routed, isFetching: routing, error: routeError }] = useLazyRouteQuery();
 
   const onRoute = (e: FormEvent) => { e.preventDefault(); if (routeKey.trim()) void route({ [routeKey.trim()]: routeValue.trim() }); };
 
-  if (isLoading || !info) return <PageWrapper $wide><CenterProgress /></PageWrapper>;
+  if (infoQ.isLoading) return <PageWrapper $wide><CenterProgress /></PageWrapper>;
+  /*
+   * Finding 77: with the node unreachable this page used to render nothing at all between the header and the
+   * footer — a visitor could not tell an outage from an empty network. Nothing below can be drawn without
+   * `/api/info`, so the page says so once, in the same words `/ledger` uses, and offers the retry.
+   */
+  if (!info) {
+    return (
+      <PageWrapper $wide>
+        <TitleRow><Title>{t('detail.net.title')}</Title></TitleRow>
+        <Offline error={infoQ.error} what={t('offline.what.network')} retrying={infoQ.isFetching} onRetry={() => { void infoQ.refetch(); }} />
+      </PageWrapper>
+    );
+  }
   const self = info.node;
   const rt = info.runtime;
   const peers = nodes?.peers ?? [];
@@ -64,6 +85,7 @@ export default function NetworkPage() {
   const ledgerKind = (k: string) => (k === 'ain' ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local'));
   const roles = (rs: string[]) => rs.map((r) => <RoleChip key={r} $role={r} title={r}>{f.roleLabel(r)}</RoleChip>);
   const routeExample = routed?.branch?.name ?? branches?.branches[0]?.name ?? 'law/KR';
+  const entries = new Map((catalog?.items ?? []).map((e) => [e.anchor.id, e]));
 
   return (
     <PageWrapper $wide>
@@ -100,9 +122,17 @@ export default function NetworkPage() {
           <KeyValue style={{ marginTop: 8 }}>
             <dt>{t('detail.net.status')}</dt><dd><Dot $ok={rt.available} />{rt.available ? t('detail.net.runtime_ok') : (rt.error ?? t('detail.net.runtime_down'))}</dd>
             <dt>{t('detail.net.model')}</dt><dd>{rt.model ?? '—'}</dd>
-            <dt>{t('detail.net.api')}</dt><dd><Mono>{rt.api ?? '—'}</Mono></dd>
             <dt title={`row hook — ${tech('apply')}`}>{t('detail.net.hook')}</dt><dd><Dot $ok={rt.hook} />{rt.hook ? t('detail.net.hook_ok') : t('detail.net.hook_no')}</dd>
-            <dt>{t('detail.net.repo')}</dt><dd><Mono>{rt.repo ?? '—'}</Mono></dd>
+            {/*
+              * Finding 35: the serving endpoint and the directory it runs out of are the operator's infrastructure,
+              * not the visitor's. They tell a stranger nothing they can use and, on a node reachable from the
+              * internet, they advertise where to knock. The model id and the status stay public — they are what a
+              * buyer needs to know before trusting an attestation from this node.
+              */}
+            {isSignedIn && (<>
+              <dt>{t('detail.net.api')}</dt><dd><Mono>{rt.api ?? '—'}</Mono></dd>
+              <dt>{t('detail.net.repo')}</dt><dd><Mono>{rt.repo ?? '—'}</Mono></dd>
+            </>)}
           </KeyValue>
           <Description style={{ fontSize: 12 }} title={tech('verified')}>{t('detail.net.runtime_note')}</Description>
         </Card>
@@ -168,18 +198,23 @@ export default function NetworkPage() {
         <TableWrapper style={{ marginTop: 12, background: '#fff', border: '1px solid #dadada' }}>
           <Table>
             <TableHeader>
-              <TableRow><TableHead $align="left" $padding="0 0 0 24px">{t('detail.net.h.track')}</TableHead><TableHead $align="left">{t('detail.net.h.context')}</TableHead><TableHead $align="left">{t('detail.net.h.patches')}</TableHead><TableHead>{t('detail.net.h.owner')}</TableHead><TableHead $align="right" $padding="0 24px 0 8px">{t('detail.net.h.subscribers')}</TableHead></TableRow>
+              <TableRow><TableHead $align="left" $padding="0 0 0 24px">{t('detail.net.h.track')}</TableHead><TableHead $align="left">{t('detail.net.h.context')}</TableHead><TableHead $align="left" title={t('track.net.current_title')}>{t('track.net.h.current')}</TableHead><TableHead title={t('track.net.updated_title')}>{t('track.net.h.updated')}</TableHead><TableHead>{t('detail.net.h.owner')}</TableHead><TableHead $align="right" $padding="0 24px 0 8px">{t('detail.net.h.subscribers')}</TableHead></TableRow>
             </TableHeader>
             <TableBody>
-              {branches.branches.map((b) => (
+              {branches.branches.map((b) => {
+                const current = b.current ?? [];
+                const newest = current.map((id) => entries.get(id)?.anchor.created_at ?? 0).reduce((x, y) => Math.max(x, y), 0);
+                return (
                 <TableRow key={b.name}>
-                  <TableData $align="left" $padding="0 0 0 24px" $weight={600} title={b.description}>{b.name}{branches.mine.includes(b.name) && <span style={{ marginLeft: 8, fontSize: 11, color: '#44a45f' }}>{t('detail.net.subscribed')}</span>}</TableData>
+                  <TableData $align="left" $padding="0 0 0 24px" $weight={600} title={b.description}><StyledLink to={trackHref(b.name)}>{b.name}</StyledLink>{branches.mine.includes(b.name) && <span style={{ marginLeft: 8, fontSize: 11, color: '#44a45f' }}>{t('detail.net.subscribed')}</span>}</TableData>
                   <TableData $align="left">{Object.entries(b.context).map(([k, v]) => <CtxChip key={k}>{k}={v}</CtxChip>)}{Object.keys(b.context).length === 0 && '—'}</TableData>
-                  <TableData $align="left" $maxWidth="360px" title={b.patch_ids.join(', ')}>{b.patch_ids.slice(0, 3).map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={`/${encodeURIComponent(b.owner)}/${encodeURIComponent(id)}`}>{id}</StyledLink></span>)}{b.patch_ids.length > 3 && ` +${b.patch_ids.length - 3}`}</TableData>
+                  <TableData $align="left" $maxWidth="360px" title={current.join(', ') || t('track.net.none')}>{current.slice(0, 2).map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={`/${encodeURIComponent(entries.get(id)?.anchor.author ?? b.owner)}/${encodeURIComponent(id)}`}>{id}</StyledLink></span>)}{current.length > 2 && ` +${current.length - 2}`}{current.length === 0 && t('track.net.none')}</TableData>
+                  <TableData>{newest ? f.ago(newest) : '—'}</TableData>
                   <TableData $mono title={b.owner}>{shortAddr(b.owner, 6)}</TableData>
                   <TableData $align="right" $padding="0 24px 0 8px" title={b.subscribers.map((s) => s.name ?? s.address ?? '').join(', ')}>{num(b.subscribers.length)}</TableData>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </TableWrapper>
