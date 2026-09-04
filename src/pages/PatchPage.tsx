@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useBuyMutation, useInfoQuery, usePatchQuery, usePatchRecordsQuery } from '@/api/api';
+import { errorMessage, useBuyMutation, useInfoQuery, usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery } from '@/api/api';
 import type { Attestation, ConflictInfo, PatchDetail, PurchaseResult } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +12,10 @@ import { useT } from '@/i18n';
 import { sourceKind } from '@/components/teach/util';
 import { useTitle } from '@/utils/useTitle';
 import { bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
+import { FamilyTree } from '@/components/detail/FamilyTree';
+import { OpenQuestions } from '@/components/detail/OpenQuestions';
+import { SignalsStrip } from '@/components/detail/SignalsStrip';
+import { TrainingSetBlock } from '@/components/detail/TrainingSetBlock';
 import NotFoundPage from './NotFoundPage';
 import { isExecuted, useDetailFormat } from './detail/recordText';
 
@@ -35,6 +39,16 @@ const TaughtLine = styled.div`
 `;
 const TaughtChip = styled.span`display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; background: #e1eef3; color: #0b5468;`;
 const HeadRight = styled.div`display: flex; flex-direction: column; align-items: flex-end; gap: 8px;`;
+const AddonBadge = styled.div`
+  margin-top: 8px; display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600;
+  background: #fff3e0; color: #8a4b00;
+`;
+const BuildOn = styled.button`
+  font: inherit; font-size: 13px; font-weight: 700; padding: 8px 18px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+  border: 1px solid ${(p) => p.theme.color.PRIMARY}; background: #fff; color: ${(p) => p.theme.color.PRIMARY};
+  &:hover:not(:disabled) { background: ${(p) => p.theme.color.PALE_GREY}; }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+`;
 const LiveTestLink = styled(Link)`
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px 26px; border-radius: 4px; text-decoration: none;
   background: ${(p) => p.theme.color.PRIMARY}; color: #fff; font-size: 15px; font-weight: 700; line-height: 1.3; white-space: nowrap;
@@ -138,6 +152,10 @@ export default function PatchPage() {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const { data, isLoading, error } = usePatchQuery(patchId, { pollingInterval: 10_000 });
+  // `teach.lineage` gates the CREATOR affordances only (§18): the tree, the strip and the open questions are read-only
+  // and ship on every node, including the demo cluster where the flag is off.
+  const { data: policy } = useTeachPolicyQuery();
+  const { data: issues } = usePatchIssuesQuery({ id: patchId, limit: 1 });
   const [tab, setTab] = useState('overview');
   // before the early returns: the tab is named after the knowledge as soon as the node answers
   useTitle(data ? data.anchor.name || data.anchor.id : undefined);
@@ -153,9 +171,14 @@ export default function PatchPage() {
   const provider = a.contributors?.find((c) => c.role === 'data_provider');
   const taught = a.origin === 'teach' || !!provider;
   const providerName = provider?.name ?? t('detail.taught_by_anon');
+  const canBuildOn = policy?.lineage === true && policy?.enabled !== false;
+  const datasetPrivate = (a.dataset?.access ?? 'private') === 'private';
+  const base = a.base?.stack?.[0];
+  const baseName = data.requires?.find((r) => r.id === base?.patch_id)?.name ?? base?.patch_id ?? '';
   const tabs = [
     { id: 'overview', label: t('detail.tab.overview') },
     { id: 'verification', label: t('detail.tab.verification') },
+    { id: 'tree', label: t('detail.tab.tree') },
     { id: 'lineage', label: t('detail.tab.lineage') },
     { id: 'buy', label: t('detail.tab.buy') },
     { id: 'history', label: t('detail.tab.history') },
@@ -169,6 +192,9 @@ export default function PatchPage() {
             <PatchTitle>{a.name}</PatchTitle>
             <IdLine><span>{t('detail.patch.id')} <code>{a.id}</code></span><span>{t('common.author')}: <b title={a.author}>{authorLabel}</b></span></IdLine>
             <Branch title={`${tech('branch')} · topic_path`}>{t('detail.patch.track_topic', { branch: a.branch ?? (data.branches[0]?.name ?? 'main'), topic: a.topic_path })}</Branch>
+            {/* SC-9: an add-on is not usable alone, and the header is the first place a buyer can be told so. */}
+            {base && <AddonBadge data-testid="addon-badge">{t('detail.addon_badge', { name: baseName })}</AddonBadge>}
+            <SignalsStrip id={a.id} />
             {taught && (
               <TaughtLine data-testid="taught-by">
                 <TaughtChip>{t('detail.taught_badge')}</TaughtChip>
@@ -182,6 +208,10 @@ export default function PatchPage() {
             <LiveTestLink to={`/chat/${encodeURIComponent(a.id)}`} title={`${help('liveTest')} (${tech('liveTest')})`}>
               {term('liveTest')}<small>{t('detail.patch.live_test_sub')}</small>
             </LiveTestLink>
+            {/* SC-9 *Build on this* — the flag holds it back, and a private training set says why nobody can. */}
+            <BuildOn type="button" data-testid="build-on" disabled={!canBuildOn || datasetPrivate}
+              title={datasetPrivate ? t('detail.build_on_private') : undefined}
+              onClick={() => { window.location.href = `/teach/settings?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
             <ViewAll to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{t('detail.patch.view_same_subject')}</ViewAll>
           </HeadRight>
         </BandContent>
@@ -234,6 +264,24 @@ export default function PatchPage() {
 
           {tab === 'overview' && <Overview d={data} score={score} onSeeVerification={() => setTab('verification')} />}
           {tab === 'verification' && <Verification d={data} />}
+          {tab === 'tree' && (
+            <>
+              <Section>
+                <H3>{t('detail.tab.tree')}</H3>
+                <FamilyTree id={a.id} authorSlug={authorSlug} canBuildOn={canBuildOn} datasetPrivate={datasetPrivate} />
+              </Section>
+              {a.dataset && (
+                <Section>
+                  <H3>{t('detail.ds.title')}</H3>
+                  <TrainingSetBlock d={data} canBuildOn={canBuildOn} />
+                </Section>
+              )}
+              <Section>
+                <H3>{t('detail.missing.title', { n: issues?.total ?? 0 })}</H3>
+                <OpenQuestions id={a.id} totalQuestions={a.benchmark.queries} canBuildOn={canBuildOn} />
+              </Section>
+            </>
+          )}
           {tab === 'lineage' && <Lineage d={data} authorSlug={authorSlug} />}
           {tab === 'buy' && <Buy d={data} authorSlug={authorSlug} isOperator={isSignedIn} />}
           {tab === 'history' && <HistoryTab id={a.id} />}

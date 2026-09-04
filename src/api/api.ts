@@ -10,6 +10,7 @@ import type {
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
+  IssuesResponse, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
 } from './types';
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
 
@@ -86,13 +87,25 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     patch: b.query<PatchDetail, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog'] }),
     patchRecords: b.query<{ records: LedgerRecord[] }, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/records`, providesTags: ['Ledger'] }),
     patchEvents: b.query<{ events: EventRow[] }, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/patches/${encodeURIComponent(id)}/events${toQuery({ limit })}`, providesTags: ['Events'] }),
+    // lineage §12.5 — the family tree, how it is doing, and what people asked it that it could not answer
+    patchTree: b.query<TreeResponse, { id: string; depth?: number; dir?: 'up' | 'down' | 'both' }>({ query: ({ id, depth, dir }) => `api/patches/${encodeURIComponent(id)}/tree${toQuery({ depth, dir })}`, providesTags: ['Catalog'] }),
+    patchSignals: b.query<SignalsResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/signals`, providesTags: ['Catalog'] }),
+    patchIssues: b.query<IssuesResponse, { id: string; kind?: string; status?: string; limit?: number }>({ query: ({ id, ...q }) => `api/patches/${encodeURIComponent(id)}/issues${toQuery(q)}`, providesTags: ['Issues'] }),
+    patchDataset: b.query<PatchDatasetResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/dataset`, providesTags: ['Catalog'] }),
+    createIssue: b.mutation<{ id: string; count: number; people: number; shared: boolean }, { id: string; text: string; topic?: string; share: boolean }>({
+      query: ({ id, ...body }) => ({ url: `api/patches/${encodeURIComponent(id)}/issues`, method: 'POST', body }), invalidatesTags: ['Issues'],
+    }),
+    chatFeedback: b.mutation<{ turn_id: string; shared: boolean; items: { patch_id: string; count: number; people: number; shared: boolean }[] }, { turn_id: string; patch_ids?: string[]; share: boolean }>({
+      query: (body) => ({ url: 'api/chat/feedback', method: 'POST', body: { ...body, verdict: 'wrong' } }), invalidatesTags: ['Issues'],
+    }),
+    exploreShelves: b.query<ShelvesResponse, { limit?: number } | void>({ query: (q) => `api/explore/shelves${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     benchmark: b.query<{ schema: string; items: CatalogEntry[] }, string>({ query: (schema) => `api/benchmarks/${encodeURIComponent(schema)}`, providesTags: ['Catalog'] }),
     ledger: b.query<LedgerResponse, { kind?: string; limit?: number } | void>({ query: (q) => `api/ledger${toQuery({ ...(q ?? {}) })}`, providesTags: ['Ledger'] }),
     ledgerVerify: b.query<VerifyResponse, void>({ query: () => 'api/ledger/verify', providesTags: ['Ledger'] }),
@@ -240,6 +253,7 @@ export const api = createApi({
 export const {
   useInfoQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,

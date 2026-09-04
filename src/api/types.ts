@@ -61,6 +61,10 @@ export interface PatchDetail extends CatalogEntry {
   lineage: { parents: LineageRef[]; children: LineageRef[] };
   conflicts: ConflictInfo[];
   branches: { name: string; context: Record<string, string> }[];
+  /** Lineage §12.5: the bases a buyer must load under this knowledge, and whether this node holds them. */
+  requires?: { id: string; name: string; held: boolean; price: string | null }[];
+  /** Whether the published training set's bytes are on this node (a preview or download can only come from here). */
+  dataset_held?: boolean;
   owned: boolean;
   purchased: boolean;
   has_body: boolean;
@@ -358,3 +362,62 @@ export interface TeachPolicyPatch {
 export type TeachJobAdmin = TeachJob & { ip: string | null };
 export interface ContributorRow { address: string; name: string | null; payout_address: string | null; first_seen: number; last_seen: number; jobs: number; published: number; hidden: boolean; note: string | null }
 export interface BanRow { id: number; kind: 'address' | 'ip'; value: string; reason: string | null; ts: number }
+
+// ---------------------------------------------------------------- family tree, signals, open questions (lineage design §12.5, SC-9 … SC-12)
+/** One knowledge in the family tree. `missing` = an id only: unknown on this node, or not for this reader. */
+export interface TreeNode {
+  id: string; name: string; missing?: boolean;
+  author?: string; author_name?: string | null; taught_by?: string | null;
+  contributors: { address: string; name: string | null; role?: string; share?: number }[];
+  status?: string; superseded_by: string[]; supersedes: string[];
+  branch?: string | null; tracks?: string[];
+  derivation?: { kind: string; bases: { patch_id: string; rows: number }[]; added_rows: number; changed_rows: number; removed_rows: number } | null;
+  base_stack: string[]; export?: 'delta' | 'squash' | null;
+  /** No `derivation`: a declared parent, not a knowledge trained on top of it (design §14). */
+  legacy?: boolean;
+  dataset?: { sha256: string; rows: number; access: 'public' | 'derivative' | 'private'; license: string | null } | null;
+  added: { questions: number; changed: number; removed: number; rows: number; new: number };
+  signals: Record<string, number>;
+  /** 0 = the knowledge being looked at; negative = an ancestor, positive = a descendant. */
+  depth: number;
+}
+export type TreeEdgeKind = 'extend' | 'update' | 'contradict' | 'merge' | 'version' | 'track' | 'declared';
+export interface TreeResponse {
+  root: string; depth: number; dir: 'up' | 'down' | 'both';
+  nodes: TreeNode[]; edges: { from: string; to: string; kind: TreeEdgeKind }[];
+  truncated: boolean;
+  family: { sales: number; knowledges: number; authors: number };
+  money: { seller_pct: number; lineage_pct: number; seller_name: string | null; recipients: { address: string; pct: number; name: string | null }[] };
+}
+export interface SignalsResponse {
+  patch_id: string;
+  /** Read from the ledger and the peer table — the same on every node. */
+  network: { scope: 'network'; sales_all: number; sales_30d: number; buyers: number; revenue: string; loads: number; dataset_loads: number; built_on: number; versions: number; subscribers: number; passed: number; quorum: number };
+  /** This node's own counters. `window_days` says how far back, and the label must say "this node". */
+  node: { scope: 'node'; window_days: number; days: number; visitors: number; open_questions: number } & Record<string, number | string>;
+}
+export type IssueKind = 'own_miss' | 'preflight' | 'free_wrong' | 'request' | 'gap';
+export interface IssueItem {
+  id: string; kind: IssueKind; count: number; people: number; topic: string | null;
+  /** null when the question was counted but not kept — nobody consented to share it (design §10). */
+  text: string | null;
+  sample_index: number | null; status: string; covered_by: string | null; first_seen: number; last_seen: number;
+}
+export interface IssuesResponse { patch_id: string; total: number; counts: Record<string, number>; items: IssueItem[] }
+export interface PatchDatasetResponse {
+  sha256: string; rows: number; access: 'public' | 'derivative' | 'private'; license: string | null;
+  parents: { patch_id: string; sha256: string; rows: number }[];
+  held: boolean; include_notes: boolean; benchmark_samples: number | null; merkle_root: string | null;
+  preview?: { prompt: string; answer: string; from?: string }[];
+}
+export interface ShelfCard {
+  id: string; name: string; author: string; author_name: string | null; status: string;
+  price: string; currency: string; rows: number; topic_path: string;
+  requires: { id: string; name: string }[];
+  built_on?: number; sales_30d?: number; sales_all?: number; created_at?: number;
+}
+export interface ShelvesResponse {
+  shelves: { id: 'selling' | 'built_on' | 'fresh'; items: ShelfCard[] }[];
+  asked: { topic: string; count: number; people: number; patches: string[] }[];
+  scope: Record<string, string>;
+}
