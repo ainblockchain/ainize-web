@@ -290,6 +290,9 @@ export interface RoyaltyRow {
   state?: 'credited' | 'paid' | 'pending' | 'failed' | 'unconfirmed';
   seller?: string; seller_name?: string | null; buyer?: string; currency?: string; scheme?: string;
   tx_hash?: string | null; reported_at?: number | null; last_error?: string | null; days?: number;
+  /** Where a `paid` comes from (item 314): a signed payout record on the ledger, or the seller answering for itself. */
+  evidence?: 'record' | 'seller_reported' | null;
+  transfer_key?: string | null;
 }
 export interface WalletResponse extends ChainResponse { sales: Settlement[]; royalties: RoyaltyRow[]; purchases: number; payouts?: PayoutSummary & { items: PayoutRow[] };
   royalty_totals?: { owed: string; credited: string; paid: string; unconfirmed: string };
@@ -357,7 +360,13 @@ export interface ChatResponse {
   turn_id?: string;
 }
 /** Two testable knowledges that share `rows` memory entries (the one loaded last wins on those). */
-export interface ChatOverlap { a: string; b: string; rows: number }
+/**
+ * What two ticked knowledges share (item 222). `rows` is memory entries — true, and unactionable on its own;
+ * `questions_shared` / `questions_disagree` are the same overlap in the terms the visitor is thinking in, from the
+ * benchmark samples both anchors publish. 0 shared questions with a large `rows` means they touch the same table
+ * rows for different questions.
+ */
+export interface ChatOverlap { a: string; b: string; rows: number; questions_shared?: number; questions_disagree?: number }
 /**
  * Who holds the one shared serving model. `alive` is the node's own liveness probe of the holder process and
  * `stale` its 15-minute lease check — a lock file left behind by a killed node has alive:false and must not be

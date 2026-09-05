@@ -129,6 +129,11 @@ export const operatorDash: Dict = {
   'op.manage.price.done': { ko: '가격이 바뀌었습니다.', en: 'The price has changed.' },
   'op.manage.price.history': { ko: '가격 이력: {history}', en: 'Price history: {history}' },
   'op.manage.price.retired': { ko: '내려간 지식입니다 — 판매가 끝났으니 가격은 의미가 없습니다.', en: 'This knowledge is retired: it is off sale for good, so a price would change nothing.' },
+  /* Item 316 — the reconciled per-sale view a creator needs already existed at /teacher/<address>, reachable only
+     from teach flows and linked from nowhere in the wallet. Item 314 — and "paid" now has two strengths. */
+  'op.account.royalties.every_sale': { ko: '판매 건별로 모두 보기 ›', en: 'See every sale, one by one ›' },
+  'op.account.royalties.evidence.record': { ko: '공개 기록에 지급 기록이 있습니다 (전송 해시 포함)', en: 'A payout record on the public ledger names this transfer' },
+  'op.account.royalties.evidence.seller': { ko: '판매자 노드가 스스로 보고한 값입니다 — 공개 기록은 아직 없습니다', en: 'The seller\u2019s own node reports this; there is no public record of it yet' },
   // Item 194: the sale price is not what reached the seller. A derivative that shares 65 % upstream showed the
   // buyer's 10 next to a balance that went up by 3.5.
   'op.dash.sales.net': { ko: '{revenue} 중 내 몫 {net} · 원작자 몫 {shared}', en: '{net} of {revenue} reached you · {shared} to the creators it was built on' },

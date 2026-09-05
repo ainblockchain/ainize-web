@@ -396,7 +396,7 @@ export default function AccountPage() {
                         <TableData $align="left" $padding="0 8px">{r.patch_id}</TableData>
                         <TableData>{t(r.kind === 'verification' ? 'op.account.royalties.for.verification' : 'op.account.royalties.for.lineage')}</TableData>
                         <TableData title={money.note(r.currency ?? currency)}>{money.fmt(r.amount, r.currency ?? currency)}</TableData>
-                        <TableData data-testid="royalty-state" title={r.tx_hash ?? r.last_error ?? undefined} $color={r.state === 'credited' || r.state === 'paid' ? '#2f7d43' : r.state === 'failed' ? '#b4232f' : '#8a4b00'}>
+                        <TableData data-testid="royalty-state" title={[r.evidence ? t(r.evidence === 'record' ? 'op.account.royalties.evidence.record' : 'op.account.royalties.evidence.seller') : null, r.tx_hash, r.last_error].filter(Boolean).join(' · ') || undefined} $color={r.state === 'credited' || r.state === 'paid' ? '#2f7d43' : r.state === 'failed' ? '#b4232f' : '#8a4b00'}>
                           {r.state === 'unconfirmed' ? t('op.account.royalties.state.unconfirmed', { days: r.days ?? 0 })
                             : r.state ? t(`op.account.royalties.state.${r.state}`) : t('op.account.royalties.state.unknown')}
                         </TableData>
@@ -413,6 +413,10 @@ export default function AccountPage() {
                   ...royalties.map((r) => [iso(r.created_at), r.patch_id, r.kind ?? '', r.amount, r.currency ?? currency, r.state ?? 'unconfirmed', r.seller ?? '', r.buyer ?? '', r.tx_hash ?? '']),
                 ])} />
               <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.royalties.explain')}</Muted>
+              {/* Item 316: the per-sale view that reconciles owed against paid existed at /teacher/<address> and
+                  was reachable only from the teach flows — three surfaces, three totals, and the closest to right
+                  could not be reached from the wallet. */}
+              {me?.address && <Muted style={{ display: 'block', marginTop: 4 }}><StyledLink to={`/teacher/${me.address}`} data-testid="royalties-every-sale">{t('op.account.royalties.every_sale')}</StyledLink></Muted>}
               {/* Item 325: the fourth party in this economy — the one that only paid — can now see what it earned. */}
               <strong style={{ fontSize: 14, display: 'block', marginTop: 20 }}>{t('op.account.verification')}</strong>
               <Muted style={{ display: 'block', marginTop: 6 }} data-testid="verification-earned">{wallet.data.verification?.length
