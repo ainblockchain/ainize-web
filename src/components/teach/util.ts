@@ -60,8 +60,14 @@ export function fileStatus(row: TeachDatasetRow, t: Tr, limits?: { prompt_max: n
   const promptMax = limits?.prompt_max ?? 400;
   const answerMax = limits?.answer_max ?? 200;
   switch (row.status) {
-    case 'ok': return { text: t('teach.rows.status.new'), tone: 'ok' };
-    case 'fixed': return { text: t('teach.rows.status.fixed'), tone: 'ok' };
+    /*
+     * Finding 51 — "Will train" is a claim about the MODEL (it is wrong today, so it will be trained), and the
+     * parser cannot make it: it only knows the line was readable. Saying it in the green ok tone next to "Not
+     * checked yet" collapsed the screen's whole purpose — separating "this parsed" from "the model needs this" —
+     * into one ambiguous phrase, and removed any felt need to run the check.
+     */
+    case 'ok': return { text: t('teach.rows.status.parsed'), tone: 'muted' };
+    case 'fixed': return { text: t('teach.rows.status.parsed_fixed'), tone: 'muted' };
     case 'pii': return { text: t('teach.rows.status.pii', { kinds: (row.pii ?? []).join(', ') }), tone: 'warn' };
     case 'duplicate': return { text: t('teach.rows.status.dupe', { n: firstNumber(row.detail) ?? row.line }), tone: 'muted' };
     case 'conflict': {

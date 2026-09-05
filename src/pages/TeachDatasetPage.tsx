@@ -51,10 +51,17 @@ const Toast = styled.div`
   button { background: none; border: 0; color: ${(p) => p.theme.color.TERTIARY}; font: inherit; font-weight: 700; cursor: pointer; }
   span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
+/**
+ * Finding 53 — the bar is `position: sticky; bottom: 0` and nothing reserved room for it, so about one table row was
+ * permanently underneath it at every scroll position, faded rather than hidden (which reads as disabled) with its
+ * Edit / Remove buttons unreachable. It is opaque with a shadow above it now, and the page reserves its height.
+ */
 const Sticky = styled.div`
-  position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end;
-  padding: 12px 0; margin-top: 8px; background: linear-gradient(to top, #fff 70%, rgba(255,255,255,0));
+  position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end;
+  padding: 12px 0; margin-top: 8px; background: #fff; box-shadow: 0 -6px 12px -6px rgba(48, 49, 51, 0.25);
 `;
+/** The room the sticky bar occupies, so the last row of the table can always be scrolled clear of it. */
+const StickySpacer = styled.div`height: 72px; @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { height: 96px; }`;
 
 export default function TeachDatasetPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
@@ -73,12 +80,19 @@ export default function TeachDatasetPage() {
   const [preflight, { isLoading: checking }] = useTeachPreflightMutation();
 
   const [flight, setFlight] = useState<Record<number, PreflightFact>>({});
-  const [sampled, setSampled] = useState<{ checked: number; of: number } | null>(null);
+  /**
+   * Finding 47 — how far through the dataset the live check has got. It used to be a per-pass `{checked, of}` reset
+   * on every click, which is why pressing the button twice re-measured the same head and reported the same 24: the
+   * screen now remembers the frontier and the second button resumes from it.
+   */
+  const [checked, setChecked] = useState(0);
   const [partial, setPartial] = useState(false);
   const [editing, setEditing] = useState<TeachDatasetRow | 'new' | null>(null);
   const [reparseOpen, setReparseOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ row: DatasetRowInput; label: string } | null>(null);
+  /** a refused row that was dropped: it has nothing to put back, so it gets a plain line rather than an Undo toast */
+  const [note, setNote] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,6 +101,9 @@ export default function TeachDatasetPage() {
   const summary = page?.summary ?? dataset?.summary;
   const rows = useMemo(() => page?.items ?? [], [page]);
   const cap = rowsPerJob(policy);
+  /** finding 47 — the check's sample size and per-call batch, as this node reports them */
+  const sampleRows = policy?.limits?.preflight_rows ?? 24;
+  const perCall = policy?.limits?.preflight_per_call ?? 8;
   const overCap = !!dataset && dataset.rows > cap;
   const limits = policy?.limits;
   /**
@@ -100,7 +117,7 @@ export default function TeachDatasetPage() {
   // a fresh revision (edit / reparse) invalidates every model-side answer that was measured against the old text
   const revision = dataset?.revision;
   // …and every question index it was measured against: a replaced or removed question renumbers the file.
-  useEffect(() => { setFlight({}); setSampled(null); setPartial(false); setSelected(new Set()); }, [revision]);
+  useEffect(() => { setFlight({}); setChecked(0); setPartial(false); setSelected(new Set()); }, [revision]);
 
   const toast = (row: DatasetRowInput, label: string) => {
     setUndo({ row, label });
@@ -113,8 +130,23 @@ export default function TeachDatasetPage() {
     try { await fn(); } catch (e) { setError(mapTeachError(e, t, ctx)); }
   }, [t]);
 
+  /**
+   * Finding 48 — the rows that need fixing were the only rows that could not be removed: `onRemove` was gated on
+   * `row.index !== null`, and a refused row (a contradiction, a missing answer, an unreadable line) has no index in
+   * the stored questions. It has a source LINE, which the report carries and the node can now drop by
+   * (`rows_op.drop_rejected`) — so Remove is offered on every row, and a contradiction reads as one either/or
+   * choice. Only an accepted row can be undone: a refused one was never in the questions to put back.
+   */
   const removeRow = (row: TeachDatasetRow) => {
-    if (row.index === null) return;
+    if (row.index === null) {
+      void run(async () => {
+        await patch({ id: dsId, rows_op: { op: 'drop_rejected', lines: [row.line] } }).unwrap();
+        setFlight({});
+        setUndo(null);
+        setNote(t('teach.rows.removed_line', { line: row.line }));
+      }, { stage: 'remove' });
+      return;
+    }
     const copy: DatasetRowInput = { prompt: row.prompt ?? '', answer: row.answer ?? '', ...(row.alt_prompt ? { alt_prompt: row.alt_prompt } : {}) };
     void run(async () => {
       await patch({ id: dsId, rows_op: { op: 'remove', indexes: [row.index as number] } }).unwrap();
@@ -140,27 +172,27 @@ export default function TeachDatasetPage() {
    * is not an error the visitor caused: the batches that DID land are kept, `sampled` says how far it got, and the
    * partial note explains it — losing 16 measured answers to a red box would be the worse outcome.
    */
-  const check = () => void run(async () => {
+  const check = (from = 0) => void run(async () => {
     const total = dataset?.rows ?? 0;
-    const want = Math.min(24, total);
-    const next: Record<number, PreflightFact> = {};
-    let seen: { checked: number; of: number } | null = null;
+    const want = Math.min(from + sampleRows, total);
+    const next: Record<number, PreflightFact> = { ...flight };
     let done = 0;
     let ranOut = false;
-    for (let at = 0; at < want; at += 8) {
+    for (let at = from; at < want; at += perCall) {
       try {
-        const out = await preflight({ patch_ids: [], dataset_id: dsId, offset: at, limit: 8 }).unwrap();
+        const out = await preflight({ patch_ids: [], dataset_id: dsId, offset: at, limit: perCall }).unwrap();
         for (const f of out.facts) next[at + f.index] = f;
         done += out.facts.length;
-        if (out.sampled) seen = out.sampled;
         setFlight({ ...next });
+        if (out.facts.length < perCall) break;   // the node ran out of rows before this window did
       } catch (e) {
         if (done && isQuotaError(e)) { ranOut = true; break; }
         throw e;
       }
     }
     setPartial(ranOut);
-    setSampled(ranOut ? { checked: done, of: total } : (seen ?? { checked: Math.min(want, total), of: total }));
+    // what has been measured overall, not just in this pass: "Checked 24 of 40" must become "48 of 40"… never
+    setChecked((prev) => Math.min(total, Math.max(prev, from + done)));
   }, { stage: 'preflight' });
 
   const toggle = (index: number) => setSelected((prev) => {
@@ -168,6 +200,26 @@ export default function TeachDatasetPage() {
     if (next.has(index)) next.delete(index);
     else if (next.size < cap) next.add(index);
     return next;
+  });
+  /** finding 52 — the whole page at once, up to the node's cap, instead of one click per question */
+  const toggleAll = (on: boolean) => setSelected((prev) => {
+    const next = new Set(prev);
+    for (const r of rows) {
+      if (r.index === null) continue;
+      if (!on) next.delete(r.index);
+      else if (next.size < cap) next.add(r.index);
+    }
+    return next;
+  });
+  /**
+   * Finding 52 — opening the picker starts from the selection the node would have made (the first `cap` accepted
+   * questions of this page's set), so the counter starts full and the visitor edits a real default instead of
+   * building one from zero. Closing it goes back to that default.
+   */
+  const togglePicking = () => setPicking((on) => {
+    if (on) { setSelected(new Set()); return false; }
+    setSelected(new Set(rows.filter((r) => r.index !== null).map((r) => r.index as number).slice(0, cap)));
+    return true;
   });
 
   /** "Keep this answer" on a contradictory question: the excluded copy is put back as the one to learn. */
@@ -182,7 +234,7 @@ export default function TeachDatasetPage() {
     // the worker is about to drop as already known, and the lesson has to record the ones it left out (design §5.5).
     saveKnown(dsId, revision ?? 1, Object.entries(flight)
       .filter(([, f]) => f.status === 'already_known')
-      .map(([index, f]) => ({ index: Number(index), base_answer: f.base_answer ?? '' })));
+      .map(([index, f]) => ({ index: Number(index), base_answer: f.base_answer ?? '' })), checked);
     navigate(`/teach/dataset/${dsId}/settings${search}`);
   };
 
@@ -199,6 +251,8 @@ export default function TeachDatasetPage() {
   const known = Object.values(flight).filter((f) => f.status === 'already_known').length;
   const willTrain = Object.values(flight).filter((f) => f.status === 'will_train').length;
   const bad = (summary?.conflicts ?? 0) + (summary?.too_long ?? 0) + (summary?.empty ?? 0) + (summary?.blocked ?? 0) + (summary?.not_parsed ?? 0);
+  /** questions this dataset could teach at all; the lesson takes at most `cap` of them (finding 46) */
+  const trainable = Math.max(0, dataset.rows - known);
   const origins = page?.origins ?? { mine: dataset.rows, inherited: 0, changed: 0, conflicts: summary?.conflicts ?? 0 };
   const inherited = origins.inherited + origins.changed;
   // "from {name}", not "from taught-krx-9f21": the id is the address, the name is what the creator recognises
@@ -225,8 +279,17 @@ export default function TeachDatasetPage() {
         <span data-testid="saved-note">{dataset.revision > 1 ? t('teach.rows.saved_note_edited') : t('teach.rows.saved_note', { filename })}</span>
       </Bar>
 
-      {/* dataset-wide, always: a check that sampled 24 of 40 must not silently restate "40 will train" as "24". */}
-      <Pills data-testid="row-counts">{t('teach.rows.counts', { train: Math.max(0, dataset.rows - known), known, dupe: summary?.duplicates ?? 0, bad })}</Pills>
+      {/*
+        dataset-wide, always: a check that sampled 24 of 40 must not silently restate "40 will train" as "24".
+        Finding 46 — but it must not promise 2,000 either: `rows_per_job` is what one lesson teaches, and the pill
+        used to print the whole dataset one line above the banner saying only 200 of them are in this lesson. Both
+        numbers, in the biggest and greenest sentence on the screen, so they cannot disagree.
+      */}
+      <Pills data-testid="row-counts">
+        {trainable > cap
+          ? t('teach.rows.counts_capped', { cap, train: trainable, rest: trainable - cap, known, dupe: summary?.duplicates ?? 0, bad })
+          : t('teach.rows.counts', { train: trainable, known, dupe: summary?.duplicates ?? 0, bad })}
+      </Pills>
       {!!summary?.fixed && <Note data-testid="fixed-note">{t('teach.rows.fixed', { n: summary.fixed })}</Note>}
       {/* item 5: an edit rewrites the set from its accepted rows, so the refused ones are carried and still counted —
           the table shows them, and this line says why numbers that look like "the current file" are not only that. */}
@@ -241,33 +304,55 @@ export default function TeachDatasetPage() {
           : <Note data-testid="encoding-note">{t('teach.up.encoding', { encoding: dataset.encoding })}</Note>
       )}
       {!!summary?.over_cap && <Note data-testid="over-cap-note">{t('teach.up.err_many', { n: (summary.accepted ?? 0) + summary.over_cap, max: policy?.limits?.dataset_max_rows ?? dataset.rows })}</Note>}
-      {sampled && (
+      {checked > 0 && (
         <Note data-testid="checked-note">
-          {partial ? t(simulated ? 'teach.rows.checked_partial_sim' : 'teach.rows.checked_partial', { k: sampled.checked })
-            : sampled.checked < sampled.of ? t(simulated ? 'teach.rows.checked_sample_sim' : 'teach.rows.checked_sample', { k: sampled.checked, n: sampled.of })
-              : t(simulated ? 'teach.rows.checked_sim' : 'teach.rows.checked', { train: willTrain, n: sampled.of })}
+          {partial ? t(simulated ? 'teach.rows.checked_partial_sim' : 'teach.rows.checked_partial', { k: checked })
+            : checked < dataset.rows ? t(simulated ? 'teach.rows.checked_sample_sim' : 'teach.rows.checked_sample', { k: checked, n: dataset.rows })
+              : t(simulated ? 'teach.rows.checked_sim' : 'teach.rows.checked', { train: willTrain, n: dataset.rows })}
         </Note>
       )}
-      {sampled && willTrain === 0 && known > 0 && <Alert $tone="warning" style={{ marginTop: 10 }}>{t('teach.rows.none')}</Alert>}
+      {checked > 0 && willTrain === 0 && known > 0 && <Alert $tone="warning" style={{ marginTop: 10 }}>{t('teach.rows.none')}</Alert>}
 
+      {/*
+        Finding 52 — this banner used to concatenate two contradictory selection states: "The first 200 are
+        selected; the rest stay in your dataset" immediately followed by "0 of 200 selected". Only one of them is
+        ever true, so only one is ever shown — and turning the picker on now STARTS from the default first 200
+        instead of from nothing, because an empty picker made the escape hatch cost 200 clicks and everyone took
+        whatever arbitrary head the node picked.
+      */}
       {overCap && (
         <Alert $tone="info" style={{ marginTop: 12 }} data-testid="cap-banner">
-          {t('teach.rows.cap', { max: cap })}{' '}
-          <Button size="small" onClick={() => setPicking((v) => !v)} data-testid="cap-pick">{t('teach.rows.cap_pick', { max: cap })}</Button>
-          {picking && <span data-testid="cap-selected"> · {t('teach.rows.cap_selected', { n: selected.size, max: cap })}</span>}
+          {picking
+            ? <span data-testid="cap-selected">{t('teach.rows.cap_selected', { n: selected.size, max: cap })} · {t('teach.rows.cap_rest', { rest: Math.max(0, dataset.rows - selected.size) })}</span>
+            : t('teach.rows.cap', { max: cap })}{' '}
+          <Button size="small" onClick={togglePicking} data-testid="cap-pick">{t(picking ? 'teach.rows.cap_default' : 'teach.rows.cap_pick', { max: cap })}</Button>
         </Alert>
       )}
 
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }} data-testid="dataset-error">{error}</Alert>}
+      {note && <Alert $tone="success" role="status" style={{ marginTop: 12 }} data-testid="dataset-note">{note}</Alert>}
 
       {simulated && (
         <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="checks-simulated">{t('teach.card.simulated')}</Alert>
       )}
 
       <Actions>
-        <Button variant="contained" onClick={check} loading={checking} data-testid="run-check">
-          {checking ? t(simulated ? 'teach.rows.checking_sim' : 'teach.rows.checking') : t(simulated ? 'teach.rows.check_sim' : 'teach.rows.check')}
+        {/*
+          Finding 47 — a full-width primary button reading "Check what the model already knows" that measured the
+          first 24 of a 40-row file and said so only in the result note. It names the sample it will take, and once
+          it has taken one there is a second button that resumes from where it stopped instead of re-asking the
+          same head. Both numbers come from the node (`limits.preflight_rows`), never from a literal.
+        */}
+        <Button variant="contained" onClick={() => check(0)} loading={checking} data-testid="run-check">
+          {checking ? t(simulated ? 'teach.rows.checking_sim' : 'teach.rows.checking')
+            : dataset.rows > sampleRows ? t(simulated ? 'teach.rows.check_first_sim' : 'teach.rows.check_first', { n: sampleRows })
+              : t(simulated ? 'teach.rows.check_sim' : 'teach.rows.check')}
         </Button>
+        {checked > 0 && checked < dataset.rows && !partial && (
+          <Button onClick={() => check(checked)} loading={checking} data-testid="run-check-next">
+            {t('teach.rows.check_next', { n: Math.min(sampleRows, dataset.rows - checked) })}
+          </Button>
+        )}
         <Button onClick={() => setEditing('new')} disabled={patching} data-testid="add-row">{t('teach.rows.add')}</Button>
         <Button onClick={() => void run(() => signedDownload(`/api/teach/datasets/${dsId}/download`, filename))} data-testid="download-dataset">{t('teach.rows.download')}</Button>
         {dataset.status === 'staged' && <Button color="secondary" onClick={() => setReparseOpen(true)} data-testid="open-reparse">{t('teach.rows.reparse')}</Button>}
@@ -300,7 +385,7 @@ export default function TeachDatasetPage() {
 
       <DatasetTable
         rows={parsedRows} limits={limits} preflight={flight} busy={patching} positions={dataset.revision > 1} simulated={simulated} baseName={baseName}
-        selectable={picking} selected={selected} onToggle={toggle}
+        selectable={picking} selected={selected} onToggle={toggle} onToggleAll={toggleAll}
         onEdit={(r) => setEditing(r)} onRemove={removeRow}
         onKeep={keepAnswer}
       />
@@ -322,6 +407,7 @@ export default function TeachDatasetPage() {
         </Dropped>
       )}
 
+      <StickySpacer aria-hidden />
       <Sticky>
         <Button variant="contained" onClick={goSettings} disabled={dataset.rows === 0} data-testid="to-settings">{t('teach.rows.next')}</Button>
       </Sticky>

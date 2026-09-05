@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
   useCancelTeachJobMutation, useInfoQuery, useRecheckTeachJobMutation, useRetrainTeachJobMutation,
-  useTeachJobEventsQuery, useTeachJobQuery, useTeachPolicyQuery,
+  useTeachDatasetRowsQuery, useTeachJobEventsQuery, useTeachJobQuery, useTeachPolicyQuery,
 } from '@/api/api';
 import type { TeachEffort, TeachJob } from '@/api/types';
 import { useT } from '@/i18n';
@@ -35,9 +35,20 @@ const Panel = styled.section`
   h2 { margin: 0; font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
   p { margin: 0; font-size: 13.5px; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY}; }
 `;
-const Bar = styled.div`
+/**
+ * The training bar is determinate (`step / max_steps`, never a computed percentage). Finding 54 — while queued or
+ * warming there IS no step to report, and a screen that warns of up to half an hour showed six static dots and a
+ * frozen clock. `$indeterminate` runs the same bar instead of filling it: it claims no progress, only that the
+ * lesson is alive. `prefers-reduced-motion` gets a still bar rather than a moving one.
+ */
+const Bar = styled.div<{ $indeterminate?: boolean }>`
   height: 10px; border-radius: 5px; background: #eee; overflow: hidden;
   span { display: block; height: 100%; background: ${(p) => p.theme.color.PRIMARY}; transition: width 0.4s ease; }
+  ${(p) => p.$indeterminate && `
+    span { width: 35%; animation: ngram-wait 1.6s ease-in-out infinite; }
+    @keyframes ngram-wait { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+    @media (prefers-reduced-motion: reduce) { span { width: 100%; opacity: 0.35; animation: none; margin-left: 0; } }
+  `}
 `;
 const Counters = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY};
@@ -104,6 +115,13 @@ export default function TeachLessonPage() {
   useEffect(() => { setPoll(active ? 3000 : 30_000); }, [active]);
   useEffect(() => { if (!active) return; const h = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(h); }, [active]);
   const { data: events } = useTeachJobEventsQuery({ id: jobId }, { skip: !jobId || !full, pollingInterval: active ? 5000 : 0 });
+  /**
+   * Finding 49 — the result said "1 of your 12 questions were left out: the model already answered them correctly"
+   * and never said WHICH, so the visitor could not identify the question they had lost. `training.selected_indexes`
+   * is the positions this lesson trained and the dataset holds the rest, so the ones left out can be named.
+   */
+  const leftOut = full?.preflight?.known || full?.preflight?.overlaps ? (full.dataset?.id ?? '') : '';
+  const { data: dsRows } = useTeachDatasetRowsQuery({ id: leftOut, offset: 0, limit: 200 }, { skip: !leftOut || !!full?.dataset?.deleted });
 
   // Computed before the early returns so the tab can be named like every other page's; `undefined` until the lesson
   // is known keeps the previous title rather than flashing a placeholder.
@@ -143,7 +161,13 @@ export default function TeachLessonPage() {
   // were made up (no model server); a stub node with a live model really measured them — only the TRAINING was fake.
   const simulated = !!c?.simulated;
   const demo = stub || simulated;
-  const elapsed = j.started_at ? Math.round((Date.now() - j.started_at) / 1000) : (p?.elapsed_s ?? 0);
+  /**
+   * Finding 54 — while a lesson is queued `started_at` is null, so this read 0 and the screen that warns of up to
+   * half an hour showed a frozen 00:00 over a static rail. The wait starts when the lesson was created, and that
+   * is what the clock counts from until the trainer picks it up.
+   */
+  const elapsed = j.started_at ? Math.round((Date.now() - j.started_at) / 1000)
+    : (p?.elapsed_s ?? (j.created_at ? Math.round((Date.now() - j.created_at) / 1000) : 0));
   const trained = j.facts.length;
   const rowsTotal = j.dataset?.rows ?? trained;
 
@@ -178,9 +202,19 @@ export default function TeachLessonPage() {
         <TitleRow style={{ paddingTop: 16 }}><Title>{t('teach.run.title', { name })}</Title></TitleRow>
         <Panel>
           <StageRail stage={stage} stub={stub} />
+          {/*
+            Finding 54 — with an empty queue `position` is 0 and this said "1 ahead (3 questions)" or, worse,
+            "0 ahead (0 questions)": the visitor was told they were behind nobody, in a sentence about waiting.
+            A queue of zero is not a queue; it is a lesson about to start.
+          */}
           {j.status === 'QUEUED' && (
-            <p data-testid="queue-line">{t('teach.run.stage.wait_rows', { n: j.position ?? 0, q: policy?.queue?.queued_rows ?? rowsTotal })}</p>
+            <p data-testid="queue-line">{j.position
+              ? t('teach.run.stage.wait_rows', { n: j.position, q: policy?.queue?.queued_rows ?? rowsTotal })
+              : t('teach.run.stage.starting_soon')}</p>
           )}
+          {/* the same bar the training stage uses, running rather than filling: something is happening, and the
+              elapsed clock beside it is the measurement — never a percentage this screen made up */}
+          {(stage === 'queued' || stage === 'prep' || stage === 'warm') && <Bar $indeterminate role="progressbar" aria-valuetext={t(`teach.run.stage.${stage}`)} data-testid="wait-bar"><span /></Bar>}
           {stage === 'train' && maxSteps > 0 && (
             <>
               <Bar role="progressbar" aria-valuemin={0} aria-valuemax={maxSteps} aria-valuenow={step} data-testid="train-bar"><span style={{ width: `${Math.round(frac * 100)}%` }} /></Bar>
@@ -222,6 +256,11 @@ export default function TeachLessonPage() {
   const totalQ = j.facts.length;
   const measured = learned.length + missed.length;
   const failedTone = ['FAILED', 'CANCELLED', 'EXPIRED', 'REJECTED'].includes(j.status);
+  /** the dataset rows this lesson did NOT train (finding 49) — positions it kept are `selected_indexes` */
+  const kept = new Set(j.training?.selected_indexes ?? []);
+  const leftOutRows = !failedTone && (j.preflight?.known || j.preflight?.overlaps) && j.training?.selected_indexes
+    ? (dsRows?.items ?? []).filter((r) => r.index !== null && !kept.has(r.index) && r.prompt)
+    : [];
   const teacherKey = currentTeacherKey();
   const gated = !!c && (!c.ok || !c.executed || !!c.skipped);
   const publishOff = policy?.publish === 'never';
@@ -273,6 +312,21 @@ export default function TeachLessonPage() {
       )}
       {!!j.preflight?.overlaps && (
         <Description data-testid="skipped-overlap">{t('teach.res.skipped_overlap', { n: j.preflight.overlaps })}</Description>
+      )}
+      {/* finding 49 — and this is which ones, by name, from the dataset the lesson was trained from */}
+      {leftOutRows.length > 0 && (
+        <Panel data-testid="left-out-block">
+          <h2>{t('teach.res.left_out_title')}</h2>
+          <p>{t('teach.res.left_out_why')}</p>
+          <FactTable>
+            <thead><tr><th>{t('teach.res.h.q')}</th><th>{t('teach.res.h.after')}</th></tr></thead>
+            <tbody>
+              {leftOutRows.map((r) => (
+                <tr key={`x${r.line}`}><td className="q" data-label={t('teach.res.h.q')}>{r.prompt}</td><td data-label={t('teach.res.h.after')}>{r.answer ?? '—'}</td></tr>
+              ))}
+            </tbody>
+          </FactTable>
+        </Panel>
       )}
       {j.dataset?.deleted && <Description data-testid="dataset-gone">{t('teach.data.gone')}</Description>}
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}

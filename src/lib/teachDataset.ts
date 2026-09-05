@@ -174,20 +174,29 @@ export function loadSelection(datasetId: string): number[] | null {
  */
 const KNOWN_KEY = 'ainize.teach.known';
 export interface KnownQuestion { index: number; base_answer: string }
-export function saveKnown(datasetId: string, revision: number, known: KnownQuestion[]) {
+/**
+ * Finding 49 — `checked` is how many questions the live check actually covered. Without it, "no questions came back
+ * known" and "nobody ran the check" are the same empty list, and the settings screen promised "Train this lesson
+ * (12 questions)" on the fast path where the worker then dropped one and reported "It learned all 11".
+ */
+export function saveKnown(datasetId: string, revision: number, known: KnownQuestion[], checked = 0) {
   try {
     const key = `${KNOWN_KEY}.${datasetId}`;
-    if (!known.length) sessionStorage.removeItem(key);
-    else sessionStorage.setItem(key, JSON.stringify({ revision, known }));
+    if (!known.length && !checked) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify({ revision, known, checked }));
   } catch { /* storage unavailable */ }
 }
 export function loadKnown(datasetId: string, revision: number): KnownQuestion[] {
+  return loadKnownState(datasetId, revision).known;
+}
+/** The same record with the coverage of the check that produced it. */
+export function loadKnownState(datasetId: string, revision: number): { known: KnownQuestion[]; checked: number } {
   try {
     const raw = sessionStorage.getItem(`${KNOWN_KEY}.${datasetId}`);
-    const v = raw ? (JSON.parse(raw) as { revision?: number; known?: KnownQuestion[] }) : null;
-    if (!v || v.revision !== revision || !Array.isArray(v.known)) return [];
-    return v.known.filter((k) => typeof k?.index === 'number');
-  } catch { return []; }
+    const v = raw ? (JSON.parse(raw) as { revision?: number; known?: KnownQuestion[]; checked?: number }) : null;
+    if (!v || v.revision !== revision || !Array.isArray(v.known)) return { known: [], checked: 0 };
+    return { known: v.known.filter((k) => typeof k?.index === 'number'), checked: typeof v.checked === 'number' ? v.checked : 0 };
+  } catch { return { known: [], checked: 0 }; }
 }
 export function clearKnown(datasetId: string) {
   try { sessionStorage.removeItem(`${KNOWN_KEY}.${datasetId}`); } catch { /* ignore */ }

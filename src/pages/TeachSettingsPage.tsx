@@ -16,7 +16,7 @@ import { mapTeachError } from '@/components/chat/teachUtil';
 import { EffortCards } from '@/components/teach/EffortCards';
 import { Stepper } from '@/components/teach/Stepper';
 import { effortLabelKey, effortTime, presetOf, rowsPerJob } from '@/components/teach/util';
-import { clearKnown, loadKnown, loadSelection, shortSha } from '@/lib/teachDataset';
+import { clearKnown, loadKnownState, loadSelection, shortSha } from '@/lib/teachDataset';
 import { rememberJob } from '@/lib/teachStore';
 import { currentTeacherKey } from '@/lib/teacherKey';
 
@@ -36,11 +36,23 @@ const Advanced = styled.details`
   summary { cursor: pointer; }
   p { margin: 8px 0 0; line-height: 1.55; }
 `;
+/**
+ * Finding 53 — the bar is `position: sticky; bottom: 0` and the page reserved no room for it: at 1280x900 its top
+ * edge was at 827 px and the side-effect checkbox at 837, underneath it; at 360 px it is 124 px tall (17 % of the
+ * viewport) with the effort cards intersecting it, so a visitor could press Train having never seen the first of
+ * three options. The page reserves its height, and below sm the summary drops to its own line so it stays short.
+ */
 const Sticky = styled.div`
   position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
-  padding: 12px 0; margin-top: 8px; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff;
+  padding: 12px 0; margin-top: 8px; background: #fff; box-shadow: 0 -6px 12px -6px rgba(48, 49, 51, 0.25);
   p { margin: 0; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY}; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) {
+    gap: 8px; p { flex: 1 0 100%; font-size: 12px; }
+    button { width: 100%; }
+  }
 `;
+/** The room the sticky bar takes, so nothing on the page can only be reached under it. */
+const StickySpacer = styled.div`height: 76px; @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { height: 128px; }`;
 
 const EFFORTS = ['quick', 'balanced', 'thorough'] as const;
 
@@ -96,10 +108,18 @@ export default function TeachSettingsPage() {
 
   const teacher = currentTeacherKey();
   // measured on the preview screen, and only while it is still about THESE bytes (a new revision clears it)
-  const known = useMemo(() => {
-    const all = loadKnown(dsId, dataset?.revision ?? 0);
-    return selection?.length ? all.filter((k) => selection.includes(k.index)) : all;
-  }, [dsId, dataset?.revision, selection]);
+  const measured = useMemo(() => loadKnownState(dsId, dataset?.revision ?? 0), [dsId, dataset?.revision]);
+  const known = useMemo(
+    () => (selection?.length ? measured.known.filter((k) => selection.includes(k.index)) : measured.known),
+    [measured, selection],
+  );
+  /**
+   * Finding 49 — did anyone actually run the check for THESE bytes? The button used to promise the dataset's row
+   * count on the fast path (the path most people take), the progress screen repeated it, and the result then said
+   * "It learned all 11 questions" plus "1 of your 12 was left out". Unmeasured questions get a hedged count and one
+   * line saying what the worker does with the ones the model already answers.
+   */
+  const preflighted = measured.checked > 0;
   const publishable = policy?.publish !== 'never';
   const sideLocked = publishable;           // the side-effect check IS the publish gate (§12.6)
   const sideOn = sideLocked ? true : side;
@@ -247,21 +267,26 @@ export default function TeachSettingsPage() {
           {t('teach.set.queue_rows', { n: policy.queue.depth, q: policy.queue.queued_rows ?? 0 })} {t('teach.set.queue_note')}
         </Alert>
       )}
+      {/* finding 49 — the fast path skips the check, so say here what the worker will do with what it finds */}
+      {!preflighted && (
+        <Alert $tone="info" style={{ marginTop: 12 }} data-testid="unchecked-note">{t('teach.set.unchecked', { n: trained })}</Alert>
+      )}
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }} data-testid="settings-error">{error}</Alert>}
 
       {picking && (
         <BasePicker candidates={candidates} value={base} onPick={(id) => setBase(id)} onClose={() => setPicking(false)} />
       )}
 
+      <StickySpacer aria-hidden />
       <Sticky>
         <p data-testid="settings-summary">
-          {t('teach.set.summary_short', {
+          {t(preflighted ? 'teach.set.summary_short' : 'teach.set.summary_short_upto', {
             n: trained, effort: t(effortLabelKey(effort)),
             checks: sideOn ? t('teach.set.summary_checks_on') : t('teach.set.summary_checks_off'),
           })} · {timeText}
         </p>
         <Button variant="contained" size="large" onClick={() => void start()} loading={sending || resending} loadingText={t('teach.set.sending')} data-testid="train-lesson">
-          {t('teach.set.train', { n: trained })}
+          {t(preflighted ? 'teach.set.train' : 'teach.set.train_upto', { n: trained })}
         </Button>
       </Sticky>
     </PageWrapper>

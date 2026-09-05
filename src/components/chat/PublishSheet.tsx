@@ -93,6 +93,8 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
   const unlisted = bases.filter((b) => b.status && !['LISTED', 'ANNOUNCED', 'VERIFYING'].includes(b.status));
   const currency = info?.currency ?? 'CREDIT';
   const nodeName = info?.node.name ?? 'This node';
+  /** finding 342 — what the peers that verify this are paid out of each sale, as this node reports it */
+  const verifierPct = Math.round((policy.shares.verifier ?? 0) * 1000) / 10;
 
   /**
    * SC-8 money (item 186). The node computes the real split with the same `royaltySplit` that settles a sale — the
@@ -306,8 +308,15 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
             ? t('teach.pub.split_lineage', { contributor: `${mine.percent}`, lineage: `${lineagePct}`, names: lineageNames, node: nodeName, nodePct: `${nodeLine?.percent ?? 0}` })
             : t('teach.pub.split_plain', { contributor: `${mine.percent}`, node: nodeName, nodePct: `${nodeLine?.percent ?? 0}` })
           : t('teach.pub.split', { contributor: payoutMode === 'none' ? 0 : pct(policy.shares.contributor), node: nodeName, lineage: pct(policy.shares.lineage) })}
-        {/* finding 342 — the node's cut does not pay for verification; the peers who do it are unpaid by this sale */}
-        <span style={{ display: 'block', marginTop: 4 }} data-testid="pub-split-verify">{t('teach.pub.split_verify')}</span>
+        {/*
+          Finding 342 — the node's cut was justified with "training, hosting and verification", a cost the node does
+          not bear: verification runs on other peers' GPUs. What they are paid is this node's own `shares.verifier`,
+          carved from the seller side once an anchor actually has verifiers — so the sentence follows that number
+          instead of asserting either story.
+        */}
+        <span style={{ display: 'block', marginTop: 4 }} data-testid="pub-split-verify">
+          {verifierPct > 0 ? t('teach.pub.split_verify_paid', { pct: verifierPct }) : t('teach.pub.split_verify')}
+        </span>
         {money && !priceBad && Number(price) > 0 && (
           <span data-testid="pub-split-amounts">{' '}{t('teach.pub.split_at', {
             price: price.trim(), currency,

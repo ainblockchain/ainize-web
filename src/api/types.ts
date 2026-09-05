@@ -455,6 +455,8 @@ export interface TeachPolicy {
     rows_per_job?: number; rows_per_job_source?: 'default' | 'measured' | 'operator';
     rows_per_key_per_day?: number; rows_per_ip_per_day?: number; datasets_per_key_per_day?: number; dataset_ttl_days?: number;
     formats?: string[]; declaration_rows?: number;
+    /** Finding 47 — how many questions one check covers, and how many the node probes per call. */
+    preflight_rows?: number; preflight_per_call?: number;
   };
   /** Every field is null until >= 3 lessons were measured with `backend: 'gradient'`; a stub node reports `simulated`. */
   timing: { p50_s: number | null; p90_s: number | null; samples: number; backend?: 'gradient' | 'stub'; simulated?: boolean; load_s_p50?: number | null; s_per_row_p50?: number | null; s_per_row_p90?: number | null };
@@ -462,7 +464,11 @@ export interface TeachPolicy {
   samples?: { kind: string; name: string; rows: number }[];
   /** true when this node's checks are simulated (stub backend without a model server) — never claim a live-model verification */
   simulated_checks: boolean;
-  shares: { contributor: number; lineage: number };
+  /**
+   * The terms this node offers (item 307). `verifier` is the share of the seller side paid to the peers that
+   * actually verified a knowledge — finding 342 renders it rather than claiming the node's cut funds verification.
+   */
+  shares: { contributor: number; lineage: number; node?: number; verifier?: number };
   model: { id_M: string | null };
   applied: string[];
   draft_ttl_days: number;
@@ -487,7 +493,7 @@ export interface SplitPreview {
   contributor_share: number;
   parents: { id: string; name: string; author?: string; price?: string }[];
   /** fraction of one sale, per address; `kind` says which line of the sheet it is */
-  shares: { address: string; share: number; kind: 'you' | 'node' | 'lineage'; name?: string }[];
+  shares: { address: string; share: number; kind: 'you' | 'node' | 'lineage' | 'verifier'; name?: string }[];
   /** the direct parent's price when there is one, else this node's default — a child priced 0 pays its parents 0 */
   suggested_price: string;
 }
@@ -538,6 +544,8 @@ export interface DatasetParseOptions { format?: TeachDatasetFormat; delimiter?: 
 export type DatasetRowInput = { prompt: string; answer: string; alt_prompt?: string; note?: string };
 export type DatasetRowsOp =
   | { op: 'remove'; indexes: number[] }
+  /** Finding 48 — drop a row the parser REFUSED (it has no index in the stored questions), by its source line. */
+  | { op: 'drop_rejected'; lines: number[] }
   | { op: 'append'; rows: DatasetRowInput[] }
   | { op: 'replace'; index: number; row: DatasetRowInput };
 export interface TeachEventRow { seq: number; ts: number; level: string; message: string; data: unknown }

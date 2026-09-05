@@ -66,6 +66,8 @@ export interface DatasetTableProps {
   selectable?: boolean;
   selected?: Set<number>;
   onToggle?: (index: number) => void;
+  /** finding 52 — "select every row on this page" (up to the node's cap), so 200 rows are not 200 clicks */
+  onToggleAll?: (on: boolean) => void;
   onEdit?: (row: TeachDatasetRow) => void;
   onRemove?: (row: TeachDatasetRow) => void;
   /** a contradictory question: put THIS answer back as the one to learn */
@@ -79,16 +81,32 @@ export interface DatasetTableProps {
   busy?: boolean;
 }
 
-export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onEdit, onRemove, onKeep, positions, simulated, baseName, busy }: DatasetTableProps) {
+export function DatasetTable({ rows, limits, preflight, selectable, selected, onToggle, onToggleAll, onEdit, onRemove, onKeep, positions, simulated, baseName, busy }: DatasetTableProps) {
   const { t } = useT();
   const nHead = t(positions ? 'teach.rows.h.pos' : 'teach.rows.h.n');
+  const pickable = rows.filter((r) => r.index !== null);
+  const allPicked = pickable.length > 0 && pickable.every((r) => selected?.has(r.index as number));
   return (
     <Wrap>
       <Table data-testid="dataset-table">
         <thead>
           <tr>
-            {/* the selection column has no heading of its own; every checkbox carries its own label */}
-            {selectable && <th className="pick" scope="col" />}
+            {/*
+              Finding 52 — the picker's header cell was an empty th, so choosing 200 questions meant 200 clicks and
+              everyone accepted whatever arbitrary first-200 the node picked. This selects (or clears) every row on
+              this page, up to the node's cap.
+            */}
+            {selectable && (
+              <th className="pick" scope="col">
+                {onToggleAll && (
+                  <input
+                    type="checkbox" checked={allPicked} disabled={busy} onChange={() => onToggleAll(!allPicked)}
+                    aria-label={t(allPicked ? 'teach.rows.pick_none_page' : 'teach.rows.pick_all_page')}
+                    title={t(allPicked ? 'teach.rows.pick_none_page' : 'teach.rows.pick_all_page')} data-testid="pick-all"
+                  />
+                )}
+              </th>
+            )}
             <th className="n" scope="col">{nHead}</th>
             <th scope="col">{t('teach.rows.h.q')}</th>
             <th scope="col">{t('teach.rows.h.a')}</th>
@@ -103,6 +121,12 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
             const model = row.index !== null ? modelStatus(preflight?.[row.index], t, simulated) : null;
             const advisory = sharedEnding(row, t);
             const trains = row.status === 'ok' || row.status === 'fixed' || row.status === 'pii';
+            /**
+             * Finding 51 — the file side used to borrow the model side's words: a parsed row rendered the green
+             * "Will train" pill with a grey "Not checked yet" directly beneath it, so forty green ticks said the
+             * work was done and forty grey lines said it was not. `fileStatus` now says "Read OK" in the neutral
+             * tone; green "Will train" and "Already known — skipped" are model-side verdicts only.
+             */
             const view = trains && model ? model : file;
             const picked = row.index !== null && selected?.has(row.index);
             return (
@@ -132,7 +156,7 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                 <td data-label={t('teach.rows.h.status')}>
                   <Pill $tone={view.tone}>{view.text}</Pill>
                   {view.help && <Help $warn={view.helpTone === 'warn'} data-testid={view.helpTone === 'warn' ? 'row-simulated' : undefined}>{view.help}</Help>}
-                  {trains && !model && <Help>{t('teach.rows.status.unchecked')}</Help>}
+                  {trains && !model && <Help data-testid="row-unchecked">{t('teach.rows.status.unchecked')}</Help>}
                   {row.carried && <Help data-testid="row-carried">{t('teach.rows.carried_note')}</Help>}
                   {advisory && <Help data-testid="advisory">{advisory}</Help>}
                 </td>
@@ -146,8 +170,16 @@ export function DatasetTable({ rows, limits, preflight, selectable, selected, on
                     {onKeep && row.status === 'conflict' && (
                       <button type="button" onClick={() => onKeep(row)} disabled={busy} data-testid="row-keep">{t('teach.rows.conflict_keep')}</button>
                     )}
-                    {onRemove && row.index !== null && (
-                      <button type="button" className="bad" onClick={() => onRemove(row)} disabled={busy} data-testid="row-remove">{t('teach.rows.remove')}</button>
+                    {/*
+                      Finding 48 — every row can be taken out, including the ones the screen tells you to act on.
+                      A refused row has no index in the stored questions, so it goes by its source line
+                      (`drop_rejected`); on a contradiction the pair reads as one either/or choice —
+                      "Use this one" / "Drop this one" — instead of offering no way to delete the wrong answer.
+                    */}
+                    {onRemove && (
+                      <button type="button" className="bad" onClick={() => onRemove(row)} disabled={busy} data-testid="row-remove">
+                        {t(row.status === 'conflict' ? 'teach.rows.conflict_drop' : 'teach.rows.remove')}
+                      </button>
                     )}
                   </RowActions>
                 </td>

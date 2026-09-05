@@ -136,6 +136,7 @@ export const teach: Dict = {
    * teacher negotiate their share believing part of the node's cut funds it.
    */
   'teach.pub.split_verify': { ko: '검증은 다른 노드들이 자기 GPU로 합니다. 이 판매금은 그들에게 가지 않습니다.', en: 'Verification is done by other nodes on their own GPUs. This sale pays them nothing.' },
+  'teach.pub.split_verify_paid': { ko: '검증은 다른 노드들이 자기 GPU로 하고, 검증을 마친 뒤에는 판매마다 {pct}%를 받습니다 — 이 노드의 몫에서 나갑니다.', en: 'Verification is done by other nodes on their own GPUs; once they have verified this, they receive {pct}% of each sale, out of this node\'s share.' },
   'teach.pub.split_lineage': { ko: '판매마다: {names} 제작자에게 {lineage}%, 나에게 {contributor}%, {node}에게 {nodePct}%. 제작자 몫이 먼저 나가고, 내 몫은 그 나머지에서 계산됩니다.', en: 'Every sale: {lineage}% to the creators of {names}, {contributor}% to you, {nodePct}% to {node}. The creators are paid first, and your share is a share of what is left.' },
   'teach.pub.split_at': { ko: '{price} {currency}에 팔면 — {lines}.', en: 'At {price} {currency} that is {lines}.' },
   'teach.pub.split_you': { ko: '나', en: 'you' },
@@ -575,6 +576,8 @@ export const teach: Dict = {
   'teach.rows.source_paste': { ko: '붙여넣은 내용', en: 'pasted text' },
   'teach.rows.source_sample': { ko: '예시 데이터셋', en: 'a sample dataset' },
   'teach.rows.counts': { ko: '학습 {train}개 · 이미 알고 있음 {known}개 · 중복 {dupe}개 · 고칠 것 {bad}개', en: '{train} will train · {known} already known · {dupe} duplicates · {bad} need a fix' },
+  // Finding 46 — the pill promised the whole dataset one line above the banner saying one lesson teaches 200
+  'teach.rows.counts_capped': { ko: '이번 수업에서 {train}개 중 {cap}개 학습 ({rest}개는 데이터셋에 남아 다음 수업으로) · 이미 알고 있음 {known}개 · 중복 {dupe}개 · 고칠 것 {bad}개', en: '{cap} of {train} will train in this lesson ({rest} stay in your dataset for the next one) · {known} already known · {dupe} duplicates · {bad} need a fix' },
   'teach.rows.h.n': { ko: '줄', en: 'Line' },
   // after an edit these are positions in the stored dataset, not lines of the file the visitor uploaded (§8.7)
   'teach.rows.h.pos': { ko: '순번', en: '#' },
@@ -599,8 +602,12 @@ export const teach: Dict = {
   'teach.rows.add_save': { ko: '이 질문 넣기', en: 'Add this question' },
   'teach.rows.edit_cell': { ko: '{n}번째 줄 {field}', en: '{field}, line {n}' },
   'teach.rows.status.unchecked': { ko: '아직 확인 안 함', en: 'Not checked yet' },
+  // model-side verdicts: only the live check may promise that a question will be trained
   'teach.rows.status.new': { ko: '학습합니다', en: 'Will train' },
   'teach.rows.status.fixed': { ko: '학습합니다 — 다듬음', en: 'Will train — tidied up' },
+  // Finding 51 — file-side verdicts: what the parser knows, which is only that the line was readable
+  'teach.rows.status.parsed': { ko: '읽었습니다', en: 'Read OK' },
+  'teach.rows.status.parsed_fixed': { ko: '읽었습니다 — 다듬음', en: 'Read OK — tidied up' },
   'teach.rows.status.pii': { ko: '학습합니다 — 개인정보({kinds})로 보임: 지우기 전에는 문답을 비공개로만 공개할 수 있습니다', en: 'Will train — looks like personal information ({kinds}): the training set stays private until it is removed' },
   'teach.rows.status.known': { ko: '이미 알고 있음 — 건너뜀', en: 'Already known — skipped' },
   'teach.rows.status.dupe': { ko: '{n}번째 줄과 같음 — 건너뜀', en: 'Same as line {n} — skipped' },
@@ -618,7 +625,13 @@ export const teach: Dict = {
   'teach.rows.bad.question_long': { ko: '질문이 {n}자입니다. {max}자 이내로 줄이세요.', en: 'The question is {n} characters; keep it under {max}.' },
   'teach.rows.bad.parse': { ko: '{line}번째 줄을 질문과 정답으로 읽지 못했습니다.', en: 'Line {line} could not be read as a question and an answer.' },
   'teach.rows.bad.conflict': { ko: '{a}번째 줄과 {b}번째 줄이 같은 질문에 다른 답을 줍니다. 모델은 하나만 배울 수 있습니다.', en: 'Lines {a} and {b} ask the same question but give different answers. The model can only learn one.' },
-  'teach.rows.conflict_keep': { ko: '이 정답 쓰기', en: 'Keep this answer' },
+  'teach.rows.conflict_keep': { ko: '이 정답 쓰기', en: 'Use this one' },
+  // Finding 48 — on a contradiction the pair is one either/or choice, and the wrong half can finally be deleted
+  'teach.rows.conflict_drop': { ko: '이 답 버리기', en: 'Drop this one' },
+  'teach.rows.removed_line': { ko: '파일 {line}줄을 목록에서 뺐습니다.', en: 'Line {line} of your file was taken off the list.' },
+  // Finding 52 — 200 questions used to mean 200 clicks
+  'teach.rows.pick_all_page': { ko: '이 페이지 전체 선택', en: 'Select every row on this page' },
+  'teach.rows.pick_none_page': { ko: '이 페이지 선택 해제', en: 'Clear every row on this page' },
   'teach.rows.shared_end_help': { ko: '이 질문 {n}개는 끝나는 말이 모두 같아서 모델이 서로 구별하지 못하고 하나만 배웁니다. 묻는 대상이 끝에 오도록 바꿔 주세요.', en: 'These {n} questions all end with the same words, so the model cannot tell them apart and will learn only one of them. Rephrase them so the thing being asked about comes last.' },
   'teach.rows.dropped': { ko: '{n}줄을 읽지 못해 제외했습니다.', en: '{n} line(s) could not be read and were left out.' },
   'teach.rows.dropped_show': { ko: '제외한 줄 보기', en: 'See the lines that were left out' },
@@ -626,7 +639,14 @@ export const teach: Dict = {
   'teach.rows.cap': { ko: '이 노드는 한 수업에 질문 {max}개까지 가르칩니다. 앞의 {max}개를 골랐고, 나머지는 다음 수업을 위해 데이터셋에 남습니다.', en: 'This node teaches up to {max} questions in one lesson. The first {max} are selected; the rest stay in your dataset for the next lesson.' },
   'teach.rows.cap_pick': { ko: '{max}개 직접 고르기', en: 'Choose which {max}' },
   'teach.rows.cap_selected': { ko: '{max}개 중 {n}개 선택', en: '{n} of {max} selected' },
+  // Finding 52 — while the picker is on, the banner says the picker's state and nothing else
+  'teach.rows.cap_rest': { ko: '나머지 {rest}개는 다음 수업을 위해 데이터셋에 남습니다', en: '{rest} stay in your dataset for the next lesson' },
+  'teach.rows.cap_default': { ko: '기본값(앞의 것들)으로 되돌리기', en: 'Back to the default first ones' },
   'teach.rows.check': { ko: '모델이 이미 아는지 확인하기', en: 'Check what the model already knows' },
+  // Finding 47 — the button names the sample it takes, and there is a way to check the rest
+  'teach.rows.check_first': { ko: '앞의 질문 {n}개 확인하기', en: 'Check the first {n} questions' },
+  'teach.rows.check_first_sim': { ko: '앞의 질문 {n}개 확인하기 (이 노드에서는 흉내만 냄)', en: 'Check the first {n} questions (simulated on this node)' },
+  'teach.rows.check_next': { ko: '다음 {n}개 확인하기', en: 'Check the next {n}' },
   'teach.rows.checking': { ko: '질문을 하나씩 물어보는 중…', en: 'Asking the model each question…' },
   'teach.rows.checked': { ko: '확인 완료: {n}개 중 {train}개가 지금 틀려서 학습합니다.', en: 'Checked: {train} of {n} are wrong today and will train.' },
   'teach.rows.checked_sample': { ko: '실제 모델에서 질문 {n}개 중 {k}개를 확인했습니다.', en: 'Checked {k} of {n} questions in the live model.' },
@@ -684,6 +704,10 @@ export const teach: Dict = {
   'teach.set.summary_checks_on': { ko: '부작용 확인 켬', en: 'side-effect check on' },
   'teach.set.summary_checks_off': { ko: '부작용 확인 끔', en: 'side-effect check off' },
   'teach.set.train': { ko: '이 수업 학습하기 (질문 {n}개)', en: 'Train this lesson ({n} questions)' },
+  // Finding 49 — nobody measured these questions yet, so the count is a ceiling, not a promise
+  'teach.set.train_upto': { ko: '이 수업 학습하기 (질문 최대 {n}개)', en: 'Train this lesson (up to {n} questions)' },
+  'teach.set.summary_short_upto': { ko: '질문 최대 {n}개 · {effort} · {checks}', en: 'up to {n} questions · {effort} · {checks}' },
+  'teach.set.unchecked': { ko: '이 질문 {n}개는 아직 실제 모델에서 확인하지 않았습니다. 학습 전에 노드가 한 번 더 확인해서 모델이 이미 맞게 답하는 질문은 빼기 때문에, 실제로 학습되는 수는 이보다 적을 수 있습니다. 결과 화면에 어떤 질문이 빠졌는지 나옵니다.', en: 'These {n} questions have not been checked in the live model yet. The node checks them once more before training and leaves out any the model already answers correctly, so fewer may actually be trained. The result screen names the ones it left out.' },
   'teach.set.sending': { ko: '보내는 중…', en: 'Sending…' },
   'teach.set.queue_note': { ko: '탭을 닫아도 대기 순서는 유지됩니다.', en: 'Your place in the queue is kept even if you close this tab.' },
   'teach.set.rows_cap': { ko: '이 노드는 한 수업에 질문 {max}개까지 가르치므로, {total}개 중 {n}개가 이번 수업에 들어갑니다.', en: 'This node teaches up to {max} questions in one lesson, so {n} of your {total} are in this one.' },
@@ -696,6 +720,8 @@ export const teach: Dict = {
   'teach.run.title': { ko: '"{name}" 가르치는 중', en: 'Teaching "{name}"' },
   'teach.run.stage.queued': { ko: '학습 차례를 기다리는 중', en: 'Waiting for a free training slot' },
   'teach.run.stage.wait_rows': { ko: '학습 차례를 기다리는 중 — 앞에 {n}개(질문 {q}개)', en: 'Waiting for a free training slot — {n} ahead ({q} questions)' },
+  // Finding 54 — an empty queue is not a wait: never tell someone they are behind zero people
+  'teach.run.stage.starting_soon': { ko: '곧 시작합니다 — 앞에 기다리는 수업이 없습니다.', en: 'Starting shortly — no lessons ahead of you.' },
   'teach.run.stage.prep': { ko: '데이터셋 준비 중', en: 'Preparing your dataset' },
   'teach.run.stage.warm': { ko: '모델 준비 중', en: 'Warming up the model' },
   'teach.run.stage.start': { ko: '시작하는 중…', en: 'Starting…' },
@@ -707,7 +733,8 @@ export const teach: Dict = {
   'teach.run.elapsed': { ko: '경과 {time}', en: 'Elapsed {time}' },
   'teach.run.eta': { ko: '약 {min}분 남음', en: 'about {min} min left' },
   'teach.run.eta_soon': { ko: '1분 이내 남음', en: 'less than a minute left' },
-  'teach.run.eta_none': { ko: '아직 예상 시간이 없습니다 — 이 노드가 충분한 수업을 마치지 않았습니다. 첫 수업은 최대 30분 걸릴 수 있습니다.', en: 'No time estimate yet — this node has not finished enough lessons to know. The first one may take up to 30 minutes.' },
+  // Finding 54 — "up to 30 minutes" was a constant in this bundle, not a measurement of anything
+  'teach.run.eta_none': { ko: '아직 예상 시간이 없습니다 — 이 노드가 시간을 잴 만큼 수업을 마치지 않았습니다. 아래 경과 시간이 지금까지 걸린 시간입니다.', en: 'No time estimate yet — this node has not finished enough lessons to time one. The elapsed clock is what it has taken so far.' },
   'teach.run.leave': { ko: '이 탭을 닫아도 됩니다. 내 데이터셋과 수업에서 다시 찾을 수 있습니다.', en: 'You can close this tab. Find the lesson again under My datasets and lessons.' },
   'teach.run.leave_chat': { ko: '학습하는 동안 계속 대화해도 됩니다.', en: 'You can keep chatting while it trains.' },
   'teach.run.cancel': { ko: '학습 취소', en: 'Cancel training' },
@@ -768,6 +795,9 @@ export const teach: Dict = {
   'teach.res.dataset_link': { ko: '이 수업은 {name}(질문 {n}개)에서 나왔습니다', en: 'This lesson came from {name} ({n} questions)' },
   'teach.res.dataset_download': { ko: '이 수업이 학습한 데이터셋 내려받기', en: 'Download the dataset this lesson was trained on' },
   'teach.res.skipped_known': { ko: '{of}개 중 {n}개는 모델이 이미 정확히 답해서 학습에서 빠졌습니다. 나머지만 가르쳤습니다.', en: '{n} of your {of} questions were left out: the model already answered them correctly, so only the rest were taught.' },
+  // Finding 49 — "1 of your 12 questions was left out" without naming it left the visitor unable to identify it
+  'teach.res.left_out_title': { ko: '학습에서 빠진 질문', en: 'The questions it left out' },
+  'teach.res.left_out_why': { ko: '이 질문들은 학습 직전 확인에서 모델이 이미 맞게 답했거나, 이 노드에서 이미 팔고 있는 지식과 같아서 빠졌습니다.', en: 'These were left out just before training: the model already answered them correctly, or the same knowledge is already on sale on this node.' },
   'teach.res.skipped_overlap': { ko: '{n}개는 이 노드에서 이미 팔고 있는 지식과 같은 내용이라 학습에서 빠졌습니다.', en: '{n} more were left out because the same knowledge is already on sale on this node.' },
   'teach.res.checked_sample': { ko: '실제 모델에서 질문 {n}개 중 {k}개 확인 — {hits}개 정답. 학습 중에는 {n}개 전부를 측정했습니다.', en: 'Checked {k} of {n} questions in the live model — {hits} correct. During training all {n} were measured.' },
   'teach.res.showing_first': { ko: '{total}개 중 앞 {shown}개만 보여 줍니다.', en: 'Showing the first {shown} of {total}.' },
