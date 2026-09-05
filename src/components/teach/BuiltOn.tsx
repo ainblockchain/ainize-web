@@ -38,13 +38,25 @@ export function BuiltOnLines({ j }: { j: TeachJob }) {
   const changed = j.changed_rows ?? 0;
   const added = Math.max(0, (j.facts?.length ?? 0) - changed);
   // every knowledge the node re-asked, not just the closest one — a stack of two says two things
-  const checks = (j.checks?.parent_check ?? []).filter((pc) => pc.total > 0);
+  const checks = (j.checks?.parent_check ?? []).filter((pc) => pc.total > 0 && !pc.simulated);
+  /*
+   * Item 182 — the bases that were NOT measured. `parent_check` is rendered only where `total > 0`, and a stub node
+   * sets it to 0, so on every demo node the base was named under a heading that reads as a measurement and nothing
+   * was ever said about whether it still works. Silence there is the one thing this block must not do.
+   */
+  const unchecked = bases.filter((b) => !checks.some((pc) => pc.patch_id === b.patch_id));
+  const simulatedAgainst = new Set((j.checks?.parent_check ?? []).filter((pc) => pc.simulated).map((pc) => pc.patch_id));
   return (
     <Lines data-testid="built-on">
       <span>{t('teach.res.built_on', { name: headline, m: num(added), k: num(changed), rows: num(j.result?.rows ?? 0) })}</span>
       {checks.map((pc) => (pc.failed.length
         ? <span className="bad" key={pc.patch_id} data-testid="parent-broken">{t('teach.res.parent_broken', { name: nameOf(pc.patch_id), k: num(pc.failed.length), list: pc.failed.slice(0, 6).map((i) => i + 1).join(', ') })}</span>
         : <span key={pc.patch_id} data-testid="parent-ok">{t('teach.res.parent_ok', { name: nameOf(pc.patch_id), hit: num(pc.hit), total: num(pc.total) })}</span>))}
+      {unchecked.map((b) => (
+        <span className="bad" key={`u-${b.patch_id}`} data-testid="parent-unchecked">
+          {t(simulatedAgainst.has(b.patch_id) || j.checks?.simulated ? 'teach.res.parent_simulated' : 'teach.res.parent_unchecked', { name: b.name ?? b.patch_id })}
+        </span>
+      ))}
       {j.checks?.reversibility_ok === true && <span data-testid="reversible">{t('teach.res.reversible', { name: headline })}</span>}
     </Lines>
   );
