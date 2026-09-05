@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAnnounceMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, usePatchQuery,
+  errorMessage, useAnnounceMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, usePatchQuery,
   useRetireMutation, useRuntimeQuery, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
@@ -12,7 +12,7 @@ import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, Select, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
-import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
+import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { CheckItem, Checklist, DevBox, ExternalAnchor, ExternalRow, ExternalTitle, MonoBox, Muted, Row, SectionBody, SmallSpinner, Stack, Tip, isInFlight, useMoney } from '@/components/operator/common';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { Sheet, SheetFooter } from '@/components/chat/Sheet';
@@ -43,6 +43,9 @@ const RetireFacts = styled.div`flex: 0 0 auto; text-align: right; font-size: 13p
 const Consequences = styled.ul`
   margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.55; color: ${(p) => p.theme.color.BLACK};
 `;
+
+/** One node that holds a knowledge's file, and the reason the public record gives for it (item 367). */
+interface Holder { address: string; name: string | null; why: 'author' | 'buyer' | 'verifier' | 'mirror'; last_seen: number; self: boolean }
 
 export default function ManagePage() {
   const { t, term, help, tech } = useT();
@@ -112,6 +115,33 @@ export default function ManagePage() {
     setDesc(p.anchor.description ?? ''); setPriceV(p.anchor.price); setBranch(p.anchor.branch ?? ''); setLicense(p.anchor.license ?? ''); setBilling(p.anchor.billing);
     setBenchText(JSON.stringify(p.anchor.benchmark, null, 2));
   }, [p?.anchor.id, p?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Item 367 — replication is this product's answer to a seller going offline and its biggest leak at the same
+   * time, and the seller could see neither side of it: the holder set exists in every manifest and on no screen.
+   * `/api/nodes` already reports what each peer holds by sha256, and this page knows who bought and who verified,
+   * so every holder can be named with the reason it has the file. A node holding it for no recorded reason is
+   * called what it is — a mirror — rather than being left out.
+   */
+  const nodesQ = useNodesQuery(undefined, { pollingInterval: 30_000 });
+  const holders = useMemo(() => {
+    const sha = p?.anchor.patch_sha256;
+    if (!sha) return [] as Holder[];
+    const buyers = new Set((p?.settlements ?? []).map((x) => x.buyer.toLowerCase()));
+    const verifiers = new Set((p?.attestations ?? []).map((x) => x.verifier.toLowerCase()));
+    const author = (p?.anchor.author ?? '').toLowerCase();
+    const seen = new Map<string, Holder>();
+    const add = (address: string, name: string | null, last_seen: number, blobs: string[]) => {
+      if (!address || !blobs.includes(sha)) return;
+      const low = address.toLowerCase();
+      if (seen.has(low)) return;
+      const why: Holder['why'] = low === author ? 'author' : buyers.has(low) ? 'buyer' : verifiers.has(low) ? 'verifier' : 'mirror';
+      seen.set(low, { address, name, why, last_seen, self: !!nodesQ.data && low === nodesQ.data.self.toLowerCase() });
+    };
+    for (const n of nodesQ.data?.nodes ?? []) add(n.address, n.name ?? null, n.last_seen, n.blobs ?? []);
+    for (const pr of nodesQ.data?.peers ?? []) add(pr.address ?? '', pr.info?.name ?? null, pr.last_seen, pr.info?.blobs ?? []);
+    return [...seen.values()].sort((a, b) => (a.self === b.self ? 0 : a.self ? -1 : 1) || a.why.localeCompare(b.why));
+  }, [p?.anchor.patch_sha256, p?.anchor.author, p?.settlements, p?.attestations, nodesQ.data]);
 
   const isDraft = p?.status === 'DRAFT';
   const isVerifier = roles.includes('verifier');
@@ -399,6 +429,43 @@ export default function ManagePage() {
           </TableBody>
         </Table>
       </TableWrapper>
+
+      {/* ------------------------------------------------------------ who holds the file (item 367) */}
+      <SubTitle $mt={40}>{t('op.manage.holders.title')}</SubTitle>
+      <Description>{t('op.manage.holders.desc')}</Description>
+      {holders.length === 0 ? (
+        <Description data-testid="holders-empty" style={{ marginTop: 8 }}>{t('op.manage.holders.empty')}</Description>
+      ) : (
+        <>
+          <Description style={{ marginTop: 8 }} data-testid="holders-summary">
+            <b>{t('op.manage.holders.count', { n: holders.length })}</b>{' — '}
+            {t('op.manage.holders.split', {
+              buyers: holders.filter((h) => h.why === 'buyer').length,
+              verifiers: holders.filter((h) => h.why === 'verifier').length,
+              mirrors: holders.filter((h) => h.why === 'mirror').length,
+              authors: holders.filter((h) => h.why === 'author').length,
+            })}
+          </Description>
+          <TableWrapper style={{ marginTop: 12 }}>
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead $align="left" $padding="0 8px">{t('op.manage.holders.node')}</TableHead>
+                <TableHead $align="left">{t('op.manage.holders.why')}</TableHead>
+                <TableHead $align="right" $padding="0 8px">{t('op.when')}</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {holders.map((h) => (
+                  <TableRow key={h.address}>
+                    <TableData $align="left" $padding="0 8px" title={h.address}>{h.name ?? shortAddr(h.address)}{h.self && <SubText>{t('op.manage.holders.self')}</SubText>}</TableData>
+                    <TableData $align="left">{t(`op.manage.holders.why.${h.why}`)}</TableData>
+                    <TableData $align="right" $padding="0 8px">{h.last_seen ? dateTime(h.last_seen) : '—'}</TableData>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableWrapper>
+        </>
+      )}
 
       {/* ------------------------------------------------------------ overlap check */}
       <SubTitle $mt={40}><Tip tech={tech('conflict')}>{t('op.manage.conflict.title')}</Tip></SubTitle>
