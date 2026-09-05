@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import type { LedgerRecord } from '@/api/types';
 import { useT } from '@/i18n';
+import { useNetworkKind } from '@/utils/useNetwork';
 import { num, shortAddr, shortHash } from '@/utils/format';
 
 /** An attestation counts toward 검증 완료 only when the verifier actually ran the model ('vllm' / 'hook'); 'hash-only' is integrity only. */
@@ -12,6 +13,7 @@ export const isExecuted = (verifiedOn?: string) => !!verifiedOn && verifiedOn !=
 
 export function useDetailFormat() {
   const { t, term, locale } = useT();
+  const net = useNetworkKind();
   return useMemo(() => {
     /** "5분 전" / "5m ago" */
     const ago = (ts?: number | null): string => {
@@ -42,8 +44,8 @@ export function useDetailFormat() {
       const unit = currency === 'CREDIT' ? term('credit') : currency;
       return !Number.isFinite(n) || n <= 0 ? `0 ${unit}`.trim() : priceLabel(n, currency);
     };
-    /** One-line note explaining what the currency is. */
-    const priceNote = (currency?: string): string => (currency === 'CREDIT' ? t('price.credit_note') : currency === 'AIN' ? t('price.ain_note') : '');
+    /** One-line note explaining what the currency is — for AIN, which chain it is (item 356). */
+    const priceNote = (currency?: string): string => net.note(currency);
     const kindLabel = (kind: string): string => { const k = t(`detail.kind.${kind}`); return k === `detail.kind.${kind}` ? kind : k; };
     const howLabel = (verifiedOn?: string): string => (verifiedOn && verifiedOn !== 'hash-only' ? t('detail.how.executed') : t('detail.how.integrity'));
     const roleLabel = (role: string): string => { const k = t(`detail.role.${role}`); return k === `detail.role.${role}` ? role : k; };
@@ -95,5 +97,5 @@ export function useDetailFormat() {
       }
     };
     return { ago, priceLabel, revenueLabel, priceNote, kindLabel, howLabel, roleLabel, billingLabel, recordSummary, locale };
-  }, [t, term, locale]);
+  }, [t, term, locale, net]);
 }

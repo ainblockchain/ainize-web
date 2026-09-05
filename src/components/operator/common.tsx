@@ -2,6 +2,7 @@ import styled, { keyframes } from 'styled-components';
 import type { CSSProperties, ReactNode } from 'react';
 import { errorMessage } from '@/api/api';
 import { useT } from '@/i18n';
+import { useNetworkKind } from '@/utils/useNetwork';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 
@@ -149,6 +150,7 @@ export function LiveTestIcon({ width = 16, height = 16, fill = '#8b3eeb' }: { wi
  */
 export function useMoney() {
   const { t, term } = useT();
+  const net = useNetworkKind();
   const unit = (currency?: string | null): string => (currency === 'AIN' ? 'AIN' : currency === 'CREDIT' ? term('credit') : currency ?? '');
   const fmt = (amount?: string | number | null, currency?: string | null): string => {
     if (amount === undefined || amount === null || amount === '') return '—';
@@ -162,7 +164,8 @@ export function useMoney() {
     const n = Number(amount ?? 0);
     return !Number.isFinite(n) || n <= 0 ? `0 ${unit(currency)}`.trim() : fmt(n, currency);
   };
-  const note = (currency?: string | null): string => (currency === 'AIN' ? t('price.ain_note') : currency === 'CREDIT' ? t('price.credit_note') : '');
+  // Item 356: one rule for every AIN figure in the product — which chain this node settles on, never a fixed sentence.
+  const note = (currency?: string | null): string => net.note(currency);
   return { unit, fmt, revenue, note };
 }
 

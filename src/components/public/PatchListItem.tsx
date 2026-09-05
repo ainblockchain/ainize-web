@@ -5,6 +5,7 @@ import type { CatalogEntry } from '@/api/types';
 import { Explain } from '@/components/ui/Explain';
 import { Certified, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { useNetworkKind } from '@/utils/useNetwork';
 import { browseDescription } from '@/lib/describe';
 import { bytes, denominator, num, pct, shortAddr } from '@/utils/format';
 
@@ -32,6 +33,8 @@ export function executedAccuracy(entry: CatalogEntry): { pct: number; raw: strin
 /** "25 AIN" / "3 노드 크레딧" / "무료" + a one-line note explaining the unit. Never a bare "2.5 CREDIT". */
 export function usePriceLabel() {
   const { t } = useT();
+  // Item 356: the AIN note says which chain THIS node settles on, not a fixed sentence about the demo.
+  const net = useNetworkKind();
   return (amount?: string | number | null, currency?: string | null): { text: string; note: string } => {
     if (amount === undefined || amount === null || amount === '') return { text: '—', note: '' };
     const n = Number(amount);
@@ -39,7 +42,7 @@ export function usePriceLabel() {
     if (n === 0) return { text: t('item.price_free'), note: '' };
     const f = n.toLocaleString('en-US', { maximumFractionDigits: 6 });
     switch (currency) {
-      case 'AIN': return { text: t('item.price_ain', { n: f }), note: t('price.ain_note') };
+      case 'AIN': return { text: t('item.price_ain', { n: f }), note: net.note('AIN') };
       case 'CREDIT': return { text: t('item.price_credit', { n: f }), note: t('price.credit_note') };
       case 'USDC': return { text: t('item.price_usdc', { n: f }), note: t('item.price_note_usdc') };
       default: return { text: `${f} ${currency ?? ''}`.trim(), note: '' };

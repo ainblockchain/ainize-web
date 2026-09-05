@@ -13,6 +13,7 @@ import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, S
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { DevBox, MonoBox, Muted, Pre, RadioGroup, Row, Stack, Tip, useElapsed, useMoney } from '@/components/operator/common';
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
+import { useNetworkKind } from '@/utils/useNetwork';
 
 const Section = styled.div`margin-top: 16px;`;
 const Balance = styled.div`font-size: 28px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; margin-top: 12px; span { font-size: 14px; font-weight: 400; color: ${(p) => p.theme.color.GREY}; margin-left: 8px; }`;
@@ -155,13 +156,11 @@ export default function AccountPage() {
   const currency = info?.currency ?? wallet.data?.network ?? '';
   const isAin = info?.ledger.kind === 'ain';
   /**
-   * Item 356: the largest number this screen shows was the one with no provenance. `price.ain_note` says "local dev
-   * chain" for every AIN node whatever it is attached to, so the kind is read off the provider the node reports.
+   * Item 356: the largest number this screen shows was the one with no provenance. The kind is read off the
+   * provider the node reports — by the shared rule in utils/useNetwork, which every AIN figure in the product now
+   * uses, so the wallet total and a price on /explore can never disagree about which chain this is.
    */
-  const netKind = !isAin ? 'credit'
-    : !info?.ledger.provider ? 'unknown'
-      : /localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|\.local(:|\/|$)/.test(info.ledger.provider) ? 'local_chain'
-        : /test/i.test(info.ledger.provider) ? 'testnet' : 'mainnet';
+  const netKind = useNetworkKind().kind;
   const netNote = t(`op.account.wallet.network.${netKind}`);
 
   const sales = wallet.data?.sales ?? [];

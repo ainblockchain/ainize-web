@@ -168,6 +168,14 @@ export const listing: Dict = {
   'explore.filter.all': { ko: '전체', en: 'All' },
   'explore.search': { ko: '이름·질문·주제·만든 이 검색', en: 'Search names, questions, topics, creators' },
   // Items 25 + 206: the search box reaches the questions a knowledge answers, so the card says which one matched.
+  /**
+   * Item 356 — one label for AIN, decided by the chain the node is actually attached to (utils/useNetwork). The
+   * flat `price.ain_note` in common.ts stays for callers that have no node info to read.
+   */
+  'price.ain_note.local_chain': { ko: 'AIN = AI Network 토큰 · 이 노드는 로컬 개발 체인에 붙어 있어 실제 가치가 없습니다', en: 'AIN = AI Network token · this node is attached to a local development chain, so it has no market value' },
+  'price.ain_note.testnet': { ko: 'AIN = AI Network 토큰 · 테스트넷이라 실제 가치가 없습니다', en: 'AIN = AI Network token · this is a test network, so it has no market value' },
+  'price.ain_note.mainnet': { ko: 'AIN = AI Network 메인넷 토큰', en: 'AIN = AI Network token, on the mainnet' },
+  'price.ain_note.unknown': { ko: 'AIN = AI Network 토큰 · 이 노드는 어느 체인에 붙어 있는지 밝히지 않았습니다', en: 'AIN = AI Network token · this node does not say which chain it is attached to' },
   'explore.filter.track': { ko: '트랙', en: 'Track' },
   'explore.filter.show': { ko: '표시', en: 'Show' },
   'explore.filter.current': { ko: '최신 버전만', en: 'Current only' },
@@ -298,7 +306,7 @@ export const misc: Dict = {
   'terms.s2.h3': { ko: '2.3 검증은 최선의 노력입니다', en: '2.3 Verification is best-effort' },
   'terms.s2.p3': { ko: '검증 결과는 독립된 검증 노드가 자기 노드 키로 서명해 게시합니다. 걸어 둔 보증금은 없으며, 잘못된 검증에는 누구나 이의를 제기할 수 있고 이의가 제기되면 재검증까지 판매가 멈춥니다. 지식을 등록한 노드가 스스로 남긴 검증은 집계에 넣지 않습니다. 각 결과에는 어떤 환경에서 측정했는지가 기록됩니다. "무결성만 확인"으로 표시된 결과는 파일이 손상되지 않았는지만 확인한 것이며 정답률을 보증하지 않습니다.\n"검증 완료"는 지식이 항상 옳다거나 부작용이 전혀 없음을 보장하지 않습니다. 실제 서비스에 넣기 전에는 본인의 질문으로 라이브 테스트를 다시 해 보시기 바랍니다.', en: 'Verification results are published by independent verifier nodes, each signed with the node\u2019s own identity key. No deposit is escrowed: instead any node can challenge a result, and a challenge takes the knowledge off sale until it is re-verified. An attestation by the node that published the knowledge is never counted. Each result records the environment it was measured in. Results marked "integrity-only" confirm only that the file is intact and do not vouch for accuracy.\n"Verified" does not guarantee that knowledge is always correct or free of side effects. Re-run a live test with your own questions before loading it into production.' },
   'terms.s2.h4': { ko: '2.4 결제', en: '2.4 Payments' },
-  'terms.s2.p4': { ko: '결제는 자동으로 처리됩니다. AI Network 위에서는 AIN 토큰 전송이며 실행되면 되돌릴 수 없습니다. 로컬 기록 모드의 "노드 크레딧"은 개발용 가상 화폐로 실제 가치가 없습니다. 판매 노드는 결제를 확인한 뒤에만 거래를 정산하며, 환불은 판매자의 재량이고 프로토콜이 중재하지 않습니다.', en: 'Payments are automatic. On the AI Network a payment is an AIN token transfer and is final once executed. "Node credits" in local-record mode are development play money with no real value. The selling node settles a trade only after it has confirmed payment; refunds are at the seller\'s discretion and are not mediated by the protocol.' },
+  'terms.s2.p4': { ko: '결제는 자동으로 처리됩니다. AI Network 위에서는 AIN 토큰 전송이며 실행되면 되돌릴 수 없습니다. 다만 노드가 개발용 로컬 체인이나 테스트넷에 붙어 있으면 그 AIN은 시장 가치가 없습니다 — 어느 체인인지는 각 노드가 /api/info로 공개하며, 화면의 금액 아래에도 표시됩니다. 로컬 기록 모드의 "노드 크레딧"은 개발용 가상 화폐로 실제 가치가 없습니다. 판매 노드는 결제를 확인한 뒤에만 거래를 정산하며, 환불은 판매자의 재량이고 프로토콜이 중재하지 않습니다.', en: 'Payments are automatic. On the AI Network a payment is an AIN token transfer and is final once executed. Where the node is attached to a development chain or a test network, that AIN has no market value — each node publishes which chain it uses, and every amount on screen is labelled with it. "Node credits" in local-record mode are development play money with no real value. The selling node settles a trade only after it has confirmed payment; refunds are at the seller\'s discretion and are not mediated by the protocol.' },
   'terms.s2.h5': { ko: '2.5 금지 행위', en: '2.5 Prohibited use' },
   'terms.s2.list': { ko: '다른 사람의 지식을 출처 표시 없이 베껴 등록하는 행위 (겹침 검사로 탐지되며 재검증을 요청받을 수 있습니다)\n지식이 실제로 답하는 내용과 다른 정답을 붙인 검증 질문 묶음을 등록하는 행위\n실제로 측정하지 않은 정답률을 검증 결과로 게시하는 행위\n귀하의 관할권에서 불법인 콘텐츠를 네트워크로 유통하는 행위', en: 'Registering knowledge copied from someone else\'s without attribution (detectable by the overlap check and subject to re-verification)\nRegistering question sets whose stated answers are not what the knowledge actually answers\nPublishing accuracy that was not actually measured as a verification result\nUsing the network to distribute content that is unlawful in your jurisdiction' },
   'terms.s2.h6': { ko: '2.6 보증 없음', en: '2.6 No warranty' },
