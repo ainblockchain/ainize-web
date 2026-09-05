@@ -149,6 +149,14 @@ export const operatorDash: Dict = {
   'op.dash.purchases.col.actions': { ko: '넣기 / 빼기', en: 'Load / unload' },
   'op.dash.purchases.scheme.ain': { ko: '지갑(AIN)', en: 'wallet (AIN)' },
   'op.dash.purchases.scheme.credit': { ko: '노드 크레딧', en: 'node credit' },
+  // Item 277: a knowledge priced 0 is handed over, not sold — there is no scheme and no payment to name.
+  'op.dash.purchases.scheme.free': { ko: '무료 — 결제 없음', en: 'free — no payment' },
+  // Item 362: a track's own purchases used to be indistinguishable from the ones the operator chose to make.
+  'op.dash.purchases.origin.subscription': { ko: '트랙 구독 {track}이(가) 자동 구매', en: 'bought automatically by the track {track}' },
+  'op.dash.purchases.origin.manual': { ko: '직접 구매', en: 'bought here' },
+  // Item 280: the split is on the settle record and the buyer was never shown it.
+  'op.dash.purchases.paid_to': { ko: '지급처: {who}', en: 'paid to {who}' },
+  'op.dash.purchases.paid_to.line': { ko: '{name} {amount}', en: '{name} {amount}' },
   'op.dash.purchases.empty': { ko: '아직 구매한 지식이 없습니다. 지식 둘러보기에서 검증 완료된 지식을 골라 보세요.', en: 'No purchases yet — pick verified knowledge in Explore.' },
   'op.dash.branches.title': { ko: '트랙(브랜치)과 구독', en: 'Knowledge tracks & subscriptions' },
   // Finding 265 — this sentence promised a per-request track switch that no code performs: `route()` only lists the

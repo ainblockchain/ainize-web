@@ -240,7 +240,18 @@ export default function DashboardPage() {
   const salesNet = (e: CatalogEntry) => (Number(e.revenue_shared ?? 0) > 0
     ? t('op.dash.sales.net', { revenue: money.revenue(e.revenue, e.anchor.currency || currency), net: money.revenue(e.revenue_net ?? e.revenue, e.anchor.currency || currency), shared: money.revenue(e.revenue_shared ?? '0', e.anchor.currency || currency) })
     : '');
-  const schemeText = (scheme: string) => (scheme === 'ain-transfer' ? t('op.dash.purchases.scheme.ain') : scheme === 'local-credit' ? t('op.dash.purchases.scheme.credit') : scheme);
+  /*
+   * Item 362 — `money.fmt` already renders the unit ("8 node credit"), and this appended the scheme, which on a
+   * local-ledger node is the same words: "8 node credit (node credit)". The scheme is only worth printing when it
+   * says something the amount does not: which wallet paid, or that nothing did.
+   */
+  const schemeText = (scheme: string, currency?: string | null) => (scheme === 'ain-transfer' ? (currency === 'AIN' ? '' : t('op.dash.purchases.scheme.ain'))
+    : scheme === 'local-credit' ? (currency === 'CREDIT' ? '' : t('op.dash.purchases.scheme.credit'))
+    : scheme === 'free' ? t('op.dash.purchases.scheme.free') : scheme);
+  /** Item 362: what this node chose to buy, and what a track bought on its behalf. */
+  const originText = (origin?: string) => (origin?.startsWith('subscription:')
+    ? t('op.dash.purchases.origin.subscription', { track: origin.slice('subscription:'.length) })
+    : '');
 
   const HEADERS: { key: string; label: string; tip?: string }[] = [
     { key: 'name', label: t('op.dash.col.name') },
@@ -407,7 +418,17 @@ export default function DashboardPage() {
                     {author ? <NameLink to={`/${author}/${p.patch_id}`}>{p.entry?.anchor.name ?? p.patch_id}</NameLink> : <strong>{p.patch_id}</strong>}
                     <SubText>{p.entry ? p.patch_id : shortHash(p.sha256, 16)}</SubText>
                   </TableData>
-                  <TableData title={money.note(cur)}>{money.fmt(p.amount, cur)} <SubText style={{ display: 'inline' }}>({schemeText(p.scheme)})</SubText></TableData>
+                  <TableData title={money.note(cur)} data-testid="purchase-paid">
+                    {money.fmt(p.amount, cur)}
+                    {schemeText(p.scheme, cur) && <SubText style={{ display: 'inline' }}> ({schemeText(p.scheme, cur)})</SubText>}
+                    {originText(p.origin) && <SubText style={{ display: 'block' }}>{originText(p.origin)}</SubText>}
+                    {/* Item 280: the settle record has carried the split all along, and the buyer was shown a tx hash. */}
+                    {(p.payees?.length ?? 0) > 0 && (
+                      <SubText style={{ display: 'block' }} data-testid="purchase-payees">{t('op.dash.purchases.paid_to', {
+                        who: p.payees!.map((x) => t('op.dash.purchases.paid_to.line', { name: x.name ?? shortAddr(x.address, 6), amount: money.revenue(x.amount, cur) })).join(' · '),
+                      })}</SubText>
+                    )}
+                  </TableData>
                   <TableData $mono title={p.tx_hash}>{shortHash(p.tx_hash, 12)}</TableData>
                   <TableData $mono title={p.path ?? ''}>{p.path ? `…/${p.path.split('/').slice(-1)[0].slice(0, 18)}` : '—'}</TableData>
                   <TableData>{p.applied ? <span style={{ color: '#44a45f', fontWeight: 600 }}>{t('op.yes')}</span> : t('op.no')}</TableData>

@@ -244,7 +244,12 @@ export interface NodesResponse {
 export interface ChainResponse extends LedgerInfo { address: string; balance: number | null; }
 
 export interface AuthMe { signedIn: boolean; address: string; name: string; roles: string[]; needsSetup: boolean; }
-export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string; scheme: string; amount: string; manifest: PatchManifest | null; path: string | null; created_at: number; entry: CatalogEntry | null; applied: boolean; }
+export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string; scheme: string; amount: string; manifest: PatchManifest | null; path: string | null; created_at: number; entry: CatalogEntry | null; applied: boolean;
+  /** Why this node paid: a deliberate purchase, or `subscription:<track>` (item 362). */
+  origin?: string;
+  /** Who the money went to, from the seller's own split (item 280). */
+  royalty?: Record<string, string> | null;
+  payees?: { address: string; amount: string; name: string | null; role: string; knowledge: string[]; promised: boolean }[]; }
 /** One royalty transfer the node owes (node `payouts` table, spec §7.5): pending → paid (tx_hash) | failed (last_error, retried every 60 s up to 20 times). */
 export interface PayoutRow { id: number; patch_id: string; settle_hash: string; address: string; amount: string; currency: string; status: 'pending' | 'paid' | 'failed'; tx_hash: string | null; attempts: number; last_error: string | null; created_at: number; updated_at: number }
 export interface PayoutSummary { pending: number; failed: number; paid: number }
