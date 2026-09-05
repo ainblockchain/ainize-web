@@ -232,6 +232,10 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
             </MetaRow>
             <ChipRow>
               <StatusChip status={e.status} />
+              {/* Finding 108 — the node now offers this node's operator their own unannounced drafts, because that
+                  is what `--no-announce` is for and POST /api/chat has always loaded them. Say why one is here:
+                  nobody else can see it, and it is not on the public record yet. */}
+              {e.status === 'DRAFT' && <Hint as="span" data-testid="picker-own-draft">{t('chat.picker.own_draft')}</Hint>}
               {isPinned && <Pinned title={t(active ? 'chat.picker.pinned_ticked' : 'chat.picker.contaminated', { names: a.name })}>{t('chat.picker.always_loaded')}</Pinned>}
               {/* Finding 225 — "Always loaded · Loads 1." on one card is a contradiction: say what the test
                   actually does with a pinned knowledge the visitor ticked. */}

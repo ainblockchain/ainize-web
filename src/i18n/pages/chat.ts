@@ -66,6 +66,11 @@ export const chat: Dict = {
   // finding 88 — "1 visitor(s) have asked" was the placeholder plural reaching a real page
   'chat.picker.asked_one': { ko: '한 명이 이 지식을 요청했습니다.', en: '1 visitor has asked for this.' },
   'chat.picker.mine': { ko: '내 수업', en: 'Your lessons' },
+  /**
+   * Finding 108 — a DRAFT reaches this picker only for this node's own operator, and only because it is theirs and
+   * the body is here. Anyone else sees nothing, which is what an unannounced draft is for.
+   */
+  'chat.picker.own_draft': { ko: '내 초안 · 아직 공개 기록에 없고 이 노드에서만 시험할 수 있습니다', en: 'Your draft — not on the public record yet, testable only on this node' },
   'chat.picker.max': { ko: '최대 3개까지입니다. 하나를 해제한 뒤 고르세요.', en: 'Up to 3 — untick one first.' },
   'chat.picker.order': { ko: '{n}번째로 넣음', en: 'Loads {n}.' },
   'chat.picker.order_help': { ko: '체크한 순서입니다. 같은 항목이 겹치면 번호가 큰 쪽이 이깁니다.', en: 'Tick order. Where entries overlap, the higher number wins.' },
