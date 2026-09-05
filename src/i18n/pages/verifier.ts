@@ -107,6 +107,26 @@ export const VERIFIER: Dict = {
     ko: '이 파일의 {total}개 행 가운데 {n}개가 {base}의 행과 동일합니다',
   },
 
+  // What the verifiers said about a lesson that did not pass, on the teacher's own page (item 304)
+  'teacher.rej.score': { en: 'did not pass: {score}', ko: '통과하지 못함: {score}' },
+  'teacher.rej.asked': { en: 'Asked', ko: '물어본 질문' },
+  'teacher.rej.expected': { en: 'Your answer', ko: '내가 가르친 답' },
+  'teacher.rej.answered': { en: 'The model said', ko: '모델이 답한 내용' },
+  'teacher.rej.empty': { en: '(nothing)', ko: '(아무 답도 하지 않음)' },
+  'teacher.rej.no_questions': {
+    en: '{who} did not record which question failed — the score is all it published.',
+    ko: '{who}은(는) 어떤 질문에서 실패했는지 기록하지 않았습니다. 공개한 것은 점수뿐입니다.',
+  },
+  'teacher.rej.again': { en: 'Open this lesson and train it again', ko: '이 레슨을 열어서 다시 학습하기' },
+  'teacher.rej.permanent': {
+    en: 'This result stays on the public record. Training it again publishes a separate knowledge — it does not replace or remove this one.',
+    ko: '이 결과는 공개 기록에 그대로 남습니다. 다시 학습하면 별도의 지식으로 공개되며, 이 기록을 대체하거나 지우지 않습니다.',
+  },
+  'teacher.item.last_error': { en: 'Last error: {error}', ko: '마지막 오류: {error}' },
+  'teacher.item.nudge': { en: 'Ask the node to retry', ko: '노드에 재시도 요청' },
+  'teacher.item.nudge_done': { en: 'asked — the transfer is now {status}', ko: '요청함 — 현재 전송 상태: {status}' },
+  'teacher.item.nudge_wait': { en: 'already asked — try again in about {minutes} min', ko: '이미 요청했습니다. 약 {minutes}분 뒤에 다시 시도하세요' },
+
   // The base rate behind the "any node can challenge this" sentence (item 338)
   'verifier.base_rate': {
     en: 'On the record this node reads: {attestations} verifications, {failed} failed, {challenges} challenges ({upheld} upheld).',

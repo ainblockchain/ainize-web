@@ -25,7 +25,9 @@ const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'merg
   'patchDataset', 'createTeachJob', 'teachJob', 'myTeachJobs', 'cancelTeachJob', 'retryTeachJob', 'recheckTeachJob', 'publishChallenge', 'publishPreview', 'publishTeachJob', 'saveTeachJob',
   // teach mode v2 — the dataset routes (design §7)
   'forkPatch', 'teachDatasets', 'teachDataset', 'teachDatasetRows', 'createTeachDataset', 'uploadTeachDataset', 'reparseTeachDataset', 'patchTeachDataset', 'forkTeachDataset', 'deleteTeachDataset',
-  'retrainTeachJob', 'teachJobEvents']);
+  'retrainTeachJob', 'teachJobEvents',
+  // item 306 — the person who is owed the money asks the node to try the transfer again, signed with the key that is owed it
+  'nudgePayout']);
 /** Header that carries the sha256 of a multipart upload — it is what the v2 signature covers (design §D14). */
 export const DATASET_SHA_HEADER = 'x-ngram-dataset-sha256';
 /** Internal marker set by prepareHeaders and consumed by `signedFetch` (never sent). */
@@ -285,6 +287,14 @@ export const api = createApi({
       query: ({ id, since }) => `api/teach/jobs/${encodeURIComponent(id)}/events${toQuery({ since })}`,
     }),
     teacher: b.query<TeacherProfile, string>({ query: (address) => `api/teacher/${encodeURIComponent(address)}`, providesTags: (_r, _e, address) => [{ type: 'Teacher', id: address.toLowerCase() }, 'Teacher'] }),
+    /**
+     * The teacher asks this node to retry a failed transfer (item 306). Signed with the teaching key that is owed
+     * the money; the node refuses any other key and rate-limits it to one attempt every ten minutes.
+     */
+    nudgePayout: b.mutation<{ payout: PayoutRow; retried: boolean; retry_after_ms?: number }, number>({
+      query: (id) => ({ url: `api/teach/payouts/${id}/nudge`, method: 'POST' }),
+      invalidatesTags: ['Teacher'],
+    }),
     /** A verifier's record, from the ledger (item 337) — what makes one tick weigh more than another. */
     verifier: b.query<VerifierProfile, string>({ query: (address) => `api/verifiers/${encodeURIComponent(address)}`, providesTags: ['Catalog'] }),
 
@@ -316,7 +326,7 @@ export const {
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useMergePreviewMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
-  useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery, useVerifierQuery,
+  useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery, useVerifierQuery, useNudgePayoutMutation,
   useForkPatchMutation, useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,
   usePatchTeachDatasetMutation, useForkTeachDatasetMutation, useDeleteTeachDatasetMutation, useTeachSamplesQuery, useRetrainTeachJobMutation, useTeachJobEventsQuery,
   useTeachAdminPolicyQuery, useUpdateTeachAdminPolicyMutation, useTeachAdminJobsQuery, useApproveTeachJobMutation, useRejectTeachJobMutation, useCancelTeachJobAdminMutation,

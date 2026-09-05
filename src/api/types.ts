@@ -246,7 +246,9 @@ export interface RoyaltyRow {
 export interface WalletResponse extends ChainResponse { sales: Settlement[]; royalties: RoyaltyRow[]; purchases: number; payouts?: PayoutSummary & { items: PayoutRow[] };
   royalty_totals?: { owed: string; credited: string; paid: string; unconfirmed: string };
   /** The share of other people's sales this node earned by verifying their knowledge (item 325). */
-  verification?: RoyaltyRow[]; verification_total?: string; verifier_share?: number; }
+  verification?: RoyaltyRow[]; verification_total?: string; verifier_share?: number;
+  /** Knowledge handed over for nothing because it is priced 0 (item 277) — downloads, not sales. */
+  free_downloads?: { patch_id: string; count: number; last_at: number }[]; }
 export interface PurchaseResult {
   patch_id: string; steps: { step: string; detail: string; at: number }[]; manifest: PatchManifest; path: string;
   tx_hash: string; amount: string; scheme: string;
@@ -570,8 +572,25 @@ export interface TeacherLesson {
   id: string; name: string; status: string; verified: boolean; downloads: number; revenue: string;
   /** item 298: how long it has been waiting, and how many independent verifiers have actually looked. */
   created_at?: number; attestations?: number; quorum?: number;
+  /**
+   * Item 304 — what the verifiers actually said. "Failed verification" was the whole story a teacher got, on a
+   * record they had just been told is permanent; the scores were one click away on the public page and the failing
+   * question was signed into the attestation itself.
+   */
+  results?: {
+    verifier: string; verifier_name: string | null; passed: boolean; verified_on: string;
+    score: Record<string, string | number>; created_at: number;
+    failures: { prompt: string; expect: string; got: string }[];
+  }[];
+  /** The teacher's own lesson this was published from, so "train it again" is one action. */
+  job_id?: string | null;
 }
-export interface TeacherEarningItem { patch_id: string; seller: string; settle_hash: string; amount: string; currency: string; scheme: string; status: 'paid' | 'pending' | 'failed'; tx_hash?: string; attempts?: number; created_at: number; paid_at?: number }
+export interface TeacherEarningItem {
+  patch_id: string; seller: string; settle_hash: string; amount: string; currency: string; scheme: string;
+  status: 'paid' | 'pending' | 'failed'; tx_hash?: string; attempts?: number; created_at: number; paid_at?: number;
+  /** Item 306 — the row this line is about, the last thing that went wrong, and the cap on automatic attempts. */
+  payout_id?: number; last_error?: string; max_attempts?: number;
+}
 /**
  * A verifier's record, computed from signed `attest` and `challenge` records (item 337). Nothing is self-reported.
  * `GET /api/verifiers/:address`.

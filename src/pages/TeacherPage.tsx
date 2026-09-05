@@ -1,9 +1,10 @@
 import { useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useInfoQuery, useTeacherQuery } from '@/api/api';
+import { errorMessage, useInfoQuery, useNudgePayoutMutation, useTeacherQuery } from '@/api/api';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
+import { Button } from '@/components/ui/Button';
 import { CenterProgress, CopyButton, Description, Empty, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { currentTeacherKey, isAddress, shortKey } from '@/lib/teacherKey';
@@ -18,6 +19,20 @@ const Stat = styled.div<{ $tone?: string }>`
 `;
 const AddrLine = styled.div`margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 13px; color: ${(p) => p.theme.color.GREY};`;
 const Pay = styled.span<{ $s: string }>`font-weight: 600; color: ${(p) => (p.$s === 'paid' ? p.theme.color.SUCCESS : p.$s === 'failed' ? p.theme.color.ERROR : p.theme.color.WARNING)};`;
+/**
+ * What the verifiers said about a lesson that did not pass (item 304). "Failed verification" was the whole story a
+ * teacher was given, on a public record they had just been told is permanent — while the score sat one click away
+ * on the knowledge page and the question the model got wrong was signed into the attestation itself.
+ */
+const Rejected = styled.div`
+  margin-top: 6px; padding: 8px 10px; border-left: 2px solid ${(p) => p.theme.color.ERROR}; background: #fdf4f5;
+  font-size: 12px; line-height: 1.6; color: ${(p) => p.theme.color.BLACK}; text-align: left; word-break: break-word;
+  b { font-weight: 600; }
+  dl { margin: 6px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; }
+  dt { color: ${(p) => p.theme.color.GREY}; }
+  dd { margin: 0; }
+  dd.bad { color: ${(p) => p.theme.color.ERROR}; }
+`;
 
 /** /teacher/:address — public data-provider page: taught knowledge + earnings reconciled from the public record (spec §4.1 step 9, §9.3). */
 export default function TeacherPage() {
@@ -28,6 +43,7 @@ export default function TeacherPage() {
   const valid = isAddress(address);
   const { data, error, isLoading } = useTeacherQuery(address, { skip: !valid, pollingInterval: 15_000 });
   const { data: info } = useInfoQuery();
+  const [nudge, nudgeState] = useNudgePayoutMutation();
   const mine = currentTeacherKey()?.address.toLowerCase() === address.toLowerCase();
   useTitle(data?.name ? `${t('teacher.title')} · ${data.name}` : t('teacher.title'));
 
@@ -97,6 +113,22 @@ export default function TeacherPage() {
                   <TableData>
                     {l.status === 'PENDING_REVIEW' ? t('teach.mine.status.review') : <StatusChip status={l.status} />}
                     {waiting(l) && <div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400, marginTop: 4 }} data-testid="teacher-awaiting">{waiting(l)}</div>}
+                    {/* Item 304 — the score, the question, and something to do about it. */}
+                    {(l.results ?? []).filter((r) => !r.passed).map((r) => (
+                      <Rejected key={`${r.verifier}-${r.created_at}`} data-testid="teacher-rejected">
+                        <b>{r.verifier_name ?? shortAddr(r.verifier, 8)}</b> — {t('teacher.rej.score', { score: Object.entries(r.score).map(([k, val]) => `${k} ${val}`).join(' · ') || '—' })}
+                        {r.failures.map((f, i) => (
+                          <dl key={i}>
+                            <dt>{t('teacher.rej.asked')}</dt><dd>{f.prompt}</dd>
+                            <dt>{t('teacher.rej.expected')}</dt><dd>{f.expect}</dd>
+                            <dt>{t('teacher.rej.answered')}</dt><dd className="bad">{f.got || t('teacher.rej.empty')}</dd>
+                          </dl>
+                        ))}
+                        {!r.failures.length && <div style={{ marginTop: 4 }}>{t('teacher.rej.no_questions', { who: r.verifier_name ?? shortAddr(r.verifier, 8) })}</div>}
+                        {mine && l.job_id && <div style={{ marginTop: 6 }}><StyledLink to={`/teach/lesson/${l.job_id}`}>{t('teacher.rej.again')} →</StyledLink></div>}
+                        <div style={{ marginTop: 6, color: '#8d8d8f' }}>{t('teacher.rej.permanent')}</div>
+                      </Rejected>
+                    ))}
                   </TableData>
                   <TableData>{num(l.downloads)}</TableData>
                   <TableData title={t('teacher.h.sales_total_help')}>{l.revenue} {cur}</TableData>
@@ -124,6 +156,27 @@ export default function TeacherPage() {
                     <div style={{ fontSize: 11, color: '#8d8d8f' }}>
                       {it.tx_hash ? t('teacher.item.tx', { tx: shortHash(it.tx_hash, 14) }) : it.attempts !== undefined ? t('teacher.item.attempts', { n: it.attempts }) : it.status === 'pending' && it.scheme !== 'local-credit' ? t('teacher.item.other_node', { seller: shortAddr(it.seller, 6), hash: shortHash(it.settle_hash, 12) }) : it.scheme === 'local-credit' ? t('teacher.item.scheme_local') : it.scheme === 'ain-transfer' ? t('teacher.item.scheme_ain') : ''}
                     </div>
+                    {/* Item 306 — what went wrong, and one button instead of waiting for an operator to notice a warn line. */}
+                    {it.status === 'failed' && it.last_error && <div style={{ fontSize: 11, color: '#e6173e', marginTop: 2 }} data-testid="teacher-payout-error">{t('teacher.item.last_error', { error: it.last_error })}</div>}
+                    {it.status !== 'paid' && it.payout_id !== undefined && mine && (
+                      <div style={{ marginTop: 6 }}>
+                        <Button
+                          size="small" variant="outlined" data-testid="teacher-payout-nudge"
+                          loading={nudgeState.isLoading}
+                          onClick={() => { void nudge(it.payout_id!); }}
+                        >{t('teacher.item.nudge')}</Button>
+                        {nudgeState.isSuccess && nudgeState.originalArgs === it.payout_id && (
+                          <span style={{ marginLeft: 8, fontSize: 11, color: '#8d8d8f' }}>
+                            {nudgeState.data?.retried
+                              ? t('teacher.item.nudge_done', { status: nudgeState.data.payout.status })
+                              : t('teacher.item.nudge_wait', { minutes: Math.ceil((nudgeState.data?.retry_after_ms ?? 0) / 60_000) })}
+                          </span>
+                        )}
+                        {nudgeState.isError && nudgeState.originalArgs === it.payout_id && (
+                          <span style={{ marginLeft: 8, fontSize: 11, color: '#e6173e' }}>{errorMessage(nudgeState.error)}</span>
+                        )}
+                      </div>
+                    )}
                   </TableData>
                   <TableData $align="right" $padding="0 16px 0 8px" title={dateTime(it.created_at)}>{elapsed(it.created_at)}</TableData>
                 </TableRow>
