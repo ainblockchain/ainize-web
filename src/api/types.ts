@@ -243,7 +243,21 @@ export interface SubscribeResult {
   acquired: string[]; failed: { patch_id: string; error: string }[]; applied: string[];
   skipped: { patch_id: string; reason: string }[]; removed: string[]; spent: { currency: string; amount: string }[];
 }
-export interface RouteResponse { branch: BranchInfo | null; nodes: PeerInfo[]; }
+/**
+ * `/api/route` (item 234): which track answered, which of the caller's attributes it matched, what else came close,
+ * and — for every node whose subscribe record stands — what that node has LOADED right now. A node that subscribed
+ * once and never loaded the track is `current: false`, not a serving node.
+ */
+export interface RouteResponse {
+  branch: BranchInfo | null;
+  matched?: string[];
+  unmatched?: string[];
+  candidates?: { name: string; context: Record<string, string>; matched: string[]; unmatched: string[] }[];
+  ambiguous?: boolean;
+  current?: string[];
+  nodes: (PeerInfo & { applied?: string[] | null; missing?: string[]; current?: boolean | null })[];
+  stale_nodes?: { address: string; name: string; endpoint: string; missing: string[] }[];
+}
 export interface NodesResponse {
   /** `blobs` is filtered through THIS node's catalogue; `blobs_advertised` is what the node itself says it holds (item 170). */
   nodes: (PeerInfo & { blobs_advertised?: number; ledger_mismatch?: boolean })[];

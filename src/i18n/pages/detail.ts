@@ -556,6 +556,14 @@ export const detailNetwork: Dict = {
   'detail.net.r.no_description': { ko: '설명 없음', en: 'no description' },
   'detail.net.r.context': { ko: '상황(조건)', en: 'Situation' },
   'detail.net.r.patches': { ko: '포함된 지식', en: 'Knowledge included' },
+  // Item 234 — a match on one attribute out of two, a tie between two tracks, and a node that subscribed but is
+  // serving last week's bake all used to read exactly like a clean answer.
+  'detail.net.r.matched': { ko: '일치한 속성', en: 'Attributes matched' },
+  'detail.net.r.unmatched': { ko: '일치하지 않음: {keys} — 이 트랙은 그 속성을 약속하지 않습니다', en: 'not matched: {keys} — this track promises nothing about those' },
+  'detail.net.r.ambiguous': { ko: '{n}개 트랙이 똑같이 일치합니다: {names}', en: '{n} tracks match this equally well: {names}' },
+  'detail.net.r.serving': { ko: '이 트랙을 전부 올려두었습니다', en: 'serving the whole track' },
+  'detail.net.r.stale': { ko: '구독만 하고 아직 올리지 않았습니다: {ids}', en: 'subscribed but not serving: {ids}' },
+  'detail.net.r.unknown_load': { ko: '무엇을 올렸는지 알리지 않는 노드입니다', en: 'does not report what it has loaded' },
   'detail.net.r.nodes': { ko: '연결 가능한 노드', en: 'Nodes that can answer' },
   'detail.net.r.no_nodes': { ko: '아직 이 묶음을 구독한 노드가 없습니다.', en: 'No node has subscribed to this track yet.' },
   'detail.net.dev_title': { ko: '노드 운영자·개발자', en: 'Node operators & developers' },

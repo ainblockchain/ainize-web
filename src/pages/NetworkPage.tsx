@@ -27,6 +27,8 @@ const RoleChip = styled.span<{ $role: string }>`
 const CtxChip = styled.span`
   display: inline-block; margin: 0 4px 4px 0; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; font-family: ${(p) => p.theme.font.mono}; background: #e1eef3; color: #0b5468;
 `;
+/** A quieter aside beside a routing answer (item 234): what did not match, and what a node is not serving. */
+const Muted = styled.span`font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
 const Dot = styled.span<{ $ok: boolean }>`
   display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: ${(p) => (p.$ok ? p.theme.color.SUCCESS : p.theme.color.LIGHT_GREY)};
 `;
@@ -309,10 +311,26 @@ export default function NetworkPage() {
               <dt>{t('detail.net.r.track')}</dt><dd><b>{routed.branch.name}</b> — {routed.branch.description || t('detail.net.r.no_description')}</dd>
               <dt>{t('detail.net.r.context')}</dt><dd>{Object.entries(routed.branch.context).map(([k, v]) => <CtxChip key={k}>{k}={v}</CtxChip>)}</dd>
               <dt>{t('detail.net.r.patches')}</dt><dd>{routed.branch.patch_ids.map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={`/${encodeURIComponent(routed.branch!.owner)}/${encodeURIComponent(id)}`}>{id}</StyledLink></span>)}{routed.branch.patch_ids.length === 0 && '—'}</dd>
+              {/* Item 234 — which attributes actually matched, and whether the answer was one of several. */}
+              <dt>{t('detail.net.r.matched')}</dt>
+              <dd>
+                {(routed.matched ?? []).map((k) => <CtxChip key={k}>{k}</CtxChip>)}
+                {(routed.unmatched ?? []).length > 0 && <Muted> {t('detail.net.r.unmatched', { keys: routed.unmatched!.join(', ') })}</Muted>}
+                {routed.ambiguous && <Muted style={{ display: 'block' }}>{t('detail.net.r.ambiguous', { n: routed.candidates?.length ?? 0, names: (routed.candidates ?? []).map((cd) => cd.name).join(', ') })}</Muted>}
+              </dd>
               <dt>{t('detail.net.r.nodes')}</dt>
               <dd>
                 {routed.nodes.length === 0 && t('detail.net.r.no_nodes')}
-                {routed.nodes.map((n) => <div key={n.address}><ExternalLink href={`${n.endpoint}/api/info`} target="_blank" rel="noopener noreferrer">{n.endpoint}</ExternalLink> <Mono>{shortAddr(n.address, 6)}</Mono> {n.model ? `· ${n.model}` : ''}</div>)}
+                {/* A subscribe record says a node once subscribed; `applied` says what it is serving right now. */}
+                {routed.nodes.map((n) => (
+                  <div key={n.address}>
+                    <ExternalLink href={`${n.endpoint}/api/info`} target="_blank" rel="noopener noreferrer">{n.endpoint}</ExternalLink> <Mono>{shortAddr(n.address, 6)}</Mono> {n.model ? `· ${n.model}` : ''}
+                    {n.current === false
+                      ? <Muted style={{ color: '#e6173e' }}> · {t('detail.net.r.stale', { ids: (n.missing ?? []).join(', ') })}</Muted>
+                      : n.current === true ? <Muted> · {t('detail.net.r.serving')}</Muted>
+                        : <Muted> · {t('detail.net.r.unknown_load')}</Muted>}
+                  </div>
+                ))}
               </dd>
             </KeyValue>
           )}
