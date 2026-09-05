@@ -1579,6 +1579,8 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
             </Button>
             {superseded && head && <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{t('detail.buy.old_open')} →</StyledLink>}
             <Quorum>{a.currency === 'AIN' ? t('detail.buy.pays_from_ain') : t('detail.buy.pays_from_credit')}{note && <> · {note}</>}</Quorum>
+            {/* Item 351: what a purchase publishes about the buyer, said before the button and not after it. */}
+            <Quorum data-testid="buy-public-record">{Number(a.price || 0) === 0 ? t('detail.buy.public_record_free') : t('detail.buy.public_record')}</Quorum>
             {credit && credit.issuance.issues && (
               <Quorum data-testid="buy-credit-note">{t('detail.buy.credit_issued', { balance: credit.balance, currency: credit.currency, node: credit.issued_by.name ?? shortAddr(credit.issued_by.address, 6), n: credit.issuance.addresses, cap: credit.issuance.cap })}</Quorum>
             )}

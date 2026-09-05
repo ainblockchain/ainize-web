@@ -390,6 +390,9 @@ export const detailPatch: Dict = {
   'detail.buy.again_body': { ko: '이 노드는 이미 {id}의 사용권을 결제했습니다. 다시 누르면 {price}이 한 번 더 이체되고, 이 노드의 구매 기록에는 가장 최근 결제만 남습니다(거래 해시가 덮어써집니다). 사용권을 하나 더 살 의도가 아니라면 취소하세요.', en: 'This node has already paid for {id}. Pressing again transfers {price} once more, and this node’s purchase record keeps only the most recent payment — the earlier transaction hash is overwritten. Cancel unless you meant to pay for a second licence.' },
   'detail.buy.again_confirm': { ko: '{price} 다시 결제', en: 'Pay {price} again' },
   'detail.buy.paying': { ko: '결제 중…', en: 'Paying…' },
+  // Item 351: buying publishes who you are. That was learned afterwards, from the public ledger page.
+  'detail.buy.public_record': { ko: '구매하면 공개 기록이 남습니다: 이 지식, 지불 금액, 그리고 구매한 노드의 주소가 모든 피어에게 공유됩니다.', en: 'The sale is recorded publicly: this knowledge, the price paid and your node’s address, shared with every peer.' },
+  'detail.buy.public_record_free': { ko: '무료 지식은 결제도 기록도 없습니다 — 누가 받아 갔는지 남지 않습니다.', en: 'A free knowledge is handed over with no payment and no record: nothing names who took it.' },
   'detail.buy.pays_from_ain': { ko: '이 노드의 AIN 지갑에서 결제하고 파일을 이 노드에 저장합니다.', en: 'Pays from this node’s AIN wallet and stores the file on this node.' },
   'detail.buy.pays_from_credit': { ko: '이 노드의 크레딧 잔액에서 결제하고 파일을 이 노드에 저장합니다.', en: 'Pays from this node’s credit balance and stores the file on this node.' },
   'detail.buy.done': { ko: '구매 완료: {id} · {amount} · 거래 {tx}', en: 'Purchased {id} · {amount} · tx {tx}' },
