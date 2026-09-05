@@ -43,6 +43,11 @@ export default function TeacherPage() {
   /** item 299 — on a local ledger "Paid" is a line in one node's book, not money that moved. */
   const playMoney = (data.ledger?.kind ?? (cur === 'CREDIT' ? 'local' : undefined)) === 'local';
   /** How long a lesson has been waiting, and how many verifiers actually looked (never "0 of 2" with no age). */
+  /** What this lesson actually paid the teacher: their own earnings rows for it, summed (item 308). */
+  const lessonShare = (patchId: string): string => {
+    const n = e.items.filter((it) => it.patch_id === patchId).reduce((sum, it) => sum + Number(it.amount ?? 0), 0);
+    return Number.isFinite(n) ? String(Math.round(n * 1e6) / 1e6) : '0';
+  };
   const waiting = (l: { status: string; verified: boolean; created_at?: number; attestations?: number; quorum?: number }) =>
     !l.verified && ['ANNOUNCED', 'VERIFYING', 'PENDING_REVIEW'].includes(l.status) && l.created_at !== undefined
       ? t('teacher.awaiting', { age: elapsed(l.created_at), n: l.attestations ?? 0, quorum: l.quorum ?? v?.quorum ?? 2 })
@@ -78,7 +83,13 @@ export default function TeacherPage() {
       {data.lessons.length === 0 ? <Empty style={{ marginTop: 12 }}>{t('teacher.lessons_empty')}</Empty> : (
         <TableWrapper style={{ marginTop: 12 }}>
           <Table>
-            <TableHeader><TableRow><TableHead $align="left" $padding="0 0 0 16px">{t('teacher.h.name')}</TableHead><TableHead>{t('teacher.h.status')}</TableHead><TableHead>{t('teacher.h.downloads')}</TableHead><TableHead $align="right" $padding="0 16px 0 8px">{t('teacher.h.revenue')}</TableHead></TableRow></TableHeader>
+            {/*
+              * Item 308 — the page that exists to show what a teacher earned opened with a number that is not what
+              * they earned: `lessons[].revenue` is the sum of the SALE amounts, and it sat three lines above a table
+              * headed "Your share". Same word for the same thing on both tables now, and the lesson's own share is
+              * summed from the earnings rows below it, so the two can be read against each other.
+              */}
+            <TableHeader><TableRow><TableHead $align="left" $padding="0 0 0 16px">{t('teacher.h.name')}</TableHead><TableHead>{t('teacher.h.status')}</TableHead><TableHead>{t('teacher.h.downloads')}</TableHead><TableHead title={t('teacher.h.sales_total_help')}>{t('teacher.h.sales_total')}</TableHead><TableHead $align="right" $padding="0 16px 0 8px">{t('teacher.h.amount')}</TableHead></TableRow></TableHeader>
             <TableBody>
               {data.lessons.map((l) => (
                 <TableRow key={l.id} data-testid="teacher-lesson">
@@ -88,7 +99,8 @@ export default function TeacherPage() {
                     {waiting(l) && <div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400, marginTop: 4 }} data-testid="teacher-awaiting">{waiting(l)}</div>}
                   </TableData>
                   <TableData>{num(l.downloads)}</TableData>
-                  <TableData $align="right" $padding="0 16px 0 8px">{l.revenue} {cur}</TableData>
+                  <TableData title={t('teacher.h.sales_total_help')}>{l.revenue} {cur}</TableData>
+                  <TableData $align="right" $padding="0 16px 0 8px" data-testid="teacher-lesson-share">{lessonShare(l.id)} {cur}</TableData>
                 </TableRow>
               ))}
             </TableBody>

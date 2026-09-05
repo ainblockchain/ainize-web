@@ -259,6 +259,11 @@ export const listing: Dict = {
   // Finding 282 — nothing on the browse surfaces said a knowledge was an add-on, so a buyer comparing a 5-credit
   // base with a 3-credit item built on it could not tell which was which until the fourth tab of the detail page.
   // `base.stack` is the table state the body was trained against: without it underneath, the rows mean nothing.
+  // Item 308: the lessons table's money column is the SALE total; "Your share" is the other table's word for the
+  // teacher's own cut, and both are shown per lesson so the two numbers cannot be mistaken for each other.
+  // (The rest of the teacher page's strings live with the teach dictionary; these two belong to this pair.)
+  'teacher.h.sales_total': { ko: '판매 합계', en: 'Sales total' },
+  'teacher.h.sales_total_help': { ko: '이 수업이 팔린 금액의 합계입니다. 가르친 사람이 받는 몫은 오른쪽 열입니다.', en: 'What this lesson sold for in total. What the teacher receives is the column on the right.' },
   'item.match': { ko: '검색어와 맞는 질문: “{prompt}” → {expect}', en: 'Matching question: “{prompt}” → {expect}' },
   'item.match_help': { ko: '이 지식이 답할 수 있는 질문 중 검색어와 맞는 것입니다. 이름이나 설명이 아니라 내용이 맞았습니다.', en: 'One of the questions this knowledge can answer that matches your search — the content matched, not the name or description.' },
   'item.addon': { ko: '애드온 · {names} 위에서 동작', en: 'Add-on · runs on {names}' },
