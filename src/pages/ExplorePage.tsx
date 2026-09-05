@@ -11,8 +11,9 @@ import { num } from '@/utils/format';
 
 // `built_on` and `trending` are the two orderings §10 of the lineage design defines: most built on (children on the
 // ledger plus this node's derive intents) and doing well this week (3·sales + 2·builds-on + loads + ½·tests·hit-rate).
-type Sort = 'popular' | 'latest' | 'price' | 'rows' | 'built_on' | 'trending';
-const SORTS: Sort[] = ['popular', 'trending', 'built_on', 'latest', 'price', 'rows'];
+type Sort = 'popular' | 'latest' | 'price' | 'rows' | 'built_on' | 'trending' | 'fresh';
+// `fresh` is item 267's ordering: by the day the DATA is true of, not the day the file was registered.
+const SORTS: Sort[] = ['popular', 'trending', 'built_on', 'fresh', 'latest', 'price', 'rows'];
 const ITEM_LIMIT = 10;
 /**
  * "Current only" — everything a visitor could sensibly load today. SUPERSEDED and REJECTED are the two states that

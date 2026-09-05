@@ -71,7 +71,7 @@ const DESCRIPTION_COUNT_FROM = 700;
 const DRAFT_KEY = 'ainize.new-patch.form';
 interface FormDraft {
   name: string; id: string; description: string; modelId: string; priceV: string; license: string;
-  parents: string; branch: string; topic: string; benchText: string; source: 'upload' | 'path'; path: string;
+  parents: string; branch: string; topic: string; asOf?: string; benchText: string; source: 'upload' | 'path'; path: string;
 }
 const readDraft = (): FormDraft | null => {
   try {
@@ -146,6 +146,8 @@ export default function NewPatchPage() {
   const [licenseOther, setLicenseOther] = useState(() => (saved?.license && !LICENSES.includes(saved.license as typeof LICENSES[number]) ? saved.license : ''));
   const [parents, setParents] = useState(saved?.parents ?? '');
   const [branch, setBranch] = useState(saved?.branch ?? '');
+  /** Item 267 — the day the DATA is true of, which until now lived only in whatever name the publisher typed. */
+  const [asOf, setAsOf] = useState(saved?.asOf ?? '');
   const [topic, setTopic] = useState(saved?.topic ?? '');
   // benchmark: `bench` is the source of truth for the plain fields; `benchText` is the developer JSON view kept in sync both ways.
   const [bench, setBench] = useState<Bench>(() => {
@@ -192,6 +194,7 @@ export default function NewPatchPage() {
     setParents(a.id);
     setBranch(a.branch ?? '');
     setTopic(a.topic_path ?? '');
+    setAsOf((a as { as_of?: string }).as_of ?? '');
     const b: Bench = {
       schema: a.benchmark.schema, queries: a.benchmark.queries,
       format: a.benchmark.format ?? [], collateral_bound_nat: a.benchmark.collateral_bound_nat,
@@ -206,14 +209,14 @@ export default function NewPatchPage() {
 
   // Only a form somebody has actually started is kept: an untouched visit must not greet the next one with a
   // "we brought back what you typed" notice over an empty page.
-  const started = !!(name || id || description || parents || branch || topic || path || license || bench.schema || bench.queries || bench.samples.some((x) => x.prompt || x.expect) || priceV !== '0.1');
+  const started = !!(name || id || description || parents || branch || topic || asOf || path || license || bench.schema || bench.queries || bench.samples.some((x) => x.prompt || x.expect) || priceV !== '0.1');
   useEffect(() => {
-    const draft: FormDraft = { name, id, description, modelId, priceV, license, parents, branch, topic, benchText, source, path };
+    const draft: FormDraft = { name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path };
     const timer = setTimeout(() => {
       try { if (started) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); else sessionStorage.removeItem(DRAFT_KEY); } catch { /* private mode — the form still works */ }
     }, 400);
     return () => clearTimeout(timer);
-  }, [started, name, id, description, modelId, priceV, license, parents, branch, topic, benchText, source, path]);
+  }, [started, name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path]);
 
   const updateBench = (patch: Partial<Bench>) => {
     const next: Bench = { ...bench, ...patch };
@@ -332,6 +335,7 @@ export default function NewPatchPage() {
     if (parents.trim()) fd.set('parents', parents.trim());
     if (branch.trim()) fd.set('branch', branch.trim());
     if (topic.trim()) fd.set('topic_path', topic.trim());
+    if (asOf.trim()) fd.set('as_of', asOf.trim());
     fd.set('benchmark', JSON.stringify(parsed));
     if (source === 'upload' && file) fd.set('file', file); else fd.set('path', path.trim());
     setSubmitting(true);
@@ -380,6 +384,10 @@ export default function NewPatchPage() {
         <FormRow>
           <TextField label={<Tip tech="model.id_M — target backbone + tokenizer">{t('op.new.model')}</Tip>} value={modelId} onChange={(e) => setModelId(e.target.value)} required helper={t('op.new.model.helper')} />
           <TextField label={<Tip tech="topic_path (ain-js knowledge graph)">{t('op.new.topic')}</Tip>} placeholder="finance/krx" value={topic} onChange={(e) => setTopic(e.target.value)} helper={t('op.new.topic.helper')} />
+        </FormRow>
+        <FormRow>
+          {/* Item 267: registration time is not data time, and until now only the name string carried the day. */}
+          <TextField type="date" label={<Tip tech="anchor.as_of (YYYY-MM-DD)">{t('op.new.as_of')}</Tip>} value={asOf} onChange={(e) => setAsOf(e.target.value)} helper={t('op.new.as_of.helper')} data-testid="new-as-of" />
         </FormRow>
 
         <SubTitle $mt={24}>{t('op.new.sec.price')}</SubTitle>

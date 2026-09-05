@@ -248,6 +248,9 @@ function useFamily(entry: CatalogEntry, nameOf?: (id: string) => string | undefi
   return null;
 }
 
+/** A day, in the reader's own calendar — the card shows dates, never "3 weeks ago", so two bakes can be compared. */
+const day = (ts: number): string => { try { return new Date(ts).toISOString().slice(0, 10); } catch { return '—'; } };
+
 /** Search hits quote the trained prompt, which can be a paragraph; the card shows the head of it. */
 const clip = (v: string, n: number) => (v.length > n ? `${v.slice(0, n - 1)}…` : v);
 
@@ -319,6 +322,12 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
         <Meta $mt={12}>
           <b>{t('common.author')}:</b> {author} · <b>{t('common.model')}:</b> {a.model.id_M}
           {' · '}<b>{t('item.topic')}:</b> {a.benchmark.schema}
+        </Meta>
+        {/* Item 267: a bake from three weeks ago and this morning's read identically — no date on the card at all. */}
+        <Meta $mt={6} data-testid="item-dates">
+          {a.as_of ? <b>{t('item.as_of', { date: a.as_of })}</b> : null}
+          {a.as_of ? ' · ' : ''}
+          {t('item.registered_on', { date: day(a.created_at) })}
         </Meta>
         <Meta>
           <PriceInline data-testid="item-price-inline">{p.text}</PriceInline>

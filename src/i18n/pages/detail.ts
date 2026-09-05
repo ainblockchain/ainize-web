@@ -86,6 +86,7 @@ export const detailPatch: Dict = {
   'detail.patch.live_test_sub': { ko: '넣기 전·후 답을 나란히 비교', en: 'Compare answers before and after' },
   'detail.patch.manage': { ko: '관리', en: 'Manage' },
   'detail.patch.meta': { ko: '{author} 님이 만듦 · 대상 모델 {model} · {when}', en: 'By {author} · target model {model} · {when}' },
+  'detail.patch.as_of_help': { ko: '이 지식이 어느 날짜의 데이터로 만들어졌는지 만든 사람이 밝힌 값입니다. 아래의 "검증 완료"는 검증 노드가 마지막으로 확인한 시각이지, 데이터의 날짜가 아닙니다.', en: 'The day the publisher declares this knowledge’s data is true of. The "verified" time beside it is when a verifier last checked it — not the age of the data.' },
   'detail.patch.listed_when': { ko: '{ago} 검증 완료', en: 'verified {ago}' },
   'detail.patch.registered_when': { ko: '{ago} 등록', en: 'registered {ago}' },
   /**

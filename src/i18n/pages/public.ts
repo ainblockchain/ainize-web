@@ -155,7 +155,9 @@ export const landing: Dict = {
 export const listing: Dict = {
   // sort
   'explore.sort.popular': { ko: '인기순', en: 'Most popular' },
-  'explore.sort.latest': { ko: '최신순', en: 'Newest' },
+  'explore.sort.latest': { ko: '등록순', en: 'Newest' },
+  // Item 267: "Newest" is when the FILE was registered; a daily consumer is asking which DATA is freshest.
+  'explore.sort.fresh': { ko: '데이터 최신순', en: 'Freshest data' },
   'explore.sort.price': { ko: '가격순', en: 'Price' },
   'explore.sort.rows': { ko: '지식 크기순', en: 'Knowledge size' },
 
@@ -255,6 +257,10 @@ export const listing: Dict = {
   // scored 26 questions, not the 2,761 the knowledge covers.
   'item.accuracy_checked': { ko: '정답률 {pct}% ({raw} 채점)', en: '{pct}% ({raw} checked)' },
   'item.accuracy_raw': { ko: '검증 질문 {raw} 정답', en: '{raw} benchmark questions correct' },
+  // Item 267: the browse cards carried no date at all, so a bake from three weeks ago and this morning's looked
+  // identical, and the only place a data day lived was the name the publisher invented for it.
+  'item.as_of': { ko: '데이터 기준일 {date}', en: 'Data as of {date}' },
+  'item.registered_on': { ko: '{date} 등록', en: 'registered {date}' },
   'item.downloads': { ko: '내려받기 {n}회', en: '{n} downloads' },
   'item.size': { ko: '크기 {size}', en: 'Size {size}' },
   'item.topic': { ko: '주제', en: 'Topic' },

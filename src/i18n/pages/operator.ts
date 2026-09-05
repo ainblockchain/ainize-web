@@ -569,6 +569,10 @@ export const operatorNew: Dict = {
   'op.new.parents.split.inherited': { ko: '기록에서 {pct}%를 약속한 원본({id})이 있어, 이 지식도 그보다 낮출 수 없습니다.', en: 'One of them ({id}) promises {pct}% on the record, so this knowledge cannot promise less.' },
   'op.new.parents.unknown': { ko: '이 노드가 모르는 ID: {ids} — 이대로 저장하면 거절됩니다.', en: 'This node does not know: {ids} — saving with these will be refused.' },
   'op.new.parents.none': { ko: '원본 지식을 적지 않으면 판매액은 모두 내 몫입니다.', en: 'Name none and every sale is yours alone.' },
+  // Item 267: the day the data is true of — the only date the product had was "registered", and every daily
+  // publisher was inventing a naming convention to carry it.
+  'op.new.as_of': { ko: '데이터 기준일 (선택)', en: 'Data as of (optional)' },
+  'op.new.as_of.helper': { ko: '이 지식이 어느 날짜의 데이터로 만들어졌는지 밝힙니다. 매일 새로 굽는 지식이라면 사는 쪽이 신선도를 이름이 아니라 이 값으로 비교할 수 있고, 둘러보기에서 "데이터 최신순"으로 정렬됩니다.', en: 'The day this knowledge’s data is true of. On a knowledge you bake daily this is what lets a buyer compare freshness without parsing your names, and it is what "Freshest data" sorts by in Explore.' },
   'op.new.branch': { ko: '트랙(브랜치) (선택)', en: 'Knowledge track (optional)' },
   'op.new.branch.helper': { ko: '서로 다른 전제의 지식은 다른 트랙에 둡니다 (예: law/KR).', en: 'Knowledge with different premises lives in different tracks (e.g. law/KR).' },
   'op.new.sec.bench': { ko: '검증 질문', en: 'Benchmark questions' },
