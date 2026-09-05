@@ -392,6 +392,11 @@ export const operatorManage: Dict = {
   'op.manage.lineage.root': { ko: '없음 (처음부터 만든 지식)', en: 'none (original knowledge)' },
   'op.manage.lineage.supersedes': { ko: '이 지식이 대체한 것', en: 'Replaces' },
   'op.manage.lineage.superseded_by': { ko: '이 지식을 대체한 것', en: 'Replaced by' },
+  'op.manage.lineage.cheaper': { ko: '내 가격보다 쌈', en: 'cheaper than yours' },
+  'op.manage.lineage.child_earned': { ko: '이 지식으로 {amount} 받음 ({n}건)', en: '{amount} to you from {n} sale(s)' },
+  'op.manage.lineage.earned': { ko: '파생 지식에서 받은 수익', en: 'Earned from derivatives' },
+  'op.manage.lineage.earned.value': { ko: '{amount} · 판매 {n}건', en: '{amount} from {n} sale(s)' },
+  'op.manage.lineage.earned.none': { ko: '아직 없음 — 파생 지식이 팔리면 여기에 쌓입니다', en: 'nothing yet — it appears here as derivatives sell' },
   'op.manage.lineage.note': { ko: '파생 지식이 팔리면 원작자에게도 자동으로 수익이 나뉩니다 (원작자 수익 분배).', en: 'When derived knowledge sells, the original creator automatically receives a share (creator revenue share).' },
   'op.manage.runtime.title': { ko: '모델에 넣기 / 빼기', en: 'Load into / unload from the model' },
   'op.manage.runtime.desc': { ko: '재시작 없이 몇 초 만에 이 지식을 모델에 넣고, 똑같이 빠르게 뺄 수 있습니다. 이 노드에 모델 실행 환경이 연결되어 있어야 합니다.', en: 'Loads this knowledge into the model in seconds without a restart, and unloads just as fast. Needs a model runtime connected to this node.' },
@@ -424,6 +429,8 @@ export const operatorManage: Dict = {
   // keeps the listing (and the gateway) selling it. `op.manage.retire.*` is the publish-time supersede sheet;
   // these keys are the author's own withdrawal of a published knowledge.
   'op.manage.conflict.who': { ko: '올린 곳', en: 'Published by' },
+  'op.manage.conflict.base': { ko: '아니오 — 이 지식의 원본', en: 'no — its base' },
+  'op.manage.conflict.addon': { ko: '아니오 — 이 지식 위에 만든 것', en: 'no — built on this' },
   'op.manage.conflict.mine': { ko: '내 지식', en: 'mine' },
   'op.manage.conflict.copy': { ko: '내 파일과 완전히 같은 파일입니다 (sha256 일치) — 다른 노드가 그대로 다시 올렸습니다. 내 지식을 물러나게 하지는 못합니다.', en: 'byte for byte the same file as yours (sha256 matches) — another node republished it. It cannot retire your listing.' },
   'op.manage.takedown.title': { ko: '판매 중단 (영구)', en: 'Take off sale (permanent)' },

@@ -116,7 +116,13 @@ export interface InfoResponse {
 
 export interface CatalogResponse { total: number; items: CatalogEntry[]; models: string[]; schemas: string[]; }
 
-export interface LineageRef { id: string; name: string; author: string; status: PatchStatus; }
+export interface LineageRef {
+  id: string; name: string; author: string; status: PatchStatus;
+  /** What it sells for (items 195, 318) — a child priced under its base is the base at a discount. */
+  price?: string; currency?: string; author_name?: string | null;
+  /** Only on children, and only for the author: sales of that child that paid this node, and how much. */
+  sales?: number | null; earned?: string | null;
+}
 /**
  * An address-set overlap with another knowledge on this node. `cross_branch` and `branch` come straight from the
  * node (market.ts:459) and decide the supersede rule with `same_schema`: only a same-schema overlap that is NOT
@@ -126,6 +132,8 @@ export interface ConflictInfo {
   patch_id: string; overlap_rows: number; same_schema: boolean; status: string; branch?: string; cross_branch?: boolean;
   /** who published the overlapping knowledge — only your OWN overlaps are ever retired by a publish (items 151, 363) */
   author?: string; author_name?: string | null; same_author?: boolean; created_at?: number; sales?: number;
+  /** A declared family overlap is never a conflict and never retired (item 189): an add-on writes over its base. */
+  lineage?: 'parent' | 'child' | null;
 }
 
 /**
@@ -158,7 +166,11 @@ export interface CreditInfo {
 }
 
 export interface PatchDetail extends CatalogEntry {
-  lineage: { parents: LineageRef[]; children: LineageRef[] };
+  lineage: {
+    parents: LineageRef[]; children: LineageRef[];
+    /** Everything derivatives of this knowledge have paid this node (items 195, 318) — author's view only. */
+    earned?: { amount: string; currency: string; sales: number };
+  };
   conflicts: ConflictInfo[];
   branches: { name: string; context: Record<string, string> }[];
   /** Lineage §12.5: the bases a buyer must load under this knowledge, and whether this node holds them. */

@@ -195,7 +195,9 @@ export default function ManagePage() {
    * every same-subject overlap — including the cross-branch ones that deliberately coexist — and the Publish button
    * ignored the count entirely.
    */
-  const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && ['LISTED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
+  // Item 189: a declared base (or add-on) overlaps by design and is never retired by this publish — the node's own
+  // `supersedable()` skips it, so the checklist must not promise a retirement that will not happen.
+  const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && !c.lineage && ['LISTED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
   const coexisting = p.conflicts.filter((c) => c.same_schema && c.cross_branch).length;
   const byId = new Map((catalog.data?.items ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
@@ -495,7 +497,9 @@ export default function ManagePage() {
                     ? (c.author_name || shortAddr(c.author ?? other?.anchor.author ?? '', 6))
                     : <Muted>{t('op.manage.conflict.mine')}</Muted>}</TableData>
                   <TableData>{t('units.rows', { n: num(c.overlap_rows) })}</TableData>
-                  <TableData $color={c.same_schema ? '#e6173e' : '#8d8d8f'}>{c.same_schema ? t('op.yes') : t('op.no')}</TableData>
+                  <TableData $color={c.lineage ? '#1e6b36' : c.same_schema ? '#e6173e' : '#8d8d8f'}>
+                    {c.lineage ? t(c.lineage === 'parent' ? 'op.manage.conflict.base' : 'op.manage.conflict.addon') : c.same_schema ? t('op.yes') : t('op.no')}
+                  </TableData>
                   <TableData><StatusChip status={c.status} /></TableData>
                 </TableRow>
               );
@@ -542,7 +546,19 @@ export default function ManagePage() {
       <SubTitle $mt={56}><Tip tech={tech('lineage')}>{t('op.manage.lineage.title')}</Tip></SubTitle>
       <KeyValue>
         <dt>{t('op.manage.lineage.parents')}</dt><dd>{p.lineage.parents.length ? p.lineage.parents.map((x) => <span key={x.id} style={{ marginRight: 12 }}><StyledLink to={`/${x.author}/${x.id}`}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} /></span>) : <Muted>{t('op.manage.lineage.root')}</Muted>}</dd>
-        <dt>{t('op.manage.lineage.children')}</dt><dd>{p.lineage.children.length ? p.lineage.children.map((x) => <span key={x.id} style={{ marginRight: 12 }}><StyledLink to={`/${x.author}/${x.id}`}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} /></span>) : <Muted>{t('op.none')}</Muted>}</dd>
+        {/* Items 195, 318: a child was a name and a chip. What its price is, and what it has actually paid the
+            creator of the base, is the whole of what an ancestor needs — and it was on no screen at all. */}
+        <dt>{t('op.manage.lineage.children')}</dt><dd data-testid="lineage-children">{p.lineage.children.length ? p.lineage.children.map((x) => (
+          <span key={x.id} style={{ marginRight: 12, display: 'inline-block' }}>
+            <StyledLink to={`/${x.author}/${x.id}`}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} />
+            {x.price !== undefined && <Muted> · {money.fmt(x.price, x.currency ?? a.currency)}{Number(x.price) < Number(a.price) ? ` (${t('op.manage.lineage.cheaper')})` : ''}</Muted>}
+            {x.author_name && x.author !== a.author && <Muted> · {x.author_name}</Muted>}
+            {!!x.sales && <Muted> · {t('op.manage.lineage.child_earned', { amount: money.fmt(x.earned ?? '0', a.currency), n: x.sales })}</Muted>}
+          </span>
+        )) : <Muted>{t('op.none')}</Muted>}</dd>
+        {!!p.lineage.earned && <><dt>{t('op.manage.lineage.earned')}</dt><dd data-testid="lineage-earned">{p.lineage.earned.sales
+          ? t('op.manage.lineage.earned.value', { amount: money.fmt(p.lineage.earned.amount, p.lineage.earned.currency), n: p.lineage.earned.sales })
+          : <Muted>{t('op.manage.lineage.earned.none')}</Muted>}</dd></>}
         <dt>{t('op.manage.lineage.supersedes')}</dt><dd>{p.supersedes.length ? p.supersedes.join(', ') : <Muted>—</Muted>}</dd>
         <dt>{t('op.manage.lineage.superseded_by')}</dt><dd>{p.superseded_by.length ? p.superseded_by.join(', ') : <Muted>—</Muted>}</dd>
       </KeyValue>
