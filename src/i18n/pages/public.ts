@@ -166,6 +166,9 @@ export const listing: Dict = {
   'explore.sub': { ko: '검증 상태와 정답률을 보고 고르세요. 사기 전에 라이브 테스트로 직접 확인할 수 있습니다.', en: 'Choose by verification status and accuracy. You can check any of it with a live test before buying.' },
   'explore.filter.model': { ko: '대상 모델', en: 'Model' },
   'explore.filter.schema': { ko: '주제', en: 'Topic' },
+  // Item 188 — one chip per benchmark schema, uncapped, was 136 chips on a teaching node.
+  'explore.filter.schema_taught': { ko: '가르친 수업 {n}종', en: 'Taught lessons ({n})' },
+  'explore.filter.schema_more': { ko: '+{n}개 더', en: '+{n} more' },
   'explore.filter.schema_help': { ko: '같은 주제의 지식은 같은 질문 묶음으로 채점됩니다.', en: 'Knowledge on the same topic is scored with the same question set.' },
   'explore.filter.all': { ko: '전체', en: 'All' },
   'explore.search': { ko: '이름·질문·주제·만든 이 검색', en: 'Search names, questions, topics, creators' },

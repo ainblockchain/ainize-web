@@ -14,6 +14,9 @@ import { num } from '@/utils/format';
 type Sort = 'popular' | 'latest' | 'price' | 'rows' | 'built_on' | 'trending' | 'fresh';
 // `fresh` is item 267's ordering: by the day the DATA is true of, not the day the file was registered.
 const SORTS: Sort[] = ['popular', 'trending', 'built_on', 'fresh', 'latest', 'price', 'rows'];
+/** Item 188: the subject chips are capped, and every taught lesson's own subject is one chip behind this prefix. */
+const SCHEMA_CHIPS = 8;
+const TAUGHT = 'taught/';
 const ITEM_LIMIT = 10;
 /**
  * "Current only" — everything a visitor could sensibly load today. SUPERSEDED and REJECTED are the two states that
@@ -132,6 +135,16 @@ export default function ExplorePage() {
   useEffect(() => { if (data) facets.current = { models: data.models, schemas: data.schemas }; }, [data]);
   const models = data?.models ?? facets.current.models;
   const schemas = data?.schemas ?? facets.current.schemas;
+  /**
+   * Item 188 — `createLessonDraft` gives every lesson its own benchmark schema (`taught/<name>-<hex>`, by design F15
+   * so a lesson never supersedes its base), and this filter row printed one chip per schema with no cap: 136 of them
+   * on node-u. Taught lessons collapse into one chip, the rest are capped, and the cap is a click away.
+   */
+  const [allSchemas, setAllSchemas] = useState(false);
+  const taughtCount = schemas.filter((x) => x.startsWith(TAUGHT)).length;
+  const plainSchemas = schemas.filter((x) => !x.startsWith(TAUGHT));
+  const shownSchemas = allSchemas ? plainSchemas : plainSchemas.slice(0, SCHEMA_CHIPS);
+  const restSchemas = plainSchemas.length - shownSchemas.length;
 
   const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
   const items = data?.items ?? [];
@@ -178,7 +191,18 @@ export default function ExplorePage() {
           <FilterGroup>
             <span className="label" title={`${t('explore.filter.schema_help')} (${tech('facts')})`}>{t('explore.filter.schema')}</span>
             <Chip $active={!schema} onClick={() => { setSchema(''); reset(); }}>{t('explore.filter.all')}</Chip>
-            {schemas.map((s) => <Chip key={s} $active={schema === s} onClick={() => { setSchema(schema === s ? '' : s); reset(); }}>{s}</Chip>)}
+            {shownSchemas.map((s) => <Chip key={s} $active={schema === s} onClick={() => { setSchema(schema === s ? '' : s); reset(); }}>{s}</Chip>)}
+            {/* Item 188 — every taught lesson gets its own `taught/<slug>-<hex>` subject by design, so this row was
+                136 chips on a teaching node and the first card sat 4,297 px down a 360 px screen. The subjects with
+                the most knowledge come first, the rest are behind "more", and every lesson's subject is one chip. */}
+            {taughtCount > 0 && (
+              <Chip $active={schema.startsWith(TAUGHT)} onClick={() => { setSchema(schema.startsWith(TAUGHT) ? '' : `${TAUGHT}*`); reset(); }} data-testid="schema-taught">
+                {t('explore.filter.schema_taught', { n: num(taughtCount) })}
+              </Chip>
+            )}
+            {restSchemas > 0 && !allSchemas && (
+              <Chip $active={false} onClick={() => setAllSchemas(true)} data-testid="schema-more">{t('explore.filter.schema_more', { n: num(restSchemas) })}</Chip>
+            )}
           </FilterGroup>
         )}
         {/* Item 206: a track is how a returning consumer thinks about a catalogue ("today's KRX bake"), and it was
