@@ -2,8 +2,8 @@ import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddToBranchMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMyPatchesQuery,
-  useMyPurchasesQuery, useRuntimeQuery,
+  errorMessage, useAddToBranchMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useLedgerQuery, useMeQuery, useMyPatchesQuery,
+  useMyPurchasesQuery, useRuntimeQuery, useWalletQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -18,6 +18,25 @@ import { IconButton, LiveTestIcon, QueryError, Row, SmallSpinner, Stack, StatusT
 import { TrackCard } from '@/components/operator/TrackCard';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { num, shortAddr, shortHash } from '@/utils/format';
+
+/**
+ * Item 335 — the console showed verification as no work at all: a node with 203 attestations on the record read
+ * "No knowledge yet — register your first one", Account said "Roles: verifier" and nothing anywhere answered what
+ * the node did this week, what came back, or what it earned for it. Every fact here is read from the public record
+ * (`attest` records this node signed) and from the wallet's own verification rows — nothing is estimated, and the
+ * things this build genuinely does not measure (GPU seconds, bytes held for verification alone) are not invented.
+ */
+const VerifyCard = styled.div`
+  display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 18px 22px; margin-bottom: 24px;
+  background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
+`;
+const VerifyStat = styled.div`
+  display: flex; flex-direction: column; min-width: 92px;
+  b { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; color: ${(p) => p.theme.color.BLACK}; }
+  b.bad { color: ${(p) => p.theme.color.ERROR}; }
+  span { margin-top: 3px; font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
+`;
+const VerifyNote = styled.div`flex: 1 1 100%; font-size: 12px; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;`;
 
 const NameLink = styled(Link)`
   font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { text-decoration: underline; }
@@ -79,6 +98,45 @@ const NODELOG_SEEN = 'ainize.nodelog.seen';
 /** Teaching tab (spec §5.13) is code-split: most operators open My knowledge far more often than the teach queue. */
 const TeachingTab = lazy(() => import('@/components/operator/TeachingTab'));
 
+/** The verification block (item 335) — rendered only for a node that has actually written attestations. */
+function VerificationWork({ address }: { address: string }) {
+  const { t, tech, help } = useT();
+  const money = useMoney();
+  const attests = useLedgerQuery({ kind: 'attest', limit: 5000 });
+  const wallet = useWalletQuery();
+  // `wallet.network` is the ledger's network name ("local"), never a currency — the unit comes from /api/info.
+  const { data: nodeInfo } = useInfoQuery();
+  const mine = useMemo(() => {
+    const rows = (attests.data?.records ?? []).map((r) => r.body as { patch_id?: string; verifier?: string; passed?: boolean; verified_on?: string })
+      .filter((b) => (b.verifier ?? '').toLowerCase() === address.toLowerCase());
+    return {
+      total: rows.length,
+      passed: rows.filter((b) => b.passed !== false).length,
+      failed: rows.filter((b) => b.passed === false).length,
+      hashOnly: rows.filter((b) => b.verified_on === 'hash-only').length,
+      knowledges: new Set(rows.map((b) => b.patch_id ?? '')).size,
+    };
+  }, [attests.data, address]);
+  const network = useMemo(() => {
+    const rows = (attests.data?.records ?? []).map((r) => r.body as { passed?: boolean });
+    return { total: rows.length, failed: rows.filter((b) => b.passed === false).length };
+  }, [attests.data]);
+  if (!mine.total) return null;
+  const earned = wallet.data?.verification_total ?? '0';
+  const currency = nodeInfo?.currency ?? '';
+  return (
+    <VerifyCard data-testid="dash-verification">
+      <VerifyStat><b>{num(mine.total)}</b><span title={`${help('signedResult')} (${tech('signedResult')})`}>{t('op.dash.verify.attested')}</span></VerifyStat>
+      <VerifyStat><b>{num(mine.passed)}</b><span>{t('op.dash.verify.passed')}</span></VerifyStat>
+      <VerifyStat><b className={mine.failed ? 'bad' : undefined}>{num(mine.failed)}</b><span>{t('op.dash.verify.failed')}</span></VerifyStat>
+      <VerifyStat><b>{num(mine.hashOnly)}</b><span title={t('op.dash.verify.hash_help')}>{t('op.dash.verify.hash')}</span></VerifyStat>
+      <VerifyStat><b>{num(mine.knowledges)}</b><span>{t('op.dash.verify.knowledges')}</span></VerifyStat>
+      <VerifyStat><b>{money.revenue(earned, currency)}</b><span title={t('op.dash.verify.earned_help')}>{t('op.dash.verify.earned')}</span></VerifyStat>
+      <VerifyNote>{t('op.dash.verify.network', { total: num(network.total), failed: num(network.failed) })} {t('op.dash.verify.note')}</VerifyNote>
+    </VerifyCard>
+  );
+}
+
 export default function DashboardPage() {
   const { t, term, help, tech } = useT();
   useTitle(t('op.dash.title'));
@@ -89,6 +147,7 @@ export default function DashboardPage() {
   const tab: 'knowledge' | 'teaching' = params.get('tab') === 'teaching' ? 'teaching' : 'knowledge';
   const setTab = (id: string) => { const next = new URLSearchParams(params); if (id === 'teaching') next.set('tab', 'teaching'); else next.delete('tab'); setParams(next, { replace: true }); };
   const { data: info } = useInfoQuery();
+  const { data: me } = useMeQuery();
   const currency = info?.currency ?? '';
   const [inFlight, setInFlight] = useState(false);
   const patches = useMyPatchesQuery(undefined, { pollingInterval: inFlight ? 5000 : 0 });
@@ -205,6 +264,8 @@ export default function DashboardPage() {
       </div>
       {tab === 'teaching' && <Suspense fallback={<CenterProgress />}><TeachingTab /></Suspense>}
       {tab === 'knowledge' && (<>
+      {/* Item 335: what this node's verifier role actually did — above its own knowledge, which may be none. */}
+      {me?.address && <VerificationWork address={me.address} />}
       {actionError && <Alert $tone="error" style={{ marginBottom: 16 }}>{actionError}</Alert>}
       {chain.error && <Alert $tone="error" style={{ marginBottom: 16 }} data-testid="apply-error">{chain.error}</Alert>}
       {chain.notice && <Alert $tone="success" style={{ marginBottom: 16 }} data-testid="apply-order">{chain.notice}</Alert>}

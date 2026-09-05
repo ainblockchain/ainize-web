@@ -94,6 +94,17 @@ export const operatorSign: Dict = {
 };
 
 export const operatorDash: Dict = {
+  // Item 335: the console showed verification as no work at all — 203 attestations under "No knowledge yet".
+  'op.dash.verify.attested': { ko: '검증 서명', en: 'Verifications signed' },
+  'op.dash.verify.passed': { ko: '합격 판정', en: 'Passed' },
+  'op.dash.verify.failed': { ko: '불합격 판정', en: 'Failed' },
+  'op.dash.verify.hash': { ko: '무결성만 확인', en: 'Integrity only' },
+  'op.dash.verify.hash_help': { ko: '모델을 돌리지 못해 파일 해시만 확인한 검증입니다. 정족수에는 들어가지 않습니다.', en: 'Verifications that could only check the file hash because no model was available — they do not count toward a quorum.' },
+  'op.dash.verify.knowledges': { ko: '검증한 지식', en: 'Knowledge checked' },
+  'op.dash.verify.earned': { ko: '검증으로 받은 몫', en: 'Earned by verifying' },
+  'op.dash.verify.earned_help': { ko: '이 노드의 검증 덕분에 팔린 지식에서 받은 몫의 합계입니다.', en: 'The share of other people’s sales this node earned by keeping their knowledge verified.' },
+  'op.dash.verify.network': { ko: '이 노드가 읽는 기록 전체에는 검증 {total}건이 있고 그중 {failed}건이 불합격이었습니다.', en: 'Across the whole record this node reads, {total} verifications were written and {failed} of them failed.' },
+  'op.dash.verify.note': { ko: '모두 공개 기록에 서명으로 남은 값입니다. GPU 시간은 아직 기록하지 않아 여기에 나오지 않습니다.', en: 'Every number here is read from signed records on the public ledger. GPU time is not recorded yet, so it is not shown.' },
   'op.dash.title': { ko: '내 지식', en: 'My knowledge' },
   'op.dash.register': { ko: '등록하기', en: 'Register knowledge' },
   'op.dash.col.name': { ko: '이름', en: 'Name' },
