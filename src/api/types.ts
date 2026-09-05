@@ -42,6 +42,10 @@ export interface CatalogEntry {
   settlements: Settlement[];
   downloads: number;
   revenue: string;
+  /** Every price it has been sold at, and the one on its immutable anchor (item 278). */
+  price_history?: { price: string; currency: string; reason: string; created_at: number }[];
+  list_price?: string | null;
+  repriced_at?: number | null;
   /** Distinct buyers behind `downloads`; self-purchases are in neither (item 365). */
   buyers?: number;
   /** What the anchor's author actually received, and what those sales owed other creators (item 194). */

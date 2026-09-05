@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
   errorMessage, useAnnounceMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, usePatchQuery,
-  useRetireMutation, useRuntimeQuery, useUpdatePatchMutation, useVerifyMutation,
+  useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -77,6 +77,10 @@ export default function ManagePage() {
   });
   const [del, delState] = useDeletePatchMutation();
   const [retire, retireState] = useRetireMutation();
+  /** Item 278: a published price was permanent — the only re-pricing was republishing, which supersedes your own item. */
+  const [setPrice, setPriceState] = useSetPriceMutation();
+  const [newPrice, setNewPrice] = useState('');
+  const [priceReason, setPriceReason] = useState('');
 
   // editable fields (drafts only)
   const [desc, setDesc] = useState('');
@@ -629,6 +633,36 @@ export default function ManagePage() {
           </DevBox>
         </>
       ) : (<>
+      {/* Item 278 — the price was fixed for ever at announce: a seller who took the 0.1 default, or who wanted a
+          launch discount, or to make an obsolete knowledge free, had no path but republishing (which supersedes
+          their own item and restarts verification). A price is a record of its own now. */}
+      {!isDraft && (
+        <>
+          <SubTitle $mt={56}>{t('op.manage.price.title')}</SubTitle>
+          {p.status === 'RETIRED' ? <Muted>{t('op.manage.price.retired')}</Muted> : (
+            <Stack $gap={12} style={{ maxWidth: 560 }}>
+              <Muted>{t('op.manage.price.desc', { price: money.fmt(a.price, a.currency) })}</Muted>
+              {(p.price_history?.length ?? 0) > 0 && (
+                <Muted data-testid="price-history">{t('op.manage.price.history', {
+                  history: [money.fmt(p.list_price ?? a.price, a.currency), ...(p.price_history ?? []).map((h) => money.fmt(h.price, h.currency))].join(' → '),
+                })}</Muted>
+              )}
+              <Row $gap={12} $wrap>
+                <TextField label={t('op.manage.price.field', { currency: money.unit(a.currency) })} value={newPrice} onChange={(e) => setNewPrice(e.target.value)} data-testid="price-field" style={{ maxWidth: 220 }} />
+                <TextField label={t('op.manage.price.reason')} value={priceReason} onChange={(e) => setPriceReason(e.target.value)} data-testid="price-reason" />
+              </Row>
+              <Row>
+                <Button color="secondary" data-testid="price-save" disabled={!/^\d+(\.\d+)?$/.test(newPrice.trim()) || newPrice.trim() === a.price}
+                  loading={setPriceState.isLoading} loadingText={t('op.manage.price.working')}
+                  onClick={() => run(async () => { await setPrice({ id: a.id, price: newPrice.trim(), reason: priceReason.trim() || undefined }).unwrap(); setNewPrice(''); setPriceReason(''); }, t('op.manage.price.done'))}>
+                  {t('op.manage.price.button')}
+                </Button>
+              </Row>
+            </Stack>
+          )}
+        </>
+      )}
+
       <SubTitle $mt={56}>{isDraft ? t('op.manage.delete.title') : t('op.manage.takedown.title')}</SubTitle>
       {!isDraft ? (
         <>

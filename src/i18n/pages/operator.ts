@@ -50,6 +50,7 @@ export const operatorCommon: Dict = {
   'op.runtime.noapi': { ko: '연결된 모델 서버 없음', en: 'no serving API' },
   // SC-18 (lineage design §4): what is on the model, in the order it was put there — an add-on is meaningless
   // without the knowledge under it, so a set of names would not have answered the operator's question.
+  'ops.stack.livetest': { ko: '라이브 테스트가 올림', en: 'loaded for a live test' },
   'ops.stack': { ko: '올라간 지식 (순서대로): {list}', en: 'Loaded stack (in order): {list}' },
   'ops.stack.base': { ko: '아래에 깔린 기반', en: 'loaded underneath' },
   'ops.stack.nojournal': { ko: '이 중 {n}개는 직전 값 기록이 없습니다 — 빼면 파일에 적힌 이전 값으로 되돌아갑니다.', en: '{n} of these have no record of what the rows held before — removing one writes the file\'s own "before" instead.' },
@@ -116,6 +117,18 @@ export const operatorDash: Dict = {
   'op.dash.col.test': { ko: '라이브 테스트', en: 'Live test' },
   'op.dash.col.manage': { ko: '관리', en: 'Manage' },
   'op.dash.sales.cell': { ko: '{n}건 · {revenue}', en: '{n} · {revenue}' },
+  /* Item 278 — an anchor is immutable, so the only re-pricing there was is publishing a new knowledge that
+     supersedes the old one: verification restarts, the sales history splits, and a discount is indistinguishable
+     from a new version. A price is now a signed record of its own. */
+  'op.manage.price.title': { ko: '가격', en: 'Price' },
+  'op.manage.price.desc': { ko: '지금 가격은 {price}입니다. 가격은 언제든 바꿀 수 있고, 바뀐 가격은 공개 기록에 남아 다음 판매부터 적용됩니다 — 이미 구매한 사람에게는 아무 영향이 없습니다.', en: 'It sells for {price} now. You can change that at any time: the new price goes on the public record and applies to the next sale — nothing already bought is affected.' },
+  'op.manage.price.field': { ko: '새 가격 ({currency}, 0이면 무료)', en: 'New price ({currency}; 0 makes it free)' },
+  'op.manage.price.reason': { ko: '이유 (선택) — 구매자에게 가격 이력과 함께 표시됩니다', en: 'Why (optional) — shown to buyers with the price history' },
+  'op.manage.price.button': { ko: '가격 바꾸기', en: 'Change the price' },
+  'op.manage.price.working': { ko: '기록하는 중…', en: 'recording…' },
+  'op.manage.price.done': { ko: '가격이 바뀌었습니다.', en: 'The price has changed.' },
+  'op.manage.price.history': { ko: '가격 이력: {history}', en: 'Price history: {history}' },
+  'op.manage.price.retired': { ko: '내려간 지식입니다 — 판매가 끝났으니 가격은 의미가 없습니다.', en: 'This knowledge is retired: it is off sale for good, so a price would change nothing.' },
   // Item 194: the sale price is not what reached the seller. A derivative that shares 65 % upstream showed the
   // buyer's 10 next to a balance that went up by 3.5.
   'op.dash.sales.net': { ko: '{revenue} 중 내 몫 {net} · 원작자 몫 {shared}', en: '{net} of {revenue} reached you · {shared} to the creators it was built on' },
@@ -183,6 +196,13 @@ export const operatorDash: Dict = {
   'op.dash.branches.behind.more': { ko: '{ids} 외 {n}개', en: '{ids} and {n} more' },
   'op.dash.branches.behind.help': { ko: '“지금 최신으로”를 누르면 이 트랙의 현재 지식 중 없는 것을 사서 모델에 넣고, 교체된 지난 판을 빼냅니다.', en: '“Sync now” buys what is missing from the track’s current knowledge, loads it, and unloads the versions it replaces.' },
   'op.dash.branches.loaded.unknown': { ko: '모델 실행 환경을 쓸 수 없어 무엇이 들어가 있는지 확인할 수 없습니다.', en: 'The model runtime is unavailable, so what is loaded cannot be read.' },
+  // Item 214 — a track is loaded on top of what is already in the model, and the model is last-wins on a shared row.
+  'op.dash.branches.sheet.order': { ko: '올라가는 순서 — 뒤에 올라간 지식이 겹치는 행에서 이깁니다', en: 'load order — the later one answers on any row they share' },
+  'op.dash.branches.sheet.overrides': { ko: '이 트랙을 지금 올리면, 이미 올라가 있는 지식을 겹치는 행에서 덮어씁니다:', en: 'Loading this track now writes over knowledge already in the model on the rows they share:' },
+  'op.dash.branches.sheet.overrides.line': { ko: '{track}이(가) {loaded}의 행 {rows}개를 덮어씁니다 ({how})', en: '{track} covers {rows} of {loaded}\u2019s rows ({how})' },
+  'op.dash.branches.sheet.overrides.anyway': { ko: '그래도 트랙을 올립니다', en: 'Load the track anyway' },
+  'op.dash.branches.loadedby.manual': { ko: '직접 올림', en: 'loaded by hand' },
+  'op.dash.branches.loadedby.track': { ko: '{track} 트랙이 올림', en: 'loaded by the track {track}' },
   'op.dash.branches.keepsup': { ko: '이 트랙에 새 지식이 올라오면 이 노드가 자동으로 구매해 모델에 넣고, 지난 판은 빼냅니다(20초마다 확인).', en: 'When this track publishes something new this node buys it, loads it and unloads the version it replaces — checked every 20 seconds.' },
   'op.dash.branches.done.bought': { ko: '{n}개 구매 · {total}', en: 'bought {n} · {total}' },
   'op.dash.branches.done.loaded': { ko: '모델에 넣음: {ids}', en: 'loaded into the model: {ids}' },

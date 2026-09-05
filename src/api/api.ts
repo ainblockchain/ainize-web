@@ -152,6 +152,13 @@ export const api = createApi({
     announce: b.mutation<{ record: LedgerRecord; verifiers?: { known: number; reachable: number; verifiers: number; quorum: number; self_attest: boolean }; visibility?: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/announce`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     // The takedown (item 148): the anchor stays on the record, the knowledge goes off sale everywhere.
     retire: b.mutation<{ patch_id: string; retired_at: number; reason: string }, { id: string; reason?: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/retire`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
+    /**
+     * A price change (item 278): the anchor is immutable, and re-pricing used to mean publishing a new knowledge
+     * that superseded the old one — restarting verification and splitting its sales history to run a discount.
+     */
+    setPrice: b.mutation<{ patch_id: string; price: string; previous: string; currency: string; history: { price: string; created_at: number }[] }, { id: string; price: string; reason?: string }>({
+      query: ({ id, price, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/price`, method: 'POST', body: { price, reason } }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     /** Item 270 / design §12.4 — `bundle` buys the bases this knowledge needs underneath it too, deepest first,
@@ -178,7 +185,8 @@ export const api = createApi({
     }),
     createBranch: b.mutation<unknown, { name: string; description: string; context: Record<string, string>; patch_ids: string[] }>({ query: (body) => ({ url: 'api/branches', method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger'] }),
     addToBranch: b.mutation<unknown, { name: string; patch_id: string }>({ query: ({ name, patch_id }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches`, method: 'POST', body: { patch_id } }), invalidatesTags: ['Branches', 'Ledger'] }),
-    subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe' }>({ query: ({ name, action }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST' }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
+    // `replace` (item 214): the node refuses to load a track over knowledge already in the model unless it is passed.
+    subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe'; replace?: boolean }>({ query: ({ name, action, replace }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST', body: action === 'subscribe' ? { replace: !!replace } : {} }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
     /** Item 357 — what subscribing would spend, decided by the node with the same rules `subscribe` follows. */
     trackQuote: b.query<{ quote: TrackQuote }, string>({ query: (name) => ({ url: `api/branches/${encodeURIComponent(name)}/quote`, method: 'POST' }), providesTags: ['Branches', 'Catalog', 'Me'] }),
     /** Item 255 — buy and load what the track added, unload what it retired. */
@@ -320,7 +328,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation, useChangePasswordMutation,
-  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation,
+  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
