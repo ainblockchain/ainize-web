@@ -129,6 +129,10 @@ export const operatorDash: Dict = {
   'op.manage.price.done': { ko: '가격이 바뀌었습니다.', en: 'The price has changed.' },
   'op.manage.price.history': { ko: '가격 이력: {history}', en: 'Price history: {history}' },
   'op.manage.price.retired': { ko: '내려간 지식입니다 — 판매가 끝났으니 가격은 의미가 없습니다.', en: 'This knowledge is retired: it is off sale for good, so a price would change nothing.' },
+  /* Item 322 — the rule that decides the lineage split lived in a source comment, so naming two knowledges by one
+     creator cost exactly what naming one cost and nothing said so, and a creator weighing one base against two was
+     making a permanent revenue decision with no rule in front of them. */
+  'op.new.parents.rule': { ko: '나뉘는 방식: 창작자 몫은 계보에 있는 서로 다른 창작자들에게 균등하게 나뉩니다(깊이 무관). 같은 창작자의 지식을 두 개 적어도 하나 적을 때와 금액이 같고, 다른 창작자를 하나 더 적으면 먼저 적은 창작자의 몫이 절반이 됩니다. 각 창작자의 몫은 그 사람의 지식들끼리 다시 나뉘고, 그 지식에 데이터를 제공한 사람의 몫도 거기서 나갑니다.', en: 'How it is divided: the creator share is split equally between the DISTINCT creators in the lineage, at any depth. Naming two knowledges by one creator costs the same as naming one; naming a second creator halves the first one\u2019s share. Each creator\u2019s slice is then split among their own knowledges, and their data providers take their share out of it.' },
   /* Item 320 — the money verbs were all read-only or inward: a creator who had earned could spend it only by
      buying other knowledge through this same node, so "you get paid per sale" ended at a number on one screen. */
   'op.account.send.title': { ko: '보내기', en: 'Send' },

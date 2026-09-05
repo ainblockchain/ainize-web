@@ -439,6 +439,8 @@ export default function NewPatchPage() {
           {!lineage ? t('op.new.parents.none') : (
             <>
               <span>{t('op.new.parents.split', { n: lineage.n, pct: lineage.pct, keep: lineage.keep }, lineage.n)}</span>
+              {/* Item 322: and the rule that decides it — two knowledges by one creator cost what one costs. */}
+              <span data-testid="new-lineage-rule">{t('op.new.parents.rule')}</span>
               {lineage.from && <span>{t('op.new.parents.split.inherited', { id: lineage.from, pct: lineage.pct })}</span>}
               {lineage.unknown.length > 0 && <span>{t('op.new.parents.unknown', { ids: lineage.unknown.join(', ') })}</span>}
             </>
