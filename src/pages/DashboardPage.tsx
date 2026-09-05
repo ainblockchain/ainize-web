@@ -236,6 +236,10 @@ export default function DashboardPage() {
   const run = async (fn: () => Promise<unknown>) => { setActionError(null); try { await fn(); } catch (err) { setActionError(errorMessage(err)); } };
 
   const salesText = (e: CatalogEntry) => t('op.dash.sales.cell', { n: num(e.downloads), revenue: money.revenue(e.revenue, e.anchor.currency || currency) });
+  /** Item 194: what the sale price was, and what of it reached this node — the gross figure alone is not earnings. */
+  const salesNet = (e: CatalogEntry) => (Number(e.revenue_shared ?? 0) > 0
+    ? t('op.dash.sales.net', { revenue: money.revenue(e.revenue, e.anchor.currency || currency), net: money.revenue(e.revenue_net ?? e.revenue, e.anchor.currency || currency), shared: money.revenue(e.revenue_shared ?? '0', e.anchor.currency || currency) })
+    : '');
   const schemeText = (scheme: string) => (scheme === 'ain-transfer' ? t('op.dash.purchases.scheme.ain') : scheme === 'local-credit' ? t('op.dash.purchases.scheme.credit') : scheme);
 
   const HEADERS: { key: string; label: string; tip?: string }[] = [
@@ -338,7 +342,10 @@ export default function DashboardPage() {
                       <div>{t('op.term.executed')} {e.passed}/{e.quorum}</div>
                       <SubText>{t('op.term.integrity')} {e.integrity_checks}</SubText>
                     </TableData>
-                    <TableData title={t('op.dash.sales.hint')}>{salesText(e)}</TableData>
+                    <TableData title={salesNet(e) || t('op.dash.sales.hint')} data-testid="dash-sales">
+                      {salesText(e)}
+                      {salesNet(e) && <SubText style={{ display: 'block' }}>{salesNet(e)}</SubText>}
+                    </TableData>
                     <TableData>
                       <IconButton aria-label={t('op.dash.col.logs')} title={t('op.dash.col.logs')} onClick={() => navigate(`/project/${author}/${a.id}/logs`)}><LogIcon /></IconButton>
                     </TableData>

@@ -116,6 +116,9 @@ export const operatorDash: Dict = {
   'op.dash.col.test': { ko: '라이브 테스트', en: 'Live test' },
   'op.dash.col.manage': { ko: '관리', en: 'Manage' },
   'op.dash.sales.cell': { ko: '{n}건 · {revenue}', en: '{n} · {revenue}' },
+  // Item 194: the sale price is not what reached the seller. A derivative that shares 65 % upstream showed the
+  // buyer's 10 next to a balance that went up by 3.5.
+  'op.dash.sales.net': { ko: '{revenue} 중 내 몫 {net} · 원작자 몫 {shared}', en: '{net} of {revenue} reached you · {shared} to the creators it was built on' },
   'op.dash.sales.hint': { ko: '판매 건수 · 누적 수익', en: 'sales count · total revenue' },
   'op.dash.empty': { ko: '아직 등록한 지식이 없습니다. 첫 지식을 등록해 보세요.', en: 'No knowledge yet — register your first one.' },
   // Finding 31 — the inventory grew past a screenful (103 rows, 28 of them sharing one name) with no way to search,

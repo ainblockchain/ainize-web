@@ -569,7 +569,11 @@ export default function PatchPage() {
             {/* Item 30: two large AIN numbers side by side invited reading the seller's takings as the price. The
                 figure stays public — it is the settlement record — in the face of the seller metric it is, and the
                 purchases it came from are summarised on the History tab beside the records themselves. */}
-            <Stat><StatValue $muted>{f.revenueLabel(data.revenue, a.currency)}</StatValue><StatName>{t('detail.stat.revenue')}</StatName><StatNote>{t('detail.stat.revenue_note')}</StatNote></Stat>
+            <Stat><StatValue $muted>{f.revenueLabel(data.revenue, a.currency)}</StatValue><StatName>{t('detail.stat.revenue')}</StatName><StatNote>
+              {t('detail.stat.revenue_note')}
+              {/* Item 194: gross is not earnings — the share this knowledge owed upstream is on every settlement. */}
+              {Number(data.revenue_shared ?? 0) > 0 && <> · {t('detail.stat.revenue_shared', { shared: f.revenueLabel(data.revenue_shared, a.currency) })}</>}
+            </StatNote></Stat>
           </Stats>
 
           <TabBar ref={tabsRef}><Tabs tabs={tabs} value={tab} onChange={setTab} /></TabBar>

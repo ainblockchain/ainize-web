@@ -42,6 +42,12 @@ export interface CatalogEntry {
   settlements: Settlement[];
   downloads: number;
   revenue: string;
+  /** Distinct buyers behind `downloads`; self-purchases are in neither (item 365). */
+  buyers?: number;
+  /** What the anchor's author actually received, and what those sales owed other creators (item 194). */
+  revenue_net?: string;
+  revenue_shared?: string;
+  self_purchases?: number;
   challenges: Challenge[];
   superseded_by: string[];
   supersedes: string[];

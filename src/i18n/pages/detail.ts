@@ -121,6 +121,9 @@ export const detailPatch: Dict = {
   'detail.stat.not_yet': { ko: '검증 전', en: 'not yet' },
   // Item 30 — the seller's cumulative takings, said to be that, in a face that cannot be mistaken for the price.
   'detail.stat.revenue_note': { ko: '지금까지 이 지식에 지불된 총액', en: 'paid for this knowledge so far' },
+  // Item 194: the figure is what BUYERS paid. On a knowledge built on someone else's, a large part of it was never
+  // the seller's to keep, and no surface said so.
+  'detail.stat.revenue_shared': { ko: '이 중 {shared}는 이 지식이 딛고 선 원작자들에게 돌아갔습니다', en: 'of which {shared} went to the creators it was built on' },
   /* Item 30 — the header's first control is the price now; Live test keeps the outlined face. `buy_off` leads to the
      Buy tab because that is where the reason (not verified / challenged / retired) is written out in full. */
   'detail.head.buy': { ko: '이 지식 받기 · {price}', en: 'Get this knowledge · {price}' },
