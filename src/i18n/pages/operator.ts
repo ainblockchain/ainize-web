@@ -408,6 +408,13 @@ export const operatorManage: Dict = {
   'op.manage.badge.notyet': { ko: '배지는 이 지식이 검증을 통과해 판매 중이 된 뒤에 쓸 수 있습니다. 지금 상태는 “{status}”입니다 — 아직 아무도 살 수 없는 주소를 README에 붙이지 않도록 여기서는 감춰 둡니다.', en: 'The badge becomes available once this knowledge is verified and on sale. Right now it is “{status}” — the badge is held back so a README never advertises an address nobody can buy from yet.' },
   'op.manage.badge.agents.title': { ko: '에이전트용 주소', en: 'For agents' },
   'op.manage.badge.agents.desc': { ko: 'AI 에이전트가 사람 없이 결제하고 내려받는 주소입니다. 브라우저로 열면 페이지가 아니라 결제 조건(402) JSON이 나옵니다 — README에 사람이 누를 링크로 붙이지 마세요.', en: 'The address an AI agent pays and downloads from without a human. Opened in a browser it answers with a 402 payment-requirements JSON body, not a page — do not paste it as a link for people to click.' },
+  // Item 157: REJECTED was a dead end — "Delete draft" over a delete the node refuses, and no way forward at all.
+  'op.manage.rejected.title': { ko: '고쳐서 다시 내기', en: 'Publish a corrected version' },
+  'op.manage.rejected.desc': { ko: '검증 노드가 이 지식을 통과시키지 않았습니다. 검증 결과는 공개 기록에 남아 지울 수 없고, 같은 id로 다시 낼 수도 없습니다. 앞으로 갈 수 있는 길은 하나입니다 — 고친 파일을 새 id로 내면서 이 지식을 원본으로 선언하는 것입니다. 그러면 계보와 지금까지의 작업이 남습니다.', en: 'The verifiers did not pass this knowledge. Their result is on the public record and cannot be removed, and the id cannot be published again. There is one way forward: publish the corrected file under a new id declaring this one as its origin, which keeps the lineage and the work.' },
+  'op.manage.rejected.id': { ko: '이 id({id})는 다시 쓸 수 없습니다. 아래 버튼은 새 id를 제안하고, 이 지식을 원본으로 채운 등록 화면을 엽니다.', en: 'The id {id} cannot be reused. The button below opens the register form with a new id suggested and this knowledge already filled in as the origin.' },
+  'op.manage.rejected.button': { ko: '고친 버전 등록하기', en: 'Register a corrected version' },
+  'op.manage.rejected.see': { ko: '검증 노드가 무엇을 틀렸다고 했는지 보기', en: 'See what the verifiers reported' },
+  'op.manage.rejected.cli': { ko: '터미널에서:', en: 'From a terminal:' },
   'op.manage.delete.title': { ko: '초안 삭제', en: 'Delete draft' },
   'op.manage.delete.sealed': { ko: '등록된 지식은 삭제할 수 없습니다. 공개 기록에 영구히 남기 때문입니다. 대신 판매를 완전히 멈출 수 있습니다.', en: 'Published knowledge cannot be deleted — its record is permanent. What you can do is stop selling it, for good.' },
   // Item 148: the takedown the manage page used to point at `patch forget` for — which deletes the local file and
@@ -607,6 +614,8 @@ export const operatorNew: Dict = {
   'op.new.upload.cancel': { ko: '올리기 취소', en: 'Cancel upload' },
   'op.new.upload.cancelled': { ko: '올리기를 취소했습니다. 적어 둔 내용은 그대로 있습니다.', en: 'Upload cancelled — everything you typed is still here.' },
   'op.new.draft.kept': { ko: '적은 내용은 이 탭에 저장되어 새로 고쳐도 사라지지 않습니다.', en: 'What you type is kept in this tab, so a refresh will not lose it.' },
+  // Item 157: the form opened from a rejected knowledge says what it was filled from.
+  'op.new.from.notice': { ko: '{id}의 내용을 그대로 채웠습니다. id는 새로 정하고, 원본에는 {id}이(가) 들어 있습니다 — 파일만 고쳐서 올리면 됩니다.', en: 'Filled in from {id}. The id is new and {id} is already listed as its origin — upload the corrected file.' },
   'op.new.draft.restored': { ko: '작성하던 내용을 되살렸습니다. 파일은 브라우저가 기억할 수 없으니 다시 골라 주세요.', en: 'Brought back what you had typed. The file itself cannot be kept by the browser — pick it again.' },
   'op.new.draft.discard': { ko: '새로 시작', en: 'Start over' },
   'op.new.submit': { ko: '초안 저장', en: 'Save draft' },

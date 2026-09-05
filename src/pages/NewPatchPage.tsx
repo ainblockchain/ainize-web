@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { api, errorMessage, useCatalogQuery, useCreatePatchMutation, useInfoQuery } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
@@ -167,6 +167,40 @@ export default function NewPatchPage() {
   const [phase, setPhase] = useState<'idle' | 'sending' | 'server'>('idle');
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const startedAt = useRef(0);
+
+  /**
+   * Item 157 — a REJECTED knowledge is a dead end: its id is burned, its record is permanent, and the only way
+   * forward is a corrected version that declares it as a parent. The manage page sends the publisher here with
+   * `?from=<id>`, and this fills the form from that anchor once — name, description, price, model, benchmark,
+   * track and topic — with a fresh id suggested and the rejected one already in Origins, so the lineage and the
+   * work survive the rejection. Only ever applied to an untouched form: a restored draft (item 95) wins.
+   */
+  const [sp] = useSearchParams();
+  const from = sp.get('from');
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || saved || !from) return;
+    const e = catalog.data?.items.find((x) => x.anchor.id === from);
+    if (!e) return;
+    prefilled.current = true;
+    const a = e.anchor;
+    setName(a.name ?? '');
+    setId(`${a.id}-v2`.slice(0, 64));
+    setDescription(a.description ?? '');
+    setModelId(a.model.id_M);
+    setPriceV(a.price);
+    setParents(a.id);
+    setBranch(a.branch ?? '');
+    setTopic(a.topic_path ?? '');
+    const b: Bench = {
+      schema: a.benchmark.schema, queries: a.benchmark.queries,
+      format: a.benchmark.format ?? [], collateral_bound_nat: a.benchmark.collateral_bound_nat,
+      samples: (a.benchmark.samples ?? []).slice(0, 3).map((x) => ({ prompt: x.prompt, expect: x.expect })),
+    };
+    setBench(b);
+    setBenchText(JSON.stringify(b, null, 2));
+    setNotice(t('op.new.from.notice', { id: a.id }));
+  }, [from, saved, catalog.data, t]);
 
   const license = licenseChoice === 'other' ? licenseOther : licenseChoice;
 

@@ -591,6 +591,28 @@ export default function ManagePage() {
       )}
 
       {/* ------------------------------------------------------------ delete (draft) / take off sale (published) */}
+      {/*
+        * Item 157 — a REJECTED knowledge had no way forward at all: this section kept the heading "Delete draft"
+        * over a delete the node refuses, publishing under the same id is refused too ("patch id already exists"),
+        * and nothing said what a publisher whose verification failed is supposed to do. The one thing that works is
+        * a corrected version declaring this one as its origin, so that is what the page offers — with the failures
+        * the verifiers actually reported one click away, above it.
+        */}
+      {p.status === 'REJECTED' ? (
+        <>
+          <SubTitle $mt={56}>{t('op.manage.rejected.title')}</SubTitle>
+          <Description data-testid="rejected-next">{t('op.manage.rejected.desc')}</Description>
+          <Description>{t('op.manage.rejected.id', { id: a.id })}</Description>
+          <Row $gap={12} style={{ marginTop: 12 }}>
+            <Button variant="contained" data-testid="rejected-republish" onClick={() => navigate(`/new-patch?from=${encodeURIComponent(a.id)}`)}>{t('op.manage.rejected.button')}</Button>
+            <StyledLink to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}?tab=verification`}>{t('op.manage.rejected.see')} →</StyledLink>
+          </Row>
+          <DevBox style={{ marginTop: 24 }}>
+            <Muted style={{ display: 'block', marginBottom: 6 }}>{t('op.manage.rejected.cli')}</Muted>
+            <MonoBox>{`ainize publish <file>.npz --id ${a.id}-v2 --parents ${a.id} --name "${(a.name || a.id).replace(/"/g, '\\"')}"`}</MonoBox>
+          </DevBox>
+        </>
+      ) : (<>
       <SubTitle $mt={56}>{isDraft ? t('op.manage.delete.title') : t('op.manage.takedown.title')}</SubTitle>
       {!isDraft ? (
         <>
@@ -647,6 +669,7 @@ export default function ManagePage() {
           )}
         </>
       )}
+      </>)}
       <MonoBox style={{ marginTop: 40 }}>
         <Link to={`/project/${a.author}/${a.id}/logs`} style={{ color: '#8b3eeb', textDecoration: 'none' }}>{t('op.manage.logs_link', { id: a.id })}</Link>
       </MonoBox>
