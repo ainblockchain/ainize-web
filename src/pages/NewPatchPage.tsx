@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { api, errorMessage, useCatalogQuery, useCreatePatchMutation, useInfoQuery } from '@/api/api';
+import { api, errorMessage, useBranchesQuery, useCatalogQuery, useCreatePatchMutation, useInfoQuery } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, SelectField, TextArea, TextField } from '@/components/ui/Form';
-import { Description, PageWrapper, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
+import { Description, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { DevBox, Muted, Row, Stack, Tip, useMoney } from '@/components/operator/common';
 
 const Form = styled.form`display: flex; flex-direction: column; gap: 24px; max-width: 760px;`;
@@ -131,6 +131,8 @@ export default function NewPatchPage() {
   const { address } = useAuth();
   const { data: info } = useInfoQuery();
   const catalog = useCatalogQuery({ limit: 200 });
+  /** Item 169(c): the tracks that actually exist, so a typed name is checked against them before publishing. */
+  const tracks = useBranchesQuery();
   const currency = info?.currency ?? 'CREDIT';
   const [create, state] = useCreatePatchMutation();
 
@@ -418,8 +420,21 @@ export default function NewPatchPage() {
         ) : null}
         <FormRow>
           <TextField label={<Tip tech={tech('lineage')}>{t('op.new.parents')}</Tip>} placeholder="pixelplus-087600, krx-all-2761" value={parents} onChange={(e) => setParents(e.target.value)} helper={t('op.new.parents.helper')} />
-          <TextField label={<Tip tech={tech('branch')}>{t('op.new.branch')}</Tip>} placeholder="law/KR" value={branch} onChange={(e) => setBranch(e.target.value)} helper={t('op.new.branch.helper')} />
+          <TextField label={<Tip tech={tech('branch')}>{t('op.new.branch')}</Tip>} placeholder="law/KR" value={branch} onChange={(e) => setBranch(e.target.value)} helper={t('op.new.branch.helper')} list="known-tracks" />
+          <datalist id="known-tracks">{(tracks.data?.branches ?? []).map((b) => <option key={b.name} value={b.name} />)}</datalist>
         </FormRow>
+        {/*
+          * Item 169(c) — a track name typed here (and `publish --branch` on the CLI) is written onto the anchor and
+          * files into nothing: `branch ls` still says there are no tracks and the router matches none, because a
+          * track exists only as its own public record. The name is not refused — the anchor keeps it — but the form
+          * says what it will and will not do, and names the two ways to make the track real.
+          */}
+        {!!branch.trim() && !(tracks.data?.branches ?? []).some((b) => b.name === branch.trim()) && (
+          <Hint $tone="warning" data-testid="new-branch-unknown">
+            {t('op.new.branch.unknown', { name: branch.trim() })}{' '}
+            <StyledLink to="/dashboard#tracks">{t('op.new.branch.unknown.create')} →</StyledLink>
+          </Hint>
+        )}
         <Hint data-testid="new-lineage-split" $tone={lineage?.unknown.length ? 'warning' : 'info'}>
           {!lineage ? t('op.new.parents.none') : (
             <>
