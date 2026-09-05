@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
+import { errorMessage, useLedgerQuery, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
 import type { BranchesResponse, SubscribeResult, TrackItem } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
@@ -96,6 +96,30 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
     : t('op.dash.branches.behind.more', { ids: missing.slice(0, 2).map(nameOf).join(', '), n: missing.length - 2 });
   const runtimeKnown = !!runtime.data?.available;
 
+  /**
+   * Item 361 — `subscribers` is derived from live subscribe/unsubscribe state, so a node that leaves simply
+   * vanishes: no churn, no history, and the person deciding whether to keep baking every morning could see neither
+   * who left nor what the track earns. Both are on the public record — `subscribe` records carry the action, and a
+   * settlement names the knowledge it paid for — so the card reads them instead of asking for a new endpoint.
+   * One query shared by every card on the page (same args = one request).
+   */
+  const ledger = useLedgerQuery({ limit: 5000 }, { pollingInterval: 60_000 });
+  const trackStats = useMemo(() => {
+    const members = new Set(branch.patch_ids);
+    let joined = 0; let left = 0; let sales = 0;
+    const revenue = new Map<string, number>();
+    for (const r of ledger.data?.records ?? []) {
+      const b = (r.body ?? {}) as Record<string, unknown>;
+      if (r.kind === 'subscribe' && b.branch === branch.name) { if (b.action === 'unsubscribe') left += 1; else joined += 1; }
+      if (r.kind === 'settle' && typeof b.patch_id === 'string' && members.has(b.patch_id)) {
+        sales += 1;
+        const cur = String(b.currency ?? currency);
+        revenue.set(cur, (revenue.get(cur) ?? 0) + Number(b.amount ?? 0));
+      }
+    }
+    return { joined, left, sales, revenue: [...revenue.entries()].map(([cur, amount]) => money.fmt(Math.round(amount * 1e6) / 1e6, cur)).join(' + ') };
+  }, [ledger.data, branch.name, branch.patch_ids, currency, money]);
+
   const planLabel = (i: TrackItem) => t(`op.dash.branches.plan.${i.plan}`);
   const busy = subState.isLoading;
   const loading = quote.isLoading;
@@ -132,6 +156,13 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
         {t('op.dash.branches.meta', { patches: current.length, subs: branch.subscribers.length, owner: mine ? t('op.dash.branches.owner.you') : shortAddr(branch.owner) })}
         {retiredCount > 0 && <> {t('op.dash.branches.meta.retired', { n: retiredCount })}</>}
       </span>
+      {/* Item 361: what the track has actually done — who joined, who left, and (for its owner) what it earned. */}
+      {(trackStats.joined > 0 || trackStats.left > 0 || trackStats.sales > 0) && (
+        <span style={{ fontSize: 12, color: '#8d8d8f' }} data-testid="track-stats">
+          {t('op.dash.branches.churn', { subs: branch.subscribers.length, joined: trackStats.joined, left: trackStats.left })}
+          {mine && trackStats.sales > 0 && <> · {t('op.dash.branches.earned', { n: trackStats.sales, total: trackStats.revenue })}</>}
+        </span>
+      )}
       {/* The price of the track, before the click (item 9): what subscribing would spend, right now, from this node. */}
       {!subscribed && (
         <Cost $spend={toBuy.length > 0} data-testid="track-cost">

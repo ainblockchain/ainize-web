@@ -17,7 +17,7 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router';
 import styled from 'styled-components';
-import { useBranchesQuery, useCatalogQuery, useNodesQuery } from '@/api/api';
+import { useBranchesQuery, useCatalogQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { CenterProgress, Description, Empty, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Offline } from '@/components/ui/Offline';
@@ -72,6 +72,20 @@ export default function TrackPage() {
     return m;
   }, [catalogQ.data]);
 
+  /**
+   * Item 361 — the page showed subscribers as a list that silently shrinks when somebody leaves, and said nothing
+   * about what the track has earned per bake. The public record has both: `subscribe` records carry the action and
+   * a timestamp, and each member's own settlements are counted on the catalogue entry beside it.
+   */
+  const ledgerQ = useLedgerQuery({ kind: 'subscribe', limit: 2000 }, { pollingInterval: 60_000 });
+  const history = useMemo(() => {
+    const rows = (ledgerQ.data?.records ?? [])
+      .filter((r) => ((r.body ?? {}) as { branch?: string }).branch === name)
+      .map((r) => ({ node: String(((r.body ?? {}) as { node?: string }).node ?? ''), left: ((r.body ?? {}) as { action?: string }).action === 'unsubscribe', ts: r.ts }))
+      .sort((a, b) => b.ts - a.ts);
+    return { rows, joined: rows.filter((x) => !x.left).length, left: rows.filter((x) => x.left).length };
+  }, [ledgerQ.data, name]);
+
   const ownerName = nodesQ.data?.nodes.find((n) => n.address === branch?.owner)?.name;
   const current = new Set(branch?.current ?? []);
   const members = branch?.patch_ids ?? [];
@@ -118,7 +132,24 @@ export default function TrackPage() {
         <dt>{t('track.updated')}</dt>
         <dd>{newest ? t('track.updated_value', { ago: f.ago(newest) }) : '—'}</dd>
         <dt>{t('track.subscribers')}</dt>
-        <dd>{branch.subscribers.length === 0 ? t('track.subscribers_none') : branch.subscribers.map((s) => s.name ?? shortAddr(s.address, 6)).join(', ')}</dd>
+        <dd data-testid="track-subscribers">
+          {branch.subscribers.length === 0 ? t('track.subscribers_none') : branch.subscribers.map((s) => s.name ?? shortAddr(s.address, 6)).join(', ')}
+          {(history.joined > 0 || history.left > 0) && (
+            <div style={{ fontSize: 12, color: '#8d8d8f', marginTop: 2 }}>
+              {t('track.churn', { joined: history.joined, left: history.left })}
+              {history.rows.slice(0, 3).map((h) => (
+                <div key={`${h.node}-${h.ts}`}>{t(h.left ? 'track.churn.left' : 'track.churn.joined', { node: nodesQ.data?.nodes.find((n) => n.address.toLowerCase() === h.node.toLowerCase())?.name ?? shortAddr(h.node, 6), ago: f.ago(h.ts) })}</div>
+              ))}
+            </div>
+          )}
+        </dd>
+        <dt>{t('track.sales')}</dt>
+        <dd data-testid="track-sales">{(() => {
+          const rows = members.map((id) => byId.get(id)).filter((e): e is CatalogEntry => !!e);
+          const sales = rows.reduce((n, e) => n + e.downloads, 0);
+          const revenue = rows.reduce((n, e) => n + Number(e.revenue ?? 0), 0);
+          return sales === 0 ? t('track.sales_none') : t('track.sales_value', { n: num(sales), total: f.revenueLabel(revenue, rows[0]?.anchor.currency ?? '') });
+        })()}</dd>
         <dt>{t('track.created')}</dt>
         <dd>{f.ago(branch.created_at)}</dd>
       </KeyValue>
@@ -135,6 +166,7 @@ export default function TrackPage() {
                 <TableHead $align="left">{t('track.h.status')}</TableHead>
                 <TableHead $align="left">{t('common.model')}</TableHead>
                 <TableHead>{t('common.price')}</TableHead>
+                <TableHead title={t('track.h.sales_help')}>{t('track.h.sales')}</TableHead>
                 <TableHead $align="right" $padding="0 24px 0 8px">{t('track.h.registered')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -152,6 +184,7 @@ export default function TrackPage() {
                     <TableData $align="left">{e ? <StatusChip status={e.status} /> : <span style={{ color: '#8d8d8f' }}>{t('track.unknown_member')}</span>}</TableData>
                     <TableData $align="left" title={e?.anchor.model.id_M ?? ''}>{e?.anchor.model.id_M ?? '—'}</TableData>
                     <TableData>{e ? f.priceLabel(e.anchor.price, e.anchor.currency) : '—'}</TableData>
+                    <TableData title={t('track.h.sales_help')}>{e ? t('track.sales_cell', { n: num(e.downloads), total: f.revenueLabel(e.revenue, e.anchor.currency) }) : '—'}</TableData>
                     <TableData $align="right" $padding="0 24px 0 8px">{e ? f.ago(e.anchor.created_at) : '—'}</TableData>
                   </TableRow>
                 );

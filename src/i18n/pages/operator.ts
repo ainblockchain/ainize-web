@@ -152,6 +152,9 @@ export const operatorDash: Dict = {
   // nodes already subscribed to a track, and an applied set is never changed by an incoming request. What ships is
   // the buy-load-keep-up loop (reconcileSubscriptions, every 20 s) and a router that picks a NODE, not a track.
   'op.dash.branches.desc': { ko: '서로 다른 전제의 지식(예: 한국법 vs 미국법)을 묶음으로 따로 관리합니다. 구독하면 이 노드가 그 묶음의 “현재” 지식(교체된 지난 판은 제외)을 사서 모델에 넣고, 그 뒤로도 새로 올라오는 지식을 자동으로 받아 최신 상태를 유지합니다. 게이트웨이는 요청 상황에 맞는 묶음을 구독 중인 노드로 연결합니다 — 한 노드가 요청마다 묶음을 바꿔 끼우지는 않습니다.', en: 'Keep knowledge with different premises (e.g. KR law vs US law) in separate tracks. Subscribing buys the track’s CURRENT knowledge (not the versions it has replaced), loads it into this node’s model, and keeps up with whatever the track publishes next. The gateway routes a request to a node that subscribes to the fitting track — one node does not swap tracks per request.' },
+  // Item 361: a subscriber count that only ever shrinks silently, and a track whose earnings were invisible.
+  'op.dash.branches.churn': { ko: '구독 중 {subs}곳 · 지금까지 구독 {joined}건 · 해지 {left}건', en: '{subs} subscribed now · {joined} ever joined · {left} left' },
+  'op.dash.branches.earned': { ko: '이 묶음의 지식 판매 {n}건 · {total}', en: '{n} sale(s) of this track’s knowledge · {total}' },
   'op.dash.branches.subscribed': { ko: '구독 중', en: 'subscribed' },
   'op.dash.branches.nodesc': { ko: '설명 없음', en: 'no description' },
   'op.dash.branches.noctx': { ko: '조건 없음', en: 'no context' },

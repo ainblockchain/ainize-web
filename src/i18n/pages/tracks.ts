@@ -10,6 +10,21 @@ export const tracks: Dict = {
   'track.title': { ko: '지식 묶음', en: 'Knowledge track' },
   'track.no_description': { ko: '설명이 없습니다.', en: 'No description.' },
 
+  /**
+   * Item 361 — `subscribers` is live state: a node that leaves simply disappears from it, so the person deciding
+   * whether to keep baking every morning saw a number that only ever shrank, with no history and no earnings. The
+   * `subscribe` records on the public record carry the action and the time, and each member's own sales are counted
+   * on its catalogue entry — so both are read from what is already there.
+   */
+  'track.churn': { ko: '지금까지 구독 {joined}건 · 해지 {left}건', en: '{joined} ever joined · {left} left' },
+  'track.churn.joined': { ko: '{node} 구독 ({ago})', en: '{node} subscribed {ago}' },
+  'track.churn.left': { ko: '{node} 해지 ({ago})', en: '{node} unsubscribed {ago}' },
+  'track.sales': { ko: '이 묶음의 판매', en: 'Sales in this track' },
+  'track.sales_none': { ko: '아직 판매 없음', en: 'no sales yet' },
+  'track.sales_value': { ko: '{n}건 · {total}', en: '{n} sale(s) · {total}' },
+  'track.sales_cell': { ko: '{n}건 · {total}', en: '{n} · {total}' },
+  'track.h.sales': { ko: '판매', en: 'Sales' },
+  'track.h.sales_help': { ko: '이 버전이 팔린 횟수와 금액입니다. 매일 새로 굽는 묶음이라면 어느 날 것이 팔리는지 여기서 보입니다.', en: 'How many times this version sold and for how much — on a track that bakes daily, which day sells.' },
   'track.owner': { ko: '만든 노드', en: 'Made by' },
   'track.situation': { ko: '상황(조건)', en: 'Situation' },
   'track.situation_none': { ko: '조건 없음', en: 'no conditions' },
