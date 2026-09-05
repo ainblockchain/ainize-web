@@ -49,9 +49,8 @@ export const detailShared: Dict = {
   'detail.role.gateway': { ko: '게이트웨이', en: 'gateway' },
 
   'detail.billing.per_download': { ko: '내려받을 때 1회 결제', en: 'pay once per download' },
-  // Item 360: the seller marked it this way and nothing meters it — the buyer pays once, on download.
-  'detail.billing.per_apply_hour': { ko: '판매자는 “시간당”으로 표시했지만 측정되지 않습니다 — 실제로는 내려받을 때 1회 결제', en: 'marked “per hour loaded” by the seller, but nothing meters it — you pay once, on download' },
-  'detail.billing.per_hit': { ko: '판매자는 “사용당”으로 표시했지만 측정되지 않습니다 — 실제로는 내려받을 때 1회 결제', en: 'marked “per use” by the seller, but nothing meters it — you pay once, on download' },
+  'detail.billing.per_apply_hour': { ko: '모델에 넣어 둔 시간당 결제', en: 'pay per hour loaded' },
+  'detail.billing.per_hit': { ko: '사용(질문)할 때마다 결제', en: 'pay per use' },
 
   'detail.ledger_kind.ain': { ko: 'AIN 블록체인', en: 'AIN blockchain' },
   'detail.ledger_kind.local': { ko: '로컬 P2P 기록', en: 'Local P2P record' },

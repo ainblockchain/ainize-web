@@ -523,13 +523,9 @@ export default function ManagePage() {
             <TextField label={t('op.manage.fields.price', { unit: money.unit(a.currency) })} helper={money.note(a.currency)} type="number" min={0} step="0.000001" value={priceV} onChange={(e) => setPriceV(e.target.value)} disabled={!isDraft} />
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <FieldLabel>{t('op.manage.fields.billing')}</FieldLabel>
-              {/* Item 360: "pay per hour loaded" and "pay per use" were offered here and metered nowhere — a sale
-                  settles the price once, per download. An anchor that already carries one keeps it (the record is
-                  immutable) and is shown as it is; nothing new can be published under a model nobody charges. */}
-              <Select value={billing} onChange={(e) => setBilling(e.target.value as PatchAnchor['billing'])} disabled={!isDraft} data-testid="billing-select">
-                {[...new Set(['per_download', ...(billing === 'per_download' ? [] : [billing])])].map((b) => <option key={b} value={b} disabled={b !== 'per_download'}>{billingLabel(b)}</option>)}
+              <Select value={billing} onChange={(e) => setBilling(e.target.value as PatchAnchor['billing'])} disabled={!isDraft}>
+                {(['per_download', 'per_apply_hour', 'per_hit'] as const).map((b) => <option key={b} value={b}>{billingLabel(b)}</option>)}
               </Select>
-              <Muted style={{ fontSize: 12 }}>{t('op.manage.billing.only')}</Muted>
             </label>
             <TextField label={t('op.manage.fields.branch')} placeholder="law/KR" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!isDraft} />
             <TextField label={t('op.manage.fields.license')} placeholder="CC-BY-4.0" value={license} onChange={(e) => setLicense(e.target.value)} disabled={!isDraft} />

@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
   errorMessage, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
-  usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, useTeachPolicyQuery,
+  usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, usePatchSignalsQuery, useTeachPolicyQuery,
 } from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, LineageRef, PatchDetail, PurchaseResult, TreeResponse } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -129,6 +129,8 @@ const Stat = styled.div`display: flex; flex-direction: column; align-items: cent
 const StatValue = styled.div<{ $muted?: boolean }>`font-size: ${(p) => (p.$muted ? 16 : 20)}px; font-weight: 500; color: ${(p) => (p.$muted ? p.theme.color.GREY : p.theme.color.BLACK)}; font-variant-numeric: tabular-nums; white-space: nowrap;`;
 const StatName = styled.div`margin-top: 4px; font-size: 12px; font-weight: 500; color: ${(p) => p.theme.color.GREY}; border-bottom: 1px dotted transparent; &[title] { border-bottom-color: ${(p) => p.theme.color.LIGHT_GREY}; cursor: help; }`;
 const StatNote = styled.div`margin-top: 2px; font-size: 10px; color: ${(p) => p.theme.color.GREY}; text-align: center; max-width: 150px; line-height: 1.3;`;
+/** The live-test line above the record table (item 199): this node's own 30 days, said in words that scope it. */
+const HistNote = styled.div`margin: 4px 0 12px; font-size: 13px; color: ${(p) => p.theme.color.DARK_GREY}; line-height: 1.6;`;
 const Section = styled.section`margin-top: 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; padding: 24px 32px;`;
 const H3 = styled.h3`margin: 0 0 8px; font-size: 14px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; &[title] { cursor: help; }`;
 const P = styled.p`margin: 0; font-size: 14px; line-height: 1.6; color: ${(p) => p.theme.color.DARK_GREY}; white-space: pre-wrap; word-break: keep-all;`;
@@ -1644,6 +1646,13 @@ function HistoryTab({ d }: { d: PatchDetail }) {
   const f = useDetailFormat();
   const { data, isLoading } = usePatchRecordsQuery(d.anchor.id, { pollingInterval: 10_000 });
   const { data: info } = useInfoQuery();
+  /**
+   * Item 199 — this tab showed ledger RECORDS and no usage at all, so "what did it get wrong for people" was
+   * unanswerable: 849 live tests and 32 misses existed on node-a and appeared on no screen. The counters are this
+   * node's own 30 days and the line says so; the questions themselves are the panel on the Origins tab, which is
+   * the only place that may show wording anyone consented to share.
+   */
+  const { data: signals } = usePatchSignalsQuery(d.anchor.id);
   if (isLoading) return <CenterProgress />;
   const recs = [...(data?.records ?? [])].sort((a, b) => b.ts - a.ts);
   /**
@@ -1661,10 +1670,21 @@ function HistoryTab({ d }: { d: PatchDetail }) {
     <Section style={{ padding: '8px 0 0' }}>
       {/* Item 30: the sales figures belong beside the settlements they are counted from, not beside the price. */}
       <SummaryRow data-testid="hist-summary">
-        <div><span className="k">{t('detail.stat.downloads')}</span><span className="v">{num(d.downloads)}</span></div>
+        <div><span className="k">{t('detail.stat.downloads')}</span><span className="v">{num(d.sales?.sales_all ?? d.downloads)}</span></div>
         <div title={t('detail.hist.revenue_help')}><span className="k">{t('detail.stat.revenue')}</span><span className="v">{f.revenueLabel(d.revenue, d.anchor.currency)}</span></div>
         <div><span className="k">{t('detail.hist.records')}</span><span className="v">{num(recs.length)}</span></div>
       </SummaryRow>
+      {/* Item 199: the live tests this node ran, and how many of them the knowledge got wrong. */}
+      {!!signals && (signals.node as unknown as Record<string, number>).tests > 0 && (
+        <HistNote data-testid="hist-livetests">
+          {t('detail.hist.livetests', {
+            t: num((signals.node as unknown as Record<string, number>).tests),
+            m: num((signals.node as unknown as Record<string, number>).misses),
+            d: (signals.node as unknown as Record<string, number>).window_days ?? 30,
+          })}
+          {(signals.node as unknown as Record<string, number>).misses > 0 && <> {t('detail.hist.livetests_where')}</>}
+        </HistNote>
+      )}
       {recs.length === 0 && <Empty style={{ border: 0 }}>{t('detail.hist.empty')}</Empty>}
       {recs.length > 0 && (
         <TableWrapper>
