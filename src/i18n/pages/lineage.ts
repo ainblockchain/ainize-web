@@ -64,7 +64,13 @@ export const lineageTree: Dict = {
   'detail.ds.h_answer': { ko: '답', en: 'Answer' },
 
   // ---------------------------------------------------------------- SC-11 doing-well strip
-  'detail.signals.strip': { ko: '판매 {s} · 노드 {l}곳에 로드 · 실전 테스트 {t}회 (✓{h}) · 바탕으로 쓰임 {c}회 · 트랙 구독 {w} · 검증 {p}/{q}', en: 'Sales {s} · Loaded on {l} nodes · Live tests {t} (✓{h}) · Built on {c} times · Track subscribers {w} · Verified {p}/{q}' },
+  /**
+   * Six independent counts in one sentence, so no one of them can carry a plural: at 1 it read "Loaded on 1 nodes".
+   * Every metric is a label followed by its number instead, which is grammatical at 0, 1 and 12 — and `{c}` is
+   * named with the word the tab above it already uses for the same thing ("Origins & derivatives" / 기반과 파생),
+   * which also takes it out of the "Built on" collision of item 282.
+   */
+  'detail.signals.strip': { ko: '판매 {s} · 로드한 노드 {l} · 실전 테스트 {t}회 (✓{h}) · 파생 지식 {c} · 트랙 구독 {w} · 검증 {p}/{q}', en: 'Sales {s} · Nodes loaded {l} · Live tests {t} (✓{h}) · Derivatives {c} · Track subscribers {w} · Verified {p}/{q}' },
   'detail.signals.scope_net': { ko: '네트워크', en: 'Network' },
   'detail.signals.scope_node': { ko: '이 노드, 최근 30일', en: 'This node, last 30 days' },
   // the design gives the two scope LABELS; this line is what puts each number under the right one
