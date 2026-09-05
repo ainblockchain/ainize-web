@@ -34,6 +34,11 @@ export interface CatalogEntry {
   executors_unknown?: number;
   /** Attestations recorded but not counted because the knowledge was already applied when they ran (item 329). */
   no_baseline?: number;
+  /**
+   * Attestations written BEFORE the open challenge (item 330). They stay on the record and are shown, but a record
+   * written before a challenge answers nothing, so it does not count until that verifier measures again.
+   */
+  stale_attestations?: number;
   settlements: Settlement[];
   downloads: number;
   revenue: string;
@@ -90,6 +95,17 @@ export interface InfoResponse {
   /** Default data-provider share of the seller remainder. */
   contributor_share?: number;
   counts: { patches: number; listed: number; verifying?: number; superseded?: number; rejected?: number };
+  /**
+   * How often the trust mechanism has actually fired on everything this node can read (item 338). The product says a
+   * wrong verification "can be challenged by any node" and points at that instead of a deposit; on the demo chain
+   * that had happened zero times in 501 attestations, and no screen said so.
+   */
+  verification_stats?: { attestations: number; failed: number; hash_only: number; rechecks: number; challenges: number; upheld: number; open: number; disputed_items: number };
+  /** What THIS node spends verifying for others, and what it gives back (items 332 / 333 / 336). */
+  verifier_work?: {
+    items_last_hour: number; model_minutes_last_hour: number; max_items_per_hour: number; max_model_minutes_per_hour: number;
+    released_files: number; released_bytes: number; retain_bodies: boolean; paused?: string;
+  } | null;
 }
 
 export interface CatalogResponse { total: number; items: CatalogEntry[]; models: string[]; schemas: string[]; }
@@ -556,6 +572,44 @@ export interface TeacherLesson {
   created_at?: number; attestations?: number; quorum?: number;
 }
 export interface TeacherEarningItem { patch_id: string; seller: string; settle_hash: string; amount: string; currency: string; scheme: string; status: 'paid' | 'pending' | 'failed'; tx_hash?: string; attempts?: number; created_at: number; paid_at?: number }
+/**
+ * A verifier's record, computed from signed `attest` and `challenge` records (item 337). Nothing is self-reported.
+ * `GET /api/verifiers/:address`.
+ */
+export interface VerifierProfile {
+  address: string;
+  name: string | null;
+  endpoint: string | null;
+  roles: string[];
+  last_seen: number | null;
+  attested: number;
+  passed: number;
+  failed: number;
+  hash_only: number;
+  rechecks: number;
+  counted: number;
+  no_baseline: number;
+  knowledges: number;
+  executors: string[];
+  samples_run: number;
+  model_seconds: number;
+  measured_runs: number;
+  challenges_raised: number;
+  challenges_upheld: number;
+  challenges_dismissed: number;
+  challenges_open: number;
+  attestations_later_challenged: number;
+  disagreed_with_peers: number;
+  first_at: number | null;
+  last_at: number | null;
+  items: {
+    patch_id: string; name: string; status: string; passed: boolean; verified_on: string;
+    score: Record<string, string | number>; created_at: number; recheck: boolean;
+    samples_run: number | null; samples_available: number | null; duration_ms: number | null;
+    challenged_after: boolean;
+  }[];
+}
+
 export interface TeacherProfile {
   address: string; name?: string; hidden: boolean; lessons: TeacherLesson[];
   /** item 298 — whether a lesson published on this node can ever reach quorum here. */

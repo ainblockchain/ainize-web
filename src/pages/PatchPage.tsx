@@ -538,6 +538,14 @@ export default function PatchPage() {
           )}
           <Info>
             {t('detail.patch.meta', { author: authorLabel, model: a.model.id_M, when })}
+            {/*
+              * Item 267 — the header's one date was `listed_at`, the newest ATTESTATION, printed as "verified 38s
+              * ago" on a bake registered four minutes earlier and mistaken for the age of the data. The three are
+              * separated now: the day the data is true of (when the publisher declares one), the day the file was
+              * registered, and the verification time the sentence above already carries.
+              */}
+            {a.as_of && <> ∙ <b data-testid="head-as-of" title={t('detail.patch.as_of_help')}>{t('item.as_of', { date: a.as_of })}</b></>}
+            {' ∙ '}<span data-testid="head-registered">{t('item.registered_on', { date: new Date(a.created_at).toISOString().slice(0, 10) })}</span>
             {newest && <> ∙ <StyledLink to={`/${authorSlug}/${encodeURIComponent(newest.id)}`} title={help('superseded')} data-testid="head-newest">
               {newest.hops > 1 ? t('detail.patch.newest_version', { id: newest.id, n: newest.hops }) : t('detail.patch.newer_version', { id: newest.id })}
             </StyledLink></>}
@@ -824,6 +832,28 @@ function sideEffectCell(at: Attestation, bound: number | undefined, t: (k: strin
   return { text: t(over ? 'detail.ver.side_over' : 'detail.ver.side_ok'), ok: !over, detail: t('detail.ver.side_nat', { n: at.collateral_nat, bound: bound ?? '—' }) };
 }
 
+/**
+ * How often the safeguard has actually fired, on everything this node can read (item 338).
+ *
+ * "Any node that thinks a result is wrong can challenge it" is true and is the whole of what backs a verification
+ * now that nothing is escrowed. On the demo chain that mechanism had fired zero times in 501 attestations, and no
+ * screen said so — so a reader inferred oversight that had never once happened.
+ */
+function BaseRate() {
+  const { t } = useT();
+  const { data: info } = useInfoQuery();
+  const s = info?.verification_stats;
+  if (!s || !s.attestations) return null;
+  const quiet = s.failed === 0 && s.challenges === 0;
+  return (
+    <Note style={{ margin: '8px 0 0' }} data-testid="ver-base-rate">
+      {t(quiet ? 'verifier.base_rate_zero' : 'verifier.base_rate', {
+        attestations: num(s.attestations), failed: num(s.failed), challenges: num(s.challenges), upheld: num(s.upheld),
+      })}
+    </Note>
+  );
+}
+
 function Verification({ d }: { d: PatchDetail }) {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
@@ -835,6 +865,23 @@ function Verification({ d }: { d: PatchDetail }) {
   const machines = (d.executors?.length ?? 0) + (d.executors_unknown ?? 0);
   const sharedEngine = (d.executors?.length ?? 0) > 0 && machines < d.passed;
   const failing = d.attestations.filter((at) => !at.passed && at.failures?.length);
+  // Item 330 — while a challenge is open, a record written BEFORE it answers nothing. It stays here, shown for what
+  // it is, instead of quietly filling the second quorum slot with the very attestation its own author disputed.
+  const challengedAt = d.open_challenge?.created_at ?? 0;
+  const stale = (at: Attestation) => challengedAt > 0 && at.created_at <= challengedAt;
+  // Item 179 — a knowledge trained on top of another is only meaningful with that other underneath. A verifier that
+  // does not hold the base measures the child's OWN questions and nothing else, and the tick must say so.
+  const bases = [...new Set([...(d.anchor.base?.stack ?? []).map((b) => b.patch_id), ...(d.anchor.parents ?? [])])];
+  const perSource = (at: Attestation) => (typeof at.score?.per_source === 'string' ? at.score.per_source : null);
+  const alone = (at: Attestation) => bases.length > 0 && isExecuted(at.verified_on) && !perSource(at);
+  // Item 303 — how much of this body is its parents', address for address. Only a verifier holding both files can
+  // say it, so it says it here: a one-fact lesson shipping 2,992 of its base's rows is a resale, not an addition.
+  const resale = d.attestations.map((at) => {
+    const shared = at.rows_shared_with_parents;
+    if (!shared || !at.rows) return null;
+    const worst = Object.entries(shared).sort((a, b) => b[1] - a[1])[0];
+    return worst && worst[1] > 0 ? { base: worst[0], n: worst[1], total: at.rows } : null;
+  }).find(Boolean) ?? null;
   return (
     <Section style={{ padding: 0 }}>
       <SummaryRow>
@@ -845,6 +892,16 @@ function Verification({ d }: { d: PatchDetail }) {
         <div title="verified_on = hash-only"><span className="k">{t('detail.ver.summary_integrity')}</span><span className="v">{num(d.integrity_checks)}</span></div>
         <div><span className="k">{t('detail.ver.summary_status')}</span><span className="v"><StatusChip status={d.status} /></span></div>
       </SummaryRow>
+      {/* Item 330: what is set aside while the challenge is open, and what it takes to come back. */}
+      {(d.stale_attestations ?? 0) > 0 && (
+        <Note data-testid="ver-stale-note">{t('verifier.stale_note', { n: d.stale_attestations ?? 0, quorum: d.quorum })}</Note>
+      )}
+      {/* Item 179: a derivative verified without its base underneath was measured on its own questions alone. */}
+      {bases.length > 0 && d.attestations.some(alone) && (
+        <Note data-testid="ver-alone" title={t('verifier.alone_help', { base: bases[0] })}>{t('verifier.alone')} — {t('verifier.alone_help', { base: bases[0] })}</Note>
+      )}
+      {/* Item 303: the rows this file did not add. */}
+      {resale && <Note data-testid="ver-resale">{t('verifier.resale', { n: num(resale.n), total: num(resale.total), base: resale.base })}</Note>}
       {d.attestations.length === 0 && <Empty style={{ border: 0 }}>{t('detail.ver.empty')}</Empty>}
       {d.attestations.length > 0 && (
         <TableWrapper>
@@ -858,6 +915,8 @@ function Verification({ d }: { d: PatchDetail }) {
                 <TableHead>{t('detail.ver.h.accuracy')}</TableHead>
                 <TableHead>{t('detail.ver.h.side')}</TableHead>
                 <TableHead>{t('detail.ver.h.restarts')}</TableHead>
+                {/* Item 340: a 4-question run and a 40-question one were the same record to every reader. */}
+                <TableHead title={t('verifier.work_help')}>{t('verifier.h.work')}</TableHead>
                 <TableHead title={tech('signedResult')}>{t('detail.ver.h.counts')}</TableHead>
                 <TableHead>{t('detail.ver.h.result')}</TableHead>
                 <TableHead $align="right" $padding="0 32px 0 8px">{t('detail.ver.h.time')}</TableHead>
@@ -869,14 +928,25 @@ function Verification({ d }: { d: PatchDetail }) {
                 const side = sideEffectCell(at, bound, t);
                 return (
                   <TableRow key={at.verifier + at.created_at}>
-                    <TableData $align="left" $padding="0 0 0 32px" $weight={600} title={at.verifier}>{at.verifier_name ?? shortAddr(at.verifier)}<div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400 }}>{shortAddr(at.verifier, 8)}</div></TableData>
+                    {/* Item 337: the name was a dead end — this is the verifier's own record. */}
+                    <TableData $align="left" $padding="0 0 0 32px" $weight={600} title={at.verifier}>
+                      <StyledLink as={Link} to={`/verifier/${at.verifier}`}>{at.verifier_name ?? shortAddr(at.verifier)}</StyledLink>
+                      <div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400 }}>{shortAddr(at.verifier, 8)}</div>
+                    </TableData>
                     <TableData $align="left" title={`verified_on: ${at.verified_on}`}>{f.howLabel(at.verified_on)}</TableData>
                     <TableData $mono data-testid="ver-before" title={executed ? t('detail.ver.h.before_help') : t('detail.how.integrity')}>{executed ? preApplyText(at.score) ?? t('detail.ver.side_na') : '—'}</TableData>
                     <TableData $mono data-testid="ver-after" title={executed ? JSON.stringify(at.score) : t('detail.how.integrity')}>{executed ? scoreText(at.score) : '—'}</TableData>
                     <TableData $color={side.ok === null ? undefined : side.ok ? '#44a45f' : '#e6173e'} title={side.detail ? `${side.detail} — ${help('sideEffects')} (${tech('sideEffects')})` : `${help('sideEffects')} (${tech('sideEffects')})`}>{side.text}</TableData>
                     <TableData title="restarts_detected">{at.restarts_detected === undefined ? '—' : at.restarts_detected === 0 ? t('detail.none') : t('detail.ver.restarts_n', { n: at.restarts_detected })}</TableData>
+                    <TableData $mono data-testid="ver-work" title={t('verifier.work_help')}>
+                      {at.samples_run !== undefined && at.duration_ms !== undefined
+                        ? t('verifier.work_cell', { run: at.samples_run, available: at.samples_available ?? at.samples_run, seconds: Math.round(at.duration_ms / 1000) })
+                        : t('verifier.work_none')}
+                    </TableData>
                     {/* Item 146: an attestation by the author is shown but marked as not counting; item 127: no deposit column, because no deposit exists. */}
-                    <TableData $color={self(at) ? '#8a4b00' : undefined} title={`${help('signedResult')} (${tech('signedResult')})`}>{self(at) ? t('detail.ver.counts_self') : t('detail.ver.counts_yes')}</TableData>
+                    <TableData $color={self(at) || stale(at) ? '#8a4b00' : undefined} title={stale(at) ? t('verifier.stale_help') : `${help('signedResult')} (${tech('signedResult')})`}>
+                      {self(at) ? t('detail.ver.counts_self') : stale(at) ? t('verifier.stale') : t('detail.ver.counts_yes')}
+                    </TableData>
                     <TableData $color={at.passed ? '#44a45f' : '#e6173e'} $weight={600}>{at.passed ? t('detail.pass') : t('detail.fail')}</TableData>
                     <TableData $align="right" $padding="0 32px 0 8px" title={dateTime(at.created_at)}>{f.ago(at.created_at)}</TableData>
                   </TableRow>
@@ -911,6 +981,9 @@ function Verification({ d }: { d: PatchDetail }) {
         <Note>{t('detail.ver.explain_restart')}</Note>
         {d.self_checks > 0 && <Note>{t('detail.ver.explain_self', { n: d.self_checks })}</Note>}
         <Note style={{ margin: 0 }} title={tech('signedResult')}>{t('detail.ver.explain_backing')}</Note>
+        {/* Item 338: the sentence above points at challenges as the safeguard that replaced the deposit. Keep the
+            sentence; attach the base rate, so a reader can see how often that safeguard has actually fired. */}
+        <BaseRate />
       </div>
     </Section>
   );

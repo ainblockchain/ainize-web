@@ -32,6 +32,7 @@ const DrivePage = lazy(() => import('./pages/DrivePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const DocsPage = lazy(() => import('./pages/DocsPage'));
 const TeacherPage = lazy(() => import('./pages/TeacherPage'));
+const VerifierPage = lazy(() => import('./pages/VerifierPage'));
 // Teach mode v2 — the dataset wizard (docs/teachable-dataset-design.md §5.1). One pipeline, two doors.
 const TeachPage = lazy(() => import('./pages/TeachPage'));
 const TeachUploadPage = lazy(() => import('./pages/TeachUploadPage'));
@@ -79,6 +80,8 @@ export default function App() {
                 {/* Combining two knowledges (lineage design §4 SC-14, §9) — the third door, behind the `teach.lineage` flag */}
                 <Route path="/teach/merge" element={<FocusedLayout><MergePage /></FocusedLayout>} />
                 <Route path="/teacher/:address" element={<Layout><TeacherPage /></Layout>} />
+                {/* item 337: what one verifier has actually done — the record behind a tick that had no page at all */}
+                <Route path="/verifier/:address" element={<Layout><VerifierPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />
                 <Route path="/:author/:patchId" element={<Layout><PatchPage /></Layout>} />

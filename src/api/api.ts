@@ -7,7 +7,7 @@ import type {
   AuthMe, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
-  CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile,
+  CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile, VerifierProfile,
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
@@ -71,7 +71,7 @@ export const nodeAddressOnce = (): Promise<string | null> => nodeAddress();
 
 export interface CatalogQuery {
   /** `built_on` and `trending` are the lineage design's §10 orderings (most built on, doing well this week). */
-  sort?: 'latest' | 'popular' | 'price' | 'rows' | 'built_on' | 'trending';
+  sort?: 'latest' | 'popular' | 'price' | 'rows' | 'built_on' | 'trending' | 'fresh';
   status?: string; model?: string; schema?: string; branch?: string; author?: string; q?: string;
   limit?: number; offset?: number; include_drafts?: boolean;
 }
@@ -285,6 +285,8 @@ export const api = createApi({
       query: ({ id, since }) => `api/teach/jobs/${encodeURIComponent(id)}/events${toQuery({ since })}`,
     }),
     teacher: b.query<TeacherProfile, string>({ query: (address) => `api/teacher/${encodeURIComponent(address)}`, providesTags: (_r, _e, address) => [{ type: 'Teacher', id: address.toLowerCase() }, 'Teacher'] }),
+    /** A verifier's record, from the ledger (item 337) — what makes one tick weigh more than another. */
+    verifier: b.query<VerifierProfile, string>({ query: (address) => `api/verifiers/${encodeURIComponent(address)}`, providesTags: ['Catalog'] }),
 
     // Teach mode — operator (spec §6.4): policy, review queue, contributors, bans, payouts (Teaching tab on My knowledge)
     teachAdminPolicy: b.query<TeachPolicyAdmin, void>({ query: () => 'api/me/teach/policy', providesTags: ['TeachAdmin'] }),
@@ -314,7 +316,7 @@ export const {
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useMergePreviewMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
-  useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery,
+  useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery, useVerifierQuery,
   useForkPatchMutation, useTeachDatasetsQuery, useTeachDatasetQuery, useTeachDatasetRowsQuery, useCreateTeachDatasetMutation, useUploadTeachDatasetMutation, useReparseTeachDatasetMutation,
   usePatchTeachDatasetMutation, useForkTeachDatasetMutation, useDeleteTeachDatasetMutation, useTeachSamplesQuery, useRetrainTeachJobMutation, useTeachJobEventsQuery,
   useTeachAdminPolicyQuery, useUpdateTeachAdminPolicyMutation, useTeachAdminJobsQuery, useApproveTeachJobMutation, useRejectTeachJobMutation, useCancelTeachJobAdminMutation,
