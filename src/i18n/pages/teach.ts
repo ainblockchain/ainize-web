@@ -114,7 +114,7 @@ export const teach: Dict = {
   // SC-6 pre-flight statuses
   'teach.pre.in_base': { ko: '{name}이(가) 이미 답합니다', en: '{name} already answers this' },
   'teach.pre.base_conflict': { ko: '{name}이(가) 지금은 다르게 답합니다 ({name}의 답: {answer}). 내 추가분을 넣은 사람에게는 내 답이 대신 나옵니다.', en: '{name} answers this differently today ({name} says: {answer}). Your row will replace it for anyone who loads your add-on.' },
-  'teach.pre.confirm_changes': { ko: '이 답들이 {name}의 답을 대신하게 하겠습니다 ({n}개)', en: 'Yes — these {n} answer(s) are meant to replace {name}’s' },
+  'teach.pre.confirm_changes': { ko: '이 답들이 {name}의 답을 대신하게 하겠습니다 ({n}개)', en: 'Yes — all {n} of these answers are meant to replace {name}’s' },
   'teach.pre.confirm_needed': { ko: '{name}의 답을 바꾸는 질문이 {n}개 있습니다. 계속하려면 위에서 확인해 주세요.', en: '{n} of these change {name}’s answers. Confirm above to continue.' },
 
   // SC-8 publish sheet — what happens to the questions, and who is paid
@@ -635,7 +635,7 @@ export const teach: Dict = {
   'teach.rows.shared_end_help': { ko: '이 질문 {n}개는 끝나는 말이 모두 같아서 모델이 서로 구별하지 못하고 하나만 배웁니다. 묻는 대상이 끝에 오도록 바꿔 주세요.', en: 'These {n} questions all end with the same words, so the model cannot tell them apart and will learn only one of them. Rephrase them so the thing being asked about comes last.' },
   'teach.rows.dropped': { ko: '{n}줄을 읽지 못해 제외했습니다.', en: '{n} line(s) could not be read and were left out.' },
   'teach.rows.dropped_show': { ko: '제외한 줄 보기', en: 'See the lines that were left out' },
-  'teach.rows.fixed': { ko: '질문 {n}개를 다듬었습니다(여분의 공백과 줄바꿈 제거).', en: '{n} question(s) were tidied up (extra spaces and line breaks removed).' },
+  'teach.rows.fixed': { ko: '질문 {n}개를 다듬었습니다(여분의 공백과 줄바꿈 제거).', en: 'Questions tidied up (extra spaces and line breaks removed): {n}.' },
   'teach.rows.cap': { ko: '이 노드는 한 수업에 질문 {max}개까지 가르칩니다. 앞의 {max}개를 골랐고, 나머지는 다음 수업을 위해 데이터셋에 남습니다.', en: 'This node teaches up to {max} questions in one lesson. The first {max} are selected; the rest stay in your dataset for the next lesson.' },
   'teach.rows.cap_pick': { ko: '{max}개 직접 고르기', en: 'Choose which {max}' },
   'teach.rows.cap_selected': { ko: '{max}개 중 {n}개 선택', en: '{n} of {max} selected' },

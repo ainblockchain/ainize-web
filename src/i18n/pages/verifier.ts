@@ -90,7 +90,7 @@ export const VERIFIER: Dict = {
     ko: '진행 중인 이의 제기보다 먼저 쓰인 기록이라 그 이의에 대한 답이 아닙니다. 이 검증자가 이의 제기 이후에 다시 측정하면 다시 인정됩니다.',
   },
   'verifier.stale_note': {
-    en: '{n} earlier verification(s) are set aside while this challenge is open: a record written before it answers nothing. It needs {quorum} fresh measurements to go back on sale.',
+    en: 'Earlier verifications set aside: {n}. while this challenge is open: a record written before it answers nothing. It needs {quorum} fresh measurements to go back on sale.',
     ko: '이의 제기가 진행되는 동안 이전 검증 {n}건은 제외됩니다. 이의보다 먼저 쓰인 기록은 그 이의에 답한 것이 아니기 때문입니다. 다시 판매되려면 새로운 측정 {quorum}건이 필요합니다.',
   },
   'verifier.alone': {

@@ -230,8 +230,8 @@ export const detailPatch: Dict = {
   // item 329 — independence is a claim about the machine, not about the number of signatures.
   'detail.ver.summary_executors': { ko: '실행한 모델 서버', en: 'Model servers' },
   'detail.ver.executors_shared': { ko: '검증 {passed}건이 서로 다른 모델 서버 {n}곳에서 나왔습니다. 서버가 검증 수보다 적으면 같은 엔진에서 두 번 잰 것이므로 독립 검증 {passed}건이 아닙니다.', en: '{passed} counted attestations came from {n} distinct model server(s). Fewer servers than attestations means the same engine was measured twice — that is not {passed} independent runs.' },
-  'detail.ver.executors_unknown': { ko: '검증 {n}건은 엔진 지문이 없는 옛 기록이라 서로 독립인지 확인할 수 없습니다.', en: '{n} attestation(s) predate the engine fingerprint, so their independence cannot be confirmed either way.' },
-  'detail.ver.no_baseline': { ko: '검증 {n}건은 해당 노드에 이 지식이 이미 적용된 상태에서 실행되어 비교 기준(넣기 전)이 없으므로 집계에서 제외했습니다.', en: '{n} attestation(s) ran on a node that already had this knowledge applied, so they had no un-patched baseline of their own and are not counted.' },
+  'detail.ver.executors_unknown': { ko: '검증 {n}건은 엔진 지문이 없는 옛 기록이라 서로 독립인지 확인할 수 없습니다.', en: 'Attestations that predate the engine fingerprint: {n}. Their independence cannot be confirmed either way.' },
+  'detail.ver.no_baseline': { ko: '검증 {n}건은 해당 노드에 이 지식이 이미 적용된 상태에서 실행되어 비교 기준(넣기 전)이 없으므로 집계에서 제외했습니다.', en: 'Attestations run on a node that already had this knowledge applied: {n}. With no un-patched baseline of their own they are not counted.' },
   'detail.ver.explain_self': { ko: '작성자 본인 노드가 남긴 검증 {n}건은 집계에서 제외했습니다. 검증 완료에는 다른 노드의 검증만 반영됩니다.', en: '{n} attestation(s) by the author\u2019s own node are excluded from the count. Only verifications by other nodes count toward Verified.' },
 
   'detail.challenge.banner': { ko: '검증 노드 {who}이(가) 이 지식에 이의를 제기했습니다: "{reason}" ({when}). 재검증으로 해소될 때까지 판매가 중단됩니다.', en: 'Verifier node {who} has challenged this knowledge: "{reason}" ({when}). It is not for sale until a verifier re-runs it and clears the challenge.' },

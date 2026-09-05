@@ -88,6 +88,30 @@ export function josa(text: string): string {
   return out;
 }
 
+/**
+ * Finding 88, the other half — English `(s)`.
+ *
+ * The finding named two keys and both were fixed with `_one` variants, but the convention itself is written into
+ * ~45 more strings: "held by {n} node(s) — {a} publisher · {b} buyer(s) · {c} verifier(s)", "{n} line(s)",
+ * "{n} attempt(s)". On the Manage page of a knowledge nobody has bought yet that renders as "held by 1 node(s) —
+ * 1 publisher · 0 buyer(s)", which is the finding's own description of the defect: "(s) is the visual signature of
+ * an unfinished product". A `_one` variant cannot help a sentence with several independent counts in it.
+ *
+ * So `(s)` is resolved the same way Korean particles are, one line below: after interpolation, against the text it
+ * actually landed in. Each `(s)` / `(es)` is decided by the last number to its left — exactly 1 drops the suffix,
+ * anything else keeps it (English pluralises 0). A `(s)` with no number anywhere before it is left alone rather
+ * than guessed at, so a list heading like "the older version(s):" is unchanged.
+ */
+export function plural(text: string): string {
+  return text.replace(/([A-Za-z][\w-]*)\((s|es)\)/g, (m, word: string, suffix: string, offset: number) => {
+    const before = text.slice(0, offset);
+    const nums = before.match(/\d[\d,]*/g);
+    if (!nums) return m;                                   // nothing to count: leave the convention as written
+    const n = Number(nums[nums.length - 1].replace(/,/g, ''));
+    return n === 1 ? word : word + suffix;
+  });
+}
+
 export function useT() {
   const { locale } = useLocale();
   return useMemo(() => ({
@@ -101,7 +125,7 @@ export function useT() {
       const e = (count === 1 ? PAGES[`${key}_one`] : undefined) ?? PAGES[key];
       if (!e) return key;
       const s = fmt(e[locale] ?? e.en, vars);
-      return locale === 'ko' ? josa(s) : s;
+      return locale === 'ko' ? josa(s) : plural(s);
     },
     /** glossary primary label */
     term: (k: TermKey): string => GLOSSARY[k][locale],
