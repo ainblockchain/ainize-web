@@ -106,7 +106,14 @@ export const lineageTree: Dict = {
   'explore.shelf.asked_teach': { ko: '가르치기', en: 'Teach this' },
   'explore.sort.built_on': { ko: '바탕으로 많이 쓰임', en: 'Most built on' },
   'explore.sort.trending': { ko: '이번 주 인기', en: 'Doing well this week' },
-  'explore.card.built_on': { ko: '바탕 {c}회', en: 'Built on {c}×' },
+  /**
+   * Item 282 — this counts the knowledges built ON this one, and it sat one card away from `item.built_on`
+   * ("Built on {names}"), which names what a knowledge is built FROM. On /explore the base read "Built on 1×" and
+   * the derivative right under it read "Built on AV base two": the same two words for opposite directions. The
+   * count says whose side it is on now. `explore.sort.built_on` above is the sort over this same number and keeps
+   * its wording — a sort label is read against the other sorts, not against the card.
+   */
+  'explore.card.built_on': { ko: '이 위에 만든 지식 {c}개', en: '{c} built on this' },
   'explore.card.needs': { ko: '{name} 필요', en: 'Needs {name}' },
   'explore.card.sales': { ko: '최근 30일 판매 {n}건', en: '{n} sales in 30 days' },
   'explore.card.rows': { ko: '기억 항목 {n}개', en: '{n} memory entries' },
