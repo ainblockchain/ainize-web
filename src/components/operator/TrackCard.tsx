@@ -179,25 +179,6 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
           {mine && trackStats.sales > 0 && <> · {t('op.dash.branches.earned', { n: trackStats.sales, total: trackStats.revenue })}</>}
         </span>
       )}
-      {/* Item 359: what following it costs per PERIOD, and what its own last 30 days actually cost — the recurring
-          shape the product describes had no price object anywhere, so a loyal subscriber paid full price for every
-          bake for ever and the curator earned nothing for curating. */}
-      {q?.subscription?.terms && Number(q.subscription.terms.price) > 0 && (
-        <span style={{ fontSize: 12, color: '#8d8d8f' }} data-testid="track-terms">
-          {t('op.dash.branches.fee', { price: money.fmt(q.subscription.terms.price, q.subscription.terms.currency), days: q.subscription.terms.period_days })}
-          {' '}
-          {q.subscription.due ? <b>{t('op.dash.branches.fee.due')}</b> : t('op.dash.branches.fee.paid', { date: new Date(q.subscription.paid_until ?? 0).toISOString().slice(0, 10) })}
-        </span>
-      )}
-      {q?.subscription && q.subscription.run_rate.knowledge_added > 0 && (
-        <span style={{ fontSize: 12, color: '#8d8d8f' }} data-testid="track-runrate">
-          {t('op.dash.branches.runrate', {
-            n: q.subscription.run_rate.knowledge_added,
-            spend: money.fmt(q.subscription.run_rate.knowledge_spend, currency),
-            total: money.fmt(q.subscription.run_rate.per_30_days, currency),
-          })}
-        </span>
-      )}
       {/* The price of the track, before the click (item 9): what subscribing would spend, right now, from this node. */}
       {!subscribed && (
         <Cost $spend={toBuy.length > 0} data-testid="track-cost">
