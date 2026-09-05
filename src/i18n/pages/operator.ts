@@ -129,6 +129,17 @@ export const operatorDash: Dict = {
   'op.manage.price.done': { ko: '가격이 바뀌었습니다.', en: 'The price has changed.' },
   'op.manage.price.history': { ko: '가격 이력: {history}', en: 'Price history: {history}' },
   'op.manage.price.retired': { ko: '내려간 지식입니다 — 판매가 끝났으니 가격은 의미가 없습니다.', en: 'This knowledge is retired: it is off sale for good, so a price would change nothing.' },
+  /* Item 320 — the money verbs were all read-only or inward: a creator who had earned could spend it only by
+     buying other knowledge through this same node, so "you get paid per sale" ended at a number on one screen. */
+  'op.account.send.title': { ko: '보내기', en: 'Send' },
+  'op.account.send.desc': { ko: '이 노드 지갑에서 다른 주소로 AIN을 보냅니다. 체인 전송은 되돌릴 수 없습니다.', en: 'Send AIN from this node’s wallet to another address. A transfer on the chain cannot be undone.' },
+  'op.account.send.to': { ko: '받는 주소 (0x…)', en: 'To (0x… address)' },
+  'op.account.send.amount': { ko: '금액 ({currency})', en: 'Amount ({currency})' },
+  'op.account.send.button': { ko: '보내기', en: 'Send' },
+  'op.account.send.working': { ko: '보내는 중…', en: 'sending…' },
+  'op.account.send.done': { ko: '보냈습니다.', en: 'Sent.' },
+  'op.account.send.local': { ko: '이 노드의 잔액은 이 노드가 발행한 개발용 크레딧입니다 — 밖으로 보낼 수 없고, 여기서 지식을 사는 데만 씁니다.', en: 'This node’s balance is development credit it issues itself: it cannot leave this node, and it buys knowledge here and nowhere else.' },
+  'op.account.send.local_terms': { ko: '약관 2.4 보기', en: 'See terms 2.4' },
   /* Item 316 — the reconciled per-sale view a creator needs already existed at /teacher/<address>, reachable only
      from teach flows and linked from nowhere in the wallet. Item 314 — and "paid" now has two strengths. */
   'op.account.royalties.every_sale': { ko: '판매 건별로 모두 보기 ›', en: 'See every sale, one by one ›' },

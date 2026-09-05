@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import {
   errorMessage, useAddPeerMutation, useChainSetupMutation, useChangePasswordMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
-  useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery,
+  useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery, useWalletSendMutation,
 } from '@/api/api';
 import type { PayoutRow, Settings, Settlement } from '@/api/types';
 import { useT } from '@/i18n';
@@ -114,6 +114,10 @@ export default function AccountPage() {
 
   // settings form — seeded from the node, saved back with PATCH /api/me/settings
   const [form, setForm] = useState<Settings>({ notifications: 'all', display_name: '', payout_address: '' });
+  /** Item 320: the only outward money action in the product. */
+  const [walletSend, sendState] = useWalletSendMutation();
+  const [sendTo, setSendTo] = useState('');
+  const [sendAmount, setSendAmount] = useState('');
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   useEffect(() => { if (settings.data) setForm(settings.data.settings); }, [settings.data]);
@@ -326,6 +330,28 @@ export default function AccountPage() {
               <Button size="small" loading={chainState.isLoading} loadingText={t('op.account.chain.setting')} onClick={() => run(() => chainSetup().unwrap(), t('op.account.chain.done'))}>{t('op.account.chain.setup')}</Button>
               <Muted title={t('op.account.dev.chain')}>{t('op.account.chain.note')}</Muted>
             </Row>
+          )}
+          {/* Item 320: a balance with no action beside it. Earnings could leave this node only as purchases made
+              through it — no send, no withdraw, no way to pay a collaborator. */}
+          {isAin ? (
+            <div style={{ marginTop: 16 }} data-testid="wallet-send">
+              <strong style={{ fontSize: 14 }}>{t('op.account.send.title')}</strong>
+              <Muted style={{ display: 'block', marginTop: 4 }}>{t('op.account.send.desc')}</Muted>
+              <Row $gap={12} $wrap style={{ marginTop: 8, maxWidth: 620 }}>
+                <TextField label={t('op.account.send.to')} value={sendTo} onChange={(e) => setSendTo(e.target.value)} data-testid="send-to" />
+                <TextField label={t('op.account.send.amount', { currency: money.unit(currency) })} value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} data-testid="send-amount" style={{ maxWidth: 200 }} />
+                <Button size="small" color="secondary" data-testid="send-go"
+                  disabled={!/^0x[0-9a-fA-F]{40}$/.test(sendTo.trim()) || !(Number(sendAmount) > 0)}
+                  loading={sendState.isLoading} loadingText={t('op.account.send.working')}
+                  onClick={() => run(async () => { await walletSend({ to: sendTo.trim(), amount: Number(sendAmount) }).unwrap(); setSendTo(''); setSendAmount(''); }, t('op.account.send.done'))}>
+                  {t('op.account.send.button')}
+                </Button>
+              </Row>
+            </div>
+          ) : (
+            <Muted style={{ display: 'block', marginTop: 12 }} data-testid="wallet-local-note">
+              {t('op.account.send.local')} <StyledLink to="/terms">{t('op.account.send.local_terms')}</StyledLink>
+            </Muted>
           )}
           <Grid>
             <div>

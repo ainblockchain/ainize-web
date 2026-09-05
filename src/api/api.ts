@@ -159,6 +159,9 @@ export const api = createApi({
     setPrice: b.mutation<{ patch_id: string; price: string; previous: string; currency: string; history: { price: string; created_at: number }[] }, { id: string; price: string; reason?: string }>({
       query: ({ id, price, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/price`, method: 'POST', body: { price, reason } }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
+    /** Item 320: money that has been earned can leave the node — the only outward money verb there is. */
+    walletSend: b.mutation<{ to: string; amount: number; tx_hash: string; balance: number | null; currency: string }, { to: string; amount: number; memo?: string }>({
+      query: (body) => ({ url: 'api/me/wallet/send', method: 'POST', body }), invalidatesTags: ['Me', 'Events'] }),
     verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     /** Item 270 / design §12.4 — `bundle` buys the bases this knowledge needs underneath it too, deepest first,
@@ -328,7 +331,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation, useChangePasswordMutation,
-  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation,
+  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
