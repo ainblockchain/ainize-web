@@ -49,8 +49,9 @@ export const detailShared: Dict = {
   'detail.role.gateway': { ko: '게이트웨이', en: 'gateway' },
 
   'detail.billing.per_download': { ko: '내려받을 때 1회 결제', en: 'pay once per download' },
-  'detail.billing.per_apply_hour': { ko: '모델에 넣어 둔 시간당 결제', en: 'pay per hour loaded' },
-  'detail.billing.per_hit': { ko: '사용(질문)할 때마다 결제', en: 'pay per use' },
+  // Item 360: the seller marked it this way and nothing meters it — the buyer pays once, on download.
+  'detail.billing.per_apply_hour': { ko: '판매자는 “시간당”으로 표시했지만 측정되지 않습니다 — 실제로는 내려받을 때 1회 결제', en: 'marked “per hour loaded” by the seller, but nothing meters it — you pay once, on download' },
+  'detail.billing.per_hit': { ko: '판매자는 “사용당”으로 표시했지만 측정되지 않습니다 — 실제로는 내려받을 때 1회 결제', en: 'marked “per use” by the seller, but nothing meters it — you pay once, on download' },
 
   'detail.ledger_kind.ain': { ko: 'AIN 블록체인', en: 'AIN blockchain' },
   'detail.ledger_kind.local': { ko: '로컬 P2P 기록', en: 'Local P2P record' },
@@ -416,6 +417,10 @@ export const detailPatch: Dict = {
   'detail.buy.body_path': { ko: '저장 위치', en: 'Saved to' },
   'detail.buy.blob_urls': { ko: '내려받기 주소', en: 'Download URLs' },
 
+  // Item 199 — the History tab showed ledger records and no usage at all, so "what did it get wrong for people"
+  // had no surface: 849 live tests and 32 misses existed on the node and appeared on no screen.
+  'detail.hist.livetests': { ko: '이 노드에서 최근 {d}일간 라이브 테스트 {t}회 · 틀린 답 {m}회', en: '{t} live tests on this node in the last {d} days · {m} misses' },
+  'detail.hist.livetests_where': { ko: '어떤 질문이었는지는 “원본과 파생” 탭의 열린 질문 목록에 있습니다.', en: 'Which questions they were is in the open-questions list on the Origins tab.' },
   'detail.hist.records': { ko: '공개 기록', en: 'Records' },
   'detail.hist.revenue_help': { ko: '이 노드가 가진 정산 기록에서 이 지식에 지불된 금액을 모두 더한 값입니다. 원작자·검증 노드 몫은 이 금액 안에서 나뉩니다.', en: 'Every payment for this knowledge on the settlement records this node holds, added up. The creator and verifier shares are divided out of that amount.' },
   'detail.hist.empty': { ko: '아직 공개 기록이 없습니다. 등록 전의 지식은 이 노드에만 있습니다.', en: 'No public records yet — unregistered knowledge lives only on this node.' },

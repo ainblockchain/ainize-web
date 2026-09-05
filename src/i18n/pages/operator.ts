@@ -426,8 +426,10 @@ export const operatorManage: Dict = {
   'op.manage.fields.license': { ko: '라이선스', en: 'License' },
   'op.manage.fields.current': { ko: '현재 가격: {price}', en: 'Current price: {price}' },
   'op.billing.per_download': { ko: '내려받을 때마다', en: 'per download' },
-  'op.billing.per_apply_hour': { ko: '모델에 넣어 둔 시간당', en: 'per hour loaded' },
-  'op.billing.per_hit': { ko: '답변에 쓰일 때마다', en: 'per answer used' },
+  // Item 360: neither is metered anywhere — an anchor that carries one is still charged once, per download.
+  'op.billing.per_apply_hour': { ko: '모델에 넣어 둔 시간당 (측정되지 않음 — 실제로는 내려받을 때 1회 결제)', en: 'per hour loaded (not metered — charged once per download)' },
+  'op.billing.per_hit': { ko: '답변에 쓰일 때마다 (측정되지 않음 — 실제로는 내려받을 때 1회 결제)', en: 'per answer used (not metered — charged once per download)' },
+  'op.manage.billing.only': { ko: '결제 방식은 내려받을 때 1회 결제만 지원합니다. 시간당·사용당 과금은 어느 노드도 측정하지 않습니다.', en: 'One payment per download is the only model that is charged. Per-hour and per-use are not metered by any node.' },
   'op.manage.bench.title': { ko: '검증 질문', en: 'Benchmark questions' },
   'op.manage.bench.desc': { ko: '검증 노드가 실제 모델에 지식을 넣고 채점할 때 쓰는 질문과 기대 답입니다. 담긴 사실 수, 부작용 검사 허용치도 여기에 들어 있습니다.', en: 'The questions and expected answers verifiers use when they load the knowledge into a real model and score it. The facts count and side-effect tolerance are here too.' },
   'op.manage.bench.hash': { ko: '검증 질문 지문', en: 'benchmark fingerprint' },
