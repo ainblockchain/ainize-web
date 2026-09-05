@@ -26,6 +26,11 @@ export const chat: Dict = {
   // (#1, #2, #3) instead of repeating two 50-character titles and the winner's title again.
   'chat.picker.overlap_head': { ko: '아래 지식들이 같은 기억 항목을 공유합니다 (번호는 카드에 적힌 넣는 순서):', en: 'These share memory entries — the numbers are the load order on the cards:' },
   'chat.picker.overlap_line': { ko: '{a}과 {b}: 기억 항목 {n}개를 공유합니다 — 겹치는 자리는 나중에 넣는 {winner}이 가져갑니다.', en: '{a} and {b}: {n} shared memory entries — {winner} loads later and wins where they collide.' },
+  // Item 222 — "2,170 shared memory entries" is true and unactionable: what a visitor is choosing between is
+  // whose ANSWER is used, on which questions. Both anchors publish their questions, so the line can say it.
+  'chat.picker.overlap_questions_differ': { ko: '같은 질문 {n}개에 답하고 그중 {d}개는 답이 다릅니다 — 이 순서라면 {winner}의 답을 씁니다.', en: 'They answer {n} of the same questions and disagree on {d} — in this order {winner}\u2019s answers are used.' },
+  'chat.picker.overlap_line_questions_only': { ko: '{a}과 {b}: 기억 항목은 겹치지 않습니다.', en: '{a} and {b}: no shared memory entries.' },
+  'chat.picker.overlap_questions_same': { ko: '같은 질문 {n}개에 답하고, 답은 모두 같습니다.', en: 'They answer {n} of the same questions, and agree on every one.' },
   // Finding 225 — an overlap with knowledge the OPERATOR keeps loaded was never shown, although the visitor
   // cannot untick that one: it is on the model before anything they choose, so anything they tick wins over it.
   'chat.picker.overlap_line_pinned': { ko: '{a}은 이 노드가 항상 넣어 두는 지식과 기억 항목 {n}개를 공유합니다("{name}") — 나중에 넣는 {a}이 가져갑니다.', en: '{a} shares {n} memory entries with “{name}”, which this node keeps loaded — {a} loads after it and wins.' },

@@ -298,11 +298,22 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
           <OverlapList>
             {selectedOverlaps.map((o) => (
               <li key={`${o.a}|${o.b}`} title={`${nameOf(o.a)} / ${nameOf(o.b)}`}>
-                {o.pinnedSide
-                  ? t('chat.picker.overlap_line_pinned', {
-                    a: tag(o.pinnedSide === o.a ? o.b : o.a), n: num(o.rows), name: nameOf(o.pinnedSide),
-                  })
-                  : t('chat.picker.overlap_line', { a: tag(o.a), b: tag(o.b), n: num(o.rows), winner: tag(o.winner) })}
+                {/* A pair can share QUESTIONS while touching different table rows (item 222) — that pair has no
+                    entry overlap to report, and the question line below is the whole of what it is. */}
+                {o.rows === 0 ? t('chat.picker.overlap_line_questions_only', { a: tag(o.a), b: tag(o.b) })
+                  : o.pinnedSide
+                    ? t('chat.picker.overlap_line_pinned', {
+                      a: tag(o.pinnedSide === o.a ? o.b : o.a), n: num(o.rows), name: nameOf(o.pinnedSide),
+                    })
+                    : t('chat.picker.overlap_line', { a: tag(o.a), b: tag(o.b), n: num(o.rows), winner: tag(o.winner) })}
+                {/* Item 222: the same overlap in questions — what the visitor is actually choosing between. */}
+                {!!o.questions_shared && (
+                  <Small data-testid="overlap-questions">
+                    {o.questions_disagree
+                      ? t('chat.picker.overlap_questions_differ', { n: num(o.questions_shared), d: num(o.questions_disagree), winner: tag(o.winner) })
+                      : t('chat.picker.overlap_questions_same', { n: num(o.questions_shared) })}
+                  </Small>
+                )}
               </li>
             ))}
           </OverlapList>
