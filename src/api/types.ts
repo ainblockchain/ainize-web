@@ -40,7 +40,10 @@ export interface CatalogEntry {
    */
   stale_attestations?: number;
   settlements: Settlement[];
+  /** The settlement count — it is not a download count, and never was (item 201). Kept for anything already reading it. */
   downloads: number;
+  /** Sales that count: settlements someone else paid a real price for, all-time and over the last 30 days (item 201). */
+  sales?: { sales_all: number; sales_30d: number };
   revenue: string;
   /** Every price it has been sold at, and the one on its immutable anchor (item 278). */
   price_history?: { price: string; currency: string; reason: string; created_at: number }[];

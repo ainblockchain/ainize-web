@@ -261,6 +261,9 @@ export const listing: Dict = {
   // identical, and the only place a data day lived was the name the publisher invented for it.
   'item.as_of': { ko: '데이터 기준일 {date}', en: 'Data as of {date}' },
   'item.registered_on': { ko: '{date} 등록', en: 'registered {date}' },
+  // Item 201 — the number is settle records: sales. It was labelled "downloads" on every card.
+  'item.sales': { ko: '판매 {n}건', en: '{n} sales' },
+  'item.sales_recent': { ko: '판매 {n}건 (최근 30일 {r}건)', en: '{n} sales ({r} in the last 30 days)' },
   'item.downloads': { ko: '내려받기 {n}회', en: '{n} downloads' },
   'item.size': { ko: '크기 {size}', en: 'Size {size}' },
   'item.topic': { ko: '주제', en: 'Topic' },

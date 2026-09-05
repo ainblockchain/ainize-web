@@ -334,7 +334,11 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
           {t('units.facts', { n: num(a.benchmark.queries) })}
           {' · '}{t('units.rows', { n: num(a.rows) })}
           {' · '}{t('item.size', { size: bytes(a.size_bytes) })}
-          {' · '}{t('item.downloads', { n: num(entry.downloads) })}
+          {/* Item 201: this number is settlements — sales — and calling it "downloads" made a superseded single
+              fact with 314 e2e purchases read as the most-downloaded knowledge on the marketplace. */}
+          {' · '}<span data-testid="item-sales">{entry.sales
+            ? t(entry.sales.sales_30d ? 'item.sales_recent' : 'item.sales', { n: num(entry.sales.sales_all), r: num(entry.sales.sales_30d) })
+            : t('item.sales', { n: num(entry.downloads) })}</span>
           {builtOn > 0 && <>{' · '}<span data-testid="item-built-on">{t('explore.card.built_on', { c: num(builtOn) })}</span></>}
         </Meta>
         <Meta>
