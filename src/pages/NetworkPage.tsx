@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, useLazyRouteQuery, useNodesQuery } from '@/api/api';
+import { errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, useLazyRouteQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Offline } from '@/components/ui/Offline';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
+import type { PeerInfo } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { bytes, num, shortAddr } from '@/utils/format';
@@ -44,6 +45,32 @@ const DevBox = styled.details`
   summary { cursor: pointer; font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
 `;
 
+/**
+ * Item 368 — a node's terms, in the table that lists the nodes.
+ *
+ * `/api/info` has always exposed the creator share and the quorum, and the knowledge page printed the VIEWING
+ * node's rate as if it were the network's; the peer table showed none of it, so a creator choosing where to publish
+ * and a buyer wondering what their money splits into had a self-declared name and a role to go on. Every figure
+ * here is the peer's own published terms — never this node's, and never a default: a peer running an older build
+ * says so instead of borrowing ours.
+ */
+function Terms({ info, t }: { info?: Partial<PeerInfo> | null; t: (k: string, v?: Record<string, string | number>) => string }) {
+  if (!info?.shares && info?.quorum === undefined) return <span title={t('detail.net.terms_help')}>{t('detail.net.terms_none')}</span>;
+  const pct = (n?: number) => (typeof n === 'number' ? `${Math.round(n * 100)}%` : '—');
+  return (
+    <span title={t('detail.net.terms_help')} data-testid="net-terms">
+      {t('detail.net.terms_creator', { pct: pct(info.shares?.royalty) })}
+      <div style={{ fontSize: 11, color: '#8d8d8f' }}>
+        {info.shares?.teach !== undefined ? t('detail.net.terms_teach', { pct: pct(info.shares.teach) }) : t('detail.net.terms_no_teach')}
+      </div>
+      <div style={{ fontSize: 11, color: '#8d8d8f' }}>
+        {info.quorum !== undefined ? t('detail.net.terms_quorum', { n: info.quorum }) : ''}
+        {info.default_price !== undefined ? ` · ${t('detail.net.terms_price', { price: info.default_price })}` : ''}
+      </div>
+    </span>
+  );
+}
+
 export default function NetworkPage() {
   const { t, term, help, tech } = useT();
   useTitle(t('detail.net.title'));
@@ -56,6 +83,48 @@ export default function NetworkPage() {
   // Finding 268: the track table said what a track contains but not what a subscriber would get today, nor how old
   // it is. Both come from the catalogue, which is one cached request shared with /explore.
   const { data: catalog } = useCatalogQuery({ limit: 200 });
+  /**
+   * Item 348 — the table showed an endpoint, a self-declared name, an address, roles, a ledger, a model, a body
+   * count and a last-seen time: two of those are asserted by the node itself and none of them says whether a
+   * stranger has ever delivered anything. Choosing whom to pay in a peer-to-peer market was a trust decision the
+   * product supported with self-declared fields. Everything below is aggregated from the public record instead —
+   * anchors, settlements, attestations and challenges, each signed by the node it is counted against.
+   */
+  const ledger = useLedgerQuery({ limit: 5000 }, { pollingInterval: 60_000 });
+  const record = useMemo(() => {
+    const m = new Map<string, { listed: number; sold: number; bought: number; attested: number; challenged: number; since: number }>();
+    const at = (address: string) => {
+      const k = address.toLowerCase();
+      const cur = m.get(k) ?? { listed: 0, sold: 0, bought: 0, attested: 0, challenged: 0, since: 0 };
+      m.set(k, cur);
+      return cur;
+    };
+    const seen = (row: { since: number }, ts: number) => { row.since = row.since ? Math.min(row.since, ts) : ts; };
+    for (const r of ledger.data?.records ?? []) {
+      const b = (r.body ?? {}) as Record<string, unknown>;
+      if (r.kind === 'anchor' && typeof b.author === 'string') { const row = at(b.author); row.listed += 1; seen(row, r.ts); }
+      if (r.kind === 'attest' && typeof b.verifier === 'string') { const row = at(b.verifier); row.attested += 1; seen(row, r.ts); }
+      if (r.kind === 'challenge' && typeof b.challenger === 'string') { const row = at(b.challenger); row.challenged += 1; seen(row, r.ts); }
+      if (r.kind === 'settle') {
+        if (typeof b.seller === 'string') { const row = at(b.seller); row.sold += 1; seen(row, r.ts); }
+        if (typeof b.buyer === 'string') { const row = at(b.buyer); row.bought += 1; seen(row, r.ts); }
+      }
+      if (r.kind === 'node' && typeof b.address === 'string') seen(at(b.address), r.ts);
+    }
+    return (address?: string | null) => (address ? m.get(address.toLowerCase()) ?? null : null);
+  }, [ledger.data]);
+  /** One cell: what the record says this node has actually done. Never a guess — an unknown node reads "nothing yet". */
+  const TrackRecord = ({ address }: { address?: string | null }) => {
+    const r = record(address);
+    if (!r || (!r.listed && !r.sold && !r.attested && !r.challenged && !r.since)) return <span title={t('detail.net.record_help')}>{t('detail.net.record_none')}</span>;
+    return (
+      <span title={t('detail.net.record_help')} data-testid="net-record">
+        {t('detail.net.record_sales', { sold: num(r.sold), listed: num(r.listed) })}
+        <div style={{ fontSize: 11, color: '#8d8d8f' }}>{t('detail.net.record_verify', { attested: num(r.attested), challenged: num(r.challenged) })}</div>
+        {r.since > 0 && <div style={{ fontSize: 11, color: '#8d8d8f' }}>{t('detail.net.record_since', { ago: f.ago(r.since) })}</div>}
+      </span>
+    );
+  };
   const [routeKey, setRouteKey] = useState('jurisdiction');
   const [routeValue, setRouteValue] = useState('KR');
   const [route, { data: routed, isFetching: routing, error: routeError }] = useLazyRouteQuery();
@@ -155,7 +224,7 @@ export default function NetworkPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead $align="left" $padding="0 0 0 24px">{t('detail.net.h.endpoint')}</TableHead><TableHead $align="left">{t('detail.net.h.name')}</TableHead><TableHead $align="left">{t('detail.net.h.address')}</TableHead><TableHead $align="left">{t('detail.net.h.roles')}</TableHead><TableHead>{t('detail.net.h.ledger')}</TableHead><TableHead>{t('detail.net.h.model')}</TableHead><TableHead>{t('detail.net.h.bodies')}</TableHead><TableHead>{t('detail.net.h.tracks')}</TableHead><TableHead $align="right" $padding="0 24px 0 8px">{t('detail.net.h.last_seen')}</TableHead>
+                <TableHead $align="left" $padding="0 0 0 24px">{t('detail.net.h.endpoint')}</TableHead><TableHead $align="left">{t('detail.net.h.name')}</TableHead><TableHead $align="left">{t('detail.net.h.address')}</TableHead><TableHead $align="left">{t('detail.net.h.roles')}</TableHead><TableHead $align="left" title={t('detail.net.record_help')}>{t('detail.net.h.record')}</TableHead><TableHead $align="left" title={t('detail.net.terms_help')}>{t('detail.net.h.terms')}</TableHead><TableHead>{t('detail.net.h.ledger')}</TableHead><TableHead>{t('detail.net.h.model')}</TableHead><TableHead>{t('detail.net.h.bodies')}</TableHead><TableHead>{t('detail.net.h.tracks')}</TableHead><TableHead $align="right" $padding="0 24px 0 8px">{t('detail.net.h.last_seen')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -165,6 +234,8 @@ export default function NetworkPage() {
                   <TableData $align="left">{p.info?.name ?? '—'}</TableData>
                   <TableData $align="left" $mono title={p.address ?? ''}>{shortAddr(p.address, 8)}</TableData>
                   <TableData $align="left">{roles(p.info?.roles ?? [])}</TableData>
+                  <TableData $align="left"><TrackRecord address={p.address} /></TableData>
+                  <TableData $align="left"><Terms info={p.info} t={t} /></TableData>
                   <TableData>{p.info ? ledgerKind(p.info.ledger) : '—'}</TableData>
                   <TableData title={p.info?.model ?? ''}>{p.info?.model ?? '—'}</TableData>
                   <TableData>{num(p.info?.blobs.length ?? 0)}</TableData>
@@ -178,6 +249,8 @@ export default function NetworkPage() {
                   <TableData $align="left">{n.name}</TableData>
                   <TableData $align="left" $mono title={n.address}>{shortAddr(n.address, 8)}</TableData>
                   <TableData $align="left">{roles(n.roles)}</TableData>
+                  <TableData $align="left"><TrackRecord address={n.address} /></TableData>
+                  <TableData $align="left"><Terms info={n} t={t} /></TableData>
                   <TableData>{ledgerKind(n.ledger)}</TableData>
                   <TableData title={n.model ?? ''}>{n.model ?? '—'}</TableData>
                   <TableData>{num(n.blobs_advertised ?? n.blobs.length)}</TableData>
