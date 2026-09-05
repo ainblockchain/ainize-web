@@ -139,6 +139,14 @@ export const chat: Dict = {
   // footer. The short line is what the placeholder and the transcript say; the offer below is made once.
   'chat.quota.none_short': { ko: '이 시간 무료 체험을 모두 썼습니다', en: 'No free tries left this hour' },
   'chat.quota.spent': { ko: '이 시간 무료 체험을 모두 썼습니다.', en: 'You have used every free try for this hour.' },
+  /*
+   * Finding 59 — the free budget is two buckets: this browser's (the number the counter reports) and the whole
+   * address's. On a shared network the second can be empty before this visitor has asked anything, and the old copy
+   * blamed them for it. These strings are used only when the NETWORK bucket is the one that ran out.
+   */
+  'chat.quota.spent_network': { ko: '이 네트워크에서 이 시간의 무료 체험을 모두 썼습니다 — 같은 주소를 쓰는 사람들이 함께 나눠 씁니다.', en: 'This network has used every free try for this hour — everyone sharing this address shares them.' },
+  'chat.quota.spent_network_of': { ko: '이 네트워크에서 이 시간의 무료 체험 {limit}회를 모두 썼습니다 — 같은 주소를 쓰는 사람들이 함께 나눠 씁니다.', en: 'This network has used all {limit} free tries for this hour — everyone sharing this address shares them.' },
+  'chat.quota.none_network': { ko: '이 네트워크의 이 시간 무료 체험이 모두 소진되었습니다', en: 'No free tries left on this network this hour' },
   'chat.quota.spent_of': { ko: '이 시간 무료 체험 {limit}회를 모두 썼습니다.', en: 'You have used all {limit} free tries for this hour.' },
   'chat.quota.buy_price': { ko: '{name} 구매 · {price}', en: 'Buy {name} · {price}' },
   'chat.quota.buy_free': { ko: '{name} 받기 (무료)', en: 'Get {name} (free)' },
@@ -261,6 +269,7 @@ export const chat: Dict = {
   'chat.err.no_body': { ko: '이 노드에 지식 본문이 없습니다. 판매 노드에서 테스트하거나 먼저 구매하세요.', en: 'This node does not have the knowledge body. Test it on the seller’s node or buy it first.' },
   // Finding 57 — the bubble says what became of THIS question; the offer is made once, under the question box.
   'chat.err.quota': { ko: '이 질문은 보내지 않았습니다 — 이 시간 무료 체험을 모두 썼습니다.', en: 'This question was not sent — you have no free tries left this hour.' },
+  'chat.err.quota_network': { ko: '이 질문은 보내지 않았습니다 — 이 네트워크(같은 주소를 쓰는 모든 사람)의 이 시간 무료 체험이 모두 소진되었습니다.', en: 'This question was not sent — this network, meaning everyone sharing this address, has no free tries left this hour.' },
   'chat.err.busy': { ko: '공유 모델이 오래 잡혀 있어 기다리다 포기했습니다. 잠시 후 다시 시도하세요.', en: 'The shared model stayed busy for too long, so this request gave up waiting. Try again in a moment.' },
   'chat.err.runtime': { ko: '모델 서버가 꺼져 있거나 응답하지 않습니다. 잠시 후 다시 시도하세요.', en: 'The model server is off or not responding. Try again in a moment.' },
   'chat.err.model': { ko: '이 지식은 이 노드가 서비스하는 모델과 다른 모델용이라 테스트할 수 없습니다.', en: 'This knowledge targets a different model than the one this node serves.' },

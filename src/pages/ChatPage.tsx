@@ -151,6 +151,8 @@ function mapChatError(err: unknown, t: Tr): string {
   if (e?.status === 'FETCH_ERROR') return t('chat.err.network');
   if (e?.status === 'TIMEOUT_ERROR' || m.includes('timeout') || m.includes('timed out')) return t('chat.err.timeout');
   if (m.includes('does not hold the patch body')) return t('chat.err.no_body');
+  // finding 59 — the same hour is out for two different reasons, and only one of them is about this visitor
+  if (m.startsWith('quota_chat_network')) return t('chat.err.quota_network');
   if (e?.status === 429 || m.includes('quota')) return t('chat.err.quota');
   if (m.includes('runtime busy')) return t('chat.err.busy');
   if (e?.status === 503 || m.includes('runtime unavailable') || m.includes('model unavailable') || m.includes('unreachable') || m.includes('econnrefused') || m.includes('not available') || m.includes('not responding')) return t('chat.err.runtime');
@@ -262,6 +264,12 @@ export default function ChatPage() {
   const [exhausted, setExhausted] = useState(false);
   /** When the measured free hour ends (from the node's 429 body) — printed once, in the composer footer. */
   const [quotaReset, setQuotaReset] = useState<number | null>(null);
+  /**
+   * Finding 59 — WHOSE hour ran out. The free budget is two buckets: this browser's (what the counter reports) and
+   * the whole address's. Behind an office or carrier NAT the second can be empty before this visitor has asked
+   * anything, and telling them they used all their free tries is a claim about them that is not true.
+   */
+  const [quotaScope, setQuotaScope] = useState<{ scope: 'network'; limit: number | null } | null>(null);
   /** Finding 61 — the question a failed send must put back in the box (nonce = "this is a new failure"). */
   const [restore, setRestore] = useState<{ text: string; nonce: number }>({ text: '', nonce: 0 });
   const [missingId, setMissingId] = useState<string | null>(null);
@@ -446,9 +454,12 @@ export default function ChatPage() {
       measured.current.set(stackKey(ids) + (useMode === 'compare' ? '|c' : ''), Date.now() - startedAt);
       setTurns((prev) => prev.map((x) => (x.id === id ? { ...x, status: 'done', response: res, baseHit: answerHits(res.base?.content, sample?.expect) } : x)));
     } catch (err) {
-      const e = err as { status?: number | string; name?: string; data?: { quota_reset?: number | null } } | undefined;
+      const e = err as { status?: number | string; name?: string; data?: { quota_reset?: number | null; quota_scope?: string; quota_limit?: number } } | undefined;
       const quotaHit = e?.status === 429;
-      if (quotaHit) { setQuota(0); setExhausted(true); setQuotaReset(e?.data?.quota_reset ?? null); }
+      if (quotaHit) {
+        setQuota(0); setExhausted(true); setQuotaReset(e?.data?.quota_reset ?? null);
+        setQuotaScope(e?.data?.quota_scope === 'network' ? { scope: 'network', limit: e.data.quota_limit ?? null } : null);
+      }
       const msg = cancelNote.current ?? mapChatError(err, t);
       cancelNote.current = null;
       // Finding 61 — the box was cleared on submit, so a rejected question was simply gone: an over-long prompt
@@ -707,7 +718,9 @@ export default function ChatPage() {
   const outOfTries = exhausted && !isSignedIn;
   const quotaOffer = outOfTries && (
     <QuotaOffer data-testid="chat-quota-actions">
-      <span>{quotaLimit ? t('chat.quota.spent_of', { limit: quotaLimit }) : t('chat.quota.spent')}</span>
+      <span>{quotaScope
+        ? (quotaScope.limit ? t('chat.quota.spent_network_of', { limit: quotaScope.limit }) : t('chat.quota.spent_network'))
+        : quotaLimit ? t('chat.quota.spent_of', { limit: quotaLimit }) : t('chat.quota.spent')}</span>
       {selected && (
         <StyledLink to={patchHref(selected)}>
           {(() => { const p = priceOf(selected); return p ? t('chat.quota.buy_price', { name: selected.anchor.name, price: fmtPrice(p.n, p.currency) }) : t('chat.quota.buy_free', { name: selected.anchor.name }); })()} →
@@ -720,11 +733,11 @@ export default function ChatPage() {
   const quotaText = isSignedIn || quota === null
     ? t('chat.quota.operator')
     : quota === undefined ? t('chat.quota.visitor')
-      : exhausted || quota <= 0 ? t('chat.quota.none_short')
+      : exhausted || quota <= 0 ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short')
         : quotaLimit ? t('chat.quota.left_of', { n: quota, limit: quotaLimit }) : t('chat.quota.left', { n: quota });
 
   const composerDisabled = (selectedIds.length === 0 && !teachOn) || runtimeOff || outOfTries;
-  const disabledReason = selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : outOfTries ? t('chat.quota.none_short') : undefined;
+  const disabledReason = selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : outOfTries ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short') : undefined;
   const keyLabel = !teacherKey ? undefined
     : teacherKey.name ? t('teach.key.chip', { name: teacherKey.name, short: shortKey(teacherKey.address) })
       : t('teach.key.chip_anon', { short: shortKey(teacherKey.address) });
