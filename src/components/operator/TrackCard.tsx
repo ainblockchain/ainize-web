@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useLedgerQuery, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
-import type { BranchesResponse, SubscribeResult, TrackItem } from '@/api/types';
+import type { BranchesResponse, SubscribeResult, TrackItem, TrackOverlap } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { Sheet, SheetFooter, SheetNote } from '@/components/chat/Sheet';
 import { SubText } from '@/components/ui/Table';
 import { Muted, QueryError, Row, SmallSpinner, Stack, useMoney } from '@/components/operator/common';
-import { shortAddr } from '@/utils/format';
+import { num, shortAddr } from '@/utils/format';
 
 const Card = styled.div`
   padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; display: flex; flex-direction: column; gap: 8px;
@@ -30,6 +30,12 @@ const ItemList = styled.ul`
 const ItemRow = styled.li`
   display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline;
   padding: 10px 2px; border-bottom: 1px solid #f4f4f4;
+`;
+/** The load order of a track's items (item 214): later is on top, and wins on any row two of them share. */
+const OrderBadge = styled.span`
+  display: inline-block; min-width: 18px; margin-right: 6px; padding: 0 4px; border-radius: 9px;
+  background: ${(p) => p.theme.color.LIGHT_GREY}; color: ${(p) => p.theme.color.DARK_GREY};
+  font-size: 11px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums;
 `;
 const ItemName = styled.div`min-width: 0; flex: 1 1 180px; font-size: 14px; a { color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; } a:hover { text-decoration: underline; }`;
 const ItemPlan = styled.div<{ $tone: 'spend' | 'warn' | 'muted' }>`
@@ -124,10 +130,20 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
   const busy = subState.isLoading;
   const loading = quote.isLoading;
 
-  const doSubscribe = async () => {
-    setError(null); setOutcome(null);
-    try { setOutcome(await subscribe({ name: branch.name, action: 'subscribe' }).unwrap()); }
-    catch (err) { setError(errorMessage(err)); }
+  /**
+   * Item 214 — a track is loaded ON TOP of what is already in the model, and the model is last-wins on a shared row.
+   * The node refuses when that would write over something already loaded; the offer to do it anyway is explicit,
+   * beside the sentence naming what would be overridden, rather than a silent 409 the card swallowed.
+   */
+  const [overrides, setOverrides] = useState<TrackOverlap[] | null>(null);
+  const doSubscribe = async (replace = false) => {
+    setError(null); setOutcome(null); setOverrides(null);
+    try { setOutcome(await subscribe({ name: branch.name, action: 'subscribe', replace }).unwrap()); }
+    catch (err) {
+      const d = (err as { data?: { details?: { code?: string; pairs?: TrackOverlap[] } } }).data?.details;
+      if (d?.code === 'overlaps_loaded' && d.pairs?.length) setOverrides(d.pairs);
+      setError(errorMessage(err));
+    }
   };
   const doSync = async () => {
     setError(null); setOutcome(null);
@@ -203,6 +219,8 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
                 {items.map((i) => (
                   <ItemRow key={i.patch_id} data-testid="subscribe-item" data-plan={i.plan}>
                     <ItemName>
+                      {/* Item 214: a track is LOADED in this order, and the later item wins on any row two of them share. */}
+                      {current.includes(i.patch_id) && <OrderBadge title={t('op.dash.branches.sheet.order')}>{current.indexOf(i.patch_id) + 1}</OrderBadge>}
                       {i.author ? <Link to={`/${i.author}/${i.patch_id}`}>{i.name ?? i.patch_id}</Link> : <span>{i.name ?? i.patch_id}</span>}
                       <SubText>{i.patch_id}{i.author ? ` · ${i.author_name ?? shortAddr(i.author)}` : ''}</SubText>
                     </ItemName>
@@ -232,6 +250,29 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
           </Consequences>
 
           {error && <Alert $tone="error" role="alert" data-testid="subscribe-error">{error}</Alert>}
+          {/* Item 214: what this track would write over, and the one button that says yes to it. */}
+          {overrides && (
+            <Alert $tone="warning" role="alert" data-testid="subscribe-overrides">
+              <div>{t('op.dash.branches.sheet.overrides')}</div>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {overrides.map((o) => (
+                  <li key={`${o.track_id}|${o.loaded_id}`}>{o.rows !== null
+                    ? t('op.dash.branches.sheet.overrides.line', {
+                      track: o.track_id, loaded: o.loaded_id, rows: num(o.rows),
+                      how: o.loaded_reason === 'manual' ? t('op.dash.branches.loadedby.manual') : t('op.dash.branches.loadedby.track', { track: o.loaded_reason.replace(/^subscription:/, '') }),
+                    })
+                    /* The body is not on this node yet, so the count is an estimate from the published sketches and says so. */
+                    : t('op.dash.branches.sheet.overrides.line_est', {
+                      track: o.track_id, loaded: o.loaded_id, pct: Math.round((o.jaccard ?? 0) * 100),
+                      how: o.loaded_reason === 'manual' ? t('op.dash.branches.loadedby.manual') : t('op.dash.branches.loadedby.track', { track: o.loaded_reason.replace(/^subscription:/, '') }),
+                    })}</li>
+                ))}
+              </ul>
+              <Button size="small" color="secondary" style={{ marginTop: 8 }} loading={busy} onClick={() => void doSubscribe(true)} data-testid="subscribe-replace">
+                {t('op.dash.branches.sheet.overrides.anyway')}
+              </Button>
+            </Alert>
+          )}
           {outcome && (
             <Alert $tone={outcome.failed.length ? 'warning' : 'success'} role="alert" data-testid="subscribe-outcome">
               {outcomeText(outcome, t, money)}
@@ -242,7 +283,7 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
           <SheetFooter>
             <Button variant="text" color="default" onClick={close}>{outcome ? t('op.close') : t('common.cancel')}</Button>
             {!outcome && (
-              <Button variant="contained" loading={busy} loadingText={t('op.dash.branches.sheet.subscribing')} onClick={doSubscribe} data-testid="subscribe-confirm">
+              <Button variant="contained" loading={busy} loadingText={t('op.dash.branches.sheet.subscribing')} onClick={() => void doSubscribe(false)} data-testid="subscribe-confirm">
                 {toBuy.length === 0 ? t('op.dash.branches.sheet.confirm.free')
                   : short ? t('op.dash.branches.sheet.confirm.anyway', { total: totalText })
                     : t('op.dash.branches.sheet.confirm', { total: totalText })}

@@ -200,6 +200,7 @@ export const operatorDash: Dict = {
   'op.dash.branches.sheet.order': { ko: '올라가는 순서 — 뒤에 올라간 지식이 겹치는 행에서 이깁니다', en: 'load order — the later one answers on any row they share' },
   'op.dash.branches.sheet.overrides': { ko: '이 트랙을 지금 올리면, 이미 올라가 있는 지식을 겹치는 행에서 덮어씁니다:', en: 'Loading this track now writes over knowledge already in the model on the rows they share:' },
   'op.dash.branches.sheet.overrides.line': { ko: '{track}이(가) {loaded}의 행 {rows}개를 덮어씁니다 ({how})', en: '{track} covers {rows} of {loaded}\u2019s rows ({how})' },
+  'op.dash.branches.sheet.overrides.line_est': { ko: '{track}이(가) {loaded}의 행 일부를 덮어씁니다 — 아직 파일이 없어 공개된 주소 스케치로 추정한 값이며 약 {pct} % 겹칩니다 ({how})', en: '{track} writes over part of {loaded}\u2019s rows — estimated from the published address sketches (about {pct} % alike), because the file is not on this node yet ({how})' },
   'op.dash.branches.sheet.overrides.anyway': { ko: '그래도 트랙을 올립니다', en: 'Load the track anyway' },
   'op.dash.branches.loadedby.manual': { ko: '직접 올림', en: 'loaded by hand' },
   'op.dash.branches.loadedby.track': { ko: '{track} 트랙이 올림', en: 'loaded by the track {track}' },

@@ -231,6 +231,13 @@ export interface TrackQuote {
   runtime_available: boolean; runtime_error: string | null;
 }
 /** What a subscribe / unsubscribe / sync actually did (item 357) — `{ok:true}` used to be the whole answer. */
+/**
+ * What a track would write over in what is already loaded (item 214). `rows` is a measured intersection; when the
+ * body is not on this node yet — the normal case before subscribing buys it — the pair is an ESTIMATE from the
+ * anchors' published address sketches and carries `estimated: true` with a Jaccard, never an invented row count.
+ */
+export interface TrackOverlap { track_id: string; loaded_id: string; rows: number | null; estimated: boolean; jaccard?: number; loaded_reason: string }
+
 export interface SubscribeResult {
   ok: true; branch: string; action: 'subscribe' | 'unsubscribe' | 'sync';
   acquired: string[]; failed: { patch_id: string; error: string }[]; applied: string[];

@@ -453,7 +453,13 @@ export default function DashboardPage() {
           question ("what is under what?"), and after L2 the order is a record the node keeps, not a guess. */}
       {!!runtime.data?.stack?.length && (
         <StatusText style={{ marginTop: 8 }} data-testid="ops-stack">
-          {t('ops.stack', { list: runtime.data.stack.map((l, i) => `${i + 1}. ${l.name ?? l.patch_id}${l.reason === 'base' ? ` (${t('ops.stack.base')})` : ''}`).join('  ·  ') })}
+          {/* Item 214: WHY each layer is there — by hand, or by a track — was in the answer and on no screen. */}
+          {t('ops.stack', { list: runtime.data.stack.map((l, i) => `${i + 1}. ${l.name ?? l.patch_id} (${
+            l.reason === 'base' ? t('ops.stack.base')
+              : l.reason === 'manual' ? t('op.dash.branches.loadedby.manual')
+                : l.reason?.startsWith('subscription:') ? t('op.dash.branches.loadedby.track', { track: l.reason.slice('subscription:'.length) })
+                  : l.reason?.startsWith('chat:') ? t('ops.stack.livetest') : l.reason
+          })`).join('  ·  ') })}
           {runtime.data.stack.some((l) => !l.journal) && <div>{t('ops.stack.nojournal', { n: runtime.data.stack.filter((l) => !l.journal).length })}</div>}
         </StatusText>
       )}
