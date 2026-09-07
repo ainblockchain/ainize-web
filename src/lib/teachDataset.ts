@@ -2,7 +2,7 @@
  * Teach mode v2 — browser-side dataset helpers (design `docs/teachable-dataset-design.md` §5, §6.6, §D2, §D14).
  *
  * Three jobs, and nothing else:
- *  1. the sha256 the upload signs (`x-ngram-dataset-sha256`) and the fingerprint the preview shows;
+ *  1. the sha256 the upload signs (`x-ainize-dataset-sha256`) and the fingerprint the preview shows;
  *  2. the canonical `rows.jsonl` bytes, so a chat basket downloads as exactly the file the node would have written;
  *  3. an instant, DISPLAY-ONLY count of what a picked file looks like — replaced by the server's report the moment the
  *     upload answers (§D2: two parsers that can disagree is where "it looked fine in the preview" bugs come from).
@@ -129,7 +129,7 @@ export function downloadBytes(filename: string, body: BlobPart, type = 'applicat
 }
 
 /**
- * Download an owner-only node file (the dataset). A plain <a href> cannot carry `x-ngram-auth`, so the bytes are
+ * Download an owner-only node file (the dataset). A plain <a href> cannot carry `x-ainize-auth`, so the bytes are
  * fetched with a request-bound signature and saved from the blob.
  */
 export async function signedDownload(path: string, fallbackName: string): Promise<void> {
@@ -137,7 +137,7 @@ export async function signedDownload(path: string, fallbackName: string): Promis
   const headers: Record<string, string> = {};
   if (key) {
     const node = await nodeAddressOnce();
-    if (node) headers['x-ngram-auth'] = authHeaderV2(key.privateKey, key.address, { node, method: 'GET', path });
+    if (node) headers['x-ainize-auth'] = authHeaderV2(key.privateKey, key.address, { node, method: 'GET', path });
   }
   const res = await fetch(path, { headers, credentials: 'include' });
   if (!res.ok) {

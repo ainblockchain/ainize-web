@@ -1,5 +1,5 @@
 {
-  "name": "@ngram/web",
+  "name": "@ainize/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,7 +22,7 @@
     "styled-components": "^6.5.3"
   },
   "devDependencies": {
-    "@ngram/core": "0.1.0",
+    "@ainize/core": "0.1.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",

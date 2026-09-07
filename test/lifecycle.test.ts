@@ -4,7 +4,7 @@
  * README's table, and every string the diagram renders must exist in both English and Korean.
  *
  * It also guards the two things this page got wrong before: a command that cannot resolve
- * (`npm install -g ainize` — @ngram/cli is private) and a Korean column that is really English.
+ * (`npm install -g ainize` — @ainize/cli is private) and a Korean column that is really English.
  *
  *   node --test --import tsx test/lifecycle.test.ts     (packages/web)
  */
@@ -69,7 +69,7 @@ test('the role-grouped "one line is enough" block is gone from the page and the 
 test('no command that cannot resolve, and no unshipped flag', () => {
   const page = readFileSync(fileURLToPath(new URL('../src/pages/LandingPage.tsx', import.meta.url)), 'utf-8');
   const every = LIFECYCLE.map((s) => s.cmd).join('\n') + '\n' + SECTION + '\n' + page;
-  // @ngram/cli is private: `npm view ainize` 404s, so the global install has never worked
+  // @ainize/cli is private: `npm view ainize` 404s, so the global install has never worked
   assert.ok(!every.includes('npm install -g ainize'), 'npm install -g ainize cannot resolve — the package is private');
   // named by the node's own needs_base error, but `ainize patch apply --help` does not list it
   assert.ok(!LIFECYCLE.some((s) => s.cmd.includes('--with-base')), '--with-base is not in `patch apply --help` yet');

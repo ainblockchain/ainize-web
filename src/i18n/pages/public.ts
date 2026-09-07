@@ -95,7 +95,7 @@ export const landing: Dict = {
   'landing.flow.s3.path': { ko: '/ → 지식 둘러보기 → 지식 상세 → 구매', en: '/ → Explore knowledge → a knowledge page → Buy' },
 
   'landing.flow.s4.title': { ko: '틀리는 것을 가르칩니다', en: 'Teach it something it gets wrong' },
-  'landing.flow.s4.note': { ko: '내 질문과 정답이 수업이 되고, 노드가 학습한 뒤 상관없는 질문들을 다시 물어 다른 답이 망가지지 않았는지 확인합니다. 가르치기는 운영자가 켜 둔 노드에서만 되고 기본값은 꺼짐입니다. 계정은 없습니다 — 브라우저나 `<NGRAM_HOME>/teaching-key.json`에 있는 teaching key가 신원 전부라, 백업을 잃으면 수업도 그 수익도 잃습니다.', en: 'Your questions and their right answers become a lesson: the node trains it, then re-asks unrelated questions to prove nothing else moved. Teaching only works on a node whose operator switched it on — it is off by default. There is no account: a teaching key, in your browser or at `<NGRAM_HOME>/teaching-key.json`, is the whole identity, and losing the backup loses the lesson and its earnings.' },
+  'landing.flow.s4.note': { ko: '내 질문과 정답이 수업이 되고, 노드가 학습한 뒤 상관없는 질문들을 다시 물어 다른 답이 망가지지 않았는지 확인합니다. 가르치기는 운영자가 켜 둔 노드에서만 되고 기본값은 꺼짐입니다. 계정은 없습니다 — 브라우저나 `<AINIZE_HOME>/teaching-key.json`에 있는 teaching key가 신원 전부라, 백업을 잃으면 수업도 그 수익도 잃습니다.', en: 'Your questions and their right answers become a lesson: the node trains it, then re-asks unrelated questions to prove nothing else moved. Teaching only works on a node whose operator switched it on — it is off by default. There is no account: a teaching key, in your browser or at `<AINIZE_HOME>/teaching-key.json`, is the whole identity, and losing the backup loses the lesson and its earnings.' },
   'landing.flow.s4.path': { ko: '/ → 가르치기 → 데이터셋 올리기', en: '/ → Teach → Upload your dataset' },
 
   'landing.flow.s5.title': { ko: '공개합니다', en: 'Publish it' },

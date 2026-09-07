@@ -845,7 +845,7 @@ export const operatorAccount: Dict = {
   'op.tech.block_height': { ko: '체인 블록 수', en: 'chain blocks' },
   'op.tech.block_height_help': { ko: 'AI Network 블록 높이 (block height)', en: 'AI Network block height' },
   'op.account.try.default_prompt': { ko: '종목코드 픽셀플러스 ', en: '종목코드 픽셀플러스 ' },
-  'op.account.dev.retire': { ko: '계정 주소는 다른 노드들이 이미 가진 기록에 들어 있어 웹 화면에서 지울 수 없습니다. 노드를 그만두려면 노드를 멈추고 노드 홈 폴더(기본 ~/.ngram)를 지우세요. 키는 어디에도 올라가지 않습니다.', en: 'The account address is referenced by records other nodes already hold, so it cannot be deleted from the web console. To retire the node, stop it and remove ~/.ngram. Keys are never uploaded anywhere.' },
+  'op.account.dev.retire': { ko: '계정 주소는 다른 노드들이 이미 가진 기록에 들어 있어 웹 화면에서 지울 수 없습니다. 노드를 그만두려면 노드를 멈추고 노드 홈 폴더(기본 ~/.ainize)를 지우세요. 키는 어디에도 올라가지 않습니다.', en: 'The account address is referenced by records other nodes already hold, so it cannot be deleted from the web console. To retire the node, stop it and remove ~/.ainize. Keys are never uploaded anywhere.' },
   'op.account.dev.chain': { ko: '체인 준비 버튼은 ain-js knowledge.setupApp() 을 실행하고 거래 쓰기 규칙을 설치합니다 (idempotent).', en: 'The chain setup button runs ain-js knowledge.setupApp() and installs the market write rules (idempotent).' },
   'op.account.dev.raw': { ko: '노드 상태 (원본)', en: 'Node state (raw)' },
 };

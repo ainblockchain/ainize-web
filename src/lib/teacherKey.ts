@@ -86,7 +86,7 @@ export function signMessage(message: string, privHex: string): string {
 }
 
 /**
- * Legacy `x-ngram-auth: <address>:<ts>:<sig over "<purpose>:<ts>">` — verified by the node's verifyAuthHeader (5-min skew).
+ * Legacy `x-ainize-auth: <address>:<ts>:<sig over "<purpose>:<ts>">` — verified by the node's verifyAuthHeader (5-min skew).
  * Not bound to a route: the node refuses an exact replay but the same header would verify on another route, so the
  * API layer sends the request-bound v2 form (`authHeaderV2`) and keeps this only as a fallback when the node address
  * is unknown.
@@ -105,7 +105,7 @@ export function teachAuthMessage(t: TeachAuthTarget & { ts: number }): string {
 }
 
 /**
- * v2 `x-ngram-auth: <address>:<ts>:<sig>:v2`, sig over `teach:<nodeAddress>:<METHOD>:<path+query>:<ts>[:<sha256(body)>]`.
+ * v2 `x-ainize-auth: <address>:<ts>:<sig>:v2`, sig over `teach:<nodeAddress>:<METHOD>:<path+query>:<ts>[:<sha256(body)>]`.
  * Single-use on the node and bound to node / route / body, so a captured header cannot be replayed elsewhere.
  */
 export function authHeaderV2(privHex: string, address: string, t: TeachAuthTarget, ts = Date.now()): string {

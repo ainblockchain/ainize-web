@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createIdentity, identityFromPrivateKey, signMessage as coreSign, verifyMessage, hashCanonical } from '@ngram/core';
+import { createIdentity, identityFromPrivateKey, signMessage as coreSign, verifyMessage, hashCanonical } from '@ainize/core';
 import { verifyAuthHeader } from '../../node/dist/p2p.js';
 import { TeachAuth, teachAuthHeaderFor as nodeTeachAuthHeaderFor } from '../../node/dist/teach-auth.js';
 import { addressOf, authHeader, authHeaderV2, hashMessage, teachAuthMessage, parseTeacherKeyBackup, signMessage, teacherKeyBackup, toChecksumAddress } from '../src/lib/teacherKey.ts';
@@ -47,7 +47,7 @@ test('browser signature verifies with core verifyMessage; core signature has the
   }
 });
 
-test('x-ngram-auth header from the browser key passes node verifyAuthHeader("teach")', () => {
+test('x-ainize-auth header from the browser key passes node verifyAuthHeader("teach")', () => {
   const id = createIdentity();
   const h = authHeader(id.privateKey, id.address, 'teach');
   assert.equal(verifyAuthHeader(h, 'teach'), id.address);
@@ -58,7 +58,7 @@ test('x-ngram-auth header from the browser key passes node verifyAuthHeader("tea
   assert.equal(verifyAuthHeader(tampered, 'teach'), null);
 });
 
-test('v2 x-ngram-auth from the browser key is byte-identical to the node builder and passes TeachAuth.verify (route + body bound, single use)', () => {
+test('v2 x-ainize-auth from the browser key is byte-identical to the node builder and passes TeachAuth.verify (route + body bound, single use)', () => {
   const id = createIdentity(); const node = createIdentity().address;
   const body = JSON.stringify({ patch_id: 'x', messages: [{ role: 'user', content: '픽셀플러스?' }] });
   const ts = Date.now();
@@ -66,7 +66,7 @@ test('v2 x-ngram-auth from the browser key is byte-identical to the node builder
   assert.equal(authHeaderV2(id.privateKey, id.address, t, ts), nodeTeachAuthHeaderFor(id, t, ts));
   assert.equal(teachAuthMessage({ ...t, ts }).split(':').length, 6);
   const auth = new TeachAuth(node);
-  const req = (h: string, method = 'POST', url = '/api/chat', raw: string | null = body) => ({ header: (n: string) => (n === 'x-ngram-auth' ? h : undefined), method, originalUrl: url, url, rawBody: raw === null ? undefined : Buffer.from(raw) }) as never;
+  const req = (h: string, method = 'POST', url = '/api/chat', raw: string | null = body) => ({ header: (n: string) => (n === 'x-ainize-auth' ? h : undefined), method, originalUrl: url, url, rawBody: raw === null ? undefined : Buffer.from(raw) }) as never;
   const h = authHeaderV2(id.privateKey, id.address, t, ts);
   assert.equal(auth.verify(req(h)), id.address);
   assert.equal(auth.verify(req(h)), null, 'single use');

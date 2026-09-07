@@ -16,7 +16,7 @@ import type {
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
- * Endpoints that carry the visitor's signed `x-ngram-auth` when this browser has a teaching key (spec §6.1).
+ * Endpoints that carry the visitor's signed `x-ainize-auth` when this browser has a teaching key (spec §6.1).
  * `chat` is included because a private draft (a taught lesson before publishing) can be live-tested only by its owner.
  */
 const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'mergePreview',
@@ -29,9 +29,9 @@ const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'merg
   // item 306 — the person who is owed the money asks the node to try the transfer again, signed with the key that is owed it
   'nudgePayout']);
 /** Header that carries the sha256 of a multipart upload — it is what the v2 signature covers (design §D14). */
-export const DATASET_SHA_HEADER = 'x-ngram-dataset-sha256';
+export const DATASET_SHA_HEADER = 'x-ainize-dataset-sha256';
 /** Internal marker set by prepareHeaders and consumed by `signedFetch` (never sent). */
-const SIGN_MARKER = 'x-ngram-sign';
+const SIGN_MARKER = 'x-ainize-sign';
 
 let nodeAddressPromise: Promise<string | null> | null = null;
 /** This node's address (signed into every v2 header), fetched once from /api/info. */
@@ -45,7 +45,7 @@ const nodeAddress = (): Promise<string | null> => {
 };
 
 /**
- * fetch with the request-bound v2 `x-ngram-auth` (`teach:<node>:<METHOD>:<path+query>:<ts>[:<sha256 body>]`) on marked
+ * fetch with the request-bound v2 `x-ainize-auth` (`teach:<node>:<METHOD>:<path+query>:<ts>[:<sha256 body>]`) on marked
  * requests — single-use on the node and bound to route + body, so a captured header cannot be replayed elsewhere.
  * Falls back to the legacy `teach:<ts>` header only when the node address cannot be read.
  */
@@ -58,12 +58,12 @@ const signedFetch: typeof fetch = async (input, init) => {
     const node = await nodeAddress();
     const method = req.method.toUpperCase();
     // A multipart body is never captured as `rawBody` on the node, so the client signs the value of
-    // `x-ngram-dataset-sha256` instead and the node re-hashes the stored file against it (design §D14).
+    // `x-ainize-dataset-sha256` instead and the node re-hashes the stored file against it (design §D14).
     const declared = headers.get(DATASET_SHA_HEADER);
     const body = declared ?? (method === 'GET' || method === 'HEAD' ? null : await req.clone().text());
     const u = new URL(req.url);
     const h = node ? teachAuthHeaderFor({ node, method, path: `${u.pathname}${u.search}`, body }) : teachAuthHeader();
-    if (h) headers.set('x-ngram-auth', h);
+    if (h) headers.set('x-ainize-auth', h);
   }
   return fetch(new Request(req, { headers }));
 };

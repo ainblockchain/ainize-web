@@ -1,11 +1,11 @@
 /**
  * API response shapes of a marketplace node (packages/node/src/api.ts).
- * Domain types come straight from @ngram/core (type-only import, erased at build time).
+ * Domain types come straight from @ainize/core (type-only import, erased at build time).
  */
 import type {
   Attestation, BranchInfo, Challenge, LedgerInfo, LedgerRecord, PatchAnchor, PatchManifest, PatchStatus, PeerInfo, RuntimeStatus, Settlement,
   TeachDataset, TeachDatasetFormat, TeachDatasetLang, TeachDatasetRef, TeachDatasetRow, TeachDatasetSource, TeachDatasetStatus, TeachDatasetSummary, TeachEffort, TeachRowStatus, TeachTrainingSpec,
-} from '@ngram/core';
+} from '@ainize/core';
 
 export type { Attestation, BranchInfo, Challenge, LedgerInfo, LedgerRecord, PatchAnchor, PatchManifest, PatchStatus, PeerInfo, RuntimeStatus, Settlement };
 /** teach mode v2 — the dataset is a first-class object (design docs/teachable-dataset-design.md §6.3). */
