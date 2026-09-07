@@ -129,6 +129,12 @@ export const operatorDash: Dict = {
   'op.manage.price.done': { ko: '가격이 바뀌었습니다.', en: 'The price has changed.' },
   'op.manage.price.history': { ko: '가격 이력: {history}', en: 'Price history: {history}' },
   'op.manage.price.retired': { ko: '내려간 지식입니다 — 판매가 끝났으니 가격은 의미가 없습니다.', en: 'This knowledge is retired: it is off sale for good, so a price would change nothing.' },
+  /* Item 359 — a track had no terms at all: prices are per anchor, so the most loyal subscriber to a daily track
+     was the most expensive customer, and nobody was paid to keep a channel good. */
+  'op.dash.branches.fee': { ko: '큐레이션 이용료 {price} / {days}일 — 트랙에 올라온 지식은 각 저작자에게 따로 구매합니다.', en: 'Curation fee {price} per {days} days — the knowledge on it is still bought from whoever published it.' },
+  'op.dash.branches.fee.paid': { ko: '{date}까지 결제됨', en: 'paid until {date}' },
+  'op.dash.branches.fee.due': { ko: '지금 결제해야 합니다', en: 'due now' },
+  'op.dash.branches.runrate': { ko: '최근 30일: 지식 {n}건 추가 · {spend} — 이용료까지 30일 기준 약 {total}', en: 'Last 30 days: {n} knowledge added, {spend} of it — about {total} per 30 days including the fee' },
   /* Item 322 — the rule that decides the lineage split lived in a source comment, so naming two knowledges by one
      creator cost exactly what naming one cost and nothing said so, and a creator weighing one base against two was
      making a permanent revenue decision with no rule in front of them. */
@@ -426,8 +432,10 @@ export const operatorManage: Dict = {
   'op.manage.fields.license': { ko: '라이선스', en: 'License' },
   'op.manage.fields.current': { ko: '현재 가격: {price}', en: 'Current price: {price}' },
   'op.billing.per_download': { ko: '내려받을 때마다', en: 'per download' },
-  'op.billing.per_apply_hour': { ko: '모델에 넣어 둔 시간당', en: 'per hour loaded' },
-  'op.billing.per_hit': { ko: '답변에 쓰일 때마다', en: 'per answer used' },
+  // Item 360: neither is metered anywhere — an anchor that carries one is still charged once, per download.
+  'op.billing.per_apply_hour': { ko: '모델에 넣어 둔 시간당 (측정되지 않음 — 실제로는 내려받을 때 1회 결제)', en: 'per hour loaded (not metered — charged once per download)' },
+  'op.billing.per_hit': { ko: '답변에 쓰일 때마다 (측정되지 않음 — 실제로는 내려받을 때 1회 결제)', en: 'per answer used (not metered — charged once per download)' },
+  'op.manage.billing.only': { ko: '결제 방식은 내려받을 때 1회 결제만 지원합니다. 시간당·사용당 과금은 어느 노드도 측정하지 않습니다.', en: 'One payment per download is the only model that is charged. Per-hour and per-use are not metered by any node.' },
   'op.manage.bench.title': { ko: '검증 질문', en: 'Benchmark questions' },
   'op.manage.bench.desc': { ko: '검증 노드가 실제 모델에 지식을 넣고 채점할 때 쓰는 질문과 기대 답입니다. 담긴 사실 수, 부작용 검사 허용치도 여기에 들어 있습니다.', en: 'The questions and expected answers verifiers use when they load the knowledge into a real model and score it. The facts count and side-effect tolerance are here too.' },
   'op.manage.bench.hash': { ko: '검증 질문 지문', en: 'benchmark fingerprint' },

@@ -232,6 +232,13 @@ export interface TrackQuote {
   items: TrackItem[]; current: string[]; retired: string[]; buy: string[];
   total: { currency: string; amount: string }[]; currency: string; balance: number | null;
   runtime_available: boolean; runtime_error: string | null;
+  /** What following it costs per period, and what its own last 30 days cost (item 359). */
+  subscription?: {
+    branch: string; owner: string;
+    terms: { price: string; currency: string; period_days: number } | null;
+    paid_until: number | null; paid_at: number | null; periods_paid: number; due: boolean; currency: string;
+    run_rate: { days: number; knowledge_added: number; knowledge_spend: string; per_period: string | null; per_30_days: string };
+  } | null;
 }
 /** What a subscribe / unsubscribe / sync actually did (item 357) — `{ok:true}` used to be the whole answer. */
 /**
