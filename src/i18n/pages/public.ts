@@ -14,8 +14,8 @@ export const landing: Dict = {
   'landing.nav.signin_help': { ko: '노드 운영자·개발자용 콘솔입니다. 지식을 사서 쓰는 데는 로그인이 필요 없습니다.', en: 'Console for node operators and developers. You do not need to sign in to use knowledge.' },
 
   // hero
-  'landing.hero.title': { ko: '지식을 AI에 끼우다', en: 'Plug knowledge into your AI' },
-  'landing.hero.sub': { ko: 'Ainize = AI + -ize, "AI가 쓸 수 있게 만든다".\n검증된 지식을 고르고, 라이브로 확인하고, 몇 초 만에 모델에 넣으세요.', en: 'Ainize = AI + -ize, "make it usable by AI".\nPick verified knowledge, check it live, load it into your model in seconds.' },
+  'landing.hero.title': { ko: '기억을 굽는다', en: 'Bake your own memory' },
+  'landing.hero.sub': { ko: '찾아본 것을 아는 것으로 바꾸세요. 지식은 문서가 아니라 모델 메모리에 구워 넣은 것이고,\n재시작 없이 올렸다 내렸다 할 수 있으며, 다른 노드가 검증하고, 노드끼리 사고팝니다.', en: 'Turn what you look up into what you know. A knowledge here is baked into the model\u2019s memory, not retrieved \u2014\nloaded and removed with no restart, verified by other nodes, and traded node to node.' },
   // Finding 77: the hero's headline is a fact from this node, and an unreachable node rendered it as a grey bar for
   // ever. When there is no answer the card says so instead of pretending to be loading.
   'landing.hero.offline': { ko: '이 노드에 연결하지 못했습니다', en: 'This node is not answering' },
