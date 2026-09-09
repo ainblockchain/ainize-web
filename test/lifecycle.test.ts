@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { LIFECYCLE, LIFECYCLE_KEYS, LOOP_TARGET } from '../src/components/public/lifecycleSteps.ts';
 import { landing } from '../src/i18n/pages/public.ts';
 
-const README = readFileSync(fileURLToPath(new URL('../../../README.md', import.meta.url)), 'utf-8');
+const README = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf-8');
 /** the lifecycle section only — a command must be in the table, not merely somewhere else in the file */
 const SECTION = README.slice(README.indexOf('## The loop —'), README.indexOf('## Teach the model'));
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
