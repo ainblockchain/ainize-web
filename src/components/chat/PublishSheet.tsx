@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useInfoQuery, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation } from '@/api/api';
-import { TEACH_SAMPLES_ON_CHAIN } from '@ainize/core';
+import { TEACH_SAMPLES_ON_CHAIN } from '@ainize/core/browser';
 import type { PublishResponse, TeachJob, TeachPolicy } from '@/api/types';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';

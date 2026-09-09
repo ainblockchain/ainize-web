@@ -20,7 +20,17 @@ import { parseDoc, slugify, inlineText, type Block } from '../src/components/doc
 import { buildSite, docHref, neighbours, parseDocsPath, resolveDocHref, searchDocs, type Toctree } from '../src/components/docs/docsTree.ts';
 import { highlight } from '../src/components/docs/highlight.ts';
 
-const DOCS = fileURLToPath(new URL('../../../docs', import.meta.url));
+const DOCS = fileURLToPath(new URL('../docs', import.meta.url));
+
+/**
+ * The split broke this once and nothing said so: `pages.ts` globbed five directories up into the monorepo, the
+ * glob matched zero files, the build stayed green and `/docs` shipped empty. `import.meta.glob` finding nothing
+ * is not an error, so the floor is asserted here instead.
+ */
+test('docs/ is actually present — an empty glob must fail here, not ship a blank /docs', () => {
+  const pages = readdirSync(join(DOCS, 'en'), { recursive: true }).filter((f) => String(f).endsWith('.md'));
+  assert.ok(pages.length >= 10, `docs/en has ${pages.length} pages; the site had ~18 when this was written`);
+});
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

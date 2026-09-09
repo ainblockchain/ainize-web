@@ -1,9 +1,10 @@
 /**
  * The one place the markdown in `docs/` becomes something the web can render.
  *
- * `import.meta.glob(..., { query: '?raw', eager: true })` reaches outside the package root and inlines every page at
- * build time; in dev Vite rewrites the same glob to `/@fs/…` and serves the files off disk, because `server.fs.allow`
- * defaults to the npm-workspace root and `docs/` is inside it. Neither path needs a `vite.config.ts` change.
+ * `import.meta.glob(..., { query: '?raw', eager: true })` inlines every page at build time from `docs/` in this
+ * repository. It used to reach five directories up into the monorepo, and when the packages were split that glob
+ * matched nothing — the build stayed green and shipped an empty `/docs`. A glob that finds no files is not an error,
+ * so `docs-shell.test.ts` asserts the page count instead.
  *
  * This module is imported only from the `/docs` route, and `App.tsx` already `lazy()`-loads that route, so the
  * markdown lands in the docs chunk — a visitor who never opens `/docs` never downloads it.
@@ -13,11 +14,11 @@
  */
 import { buildSite, type DocSite, type Lang, type Toctree } from '@/components/docs/docsTree';
 
-const RAW = import.meta.glob(['../../../../../docs/en/**/*.md', '../../../../../docs/ko/**/*.md'], {
+const RAW = import.meta.glob(['../../../docs/en/**/*.md', '../../../docs/ko/**/*.md'], {
   query: '?raw', import: 'default', eager: true,
 }) as Record<string, string>;
 
-const TREES = import.meta.glob(['../../../../../docs/en/_toctree.json', '../../../../../docs/ko/_toctree.json'], {
+const TREES = import.meta.glob(['../../../docs/en/_toctree.json', '../../../docs/ko/_toctree.json'], {
   import: 'default', eager: true,
 }) as Record<string, Toctree>;
 

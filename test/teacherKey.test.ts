@@ -8,8 +8,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createIdentity, identityFromPrivateKey, signMessage as coreSign, verifyMessage, hashCanonical } from '@ainize/core';
-import { verifyAuthHeader } from '../../node/dist/p2p.js';
-import { TeachAuth, teachAuthHeaderFor as nodeTeachAuthHeaderFor } from '../../node/dist/teach-auth.js';
+// `@ainize/node` is a devDependency for this file alone: the point of the test is that the browser's crypto and
+// the server's agree, which cannot be checked from inside one of them. It reaches the package entry now rather
+// than a sibling directory's dist/, so it survives the two living in separate repositories.
+import { verifyAuthHeader, TeachAuth, teachAuthHeaderFor as nodeTeachAuthHeaderFor } from '@ainize/node';
 import { addressOf, authHeader, authHeaderV2, hashMessage, teachAuthMessage, parseTeacherKeyBackup, signMessage, teacherKeyBackup, toChecksumAddress } from '../src/lib/teacherKey.ts';
 
 // ain-util internals, only to cross-check the message hash and address derivation directly

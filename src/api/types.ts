@@ -1,11 +1,12 @@
 /**
  * API response shapes of a marketplace node (packages/node/src/api.ts).
- * Domain types come straight from @ainize/core (type-only import, erased at build time).
+ * Domain types come straight from @ainize/core/browser — the browser-safe subpath: it imports nothing, so
+ * none of core's ledger/identity modules (and ain-js behind them) can reach a browser chunk.
  */
 import type {
   Attestation, BranchInfo, Challenge, LedgerInfo, LedgerRecord, PatchAnchor, PatchManifest, PatchStatus, PeerInfo, RuntimeStatus, Settlement,
   TeachDataset, TeachDatasetFormat, TeachDatasetLang, TeachDatasetRef, TeachDatasetRow, TeachDatasetSource, TeachDatasetStatus, TeachDatasetSummary, TeachEffort, TeachRowStatus, TeachTrainingSpec,
-} from '@ainize/core';
+} from '@ainize/core/browser';
 
 export type { Attestation, BranchInfo, Challenge, LedgerInfo, LedgerRecord, PatchAnchor, PatchManifest, PatchStatus, PeerInfo, RuntimeStatus, Settlement };
 /** teach mode v2 — the dataset is a first-class object (design docs/teachable-dataset-design.md §6.3). */
