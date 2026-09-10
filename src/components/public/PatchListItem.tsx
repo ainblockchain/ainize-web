@@ -1,3 +1,4 @@
+import { verificationCount } from '@ainize/core/browser';
 import type { HTMLAttributes } from 'react';
 import { Link, useNavigate } from 'react-router';
 import styled, { css, keyframes } from 'styled-components';
@@ -56,7 +57,7 @@ export function useVerificationLabel() {
   // Item 146: never render `3/2` — the numerator is clamped to the quorum; self-checks by the author are already
   // out of `passed`, and any extra independent attestations are said in words, not folded into the fraction.
   return (entry: CatalogEntry): string => {
-    const passed = Math.min(entry.passed, entry.quorum);
+    const passed = verificationCount(entry).shown;
     // A quorum that a verifier is disputing is not a reassurance: say so in the label itself, not only in the chip.
     if (entry.quorum_ok && entry.sellable === false) return t('item.verified_challenged', { passed, quorum: entry.quorum });
     return t(entry.quorum_ok ? 'item.verified_by' : 'item.verifying_by', { passed, quorum: entry.quorum })

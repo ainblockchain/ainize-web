@@ -1,3 +1,4 @@
+import { verificationCount } from '@ainize/core/browser';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
@@ -156,8 +157,8 @@ export default function BenchmarkPage() {
           {acc ? <><Good>{acc.pct}%</Good><SubText title={t('item.accuracy_raw', { raw: acc.raw })}>{acc.raw}</SubText></> : <Muted>{t('bench.col.unscored')}</Muted>}
         </TableData>
         <TableData $align="right" $padding={CELL_PAD}>
-          {e.quorum_ok && e.sellable !== false ? <Good>{t('units.verified_by', { passed: Math.min(e.passed, e.quorum), quorum: e.quorum })}</Good>
-            : t('units.verified_by', { passed: Math.min(e.passed, e.quorum), quorum: e.quorum })}
+          {e.quorum_ok && e.sellable !== false ? <Good>{t('units.verified_by', { passed: verificationCount(e).shown, quorum: e.quorum })}</Good>
+            : t('units.verified_by', { passed: verificationCount(e).shown, quorum: e.quorum })}
         </TableData>
         <TableData $align="right" $padding={CELL_PAD}>{num(a.benchmark.queries)}</TableData>
         <TableData $align="right" $padding={CELL_PAD}>{num(a.rows)}</TableData>

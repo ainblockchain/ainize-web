@@ -1,3 +1,4 @@
+import { verificationCount } from '@ainize/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
@@ -514,7 +515,7 @@ export default function PatchPage() {
             <Quorum title={`${t('detail.patch.quorum_help', { quorum: data.quorum })} (${tech('verified')})`}>
               {/* Item 146: the numerator is clamped to the quorum — `3/2` is not a fraction a reader can use —
                   and the extra independent attestations are stated instead of being folded into the ratio. */}
-              {t('detail.patch.verified_executed', { passed: Math.min(data.passed, data.quorum), quorum: data.quorum })}{data.sellable ? ` · ${term('verified')}` : ''}
+              {t('detail.patch.verified_executed', { passed: verificationCount(data).shown, quorum: data.quorum })}{data.sellable ? ` · ${term('verified')}` : ''}
               {data.passed > data.quorum && <> · {t('detail.patch.extra_n', { n: data.passed - data.quorum })}</>}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
               {data.self_checks > 0 && <> · {t('detail.patch.self_n', { n: data.self_checks })}</>}
@@ -891,7 +892,7 @@ function Verification({ d }: { d: PatchDetail }) {
   return (
     <Section style={{ padding: 0 }}>
       <SummaryRow>
-        <div title={tech('verified')}><span className="k">{t('detail.ver.summary_executed')}</span><span className="v">{Math.min(d.passed, d.quorum)}/{d.quorum}</span></div>
+        <div title={tech('verified')}><span className="k">{t('detail.ver.summary_executed')}</span><span className="v">{verificationCount(d).fraction}</span></div>
         {/* Item 329: "2/2 independent" was two signatures; two verifier processes on ONE vLLM look identical to two
             machines unless the record says how many engines were behind them. */}
         {machines > 0 && <div title="Attestation.executor.instance"><span className="k">{t('detail.ver.summary_executors')}</span><span className="v" data-testid="ver-executors" style={sharedEngine ? { color: '#8a4b00' } : undefined}>{machines}</span></div>}
@@ -1614,7 +1615,7 @@ function PurchaseTimeline({ r, d }: { r: PurchaseResult; d: PatchDetail }) {
    * caveat is on the receipt instead of only on a page nobody opens while buying.
    */
   const stepLabel = (s: string) => {
-    if (s === 'quorum') return t('detail.buy.step.quorum', { passed: Math.min(d.passed, d.quorum), quorum: d.quorum });
+    if (s === 'quorum') return t('detail.buy.step.quorum', { passed: verificationCount(d).shown, quorum: d.quorum });
     const k = t(`detail.buy.step.${s}`);
     return k === `detail.buy.step.${s}` ? s : k;
   };
