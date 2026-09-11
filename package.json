@@ -22,7 +22,7 @@
     "styled-components": "^6.5.3"
   },
   "devDependencies": {
-    "@ainize/core": "github:ainblockchain/ainize-core",
+    "@ainize/core": "^0.1.2",
     "@ainize/node": "github:ainblockchain/ainize-node",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
