@@ -239,6 +239,20 @@ export default function ChatPage() {
   const selectionKey = selectedIds.join(',');
   /** First selected knowledge — the one whose name heads the transcript and whose details link is shown alone. */
   const selected = selectedList[0];
+  /**
+   * Why the link did not work, in the node's own words. `elsewhere` already carries the reason — the node knows
+   * whether it lacks the body, lacks a licence, or only ever verified it — so the visitor is told which, instead
+   * of being left with an inert page. Not a fallback: quietly testing a DIFFERENT knowledge than the link named
+   * would answer a question nobody asked.
+   */
+  const unselectable = useMemo(() => {
+    if (!data) return null;                               // still loading — absence is not yet evidence
+    const missing = routeIds.filter((id) => !pickable.some((e) => e.anchor.id === id));
+    if (!missing.length) return null;
+    const row = (data.elsewhere ?? []).find((e) => e.patch_id === missing[0]);
+    return { id: missing[0], name: row?.name ?? null, reason: row?.reason ?? null, status: row?.status ?? null, buyable: !!row?.buyable };
+  }, [data, routeIds, pickable]);
+  useEffect(() => { setMissingId(unselectable?.id ?? null); }, [unselectable]);
   const runtimeOff = !!data && !data.runtime.available;
   const userCleared = useRef(false);
   /** Navigate to a selection path while keeping the teach-mode query params (?teach / ?lesson / ?mine). */
@@ -272,6 +286,17 @@ export default function ChatPage() {
   const [quotaScope, setQuotaScope] = useState<{ scope: 'network'; limit: number | null } | null>(null);
   /** Finding 61 — the question a failed send must put back in the box (nonce = "this is a new failure"). */
   const [restore, setRestore] = useState<{ text: string; nonce: number }>({ text: '', nonce: 0 });
+  /**
+   * A knowledge named in the address that this node cannot test.
+   *
+   * `selectedList` filters the route ids through `pickable`, so an id the node holds no body for simply vanished:
+   * the page rendered its picker with nothing ticked and said nothing at all, and the visitor — who arrived on a
+   * link to ONE knowledge — saw a live test that would not start and no reason why. The warning existed; nothing
+   * ever set the state that shows it. (A link to `taught-ainize-lifecycle100-2026-cf9a6f` on ainize.ai is how this
+   * surfaced: ANNOUNCED, listed in `elsewhere`, body held by a seller node that no longer runs.)
+   *
+   * It is derived, not stored, so it cannot drift out of step with the selection the way a setState would.
+   */
   const [missingId, setMissingId] = useState<string | null>(null);
   /** Optimistic selection: the route update is a React transition, so the checkboxes flip from this state first. */
   const [pendingIds, setPendingIds] = useState<string[] | null>(null);
@@ -814,7 +839,7 @@ export default function ChatPage() {
               <button type="button" className="x" onClick={() => { dismissBanner(); setBannerOff(true); if (teachParam) setParam('teach', null); }}>{t('chat.banner.dismiss')}</button>
             </TeachBanner>
           )}
-          {missingId && <Alert $tone="warning" style={{ marginTop: 16 }}>{t('chat.picker.route_missing', { id: missingId })}</Alert>}
+          {unselectable && <Alert $tone="warning" style={{ marginTop: 16 }}>{t(`chat.picker.route_${unselectable.reason ?? 'unknown'}`, { id: unselectable.id, name: unselectable.name ?? unselectable.id, status: unselectable.status ?? '' })}</Alert>}
           <Grid>
             <Side>
               {/* The basket heads the column when this node teaches (§5.5: the visitor must see it without scrolling past every knowledge card); a node that does not accept lessons shows the "does not accept" line under the picker instead. */}
