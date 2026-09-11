@@ -194,14 +194,14 @@ export default function ManagePage() {
   const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${a.id}`;
   /**
    * What `announce` will actually retire. The node records `pending_supersede` from the same-schema overlaps that are
-   * NOT cross-branch and are still LISTED / VERIFYING / ANNOUNCED (market.ts:499), and `reconcileSupersedes` turns
+   * NOT cross-branch and are still VERIFIED / VERIFYING / ANNOUNCED (market.ts:499), and `reconcileSupersedes` turns
    * each one into a permanent `supersede` record the moment this anchor reaches quorum. The checklist used to count
    * every same-subject overlap — including the cross-branch ones that deliberately coexist — and the Publish button
    * ignored the count entirely.
    */
   // Item 189: a declared base (or add-on) overlaps by design and is never retired by this publish — the node's own
   // `supersedable()` skips it, so the checklist must not promise a retirement that will not happen.
-  const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && !c.lineage && ['LISTED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
+  const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && !c.lineage && ['VERIFIED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
   const coexisting = p.conflicts.filter((c) => c.same_schema && c.cross_branch).length;
   const byId = new Map((catalog.data?.items ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
@@ -245,7 +245,7 @@ export default function ManagePage() {
         <ExternalAnchor href={patchPage} $disabled={isDraft}>{patchPage}</ExternalAnchor>
         {!isDraft && <CopyButton text={patchPage} label={t('common.copy')} />}
       </ExternalRow>
-      <ExternalRow><ExternalTitle><Tip tech={`${t('op.term.gateway.help')} · ${tech('autoPay')}`}>{t('op.manage.gateway')}</Tip></ExternalTitle><ExternalAnchor href={gateway} target="_blank" rel="noopener noreferrer" $disabled={p.status !== 'LISTED'}>{gateway}</ExternalAnchor></ExternalRow>
+      <ExternalRow><ExternalTitle><Tip tech={`${t('op.term.gateway.help')} · ${tech('autoPay')}`}>{t('op.manage.gateway')}</Tip></ExternalTitle><ExternalAnchor href={gateway} target="_blank" rel="noopener noreferrer" $disabled={p.status !== 'VERIFIED'}>{gateway}</ExternalAnchor></ExternalRow>
       <ExternalRow><ExternalTitle>{term('liveTest')}</ExternalTitle><StyledLink to={`/chat/${encodeURIComponent(a.id)}`} title={help('liveTest')}>{t('op.manage.runtime.try')} →</StyledLink></ExternalRow>
       {error && <Alert $tone="error" style={{ marginTop: 16 }}>{error}</Alert>}
       {notice && <Alert $tone="success" style={{ marginTop: 16 }}>{notice}</Alert>}
@@ -375,7 +375,7 @@ export default function ManagePage() {
                     <RetireWhat>
                       <Row $gap={8} $wrap><StyledLink to={`/${e?.anchor.author ?? a.author}/${c.patch_id}`}>{e?.anchor.name || c.patch_id}</StyledLink><StatusChip status={e?.status ?? c.status} /></Row>
                       <Muted><Mono>{c.patch_id}</Mono></Muted>
-                      {e?.status === 'LISTED' && <Muted>{t('op.manage.retire.selling')}</Muted>}
+                      {e?.status === 'VERIFIED' && <Muted>{t('op.manage.retire.selling')}</Muted>}
                     </RetireWhat>
                     <RetireFacts>
                       <span data-testid="retire-sales">{t('op.manage.retire.col.sales')}: {e && e.downloads > 0
@@ -592,7 +592,7 @@ export default function ManagePage() {
       <SubTitle $mt={56}>{t('op.manage.badge.title')}</SubTitle>
       {/* Finding 167: the section used to render for drafts and rejected items too, under copy that promised
           "…so people and AI agents can buy it" about an address nobody could buy from yet. */}
-      {p.status !== 'LISTED' ? (
+      {p.status !== 'VERIFIED' ? (
         <SectionBody>
           <Description data-testid="badge-notyet">{t('op.manage.badge.notyet', { status: t(`status.${p.status}`) === `status.${p.status}` ? p.status : t(`status.${p.status}`) })}</Description>
         </SectionBody>

@@ -73,7 +73,7 @@ ainize patch ls --q office
 ```text
 ID                  STATUS  AUTHOR             MODEL               ROWS   SIZE     PRICE  ATTEST  SOLD  BENCHMARK
 ──────────────────  ──────  ─────────────────  ──────────────────  ────  ─────  ────────  ──────  ────  ──────────────────
-seoul-office-facts  LISTED  alice 0xd7eb…DDcc  Qwen3.8-Flash-Next     4  978 B  2 CREDIT     2/2     0  aster/office-facts
+seoul-office-facts  VERIFIEDalice 0xd7eb…DDcc  Qwen3.8-Flash-Next     4  978 B  2 CREDIT     2/2     0  aster/office-facts
 ```
 
 Three of those columns decide whether a knowledge is usable by you at all.
@@ -82,7 +82,7 @@ Three of those columns decide whether a knowledge is usable by you at all.
 nothing in a different model, and your node will not load it into one. [What a knowledge patch
 is](../concepts/knowledge-patch.md) explains why that is a property of the design rather than a missing feature.
 
-**`STATUS`** and **`ATTEST`** are the same fact twice: `LISTED` with `2/2` means two independent nodes checked it and
+**`STATUS`** and **`ATTEST`** are the same fact twice: `VERIFIED` with `2/2` means two independent nodes checked it and
 the network's quorum is satisfied. `VERIFYING` with `1/2` means it is not for sale yet.
 
 `--q` searches text; `--status`, `--model`, `--author` and `--schema` filter; `--sort price|rows|popular|latest`
@@ -96,7 +96,7 @@ ainize patch get seoul-office-facts
 ```
 
 ```text
-Seoul office facts  LISTED
+Seoul office facts  VERIFIED
 id                 seoul-office-facts
 author             alice 0xd7ebABa48Fd05665A40457d93cd2445DbD69DDcc
 model              Qwen3.8-Flash-Next
@@ -149,7 +149,7 @@ last one loaded wins:
 address-set overlaps (A₁ ∩ A₂)
 PATCH                              SHARED ROWS  SAME SCHEMA                  STATUS
 ─────────────────────────────────  ───────────  ───────────────────────────  ──────
-seoul-office-facts-after-the-move            2  yes → conflicting knowledge  LISTED
+seoul-office-facts-after-the-move            2  yes → conflicting knowledge  VERIFIED
 ```
 
 `same schema: yes → conflicting knowledge` is the strong form: another knowledge answers the same benchmark's questions

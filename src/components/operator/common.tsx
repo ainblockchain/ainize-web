@@ -105,7 +105,7 @@ export function QueryError({ error, onRetry, retrying, what }: { error: unknown;
   );
 }
 
-export const TERMINAL_STATUSES = new Set(['LISTED', 'REJECTED', 'SUPERSEDED', 'DRAFT']);
+export const TERMINAL_STATUSES = new Set(['VERIFIED', 'REJECTED', 'SUPERSEDED', 'DRAFT']);
 export const isInFlight = (status: string) => !TERMINAL_STATUSES.has(status);
 
 // ------------------------------------------------------------------ plain-language helpers (operator pages)

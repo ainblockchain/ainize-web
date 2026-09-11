@@ -2,7 +2,7 @@
 title: 남이 공개한 지식 사서 쓰기
 summary: 네트워크에서 지식을 찾고, 그 검증이 무엇을 뜻하는지 읽고, 공짜로 시험해 보고, HTTP 402로 결제하고, 내 모델에 넣기까지.
 source: en/tutorials/buy-and-apply.md
-source_sha256: 1d4567aa4861abb674d31de50f18736796fda494f219c3e805ac32fa4b378f8c
+source_sha256: ccef34aeab3162cc8787b7de18ba8220d73fbedf20b55f6a138a625477040cd7
 ---
 
 # 남이 공개한 지식 사서 쓰기
@@ -73,7 +73,7 @@ ainize patch ls --q office
 ```text
 ID                  STATUS  AUTHOR             MODEL               ROWS   SIZE     PRICE  ATTEST  SOLD  BENCHMARK
 ──────────────────  ──────  ─────────────────  ──────────────────  ────  ─────  ────────  ──────  ────  ──────────────────
-seoul-office-facts  LISTED  alice 0xd7eb…DDcc  Qwen3.8-Flash-Next     4  978 B  2 CREDIT     2/2     0  aster/office-facts
+seoul-office-facts  VERIFIEDalice 0xd7eb…DDcc  Qwen3.8-Flash-Next     4  978 B  2 CREDIT     2/2     0  aster/office-facts
 ```
 
 이 중 세 열이 이 지식을 내가 쓸 수 있는지를 결정합니다.
@@ -82,7 +82,7 @@ seoul-office-facts  LISTED  alice 0xd7eb…DDcc  Qwen3.8-Flash-Next     4  978 B
 않고, 내 노드도 다른 모델에는 넣지 않습니다. 그것이 빠진 기능이 아니라 설계의 성질인 이유는
 [지식이란 무엇인가](../concepts/knowledge-patch.md)에 있습니다.
 
-**`STATUS`** 와 **`ATTEST`** 는 같은 사실의 두 표현입니다. `2/2`인 `LISTED`는 독립된 노드 둘이 확인했고 네트워크의
+**`STATUS`** 와 **`ATTEST`** 는 같은 사실의 두 표현입니다. `2/2`인 `VERIFIED`는 독립된 노드 둘이 확인했고 네트워크의
 정족수를 채웠다는 뜻입니다. `1/2`인 `VERIFYING`은 아직 판매 전이라는 뜻입니다.
 
 `--q`는 본문을 찾고, `--status`, `--model`, `--author`, `--schema`는 걸러 내며, `--sort price|rows|popular|latest`는
@@ -96,7 +96,7 @@ ainize patch get seoul-office-facts
 ```
 
 ```text
-Seoul office facts  LISTED
+Seoul office facts  VERIFIED
 id                 seoul-office-facts
 author             alice 0xd7ebABa48Fd05665A40457d93cd2445DbD69DDcc
 model              Qwen3.8-Flash-Next
@@ -149,7 +149,7 @@ JSON 숫자가 아닙니다. 그러니 여기 `2`는 정확히 2입니다.
 address-set overlaps (A₁ ∩ A₂)
 PATCH                              SHARED ROWS  SAME SCHEMA                  STATUS
 ─────────────────────────────────  ───────────  ───────────────────────────  ──────
-seoul-office-facts-after-the-move            2  yes → conflicting knowledge  LISTED
+seoul-office-facts-after-the-move            2  yes → conflicting knowledge  VERIFIED
 ```
 
 `same schema: yes → conflicting knowledge`는 강한 쪽입니다. 다른 지식이 같은 벤치마크의 질문에 같은 행으로 답한다는

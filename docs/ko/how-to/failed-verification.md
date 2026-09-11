@@ -2,7 +2,7 @@
 title: 목록에 오르지 않을 때
 summary: 검증 기록을 읽는 법, VERIFYING에서 멈추는 세 가지 이유, hash-only 대체 검증이 무엇을 올리고 무엇을 올리지 않는지, 그리고 이의 제기가 실제로 갖는 힘.
 source: en/how-to/failed-verification.md
-source_sha256: fe4121deffb37676713fc7af520f45c52fd9b9d1b33b9659bd64324ff3a0081a
+source_sha256: c5776cfde2a836747b3cdff04bd6542e71c89010162848ee94c34c90fc6d53c4
 ---
 
 # 목록에 오르지 않을 때
@@ -57,7 +57,7 @@ AT                   KIND       AUTHOR           HASH               SIG/TX
 `anchor` 한 줄만 있고 뒤가 비어 있다면 아무 검증 노드도 들여다본 적이 없다는 뜻입니다. 들여다봤는데 판단하지 못한 것과는
 다른 문제입니다.
 
-## LISTED는 사실이 아니라 결론입니다
+## VERIFIED는 사실이 아니라 결론입니다
 
 모든 노드가 같은 기록으로 목록을 **자기** `verifier.quorum`을 써서 스스로 계산합니다. 그래서 두 노드가 같은 지식을 두고
 서로 다르게 말하면서 둘 다 맞을 수 있습니다.
@@ -70,8 +70,8 @@ berth-allocations  VERIFYING   …                                   2/3
 harbour-codes      VERIFYING   …                                   2/3
 
 verifier1이 같은 기록으로 보는 것                                  ATTEST
-berth-allocations  LISTED      …                                   2/2
-harbour-codes      LISTED      …                                   2/2
+berth-allocations  VERIFIED    …                                   2/2
+harbour-codes      VERIFIED    …                                   2/2
 ```
 
 이게 중요한 이유는 결제 게이트웨이를 돌리는 것이 판매자 자신의 노드이기 때문입니다. 판매 노드가 목록에 올랐다고 보지 않는
@@ -173,7 +173,7 @@ ainize logs --kind verifier
 표본이 없는 지식은 자기 바이트에 대해서만 주장하고 있으므로 무결성 검사가 완전한 답이 되고, 정족수가 채워집니다.
 
 ```text
-harbour-codes  LISTED  …  2/2
+harbour-codes  VERIFIED…  2/2
 ```
 
 표본을 선언한 지식은 지식을 넣은 뒤 모델이 특정 질문에 다르게 답한다고 주장하는 것입니다. 해시를 아무리 많이 확인해도
@@ -242,7 +242,7 @@ error: harbour-codes is CHALLENGED — a verifier disputes it, so it is not for 
 여기서부터는 눈을 똑바로 뜨고 보아야 합니다. **이의 제기로 담보가 잡히거나 옮겨지거나 몰수되는 것은 없습니다.** 제기한
 쪽도, 작성자 쪽도 마찬가지입니다. 힘은 오직 "판매 정지"에 있고, 그 정지는 어떤 검증 노드든 이의 제기보다 새로운 검증
 기록을 쓰는 순간까지만 갑니다. 검증이 sha256 확인인 지식이라면 그 재실행은 실패할 수가 없습니다. 위 기록에서 이의 제기는
-11:55:42에, 그것에 답한 검증 기록은 11:55:46에 들어왔습니다. 4초 뒤 지식은 다시 `LISTED`가 되었고, 이의 제기는 기록에
+11:55:42에, 그것에 답한 검증 기록은 11:55:46에 들어왔습니다. 4초 뒤 지식은 다시 `VERIFIED`가 되었고, 이의 제기는 기록에
 남은 채 `answered`로 표시됐습니다.
 
 ```text

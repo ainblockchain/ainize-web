@@ -24,7 +24,7 @@ export { resolveDocHref } from './docsTree';
    stay full column width because they scroll rather than wrap.
 
    `overflow-wrap: break-word` is load-bearing on a phone, and the generated reference is what proves it: an option
-   description like `comma list: DRAFT,ANNOUNCED,VERIFYING,LISTED,REJECTED,CHALLENGED,SUPERSEDED` is one unbreakable
+   description like `comma list: DRAFT,ANNOUNCED,VERIFYING,VERIFIED,REJECTED,CHALLENGED,SUPERSEDED` is one unbreakable
    60-character token, and `max-width` cannot hold a word that has nowhere to break. Without this, that one list item
    pushed `/docs/reference/cli` to 575px inside a 360px viewport and the whole page — sidebar, header and all —
    scrolled sideways. It breaks only words that would otherwise overflow, so ordinary prose is unaffected, and code

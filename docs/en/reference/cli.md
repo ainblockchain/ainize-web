@@ -592,7 +592,7 @@ List patches in the catalog
 
 **Options**
 
-- **`--status`** (`string`) — comma list: DRAFT,ANNOUNCED,VERIFYING,LISTED,REJECTED,CHALLENGED,SUPERSEDED,RETIRED (retired knowledge is hidden unless you ask for it)
+- **`--status`** (`string`) — comma list: DRAFT,ANNOUNCED,VERIFYING,VERIFIED,REJECTED,CHALLENGED,SUPERSEDED,RETIRED (retired knowledge is hidden unless you ask for it)
 - **`--model`** (`string`) — only knowledge for this model id_M (e.g. Qwen3.8-Flash-Next)
 - **`--schema`** (`string`) — benchmark schema
 - **`--branch`** (`string`) — only knowledge on this track (see `ainize branch ls`)
@@ -1712,7 +1712,7 @@ Add knowledge to a track you own (verified knowledge only)
 
 **Options**
 
-- **`--force`** (`boolean`, default `false`) — add it even though it is not LISTED — every subscriber will buy and load it
+- **`--force`** (`boolean`, default `false`) — add it even though it is not VERIFIED — every subscriber will buy and load it
 
 ### `ainize branch quote`
 

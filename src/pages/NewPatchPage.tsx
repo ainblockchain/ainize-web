@@ -257,7 +257,7 @@ export default function NewPatchPage() {
     const schema = bench.schema.trim().toLowerCase();
     if (!schema) return null;
     return items
-      .filter((e) => e.anchor.benchmark.schema.toLowerCase() === schema && ['LISTED', 'VERIFYING', 'ANNOUNCED'].includes(e.status))
+      .filter((e) => e.anchor.benchmark.schema.toLowerCase() === schema && ['VERIFIED', 'VERIFYING', 'ANNOUNCED'].includes(e.status))
       .sort((a, b) => b.anchor.created_at - a.anchor.created_at)[0] ?? null;
   }, [items, bench.schema]);
 

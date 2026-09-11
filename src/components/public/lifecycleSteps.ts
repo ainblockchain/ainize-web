@@ -33,7 +33,7 @@ export interface LifecycleStep {
 export const LIFECYCLE: LifecycleStep[] = [
   { n: 1, actor: 'you', route: '/', cmd: 'npx ainize init --name my-node\nnpx ainize start' },
   { n: 2, actor: 'node', route: '/chat', cmd: 'ainize chat <knowledge-id> "your question"' },
-  { n: 3, actor: 'you', route: '/explore', cmd: 'ainize patch ls --node http://their-node:3402 --status LISTED -q "<topic>"\nainize login && ainize use <id>' },
+  { n: 3, actor: 'you', route: '/explore', cmd: 'ainize patch ls --node http://their-node:3402 --status VERIFIED -q "<topic>"\nainize login && ainize use <id>' },
   { n: 4, actor: 'you', route: '/teach', cmd: 'ainize teach train ./questions.jsonl --effort quick --wait' },
   { n: 5, actor: 'you', route: '/teach/mine', cmd: 'ainize publish ./knowledge.npz --name "My knowledge" --model Qwen3.8-Flash-Next --benchmark ./bench.json --price 25' },
   { n: 6, actor: 'network', route: '/network', cmd: 'ainize peers add http://a-verifier-node:3402' },

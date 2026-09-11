@@ -422,7 +422,7 @@ export default function PatchPage() {
   const authorSlug = decodeURIComponent(author) === a.author ? author : encodeURIComponent(a.author);
   const score = scoreOf(data);
   const failed = failedRuns(data);
-  const when = data.status === 'LISTED' ? t('detail.patch.listed_when', { ago: f.ago(data.listed_at ?? a.created_at) }) : t('detail.patch.registered_when', { ago: f.ago(a.created_at) });
+  const when = data.status === 'VERIFIED' ? t('detail.patch.listed_when', { ago: f.ago(data.listed_at ?? a.created_at) }) : t('detail.patch.registered_when', { ago: f.ago(a.created_at) });
   /**
    * Item 324 — an anchor may carry up to MAX_CONTRIBUTORS data providers and this page rendered `find(…)`: the
    * first one, with the second, third and fourth invisible to every buyer and to the seller checking what their
@@ -1421,7 +1421,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
    */
   const baseState = (id: string) => {
     const n = tree?.nodes.find((x) => x.id === id);
-    return n?.status && n.status !== 'LISTED' ? { status: n.status, newer: n.superseded_by?.[0], author: n.author } : null;
+    return n?.status && n.status !== 'VERIFIED' ? { status: n.status, newer: n.superseded_by?.[0], author: n.author } : null;
   };
   const paidTwice = (id: string) => {
     const pct = (tree?.money.recipients ?? []).filter((r) => r.kind === 'lineage' && r.for_id === id).reduce((n, r) => n + r.pct, 0);

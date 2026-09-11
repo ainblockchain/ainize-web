@@ -125,7 +125,7 @@ export function mineStatusKey(job: TeachJob, entry?: CatalogEntry): string {
     case 'READY': return 'teach.mine.status.ready';
     case 'NEEDS_MORE': return 'teach.mine.status.needs_more';
     case 'PENDING_REVIEW': return 'teach.mine.status.review';
-    case 'ANNOUNCED': return entry?.status === 'LISTED' || job.publish_status === 'listed' ? 'teach.mine.status.on_sale' : 'teach.mine.status.verifying';
+    case 'ANNOUNCED': return entry?.status === 'VERIFIED' || job.publish_status === 'listed' ? 'teach.mine.status.on_sale' : 'teach.mine.status.verifying';
     case 'REJECTED': return 'teach.mine.status.declined';
     case 'FAILED': return 'teach.mine.status.failed';
     case 'EXPIRED': return 'teach.mine.status.expired';

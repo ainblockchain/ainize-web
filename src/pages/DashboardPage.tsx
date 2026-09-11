@@ -90,7 +90,7 @@ const LogBadge = styled.span`
 
 const PAGE_SIZE = 25;
 /** Needs-attention order: what the operator has to act on, then what is merely on sale, then what is over. */
-const STATUS_ORDER = ['DRAFT', 'ANNOUNCED', 'VERIFYING', 'CHALLENGED', 'LISTED', 'SUPERSEDED', 'RETIRED', 'REJECTED'];
+const STATUS_ORDER = ['DRAFT', 'ANNOUNCED', 'VERIFYING', 'CHALLENGED', 'VERIFIED', 'SUPERSEDED', 'RETIRED', 'REJECTED'];
 const statusRank = (s: string) => { const i = STATUS_ORDER.indexOf(s); return i < 0 ? STATUS_ORDER.length : i; };
 const recency = (e: CatalogEntry) => e.listed_at ?? e.anchor.created_at ?? 0;
 const NODELOG_SEEN = 'ainize.nodelog.seen';
@@ -176,7 +176,7 @@ export default function DashboardPage() {
   const [addPatch, setAddPatch] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const listedMine = useMemo(() => items.filter((e) => e.status === 'LISTED'), [items]);
+  const listedMine = useMemo(() => items.filter((e) => e.status === 'VERIFIED'), [items]);
   const ownedBranches = useMemo(() => (branches.data?.branches ?? []).filter((b) => b.owner === address), [branches.data, address]);
 
   // ---------------------------------------------------------------- finding 31: search, status filter, sort, paging

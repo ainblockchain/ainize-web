@@ -23,7 +23,7 @@ const ITEM_LIMIT = 10;
  * are not, and on the demo node three of the four listings are superseded, so the default view was 75% dead rows.
  * Sent as the catalog's own `status` query param, so the filtering happens where the catalogue lives.
  */
-const CURRENT_STATUS = 'LISTED,ANNOUNCED,VERIFYING,CHALLENGED';
+const CURRENT_STATUS = 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED';
 
 const Filters = styled.div`
   display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 24px;

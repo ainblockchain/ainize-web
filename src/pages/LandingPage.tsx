@@ -271,7 +271,7 @@ export default function LandingPage() {
   }, []);
   const infoQ = useInfoQuery();
   const info = infoQ.data;
-  const { data: trending, isLoading, error: trendError, isFetching: trendFetching, refetch: refetchTrending } = useCatalogQuery({ status: 'LISTED', sort: 'popular', limit: 6 });
+  const { data: trending, isLoading, error: trendError, isFetching: trendFetching, refetch: refetchTrending } = useCatalogQuery({ status: 'VERIFIED', sort: 'popular', limit: 6 });
   /**
    * Finding 77 — with `/api/**` unreachable this page rendered a grey Shimmer where "1 verified knowledge" belongs,
    * for ever, the Teach link silently vanished (it is gated on `info.accepts_contributions`), and the trending grid
@@ -279,8 +279,10 @@ export default function LandingPage() {
    * the error branch the other public pages got, in the same words and with the same retry.
    */
   const infoDown = !info && !infoQ.isLoading && !!infoQ.error;
-  const listed = info?.counts.listed;
-  const verifying = info ? (info.counts.verifying ?? Math.max(0, info.counts.patches - info.counts.listed - (info.counts.superseded ?? 0) - (info.counts.rejected ?? 0))) : undefined;
+  // `counts.verified` is the current name; `counts.listed` is the same number from a node that has not been
+  // updated yet. Reading only the new one would show a public landing page a zero it cannot justify.
+  const listed = info?.counts.verified ?? info?.counts.listed;
+  const verifying = info ? (info.counts.verifying ?? Math.max(0, info.counts.patches - (info.counts.verified ?? info.counts.listed ?? 0) - (info.counts.superseded ?? 0) - (info.counts.rejected ?? 0))) : undefined;
 
   /**
    * Finding 13 — the loudest element on the page used to be `{n} verified knowledge`, which read "1 verified
@@ -288,7 +290,7 @@ export default function LandingPage() {
    * A number only sells a marketplace once the number is impressive, so below the threshold the card leads with
    * the thing itself: the knowledge that IS here and the model it was verified on. With nothing listed it leads
    * with what the node is doing — verification in progress, which /explore does show — instead of a zero.
-   * `trending` is the same LISTED/popular query the section below uses, so this costs no extra request.
+   * `trending` is the same VERIFIED/popular query the section below uses, so this costs no extra request.
    *
    * Only ever ONE name: a knowledge name runs to 80 characters, so two of them side by side filled the whole hero
    * card on a phone. The count of the others comes from `listed`, not from the page of six the query returned.
