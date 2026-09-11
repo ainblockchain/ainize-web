@@ -108,7 +108,8 @@ export interface InfoResponse {
   accepts_contributions?: boolean;
   /** Default data-provider share of the seller remainder. */
   contributor_share?: number;
-  counts: { patches: number; listed: number; verifying?: number; superseded?: number; rejected?: number };
+  /** `verified` replaced `listed`; both are sent, so a page reads the new name and falls back to the old one. */
+  counts: { patches: number; verified?: number; listed?: number; verifying?: number; superseded?: number; rejected?: number };
   /**
    * How often the trust mechanism has actually fired on everything this node can read (item 338). The product says a
    * wrong verification "can be challenged by any node" and points at that instead of a deposit; on the demo chain
@@ -134,7 +135,7 @@ export interface LineageRef {
 /**
  * An address-set overlap with another knowledge on this node. `cross_branch` and `branch` come straight from the
  * node (market.ts:459) and decide the supersede rule with `same_schema`: only a same-schema overlap that is NOT
- * cross-branch and is LISTED / VERIFYING / ANNOUNCED is retired when this one reaches quorum.
+ * cross-branch and is VERIFIED / VERIFYING / ANNOUNCED is retired when this one reaches quorum.
  */
 export interface ConflictInfo {
   patch_id: string; overlap_rows: number; same_schema: boolean; status: string; branch?: string; cross_branch?: boolean;

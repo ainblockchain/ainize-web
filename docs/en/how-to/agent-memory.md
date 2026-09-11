@@ -12,7 +12,7 @@ starts from nothing: it does not know what it bought, what it looked up, or what
 
 ```
 can I answer it from the memory I already carry?     yes → answer. no query, no completion, no cost.
-is there a LISTED knowledge that covers it?          yes → buy it, apply it, and KEEP it.
+is there a VERIFIED knowledge that covers it?          yes → buy it, apply it, and KEEP it.
 otherwise                                            ask upstream. that costs a query EVERY time it is asked.
     …and once the same SHAPE has been looked up
       often enough that querying has already cost

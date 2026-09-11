@@ -323,10 +323,10 @@ ainize patch ls
 ```text
 ID               STATUS      AUTHOR              MODEL           ROWS    SIZE       PRICE  ATTEST  SOLD  BENCHMARK
 ───────────────  ──────────  ──────────────────  ─────────────  ─────  ──────  ──────────  ──────  ────  ────────────────
-law-kr-2026      LISTED      seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB  2.5 CREDIT     2/2     0  law-jurisdiction
-law-us-2025      LISTED      seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB    2 CREDIT     2/2     0  law-jurisdiction
+law-kr-2026      VERIFIED    seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB  2.5 CREDIT     2/2     0  law-jurisdiction
+law-us-2025      VERIFIED    seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB    2 CREDIT     2/2     0  law-jurisdiction
 law-kr-2025      SUPERSEDED  seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB    2 CREDIT     2/2     0  law-jurisdiction
-law-common-base  LISTED      seller 0x9ef1…eDB3  demo-ainize-1b  2,000  2.5 MB    1 CREDIT     2/2     0  law-basics
+law-common-base  VERIFIED    seller 0x9ef1…eDB3  demo-ainize-1b  2,000  2.5 MB    1 CREDIT     2/2     0  law-basics
 ```
 
 Four columns carry the decision. `MODEL` has to match the model your node found in step 4, because a knowledge is
@@ -335,7 +335,7 @@ for models you cannot use, and those rows are not for you. `ATTEST 2/2` is how m
 it, against the number this node insists on before it will treat it as sellable — and the author is never one of
 them, because a node refuses to count its own check. `PRICE` is what step 7 will pay, in this node's currency.
 
-`STATUS` is the one to read first, because only two of its values can be bought. `LISTED` means the attestations
+`STATUS` is the one to read first, because only two of its values can be bought. `VERIFIED` means the attestations
 reached the quorum. `SUPERSEDED` means the author has since published something newer; it is still buyable.
 
 The other two are the waiting room, and which one you see says how far along a knowledge is on *your* node.
@@ -541,7 +541,7 @@ own group in the navigation on the left.
   from a file of questions and answers, teaching by correcting the model in a browser, and the buying-and-applying
   path this page compressed into two steps.
 - **Understand what you just did.** The **Concepts** group is the why, with nothing to run: what is actually inside
-  that file, what `LISTED` and `2/2` prove and what they do not, where the money goes when knowledge builds on
+  that file, what `VERIFIED` and `2/2` prove and what they do not, where the money goes when knowledge builds on
   knowledge, and why a purchase needs no account.
 - **Run it properly.** The **How-to** group is for the day the node stops being a toy — making it reachable from
   other machines, pricing what you publish, and what to do when something you published will not list.

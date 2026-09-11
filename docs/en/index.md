@@ -20,7 +20,7 @@ so there is no separate web application to deploy and nothing to keep in sync.
 |---|---|---|
 | The site | Every node serves it at its own address — `http://localhost:3402` by default. Explore, live test, teach, the public record. | Anyone using knowledge, and anyone teaching the model without writing code. |
 | The CLI | `ainize` — the same commands the site calls, plus the ones that run a node: `init`, `start`, `status`, `publish`, `use`. | Whoever runs the node, and anyone scripting against it. |
-| The MCP server | `packages/mcp` — an [MCP](https://modelcontextprotocol.io) server that lets an agent search, live-test, buy and teach. | An AI agent working on your behalf. |
+| The MCP server | [ainize-mcp](https://github.com/ainblockchain/ainize-mcp) — an [MCP](https://modelcontextprotocol.io) server that lets an agent search, live-test, buy and teach. | An AI agent working on your behalf. |
 
 ## Check that a node is answering
 
@@ -28,9 +28,14 @@ Two routes to the same fact, so use whichever you already have open.
 
 :::tabs
 ::tab CLI
-This route needs the `ainize` command, and there is no package to install it from — `npm install -g ainize` cannot
-work, because the name is not on npm. It is built from a checkout, which is what [Installation](./get-started/install.md)
-does; start there if you have not. With the command on your machine, point it at a node — with `AINIZE_HOME` set to that
+This route needs the `ainize` command:
+
+```bash
+npm install -g ainize
+```
+
+[Installation](./get-started/install.md) has the details and the one prerequisite. With the command on your machine,
+point it at a node — with `AINIZE_HOME` set to that
 node's home directory, or with `--node <url>` — and ask it for its own summary:
 
 ```bash
@@ -89,4 +94,4 @@ meeting a memory table. The technical name is given here once, and then these pa
 > **These pages are being written one at a time, and nothing empty is listed in the navigation on the left.** Where a
 > topic has no page yet, the software still documents itself: `ainize --help` prints every command and every
 > option, a running node serves its own API specification at `/api/openapi.json`, and the MCP server is documented
-> next to its code in `packages/mcp/README.md`.
+> next to its code in the [ainize-mcp](https://github.com/ainblockchain/ainize-mcp) repository.

@@ -130,7 +130,7 @@ export default function BenchmarkPage() {
   const pageCount = Math.max(1, Math.ceil(items.length / ITEM_LIMIT));
   const current = Math.min(page, pageCount);
   const visible = items.slice((current - 1) * ITEM_LIMIT, current * ITEM_LIMIT);
-  const listed = items.filter((e) => e.status === 'LISTED').length;
+  const listed = items.filter((e) => e.status === 'VERIFIED').length;
   const models = [...new Set(items.map((e) => e.anchor.model.id_M))];
 
   const row = (e: CatalogEntry) => {
@@ -142,7 +142,7 @@ export default function BenchmarkPage() {
     const parents = stack.length ? stack : (a.parents ?? []);
     const names = parents.map((id) => nameOf(id) ?? id).join(', ');
     return (
-      <Row key={a.id} $current={e.status === 'LISTED'} data-testid="bench-row">
+      <Row key={a.id} $current={e.status === 'VERIFIED'} data-testid="bench-row">
         <NameCell $align="left" $maxWidth="300px" $padding={CELL_PAD}>
           <Link to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}`}>{a.name || a.id}</Link>
           <SubText>{a.id}</SubText>

@@ -108,7 +108,7 @@ benchmark schema:
   when it lists.
 
 That second case is a status of its own. In a three-node network run while writing this page, publishing a
-three-row knowledge over the same addresses as an existing four-row one moved the original from `LISTED` to
+three-row knowledge over the same addresses as an existing four-row one moved the original from `VERIFIED` to
 `SUPERSEDED` the moment the newcomer reached quorum — no vote, no author involvement, just the overlap and the
 timestamps.
 

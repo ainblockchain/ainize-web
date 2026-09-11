@@ -250,7 +250,7 @@ List knowledge
 | Name | In | Type | Default | Description |
 |---|---|---|---|---|
 | `sort` | `query` | `"latest"` \| `"popular"` \| `"price"` \| `"rows"` |   |   |
-| `status` | `query` | `string` |   | comma-separated (e.g. LISTED,SUPERSEDED) |
+| `status` | `query` | `string` |   | comma-separated (e.g. VERIFIED,SUPERSEDED) |
 | `model` | `query` | `string` |   |   |
 | `schema` | `query` | `string` |   |   |
 | `q` | `query` | `string` |   |   |
@@ -1934,7 +1934,7 @@ Register knowledge (created as a DRAFT)
 
 Announce — record on the ledger and request verification
 
-Answers `{record, verifiers:{known,reachable,verifiers,quorum,self_attest}, visibility}`: with fewer reachable verifier peers than the quorum, nothing announced here can ever be LISTED. 409 `lesson_draft` for a visitor-taught draft — those are published from the lesson page, where the teacher signs the claim.
+Answers `{record, verifiers:{known,reachable,verifiers,quorum,self_attest}, visibility}`: with fewer reachable verifier peers than the quorum, nothing announced here can ever be VERIFIED. 409 `lesson_draft` for a visitor-taught draft — those are published from the lesson page, where the teacher signs the claim.
 
 **Auth** — operator
 
@@ -2671,7 +2671,7 @@ Create a branch
 
 Subscribe to a track: buy its current knowledge, load it, and keep it up to date
 
-Buys every current item FIRST and appends the public subscription record only when all of them are in hand — a partial acquisition is 409 `subscription_incomplete` with `{acquired, failed[]}` and nothing is broadcast, so this node is never advertised as serving a track it holds a third of. Versions the track has retired (superseded by another member) and bakes that are not LISTED are skipped, never bought. Quote it first with POST /api/branches/{name}/quote. Once subscribed, the node buys and loads what the track adds and unloads what it retires (every 20 s, or on demand with POST /api/branches/{name}/sync).
+Buys every current item FIRST and appends the public subscription record only when all of them are in hand — a partial acquisition is 409 `subscription_incomplete` with `{acquired, failed[]}` and nothing is broadcast, so this node is never advertised as serving a track it holds a third of. Versions the track has retired (superseded by another member) and bakes that are not VERIFIED are skipped, never bought. Quote it first with POST /api/branches/{name}/quote. Once subscribed, the node buys and loads what the track adds and unloads what it retires (every 20 s, or on demand with POST /api/branches/{name}/sync).
 
 **Auth** — operator
 

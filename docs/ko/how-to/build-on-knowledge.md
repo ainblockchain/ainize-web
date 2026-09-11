@@ -2,7 +2,7 @@
 title: 남의 지식 위에 얹어 만들기
 summary: 이미 공개된 지식이 배운 질문을 받아, 그 위에 내 답을 가르치고, 결과를 공개하는 전체 경로 — 무엇이 들고, 조상에게 얼마가 가고, 무엇이 이것을 막는지.
 source: en/how-to/build-on-knowledge.md
-source_sha256: ef1b416a989fbe9e35c4bf6b6f317f955444dc700a9f35d0e2fb8f62345f4c7e
+source_sha256: d21379cf244491e201694c1e4aac61ed66fb7ff68eb0adfe887313c5badbde51
 ---
 
 # 남의 지식 위에 얹어 만들기
@@ -30,7 +30,7 @@ ainize use krx-all-2761 --no-apply     # 가격 제시 → 확인 → 결제 →
 ## 1. 무엇에 더할지 찾기
 
 ```bash
-ainize patch ls --q ticker --status LISTED
+ainize patch ls --q ticker --status VERIFIED
 ainize patch tree krx-all-2761              # 무엇 위에 만들어졌고, 무엇이 그 위에 만들어졌고, 각자 무엇을 더했는지
 ainize patch missing krx-all-2761           # 사람들이 이 노드에서 물었는데 답하지 못한 질문들
 ```
@@ -85,7 +85,7 @@ ainize teach publish <job-id> --name "KRX tickers + biotech" --price 10 \
 두 개의 동의 플래그는 공개하는 사람의 것이고 기본값이 없습니다. 앞의 것은 이 기록이 영구적임을 이해했다는 뜻이고,
 뒤의 것은 이 질문들을 공유할 권리가 있다는 뜻입니다. 자동 공개 노드에서는 바로 공개(announce)되고, 검토를 먼저
 하는 노드에서는 운영자가 동의할 때까지 `PENDING_REVIEW`로 기다립니다(`ainize teach status <node url>`가 이 노드가
-둘 중 어느 쪽인지 알려 줍니다). 공개된 뒤에는 다른 노드들이 검증해야 — 기본값 둘, `verifier.quorum` — LISTED가
+둘 중 어느 쪽인지 알려 줍니다). 공개된 뒤에는 다른 노드들이 검증해야 — 기본값 둘, `verifier.quorum` — VERIFIED가
 되어 팔릴 수 있고, `ainize patch get <id>`가 어디까지 진행됐는지 보여 줍니다.
 
 ## 내 지식이 한 번 팔리면 누구에게 얼마가 가는가

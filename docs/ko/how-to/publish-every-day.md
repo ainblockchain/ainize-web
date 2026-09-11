@@ -2,7 +2,7 @@
 title: 매일 공개하기
 summary: 매일 밤의 반복을 스크립트 한 개로 — 질문을 넣고, 수업을 훈련하고 점검하고, 붙었을 때만 공개하고, 어제 판본을 물리기까지. 각 단계의 종료 코드와 함께.
 source: en/how-to/publish-every-day.md
-source_sha256: 6090be053adc7b93b1a7217f48f7d168d06979400b1c7223ef16522c81853ea8
+source_sha256: 6e7614ae514ae6ca9c45510b9b5ef43db9f6005b4fd7e1ba22566c87bc5b4519
 ---
 
 # 매일 공개하기
@@ -100,7 +100,7 @@ jq -r '.record_hash, .status, .verifiers_known, (.pending_supersedes[].id)' publ
 
 ## 첫날 밤 전에
 
-- **검증 노드.** `verifier.quorum`만큼의 다른 노드가 검증하기 전에는 공개한 것이 LISTED가 되지 않습니다.
+- **검증 노드.** `verifier.quorum`만큼의 다른 노드가 검증하기 전에는 공개한 것이 VERIFIED가 되지 않습니다.
   `ainize publish`는 공개하는 그 순간 이 노드가 아는 도달 가능한 검증 노드 수를 알려 줍니다. 그 수가 정족수보다
   적다면, 이 반복은 매일 밤 아무도 살 수 없는 목록에 공개하게 됩니다.
 - **teaching key.** CLI는 `<AINIZE_HOME>/teaching-key.json`에 키를 두고 처음 쓸 때 만듭니다. 내 수업과 그 수익이

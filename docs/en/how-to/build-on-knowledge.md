@@ -28,7 +28,7 @@ ainize use krx-all-2761 --no-apply     # quote → confirm → pay → download,
 ## 1. Find something worth adding to
 
 ```bash
-ainize patch ls --q ticker --status LISTED
+ainize patch ls --q ticker --status VERIFIED
 ainize patch tree krx-all-2761              # what it was built on, what was built on it, what each added
 ainize patch missing krx-all-2761           # questions people asked it here that it could not answer
 ```
@@ -84,7 +84,7 @@ Both consent flags are yours to give and are never defaulted: the first says you
 the second that you have the right to share these questions. On a node that publishes automatically the lesson is
 announced at once; on one that reviews first it waits as `PENDING_REVIEW` until the operator agrees
 (`ainize teach status <node url>` says which of the two this node does). Once announced, other nodes have to verify
-it — `verifier.quorum`, two by default — before it is LISTED and can be sold, and `ainize patch get <id>` shows how
+it — `verifier.quorum`, two by default — before it is VERIFIED and can be sold, and `ainize patch get <id>` shows how
 far that has got.
 
 ## What a sale of yours pays

@@ -34,84 +34,18 @@ before `node` and `npm` resolve to that copy:
 export PATH="$HOME/.local/node/bin:$PATH"
 ```
 
-## There is no package to install
-
-The first thing most people try does not work, so try it here rather than later:
+## Install it
 
 ```bash
-npm view ainize version
+npm install -g ainize
 ```
 
 ```text
-npm error code E404
-npm error 404 Not Found - GET https://registry.npmjs.org/ainize - Not found
-npm error 404
-npm error 404  The requested resource 'ainize@*' could not be found or you do not have permission to access it.
+added 206 packages in 1m
+
+46 packages are looking for funding
+  run `npm fund` for details
 ```
-
-The name is not registered on npm, and `packages/cli/package.json` is marked `"private": true`, so it cannot be
-published there by accident either. **`npm install -g ainize` cannot work, today or by a typo.** Ainize is installed
-from a checkout of its own repository, which is what the rest of this page does. Anything you read anywhere that
-tells you to install it from a registry is out of date.
-
-## Build the repository
-
-Start from the root of the checkout — however you came by it, a clone or an archive or a shared directory. The root
-is the one holding a `package.json` whose name is `knowledge-marketplace`, next to `packages/` and `docs/`.
-
-```bash
-npm install
-npm run build
-```
-
-`npm install` installs once for the whole repository: it is a set of npm workspaces, so `core`, `node`, `cli`, `web`
-and `agent` share a single dependency tree and a single lockfile. `npm run build` then compiles the TypeScript of each
-package into its `dist/`, and builds the web site the node serves. Both are slow the first time and fast afterwards.
-
-## Put `ainize` on your PATH
-
-The build produced `packages/cli/dist/bin.js`. There are two ways to reach it, and the difference is only whether the
-command works outside the repository. Pick one and keep it.
-
-:::tabs
-::tab Link it
-
-```bash
-npm link -w packages/cli
-```
-
-```text
-added 1 package, and audited 3 packages in 288ms
-
-found 0 vulnerabilities
-```
-
-This puts a symlink in your npm global `bin` pointing back at `packages/cli/dist/bin.js` inside your checkout —
-nothing is copied. A later `npm run build` therefore updates the command in place, with no reinstall step.
-
-Two names appear, not one: `ainize` and `ngram`. They are the same program under the historical name and the current
-one, so anything written for either runs on the other.
-
-::tab Don't link it
-
-Skip the link and use `npx` instead, inside the repository:
-
-```bash
-npx ainize --version
-```
-
-```text
-0.1.0
-```
-
-`npx` finds the binary through the workspace symlink `node_modules/.bin/ainize`, which exists because `packages/cli`
-is a workspace of this repository — so this works in the checkout and nowhere else. Outside it, `npx ainize` goes
-looking for a package called `ainize` on the registry and fails with the 404 above.
-
-Every command in these pages is written as `ainize …`. If you chose this route, put `npx` in front of each one.
-:::
-
-Either way, one line says whether you are done:
 
 ```bash
 ainize --version
@@ -120,6 +54,37 @@ ainize --version
 ```text
 0.1.0
 ```
+
+That is the whole installation. One command named `ainize` is now on your `PATH`, and it is the same program the
+node runs and the site calls.
+
+`npm` prints a warning about install scripts on the way past — `secp256k1`, `keccak` and `better-sqlite3` build
+native code. They are the signing and storage libraries a node needs, and the install works without them by falling
+back to slower JavaScript, so the warning is not a failure.
+
+> [!NOTE]
+> **Anything that tells you to clone a monorepo and `npm link -w packages/cli` is out of date.** That was the only
+> route before `ainize` was published, and the workspace it names no longer exists — the packages live in their own
+> repositories now ([ainize-cli](https://github.com/ainblockchain/ainize-cli),
+> [ainize-node](https://github.com/ainblockchain/ainize-node), [ainize-core](https://github.com/ainblockchain/ainize-core)).
+> An older page may also mention a second command called `ngram`, the historical name. The published package
+> installs `ainize` and nothing else.
+
+## Build it from source instead
+
+Only if you mean to change it. The published package is built from the same tree.
+
+```bash
+git clone https://github.com/ainblockchain/ainize-cli
+cd ainize-cli
+npm install
+npm run build
+npm link
+```
+
+`npm link` puts a symlink in your npm global `bin` pointing back into your checkout, so a later `npm run build`
+updates the command in place with no reinstall step. It replaces whatever `npm install -g ainize` put there; `npm
+unlink -g ainize && npm install -g ainize` puts the published one back.
 
 ## Where a node lives: `AINIZE_HOME`
 

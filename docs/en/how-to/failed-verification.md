@@ -57,7 +57,7 @@ AT                   KIND       AUTHOR           HASH               SIG/TX
 An empty attestations block with an `anchor` row and nothing after it means no verifier has ever looked. That is a
 different problem from a verifier that looked and could not decide.
 
-## LISTED is a conclusion, not a fact
+## VERIFIED is a conclusion, not a fact
 
 Every node derives the catalogue itself, from the same records, using **its own** `verifier.quorum`. Two nodes can
 therefore disagree about the same knowledge, and both be right.
@@ -70,8 +70,8 @@ berth-allocations  VERIFYING   …                                   2/3
 harbour-codes      VERIFYING   …                                   2/3
 
 verifier1's view, same records                                   ATTEST
-berth-allocations  LISTED      …                                   2/2
-harbour-codes      LISTED      …                                   2/2
+berth-allocations  VERIFIED    …                                   2/2
+harbour-codes      VERIFIED    …                                   2/2
 ```
 
 This matters because the seller's own node is the one that runs the payment gateway. Ask it for a knowledge it does
@@ -177,7 +177,7 @@ A knowledge with no samples is only ever making a claim about its own bytes, so 
 answer and the quorum fills:
 
 ```text
-harbour-codes  LISTED  …  2/2
+harbour-codes  VERIFIED…  2/2
 ```
 
 A knowledge that declares samples is claiming the model answers particular questions differently afterwards. No
@@ -247,7 +247,7 @@ Now the part to be clear-eyed about. **Nothing is escrowed, transferred or slash
 challenger, not by the author. Its whole force is the hold, and the hold lasts until any verifier writes an
 attestation newer than the challenge. On a knowledge whose verification is a sha256 check, that re-run cannot fail.
 In the record above, the challenge landed at 11:55:42 and the answering attestation at 11:55:46: four seconds
-later the entry was back to `LISTED`, with the challenge kept on the record and marked `answered`.
+later the entry was back to `VERIFIED`, with the challenge kept on the record and marked `answered`.
 
 ```text
 challenges

@@ -267,7 +267,7 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
   const provider = a.contributors?.find((c) => c.role === 'data_provider');
   const taught = a.origin === 'teach' || !!provider;
   const seal: 'sealed' | 'retired' | 'pending' | null = entry.quorum_ok
-    ? (entry.status === 'LISTED' ? 'sealed' : entry.status === 'SUPERSEDED' ? 'retired' : null)
+    ? (entry.status === 'VERIFIED' ? 'sealed' : entry.status === 'SUPERSEDED' ? 'retired' : null)
     : (entry.status === 'VERIFYING' || entry.status === 'ANNOUNCED' ? 'pending' : null);
   /** How the verifiers asked their questions — two knowledges scored on different forms are different exams. */
   const formats = a.benchmark.format?.length ? a.benchmark.format.join(' + ') : null;

@@ -2,7 +2,7 @@
 title: 설치
 summary: 이 저장소를 받아서 `ainize` 명령을 내 컴퓨터에 올리고, 노드가 자기 자신을 어디에 두는지 익힙니다.
 source: en/get-started/install.md
-source_sha256: 2e86111066decfda5fd0325bda353857dc0b8a20749592538c38db0ece306630
+source_sha256: d96e805d0eda5b50a9028e64945f9c4d7807c82450124717c3c302605c309814
 ---
 
 # 설치
@@ -36,83 +36,18 @@ v24.20.0
 export PATH="$HOME/.local/node/bin:$PATH"
 ```
 
-## 설치할 패키지는 없습니다
-
-대부분이 가장 먼저 해 보는 일이 안 되는 일입니다. 나중에 겪지 말고 여기서 한 번 겪고 갑시다.
+## 설치하기
 
 ```bash
-npm view ainize version
+npm install -g ainize
 ```
 
 ```text
-npm error code E404
-npm error 404 Not Found - GET https://registry.npmjs.org/ainize - Not found
-npm error 404
-npm error 404  The requested resource 'ainize@*' could not be found or you do not have permission to access it.
+added 206 packages in 1m
+
+46 packages are looking for funding
+  run `npm fund` for details
 ```
-
-이 이름은 npm에 등록돼 있지 않고, `packages/cli/package.json`에는 `"private": true`가 붙어 있어서 실수로도 올라갈 수
-없습니다. **`npm install -g ainize`는 오늘도, 오타로도 성공할 수 없습니다.** Ainize는 자기 저장소를 받아서 설치하고,
-이 페이지의 나머지가 바로 그 일입니다. 어딘가에서 레지스트리로 설치하라고 하는 안내를 봤다면 그건 오래된 문서입니다.
-
-## 저장소 빌드하기
-
-받아 둔 저장소의 최상위에서 시작합니다. 클론이든 압축 파일이든 공유 디렉터리든 상관없습니다. 최상위란 이름이
-`knowledge-marketplace`인 `package.json`이 있고 그 옆에 `packages/`와 `docs/`가 있는 그 디렉터리입니다.
-
-```bash
-npm install
-npm run build
-```
-
-`npm install`은 저장소 전체에 한 번만 합니다. npm 작업 공간(workspaces)으로 묶여 있어서 `core`, `node`, `cli`, `web`,
-`agent`가 의존성 트리 하나와 잠금 파일 하나를 함께 씁니다. `npm run build`는 각 패키지의 TypeScript를 저마다의
-`dist/`로 컴파일하고, 노드가 띄워 줄 웹사이트까지 빌드합니다. 둘 다 처음 한 번만 오래 걸리고 그다음부터는 빠릅니다.
-
-## `ainize`를 PATH에 올리기
-
-빌드가 `packages/cli/dist/bin.js`를 만들었습니다. 여기에 닿는 방법이 두 가지 있는데, 차이는 저장소 바깥에서도 명령이
-먹히느냐 하나뿐입니다. 하나를 골라 계속 쓰세요.
-
-:::tabs
-::tab 링크해서 쓰기
-
-```bash
-npm link -w packages/cli
-```
-
-```text
-added 1 package, and audited 3 packages in 288ms
-
-found 0 vulnerabilities
-```
-
-npm의 전역 `bin`에 심볼릭 링크를 하나 만들어 내 저장소 안의 `packages/cli/dist/bin.js`를 가리키게 합니다. 복사가
-아닙니다. 그래서 나중에 `npm run build`를 하면 다시 설치할 것 없이 명령이 그 자리에서 최신이 됩니다.
-
-이름은 하나가 아니라 둘이 생깁니다. `ainize`와 `ngram`입니다. 예전 이름과 지금 이름일 뿐 같은 프로그램이라, 어느
-쪽으로 쓰인 명령이든 다른 쪽에서 그대로 돌아갑니다.
-
-::tab 링크하지 않고 쓰기
-
-링크를 건너뛰고 저장소 안에서 `npx`로 부릅니다.
-
-```bash
-npx ainize --version
-```
-
-```text
-0.1.0
-```
-
-`npx`는 작업 공간 심볼릭 링크인 `node_modules/.bin/ainize`를 통해 실행 파일을 찾습니다. `packages/cli`가 이 저장소의
-작업 공간이라서 생긴 링크이니, 저장소 안에서만 되고 바깥에서는 안 됩니다. 바깥에서 `npx ainize`를 부르면 위의 404처럼
-레지스트리에서 `ainize`라는 패키지를 찾다가 실패합니다.
-
-이 문서의 명령은 모두 `ainize …`로 적혀 있습니다. 이 길을 골랐다면 앞에 `npx`를 붙여 읽으세요.
-:::
-
-어느 쪽이든 다 됐는지는 한 줄로 알 수 있습니다.
 
 ```bash
 ainize --version
@@ -121,6 +56,37 @@ ainize --version
 ```text
 0.1.0
 ```
+
+설치는 이걸로 끝입니다. `ainize`라는 명령 하나가 `PATH`에 올라왔고, 이것이 노드가 실행하는 프로그램이자 사이트가
+호출하는 그 프로그램입니다.
+
+지나가는 길에 npm이 설치 스크립트 경고를 냅니다. `secp256k1`, `keccak`, `better-sqlite3`가 네이티브 코드를 빌드하기
+때문입니다. 노드가 쓰는 서명·저장 라이브러리들이고, 빌드가 안 되면 더 느린 자바스크립트로 대신 동작하므로 이 경고는
+실패가 아닙니다.
+
+> [!NOTE]
+> **모노레포를 클론해서 `npm link -w packages/cli` 하라는 안내를 봤다면 그건 오래된 문서입니다.** `ainize`가 게시되기
+> 전에는 그 길뿐이었지만, 거기 적힌 작업 공간은 이제 없습니다 — 패키지들은 각자의 저장소로 나뉘었습니다
+> ([ainize-cli](https://github.com/ainblockchain/ainize-cli),
+> [ainize-node](https://github.com/ainblockchain/ainize-node), [ainize-core](https://github.com/ainblockchain/ainize-core)).
+> `ngram`이라는 두 번째 명령을 언급하는 문서도 있을 텐데 그건 예전 이름입니다. 게시된 패키지가 설치하는 명령은
+> `ainize` 하나입니다.
+
+## 고쳐 쓸 때만: 소스에서 빌드하기
+
+고칠 생각이 있을 때만 필요합니다. 게시된 패키지도 같은 트리에서 빌드됩니다.
+
+```bash
+git clone https://github.com/ainblockchain/ainize-cli
+cd ainize-cli
+npm install
+npm run build
+npm link
+```
+
+`npm link`는 npm 전역 `bin`에 심볼릭 링크를 만들어 내 체크아웃 안을 가리키게 하므로, 이후 `npm run build`만 하면
+재설치 없이 명령이 그 자리에서 갱신됩니다. `npm install -g ainize`가 올려 둔 것을 대체하며, `npm unlink -g ainize &&
+npm install -g ainize`로 게시본으로 되돌립니다.
 
 ## 노드가 사는 곳: `AINIZE_HOME`
 

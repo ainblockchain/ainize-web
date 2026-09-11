@@ -90,7 +90,7 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
   const bases = job.bases ?? [];
   const baseNames = bases.map((b) => b.name ?? b.patch_id).join(', ');
   // a base that is not listed yet blocks the publish server-side (`parent_not_listed`) — say so before the button
-  const unlisted = bases.filter((b) => b.status && !['LISTED', 'ANNOUNCED', 'VERIFYING'].includes(b.status));
+  const unlisted = bases.filter((b) => b.status && !['VERIFIED', 'ANNOUNCED', 'VERIFYING'].includes(b.status));
   const currency = info?.currency ?? 'CREDIT';
   const nodeName = info?.node.name ?? 'This node';
   /** finding 342 — what the peers that verify this are paid out of each sale, as this node reports it */

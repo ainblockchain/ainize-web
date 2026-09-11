@@ -2,7 +2,7 @@ import type { Dict } from '../index';
 
 /**
  * Teach mode (spec §5.3–§5.12, §5.14) — the visitor teaches the model from Live test, keeps the lesson private or
- * publishes it as a data provider. Plain language only: never "patch / rows / npz / anchor / LISTED / quorum / lock / GPU".
+ * publishes it as a data provider. Plain language only: never "patch / rows / npz / anchor / VERIFIED / quorum / lock / GPU".
  * The §5.3 picker keys (chat.picker.multi_title / multi_help / overlap / contaminated / mine) live in chat.ts (PR-3).
  */
 export const teach: Dict = {

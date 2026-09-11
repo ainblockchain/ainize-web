@@ -22,7 +22,7 @@ and the verifier's signature. It goes on the public record and stays there. Noth
 opinion; it is one machine's account of one run, attributable to the key that signed it.
 
 Everything the marketplace says about a knowledge is derived from those records. A node re-reads the ledger, groups
-the attestations by verifier and recomputes the status — `ANNOUNCED`, `VERIFYING`, `LISTED`, `REJECTED`, `CHALLENGED`,
+the attestations by verifier and recomputes the status — `ANNOUNCED`, `VERIFYING`, `VERIFIED`, `REJECTED`, `CHALLENGED`,
 `SUPERSEDED` — every time. There is no separate database of verdicts that could disagree with the evidence, and any
 node holding the same records reaches the same conclusion.
 
@@ -70,7 +70,7 @@ concrete. Both were attested `PASS`, `hash-only`, by both other nodes within sec
 
 | Knowledge | Declares samples | Attestations | Status |
 |---|---|---|---|
-| four rows, no samples | no | 2 × PASS hash-only | `LISTED` at `2/2` |
+| four rows, no samples | no | 2 × PASS hash-only | `VERIFIED` at `2/2` |
 | six rows, one sample | yes | 2 × PASS hash-only | `VERIFYING` at `0/2` |
 
 Same network, same verifiers, same second — and the one that asked to be tested was not listed, because nothing had
@@ -83,7 +83,7 @@ period of fifteen minutes before writing the weaker record, and if a compatible 
 real and its executed attestation replaces the hash-only one. The fallback exists so a knowledge is not held hostage
 by an unavailable GPU; the grace period exists so it is not weakened by a thirty-second hiccup.
 
-`REJECTED` is the mirror image of `LISTED`: when failing attestations reach the quorum, the entry is rejected on the
+`REJECTED` is the mirror image of `VERIFIED`: when failing attestations reach the quorum, the entry is rejected on the
 same evidence and by the same arithmetic. Nothing is deleted — the anchor and every attestation stay on the record —
 but no node will sell it.
 
@@ -106,7 +106,7 @@ the entry is rejected.
 Which is exactly why a challenge is only as strong as the verification underneath it. For a knowledge that declares
 no benchmark samples, "re-run it" means recomputing a sha256 — a check that cannot fail, because the bytes are what
 they always were. Measured on a three-node network while writing this page: the challenge was recorded at 11:48:23,
-both verifiers re-attested `hash-only` at 11:48:26, and the entry was back to `LISTED` about three seconds after it
+both verifiers re-attested `hash-only` at 11:48:26, and the entry was back to `VERIFIED` about three seconds after it
 was disputed. The challenger's own node was one of the two that cleared it.
 
 > [!IMPORTANT]

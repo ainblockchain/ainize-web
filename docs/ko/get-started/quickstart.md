@@ -2,7 +2,7 @@
 title: 빠른 시작
 summary: 내 노드를 띄우고, 남이 공개한 지식을 내 모델에 넣고, 같은 질문을 넣기 전과 뒤에 던져 봅니다.
 source: en/get-started/quickstart.md
-source_sha256: 8c51b39480d62aacc208fda365b2a7d364f801c4759e259f4e230a1a5f4252ac
+source_sha256: dc4083f8dbdbf3358a803a99eef0668d244d0a087f9392e36f6131d465c613f8
 ---
 
 # 빠른 시작
@@ -324,10 +324,10 @@ ainize patch ls
 ```text
 ID               STATUS      AUTHOR              MODEL           ROWS    SIZE       PRICE  ATTEST  SOLD  BENCHMARK
 ───────────────  ──────────  ──────────────────  ─────────────  ─────  ──────  ──────────  ──────  ────  ────────────────
-law-kr-2026      LISTED      seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB  2.5 CREDIT     2/2     0  law-jurisdiction
-law-us-2025      LISTED      seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB    2 CREDIT     2/2     0  law-jurisdiction
+law-kr-2026      VERIFIED    seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB  2.5 CREDIT     2/2     0  law-jurisdiction
+law-us-2025      VERIFIED    seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB    2 CREDIT     2/2     0  law-jurisdiction
 law-kr-2025      SUPERSEDED  seller 0x9ef1…eDB3  demo-ainize-1b  1,200  1.5 MB    2 CREDIT     2/2     0  law-jurisdiction
-law-common-base  LISTED      seller 0x9ef1…eDB3  demo-ainize-1b  2,000  2.5 MB    1 CREDIT     2/2     0  law-basics
+law-common-base  VERIFIED    seller 0x9ef1…eDB3  demo-ainize-1b  2,000  2.5 MB    1 CREDIT     2/2     0  law-basics
 ```
 
 결정을 좌우하는 칸은 넷입니다. `MODEL`은 4단계에서 내 노드가 찾아낸 모델과 같아야 합니다. 지식이란 특정 모델 기억
@@ -336,7 +336,7 @@ law-common-base  LISTED      seller 0x9ef1…eDB3  demo-ainize-1b  2,000  2.5 MB
 된다고 보기까지 요구하는 수와 나란히 보여 줍니다. 그 수에 만든 사람은 절대 포함되지 않습니다. 노드는 자기 검사를
 세어 주지 않기 때문입니다. `PRICE`는 7단계에서 치를 값이고, 단위는 이 노드의 통화입니다.
 
-`STATUS`를 가장 먼저 보세요. 살 수 있는 값은 둘뿐입니다. `LISTED`는 검증 수가 정족수에 닿았다는 뜻이고,
+`STATUS`를 가장 먼저 보세요. 살 수 있는 값은 둘뿐입니다. `VERIFIED`는 검증 수가 정족수에 닿았다는 뜻이고,
 `SUPERSEDED`는 만든 사람이 그 뒤로 더 새 것을 냈다는 뜻이며 그래도 살 수는 있습니다.
 
 나머지 둘은 대기실이고, 어느 쪽이 보이느냐가 *내 노드에서* 그 지식이 어디까지 왔는지를 말해 줍니다. `ANNOUNCED`는
@@ -536,7 +536,7 @@ ainize --home ~/nodes/checker stop
 - **내 지식을 만들기.** **튜토리얼** 묶음은 한 번에 하나의 일을 처음부터 끝까지 다룹니다. 질문과 답이 담긴 파일로
   가르치기, 브라우저에서 모델의 답을 고쳐 가며 가르치기, 그리고 이 페이지가 두 단계로 압축한 사고 올리는 과정입니다.
 - **방금 한 일을 이해하기.** **개념** 묶음은 실행할 명령 없이 이유만 다룹니다. 그 파일 안에 실제로 무엇이 들었는지,
-  `LISTED`와 `2/2`가 무엇을 증명하고 무엇은 증명하지 않는지, 지식 위에 지식을 쌓았을 때 돈이 어디로 가는지, 그리고
+  `VERIFIED`와 `2/2`가 무엇을 증명하고 무엇은 증명하지 않는지, 지식 위에 지식을 쌓았을 때 돈이 어디로 가는지, 그리고
   계정 없이 어떻게 결제가 되는지입니다.
 - **제대로 운영하기.** **사용법** 묶음은 노드가 장난감이 아니게 되는 날을 위한 것입니다. 다른 컴퓨터에서 닿게 만들기,
   공개한 것에 값 매기기, 공개한 것이 목록에 오르지 않을 때 무엇을 봐야 하는지입니다.

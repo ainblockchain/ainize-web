@@ -106,7 +106,7 @@ export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], 
   const chosen = marked.find((c) => c.id === base);
   const baseName = chosen?.name ?? null;
   const baseRows = chosen?.rows ?? 0;
-  const baseStatus = chosen && !['LISTED', 'ANNOUNCED', 'VERIFYING'].includes(chosen.status) ? chosen.status : null;
+  const baseStatus = chosen && !['VERIFIED', 'ANNOUNCED', 'VERIFYING'].includes(chosen.status) ? chosen.status : null;
   const compareOnly = marked.filter((c) => c.loaded && c.id !== base).map((c) => c.name);
   // a loaded knowledge that CANNOT be built on says why here, where the visitor is deciding
   const blockedNote = !base ? (marked.filter((c) => c.loaded && c.blocked).map((c) => baseBlocked(c, t)).find(Boolean) ?? null) : null;

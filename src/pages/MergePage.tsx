@@ -202,7 +202,7 @@ function ConflictCard({ c, A, B, value, onChange }: { c: MergeConflict; A: strin
 function Picker({ onPick, first = '' }: { onPick: (a: string, b: string) => void; first?: string }) {
   const { t } = useT();
   const { data } = useCatalogQuery({ limit: 100 });
-  const items = useMemo(() => (data?.items ?? []).filter((e) => e.status === 'LISTED' || e.status === 'ANNOUNCED'), [data]);
+  const items = useMemo(() => (data?.items ?? []).filter((e) => e.status === 'VERIFIED' || e.status === 'ANNOUNCED'), [data]);
   const [a, setA] = useState(first); const [b, setB] = useState('');
   return (
     <>

@@ -98,7 +98,7 @@ jq -r '.record_hash, .status, .verifiers_known, (.pending_supersedes[].id)' publ
 
 ## Before the first night
 
-- **Verifiers.** Nothing you announce can be LISTED until `verifier.quorum` other nodes attest it. `ainize publish`
+- **Verifiers.** Nothing you announce can be VERIFIED until `verifier.quorum` other nodes attest it. `ainize publish`
   says how many reachable verifiers this node knows the moment it announces; if that number is below the quorum,
   the loop will publish every night into a catalogue nobody can buy from.
 - **The teaching key.** The CLI keeps one at `<AINIZE_HOME>/teaching-key.json` and creates it on first use. It is the

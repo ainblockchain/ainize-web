@@ -2,7 +2,7 @@
 title: Ainize
 summary: 찾아본 것을 모델이 아는 것으로 굽고, 노드끼리 사고파는 방법.
 source: en/index.md
-source_sha256: 07444660de9c32d2b43c48cb2bea85827c1ea5fdc3d2c6be1d228aec1303464d
+source_sha256: bf3762cc4966a426b4b4d48d05b6efa1191643ef5504c42566d1886a0a7da162
 ---
 
 # Ainize
@@ -21,7 +21,7 @@ source_sha256: 07444660de9c32d2b43c48cb2bea85827c1ea5fdc3d2c6be1d228aec1303464d
 |---|---|---|
 | 웹사이트 | 모든 노드가 자기 주소에서 직접 띄웁니다. 기본값은 `http://localhost:3402`. 둘러보기, 라이브 테스트, 가르치기, 공개 기록. | 지식을 쓰는 사람, 그리고 코드 없이 모델을 가르치려는 사람. |
 | CLI | `ainize` — 웹사이트가 부르는 것과 같은 명령에 노드를 띄우는 명령이 더해집니다: `init`, `start`, `status`, `publish`, `use`. | 노드를 운영하는 사람, 그리고 노드를 스크립트로 다루는 사람. |
-| MCP 서버 | `packages/mcp` — 에이전트가 직접 검색하고 라이브 테스트하고 사고 가르칠 수 있게 하는 [MCP](https://modelcontextprotocol.io) 서버. | 나를 대신해 일하는 AI 에이전트. |
+| MCP 서버 | [ainize-mcp](https://github.com/ainblockchain/ainize-mcp) — 에이전트가 직접 검색하고 라이브 테스트하고 사고 가르칠 수 있게 하는 [MCP](https://modelcontextprotocol.io) 서버. | 나를 대신해 일하는 AI 에이전트. |
 
 ## 노드가 살아 있는지 확인하기
 
@@ -29,9 +29,13 @@ source_sha256: 07444660de9c32d2b43c48cb2bea85827c1ea5fdc3d2c6be1d228aec1303464d
 
 :::tabs
 ::tab CLI
-이 길에는 `ainize` 명령이 필요한데, 이 명령을 받아 올 패키지는 없습니다. 이름이 npm에 등록되어 있지 않아서
-`npm install -g ainize`는 되지 않습니다. 저장소를 받아 직접 빌드하는 것이 [설치](./get-started/install.md)가 하는
-일이니, 아직이라면 거기서 시작하세요. 명령이 준비되었다면 CLI가 볼 노드를 정해 주고 — 그 노드의 홈 디렉터리를
+이 길에는 `ainize` 명령이 필요합니다.
+
+```bash
+npm install -g ainize
+```
+
+[설치](./get-started/install.md)에 자세한 내용과 준비물 하나가 있습니다. 명령이 준비되었다면 CLI가 볼 노드를 정해 주고 — 그 노드의 홈 디렉터리를
 `AINIZE_HOME`에 넣거나 `--node <주소>`를 붙입니다 — 노드에게 스스로를 요약하게 합니다.
 
 ```bash
@@ -88,4 +92,4 @@ Ainize는 기계 장치의 이름을 그대로 쓰지 않습니다. 기억 테�
 > [!NOTE]
 > **이 문서는 한 쪽씩 쓰이는 중이고, 비어 있는 페이지는 왼쪽 목차에 올리지 않습니다.** 아직 페이지가 없는 주제라도
 > 소프트웨어가 스스로를 설명합니다. `ainize --help`는 모든 명령과 옵션을 찍고, 켜져 있는 노드는 `/api/openapi.json`
-> 에서 자기 API 명세를 직접 제공하며, MCP 서버는 코드 옆 `packages/mcp/README.md`에 정리돼 있습니다.
+> 에서 자기 API 명세를 직접 제공하며, MCP 서버는 코드 옆 [ainize-mcp](https://github.com/ainblockchain/ainize-mcp) 저장소에 정리돼 있습니다.

@@ -167,7 +167,7 @@ A verifier disputing a listed knowledge. While the newest challenge is newer tha
 | Field | Type | Description |
 |---|---|---|
 | `anchor` | [`Anchor`](#anchor) |   |
-| `status` | `"DRAFT"` \| `"ANNOUNCED"` \| `"VERIFYING"` \| `"LISTED"` \| `"REJECTED"` \| `"CHALLENGED"` \| `"SUPERSEDED"` \| `"RETIRED"` |   |
+| `status` | `"DRAFT"` \| `"ANNOUNCED"` \| `"VERIFYING"` \| `"VERIFIED"` \| `"REJECTED"` \| `"CHALLENGED"` \| `"SUPERSEDED"` \| `"RETIRED"` |   |
 | `attestations` | [`Attestation`](#attestation)[] |   |
 | `passed` | `integer` | passing verifications that executed the benchmark, by verifiers other than the author |
 | `integrity_checks` | `integer` |   |
