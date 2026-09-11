@@ -19,8 +19,12 @@ the pasted output has been touched.
 
 These are two different things and confusing them is the single commonest reason gossip does not work.
 
-`host` is the interface the HTTP server binds. It defaults to `0.0.0.0`, every interface on the machine, which is
-almost always what you want; set it to `127.0.0.1` to make the node deliberately local.
+`host` is the interface the HTTP server binds. It defaults to `127.0.0.1` — this machine only — so a fresh node is
+private until you say otherwise. `ainize init --public` binds `0.0.0.0`, every interface, which is what the node
+below was started with; that is why it reads back the wider value.
+
+Bind wide only behind a firewall or a proxy. A node on every interface with no operator password belongs to whoever
+reaches it first.
 
 ```bash
 ainize config get host

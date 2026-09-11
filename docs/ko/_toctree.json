@@ -58,6 +58,10 @@
     "group": "실전 가이드",
     "pages": [
       {
+        "page": "how-to/join-from-your-own-node",
+        "title": "내 노드로 네트워크에 합류하기"
+      },
+      {
         "page": "how-to/reachable-node",
         "title": "다른 노드가 찾아올 수 있는 노드 운영하기"
       },
