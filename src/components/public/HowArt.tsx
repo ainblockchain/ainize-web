@@ -29,7 +29,15 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Step 01 — a knowledge file reaches three independent nodes and each one stamps a check of its own. */
+/**
+ * Step 01 — a knowledge file reaches TWO other model servers and each one stamps a check of its own.
+ *
+ * Two, not three: the default quorum is 2 (`@ainize/core` config.ts), and the hero diagram above draws two
+ * stamps on every verified file. Three here and two there is the same concept counted differently inside one
+ * scroll. "Other model servers" rather than "independent nodes", too: what the code counts is distinct
+ * `executor.instance` fingerprints, and an address costs nothing — a machine is the strictest thing it can
+ * actually hold anyone to.
+ */
 export function VerifiedArt() {
   return (
     <Frame>
@@ -37,10 +45,10 @@ export function VerifiedArt() {
       <path d="M12 44h30l12 12v50a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4V48a4 4 0 0 1 4-4Z" {...box} stroke={INK} />
       <path d="M42 44v12h12" {...box} stroke={INK} />
       <path d="M22 72h24M22 84h24M22 96h14" {...box} stroke={MUTED} />
-      {/* it goes out to three nodes */}
+      {/* it goes out to two */}
       <path d="M62 75h20M82 75l-9-6M82 75l-9 6" {...box} stroke={ACCENT} strokeWidth={2.4} />
-      <path d="M84 75h6v-42h14M90 75h14M84 75h6v42h14" {...box} stroke={ACCENT_SOFT} strokeWidth={2} />
-      {[16, 62, 108].map((y) => (
+      <path d="M84 75h6v-30h14M84 75h6v30h14" {...box} stroke={ACCENT_SOFT} strokeWidth={2} />
+      {[28, 88].map((y) => (
         <g key={y}>
           <rect x="106" y={y} width="82" height="34" rx="8" {...box} stroke={INK} />
           <path d="M116 12h18M116 20h30" {...box} stroke={MUTED} transform={`translate(0 ${y - 2})`} />

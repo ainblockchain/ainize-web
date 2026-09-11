@@ -15,7 +15,7 @@ export const landing: Dict = {
 
   // hero
   'landing.hero.title': { ko: '기억을 굽는다', en: 'Bake your own memory' },
-  'landing.hero.sub': { ko: '찾아본 것을 아는 것으로 바꾸세요. 지식은 문서가 아니라 모델 메모리에 구워 넣은 것이고,\n재시작 없이 올렸다 내렸다 할 수 있으며, 다른 노드가 검증하고, 노드끼리 사고팝니다.', en: 'Turn what you look up into what you know. A knowledge here is baked into the model\u2019s memory, not retrieved \u2014\nloaded and removed with no restart, verified by other nodes, and traded node to node.' },
+  'landing.hero.sub': { ko: '찾아본 것을 아는 것으로 바꾸세요. 지식은 문서가 아니라 내 노드에서 도는 모델의 메모리에 직접 써 넣은 것이고,\n재시작 없이 올렸다 내렸다 하며, 다른 노드가 채점해야 올라오고, 팔릴 때마다 출처로 밝힌 지식과 나눌 몫이 기록에 남습니다.', en: 'Turn what you look up into what you know. A knowledge here is written straight into the memory rows of the model running on your own node, not retrieved —\nloaded and removed with no restart, listed only after other nodes score it, and every sale is recorded as a split with the knowledge it names.' },
   // Finding 77: the hero's headline is a fact from this node, and an unreachable node rendered it as a grey bar for
   // ever. When there is no answer the card says so instead of pretending to be loading.
   'landing.hero.offline': { ko: '이 노드에 연결하지 못했습니다', en: 'This node is not answering' },
@@ -25,7 +25,7 @@ export const landing: Dict = {
   // was the reviewer's second complaint about this line (finding 13).
   'landing.hero.count_one': { ko: '검증 완료 지식 1개', en: 'One verified knowledge' },
   'landing.hero.count_verifying': { ko: '검증 중 {n}개', en: '{n} being verified' },
-  'landing.hero.count_help': { ko: '독립된 검증 노드가 실제 모델에 넣어 정답률과 부작용까지 확인한 지식의 수입니다.', en: 'Knowledge that independent verifier nodes loaded into the real model and checked for accuracy and side effects.' },
+  'landing.hero.count_help': { ko: '다른 모델 서버 두 곳이 실제 모델에 넣어 정답률과 부작용까지 확인한 지식의 수입니다. 주소나 회사가 아니라 서로 다른 모델 서버를 셉니다.', en: 'Knowledge that two other model servers loaded into the real model and checked for accuracy and side effects. The count is over distinct model servers, not over addresses or companies.' },
   // Finding 13 — a count is only a headline once there is a market to count. Under `NAME_LISTED_BELOW` the hero
   // names the knowledge that is actually here instead of shouting "1 verified knowledge", and with nothing listed
   // it says what the node is doing (verifying) rather than advertising an empty shelf.
@@ -34,7 +34,7 @@ export const landing: Dict = {
   // whole card on a phone (measured: 150 characters, 8 wrapped lines). One name carries the concreteness; the rest
   // are a count.
   'landing.hero.lead_more': { ko: '‘{name}’ 외 {n}개 — 실제 모델에서 검증 완료', en: '“{name}” and {n} more — verified on the real model' },
-  'landing.hero.lead_sub': { ko: '독립된 노드가 실제 모델에 넣어 채점한 뒤에 올라온 지식입니다.', en: 'Each one was loaded into the real model and scored by independent nodes before it was listed.' },
+  'landing.hero.lead_sub': { ko: '다른 모델 서버 두 곳이 실제 모델에 넣어 채점한 뒤에 올라온 지식입니다.', en: 'Two other model servers loaded each one into the real model and scored it before it was listed.' },
   'landing.hero.lead_verifying': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge in verification right now' },
   'landing.hero.lead_verifying_one': { ko: '지금 지식 1개가 검증 중입니다', en: 'One knowledge is in verification right now' },
   'landing.hero.lead_verifying_sub': { ko: '독립된 노드가 하나씩 실제 모델에 넣어 채점하고 있습니다. 통과한 지식만 여기에 올라옵니다.', en: 'Independent nodes are loading each one into the real model and scoring it. Whatever passes is listed here.' },
@@ -42,12 +42,14 @@ export const landing: Dict = {
   'landing.hero.lead_empty_sub': { ko: '지식은 독립된 노드가 실제 모델에 넣어 채점한 뒤에만 여기에 올라옵니다.', en: 'Knowledge is listed here only after independent nodes load it into the real model and score it.' },
   'landing.hero.primary': { ko: '지식 둘러보기', en: 'Explore knowledge' },
   'landing.hero.secondary': { ko: '라이브 테스트 해보기', en: 'Try a live test' },
+  /** Keeps the dashed half of the hero diagram honest: combining is built and off by default. */
+  'landing.hero.art_legend': { ko: '실선은 노드가 오늘 실제로 하는 일입니다. 점선은 지식 두 개를 합치는 기능인데, 만들어져 있고 노드마다 켜야 씁니다.', en: 'Solid lines are what a node does today. Dotted is combining two knowledges: built, and switched on per node.' },
   'landing.hero.note': { ko: '회원가입 없음 · 결제는 지갑(AIN) 또는 노드 크레딧으로 자동 처리 · 언제든 뺄 수 있음', en: 'No sign-up · pays automatically with a wallet (AIN) or node credit · removable any time' },
 
   // audience
   'landing.audience.title': { ko: '어떤 분이신가요?', en: 'Which one are you?' },
-  'landing.audience.sub': { ko: 'Ainize는 지식을 쓰는 사람, 만드는 사람, 네트워크를 돌리는 사람이 함께 씁니다.', en: 'Ainize is used by people who use knowledge, people who make it, and people who run the network.' },
-  'landing.audience.user.s1': { ko: '주제·모델별로 검증된 지식을 찾습니다.', en: 'Find knowledge verified for your topic and model.' },
+  'landing.audience.sub': { ko: '위 그림의 선에는 저마다 주인이 있습니다. 그 세 사람입니다.', en: 'Every line in the picture above belongs to somebody. These are the three of them.' },
+  'landing.audience.user.s1': { ko: '돈을 내는 쪽입니다. 내 주제와 내 모델에 맞으면서 다른 모델 서버 두 곳이 이미 채점한 지식을 찾습니다.', en: 'You are the one paying: find knowledge two other model servers already scored, for your topic and your model.' },
   'landing.audience.user.s2': { ko: '같은 질문을 넣기 전/후 모델에 물어 답이 달라지는지 직접 봅니다.', en: 'Ask the same question before and after loading it and see the answer change.' },
   'landing.audience.user.s3': { ko: '마음에 들면 결제 후 몇 초 만에 모델에 넣고, 언제든 뺍니다.', en: 'If you like it, pay and load it in seconds — unload any time.' },
   'landing.audience.user.cta': { ko: '지식 둘러보기', en: 'Explore knowledge' },
@@ -56,7 +58,7 @@ export const landing: Dict = {
   'landing.audience.creator.s1': { ko: '라이브 테스트에서 물어보고, 틀리면 바로잡습니다.', en: 'Ask the model in Live test and correct it when it is wrong.' },
   'landing.audience.creator.s2': { ko: '이 노드가 내 바로잡기를 지식으로 학습합니다. 로그인도 내 서버도 필요 없습니다.', en: 'This node trains your corrections into knowledge — no sign-in, no server of your own.' },
   'landing.audience.creator.s3': { ko: '나만 쓰거나, 공개해서 팔릴 때마다 정산받습니다.', en: 'Keep it private, or publish it and get paid on every sale.' },
-  'landing.audience.creator.s4': { ko: '남이 만든 지식 위에 얹어 만들 수도 있습니다. 그러면 내 지식이 팔릴 때마다 원작자에게도 수익이 나뉩니다.', en: 'Or build on someone else’s knowledge instead of starting over — they get a share of every sale of yours.' },
+  'landing.audience.creator.s4': { ko: '노드가 켜 둔 곳에서는 남이 만든 지식 위에 얹어 만들고 그 지식을 출처로 밝힐 수 있습니다. 그러면 내 지식이 팔릴 때마다 그 사람 몫도 함께 기록됩니다.', en: 'Where a node switches it on, you can build on someone else’s knowledge instead of starting over and name it as your source — then they get a share of every sale of yours.' },
   'landing.audience.creator.cta': { ko: '모델 가르치기', en: 'Teach the model' },
   'landing.audience.creator.operator_link': { ko: '이미 지식 파일(.npz)이 있고 노드를 운영하나요? 파일 등록 →', en: 'Already have a knowledge file (.npz) and run a node? Register a file →' },
   'landing.audience.creator.off': { ko: '이 노드는 지금 수업을 받지 않습니다. 라이브 테스트는 그대로 쓸 수 있습니다.', en: 'This node is not accepting lessons right now. Live test still works.' },
@@ -70,8 +72,8 @@ export const landing: Dict = {
   // by role and read as a menu, not a sequence). Every note here is a promise the shipped product keeps: where a
   // step has no command it says so, and where a step needs an earlier step it names it. README.md carries the same
   // eight steps and test/lifecycle.test.ts fails if the wording of a command or a route drifts apart.
-  'landing.flow.title': { ko: '이 생태계가 도는 순서', en: 'How the ecosystem goes around' },
-  'landing.flow.sub': { ko: '실제로 일어나는 순서 그대로 여덟 단계입니다. 단계마다 명령 한 줄과 눌러서 갈 수 있는 화면이 있고, 마지막 단계가 내가 공개한 지식을 다음 사람에게 넘기면서 다시 처음으로 돌아갑니다.', en: 'Eight steps, in the order they actually happen. Each one is a single command and a page you can click — and the last one hands what you published to the next person, so it starts again.' },
+  'landing.flow.title': { ko: '위 그림을 한 걸음씩', en: 'The same picture, one step at a time' },
+  'landing.flow.sub': { ko: '위 그림은 네트워크 전체를 한 장에 담은 것이고, 여기는 그 안을 한 사람이 실제 순서대로 걸어가는 길입니다. 여덟 단계마다 명령 한 줄과 눌러서 갈 수 있는 화면이 있고, 마지막 단계가 내가 공개한 지식을 다음 사람에게 넘기면서 다시 처음으로 돌아갑니다.', en: 'The picture above is the whole network at once. This is one person walking through it, in the order it actually happens: eight steps, each a single command and a page you can click — and the last one hands what you published to the next person, so it starts again.' },
   'landing.flow.legend': { ko: '단계마다 움직이는 사람이 바뀝니다:', en: 'Who is acting changes as it goes:' },
   'landing.flow.actor.you': { ko: '나', en: 'You' },
   'landing.flow.actor.node': { ko: '내 노드', en: 'Your node' },
@@ -116,17 +118,19 @@ export const landing: Dict = {
 
   // how it works
   'landing.how.title': { ko: '이렇게 됩니다', en: 'How it works' },
-  'landing.how.sub': { ko: '세 단계면 끝납니다. 재학습도, 재시작도 없습니다.', en: 'Three steps. No retraining, no restart.' },
+  'landing.how.sub': { ko: '위 그림에서 지식 하나만 확대한 것입니다. 세 단계면 끝나고, 재학습도 재시작도 없습니다.', en: 'A close-up of one knowledge from the picture above. Three steps. No retraining, no restart.' },
   'landing.how.step1.title': { ko: '검증', en: 'Verified' },
-  'landing.how.step1.desc': { ko: '등록된 지식은 독립된 검증 노드 여러 곳이 실제 모델에 넣어 채점합니다. 정답률뿐 아니라 다른 지식이 망가지거나 환각이 늘지 않는지(부작용 검사)까지 봅니다.', en: 'Several independent verifier nodes load each registered knowledge into the real model and score it — accuracy, plus a side-effect check that nothing else breaks and hallucination does not rise.' },
+  'landing.how.step1.desc': { ko: '등록된 지식은 다른 노드 두 곳이 실제 모델에 넣어 채점합니다. 정답률뿐 아니라 다른 지식이 망가지거나 환각이 늘지 않는지(부작용 검사)까지 보고, 이 둘은 주소가 아니라 서로 다른 모델 서버로 셉니다.', en: 'Two other nodes load each registered knowledge into the real model and score it — accuracy, plus a side-effect check that nothing else breaks and hallucination does not rise. The two are counted as distinct model servers, not as addresses.' },
   'landing.how.step2.title': { ko: '라이브 테스트', en: 'Live test' },
   'landing.how.step2.desc': { ko: '사기 전에 직접 물어보세요. 같은 질문을 지식을 넣기 전과 후의 모델에 던져 답이 어떻게 달라지는지 나란히 봅니다.', en: 'Ask before you buy. Put the same question to the model before and after the knowledge is loaded and compare the answers side by side.' },
   'landing.how.step3.title': { ko: '모델에 넣기', en: 'Load into model' },
-  'landing.how.step3.desc': { ko: '결제는 자동으로 처리되고, 지식은 몇 초 만에 모델에 들어갑니다. 겹침·충돌 검사가 먼저 돌고, 마음이 바뀌면 언제든 뺄 수 있습니다.', en: 'Payment is automatic and the knowledge is in the model in seconds. An overlap check runs first, and you can unload whenever you change your mind.' },
+  'landing.how.step3.desc': { ko: '결제는 자동으로 처리되고, 지식은 몇 초 만에 내 노드에서 도는 모델에 들어갑니다. 겹침·충돌 검사가 먼저 돌고, 마음이 바뀌면 언제든 뺄 수 있습니다.', en: 'Payment is automatic and the knowledge is in the model on your own node in seconds. An overlap check runs first, and you can unload whenever you change your mind.' },
 
   // trending
   'landing.trending.title': { ko: '지금 많이 찾는 검증 완료 지식', en: 'Popular verified knowledge' },
-  'landing.trending.sub': { ko: '독립 검증을 통과해 바로 모델에 넣을 수 있는 지식입니다.', en: 'Passed independent verification and ready to load into the model.' },
+  'landing.trending.sub': { ko: '검증을 통과해 바로 모델에 넣을 수 있는 지식입니다. 어떤 지식을 출처로 밝혔거나 이 지식을 출처로 밝힌 지식이 있으면 카드에 함께 적힙니다.', en: 'Passed verification and ready to load. Where a knowledge names another as its source, or something names it, the card says so.' },
+  'landing.trending.built_on': { ko: '‘{name}’을(를) 출처로 밝힘', en: 'Names “{name}” as its source' },
+  'landing.trending.built_on_count': { ko: '이 지식을 출처로 밝힌 지식 {n}개', en: '{n} knowledge names this as its source' },
   'landing.trending.empty': { ko: '아직 검증 완료된 지식이 없습니다. 검증 노드들이 채점하는 중이니 잠시 후 다시 확인해 주세요.', en: 'No knowledge has completed verification yet. Verifier nodes are scoring — check back in a moment.' },
   'landing.trending.empty_count': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge currently being verified' },
   'landing.trending.more': { ko: '더 보기', en: 'See all' },
@@ -144,8 +148,8 @@ export const landing: Dict = {
   'landing.why.2026.desc': { ko: '지금의 Ainize는 지식을 AI 모델이 실제로 아는 상태로 만듭니다. 검증된 지식을 고르고, 라이브로 확인하고, 몇 초 만에 넣습니다. "ainize your knowledge".', en: 'This Ainize turns knowledge into something an AI model actually knows: pick verified knowledge, check it live, load it in seconds. "Ainize your knowledge."' },
   'landing.why.ain.year': { ko: 'AIN', en: 'AIN' },
   'landing.why.ain.title': { ko: '앞 세 글자, AI Network', en: 'The first three letters: AI Network' },
-  'landing.why.ain.desc': { ko: '누가 어떤 지식을 등록·검증·구매했는지는 AI Network에 공개 기록으로 남고, 결제와 원작자 수익 분배도 그 위에서 자동으로 처리됩니다.', en: 'Who registered, verified and bought which knowledge is a public record on the AI Network, and payments and creator revenue share settle on it automatically.' },
-  'landing.why.tagline': { ko: '만든 사람은 팔릴 때마다 정산받고, 쓰는 사람은 검증된 지식만 봅니다.', en: 'Creators get paid per sale; users only ever see verified knowledge.' },
+  'landing.why.ain.desc': { ko: '누가 어떤 지식을 등록·검증·구매했는지는 AI Network에 공개 기록으로 남습니다. 판매도 누구에게 얼마가 갈지 적힌 기록으로 남고, 파는 쪽이 그 뒤에 출처로 밝힌 지식들에게 보냅니다.', en: 'Who registered, verified and bought which knowledge is a public record on the AI Network. Every sale is recorded there as a split: the record says who is owed what, and the seller sends it on afterwards.' },
+  'landing.why.tagline': { ko: '팔릴 때마다 출처로 밝힌 지식과 나눌 몫이 기록되고, 쓰는 사람은 다른 노드가 채점한 지식만 봅니다.', en: 'Every sale is recorded as a split with the knowledge it names. Users only ever see knowledge other nodes scored.' },
 
   // footer — finding 99: the landing no longer keeps a link list of its own. `components/ui/Footer.tsx` renders the
   // same destinations under the same names on both chromes (dark skin here, purple bar elsewhere), so the

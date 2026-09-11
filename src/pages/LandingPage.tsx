@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useCatalogQuery, useInfoQuery } from '@/api/api';
 import { ApplyArt, LiveTestArt, VerifiedArt } from '@/components/public/HowArt';
+import { HeroGraph, HeroGraphCompact } from '@/components/public/HeroGraph';
 import Lifecycle from '@/components/public/Lifecycle';
 import { Footer } from '@/components/ui/Footer';
 import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
@@ -74,6 +75,29 @@ const IntroContent = styled.div`
   width: calc(100% - 80px); max-width: ${(p) => p.theme.layout.maxWidthLanding}; padding: 96px 40px 110px; position: relative;
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: calc(100% - 32px); padding: 56px 16px 72px; }
 `;
+/**
+ * The hero art has a COLUMN, not a corner. The old raster was `position:absolute; right:-80px; max-width:60vw`,
+ * which is why it had to be cropped by the section and why it was `display:none` below 960px — an element
+ * behind the card cannot be laid out beside it. A grid gives the diagram real width at every size, and the
+ * copy a measure that does not depend on where the picture happens to fall.
+ */
+const HeroGrid = styled.div`
+  display: grid; gap: 48px; grid-template-columns: minmax(0, 1fr); align-items: center;
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 40px; }
+`;
+/** The one line that keeps the dashed half of the diagram honest. Cutting it makes the art overstate. */
+const ArtLegend = styled.p`
+  margin: 16px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 13px; line-height: 1.5; color: #b6b6c0;
+  max-width: 52ch; word-break: keep-all; white-space: pre-wrap;
+`;
+/** The wide column. Below md it collapses and the compact art inside `Hero` takes over, legend and all. */
+const HeroArtCol = styled.div`
+  @media (max-width: ${(p) => p.theme.breakpoint.md}px) { display: none; }
+`;
+/** …so the copy column's own copy of the legend is hidden exactly where the wide one is showing. */
+const HeroMobileOnly = styled.div`
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { display: none; }
+`;
 const Hero = styled.div`display: flex; flex-direction: column; align-items: flex-start; justify-content: center;`;
 const HeroLogo = styled.img`height: 44px; width: auto; margin-bottom: 28px; z-index: 2; @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { height: 32px; }`;
 const IntroTitle = styled.h1`
@@ -87,10 +111,6 @@ const IntroSub = styled.p`
   font-size: 15px;
   @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 17px; }
   @media (min-width: ${(p) => p.theme.breakpoint.md}px) { font-size: 20px; }
-`;
-const HeroImage = styled.img`
-  position: absolute; right: -80px; top: 40px; width: 900px; max-width: 60vw; object-fit: contain; pointer-events: none; opacity: 0.9;
-  @media (max-width: ${(p) => p.theme.breakpoint.md}px) { display: none; }
 `;
 const CountCard = styled.div`
   z-index: 2; margin-top: 56px; padding: 48px 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
@@ -339,6 +359,7 @@ export default function LandingPage() {
       </NavBar>
       <IntroSection ref={heroRef}>
         <IntroContent>
+          <HeroGrid>
           <Hero>
             <HeroLogo {...LOGO} alt="Ainize" />
             <IntroTitle>{t('landing.hero.title')}</IntroTitle>
@@ -361,8 +382,18 @@ export default function LandingPage() {
               </PillRow>
               <NoSignUp title={`${help('autoPay')} (${tech('autoPay')})`}>{t('landing.hero.note')}</NoSignUp>
             </CountCard>
+            {/* The phone gets the diagram too, cropped to the half that carries the sentence. The old raster
+                answered this by vanishing below 960px, so the picture the page leads with did not exist there. */}
+            <HeroMobileOnly>
+              <HeroGraphCompact />
+              <ArtLegend>{t('landing.hero.art_legend')}</ArtLegend>
+            </HeroMobileOnly>
           </Hero>
-          <HeroImage src="/static/images/intro-image.png" alt="" />
+          <HeroArtCol>
+            <HeroGraph />
+            <ArtLegend>{t('landing.hero.art_legend')}</ArtLegend>
+          </HeroArtCol>
+          </HeroGrid>
         </IntroContent>
       </IntroSection>
 
@@ -485,6 +516,16 @@ export default function LandingPage() {
                       {t('common.price')}
                       <div><TrendPrice>{p.text}</TrendPrice>{p.note && <TrendNote>{p.note}</TrendNote>}</div>
                     </TrendLine>
+                    {/* The graph in the hero, on a card: where a knowledge names another as its source, or
+                        something names it, the shelf says so. `parents[]` is credit and royalty — it does NOT
+                        mean this was trained on top of that one, which is why the line says "names as its
+                        source" and never "built on". */}
+                    {a.parents?.length ? (
+                      <TrendLine>{t('landing.trending.built_on', { name: a.parents[0] })}</TrendLine>
+                    ) : null}
+                    {e.children?.length ? (
+                      <TrendLine>{t('landing.trending.built_on_count', { n: num(e.children.length) })}</TrendLine>
+                    ) : null}
                   </TrendBody>
                 </TrendCard>
               );
