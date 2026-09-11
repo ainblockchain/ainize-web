@@ -11,6 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { LIFECYCLE, LIFECYCLE_KEYS, LOOP_TARGET } from '../src/components/public/lifecycleSteps.ts';
 import { landing } from '../src/i18n/pages/public.ts';
@@ -66,11 +67,22 @@ test('the role-grouped "one line is enough" block is gone from the page and the 
   assert.ok(!README.includes('## One line is enough'));
 });
 
-test('no command that cannot resolve, and no unshipped flag', () => {
+test('no command that cannot resolve, and no unshipped flag', (t) => {
   const page = readFileSync(fileURLToPath(new URL('../src/pages/LandingPage.tsx', import.meta.url)), 'utf-8');
   const every = LIFECYCLE.map((s) => s.cmd).join('\n') + '\n' + SECTION + '\n' + page;
-  // @ainize/cli is private: `npm view ainize` 404s, so the global install has never worked
-  assert.ok(!every.includes('npm install -g ainize'), 'npm install -g ainize cannot resolve — the package is private');
+  // `npm install -g ainize` was banned outright while the CLI was published as `@ainize/cli` and
+  // `npm view ainize` 404d. That ban is now a CONDITION: the page may make the promise exactly when the
+  // registry can keep it. Deleting the guard once the command works would remove the thing that stopped the
+  // false promise coming back the first time — the invariant is "no unkeepable promise", not "never this
+  // string". Skipped rather than failed when the registry is unreachable, because a test that turns red
+  // offline is a test people learn to ignore.
+  if (every.includes('npm install -g ainize')) {
+    const probe = spawnSync('npm', ['view', 'ainize', 'version'], { encoding: 'utf-8', timeout: 20_000 });
+    const offline = !!probe.error || /ENOTFOUND|ETIMEDOUT|EAI_AGAIN|network/i.test(probe.stderr ?? '');
+    if (offline) t.skip('registry unreachable — cannot check that `npm install -g ainize` resolves');
+    else assert.equal(probe.status, 0,
+      'the page promises `npm install -g ainize` but `npm view ainize` fails — publish the CLI under that name, or take the line off the page');
+  }
   // named by the node's own needs_base error, but `ainize patch apply --help` does not list it
   assert.ok(!LIFECYCLE.some((s) => s.cmd.includes('--with-base')), '--with-base is not in `patch apply --help` yet');
 });

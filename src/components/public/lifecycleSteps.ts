@@ -9,8 +9,9 @@
  *  - Nothing here may promise something the product does not do. Where a step has no shipped command (a data
  *    provider's publish is browser-only) the note in the dictionary says so instead of inventing one; where a step
  *    needs an earlier one (a derivative's author must hold the base) the acquisition is its own command line.
- *  - `npm install -g ainize` must never come back: @ainize/cli is `private: true`, so `npm view ainize` 404s. The
- *    only install that resolves is a clone + `npm install && npm run build`, then `npx ainize …`.
+ *  - `npm install -g ainize` was banned here while the CLI was published as `@ainize/cli` and
+ *    `npm view ainize` 404d. The rule is now a condition rather than a ban on a string: lifecycle.test.ts
+ *    asks the registry and fails if this page makes that promise while it cannot be kept.
  *  - No measured number appears here or in the dictionary. A dev node's teach backend is a stub, so any "x %" or
  *    "n seconds" would be a number no node measured.
  *  - `ainize patch apply --with-base` is NOT here: the node's own error message names it but `patch apply --help`
