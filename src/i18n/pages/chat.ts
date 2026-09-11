@@ -18,7 +18,13 @@ export const chat: Dict = {
   'chat.picker.not_scored': { ko: '아직 채점 전', en: 'Not scored yet' },
   'chat.picker.not_scored_help': { ko: '검증 노드가 실제 모델에 넣어 채점하기 전입니다. 라이브 테스트로 직접 확인해 보세요.', en: 'Verifier nodes have not scored it on the real model yet. Try it live yourself.' },
   'chat.picker.selected': { ko: '선택됨', en: 'Selected' },
-  'chat.picker.route_missing': { ko: '주소에 적힌 지식({id})은 이 노드에서 테스트할 수 없어 목록의 첫 번째 지식을 골랐습니다.', en: 'The knowledge in the address ({id}) cannot be tested on this node, so the first one in the list was chosen.' },
+  // The old single string promised a fallback ("the first one in the list was chosen") that the page never
+  // performed, and it was never shown in any case. One line per reason, because "cannot be tested" leaves the
+  // visitor with nothing to do, and each of these has a different next step.
+  'chat.picker.route_not_held': { ko: '{name}은(는) 이 노드에 본체가 없어 여기서는 시험해 볼 수 없습니다. 지식을 올린 노드가 꺼져 있거나 외부에서 닿을 수 없으면 아무도 받아올 수 없습니다 — 상태는 {status}입니다.', en: 'This node does not hold the body of {name}, so it cannot be tested here. When the node that published it is offline or unreachable, nobody can fetch it — its status is {status}.' },
+  'chat.picker.route_not_licensed': { ko: '{name}은(는) 아직 이 노드가 구입하지 않아 시험해 볼 수 없습니다. 상세 화면에서 구입하면 이 자리에서 바로 시험할 수 있습니다.', en: 'This node has not bought {name}, so it cannot be tested here yet. Buying it on its details page makes it testable right here.' },
+  'chat.picker.route_verify_only': { ko: '{name}은(는) 이 노드가 검증하느라 가지고 있을 뿐 사용 권한은 없어 시험해 볼 수 없습니다.', en: 'This node holds {name} only because it verified it, which is not a licence to use it — so it cannot be tested here.' },
+  'chat.picker.route_unknown': { ko: '주소에 적힌 지식({id})을 이 노드에서 찾을 수 없습니다. 다른 노드에 올라온 지식이거나 링크가 오래된 것일 수 있습니다.', en: 'This node knows nothing about the knowledge in the address ({id}). It may live on another node, or the link may be stale.' },
   // multi-knowledge (spec §5.3 — kept in chat.ts because the picker owns them)
   'chat.picker.multi_title': { ko: '넣을 지식 (최대 3개)', en: 'Knowledge to load (pick up to 3)' },
   'chat.picker.multi_help': { ko: '체크한 순서대로 넣습니다. 겹치면 나중에 체크한 쪽이 이깁니다.', en: 'They load in the order you tick them. If two overlap, the one ticked last wins.' },
