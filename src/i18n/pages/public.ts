@@ -15,7 +15,7 @@ export const landing: Dict = {
 
   // hero
   'landing.hero.title': { ko: '기억을 굽는다', en: 'Bake your own memory' },
-  'landing.hero.sub': { ko: '찾아본 것을 아는 것으로 바꾸세요. 지식은 문서가 아니라 내 노드에서 도는 모델의 메모리에 직접 써 넣은 것이고,\n재시작 없이 올렸다 내렸다 하며, 다른 노드가 채점해야 올라오고, 팔릴 때마다 출처로 밝힌 지식과 나눌 몫이 기록에 남습니다.', en: 'Turn what you look up into what you know. A knowledge here is written straight into the memory rows of the model running on your own node, not retrieved —\nloaded and removed with no restart, listed only after other nodes score it, and every sale is recorded as a split with the knowledge it names.' },
+  'landing.hero.sub': { ko: '찾아본 것을 아는 것으로 바꾸세요. 지식은 문서가 아니라 내 노드에서 도는 모델의 메모리에 직접 써 넣은 것이고,\n재시작 없이 올렸다 내렸다 하며, 다른 노드가 채점해야 올라오고, 팔릴 때마다 출처로 밝힌 지식과 나눌 몫이 기록에 남습니다.', en: 'Turn what you look up into what you know. A knowledge here is written straight into the memory rows of the model running on your own node, not retrieved —\nloaded and removed with no restart, on sale only after other model servers score it, and every sale is recorded as a split with the knowledge it names.' },
   // Finding 77: the hero's headline is a fact from this node, and an unreachable node rendered it as a grey bar for
   // ever. When there is no answer the card says so instead of pretending to be loading.
   'landing.hero.offline': { ko: '이 노드에 연결하지 못했습니다', en: 'This node is not answering' },
@@ -34,12 +34,12 @@ export const landing: Dict = {
   // whole card on a phone (measured: 150 characters, 8 wrapped lines). One name carries the concreteness; the rest
   // are a count.
   'landing.hero.lead_more': { ko: '‘{name}’ 외 {n}개 — 실제 모델에서 검증 완료', en: '“{name}” and {n} more — verified on the real model' },
-  'landing.hero.lead_sub': { ko: '다른 모델 서버 두 곳이 실제 모델에 넣어 채점한 뒤에 올라온 지식입니다.', en: 'Two other model servers loaded each one into the real model and scored it before it was listed.' },
+  'landing.hero.lead_sub': { ko: '다른 모델 서버 두 곳이 실제 모델에 넣어 채점한 뒤에 판매가 열린 지식입니다.', en: 'Two other model servers loaded each one into the real model and scored it before it went on sale.' },
   'landing.hero.lead_verifying': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge in verification right now' },
   'landing.hero.lead_verifying_one': { ko: '지금 지식 1개가 검증 중입니다', en: 'One knowledge is in verification right now' },
-  'landing.hero.lead_verifying_sub': { ko: '독립된 노드가 하나씩 실제 모델에 넣어 채점하고 있습니다. 통과한 지식만 여기에 올라옵니다.', en: 'Independent nodes are loading each one into the real model and scoring it. Whatever passes is listed here.' },
+  'landing.hero.lead_verifying_sub': { ko: '다른 모델 서버가 하나씩 실제 모델에 넣어 채점하고 있습니다. 통과한 지식만 판매가 열립니다.', en: 'Other model servers are loading each one into the real model and scoring it. Whatever passes goes on sale here.' },
   'landing.hero.lead_empty': { ko: '이 노드에는 아직 올라온 지식이 없습니다', en: 'No knowledge is listed on this node yet' },
-  'landing.hero.lead_empty_sub': { ko: '지식은 독립된 노드가 실제 모델에 넣어 채점한 뒤에만 여기에 올라옵니다.', en: 'Knowledge is listed here only after independent nodes load it into the real model and score it.' },
+  'landing.hero.lead_empty_sub': { ko: '지식은 다른 모델 서버가 실제 모델에 넣어 채점한 뒤에만 판매가 열립니다.', en: 'Knowledge goes on sale here only after other model servers load it into the real model and score it.' },
   'landing.hero.primary': { ko: '지식 둘러보기', en: 'Explore knowledge' },
   'landing.hero.secondary': { ko: '라이브 테스트 해보기', en: 'Try a live test' },
   /** Keeps the dashed half of the hero diagram honest: combining is built and off by default. */
@@ -105,7 +105,7 @@ export const landing: Dict = {
   'landing.flow.s5.path': { ko: '/teach → 내 데이터셋과 수업 → 수업 → 공개하기', en: '/teach → My datasets and lessons → the lesson → Publish' },
 
   'landing.flow.s6.title': { ko: '다른 노드가 검증해야 팔립니다', en: 'Other nodes verify it before it sells' },
-  'landing.flow.s6.note': { ko: '공개했다고 판매가 시작되지 않습니다. 검증자 역할을 가진 독립 노드 두 곳이 실제 모델에 넣어 채점해야 하고, 채점 결과는 지식 상세의 “검증” 탭에 남습니다. 내 노드가 스스로 낸 검증은 거부되고 절대 세지 않습니다. 그래서 피어가 없는 노드는 아무것도 판매 상태가 되지 못하는데 이 저장소에는 기본 피어 목록이 없습니다 — 피어를 직접 추가하거나 노드를 하나 더 띄우세요.', en: 'Publishing is not selling. Two independent nodes with the verifier role have to load it into the real model and score it, and the score lands on the knowledge page under Verification. Your own attestation is refused and never counted, so a node with no peers lists nothing — and this repo ships no bootstrap peer list. Add a peer, or run a second node yourself.' },
+  'landing.flow.s6.note': { ko: '공개했다고 판매가 시작되지 않습니다. 검증자 역할을 가진 다른 모델 서버 두 곳이 실제 모델에 넣어 채점해야 하고, 채점 결과는 지식 상세의 “검증” 탭에 남습니다. 내 노드가 스스로 낸 검증은 거부되고 절대 세지 않습니다. 그래서 피어가 없는 노드는 아무것도 판매 상태가 되지 못하는데 이 저장소에는 기본 피어 목록이 없습니다 — 피어를 직접 추가하거나 노드를 하나 더 띄우세요.', en: 'Publishing is not selling. Two other model servers with the verifier role have to load it into the real model and score it, and the score lands on the knowledge page under Verification. Your own attestation is refused and never counted, so a node with no peers lists nothing — and this repo ships no bootstrap peer list. Add a peer, or run a second node yourself.' },
   'landing.flow.s6.path': { ko: '/ → 네트워크 — 검증에 참여하는 노드들', en: '/ → Network — the nodes that verify' },
 
   'landing.flow.s7.title': { ko: '다른 사람이 내 지식을 씁니다', en: 'Someone else uses yours' },
@@ -246,7 +246,7 @@ export const listing: Dict = {
 
   // Finding 80 — the words this list is made of, defined ON the page instead of only inside hover `title`
   // attributes that no phone and no keyboard could ever reach. One line per list, never one per card.
-  'explore.legend.verified': { ko: '독립된 노드가 실제 모델에 넣어 채점했습니다', en: 'independent nodes loaded it into the real model and scored it' },
+  'explore.legend.verified': { ko: '다른 모델 서버가 실제 모델에 넣어 채점했습니다', en: 'other model servers loaded it into the real model and scored it' },
   'explore.legend.facts': { ko: '이 지식이 답할 수 있는 질문 수', en: 'how many questions it can answer' },
   'explore.legend.rows': { ko: '모델 기억에서 바뀌는 항목 수', en: 'how many entries it changes in the model’s memory' },
   'explore.legend.accuracy': { ko: '지식을 넣은 모델이 검증 질문을 맞힌 비율', en: 'the share of the benchmark questions the model got right with it loaded' },

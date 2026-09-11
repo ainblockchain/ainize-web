@@ -405,8 +405,8 @@ export const detailPatch: Dict = {
      best-effort, nothing is escrowed, and Verified does not promise the knowledge is correct. The step now says
      what was actually checked, and the caveat is on the receipt. */
   'detail.buy.step.quorum': { ko: '독립 검증 {passed}/{quorum} 통과 확인', en: 'passed {passed} of {quorum} independent checks' },
-  'detail.buy.quorum_caveat': { ko: '검증은 보증이 아닙니다: 독립된 검증 노드가 공개된 질문으로 채점했다는 뜻이며, 보증금이 걸려 있지도, 이 지식이 언제나 옳거나 부작용이 없다고 약속하지도 않습니다.', en: 'Verification is not a guarantee: it means independent nodes scored the published questions. No deposit is at stake, and it does not promise the knowledge is always correct or free of side effects.' },
-  'detail.buy.quorum_caveat_n': { ko: '검증은 보증이 아닙니다: 독립된 검증 노드가 서로 다른 모델 서버 {n}곳에서 공개된 질문으로 채점했다는 뜻이며, 보증금이 걸려 있지도, 이 지식이 언제나 옳거나 부작용이 없다고 약속하지도 않습니다.', en: 'Verification is not a guarantee: it means independent nodes scored the published questions on {n} distinct model server(s). No deposit is at stake, and it does not promise the knowledge is always correct or free of side effects.' },
+  'detail.buy.quorum_caveat': { ko: '검증은 보증이 아닙니다: 다른 모델 서버가 공개된 질문으로 채점했다는 뜻이며, 보증금이 걸려 있지도, 이 지식이 언제나 옳거나 부작용이 없다고 약속하지도 않습니다.', en: 'Verification is not a guarantee: it means other model servers scored the published questions. No deposit is at stake, and it does not promise the knowledge is always correct or free of side effects.' },
+  'detail.buy.quorum_caveat_n': { ko: '검증은 보증이 아닙니다: 서로 다른 모델 서버 {n}곳이 공개된 질문으로 채점했다는 뜻이며, 보증금이 걸려 있지도, 이 지식이 언제나 옳거나 부작용이 없다고 약속하지도 않습니다.', en: 'Verification is not a guarantee: it means {n} distinct model server(s) scored the published questions. No deposit is at stake, and it does not promise the knowledge is always correct or free of side effects.' },
   'detail.buy.quorum_terms': { ko: '검증의 범위와 한계', en: 'What verification does and does not cover' },
   'detail.buy.step.pay': { ko: '자동 결제', en: 'paid' },
   'detail.buy.step.free': { ko: '무료 — 결제 생략', en: 'free — no payment' },
