@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@ainize/core": "^0.1.2",
-    "@ainize/node": "github:ainblockchain/ainize-node",
+    "@ainize/node": "^0.1.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",
