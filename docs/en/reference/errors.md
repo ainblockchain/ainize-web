@@ -89,7 +89,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `dataset_unavailable` | `404` | the training set of \<input.patchId> has no questions on this node | `packages/node/src/teach-datasets.ts` |
 | `dataset_unavailable` | `404` | this knowledge has no published training set | `packages/node/src/api.ts` |
 | `dataset_unavailable` | `404` | training set not available on this node (no peer holds it) | `packages/node/src/api.ts` |
-| `enroll_local_only` | `403` | an address is added to this node's operators from the machine it runs on (`ainize operators add <address>`), or with the one-time token in its AINIZE_HOME/setup-token as the x-setup-token header | `packages/node/src/api.ts` |
+| `enroll_local_only` | `403` | an address is added to this node's operators from the machine it runs on (`ainize operators --add <address>`), or with the one-time token in its AINIZE_HOME/setup-token as the x-setup-token header | `packages/node/src/api.ts` |
 | `invalid` | `400` | \<bad> | `packages/node/src/teach.ts` |
 | `invalid` | `400` | \<badName> | `packages/node/src/teach.ts` |
 | `invalid` | `400` | 1..\<c.factsPerJob> corrections per lesson | `packages/node/src/teach.ts` |
