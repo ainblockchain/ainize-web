@@ -134,6 +134,25 @@ ainize teach publish <job-id>
 `teach.backend gradient` needs a trainer container and free GPU memory. Without it the backend is `stub`, and the
 publish path refuses stub-backed work on purpose — a lesson nobody trained is not knowledge.
 
+Two settings decide where the training runs, and both have to be right before the first lesson:
+
+```bash
+ainize config set runtime.gpus 0,1                  # the GPUs your model SERVES on
+ainize config set teach.trainer.gpus 4,5,6          # the GPUs training may use — never the same ones
+ainize config set runtime.patchDir /path/to/the/mailbox/of/runtime.api
+```
+
+**`runtime.patchDir` is the one people skip, and skipping it fails silently.** Knowledge is handed to a running
+model through a directory it watches, and one machine can run several models each watching its own. Unset,
+the node writes into a default that may belong to a *different* instance than `runtime.api` names — so
+knowledge loads into a model nobody is asking, answers come from a model that never saw it, and every live
+test reads as "this knowledge changed nothing". `ainize status` prints the mailbox with a warning when it had
+to guess; that warning is the whole symptom.
+
+Training and serving must not share GPUs: the trainer loads a second copy of the memory table and starves the
+model every verification and live test depends on. The node refuses to start a lesson when the two sets
+overlap, and pins the trainer to the GPUs it checked.
+
 After `teach publish` it is out of your hands: the anchor gossips, each verifier applies your knowledge and runs
 your benchmark **itself**, and signed attestations come back. Two independent passes and it is `VERIFIED`.
 
