@@ -74,11 +74,8 @@ export const operatorSign: Dict = {
   // Finding 71: "Open the operator console" led here, and nothing on the page said where the password comes from.
   'op.sign.login.where': { ko: '이 노드를 직접 운영하고 있다면, 노드가 도는 컴퓨터에서 {cmd}을 처음 실행할 때 정한 비밀번호입니다. 이 화면에서는 비밀번호를 새로 만들거나 되돌릴 수 없습니다.', en: 'Running this node yourself? It is the password set the first time {cmd} ran on the machine the node runs on — this page can neither create one nor reset one.' },
   'op.sign.login.where_link': { ko: '노드 설치·로그인 안내', en: 'Node setup and log-in guide' },
-  'op.sign.login.title': { ko: '내 노드에 로그인', en: 'Sign in to your node' },
-  'op.sign.visitor_notice': { ko: '모델을 써보거나 가르치고 싶다면 로그인이 필요 없습니다. 로그인은 이 노드를 운영하는 사람만 합니다.', en: 'Want to try or teach the model? You do not need to sign in — that is only for the person who runs this node.' },
+  'op.sign.login.title': { ko: '로그인', en: 'Sign in' },
   'op.sign.visitor_cta': { ko: '라이브 테스트로 가기', en: 'Go to Live test' },
-  'op.sign.node.title': { ko: '이 노드', en: 'This node' },
-  'op.sign.node.identity_note': { ko: '계정 주소는 AI Network 블록체인과 같은 형식의 키 쌍입니다. 이 노드가 남기는 모든 기록·검증·결제는 이 키로 서명됩니다.', en: 'The account address is a key pair of the same type the AI Network blockchain uses. Every record, verification and payment this node makes is signed with it.' },
 };
 
 export const operatorDash: Dict = {
@@ -1036,7 +1033,6 @@ export const operatorTeach: Dict = {
   // otherwise "a key signs for itself"; the button appears only when the extension is actually there.
   'op.sign.wallet.button': { ko: 'AIN Wallet으로 로그인', en: 'Sign in with AIN Wallet' },
   'op.sign.wallet.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
-  'op.sign.wallet.hint': { ko: '지갑이 짧은 문장 하나에 서명합니다. 비밀번호도, 송금도 없습니다. 이 노드의 자기 키는 언제나 운영자이고, 다른 주소는 operatorAddresses에 들어 있어야 합니다.', en: 'The wallet signs one short sentence. No password, and nothing is sent. This node’s own key is always an operator; any other address has to be listed in operatorAddresses.' },
   'op.sign.wallet.err_no_extension': { ko: 'AIN Wallet 확장 프로그램을 찾을 수 없습니다.', en: 'No AIN Wallet extension found.' },
   'op.sign.wallet.err_locked': { ko: '지갑이 잠겨 있거나 계정이 선택되지 않았습니다. 확장 프로그램을 열어 잠금을 해제하세요.', en: 'The wallet is locked or has no account selected. Open the extension and unlock it.' },
   'op.sign.wallet.err_rejected': { ko: '지갑에서 서명을 거절했습니다.', en: 'The signature was rejected in the wallet.' },
@@ -1045,12 +1041,9 @@ export const operatorTeach: Dict = {
   'op.sign.wallet.err_signature_mismatch': { ko: '지갑의 서명이 지갑이 말한 주소와 맞지 않습니다. 이대로 진행하면 나중에 엉뚱한 곳에서 실패하므로 여기서 멈춥니다.', en: 'The wallet’s signature does not match the address the wallet claims. Continuing would fail later somewhere unrelated, so it stops here.' },
 
   // The operator password is gone. Sign-in is a signature — the node's own key, plus whatever addresses it lists.
-  'op.sign.key.subtitle': { ko: '비밀번호가 없습니다. 키로 서명해서 들어옵니다.', en: 'There is no password. You sign in with a key.' },
-  'op.sign.key.desc': { ko: '이 노드의 자기 키는 언제나 운영자입니다. 그 키는 노드가 돌아가는 기계의 config.json에 있고, 다른 주소는 운영자가 목록에 넣어 두어야 합니다.', en: 'This node’s own key is always an operator. That key lives in config.json on the machine the node runs on; any other address has to have been listed by an operator.' },
   'op.sign.key.no_wallet': { ko: 'AIN Wallet 확장 프로그램이 없어 이 화면에서는 서명할 수 없습니다. 노드가 돌아가는 기계에서는 명령 한 줄이면 됩니다.', en: 'Without the AIN Wallet extension there is nothing here to sign with. On the machine the node runs on it is one command.' },
   'op.sign.key.no_wallet_cmd': { ko: '노드 자기 키로 서명해 로그인합니다', en: 'signs a challenge with the node’s own key' },
   'op.sign.key.enroll': { ko: '이 지갑 주소를 운영자로 등록하고 로그인', en: 'Add this wallet as an operator and sign in' },
-  'op.sign.key.enroll_hint': { ko: '이 노드의 기계에서 열었거나 일회용 토큰을 가진 경우에만 됩니다. 운영자를 추가하는 것은 운영자가 되는 것과 같은 권한이기 때문입니다.', en: 'Only from the node’s own machine, or with its one-time token — adding an operator is exactly as privileged as being one.' },
   // Account: who may sign in, in place of the password form.
   'op.account.operators.title': { ko: '이 노드에 로그인할 수 있는 주소', en: 'Who may sign in' },
   'op.account.operators.desc': { ko: '비밀번호는 없습니다. 아래 주소들이 서명으로 로그인합니다.', en: 'There is no password. These addresses sign in with a signature.' },
