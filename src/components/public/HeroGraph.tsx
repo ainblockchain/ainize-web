@@ -58,14 +58,63 @@ import { HeroScene } from './HeroScene';
 const Art = styled.svg`
   display: block; width: 100%; height: auto; pointer-events: none;
   .hg-buy path, .hg-payouts path, .hg-deliver path { stroke-dasharray: 1400; stroke-dashoffset: 0; }
+  /* The still frame is the design. Everything below is opt-in, and the picture is complete without it. */
+  .hg-ask { opacity: 0; }
   @media (prefers-reduced-motion: no-preference) {
     .hg-deliver path { animation: hg-draw 9s ease-in-out infinite; }
     .hg-buy path { animation: hg-draw 9s ease-in-out 0.6s infinite; }
     .hg-payouts path { animation: hg-draw 9s ease-in-out 3.5s infinite; }
+
+    /*
+     * The inference pass. A question runs along the row layer; as it reaches each contributor's rows, those
+     * rows flare and the file that owns them answers back up the thread it was applied down.
+     *
+     * The order and the timing carry a claim: the three flares are SEPARATE and SEQUENTIAL because three
+     * different people own three different sets of row addresses. One answer, three contributors, and you can
+     * see which rows each of them put there. Nothing sweeps the slab underneath — the checkpoint is frozen.
+     */
+    .hg-ask { animation: hg-ask 9s cubic-bezier(0.4, 0, 0.5, 1) infinite; }
+    .hg-rows-a { animation: hg-flare 9s ease-out 1.5s infinite; }
+    .hg-rows-b { animation: hg-flare 9s ease-out 2.1s infinite; }
+    .hg-rows-c { animation: hg-flare 9s ease-out 2.7s infinite; }
+    .hg-file-a { animation: hg-wake 9s ease-out 1.5s infinite; }
+    .hg-file-b { animation: hg-wake 9s ease-out 2.1s infinite; }
+    .hg-file-c { animation: hg-wake 9s ease-out 2.7s infinite; }
+    .hg-apply-a { animation: hg-thread 9s ease-out 1.5s infinite; }
+    .hg-apply-b { animation: hg-thread 9s ease-out 2.1s infinite; }
+    .hg-apply-c { animation: hg-thread 9s ease-out 2.7s infinite; }
   }
   @keyframes hg-draw {
     0% { stroke-dashoffset: 1400; }
     18%, 100% { stroke-dashoffset: 0; }
+  }
+  /* the question crosses the table once, then the table is quiet again until the next pass */
+  @keyframes hg-ask {
+    0%, 8% { opacity: 0; transform: translateX(-420px); }
+    12% { opacity: 0.95; }
+    38% { opacity: 0.95; transform: translateX(0px); }
+    46%, 100% { opacity: 0; transform: translateX(0px); }
+  }
+  /* a contributor's rows, for the moment the answer is reading them */
+  @keyframes hg-flare {
+    0%, 14% { opacity: 0.5; }
+    18% { opacity: 1; }
+    30% { opacity: 0.5; }
+    100% { opacity: 0.5; }
+  }
+  /* …and the file those rows came from, answering from wherever its author left it */
+  @keyframes hg-wake {
+    0%, 14% { opacity: 1; }
+    19% { opacity: 1; filter: drop-shadow(0 0 6px rgba(127, 212, 232, 0.85)); }
+    32% { opacity: 1; filter: none; }
+    100% { opacity: 1; filter: none; }
+  }
+  /* the thread it was applied down, lighting for the same instant so the two are visibly one knowledge */
+  @keyframes hg-thread {
+    0%, 14% { opacity: 0.5; }
+    19% { opacity: 1; stroke: #7fd4e8; }
+    32% { opacity: 0.5; }
+    100% { opacity: 0.5; }
   }
 `;
 

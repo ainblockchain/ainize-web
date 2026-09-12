@@ -43,7 +43,7 @@ export const landing: Dict = {
   'landing.hero.primary': { ko: '지식 둘러보기', en: 'Explore knowledge' },
   'landing.hero.secondary': { ko: '라이브 테스트 해보기', en: 'Try a live test' },
   /** Keeps the dashed half of the hero diagram honest: combining is built and off by default. */
-  'landing.hero.art_legend': { ko: '실선은 노드가 오늘 실제로 하는 일입니다. 점선은 지식 두 개를 합치는 기능인데, 만들어져 있고 노드마다 켜야 씁니다.', en: 'Solid lines are what a node does today. Dotted is combining two knowledges: built, and switched on per node.' },
+  'landing.hero.art_legend': { ko: '질문 하나가 지나갈 때, 세 사람이 각자 써 넣은 메모리 행이 차례로 켜집니다. 답 하나가 여러 사람의 기여로 만들어지는 자리입니다.\n실선은 노드가 오늘 실제로 하는 일이고, 점선은 지식 두 개를 합치는 기능인데 만들어져 있고 노드마다 켜야 씁니다.', en: 'One question crosses the table and three people’s memory rows light in turn: one answer being made out of several contributions.\nSolid lines are what a node does today; dotted is combining two knowledges, which is built and switched on per node.' },
   'landing.hero.note': { ko: '회원가입 없음 · 결제는 지갑(AIN) 또는 노드 크레딧으로 자동 처리 · 언제든 뺄 수 있음', en: 'No sign-up · pays automatically with a wallet (AIN) or node credit · removable any time' },
 
   // audience

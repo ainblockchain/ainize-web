@@ -14,6 +14,7 @@ const EDGE = '#b6b6c0';      // a declared source, row ticks, hatch, padlock
 const MONEY = '#8c6cff';     // the buy arc, the payouts, the sale ring — same purple as the primary button
 const KEPT = '#e4ddff';      // what the seller keeps
 const PASS = '#44a45f';      // a check that passed
+const ASK = '#7fd4e8';       // a question running through the row layer — never money, never a check
 
 const FILE_W = 40;
 const FILE_H = 50;
@@ -111,11 +112,34 @@ export function HeroScene() {
           <rect x={52} y={472} width={12} height={10} rx={2} />
           <path d="M55 472v-3a3 3 0 0 1 6 0v3" />
         </g>
-        {/* a few rows lit by knowledge that was applied — a handful of marks, never a measurable proportion */}
-        <g stroke={WORK} strokeWidth={2.2} opacity={0.9} strokeLinecap="round">
-          <path d="M300 422V456" />
-          <path d="M356 422V456" />
-          <path d="M392 422V456" />
+        {/*
+          Three people's rows, in three places.
+          A knowledge is a list of ROW ADDRESSES (`addrs: int64[N]` in the .npz) plus what those rows should hold.
+          So a patch does not tint the model — it owns particular rows, and a different author owns different ones.
+          Drawing them as three separate clusters rather than one lit band is the whole point of the pass below:
+          when an answer uses them, you can see WHOSE rows it used.
+        */}
+        <g stroke={WORK} strokeLinecap="round" className="hg-rows-a">
+          <path d="M172 422V456" strokeWidth={2.2} />
+          <path d="M180 422V456" strokeWidth={1.6} opacity={0.75} />
+        </g>
+        <g stroke={WORK} strokeLinecap="round" className="hg-rows-b">
+          <path d="M284 422V456" strokeWidth={2.2} />
+          <path d="M292 422V456" strokeWidth={1.6} opacity={0.75} />
+        </g>
+        <g stroke={WORK} strokeLinecap="round" className="hg-rows-c">
+          <path d="M368 422V456" strokeWidth={2.2} />
+          <path d="M376 422V456" strokeWidth={1.6} opacity={0.75} />
+        </g>
+        {/*
+          The question sweeping the table, and the answer leaving with it.
+          It runs along the ROW layer and never enters the slab below: the checkpoint is frozen, and an answer
+          that used three people's knowledge used their ROWS, not their weights. The sweep is the only thing in
+          the drawing that says "this is running right now" — everything else is a still diagram.
+        */}
+        <g className="hg-ask">
+          <path d="M-30 439 H380" stroke={ASK} strokeWidth={1.6} opacity={0.9} strokeLinecap="round" />
+          <circle cx={380} cy={439} r={3.4} fill={ASK} />
         </g>
       </g>
       <g>
@@ -164,11 +188,11 @@ export function HeroScene() {
       <Authored from={[468, 52]} to={[480, 74]} />
       <Authored from={[196, 312]} to={[208, 334]} />
 
-      <KnowledgeFile x={68} y={190} />
+      <g className="hg-file-a"><KnowledgeFile x={68} y={190} /></g>
       <KnowledgeFile x={204} y={120} />
       <KnowledgeFile x={204} y={332} />
-      <KnowledgeFile x={340} y={120} />
-      <KnowledgeFile x={476} y={72} />
+      <g className="hg-file-b"><KnowledgeFile x={340} y={120} /></g>
+      <g className="hg-file-c"><KnowledgeFile x={476} y={72} /></g>
 
       <Stamps x={102} y={182} />
       <Stamps x={238} y={112} />
@@ -184,8 +208,9 @@ export function HeroScene() {
 
       {/* ── applying: reversible, so no arrowheads. Two knowledges are live on the seller's own model. */}
       <g stroke={WORK} strokeWidth={1.2} opacity={0.5}>
-        <path d="M356 170 V412" fill="none" />
-        <path d="M496 122 C492 220 430 330 392 412" fill="none" />
+        <path d="M108 240 C132 300 156 360 176 412" fill="none" className="hg-apply-a" />
+        <path d="M356 170 C344 260 300 350 288 412" fill="none" className="hg-apply-b" />
+        <path d="M496 122 C492 220 420 340 372 412" fill="none" className="hg-apply-c" />
       </g>
 
       {/* ── the sale. One payment, full price, one recipient — and only this arrow has a filled head. */}
