@@ -107,11 +107,38 @@ test('purple is money and nothing else', () => {
   }
 });
 
-test('motion is optional, and only money moves', () => {
+test('motion is optional: money moves, and a question moves', () => {
   assert.match(WRAP, /prefers-reduced-motion: no-preference/, 'animation is opt-in, so the still frame is the design');
   const anim = WRAP.slice(WRAP.indexOf('const Art = styled.svg'), WRAP.indexOf('const Wide'));
-  for (const cls of ['hg-buy', 'hg-payouts', 'hg-deliver']) assert.ok(anim.includes(cls));
-  assert.ok(!/\.hg-(file|person|model)/.test(anim), 'the work does not animate: only value does');
+  for (const cls of ['hg-buy', 'hg-payouts', 'hg-deliver', 'hg-ask']) assert.ok(anim.includes(cls));
+  // The hero is hidden before any animation runs, so a reader with reduced motion is not shown a question
+  // frozen half-way across the table as though one were in flight.
+  assert.match(WRAP, /\.hg-ask \{ opacity: 0; \}/, 'the sweep is invisible until it runs');
+});
+
+test('the inference pass reads three separate owners, not one lit band', () => {
+  // The claim the pass makes is that three DIFFERENT people own three DIFFERENT sets of row addresses in one
+  // model. Three clusters, three threads, three flares, each on its own delay. Collapse them into one and the
+  // picture starts saying an answer comes from "the model" rather than from named contributors.
+  for (const k of ['a', 'b', 'c']) {
+    assert.match(SRC, new RegExp(`className="hg-rows-${k}"`), `rows cluster ${k}`);
+    assert.match(SRC, new RegExp(`className="hg-apply-${k}"`), `the thread that wrote cluster ${k}`);
+    assert.match(SRC, new RegExp(`className="hg-file-${k}"`), `the file that owns cluster ${k}`);
+  }
+  const anim = WRAP.slice(WRAP.indexOf('const Art = styled.svg'), WRAP.indexOf('const Wide'));
+  const delays = [...anim.matchAll(/\.hg-rows-[abc] \{ animation: hg-flare [\d.]+s ease-out ([\d.]+)s/g)].map((m) => Number(m[1]));
+  assert.equal(delays.length, 3, 'three flares');
+  assert.equal(new Set(delays).size, 3, 'on three different delays: they are separate contributions, not one event');
+});
+
+test('the sweep stays in the row layer and never crosses the frozen checkpoint', () => {
+  // The slab is the base checkpoint. A question that visibly swept it would say inference reads the weights the
+  // way it reads the rows, and that a patch could change them. Neither is true.
+  const slabTop = Number(/<rect x=\{-40\} y=\{(\d+)\} width=\{440\} height=\{30\}/.exec(SRC)?.[1]);
+  const sweepY = Number(/<path d="M-30 (\d+) H\d+" stroke=\{ASK\}/.exec(SRC)?.[1]);
+  assert.ok(Number.isFinite(slabTop) && Number.isFinite(sweepY));
+  assert.ok(sweepY < slabTop, `the sweep runs at y=${sweepY}, above the locked slab at y=${slabTop}`);
+  assert.ok(!/ASK/.test(SRC.slice(SRC.indexOf('hg-hatch)'), SRC.indexOf('hg-rows-a'))), 'nothing in the slab is drawn in the question ink');
 });
 
 test('the phone gets the diagram, not a blank space', () => {
