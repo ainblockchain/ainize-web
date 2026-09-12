@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useCatalogQuery, useDeleteTeachDatasetMutation, useMyTeachJobsQuery, usePatchTeachDatasetMutation, useTeachDatasetsQuery, useTeachPolicyQuery } from '@/api/api';
@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/Form';
 import { Description, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { mapTeachError, mineStatusKey } from '@/components/chat/teachUtil';
 import { DatasetCard } from '@/components/teach/DatasetCard';
+import { LiveLessons, isActiveTeach } from '@/components/teach/LiveLessons';
 import { signedDownload } from '@/lib/teachDataset';
 import { currentTeacherKey } from '@/lib/teacherKey';
 
@@ -35,7 +36,16 @@ export default function TeachMinePage() {
   const hasKey = !!currentTeacherKey();
   const { data: policy } = useTeachPolicyQuery();
   const { data: dsData, isFetching } = useTeachDatasetsQuery(undefined, { skip: !hasKey });
-  const { data: jobData } = useMyTeachJobsQuery(undefined, { skip: !hasKey });
+  const [anyActive, setAnyActive] = useState(true);   // assume yes until the first answer says otherwise
+  /**
+   * Poll while something is running. Without an interval this page was a snapshot of the moment it loaded, which on
+   * a model where one lesson takes hours meant reloading to learn anything — and several lessons under one key,
+   * which is the normal way to use this, all froze together.
+   *
+   * 5 s while active and 30 s otherwise mirrors the operator's Teaching tab. `anyActive` is read from the data this
+   * very query returns, so the fast poll stops on its own when the last lesson finishes.
+   */
+  const { data: jobData } = useMyTeachJobsQuery(undefined, { skip: !hasKey, pollingInterval: hasKey ? (anyActive ? 5000 : 30_000) : 0 });
   const [remove, { isLoading: deleting }] = useDeleteTeachDatasetMutation();
   const [patchDataset, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +55,7 @@ export default function TeachMinePage() {
   // SC-16 names the knowledge a set was copied from; the catalog is only fetched when one of them has a parent
   const { data: catalog } = useCatalogQuery({ limit: 200 }, { skip: !datasets.some((d) => d.parent_patch) });
   const jobs = useMemo(() => jobData?.items ?? [], [jobData]);
+  useEffect(() => { setAnyActive(jobs.some(isActiveTeach)); }, [jobs]);
   const byDataset = useMemo(() => {
     const map = new Map<string, TeachJob[]>();
     for (const j of jobs) {
@@ -83,6 +94,8 @@ export default function TeachMinePage() {
         <span>{policy?.limits?.dataset_ttl_days ? t('teach.data.expires', { days: policy.limits.dataset_ttl_days }) : ''}</span>
         <Button variant="contained" onClick={() => navigate('/teach/upload')} data-testid="mine-upload">{t('teach.data.upload_cta')}</Button>
       </Head>
+
+      <LiveLessons jobs={jobs} />
 
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}
       {note && <Alert $tone="success" role="status" style={{ marginTop: 12 }}>{note}</Alert>}

@@ -497,6 +497,8 @@ export interface TeachChecks {
 export interface TeachJob {
   id: string;
   status: TeachStatus;
+  /** Where this training run is written on the AI Network. Absent on a node whose ledger is local. */
+  chain?: { path: string; tx_hash: string | null };
   contributor: { address: string; name?: string };
   context_patch_ids: string[];
   builds_on_context: boolean;

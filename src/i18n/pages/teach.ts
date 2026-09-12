@@ -879,4 +879,25 @@ export const teach: Dict = {
   'teach.err.knowledge_not_held': { ko: '{name}은(는) 이 노드에 등록되어 있지만 파일이 여기 없습니다. 먼저 받아 두어야 그 위에 가르칠 수 있습니다.', en: '{name} is listed on this node but its file is not here. Get it first — teaching on top of it needs the file.' },
   // item 312 — the questions came from someone else's knowledge, and the lesson has to say so
   'teach.err.undeclared_parent': { ko: '이 질문들은 {name}에서 가져온 것입니다. 그 위에 만드는 수업이라고 밝혀야 합니다 — "이 지식을 바탕으로 합니다"를 켜고 다시 학습하세요.', en: 'These questions came from {name}. A lesson trained on them has to say so — turn on "builds on this knowledge" and train it again.' },
+
+  // Lessons running right now, under one teaching identity (several at once is normal, not an edge case).
+  'teach.live.title': { ko: '지금 학습 중', en: 'Training now' },
+  'teach.live.count': { ko: '{n}개', en: '{n} running' },
+  'teach.live.open': { ko: '자세히', en: 'Open' },
+  'teach.live.rows': { ko: '질문 {n}개', en: '{n} questions' },
+  'teach.live.step': { ko: '{step}/{max}회차', en: 'pass {step} of {max}' },
+  'teach.live.right': { ko: '{hits}/{total} 맞음', en: '{hits} of {total} right' },
+  'teach.live.position': { ko: '대기 {n}번째', en: 'number {n} in the queue' },
+  // Each phase is named for what it is DOING. "baseline" was reported as "loading" and is most of a large run:
+  // 77 of one 200-question lesson's first 83 minutes.
+  'teach.live.phase_queued': { ko: '차례 기다리는 중', en: 'waiting its turn' },
+  'teach.live.phase_preflight': { ko: '이미 아는 질문 골라내는 중', en: 'setting aside what the model already knows' },
+  'teach.live.phase_load': { ko: '모델 올리는 중', en: 'loading the model' },
+  'teach.live.phase_baseline': { ko: '가르치기 전 답 확인하는 중', en: 'asking your questions before training' },
+  'teach.live.phase_train': { ko: '가르치는 중', en: 'teaching' },
+  'teach.live.phase_check': { ko: '다른 답이 망가지지 않았는지 확인하는 중', en: 'checking it did not damage other answers' },
+  'teach.live.blocked_slot': { ko: '다른 학습이 GPU를 쓰는 중', en: 'another lesson has the trainer' },
+  'teach.live.blocked_lock': { ko: '모델이 다른 요청 처리 중', en: 'the model server is busy' },
+  'teach.live.blocked_runtime': { ko: '모델 서버가 꺼져 있음', en: 'the model server is down' },
+  'teach.live.chain': { ko: '체인 기록', en: 'on chain at' },
 };

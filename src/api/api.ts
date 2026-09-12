@@ -130,6 +130,10 @@ export const api = createApi({
     // auth
     me: b.query<AuthMe, void>({ query: () => 'api/auth/me', providesTags: ['Me'] }),
     login: b.mutation<{ ok: boolean }, { password: string }>({ query: (body) => ({ url: 'api/auth/login', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
+    // Sign-in by signature: the node issues a single-use nonce, the wallet signs the `message` it comes back with.
+    // Two calls rather than one because a signature with no challenge behind it is a bearer token.
+    loginChallenge: b.mutation<{ nonce: string; node: string; message: string; expires_at: number }, void>({ query: () => ({ url: 'api/auth/challenge', method: 'POST', body: {} }) }),
+    loginWallet: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/wallet', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
     setup: b.mutation<{ ok: boolean }, { password: string }>({ query: (body) => ({ url: 'api/auth/setup', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
     /**
@@ -330,7 +334,7 @@ export const {
   useInfoQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
-  useMeQuery, useLoginMutation, useSetupMutation, useLogoutMutation, useChangePasswordMutation,
+  useMeQuery, useLoginMutation, useLoginChallengeMutation, useLoginWalletMutation, useSetupMutation, useLogoutMutation, useChangePasswordMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

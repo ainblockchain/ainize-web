@@ -1057,4 +1057,17 @@ export const operatorTeach: Dict = {
   'op.teach.payouts.status.paid': { ko: '지급됨', en: 'paid' },
   'op.teach.payouts.status.failed': { ko: '실패', en: 'failed' },
   'op.teach.payouts.filter.all': { ko: '전체', en: 'All' },
+
+  // AIN Wallet sign-in. The operator password is the one shared secret in a product whose identity model is
+  // otherwise "a key signs for itself"; the button appears only when the extension is actually there.
+  'op.sign.wallet.or': { ko: '또는', en: 'or' },
+  'op.sign.wallet.button': { ko: 'AIN Wallet으로 로그인', en: 'Sign in with AIN Wallet' },
+  'op.sign.wallet.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
+  'op.sign.wallet.hint': { ko: '지갑이 짧은 문장 하나에 서명합니다. 비밀번호도, 송금도 없습니다. 이 노드의 자기 키는 언제나 운영자이고, 다른 주소는 operatorAddresses에 들어 있어야 합니다.', en: 'The wallet signs one short sentence. No password, and nothing is sent. This node’s own key is always an operator; any other address has to be listed in operatorAddresses.' },
+  'op.sign.wallet.err_no_extension': { ko: 'AIN Wallet 확장 프로그램을 찾을 수 없습니다.', en: 'No AIN Wallet extension found.' },
+  'op.sign.wallet.err_locked': { ko: '지갑이 잠겨 있거나 계정이 선택되지 않았습니다. 확장 프로그램을 열어 잠금을 해제하세요.', en: 'The wallet is locked or has no account selected. Open the extension and unlock it.' },
+  'op.sign.wallet.err_rejected': { ko: '지갑에서 서명을 거절했습니다.', en: 'The signature was rejected in the wallet.' },
+  'op.sign.wallet.err_sign_failed': { ko: '지갑이 서명하지 못했습니다.', en: 'The wallet could not sign.' },
+  // Checked in the browser on purpose: left to the node, this becomes an opaque 401 on some unrelated route later.
+  'op.sign.wallet.err_signature_mismatch': { ko: '지갑의 서명이 지갑이 말한 주소와 맞지 않습니다. 이대로 진행하면 나중에 엉뚱한 곳에서 실패하므로 여기서 멈춥니다.', en: 'The wallet’s signature does not match the address the wallet claims. Continuing would fail later somewhere unrelated, so it stops here.' },
 };

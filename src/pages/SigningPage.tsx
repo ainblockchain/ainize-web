@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useLoginMutation, useMeQuery, useSetupMutation } from '@/api/api';
+import { errorMessage, useLoginChallengeMutation, useLoginMutation, useLoginWalletMutation, useMeQuery, useSetupMutation } from '@/api/api';
+import { hasAinWallet, walletAddress, whenAinWallet, WalletError } from '@/lib/ainWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -32,6 +33,16 @@ const Hint = styled.p`
   margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; background: #f4f4f5; border-radius: 3px; padding: 1px 5px; color: ${(p) => p.theme.color.BLACK}; }
 `;
+const WalletBlock = styled.div`margin-top: 24px; max-width: 420px;`;
+const Or = styled.div`
+  display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; color: ${(p) => p.theme.color.GREY}; font-size: 13px;
+  &::before, &::after { content: ''; flex: 1; height: 1px; background: ${(p) => p.theme.color.LIGHT_GREY}; }
+`;
+const WalletButton = styled.button`
+  width: 196px; height: 44px; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; background: #fff;
+  color: ${(p) => p.theme.color.PRIMARY}; font-size: 15px; font-weight: 500; cursor: pointer;
+  &:hover { background: ${(p) => p.theme.color.PALE_GREY}; } &:disabled { opacity: .55; cursor: not-allowed; }
+`;
 const NodeBox = styled.div`
   margin-top: 40px; padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fafafa; max-width: 560px;
 `;
@@ -50,6 +61,19 @@ export default function SigningPage() {
   const [confirm, setConfirm] = useState('');
   const [terms, setTerms] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  /**
+   * AIN Wallet sign-in.
+   *
+   * The operator password is the one shared secret in a product whose whole identity model is "a key signs for
+   * itself", and this page was the only place a person ever met it. The button appears when the extension is
+   * actually there — checked with a bounded wait, because the extension is injected asynchronously and a check on
+   * first paint is a false negative — and the password form stays for everyone else.
+   */
+  const [wallet, setWallet] = useState(false);
+  const [walletBusy, setWalletBusy] = useState(false);
+  useEffect(() => { let live = true; void whenAinWallet().then((ok) => { if (live) setWallet(ok); }); return () => { live = false; }; }, []);
+  const [challenge] = useLoginChallengeMutation();
+  const [loginWallet] = useLoginWalletMutation();
 
   useEffect(() => { if (!auth.loading && auth.isSignedIn) navigate(next, { replace: true }); }, [auth.loading, auth.isSignedIn, navigate, next]);
 
@@ -67,7 +91,25 @@ export default function SigningPage() {
     try { await login({ password }).unwrap(); auth.refresh(); navigate(next, { replace: true }); } catch { /* shown below */ }
   };
 
-  const busy = setupState.isLoading || loginState.isLoading;
+  const onWallet = async () => {
+    setLocalError(null); setWalletBusy(true);
+    try {
+      if (!hasAinWallet()) throw new WalletError('no_extension');
+      const address = await walletAddress();
+      if (!address) throw new WalletError('locked');
+      const ch = await challenge().unwrap();
+      const signature = await window.ainetwork!.signMessage!(ch.message);
+      await loginWallet({ address, nonce: ch.nonce, signature }).unwrap();
+      auth.refresh();
+      navigate(next, { replace: true });
+    } catch (e) {
+      // The node's own 403 names the address and says how it would be allowed — better than anything this page
+      // could invent — so it is shown as sent. Only the wallet's own failures get a translated sentence.
+      setLocalError(e instanceof WalletError ? t(`op.sign.wallet.err_${e.message}`) : signInError(e));
+    } finally { setWalletBusy(false); }
+  };
+
+  const busy = setupState.isLoading || loginState.isLoading || walletBusy;
   /*
    * Finding 89: the node answers a bad password with `HttpError(401, 'wrong password')`, and this page used to print
    * that string verbatim — lowercase, English even for a Korean reader, and with no way out for somebody who has
@@ -126,6 +168,15 @@ export default function SigningPage() {
             </Hint>
             {err && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{err}</Alert>}
             <ConfirmButton type="submit" disabled={busy}>{busy ? t('op.sign.login.busy') : t('op.sign.login.button')}</ConfirmButton>
+            {wallet && (
+              <WalletBlock data-testid="wallet-signin">
+                <Or><span>{t('op.sign.wallet.or')}</span></Or>
+                <WalletButton type="button" onClick={() => void onWallet()} disabled={busy}>
+                  {walletBusy ? t('op.sign.wallet.busy') : t('op.sign.wallet.button')}
+                </WalletButton>
+                <Hint>{t('op.sign.wallet.hint')}</Hint>
+              </WalletBlock>
+            )}
           </OptionContainer>
         </form>
       )}
