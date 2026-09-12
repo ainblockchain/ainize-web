@@ -343,6 +343,7 @@ Where one live test is in the queue behind the shared serving model.
 | `elsewhere[].reason` | `string` |   |
 | `elsewhere[].buyable` | `boolean` |   |
 | `elsewhere[].requests` | `integer` |   |
+| `elsewhere[].holders` | `integer` | peers advertising this body — 0 means no node this one knows of is carrying it, so it cannot be fetched from anywhere and waiting will not help |
 | `elsewhere[].gateway_url` | `string` \| `null` |   |
 | `overlaps` | `object`[] | pairs of testable knowledges that share memory entries |
 | `overlaps[].a` | `string` |   |

@@ -2,7 +2,7 @@
 title: 빠른 시작
 summary: 내 노드를 띄우고, 남이 공개한 지식을 내 모델에 넣고, 같은 질문을 넣기 전과 뒤에 던져 봅니다.
 source: en/get-started/quickstart.md
-source_sha256: dc4083f8dbdbf3358a803a99eef0668d244d0a087f9392e36f6131d465c613f8
+source_sha256: 879b8b1658cdbb9a665a1d92d833ec055ccc786288e97a99fc95762ca6916b5f
 ---
 
 # 빠른 시작
@@ -175,8 +175,12 @@ ainize login
 ```
 
 ```text
-✓ operator password set and logged in to http://localhost:3694 (token saved in <AINIZE_HOME>/cli.json)
+✓ signed in to http://localhost:3694 as 0x48A3BB4b…8ea4 (signed with a key — no password)
 ```
+
+**비밀번호가 없습니다.** 이 노드의 자기 키가 운영자이고, 그 키는 이 홈 디렉터리의 `config.json`에 있으며,
+`login`은 한 줄짜리 챌린지에 그 키로 서명합니다. 고를 것도, 외울 것도, 스크립트에 넣을 것도 없습니다 —
+그래서 이 명령은 프롬프트에서 멈춰 서지도 않습니다.
 
 `cli.json`에 담긴 토큰을 CLI가 이후 계속 보냅니다. 그래서 홈 디렉터리마다 한 번만 로그인하면 됩니다. (프롬프트에
 입력할 수 없는 스크립트라면 `--password`를 넘기거나 `AINIZE_PASSWORD`를 씁니다. 위 줄도 실제로는 그렇게 실행했습니다.)

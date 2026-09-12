@@ -280,7 +280,8 @@ export interface NodesResponse {
 }
 export interface ChainResponse extends LedgerInfo { address: string; balance: number | null; }
 
-export interface AuthMe { signedIn: boolean; address: string; name: string; roles: string[]; needsSetup: boolean; }
+/** `canEnroll` replaced `needsSetup`: a node is never unclaimed — its own key is always an operator. */
+export interface AuthMe { signedIn: boolean; address: string; name: string; roles: string[]; canEnroll: boolean; operators?: string[]; }
 export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string; scheme: string; amount: string; manifest: PatchManifest | null; path: string | null; created_at: number; entry: CatalogEntry | null; applied: boolean;
   /** Why this node paid: a deliberate purchase, or `subscription:<track>` (item 362). */
   origin?: string;

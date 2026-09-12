@@ -23,8 +23,8 @@ These are two different things and confusing them is the single commonest reason
 private until you say otherwise. `ainize init --public` binds `0.0.0.0`, every interface, which is what the node
 below was started with; that is why it reads back the wider value.
 
-Bind wide only behind a firewall or a proxy. A node on every interface with no operator password belongs to whoever
-reaches it first.
+Bind wide only behind a firewall or a proxy. The operator API is guarded by a signature, not a password, so nobody
+reaches it without a key this node lists — but everything public is public, and the port is reachable by anyone.
 
 ```bash
 ainize config get host

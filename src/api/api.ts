@@ -129,22 +129,14 @@ export const api = createApi({
 
     // auth
     me: b.query<AuthMe, void>({ query: () => 'api/auth/me', providesTags: ['Me'] }),
-    login: b.mutation<{ ok: boolean }, { password: string }>({ query: (body) => ({ url: 'api/auth/login', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
     // Sign-in by signature: the node issues a single-use nonce, the wallet signs the `message` it comes back with.
     // Two calls rather than one because a signature with no challenge behind it is a bearer token.
     loginChallenge: b.mutation<{ nonce: string; node: string; message: string; expires_at: number }, void>({ query: () => ({ url: 'api/auth/challenge', method: 'POST', body: {} }) }),
     loginWallet: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/wallet', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
-    setup: b.mutation<{ ok: boolean }, { password: string }>({ query: (body) => ({ url: 'api/auth/setup', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
+    // Adds the signing address to the node's operators on the way in. The node accepts it only from its own machine
+    // or with the one-time token, because adding an operator is exactly as privileged as being one.
+    enroll: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/enroll', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
-    /**
-     * Item 34 — the node has had `POST /api/auth/password` since item 121, and no client could reach it: the one
-     * credential guarding sales, publishing, the wallet and the runtime could be rotated only from the CLI. The
-     * route drops every other session and hands back a fresh token for this browser, so the operator changing it
-     * stays signed in here and a stolen cookie does not survive the change.
-     */
-    changePassword: b.mutation<{ ok: boolean }, { current: string; password: string }>({
-      query: (body) => ({ url: 'api/auth/password', method: 'POST', body }), invalidatesTags: ['Me'],
-    }),
 
     // operator
     myPatches: b.query<{ items: CatalogEntry[] }, void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
@@ -334,7 +326,7 @@ export const {
   useInfoQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
-  useMeQuery, useLoginMutation, useLoginChallengeMutation, useLoginWalletMutation, useSetupMutation, useLogoutMutation, useChangePasswordMutation,
+  useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

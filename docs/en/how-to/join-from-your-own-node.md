@@ -176,8 +176,8 @@ There are two ways out, and you want one of them before you publish.
 ainize init … --public-url https://my-node.example.com --public
 ```
 
-`--public` binds every interface, so use it only behind a firewall or a proxy. A node on every interface with no
-operator password belongs to whoever reaches it first.
+`--public` binds every interface, so use it only behind a firewall or a proxy. The operator API needs a signature
+from a key this node lists, so it is not open — but the port is reachable by anyone, and everything public is public.
 
 **Or have a peer hold your body for you.** A node that opts in accepts your knowledge over `POST /p2p/blob/:sha`,
 advertises it, and serves it to verifiers on your behalf. Your node offers its body to peers automatically right

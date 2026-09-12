@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddPeerMutation, useChainSetupMutation, useChangePasswordMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
+  errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
   useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery, useWalletSendMutation,
 } from '@/api/api';
 import type { PayoutRow, Settings, Settlement } from '@/api/types';
@@ -124,25 +124,6 @@ export default function AccountPage() {
   const saved = settings.data?.settings;
   const dirty = !!saved && (saved.notifications !== form.notifications || saved.display_name !== form.display_name);
   // item 34 — changing the one credential that guards this node, from the console
-  const [changePassword, passwordState] = useChangePasswordMutation();
-  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
-  const [pwNotice, setPwNotice] = useState<string | null>(null);
-  const [pwError, setPwError] = useState<string | null>(null);
-  const onChangePassword = async (e: FormEvent) => {
-    e.preventDefault();
-    setPwNotice(null); setPwError(null);
-    if (pw.next.length < 4) return setPwError(t('op.account.password.err.short'));
-    if (pw.next !== pw.confirm) return setPwError(t('op.account.password.err.mismatch'));
-    if (pw.next === pw.current) return setPwError(t('op.account.password.err.same'));
-    try {
-      await changePassword({ current: pw.current, password: pw.next }).unwrap();
-      setPw({ current: '', next: '', confirm: '' });
-      setPwNotice(t('op.account.password.done'));
-    } catch (err) {
-      // 401 here means one thing only — the current password is wrong — and the node says it in English.
-      setPwError((err as { status?: number } | null)?.status === 401 ? t('op.account.password.err.wrong') : errorMessage(err));
-    }
-  };
   const onSaveSettings = async (e: FormEvent) => {
     e.preventDefault();
     setSettingsNotice(null); setSettingsError(null);
@@ -291,20 +272,20 @@ export default function AccountPage() {
         </SettingsForm>
       )}
 
-      {/* ------------------------------------------------------------ password (item 34) */}
-      <SubTitle $mt={56}>{t('op.account.password.title')}</SubTitle>
-      <Description>{t('op.account.password.desc')}</Description>
-      <SettingsForm onSubmit={onChangePassword} data-testid="password-form">
-        <TextField type="password" label={t('op.account.password.current')} autoComplete="current-password" value={pw.current} required onChange={(e) => setPw({ ...pw, current: e.target.value })} />
-        <TextField type="password" label={t('op.account.password.new')} autoComplete="new-password" value={pw.next} required onChange={(e) => setPw({ ...pw, next: e.target.value })} />
-        <TextField type="password" label={t('op.account.password.confirm')} autoComplete="new-password" value={pw.confirm} required onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
-        {pwError && <Alert $tone="error" data-testid="password-error">{pwError}</Alert>}
-        <Row $gap={12}>
-          <Button type="submit" variant="contained" disabled={!pw.current || !pw.next} loading={passwordState.isLoading} loadingText={t('op.account.password.saving')}>{t('op.account.password.save')}</Button>
-          {pwNotice && <Muted style={{ color: '#44a45f' }} data-testid="password-done">{pwNotice}</Muted>}
-        </Row>
-        <Muted>{t('op.account.password.lost')}</Muted>
-      </SettingsForm>
+      {/* --------------------------------------------------- who may sign in (the password is gone) */}
+      <SubTitle $mt={56}>{t('op.account.operators.title')}</SubTitle>
+      <Description>{t('op.account.operators.desc')}</Description>
+      <KeyValue data-testid="operators">
+        {(me?.operators ?? [me?.address]).filter(Boolean).map((a, i) => (
+          <Fragment key={a}>
+            <dt>{i === 0 ? t('op.account.operators.own') : t('op.account.operators.other')}</dt>
+            <dd><Mono>{a}</Mono> <CopyButton text={a!} label={t('common.copy')} /></dd>
+          </Fragment>
+        ))}
+      </KeyValue>
+      {/* Adding one is exactly as privileged as being one, so it is a change to the node's config file on its own
+          machine — not a form on a page that anyone holding a session can reach. */}
+      <Muted style={{ display: 'block', marginTop: 10 }}>{t('op.account.operators.how')}</Muted>
 
       {/* ------------------------------------------------------------ teaching (settings live on My knowledge → Teaching, spec §5.13) */}
       <SubTitle $mt={56}>{t('op.account.teach.title')}</SubTitle>

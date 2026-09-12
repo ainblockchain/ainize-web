@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/node/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 59 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 60 codes a client can match on.
 
 ## The error envelope
 
@@ -36,7 +36,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-59 codes are raised by name, in 117 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+60 codes are raised by name, in 118 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -70,6 +70,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `dataset_hash` | `400` | the file changed while it was being uploaded — try again | `packages/node/src/teach-datasets.ts` |
 | `dataset_in_use` | `409` | only a dataset that has never been trained can be re-read — make a copy instead | `packages/node/src/teach-datasets.ts` |
 | `dataset_in_use` | `409` | this dataset is being trained right now — make a copy to edit it | `packages/node/src/teach-datasets.ts` |
+| `dataset_moved` | `409` | "\<dataset.id>" has been edited since this lesson was trained (it is revision \<dataset.revision> now, and the lesson holds the bytes it was trained on). What would be published is the frozen copy, which the current checks — personal information among them — have not looked at. Train again on the current questions, then publish. | `packages/node/src/teach.ts` |
 | `dataset_not_found` | `404` | no sample dataset called "\<kind>" | `packages/node/src/teach-datasets.ts` |
 | `dataset_not_found` | `404` | no such dataset on this node | `packages/node/src/teach-datasets.ts` |
 | `dataset_not_found` | `404` | that dataset was deleted | `packages/node/src/teach.ts` |
@@ -88,6 +89,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `dataset_unavailable` | `404` | the training set of \<input.patchId> has no questions on this node | `packages/node/src/teach-datasets.ts` |
 | `dataset_unavailable` | `404` | this knowledge has no published training set | `packages/node/src/api.ts` |
 | `dataset_unavailable` | `404` | training set not available on this node (no peer holds it) | `packages/node/src/api.ts` |
+| `enroll_local_only` | `403` | an address is added to this node's operators from the machine it runs on (`ainize operators add <address>`), or with the one-time token in its AINIZE_HOME/setup-token as the x-setup-token header | `packages/node/src/api.ts` |
 | `invalid` | `400` | \<bad> | `packages/node/src/teach.ts` |
 | `invalid` | `400` | \<badName> | `packages/node/src/teach.ts` |
 | `invalid` | `400` | 1..\<c.factsPerJob> corrections per lesson | `packages/node/src/teach.ts` |
@@ -120,7 +122,6 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `lineage_disabled` | `403` | copying another knowledge's questions is not enabled on this node yet (config teach.lineage) | `packages/node/src/teach.ts` |
 | `merge_not_available` | `400` | combining two knowledges is not available on this node yet — build on one of them | `packages/node/src/teach.ts` |
 | `merge_unresolved` | `409` | \<unresolved.length> question(s) are answered differently by \<A.id> and \<B.id> — choose an answer for each one before building | `packages/node/src/teach.ts` |
-| `not_claimed` | `409` | this node has no operator password yet — set one on the machine it runs on (`ainize login`), or POST /api/auth/setup with the one-time token in AINIZE_HOME/setup-token | `packages/node/src/api.ts` |
 | `not_owner` | `403` | this lesson belongs to a different teaching key | `packages/node/src/api.ts` |
 | `nothing_to_add` | `400` | combining these two would leave no questions at all | `packages/node/src/teach.ts` |
 | `nothing_to_add` | `400` | combining these two would teach nothing new | `packages/node/src/teach.ts` |
@@ -140,8 +141,8 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `quota_rows` | `429` | you have \<q.rows_remaining> of … questions left to teach on this node today | `packages/node/src/teach.ts` |
 | `rate_limited` | `429` | too many datasets from this address in the last minute | `packages/node/src/teach-datasets.ts` |
 | `rate_limited` | `429` | too many policy calls from this address | `packages/node/src/teach.ts` |
+| `relay_disabled` | `403` | this node does not hold blobs for other nodes (p2p.relayBlobs) | `packages/node/src/api.ts` |
 | `row_not_found` | `404` | none of those lines are refused rows of this dataset | `packages/node/src/teach-datasets.ts` |
-| `setup_local_only` | `403` | this node has no operator password yet, and it can only be claimed from the machine it runs on — run `ainize login` there, or send the one-time token in its AINIZE_HOME/setup-token as the x-setup-token header | `packages/node/src/api.ts` |
 | `subscription_incomplete` | `409` | \<failed.length> of … item(s) could not be acquired, so \<branch> was NOT subscribed to and this node is not advertised as serving it. …… | `packages/node/src/market.ts` |
 | `subscription_unpaid` | `402` | … | `packages/node/src/market.ts` |
 | `teaching_disabled` | `403` | this node does not accept lessons | `packages/node/src/teach.ts` |
@@ -160,7 +161,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 42 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 45 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 27 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -188,8 +189,11 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `400` | unsupported contributor role: … | `packages/core/src/catalog.ts` |
 | `400` | visibility must be "public" or "test" | `packages/node/src/market.ts` |
 | `401` | operator login required | `packages/node/src/api.ts` |
-| `401` | wrong password | `packages/node/src/api.ts` |
+| `401` | that signature does not come from the address it claims | `packages/node/src/api.ts` |
+| `401` | the sign-in challenge has expired — ask for a new one | `packages/node/src/api.ts` |
 | `402` | payment required: buy the patch via /x402/patch/:id (its author, a buyer holding a download token, and a verifier while it is being verified can fetch it) | `packages/node/src/api.ts` |
+| `403` | \<address> is not an operator of this node. Its own key always is; any other address has to be added by someone who already has operator access, on the machine this node runs on (`ainize operators --add <address>`). | `packages/node/src/api.ts` |
+| `403` | only the author of \<entry.anchor.id> may place its body here | `packages/node/src/api.ts` |
 | `403` | only the branch owner can add patches | `packages/node/src/market.ts` |
 | `403` | only the owner of \<name> (\<b.owner>) can archive it | `packages/node/src/market.ts` |
 | `403` | only the owner of \<name> (\<b.owner>) can set what it costs | `packages/node/src/market.ts` |
@@ -199,10 +203,10 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `409` | \<name> is curated by \<b.owner>, not by this node | `packages/node/src/api.ts` |
 | `409` | \<name> is free to follow: it has no curation fee | `packages/node/src/api.ts` |
 | `409` | not sold here; gateway is … | `packages/node/src/api.ts` |
-| `409` | operator password already set | `packages/node/src/api.ts` |
 | `409` | patch body not present on this node | `packages/node/src/api.ts` |
 | `409` | payout \<id> is already paid (\<row.tx_hash>) | `packages/node/src/payouts.ts` |
 | `409` | this payout was already sent (\<row.tx_hash>) | `packages/node/src/payouts.ts` |
+| `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `packages/node/src/api.ts` |
 | `423` | patch not listed yet (verification \<e.passed>/\<e.quorum>) | `packages/node/src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `packages/node/src/market.ts` |
 | `503` | model unavailable, try again in a few minutes | `packages/node/src/runtime.ts` |

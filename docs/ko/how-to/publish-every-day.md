@@ -2,7 +2,7 @@
 title: 매일 공개하기
 summary: 매일 밤의 반복을 스크립트 한 개로 — 질문을 넣고, 수업을 훈련하고 점검하고, 붙었을 때만 공개하고, 어제 판본을 물리기까지. 각 단계의 종료 코드와 함께.
 source: en/how-to/publish-every-day.md
-source_sha256: 6e7614ae514ae6ca9c45510b9b5ef43db9f6005b4fd7e1ba22566c87bc5b4519
+source_sha256: 4c761ca630e63a6fa713edfd7b75c7f4cf3062ea9b8556576a44578d868b4e24
 ---
 
 # 매일 공개하기
@@ -16,7 +16,7 @@ source_sha256: 6e7614ae514ae6ca9c45510b9b5ef43db9f6005b4fd7e1ba22566c87bc5b4519
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-export AINIZE_PASSWORD="…"            # 또는 --password. `ainize login`은 스크립트에서 멈춰 서지 않습니다
+ainize login                          # 노드 자기 키로 서명합니다. 스크립트에서 멈춰 서지 않습니다
 
 DAY=$(date +%F)
 ainize login

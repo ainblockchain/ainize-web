@@ -2,7 +2,7 @@
 title: 내 노드로 네트워크에 합류하기
 summary: 이 기계 바깥의 노드가 네트워크를 찾고, 지식을 받아 쓰고, 자기 지식을 되팔기까지 해야 하는 일 — 아무도 나에게 닿을 수 없는 경우까지.
 source: en/how-to/join-from-your-own-node.md
-source_sha256: cb6469cbdc453316df6768e484325a4fe93f5eef60ce4931671bf1adacbba8bd
+source_sha256: 762d50c2e1b84d94e93057ceb6360827a25c813584a03803a742fc80951ca301
 ---
 
 # 내 노드로 네트워크에 합류하기
@@ -176,8 +176,8 @@ ainize config set runtime.patchDir /runtime.api가_가리키는_인스턴스의_
 ainize init … --public-url https://my-node.example.com --public
 ```
 
-`--public`은 모든 인터페이스에 붙으므로 방화벽이나 프록시 뒤에서만 쓰세요. 운영자 비밀번호 없이 모든 인터페이스에
-열린 노드는 먼저 닿은 사람의 것이 됩니다.
+`--public`은 모든 인터페이스에 붙으므로 방화벽이나 프록시 뒤에서만 쓰세요. 운영자 API는 이 노드가 인정한 키의
+서명을 요구하므로 열려 있지 않습니다. 다만 포트는 누구나 닿고, 공개된 것은 공개된 것입니다.
 
 **또는 peer가 내 본체를 대신 들고 있게 하기.** 받아 주기로 한 노드가 `POST /p2p/blob/:sha`로 내 지식을 받아,
 자기가 가졌다고 알리고, 검증인에게 대신 내어 줍니다. 내 노드는 `announce` 직후 자동으로 peer들에게 본체를 내밀고,

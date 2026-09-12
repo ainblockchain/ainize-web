@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-132 operations on 116 paths, grouped into the 8 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+133 operations on 117 paths, grouped into the 8 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -170,7 +170,6 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/branches/{name}/subscribe`](#post-apibranchesnamesubscribe) | operator | Subscribe to a track: buy its current knowledge, load it, and keep it up to date |
 | `POST` | [`/api/branches/{name}/quote`](#post-apibranchesnamequote) | operator | What subscribing to a track would spend, item by item, before anything is spent |
 | `POST` | [`/api/branches/{name}/sync`](#post-apibranchesnamesync) | operator | Bring a subscribed track up to date now |
-| `POST` | [`/api/auth/login`](#post-apiauthlogin) | none | Operator login (first time: /api/auth/setup) |
 | `GET` | [`/api/me/wallet`](#get-apimewallet) | operator | Wallet: balance, sales, creator revenue share, pending payouts |
 | `GET` | [`/api/me/payouts`](#get-apimepayouts) | operator | Royalty payouts this node owes creators and data providers (AIN ledger) |
 | `POST` | [`/api/me/payouts/{id}/retry`](#post-apimepayoutsidretry) | operator | Retry one failed / pending payout now (also after the 20 automatic attempts) |
@@ -181,8 +180,10 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/chain`](#get-apichain) | none | Ledger / chain state and balance |
 | `GET` | [`/api/drive`](#get-apidrive) | none | aindrive state and file list |
 | `POST` | [`/api/drive`](#post-apidrive) | operator | aindrive start / stop / sync |
-| `GET` | [`/api/auth/me`](#get-apiauthme) | none | Who am I (signed in?, node address, needsSetup) |
-| `POST` | [`/api/auth/setup`](#post-apiauthsetup) | none | Set the operator password (first run only) |
+| `GET` | [`/api/auth/me`](#get-apiauthme) | none | Who am I (signed in?, node address, canEnroll) |
+| `POST` | [`/api/auth/challenge`](#post-apiauthchallenge) | none | A single-use nonce to sign for sign-in |
+| `POST` | [`/api/auth/wallet`](#post-apiauthwallet) | none | Sign in by signature — the node's own key always, plus operatorAddresses |
+| `POST` | [`/api/auth/enroll`](#post-apiauthenroll) | none | Add an address to operatorAddresses (loopback or x-setup-token) and sign it in |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | none | Log out |
 | `POST` | [`/api/branches/{name}/patches`](#post-apibranchesnamepatches) | operator | Add knowledge to a branch (owner only) |
 | `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Unsubscribe from a branch (unload its knowledge) |
@@ -2728,31 +2729,6 @@ Buys and loads what the track has added since, unloads the versions it has retir
 |---|---|---|
 | `200` | what changed | `object` |
 
-### `POST /api/auth/login`
-
-Operator login (first time: /api/auth/setup)
-
-**Auth** — none
-
-**Request body** — `application/json`, optional
-
-| Field | Type |
-|---|---|
-| `password` | `string` |
-
-**Responses**
-
-| Code | Description | Body |
-|---|---|---|
-| `200` | token | `object` |
-
-**`200` response body**
-
-| Field | Type |
-|---|---|
-| `ok` | `boolean` |
-| `token` | `string` |
-
 ### `GET /api/me/wallet`
 
 Wallet: balance, sales, creator revenue share, pending payouts
@@ -2923,7 +2899,7 @@ aindrive start / stop / sync
 
 ### `GET /api/auth/me`
 
-Who am I (signed in?, node address, needsSetup)
+Who am I (signed in?, node address, canEnroll)
 
 **Auth** — none
 
@@ -2933,24 +2909,60 @@ Who am I (signed in?, node address, needsSetup)
 |---|---|---|
 | `200` | auth state | `object` |
 
-### `POST /api/auth/setup`
+### `POST /api/auth/challenge`
 
-Set the operator password (first run only)
+A single-use nonce to sign for sign-in
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | nonce + the exact message to sign | `object` |
+
+### `POST /api/auth/wallet`
+
+Sign in by signature — the node's own key always, plus operatorAddresses
 
 **Auth** — none
 
 **Request body** — `application/json`, optional
 
-| Field | Type | Description |
-|---|---|---|
-| `password` | `string` | (at least 4 characters) |
+| Field | Type |
+|---|---|
+| `address` | `string` |
+| `nonce` | `string` |
+| `signature` | `string` |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | token | `object` |
-| `409` | already set |   |
+| `401` | bad or expired challenge |   |
+| `403` | not an operator of this node |   |
+
+### `POST /api/auth/enroll`
+
+Add an address to operatorAddresses (loopback or x-setup-token) and sign it in
+
+**Auth** — none
+
+**Request body** — `application/json`, optional
+
+| Field | Type |
+|---|---|
+| `address` | `string` |
+| `nonce` | `string` |
+| `signature` | `string` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | token | `object` |
+| `403` | enroll_local_only |   |
 
 ### `POST /api/auth/logout`
 

@@ -9,7 +9,7 @@ summary: Every key of a node config.json, its type, its default and the rules it
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/core/src/config-schema.ts` and `packages/core/src/config.ts` and `packages/core/src/types.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-All 127 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
+All 131 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
 
 ## How to read this page
 
@@ -42,7 +42,8 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `identity.privateKey` | a string | minted by `ainize init` | **Protected.** |
 | `identity.address` | a string | minted by `ainize init` | **Protected.** |
 | `identity.publicKey` | a string | minted by `ainize init` | **Protected.** |
-| `operatorPasswordHash` | a string | set by `ainize login` | **Protected.** |
+| `operatorPasswordHash` | a string | set by `ainize login` | **Protected.** **Deprecated.** Sign-in is a signature. Parsed so an old config still loads; read by nothing. |
+| `operatorAddresses` | a comma list | unset | Addresses that may sign in by signature. The node's own address is always allowed and is not listed. |
 | `runtime` | an object (set its keys one at a time) |   |   |
 | `runtime.repo` | a string | unset — `ainize init` fills it with `/mnt/newdata/qwen3.8` when that directory exists on the machine it runs on |   |
 | `runtime.api` | a string — must be an http(s) URL | `"http://localhost:8000"` |   |
@@ -53,6 +54,7 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `runtime.sampling` | a record | unset | Sampling + degeneracy guard per generation path (D1). Omit for the measured defaults. |
 | `verifier` | an object (set its keys one at a time) |   |   |
 | `verifier.quorum` | a number — must be a whole number; must be at least 1 | `2` |   |
+| `verifier.sellUnverified` | a boolean | unset | Sell knowledge that has NOT met the quorum, at the buyer's risk. Off by default. It does NOT change the status: an unverified anchor stays ANNOUNCED or VERIFYING and is never relabelled VERIFIED. Verification is the one quality signal this marketplace has, and a status claiming "verified" when nobody checked would be worth less than no status at all. What this permits is a buyer choosing, with the attestation count in front of them, to take the risk — which is a different thing from the network hiding that there is one. |
 | `verifier.stake` | a string — must be a decimal amount in quotes, e.g. "0.1" | unset | **Deprecated.** Never escrowed. Kept so existing config.json files still validate; the node ignores it and neither attestations nor challenges carry it any more (item 127). |
 | `verifier.allowSelfAttest` | a boolean | `false` | false (the default): the author of an anchor cannot attest it — the write is refused and such records never count toward the quorum. |
 | `verifier.intervalMs` | a number — must be a whole number; must be at least 1 | `5000` |   |
@@ -75,6 +77,8 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `market.creditGrants` | a number — must be a whole number; must be at least 1 | `100` | How many addresses this node will ever hand `initialCredit` to (default 100). Local credit is issued by the node, not owned by the buyer: without a cap a fresh keypair is worth 100 CREDIT and any spend limit is one `ainize keys new` away (item 364). Every grant is recorded; past the cap a new address gets nothing. |
 | `p2p` | an object (set its keys one at a time) |   | What this node accepts from the gossip network (items 136/137). Peer exchange used to add every endpoint any peer advertised — no cap, no record of where it came from, no way to refuse — so an operator could not answer "who is my node talking to?" from config.json, and `peers rm` survived exactly one gossip round. |
 | `p2p.acceptExchange` | a boolean | `true` | Learn peers from peer exchange at all (default true). false = talk only to the configured list. |
+| `p2p.relayBlobs` | a boolean | unset | Hold blobs other nodes offer (`POST /p2p/blob/:sha`), so a publisher with no reachable address can still sell. Blob transfer is pull-only, so without a relay a firewalled publisher's anchor gossips but its body can never be fetched — it stays ANNOUNCED for ever, with no error anywhere. |
+| `p2p.maxRelayBytes` | a number — must be a whole number; must not be negative | unset | Ceiling on bytes stored for other nodes. 0 or unset disables relaying. |
 | `p2p.maxPeers` | a number — must be a whole number; must not be negative | `50` | Ceiling on the peer table (default 50). Past it the least recently seen LEARNED peer is dropped. |
 | `p2p.evictAfterFailures` | a number — must be a whole number; must not be negative | `60` | Drop a LEARNED peer after this many consecutive failed rounds (default 60; 0 = never). |
 | `p2p.staleDays` | a number — must be a whole number; must not be negative | `7` | Drop a LEARNED peer this many days after it was last seen (default 7; 0 = never). |

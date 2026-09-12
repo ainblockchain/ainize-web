@@ -14,7 +14,7 @@ code the next one can stop on.
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-export AINIZE_PASSWORD="…"            # or --password; `ainize login` never blocks in a script
+ainize login                          # signs with the node's own key — never blocks in a script
 
 DAY=$(date +%F)
 ainize login

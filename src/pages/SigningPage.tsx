@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useLoginChallengeMutation, useLoginMutation, useLoginWalletMutation, useMeQuery, useSetupMutation } from '@/api/api';
-import { hasAinWallet, walletAddress, whenAinWallet, WalletError } from '@/lib/ainWallet';
+import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery } from '@/api/api';
+import { hasAinWallet, recoverAddress, walletAddress, whenAinWallet, WalletError } from '@/lib/ainWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { Alert, Checkbox, TextField } from '@/components/ui/Form';
+import { Alert } from '@/components/ui/Form';
 import { CopyButton, Description, KeyValue, Mono, PageWrapper, Title } from '@/components/ui/Misc';
 import { Muted, Stack, Tip } from '@/components/operator/common';
 
@@ -33,11 +33,7 @@ const Hint = styled.p`
   margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; background: #f4f4f5; border-radius: 3px; padding: 1px 5px; color: ${(p) => p.theme.color.BLACK}; }
 `;
-const WalletBlock = styled.div`margin-top: 24px; max-width: 420px;`;
-const Or = styled.div`
-  display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; color: ${(p) => p.theme.color.GREY}; font-size: 13px;
-  &::before, &::after { content: ''; flex: 1; height: 1px; background: ${(p) => p.theme.color.LIGHT_GREY}; }
-`;
+const EnrollRow = styled.div`margin-top: 20px; display: flex; flex-direction: column; gap: 8px;`;
 const WalletButton = styled.button`
   width: 196px; height: 44px; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; background: #fff;
   color: ${(p) => p.theme.color.PRIMARY}; font-size: 15px; font-weight: 500; cursor: pointer;
@@ -55,131 +51,94 @@ export default function SigningPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const next = params.get('next') || '/dashboard';
-  const [setup, setupState] = useSetupMutation();
-  const [login, loginState] = useLoginMutation();
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [terms, setTerms] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   /**
-   * AIN Wallet sign-in.
+   * There is no password any more.
    *
-   * The operator password is the one shared secret in a product whose whole identity model is "a key signs for
-   * itself", and this page was the only place a person ever met it. The button appears when the extension is
-   * actually there — checked with a bounded wait, because the extension is injected asynchronously and a check on
-   * first paint is a false negative — and the password form stays for everyone else.
+   * It was the one shared secret in a product whose entire identity model is "a key signs for itself": typed into
+   * a browser, stored as a hash by the thing it protected, and unrotatable without signing everyone out. Sign-in
+   * is a signature — the node's own key, which lives on its machine, plus whatever addresses its operator listed.
+   *
+   * So this page has exactly one control, and it is only useful with the extension. A person without one is not
+   * shown a form that cannot work: they are told the command that signs in on the node's own machine, which is
+   * where that key is.
    */
-  const [wallet, setWallet] = useState(false);
-  const [walletBusy, setWalletBusy] = useState(false);
+  const [wallet, setWallet] = useState<boolean | null>(null);
   useEffect(() => { let live = true; void whenAinWallet().then((ok) => { if (live) setWallet(ok); }); return () => { live = false; }; }, []);
   const [challenge] = useLoginChallengeMutation();
   const [loginWallet] = useLoginWalletMutation();
+  const [enroll] = useEnrollMutation();
 
   useEffect(() => { if (!auth.loading && auth.isSignedIn) navigate(next, { replace: true }); }, [auth.loading, auth.isSignedIn, navigate, next]);
 
-  const onSetup = async (e: FormEvent) => {
-    e.preventDefault();
-    setLocalError(null);
-    if (password.length < 4) return setLocalError(t('op.sign.err.short'));
-    if (password !== confirm) return setLocalError(t('op.sign.err.mismatch'));
-    if (!terms) return setLocalError(t('op.sign.err.terms'));
-    try { await setup({ password }).unwrap(); auth.refresh(); navigate(next, { replace: true }); } catch { /* shown below */ }
-  };
-  const onLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    setLocalError(null);
-    try { await login({ password }).unwrap(); auth.refresh(); navigate(next, { replace: true }); } catch { /* shown below */ }
+  const signInError = (e: unknown): string => {
+    const r = e as { status?: number | string; data?: { error?: string; retry_after_s?: number; attempts?: number } } | null | undefined;
+    // The node's 403 names the address and says exactly how it would be allowed — better than anything this page
+    // could invent — so it is shown as sent. Only the throttle gets a translated sentence, because it carries the
+    // two numbers a reader needs and would otherwise arrive as an English server string.
+    if (r?.status === 429) return t('op.sign.err.throttled', { n: r.data?.attempts ?? 0, s: r.data?.retry_after_s ?? 0 });
+    return errorMessage(e);
   };
 
-  const onWallet = async () => {
-    setLocalError(null); setWalletBusy(true);
+  const signIn = async (alsoEnroll: boolean) => {
+    setLocalError(null); setBusy(true);
     try {
       if (!hasAinWallet()) throw new WalletError('no_extension');
       const address = await walletAddress();
       if (!address) throw new WalletError('locked');
       const ch = await challenge().unwrap();
       const signature = await window.ainetwork!.signMessage!(ch.message);
-      await loginWallet({ address, nonce: ch.nonce, signature }).unwrap();
+      // Recovered here on purpose: the extension is a different codebase signing with a different library, and an
+      // unchecked format divergence becomes an opaque 401 later, on a route that has nothing to do with signing.
+      if (recoverAddress(ch.message, signature)?.toLowerCase() !== address.toLowerCase()) throw new WalletError('signature_mismatch');
+      await (alsoEnroll ? enroll : loginWallet)({ address, nonce: ch.nonce, signature }).unwrap();
       auth.refresh();
       navigate(next, { replace: true });
     } catch (e) {
-      // The node's own 403 names the address and says how it would be allowed — better than anything this page
-      // could invent — so it is shown as sent. Only the wallet's own failures get a translated sentence.
       setLocalError(e instanceof WalletError ? t(`op.sign.wallet.err_${e.message}`) : signInError(e));
-    } finally { setWalletBusy(false); }
+    } finally { setBusy(false); }
   };
 
-  const busy = setupState.isLoading || loginState.isLoading || walletBusy;
-  /*
-   * Finding 89: the node answers a bad password with `HttpError(401, 'wrong password')`, and this page used to print
-   * that string verbatim — lowercase, English even for a Korean reader, and with no way out for somebody who has
-   * genuinely forgotten it. 401 is the one status this form can explain better than the server can, so it gets the
-   * translated sentence and the command that actually recovers the node (`ainize password --reset`); anything else
-   * still shows what the server said, which is the only honest thing to do with an error nobody anticipated.
-   * The node also refuses a burst of guesses with 429 and the seconds left, which this page says in words.
-   */
-  const signInError = (e: unknown): string => {
-    const r = e as { status?: number | string; data?: { retry_after_s?: number; attempts?: number } } | null | undefined;
-    if (r?.status === 401) return t('op.sign.err.wrong');
-    // 429 is the node's own throttle (item 89): it carries the two numbers the sentence needs, so the wait is
-    // stated in the reader's language instead of arriving as an English server string.
-    if (r?.status === 429) return t('op.sign.err.throttled', { n: r.data?.attempts ?? 0, s: r.data?.retry_after_s ?? 0 });
-    return errorMessage(e);
-  };
-  const err = localError ?? (setupState.error ? signInError(setupState.error) : loginState.error ? signInError(loginState.error) : null);
-  // The Korean docs slugify their own headings, so the anchor differs by language: `## 5. Log in` → `#5-log-in`,
-  // `## 5. 로그인` → `#5-로그인` (components/docs/markdown.ts, slugify keeps \p{L}).
   const loginDocs = locale === 'ko' ? '/docs/ko/get-started/quickstart#5-로그인' : '/docs/get-started/quickstart#5-log-in';
   const roleLabel = (r: string) => { const k = `op.role.${r}`; const v = t(k); return v === k ? r : v; };
-  // Korean puts the particle straight onto the command (`ainize login`을) where English needs a space after it, so
-  // the sentence carries the command as a placeholder and is split around it — the same trick as op.sign.agree below.
-  const [whereBefore, whereAfter] = t('op.sign.login.where', { cmd: '|' }).split('|');
-  // "{terms}에 동의합니다 (필수)" → split around the placeholder so the link stays a real <Link>.
   const [agreeBefore, agreeAfter] = t('op.sign.agree', { terms: '|' }).split('|');
 
   return (
     <PageWrapper>
-      {auth.needsSetup ? (
-        <form onSubmit={onSetup}>
-          <Title>{t('op.sign.setup.title')}</Title>
-          <Description>{t('op.sign.setup.desc')}</Description>
-          <OptionContainer>
-            <Stack $gap={18}>
-              <TextField type="password" label={t('op.sign.password')} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-              <TextField type="password" label={t('op.sign.confirm')} autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-            </Stack>
-            <CheckOption>
-              <Checkbox checked={terms} onChange={(e) => setTerms(e.target.checked)} label={<span>{agreeBefore}<StyledLink to="/terms">{t('op.sign.terms')}</StyledLink>{agreeAfter}</span>} />
-            </CheckOption>
-            {err && <Alert $tone="error" style={{ marginTop: 16 }}>{err}</Alert>}
-            <ConfirmButton type="submit" disabled={busy}>{busy ? t('op.saving') : t('common.confirm')}</ConfirmButton>
-          </OptionContainer>
-        </form>
-      ) : (
-        <form onSubmit={onLogin}>
-          <Title>{t('op.sign.login.title')}</Title>
-          <SubTitleText data-testid="sign-subtitle">{t('op.sign.login.subtitle')}</SubTitleText>
-          <Description>{t('op.sign.login.desc')}</Description>
-          <OptionContainer>
-            <TextField type="password" label={t('op.sign.login.password')} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
-            <Hint data-testid="password-origin">
-              {whereBefore}<code>ainize login</code>{whereAfter}{' '}
-              <StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink>
-            </Hint>
-            {err && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{err}</Alert>}
-            <ConfirmButton type="submit" disabled={busy}>{busy ? t('op.sign.login.busy') : t('op.sign.login.button')}</ConfirmButton>
-            {wallet && (
-              <WalletBlock data-testid="wallet-signin">
-                <Or><span>{t('op.sign.wallet.or')}</span></Or>
-                <WalletButton type="button" onClick={() => void onWallet()} disabled={busy}>
-                  {walletBusy ? t('op.sign.wallet.busy') : t('op.sign.wallet.button')}
-                </WalletButton>
-                <Hint>{t('op.sign.wallet.hint')}</Hint>
-              </WalletBlock>
+      <Title>{t('op.sign.login.title')}</Title>
+      <SubTitleText data-testid="sign-subtitle">{t('op.sign.key.subtitle')}</SubTitleText>
+      <Description>{t('op.sign.key.desc')}</Description>
+
+      <OptionContainer>
+        {wallet === false && (
+          <Alert $tone="info" data-testid="no-wallet">
+            {t('op.sign.key.no_wallet')}
+            <Hint><code>ainize login</code> — {t('op.sign.key.no_wallet_cmd')}{' '}
+              <StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink></Hint>
+          </Alert>
+        )}
+        {wallet && (
+          <>
+            <ConfirmButton type="button" onClick={() => void signIn(false)} disabled={busy} data-testid="wallet-signin">
+              {busy ? t('op.sign.wallet.busy') : t('op.sign.wallet.button')}
+            </ConfirmButton>
+            <Hint>{t('op.sign.wallet.hint')}</Hint>
+            {/* Enrolling is offered only when the node says this caller could actually do it — from its own machine,
+                or with the one-time token. Shown to anyone else it would be a button that always fails. */}
+            {me?.canEnroll && (
+              <EnrollRow>
+                <WalletButton type="button" onClick={() => void signIn(true)} disabled={busy}>{t('op.sign.key.enroll')}</WalletButton>
+                <Hint style={{ margin: 0 }}>{t('op.sign.key.enroll_hint')}</Hint>
+              </EnrollRow>
             )}
-          </OptionContainer>
-        </form>
-      )}
+          </>
+        )}
+        {localError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{localError}</Alert>}
+        <CheckOption style={{ marginTop: 20 }}>
+          <span style={{ fontSize: 13, color: '#8d8d8f' }}>{agreeBefore}<StyledLink to="/terms">{t('op.sign.terms')}</StyledLink>{agreeAfter}</span>
+        </CheckOption>
+      </OptionContainer>
 
       <VisitorNotice role="note" data-testid="visitor-notice">
         <span>{t('op.sign.visitor_notice')}</span>

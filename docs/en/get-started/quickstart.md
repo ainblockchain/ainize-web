@@ -173,11 +173,14 @@ ainize login
 ```
 
 ```text
-✓ operator password set and logged in to http://localhost:3694 (token saved in <AINIZE_HOME>/cli.json)
+✓ signed in to http://localhost:3694 as 0x48A3BB4b…8ea4 (signed with a key — no password)
 ```
 
-The token in `cli.json` is what the CLI sends afterwards, so you log in once per home directory. (A script that
-cannot type at a prompt passes `--password`, or sets `AINIZE_PASSWORD`; that is how the line above was actually run.)
+**There is no password.** The node's own key is its operator, it is in the `config.json` this home directory
+holds, and `login` signs a one-line challenge with it. Nothing to choose, nothing to remember, and nothing to
+type in a script — which is also why this command never blocks waiting for a prompt.
+
+The token in `cli.json` is what the CLI sends afterwards, so you sign in once per home directory.
 
 `cli.json` also records the node's URL, and that is the one thing to remember about it: the CLI talks to the URL it
 logged in to, not to whatever `config.json` currently says. Change the node's port after logging in and every

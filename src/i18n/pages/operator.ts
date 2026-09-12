@@ -1070,4 +1070,18 @@ export const operatorTeach: Dict = {
   'op.sign.wallet.err_sign_failed': { ko: '지갑이 서명하지 못했습니다.', en: 'The wallet could not sign.' },
   // Checked in the browser on purpose: left to the node, this becomes an opaque 401 on some unrelated route later.
   'op.sign.wallet.err_signature_mismatch': { ko: '지갑의 서명이 지갑이 말한 주소와 맞지 않습니다. 이대로 진행하면 나중에 엉뚱한 곳에서 실패하므로 여기서 멈춥니다.', en: 'The wallet’s signature does not match the address the wallet claims. Continuing would fail later somewhere unrelated, so it stops here.' },
+
+  // The operator password is gone. Sign-in is a signature — the node's own key, plus whatever addresses it lists.
+  'op.sign.key.subtitle': { ko: '비밀번호가 없습니다. 키로 서명해서 들어옵니다.', en: 'There is no password. You sign in with a key.' },
+  'op.sign.key.desc': { ko: '이 노드의 자기 키는 언제나 운영자입니다. 그 키는 노드가 돌아가는 기계의 config.json에 있고, 다른 주소는 운영자가 목록에 넣어 두어야 합니다.', en: 'This node’s own key is always an operator. That key lives in config.json on the machine the node runs on; any other address has to have been listed by an operator.' },
+  'op.sign.key.no_wallet': { ko: 'AIN Wallet 확장 프로그램이 없어 이 화면에서는 서명할 수 없습니다. 노드가 돌아가는 기계에서는 명령 한 줄이면 됩니다.', en: 'Without the AIN Wallet extension there is nothing here to sign with. On the machine the node runs on it is one command.' },
+  'op.sign.key.no_wallet_cmd': { ko: '노드 자기 키로 서명해 로그인합니다', en: 'signs a challenge with the node’s own key' },
+  'op.sign.key.enroll': { ko: '이 지갑 주소를 운영자로 등록하고 로그인', en: 'Add this wallet as an operator and sign in' },
+  'op.sign.key.enroll_hint': { ko: '이 노드의 기계에서 열었거나 일회용 토큰을 가진 경우에만 됩니다. 운영자를 추가하는 것은 운영자가 되는 것과 같은 권한이기 때문입니다.', en: 'Only from the node’s own machine, or with its one-time token — adding an operator is exactly as privileged as being one.' },
+  // Account: who may sign in, in place of the password form.
+  'op.account.operators.title': { ko: '이 노드에 로그인할 수 있는 주소', en: 'Who may sign in' },
+  'op.account.operators.desc': { ko: '비밀번호는 없습니다. 아래 주소들이 서명으로 로그인합니다.', en: 'There is no password. These addresses sign in with a signature.' },
+  'op.account.operators.own': { ko: '이 노드의 키', en: 'this node’s key' },
+  'op.account.operators.other': { ko: '등록된 주소', en: 'listed address' },
+  'op.account.operators.how': { ko: '주소를 더하거나 빼는 것은 노드가 돌아가는 기계에서 합니다: `ainize operators --add 0x…`. 운영자를 추가하는 일은 운영자가 되는 일과 같은 권한이라, 세션만 있으면 누구나 누를 수 있는 화면에 두지 않았습니다.', en: 'Addresses are added and removed on the machine the node runs on: `ainize operators --add 0x…`. Adding an operator is exactly as privileged as being one, so it is not a form anyone holding a session can reach.' },
 };

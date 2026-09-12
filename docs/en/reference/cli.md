@@ -9,7 +9,7 @@ summary: Every `ainize` command, argument and option, generated from the CLI's o
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/cli/src/bin.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-Every command the `ainize` CLI accepts — 29 top-level commands, 91 of them runnable — with the arguments, options, defaults and examples each one declares. The binary is also installed as `ngram`; the two names run the same program.
+Every command the `ainize` CLI accepts — 29 top-level commands, 92 of them runnable — with the arguments, options, defaults and examples each one declares. The binary is also installed as `ngram`; the two names run the same program.
 
 ## How to read this page
 
@@ -46,14 +46,14 @@ These are accepted by every command.
 | [`ainize nodes`](#ainize-nodes) | List the peers this node talks to and the nodes it knows of |
 | [`ainize blobs`](#ainize-blobs) | Knowledge files this node holds on disk, and what they cost |
 | [`ainize gc`](#ainize-gc) | Delete knowledge files this node neither published nor bought (verification copies) |
-| [`ainize login`](#ainize-login) | Log in as the node operator (sets the password on first use) |
-| [`ainize password`](#ainize-password) | Change the operator password (--reset rewrites it in config.json when you have forgotten it) |
+| [`ainize login`](#ainize-login) | Sign in as the node operator — a signature, not a password |
+| [`ainize operators`](#ainize-operators) | Who may sign in to this node (its own key, always, plus operatorAddresses) |
 | [`ainize logout`](#ainize-logout) | Forget the operator session |
 | [`ainize peers`](#ainize-peers) | Manage peers |
 | [`ainize patch`](#ainize-patch) | Publish, inspect, verify, buy and apply knowledge patches — or give an ENS name to use one in a single line |
 | [`ainize publish`](#ainize-publish) | One line to sell knowledge: register a .npz + benchmark and announce it at once — the network verifies, you get paid per sale (`ainize patch publish` is the same operation, stopping at a draft) |
 | [`ainize teach`](#ainize-teach) | Teach mode: turn your own questions and answers into knowledge. Two doors, one pipeline — a dataset file here, or corrections collected in the browser (\<node>/chat?teach=1) |
-| [`ainize dataset`](#ainize-dataset) | Training sets: the questions a published knowledge was taught from (lineage design §13) |
+| [`ainize dataset`](#ainize-dataset) | Import a Hugging Face dataset, or inspect the training set of published knowledge |
 | [`ainize use`](#ainize-use) | One line to use knowledge: check it is verified → quote the price → pay → download → load into your model. Several ids are used in the order given |
 | [`ainize chat`](#ainize-chat) | Live-test a knowledge patch: the model's answer before vs after the patch is loaded (correct-answer check) |
 | [`ainize ledger`](#ainize-ledger) | Inspect the ledger |
@@ -88,9 +88,7 @@ Create a node identity and config in AINIZE_HOME
 - **`--public-url`** (`string`) — URL peers can reach this node at
 - **`--host`** (`string`) — interface to bind (default 127.0.0.1 — this machine only)
 - **`--public`** (`boolean`, default `false`) — bind 0.0.0.0 (every interface) — only behind a firewall or proxy
-- **`--password`** (`string`) — operator password, set now so nobody else can claim this node (or AINIZE_PASSWORD)
-- **`--no-password`** (`boolean`, default `false`) — leave the node unclaimed; `ainize login` claims it later (loopback only)
-- **`--force`** (`boolean`, default `false`) — rewrite an existing config.json (the node identity and operator password are kept; the old file is copied aside)
+- **`--force`** (`boolean`, default `false`) — rewrite an existing config.json (the node identity is kept; the old file is copied aside)
 - **`--new-identity`** (`boolean`, default `false`) — with --force: mint a NEW node key, orphaning everything the old one published (asks you to type the current address)
 
 **Examples**
@@ -98,8 +96,8 @@ Create a node identity and config in AINIZE_HOME
 ```bash
 # local ledger node
 ainize init --name alice --port 3402
-# a node others can reach, claimed before it listens
-ainize init --name alice --password "…" --host 0.0.0.0
+# a node others can reach — its own key is the operator, so there is nothing to claim
+ainize init --name alice --host 0.0.0.0
 # AIN blockchain ledger (see `ainize chain up`)
 ainize init --ledger ain --ain-provider http://localhost:8081
 ```
@@ -425,45 +423,43 @@ ainize gc --older-than 30d
 ainize login [options]
 ```
 
-Log in as the node operator (sets the password on first use)
+Sign in as the node operator — a signature, not a password
 
 **Options**
 
-- **`--password`** (`string`) — the operator password, at least 4 characters — or AINIZE_PASSWORD. Without either you are asked; a script with no terminal can also pipe it in
-- **`--setup-token`** (`string`) — claim a node over the network with the one-time token in its AINIZE_HOME/setup-token (or AINIZE_SETUP_TOKEN)
+- **`--as`** (`string`) — sign with this private key instead of the node's own — for an address already in operatorAddresses
+- **`--enroll`** (`boolean`) — also add the signing address to this node's operators (needs its own machine, or the one-time token)
+- **`--setup-token`** (`string`) — with --enroll from another machine: the one-time token in the node's AINIZE_HOME/setup-token (or AINIZE_SETUP_TOKEN)
 
 **Examples**
 
 ```bash
-# asks for the password (it is not echoed)
+# signs a challenge with this node's own key
 ainize login
-# in a script, a cron line or over ssh — as does --password, and so does piping it in
-AINIZE_PASSWORD="…" ainize login
-# claim a node that has no password yet, from another machine
-ainize login --setup-token "$(ssh host cat ~/.ainize/setup-token)"
+# enrol another key as an operator, from another machine
+ainize login --as <key> --enroll --setup-token "$(ssh host cat ~/.ainize/setup-token)"
 ```
 
-## `ainize password`
+## `ainize operators`
 
 ```bash
-ainize password [options]
+ainize operators [options]
 ```
 
-Change the operator password (--reset rewrites it in config.json when you have forgotten it)
+Who may sign in to this node (its own key, always, plus operatorAddresses)
 
 **Options**
 
-- **`--password`** (`string`) — the new password, at least 4 characters (or AINIZE_NEW_PASSWORD)
-- **`--current`** (`string`) — the current password (or AINIZE_PASSWORD)
-- **`--reset`** (`boolean`, default `false`) — forgotten password: write a new hash into config.json (the node must be stopped)
+- **`--add`** (`string`) — an address that may sign in from now on
+- **`--remove`** (`string`) — take an address off the list
 
 **Examples**
 
 ```bash
-# change it on the running node
-ainize password
-# the way back when it is forgotten
-ainize stop && ainize password --reset
+# list them
+ainize operators
+# let an AIN Wallet address sign in
+ainize operators --add 0x…
 ```
 
 ## `ainize logout`
@@ -1419,11 +1415,53 @@ ainize teach train today.jsonl --wait && ainize teach publish <id> --name … --
 ainize dataset <subcommand>
 ```
 
-Training sets: the questions a published knowledge was taught from (lineage design §13)
+Import a Hugging Face dataset, or inspect the training set of published knowledge
 
 **Subcommands** — one of them is required
 
+- `ainize dataset import` — Import an existing Hugging Face dataset into this node (no Hub publication)
 - `ainize dataset get` — The training set of a knowledge — what it is, and with -o the questions themselves
+
+### `ainize dataset import`
+
+```bash
+ainize dataset import <url> [options]
+```
+
+Import an existing Hugging Face dataset into this node (no Hub publication)
+
+This is the default subcommand: `ainize dataset <url>` runs it without naming `import`.
+
+**Arguments**
+
+- **`<url>`** (`string`, required) — https://huggingface.co/datasets/\<owner>/\<name> or a /resolve/\<revision>/\<file> URL
+
+**Options**
+
+- **`--key`** (`string`) — teaching key (64-hex) — or AINIZE_TEACH_KEY
+- **`--key-file`** (`string`) — the key backup JSON from the browser (ainize-teaching-key-….json); default: \<home>/teaching-key.json, created on first use
+- **`--config`** (`string`) — Hugging Face configuration/subset; required when there are several
+- **`--split`** (`string`) — dataset split (train when available, otherwise the only split)
+- **`--revision`** (`string`) — source revision, resolved to a commit SHA before import
+- **`--file`** (`string`) — import a JSONL/JSON/CSV/TSV/TXT file at that revision, without the dataset viewer
+- **`--limit`** (`number`) — explicit viewer row limit (1..10000); without it, imports the whole split up to 10000 rows
+- **`--offset`** (`number`) — first viewer row (default 0)
+- **`--columns`** (`string`) — column mapping, e.g. {"prompt":"question","answer":"answer"}
+- **`--name`** (`string`) — name of the imported dataset on this node
+- **`--hf-token-file`** (`string`) — private token file for a restricted HF dataset; never sent to the Ainize node
+- **`--train`** (`boolean`, default `false`) — also queue a lesson from the imported dataset
+- **`--effort`** (`"quick" | "balanced" | "thorough"`) — training effort with --train
+- **`--wait`** (`boolean`, default `false`) — with --train: observe the same lesson until its terminal result
+- **`--timeout`** (`number`) — with --wait: observation timeout in minutes; does not cancel the lesson
+
+**Examples**
+
+```bash
+# import existing data, without creating a Hugging Face repository
+ainize dataset https://huggingface.co/datasets/owner/qa --config default --split train
+# import an immutable file and teach it
+ainize dataset https://huggingface.co/datasets/owner/qa --file data/train.jsonl --train
+```
 
 ### `ainize dataset get`
 

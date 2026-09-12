@@ -6,7 +6,7 @@ export interface AuthState {
   isSignedIn: boolean;
   /** true between clicking Log out and the fresh /api/auth/me result — route guards send the operator home instead of to /signing */
   signingOut: boolean;
-  needsSetup: boolean;
+  canEnroll: boolean;
   address: string | null;
   name: string | null;
   roles: string[];
@@ -16,7 +16,7 @@ export interface AuthState {
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthState>({ loading: true, isSignedIn: false, signingOut: false, needsSetup: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined });
+const AuthContext = createContext<AuthState>({ loading: true, isSignedIn: false, signingOut: false, canEnroll: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, refetch } = useMeQuery(undefined, { pollingInterval: 60_000 });
@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading: isLoading,
     isSignedIn: !!data?.signedIn && !signingOut,
     signingOut,
-    needsSetup: !!data?.needsSetup,
+    canEnroll: !!data?.canEnroll,
     address: data?.address ?? null,
     name: data?.name ?? null,
     roles: data?.roles ?? [],
