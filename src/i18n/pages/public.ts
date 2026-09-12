@@ -9,7 +9,7 @@ export const landing: Dict = {
   'landing.nav.explore': { ko: '지식 둘러보기', en: 'Explore knowledge' },
   'landing.nav.chat': { ko: '라이브 테스트', en: 'Live test' },
   'landing.nav.teach': { ko: '가르치기', en: 'Teach' },
-  'landing.nav.signin': { ko: '노드 로그인', en: 'Node sign-in' },
+  'landing.nav.signin': { ko: '로그인', en: 'Sign in' },
   'landing.nav.aria': { ko: '주요 메뉴', en: 'Main' },
   'landing.nav.signin_help': { ko: '노드 운영자·개발자용 콘솔입니다. 지식을 사서 쓰는 데는 로그인이 필요 없습니다.', en: 'Console for node operators and developers. You do not need to sign in to use knowledge.' },
 
