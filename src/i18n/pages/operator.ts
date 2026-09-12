@@ -65,31 +65,18 @@ export const operatorCommon: Dict = {
 };
 
 export const operatorSign: Dict = {
-  'op.sign.setup.title': { ko: '운영자 비밀번호 만들기', en: 'Create the operator password' },
-  'op.sign.setup.desc': { ko: '이 노드에는 아직 운영자 비밀번호가 없습니다. 비밀번호를 만들면 이 노드의 이름으로 지식을 등록·검증·구매하고 트랙을 관리할 수 있습니다. 노드 하나 = 계정 하나이며, 비밀번호는 이 웹 화면만 보호합니다.', en: 'This node has no operator password yet. With one you can register, verify and buy knowledge and manage knowledge tracks in this node’s name. One node = one account; the password only protects this web console.' },
-  'op.sign.password': { ko: '비밀번호', en: 'Password' },
-  'op.sign.confirm': { ko: '비밀번호 확인', en: 'Confirm password' },
   'op.sign.agree': { ko: '{terms}에 동의합니다 (필수)', en: 'I agree to the {terms} (required)' },
   'op.sign.terms': { ko: '이용약관', en: 'Terms and Policies' },
-  'op.sign.err.short': { ko: '비밀번호는 4자 이상이어야 합니다.', en: 'Password must be at least 4 characters.' },
-  'op.sign.err.mismatch': { ko: '비밀번호가 서로 다릅니다.', en: 'Passwords do not match.' },
-  'op.sign.err.terms': { ko: '이용약관에 동의해 주세요.', en: 'Please agree to the Terms and Policies.' },
   // Finding 89: the node answers 401 with the bare string "wrong password". This is what the reader sees instead —
   // in their own language, and with the one command that gets a forgotten node back.
   // Item 89: the same door now counts attempts, and a refusal that is only "wait" has to say how long and why.
   'op.sign.err.throttled': { ko: '비밀번호를 {n}번 틀려서 이 주소에서의 시도를 {s}초 동안 받지 않습니다. 잊었다면 노드가 도는 컴퓨터에서 `ainize password --reset`으로 새로 정하세요.', en: '{n} wrong passwords from this address — sign-in is refused here for {s}s. If it is lost, run `ainize password --reset` on the machine the node runs on.' },
-  'op.sign.err.wrong': { ko: '이 노드의 운영자 비밀번호가 아닙니다. 노드가 도는 컴퓨터에서 `ainize login`을 처음 실행할 때 정한 비밀번호입니다. 잊었다면 그 컴퓨터에서 `ainize stop` 뒤 `ainize password --reset`으로 새로 정할 수 있습니다.', en: 'That is not this node’s operator password. It is the one set the first time `ainize login` ran on the machine the node runs on. If it is lost, run `ainize stop` and then `ainize password --reset` there to set a new one.' },
   // Finding 71: "Open the operator console" led here, and nothing on the page said where the password comes from.
   'op.sign.login.where': { ko: '이 노드를 직접 운영하고 있다면, 노드가 도는 컴퓨터에서 {cmd}을 처음 실행할 때 정한 비밀번호입니다. 이 화면에서는 비밀번호를 새로 만들거나 되돌릴 수 없습니다.', en: 'Running this node yourself? It is the password set the first time {cmd} ran on the machine the node runs on — this page can neither create one nor reset one.' },
   'op.sign.login.where_link': { ko: '노드 설치·로그인 안내', en: 'Node setup and log-in guide' },
   'op.sign.login.title': { ko: '내 노드에 로그인', en: 'Sign in to your node' },
-  'op.sign.login.subtitle': { ko: '이 노드를 운영하는 사람만 비밀번호가 필요합니다.', en: 'Only the person who runs this node needs a password.' },
   'op.sign.visitor_notice': { ko: '모델을 써보거나 가르치고 싶다면 로그인이 필요 없습니다. 로그인은 이 노드를 운영하는 사람만 합니다.', en: 'Want to try or teach the model? You do not need to sign in — that is only for the person who runs this node.' },
   'op.sign.visitor_cta': { ko: '라이브 테스트로 가기', en: 'Go to Live test' },
-  'op.sign.login.desc': { ko: '이 노드의 운영자 비밀번호를 입력하세요. 로그인하면 내 지식 등록, 검증 현황, 판매·구매, 모델에 넣기/빼기를 관리할 수 있습니다.', en: 'Enter this node’s operator password. Signing in lets you register knowledge, follow verification, manage sales and purchases, and load or unload knowledge in the model.' },
-  'op.sign.login.password': { ko: '운영자 비밀번호', en: 'Operator password' },
-  'op.sign.login.button': { ko: '로그인', en: 'Sign in' },
-  'op.sign.login.busy': { ko: '로그인 중…', en: 'Signing in…' },
   'op.sign.node.title': { ko: '이 노드', en: 'This node' },
   'op.sign.node.identity_note': { ko: '계정 주소는 AI Network 블록체인과 같은 형식의 키 쌍입니다. 이 노드가 남기는 모든 기록·검증·결제는 이 키로 서명됩니다.', en: 'The account address is a key pair of the same type the AI Network blockchain uses. Every record, verification and payment this node makes is signed with it.' },
 };
@@ -716,19 +703,6 @@ export const operatorAccount: Dict = {
    * Item 34 — the one credential guarding sales, publishing, the wallet and the model runtime could not be changed
    * from the console at all: the node route existed, the client did not, and /account had no password block.
    */
-  'op.account.password.title': { ko: '비밀번호', en: 'Password' },
-  'op.account.password.desc': { ko: '이 노드의 운영자 비밀번호입니다. 판매·발행·지갑·모델 실행을 지키는 하나뿐인 열쇠이니 주기적으로 바꾸세요. 바꾸면 다른 브라우저·기기의 로그인은 모두 끊기고, 이 브라우저만 로그인 상태로 남습니다.', en: 'This node’s operator password — the one key guarding sales, publishing, the wallet and the model runtime. Changing it signs out every other browser and device; this one stays signed in.' },
-  'op.account.password.current': { ko: '현재 비밀번호', en: 'Current password' },
-  'op.account.password.new': { ko: '새 비밀번호', en: 'New password' },
-  'op.account.password.confirm': { ko: '새 비밀번호 확인', en: 'Confirm new password' },
-  'op.account.password.save': { ko: '비밀번호 바꾸기', en: 'Change password' },
-  'op.account.password.saving': { ko: '바꾸는 중…', en: 'Changing…' },
-  'op.account.password.done': { ko: '비밀번호를 바꿨습니다. 다른 기기의 로그인은 모두 끊겼습니다.', en: 'Password changed. Every other session was signed out.' },
-  'op.account.password.err.short': { ko: '새 비밀번호는 4자 이상이어야 합니다.', en: 'The new password must be at least 4 characters.' },
-  'op.account.password.err.mismatch': { ko: '새 비밀번호가 서로 다릅니다.', en: 'The new passwords do not match.' },
-  'op.account.password.err.same': { ko: '지금 쓰는 비밀번호와 같습니다.', en: 'That is the password you are already using.' },
-  'op.account.password.err.wrong': { ko: '현재 비밀번호가 맞지 않습니다.', en: 'That is not the current password.' },
-  'op.account.password.lost': { ko: '현재 비밀번호를 잊었다면 노드가 도는 컴퓨터에서 `ainize password --reset`으로 새로 정할 수 있습니다.', en: 'If the current password is lost, run `ainize password --reset` on the machine the node runs on.' },
   'op.account.settings.title': { ko: '이름과 알림', en: 'Name & notifications' },
   'op.account.settings.desc': { ko: '이 설정은 노드에 저장되어 어느 브라우저에서 열어도 같습니다.', en: 'These settings are stored on the node, so they are the same in every browser.' },
   'op.account.display_name': { ko: '표시 이름', en: 'Display name' },
@@ -1060,7 +1034,6 @@ export const operatorTeach: Dict = {
 
   // AIN Wallet sign-in. The operator password is the one shared secret in a product whose identity model is
   // otherwise "a key signs for itself"; the button appears only when the extension is actually there.
-  'op.sign.wallet.or': { ko: '또는', en: 'or' },
   'op.sign.wallet.button': { ko: 'AIN Wallet으로 로그인', en: 'Sign in with AIN Wallet' },
   'op.sign.wallet.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
   'op.sign.wallet.hint': { ko: '지갑이 짧은 문장 하나에 서명합니다. 비밀번호도, 송금도 없습니다. 이 노드의 자기 키는 언제나 운영자이고, 다른 주소는 operatorAddresses에 들어 있어야 합니다.', en: 'The wallet signs one short sentence. No password, and nothing is sent. This node’s own key is always an operator; any other address has to be listed in operatorAddresses.' },
