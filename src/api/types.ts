@@ -457,7 +457,8 @@ export interface TeachFact { prompt: string; answer: string; alt_prompt?: string
 export interface TeachProgress {
   step: number; max_steps: number; loss?: number; hits: number; total: number; load_s?: number; avg_step_s?: number; started_at?: number;
   /** Which stage the rail is on. The big bar stays the real `step / max_steps` — never a computed percent (design §D5). */
-  phase?: 'load' | 'train' | 'check';
+  /** `baseline` is the un-patched probe of every question — on a large lesson it is most of the run. */
+  phase?: 'load' | 'baseline' | 'train' | 'check';
   /** Stage-weighted and monotonic, for compact surfaces only. NOT a time estimate; no surface may label it as one. */
   percent?: number;
   rows_total?: number; rows_touched?: number;
