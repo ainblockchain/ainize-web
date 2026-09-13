@@ -1081,9 +1081,19 @@ export const operatorTeach: Dict = {
   'op.account.bindings.ended': { ko: '{addr} 를 해제했고, 세션 {n}개를 끊었습니다.', en: 'Ended {addr}, and closed {n} session(s).' },
 
   // Signing in gives you a name. Owning the node is what the operator screens need, and it is not the same thing.
-  'op.sign.not_owner.title': { ko: '이 노드는 당신의 것이 아닙니다', en: 'This node is not yours' },
-  'op.sign.not_owner.body': { ko: '{addr} 으로 연결되어 있지만, 이 노드({node})를 운영하는 주소는 아닙니다. 지식을 가르치고 보상을 받는 데에는 문제가 없습니다 — 운영 화면만 잠겨 있습니다.', en: 'You are connected as {addr}, but that address does not run this node ({node}). Teaching and being paid work exactly as before; only the screens for whoever runs it are closed.' },
-  'op.sign.not_owner.cta': { ko: '이 노드를 직접 운영한다면, 노드가 도는 컴퓨터에서 `ainize operators add {addr}` 을 실행하세요.', en: 'If you do run this node, run `ainize operators add {addr}` on the machine it runs on.' },
+  // A dead end is the one thing this screen must not be. It used to print `ainize operators add <your address>`,
+  // a command a visitor cannot run — it needs a shell on somebody else's machine — and which, if they somehow
+  // could, would make them an owner of a node that is not theirs. What a person here actually wants is one of two
+  // things: keep using the node (everything that matters is open to them), or run one of their own.
+  'op.sign.not_owner.title': { ko: '이 화면은 노드 운영자용입니다', en: 'These screens belong to whoever runs this node' },
+  'op.sign.not_owner.body': { ko: '{addr} 으로 연결되어 있습니다. 이 노드({node})를 운영하는 주소는 아니라서 판매·설정·지갑 화면만 닫혀 있습니다. 나머지는 전부 열려 있습니다 — 지식을 시험해 보고, 가르치고, 보상을 받는 일 모두 그대로 됩니다.', en: 'You are connected as {addr}. That address does not run this node ({node}), so only its selling, settings and wallet screens are closed. Everything else is open to you — testing knowledge, teaching it, and being paid for it all work exactly as before.' },
+  'op.sign.not_owner.try': { ko: '지식 라이브 테스트', en: 'Test knowledge live' },
+  'op.sign.not_owner.try_hint': { ko: '같은 모델이 그 지식을 알기 전과 후로 두 번 답합니다. 로그인 없이도 됩니다.', en: 'The same model answers twice — before and after it knows the thing. No sign-in needed.' },
+  'op.sign.not_owner.explore': { ko: '이 네트워크의 지식 둘러보기', en: 'Browse what the network holds' },
+  'op.sign.not_owner.teach': { ko: '틀린 답 고쳐서 가르치기', en: 'Teach it something it gets wrong' },
+  'op.sign.not_owner.teach_hint': { ko: 'GPU도 계정도 필요 없습니다. 공개하면 판매 수익의 지분을 받습니다.', en: 'No GPU, no account. Publish it and you earn a share of every sale.' },
+  'op.sign.not_owner.own': { ko: '내 노드 직접 띄우기', en: 'Run a node of your own' },
+  'op.sign.not_owner.own_hint': { ko: '이 화면들은 자기 노드에서 열립니다. 설치는 명령 두 줄입니다.', en: 'These screens open on a node you run. Setting one up is two commands.' },
   'op.sign.key.no_wallet': { ko: '브라우저에서 지갑을 찾지 못했습니다. 노드가 돌아가는 기계에서는 명령 한 줄이면 됩니다.', en: 'No wallet in this browser. On the machine the node runs on it is one command.' },
   'op.sign.key.no_wallet_cmd': { ko: '노드 자기 키로 서명해 로그인합니다', en: 'signs a challenge with the node’s own key' },
   'op.sign.key.enroll': { ko: '이 지갑 주소를 이 노드의 소유자로 등록하고 로그인', en: 'Make this wallet an owner of this node and sign in' },

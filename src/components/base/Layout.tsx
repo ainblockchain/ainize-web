@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router';
+import { Link, Navigate, useLocation } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
 import { Banner } from '@/components/ui/Banner';
@@ -86,20 +86,59 @@ export function SigningCheckLayout({ children }: { children: ReactNode }) {
 }
 
 const NotYours = styled.div`
-  width: 100%; max-width: 640px; margin: 72px auto; padding: 0 20px;
+  width: 100%; max-width: 660px; margin: 72px auto; padding: 0 20px;
   h1 { margin: 0 0 12px; font-size: 24px; font-weight: 600; }
   p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.8; color: #666; word-break: keep-all; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: #f4f4f5; border-radius: 3px; padding: 2px 6px; color: #111; }
 `;
+const Ways = styled.div`
+  margin-top: 28px; display: flex; flex-direction: column; gap: 10px;
+`;
+const Way = styled(Link)`
+  display: block; padding: 16px 18px; border: 1px solid #e5e5e8; border-radius: 8px; text-decoration: none;
+  background: #fff; transition: border-color .15s ease, background .15s ease;
+  &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; background: ${(p) => p.theme.color.PALE_GREY}; }
+  strong { display: block; font-size: 15px; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; }
+  span { display: block; margin-top: 5px; font-size: 13px; line-height: 1.7; color: #777; word-break: keep-all; }
+`;
+
+/**
+ * What a person who does not run this node is shown instead.
+ *
+ * This was a dead end, and worse than a dead end: it printed `ainize operators add <their address>` — a command
+ * that needs a shell on somebody else's machine, and which, if they somehow ran it, would make them an owner of a
+ * node that is not theirs. It told a visitor their own wallet was the wrong kind of thing, twice.
+ *
+ * What a person here actually wants is one of two things, so those are the things offered: keep using this node,
+ * where everything that matters to them is open — testing knowledge, teaching it, being paid for it — or run a
+ * node of their own, which is where these screens do open. The setup guide is a link, not a command to copy.
+ */
 function NotYourNode() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { subject, name } = useAuth();
   const short = subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : '';
+  const setup = locale === 'ko' ? '/docs/ko/get-started/quickstart' : '/docs/get-started/quickstart';
   return (
     <NotYours data-testid="not-owner">
       <h1>{t('op.sign.not_owner.title')}</h1>
       <p>{t('op.sign.not_owner.body', { addr: short, node: name ?? '' })}</p>
-      <p><code>ainize operators add {subject ?? ''}</code></p>
+      <Ways>
+        {/* First, because it is the thing the product is for and it needs nothing from them at all. */}
+        <Way to="/chat" data-testid="not-owner-chat">
+          <strong>{t('op.sign.not_owner.try')} →</strong>
+          <span>{t('op.sign.not_owner.try_hint')}</span>
+        </Way>
+        <Way to="/explore" data-testid="not-owner-explore">
+          <strong>{t('op.sign.not_owner.explore')} →</strong>
+        </Way>
+        <Way to="/teach" data-testid="not-owner-teach">
+          <strong>{t('op.sign.not_owner.teach')} →</strong>
+          <span>{t('op.sign.not_owner.teach_hint')}</span>
+        </Way>
+        <Way to={setup} data-testid="not-owner-setup">
+          <strong>{t('op.sign.not_owner.own')} →</strong>
+          <span>{t('op.sign.not_owner.own_hint')}</span>
+        </Way>
+      </Ways>
     </NotYours>
   );
 }

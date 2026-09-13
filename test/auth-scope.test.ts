@@ -96,3 +96,25 @@ test('an expired or spent request is a different answer from a button that fails
   assert.match(page, /data\.status === 'expired' \? t\('op\.authorize\.expired'\)/);
   assert.match(page, /data\.status !== 'pending' \? t\('op\.authorize\.used'\)/);
 });
+
+test('a visitor who does not run the node is given ways out, never a command they cannot run', () => {
+  const layout = code('components/base/Layout.tsx').join('\n');
+  const app = code('App.tsx').join('\n');
+
+  // It used to print `ainize operators add <their address>`: a command that needs a shell on somebody else's
+  // machine, and which — if they somehow ran it — would make them an owner of a node that is not theirs. It told
+  // a visitor their own wallet was the wrong kind of thing, and then gave them nothing to do about it.
+  assert.ok(!layout.includes('operators add'), 'no shell command on a screen a visitor reaches from a browser');
+  assert.ok(!/<code>/.test(layout.split('function NotYourNode')[1] ?? ''), 'and nothing shaped like one');
+
+  // What it offers instead. Each of these must be a route with no guard on it, or the way out is another wall.
+  for (const to of ['/chat', '/explore', '/teach']) {
+    assert.ok(layout.includes(`<Way to="${to}"`), `${to} is offered`);
+    const route = app.split('\n').find((l) => l.includes(`path="${to}"`))!;
+    assert.ok(route, `${to} is a route`);
+    assert.ok(!/SigningCheckLayout|NewPatchGate/.test(route), `${to} must be open to a visitor — it is offered as the way out`);
+  }
+  // And the answer to "these screens are not for you": run a node where they are. A guide, not a command.
+  assert.match(layout, /const setup = locale === 'ko' \? '\/docs\/ko\/get-started\/quickstart'/);
+  assert.ok(layout.includes('<Way to={setup}'), 'the setup guide is a link');
+});
