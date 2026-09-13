@@ -166,7 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 54 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 57 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 27 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -199,6 +199,7 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `401` | sign in with your wallet before authorising anything to act as you | `src/api.ts` |
 | `401` | sign in with your wallet to do this | `src/api.ts` |
 | `401` | sign in with your wallet to end what acts as you | `src/api.ts` |
+| `401` | Sign in with your wallet to query live sources | `src/api.ts` |
 | `401` | sign in with your wallet to see what acts as you | `src/api.ts` |
 | `401` | that signature does not come from the address it claims | `src/api.ts` |
 | `401` | that signature does not come from the address that is signed in | `src/api.ts` |
@@ -222,7 +223,9 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `409` | this payout was already sent (\<row.tx_hash>) | `src/payouts.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
 | `423` | patch not listed yet (verification \<e.passed>/\<e.quorum>) | `src/api.ts` |
+| `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
+| `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
 | `503` | model unavailable, try again in a few minutes | `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
 | `503` | the patch hook could not be reached (ENGRAM_HOOK=1?) | `src/api.ts` |
