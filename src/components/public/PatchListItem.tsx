@@ -8,7 +8,7 @@ import { Certified, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useNetworkKind } from '@/utils/useNetwork';
 import { browseDescription } from '@/lib/describe';
-import { bytes, denominator, num, pct, shortAddr } from '@/utils/format';
+import { benchmarkFormats, bytes, denominator, num, pct, shortAddr } from '@/utils/format';
 
 /* ------------------------------------------------------------------ shared helpers (used by landing / explore / benchmark) */
 
@@ -270,7 +270,7 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
     ? (entry.status === 'VERIFIED' ? 'sealed' : entry.status === 'SUPERSEDED' ? 'retired' : null)
     : (entry.status === 'VERIFYING' || entry.status === 'ANNOUNCED' ? 'pending' : null);
   /** How the verifiers asked their questions — two knowledges scored on different forms are different exams. */
-  const formats = a.benchmark.format?.length ? a.benchmark.format.join(' + ') : null;
+  const formats = benchmarkFormats(a.benchmark.format).join(' + ') || null;
   const family = useFamily(entry, nameOf);
   /** Who may read the questions this was trained from — the thing that decides whether anyone can build on it. */
   const access = a.dataset?.access;

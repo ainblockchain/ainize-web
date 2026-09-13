@@ -9,7 +9,7 @@ import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox,
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { bytes, num } from '@/utils/format';
+import { benchmarkFormats, bytes, num } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
 
 // Finding 74: Price is back. /explore offers it and the page whose whole job is "which of these should I buy?"
@@ -112,7 +112,7 @@ export default function BenchmarkPage() {
         hash,
         entries,
         /** the group's own facts: the format its verifiers used and how many questions the set declares */
-        format: entries[0].anchor.benchmark.format ?? [],
+        format: benchmarkFormats(entries[0].anchor.benchmark.format),
         queries: entries[0].anchor.benchmark.queries,
         newest: Math.max(...entries.map((e) => e.anchor.created_at)),
       }))

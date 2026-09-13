@@ -16,7 +16,7 @@ import { useT } from '@/i18n';
 import { sourceKind } from '@/components/teach/util';
 import { selectionPath } from '@/components/chat/util';
 import { useTitle } from '@/utils/useTitle';
-import { bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
+import { benchmarkFormats, bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
 import { FamilyTree } from '@/components/detail/FamilyTree';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { OpenQuestions } from '@/components/detail/OpenQuestions';
@@ -722,7 +722,7 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
         <KeyValue style={{ marginTop: 0 }}>
           <dt title="benchmark.schema">{t('detail.ov.subject')}</dt><dd><StyledLink to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{a.benchmark.schema}</StyledLink></dd>
           <dt title={tech('facts')}>{term('facts')}</dt><dd>{t('units.facts', { n: num(a.benchmark.queries) })}</dd>
-          <dt>{t('detail.ov.formats')}</dt><dd>{a.benchmark.format.join(', ') || '—'}</dd>
+          <dt>{t('detail.ov.formats')}</dt><dd>{benchmarkFormats(a.benchmark.format).join(', ') || '—'}</dd>
           {/* Finding 55: "Threshold set" read as "checked", while the Verification tab said "not reported" for every
               verifier. The row now says which of the two it is, and links to the evidence. */}
           <dt title={`${help('sideEffects')} (${tech('sideEffects')})`}>{t('detail.ov.side_effect_bound')}</dt>

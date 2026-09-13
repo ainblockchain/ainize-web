@@ -1,3 +1,8 @@
+export function benchmarkFormats(value: unknown): string[] {
+  if (typeof value === 'string') return value ? [value] : [];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
+}
+
 export function shortAddr(addr?: string | null, n = 6): string {
   if (!addr) return '—';
   if (addr.length <= n * 2 + 2) return addr;
