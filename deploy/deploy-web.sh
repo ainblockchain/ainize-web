@@ -67,7 +67,8 @@ else
   SHA="$(git rev-parse HEAD)"
 fi
 SHORT="${SHA:0:12}"
-say "ref $REF -> $SHORT${DIRTY:+ (dirty)}"
+if [ "$DIRTY" = true ]; then SUFFIX="-dirty"; else SUFFIX=""; fi
+say "ref $REF -> $SHORT${SUFFIX:+ (dirty)}"
 
 say "installing"
 npm install --silent --no-audit --no-fund
@@ -82,7 +83,7 @@ say "testing"
 # can fail for reasons outside this tree — but the result is printed so a deploy is never silent about it.
 npm test 2>&1 | tail -3 || say "(tests reported failures — see above)"
 
-DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-$SHORT${DIRTY:+-dirty}"
+DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-$SHORT$SUFFIX"
 mkdir -p "$DEST"
 cp -r dist/. "$DEST/"
 printf '%s\n' "$SHA" > "$DEST/.git-sha"
