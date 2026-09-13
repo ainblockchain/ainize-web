@@ -281,7 +281,41 @@ export interface NodesResponse {
 export interface ChainResponse extends LedgerInfo { address: string; balance: number | null; }
 
 /** `canEnroll` replaced `needsSetup`: a node is never unclaimed — its own key is always an operator. */
-export interface AuthMe { signedIn: boolean; address: string; name: string; roles: string[]; canEnroll: boolean; operators?: string[]; }
+/**
+ * Who you are on this node, and what that lets you do — two answers, because they stopped being one.
+ *
+ * `signedIn` once meant "is an operator", since nobody else could hold a session. Sign-in is open now: a wallet
+ * signs in as itself, to teach and to be paid, and most people who do will never own anything. So `signedIn` and
+ * `subject` are a NAME and grant nothing, `isOwner` and `scope` are the permission, and reading the first as the
+ * second would be wrong about nearly every visitor.
+ */
+export interface AuthMe {
+  signedIn: boolean;
+  /** the address behind this session, or null when there is none */
+  subject: string | null;
+  /** how it proved itself: `eip191` is a person at a browser wallet, `ain` is a key acting on its own */
+  scheme: 'ain' | 'eip191' | null;
+  /** does `subject` own this node — the question every privileged route actually asks */
+  isOwner: boolean;
+  /** `self` for a session at all, plus `owner`. Read this rather than inferring permission from `signedIn`. */
+  scope: string[];
+  /** the NODE's address, which is not yours — it is the node you are looking at */
+  address: string;
+  name: string;
+  roles: string[];
+  canEnroll: boolean;
+  operators?: string[];
+}
+
+/** One claim to ownership of a node, and where it comes from — which decides whether it can be taken back. */
+export interface NodeOwner {
+  address: string;
+  /** `node` = the node's own key, `config` = operatorAddresses on its machine, `granted` = added by an owner here */
+  source: 'node' | 'config' | 'granted';
+  added_at: number | null;
+  added_by: string | null;
+  note: string | null;
+}
 export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string; scheme: string; amount: string; manifest: PatchManifest | null; path: string | null; created_at: number; entry: CatalogEntry | null; applied: boolean;
   /** Why this node paid: a deliberate purchase, or `subscription:<track>` (item 362). */
   origin?: string;

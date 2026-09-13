@@ -200,7 +200,10 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isSignedIn } = useAuth();
+  // `isOwner`, matching the node: the free-try quota is waived for whoever RUNS the node (their own model, their
+  // own electricity), not for anyone who connected a wallet. Showing an unlimited counter to a visitor the node
+  // still counts would be a lie the very next message corrects.
+  const { isOwner } = useAuth();
   const { data, isLoading, error, refetch } = useChatPatchesQuery(undefined, { pollingInterval: 20_000 });
   const { data: info } = useInfoQuery();
   // Teach mode: policy is public and cached 10 s on the node; a pre-teach node answers 404 → the teach UI stays hidden.
@@ -740,7 +743,7 @@ export default function ChatPage() {
    * intent moment on the site. It now lives here, beside the box the visitor cannot type in, as a link to the
    * knowledge, its price and the measured instant the free hour ends; everywhere else says "no free tries left".
    */
-  const outOfTries = exhausted && !isSignedIn;
+  const outOfTries = exhausted && !isOwner;
   const quotaOffer = outOfTries && (
     <QuotaOffer data-testid="chat-quota-actions">
       <span>{quotaScope
@@ -755,7 +758,7 @@ export default function ChatPage() {
       {quotaReset === null && <em>{t('chat.quota.resets_hour')}</em>}
     </QuotaOffer>
   );
-  const quotaText = isSignedIn || quota === null
+  const quotaText = isOwner || quota === null
     ? t('chat.quota.operator')
     : quota === undefined ? t('chat.quota.visitor')
       : exhausted || quota <= 0 ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short')
@@ -821,7 +824,7 @@ export default function ChatPage() {
             internet. /network gated the same two facts on the operator session in b4d4df7; the operator still
             gets the endpoint here, everyone else gets a sentence about what the chip means. */}
         {data && (
-          <ModelChip title={isSignedIn ? data.runtime.api ?? undefined : t('chat.model_help')}>
+          <ModelChip title={isOwner ? data.runtime.api ?? undefined : t('chat.model_help')}>
             {t('chat.model')} <b>{data.runtime.model ?? t('chat.model_unknown')}</b>
           </ModelChip>
         )}

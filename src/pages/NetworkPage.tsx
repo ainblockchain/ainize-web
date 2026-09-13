@@ -77,7 +77,9 @@ export default function NetworkPage() {
   const { t, term, help, tech } = useT();
   useTitle(t('detail.net.title'));
   const f = useDetailFormat();
-  const { isSignedIn } = useAuth();
+  // `isOwner`: the runtime API and the repo path are this machine's private details, and the node shows them
+  // only to whoever runs it. Any connected wallet seeing them would be the old "signed in = operator" mistake.
+  const { isOwner } = useAuth();
   const infoQ = useInfoQuery(undefined, { pollingInterval: 15_000 });
   const info = infoQ.data;
   const { data: nodes } = useNodesQuery(undefined, { pollingInterval: 15_000 });
@@ -200,7 +202,7 @@ export default function NetworkPage() {
               * internet, they advertise where to knock. The model id and the status stay public — they are what a
               * buyer needs to know before trusting an attestation from this node.
               */}
-            {isSignedIn && (<>
+            {isOwner && (<>
               <dt>{t('detail.net.api')}</dt><dd><Mono>{rt.api ?? '—'}</Mono></dd>
               <dt>{t('detail.net.repo')}</dt><dd><Mono>{rt.repo ?? '—'}</Mono></dd>
             </>)}

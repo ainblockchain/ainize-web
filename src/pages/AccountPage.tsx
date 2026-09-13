@@ -3,8 +3,9 @@ import styled from 'styled-components';
 import {
   errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
   useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery, useWalletSendMutation,
+  useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
 } from '@/api/api';
-import type { PayoutRow, Settings, Settlement } from '@/api/types';
+import type { NodeOwner, PayoutRow, Settings, Settlement } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
@@ -82,6 +83,82 @@ function owedRows(sales: Settlement[], payouts: PayoutRow[], me: string): OwedRo
   }
   for (const p of payouts) add(p.address, p.patch_id, Number(p.amount), p.currency, p.status, p.updated_at || p.created_at);
   return [...out.values()].sort((a, b) => b.amount - a.amount);
+}
+
+/**
+ * Who owns this node — the three kinds of claim, and the one kind this page may take back.
+ *
+ * It used to be a read-only list under the heading "who may sign in", because signing in and owning the node
+ * were the same thing and neither could be changed from a browser. Both of those have stopped being true: anyone
+ * may sign in, and an owner can now vouch for another address from here.
+ *
+ * What it still cannot do is remove the other two. The node's own key owns what the node published, and the
+ * config file is the way back when every session is lost — a button that appeared to delete either would be
+ * lying, since the address would still own the node on the next request.
+ */
+function Owners() {
+  const { t } = useT();
+  const { data, isLoading } = useOwnersQuery();
+  const [addOwner, addState] = useAddOwnerMutation();
+  const [removeOwner, removeState] = useRemoveOwnerMutation();
+  const [draft, setDraft] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const valid = /^0x[0-9a-fA-F]{40}$/.test(draft.trim());
+  const busy = addState.isLoading || removeState.isLoading;
+
+  const add = async (e: FormEvent) => {
+    e.preventDefault();
+    setNotice(null); setError(null);
+    try {
+      const r = await addOwner({ address: draft.trim() }).unwrap();
+      setNotice(r.already ? t('op.account.operators.already', { addr: shortAddr(draft.trim(), 6) }) : null);
+      setDraft('');
+    } catch (err) { setError(errorMessage(err)); }
+  };
+  const remove = async (address: string) => {
+    setNotice(null); setError(null);
+    try {
+      const r = await removeOwner(address).unwrap();
+      setNotice(t('op.account.operators.removed', { addr: shortAddr(address, 6), n: r.sessions_ended }));
+    } catch (err) { setError(errorMessage(err)); }
+  };
+
+  const label = (o: NodeOwner) => o.source === 'node' ? t('op.account.operators.own')
+    : o.source === 'config' ? t('op.account.operators.src_config')
+    : t('op.account.operators.src_granted', { by: shortAddr(o.added_by, 6) || '—' });
+
+  return (
+    <>
+      <SubTitle $mt={56}>{t('op.account.operators.title')}</SubTitle>
+      <Description>{t('op.account.operators.desc')}</Description>
+      {isLoading && <CenterProgress />}
+      <KeyValue data-testid="operators">
+        {(data?.owners ?? []).map((o) => (
+          <Fragment key={o.address}>
+            <dt>{label(o)}</dt>
+            <dd>
+              <Mono>{o.address}</Mono> <CopyButton text={o.address} label={t('common.copy')} />
+              {/* Offered only for a grant: the other two are not this page's to undo, and a button that removed a
+                  row while the address kept owning the node would be worse than no button. */}
+              {o.source === 'granted' && (
+                <Button variant="text" size="small" type="button" disabled={busy} onClick={() => void remove(o.address)} style={{ marginLeft: 10 }}>
+                  {t('op.account.operators.remove')}
+                </Button>
+              )}
+            </dd>
+          </Fragment>
+        ))}
+      </KeyValue>
+      <Row as="form" onSubmit={add} style={{ marginTop: 14, alignItems: 'flex-end', gap: 10 }}>
+        <TextField value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('op.account.operators.add_ph')} style={{ maxWidth: 420 }} />
+        <Button type="submit" disabled={!valid || busy}>{t('op.account.operators.add')}</Button>
+      </Row>
+      {notice && <Muted style={{ display: 'block', marginTop: 10 }}>{notice}</Muted>}
+      {error && <Alert $tone="error" role="alert" style={{ marginTop: 10 }}>{error}</Alert>}
+      <Muted style={{ display: 'block', marginTop: 10 }}>{t('op.account.operators.how')}</Muted>
+    </>
+  );
 }
 
 export default function AccountPage() {
@@ -272,20 +349,8 @@ export default function AccountPage() {
         </SettingsForm>
       )}
 
-      {/* --------------------------------------------------- who may sign in (the password is gone) */}
-      <SubTitle $mt={56}>{t('op.account.operators.title')}</SubTitle>
-      <Description>{t('op.account.operators.desc')}</Description>
-      <KeyValue data-testid="operators">
-        {(me?.operators ?? [me?.address]).filter(Boolean).map((a, i) => (
-          <Fragment key={a}>
-            <dt>{i === 0 ? t('op.account.operators.own') : t('op.account.operators.other')}</dt>
-            <dd><Mono>{a}</Mono> <CopyButton text={a!} label={t('common.copy')} /></dd>
-          </Fragment>
-        ))}
-      </KeyValue>
-      {/* Adding one is exactly as privileged as being one, so it is a change to the node's config file on its own
-          machine — not a form on a page that anyone holding a session can reach. */}
-      <Muted style={{ display: 'block', marginTop: 10 }}>{t('op.account.operators.how')}</Muted>
+      {/* --------------------------------------------------- who owns this node */}
+      <Owners />
 
       {/* ------------------------------------------------------------ teaching (settings live on My knowledge → Teaching, spec §5.13) */}
       <SubTitle $mt={56}>{t('op.account.teach.title')}</SubTitle>

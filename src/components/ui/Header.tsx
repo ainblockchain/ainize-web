@@ -93,7 +93,7 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, name, address, signOut } = useAuth();
+  const { isSignedIn, isOwner, subject, name, address, signOut } = useAuth();
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -125,16 +125,26 @@ export function Header() {
           <NavItem to="/network">{t('nav.network')}</NavItem>
           <NavItem to="/ledger">{t('nav.ledger')}</NavItem>
           <NavItem to="/docs">{t('nav.docs')}</NavItem>
-          {isSignedIn && <NavItem to="/dashboard">{t('nav.dashboard')}</NavItem>}
+          {/* The dashboard is the node runner's screen and the node refuses it to anyone else, so offering it to
+              every signed-in visitor would be a link that lands on "this node is not yours". */}
+          {isOwner && <NavItem to="/dashboard">{t('nav.dashboard')}</NavItem>}
           {!isSignedIn && <NavItem to="/signing">{t('nav.signin')}</NavItem>}
           {isSignedIn && (
             <div ref={ref} style={{ position: 'relative' }}>
-              <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{name ?? 'operator'} ▾</UserMenuButton>
+              {/* YOUR address, not the node's. The button said the NODE's name and the row under it showed the
+                  NODE's address, which is the same wrong idea twice: that being signed in means being this node.
+                  What a person wants to see here is which of their wallets is connected. */}
+              <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{shortAddr(subject, 6)} ▾</UserMenuButton>
               <Menu $open={open} role="menu">
-                <MenuInfo title={address ?? ''}>{shortAddr(address, 8)}</MenuInfo>
-                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>
-                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/account'); }}>{t('nav.account')}</MenuItem>
-                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/drive'); }}>{t('nav.files')}</MenuItem>
+                <MenuInfo title={subject ?? ''}>{shortAddr(subject, 8)}</MenuInfo>
+                {/* Which node you are looking at, said separately, because it is a different fact. */}
+                <MenuInfo title={address ?? ''}>{name ?? ''} · {shortAddr(address, 6)}</MenuInfo>
+                {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>}
+                {/* /account and /drive are the node runner's screens too — they read this node's wallet, its
+                    payout settings and its files. Every menu item that is not offered here is a route that would
+                    answer "this node is not yours", which is a worse way to find out. */}
+                {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/account'); }}>{t('nav.account')}</MenuItem>}
+                {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/drive'); }}>{t('nav.files')}</MenuItem>}
                 <MenuItem role="menuitem" onClick={() => {
                   setOpen(false);
                   // signOut() flips isSignedIn to false synchronously and navigate('/') lands in the same render, so neither the landing guard (→ /dashboard) nor the dashboard guard (→ /signing) fires.

@@ -385,7 +385,7 @@ function LoadFailed({ id, error, busy, onRetry }: { id: string; error: unknown; 
 
 export default function PatchPage() {
   const { author = '', patchId = '' } = useParams();
-  const { isSignedIn } = useAuth();
+  const { isOwner } = useAuth();
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const { data, isLoading, error, isFetching, refetch } = usePatchQuery(patchId, { pollingInterval: 10_000 });
@@ -484,7 +484,7 @@ export default function PatchPage() {
             {/* Item 30: the commercial intent of the page, above the fold — price on the control that spends it.
                 `owned` is "this node published it", which is true of every knowledge a visitor browses on its
                 author's own node: the operator gets Manage instead, everyone else gets the price. */}
-            {!(isSignedIn && data.owned) && (
+            {!(isOwner && data.owned) && (
               <BuyNow
                 type="button" data-testid="head-buy" $muted={!data.sellable && !data.purchased}
                 onClick={() => { setTab('buy'); requestAnimationFrame(() => tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}
@@ -525,7 +525,7 @@ export default function PatchPage() {
                 {failed.length === 1 ? t('detail.patch.failed_chip_one') : t('detail.patch.failed_chip', { n: failed.length })} →
               </FailChip>
             )}
-            {isSignedIn && data.owned && <ManageMenu to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.patch.manage')} <img src="/static/images/ic-openwindow.svg" alt="" /></ManageMenu>}
+            {isOwner && data.owned && <ManageMenu to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.patch.manage')} <img src="/static/images/ic-openwindow.svg" alt="" /></ManageMenu>}
           </NameRow>
           {data.open_challenge && (
             <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="challenge-banner">
@@ -602,7 +602,7 @@ export default function PatchPage() {
             </>
           )}
           {tab === 'lineage' && <Lineage d={data} authorSlug={authorSlug} />}
-          {tab === 'buy' && <Buy d={data} authorSlug={authorSlug} isOperator={isSignedIn} />}
+          {tab === 'buy' && <Buy d={data} authorSlug={authorSlug} isOperator={isOwner} />}
           {tab === 'history' && <HistoryTab d={data} />}
         </ContentInner>
       </Content>

@@ -62,9 +62,16 @@ export function FocusedLayout({ children }: { children: ReactNode }) {
   );
 }
 
-/** ainize-web base/SigningCheckLayout.js: redirect to sign-in when the operator is not logged in. */
+/**
+ * The screens for whoever RUNS this node, and the two different ways you can fail to be them.
+ *
+ * Not signed in is a redirect: there is something to do about it, and where to return to afterwards. Signed in
+ * and not the owner is not — it must never redirect, because /signing would send a signed-in person straight
+ * back here and the two would trade the tab for ever. It is also not really an error: connecting a wallet to a
+ * node you do not run is the ordinary case, so it is answered with a sentence saying what still works.
+ */
 export function SigningCheckLayout({ children }: { children: ReactNode }) {
-  const { isSignedIn, loading, signingOut } = useAuth();
+  const { isSignedIn, isOwner, loading, signingOut } = useAuth();
   const { pathname } = useLocation();
   // Remember that this guard witnessed a deliberate sign-out. react-router wraps navigate('/') in a transition, so on a cold cache
   // (landing chunk still downloading) this guard is still mounted when /api/auth/me settles to signed-out — it must rest on /, not /signing?next=.
@@ -74,7 +81,27 @@ export function SigningCheckLayout({ children }: { children: ReactNode }) {
   // A deliberate sign-out rests on the landing page; only an expired/missing session asks to sign in again (and remembers where to return).
   if (signingOut || (sawSignOut && !isSignedIn)) return <Navigate to="/" replace />;
   if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(pathname)}`} replace />;
+  if (!isOwner) return <Layout><NotYourNode /></Layout>;
   return <Layout>{children}</Layout>;
+}
+
+const NotYours = styled.div`
+  width: 100%; max-width: 640px; margin: 72px auto; padding: 0 20px;
+  h1 { margin: 0 0 12px; font-size: 24px; font-weight: 600; }
+  p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.8; color: #666; word-break: keep-all; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: #f4f4f5; border-radius: 3px; padding: 2px 6px; color: #111; }
+`;
+function NotYourNode() {
+  const { t } = useT();
+  const { subject, name } = useAuth();
+  const short = subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : '';
+  return (
+    <NotYours data-testid="not-owner">
+      <h1>{t('op.sign.not_owner.title')}</h1>
+      <p>{t('op.sign.not_owner.body', { addr: short, node: name ?? '' })}</p>
+      <p><code>ainize operators add {subject ?? ''}</code></p>
+    </NotYours>
+  );
 }
 
 /**
@@ -83,9 +110,12 @@ export function SigningCheckLayout({ children }: { children: ReactNode }) {
  */
 const NewPatchPreScreen = lazy(() => import('@/components/operator/NewPatchPreScreen'));
 export function NewPatchGate({ children }: { children: ReactNode }) {
-  const { isSignedIn, loading } = useAuth();
+  const { isOwner, loading } = useAuth();
+  // `isOwner`, not `isSignedIn`: uploading a file straight into this node's catalogue is the node runner's
+  // privilege, and the node refuses it from anyone else. A visitor with a connected wallet sees the pre-screen —
+  // which offers the door that IS open to them, teaching in chat — rather than a form that would 403.
   if (loading) return <Layout><CenterProgress /></Layout>;
-  if (!isSignedIn) return <Layout><Suspense fallback={<CenterProgress />}><NewPatchPreScreen /></Suspense></Layout>;
+  if (!isOwner) return <Layout><Suspense fallback={<CenterProgress />}><NewPatchPreScreen /></Suspense></Layout>;
   return <Layout>{children}</Layout>;
 }
 
@@ -94,7 +124,10 @@ const FullWrapper = styled.div`
   width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; background-color: #333333;
 `;
 export function FullScreenLayout({ children }: { children: ReactNode }) {
-  const { isSignedIn, loading } = useAuth();
-  if (!loading && isSignedIn) return <Navigate to="/dashboard" replace />;
+  const { isOwner, loading } = useAuth();
+  // Only the node's own runner is sent past the landing page. Somebody who connected a wallet to read the
+  // catalogue is a visitor, and bouncing them to a dashboard they cannot open would be the old assumption —
+  // "signed in means this is your node" — in the one place it is most visible.
+  if (!loading && isOwner) return <Navigate to="/dashboard" replace />;
   return <FullWrapper>{children}</FullWrapper>;
 }

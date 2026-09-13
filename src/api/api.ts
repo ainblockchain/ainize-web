@@ -4,7 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
-  AuthMe, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
+  AuthMe, NodeOwner, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile, VerifierProfile,
@@ -131,11 +131,22 @@ export const api = createApi({
     me: b.query<AuthMe, void>({ query: () => 'api/auth/me', providesTags: ['Me'] }),
     // Sign-in by signature: the node issues a single-use nonce, the wallet signs the `message` it comes back with.
     // Two calls rather than one because a signature with no challenge behind it is a bearer token.
-    loginChallenge: b.mutation<{ nonce: string; node: string; message: string; expires_at: number }, void>({ query: () => ({ url: 'api/auth/challenge', method: 'POST', body: {} }) }),
-    loginWallet: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/wallet', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
-    // Adds the signing address to the node's operators on the way in. The node accepts it only from its own machine
-    // or with the one-time token, because adding an operator is exactly as privileged as being one.
+    // `scheme` picks the signing rules and is fixed from here on, so the node verifies under the one it issued
+    // rather than under whichever one the presenter of a signature would prefer. A browser wallet is always
+    // `eip191`; `ain` is what a key this product generated signs.
+    loginChallenge: b.mutation<{ nonce: string; node: string; message: string; scheme: 'ain' | 'eip191'; expires_at: number }, { scheme: 'ain' | 'eip191' } | void>({
+      query: (body) => ({ url: 'api/auth/challenge', method: 'POST', body: body || {} }),
+    }),
+    loginWallet: b.mutation<{ ok: boolean; address: string; scheme: string; isOwner: boolean; scope: string[] }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/wallet', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
+    // Makes the signing address an owner of this node on the way in. The node accepts it only from its own machine
+    // or with the one-time token — and demands a signature from the address, because nothing else vouches for a
+    // first owner and a typo would enrol an address nobody holds the key to.
     enroll: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/enroll', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
+    // Who owns this node. An owner may add another from here; only what was added from here may be removed from
+    // here, because the other two claims live in the node's identity and in a file on its machine.
+    owners: b.query<{ owners: NodeOwner[] }, void>({ query: () => 'api/auth/owners', providesTags: ['Me'] }),
+    addOwner: b.mutation<{ ok: boolean; already: boolean; owners: NodeOwner[] }, { address: string; note?: string }>({ query: (body) => ({ url: 'api/auth/owners', method: 'POST', body }), invalidatesTags: ['Me'] }),
+    removeOwner: b.mutation<{ ok: boolean; sessions_ended: number; owners: NodeOwner[] }, string>({ query: (address) => ({ url: `api/auth/owners/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
 
     // operator
@@ -327,6 +338,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,
+  useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

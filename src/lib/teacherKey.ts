@@ -50,6 +50,26 @@ export function hashMessage(message: string): Uint8Array {
   return keccak_256(keccak_256(data));
 }
 
+/**
+ * The EIP-191 digest a browser wallet signs — the other scheme, and the whole of the difference.
+ *
+ * `hashMessage` above is ain-util's: keccak256 TWICE over a varint-length-prefixed message, with the length
+ * counted in UTF-16 code units. This is what `personal_sign` hashes: keccak256 ONCE over
+ * `\x19Ethereum Signed Message:\n<byte length>`, with the length counted in UTF-8 BYTES.
+ *
+ * The two diverge on any non-ASCII message — "한글" is 2 under one rule and 6 under the other — and produce
+ * signatures that verify under neither the other's rules, from the same key, for the same address. Keeping them
+ * as two named functions rather than one with a flag is deliberate: every call site then has to say which world
+ * it is in, and there is no default to get wrong.
+ *
+ * Mirrors `hashEip191` in @ainize/core (identity.ts), which is what the node verifies with. The published vector
+ * pinned in core's test — keccak of "hello world" — is what stops both from drifting away from a real wallet.
+ */
+export function hashEip191(message: string): Uint8Array {
+  const bytes = utf8(message);
+  return keccak_256(concat(utf8(`\x19Ethereum Signed Message:\n${bytes.length}`), bytes));
+}
+
 export function toChecksumAddress(address: string): string {
   const a = address.replace(/^0x/, '').toLowerCase();
   if (!/^[0-9a-f]{40}$/.test(a)) throw new Error('invalid address');

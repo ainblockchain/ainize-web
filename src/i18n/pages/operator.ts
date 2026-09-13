@@ -1029,25 +1029,42 @@ export const operatorTeach: Dict = {
   'op.teach.payouts.status.failed': { ko: '실패', en: 'failed' },
   'op.teach.payouts.filter.all': { ko: '전체', en: 'All' },
 
-  // AIN Wallet sign-in. The operator password is the one shared secret in a product whose identity model is
-  // otherwise "a key signs for itself"; the button appears only when the extension is actually there.
-  'op.sign.wallet.button': { ko: 'AIN Wallet으로 로그인', en: 'Sign in with AIN Wallet' },
+  // Connecting a wallet. Not "logging in as the operator": signing in says which address is here, and owning the
+  // node is a separate question the node answers on its own. Most people who connect will never own one.
+  'op.sign.wallet.button': { ko: '지갑 연결', en: 'Connect wallet' },
   'op.sign.wallet.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
-  'op.sign.wallet.err_no_extension': { ko: 'AIN Wallet 확장 프로그램을 찾을 수 없습니다.', en: 'No AIN Wallet extension found.' },
-  'op.sign.wallet.err_locked': { ko: '지갑이 잠겨 있거나 계정이 선택되지 않았습니다. 확장 프로그램을 열어 잠금을 해제하세요.', en: 'The wallet is locked or has no account selected. Open the extension and unlock it.' },
-  'op.sign.wallet.err_rejected': { ko: '지갑에서 서명을 거절했습니다.', en: 'The signature was rejected in the wallet.' },
+  'op.sign.wallet.pick': { ko: '어느 지갑으로 서명할까요?', en: 'Which wallet should sign?' },
+  'op.sign.wallet.err_no_extension': { ko: '브라우저에서 지갑을 찾지 못했습니다. MetaMask를 설치하고 새로고침하세요.', en: 'No wallet found in this browser. Install MetaMask and reload.' },
+  'op.sign.wallet.err_locked': { ko: '지갑이 잠겨 있거나 계정을 고르지 않았습니다. 지갑을 열어 잠금을 해제하세요.', en: 'The wallet is locked, or no account was chosen. Open it and unlock.' },
+  'op.sign.wallet.err_rejected': { ko: '지갑에서 거절했습니다.', en: 'Rejected in the wallet.' },
+  'op.sign.wallet.err_connect_failed': { ko: '지갑에 연결하지 못했습니다.', en: 'Could not connect to the wallet.' },
   'op.sign.wallet.err_sign_failed': { ko: '지갑이 서명하지 못했습니다.', en: 'The wallet could not sign.' },
   // Checked in the browser on purpose: left to the node, this becomes an opaque 401 on some unrelated route later.
   'op.sign.wallet.err_signature_mismatch': { ko: '지갑의 서명이 지갑이 말한 주소와 맞지 않습니다. 이대로 진행하면 나중에 엉뚱한 곳에서 실패하므로 여기서 멈춥니다.', en: 'The wallet’s signature does not match the address the wallet claims. Continuing would fail later somewhere unrelated, so it stops here.' },
+  // What the signature is and is not — said before it is asked for, because a wallet prompt is where people are
+  // trained to click through anything.
+  'op.sign.wallet.what': { ko: '지갑이 서명하는 것은 로그인 한 번뿐입니다. 거래가 아니고, 자산이 옮겨가지 않으며, 무엇을 쓸 권한도 주지 않습니다.', en: 'The wallet signs one thing: this sign-in. It is not a transaction, it moves no funds, and it grants no spending permission.' },
+  'op.sign.wallet.no_install': { ko: 'MetaMask 설치하기', en: 'Install MetaMask' },
+  'op.sign.signed_in_as': { ko: '{addr} 으로 연결됨', en: 'Connected as {addr}' },
 
-  // The operator password is gone. Sign-in is a signature — the node's own key, plus whatever addresses it lists.
-  'op.sign.key.no_wallet': { ko: 'AIN Wallet 확장 프로그램이 없어 이 화면에서는 서명할 수 없습니다. 노드가 돌아가는 기계에서는 명령 한 줄이면 됩니다.', en: 'Without the AIN Wallet extension there is nothing here to sign with. On the machine the node runs on it is one command.' },
+  // Signing in gives you a name. Owning the node is what the operator screens need, and it is not the same thing.
+  'op.sign.not_owner.title': { ko: '이 노드는 당신의 것이 아닙니다', en: 'This node is not yours' },
+  'op.sign.not_owner.body': { ko: '{addr} 으로 연결되어 있지만, 이 노드({node})를 운영하는 주소는 아닙니다. 지식을 가르치고 보상을 받는 데에는 문제가 없습니다 — 운영 화면만 잠겨 있습니다.', en: 'You are connected as {addr}, but that address does not run this node ({node}). Teaching and being paid work exactly as before; only the screens for whoever runs it are closed.' },
+  'op.sign.not_owner.cta': { ko: '이 노드를 직접 운영한다면, 노드가 도는 컴퓨터에서 `ainize operators add {addr}` 을 실행하세요.', en: 'If you do run this node, run `ainize operators add {addr}` on the machine it runs on.' },
+  'op.sign.key.no_wallet': { ko: '브라우저에서 지갑을 찾지 못했습니다. 노드가 돌아가는 기계에서는 명령 한 줄이면 됩니다.', en: 'No wallet in this browser. On the machine the node runs on it is one command.' },
   'op.sign.key.no_wallet_cmd': { ko: '노드 자기 키로 서명해 로그인합니다', en: 'signs a challenge with the node’s own key' },
-  'op.sign.key.enroll': { ko: '이 지갑 주소를 운영자로 등록하고 로그인', en: 'Add this wallet as an operator and sign in' },
+  'op.sign.key.enroll': { ko: '이 지갑 주소를 이 노드의 소유자로 등록하고 로그인', en: 'Make this wallet an owner of this node and sign in' },
   // Account: who may sign in, in place of the password form.
-  'op.account.operators.title': { ko: '이 노드에 로그인할 수 있는 주소', en: 'Who may sign in' },
-  'op.account.operators.desc': { ko: '비밀번호는 없습니다. 아래 주소들이 서명으로 로그인합니다.', en: 'There is no password. These addresses sign in with a signature.' },
+  // Not "who may sign in" — anyone may. This is who OWNS the node, which is the thing these screens require.
+  'op.account.operators.title': { ko: '이 노드를 소유한 주소', en: 'Who owns this node' },
+  'op.account.operators.desc': { ko: '로그인은 누구나 지갑으로 할 수 있습니다. 아래 주소들만 이 노드를 운영할 수 있습니다.', en: 'Anyone can sign in with a wallet. Only these addresses can run this node.' },
   'op.account.operators.own': { ko: '이 노드의 키', en: 'this node’s key' },
-  'op.account.operators.other': { ko: '등록된 주소', en: 'listed address' },
-  'op.account.operators.how': { ko: '주소를 더하거나 빼는 것은 노드가 돌아가는 기계에서 합니다: `ainize operators --add 0x…`. 운영자를 추가하는 일은 운영자가 되는 일과 같은 권한이라, 세션만 있으면 누구나 누를 수 있는 화면에 두지 않았습니다.', en: 'Addresses are added and removed on the machine the node runs on: `ainize operators --add 0x…`. Adding an operator is exactly as privileged as being one, so it is not a form anyone holding a session can reach.' },
+  'op.account.operators.src_config': { ko: '설정 파일', en: 'config file' },
+  'op.account.operators.src_granted': { ko: '{by} 이(가) 추가', en: 'added by {by}' },
+  'op.account.operators.add': { ko: '주소 추가', en: 'Add address' },
+  'op.account.operators.add_ph': { ko: '0x…', en: '0x…' },
+  'op.account.operators.remove': { ko: '해제', en: 'Remove' },
+  'op.account.operators.removed': { ko: '{addr} 의 소유권을 해제했고, 진행 중이던 세션 {n}개를 끊었습니다.', en: 'Removed {addr}, and ended {n} session(s) it was holding.' },
+  'op.account.operators.already': { ko: '{addr} 은(는) 이미 이 노드의 소유자입니다.', en: '{addr} already owns this node.' },
+  'op.account.operators.how': { ko: '여기서 추가한 주소만 여기서 해제할 수 있습니다. 노드 자기 키와 설정 파일에 적힌 주소는 노드가 도는 기계에서 다룹니다: `ainize operators add 0x…`. 그 파일이 세션을 모두 잃었을 때 돌아올 수 있는 길이라 화면에서 지우지 않습니다.', en: 'Only what was added here can be removed here. The node’s own key and the addresses in its config file are handled on the machine it runs on (`ainize operators add 0x…`) — that file is the way back when every session is lost, so this page cannot erase it.' },
 };
