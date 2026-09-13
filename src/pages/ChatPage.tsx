@@ -26,6 +26,7 @@ import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from
 import { bannerDismissed, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
 import type { PreflightFact } from '@/api/types';
 import { num } from '@/utils/format';
+import { LiveSources } from '@/components/chat/LiveSources';
 
 /* ---------------------------------------------------------------- layout */
 const Grid = styled.div`
@@ -830,6 +831,7 @@ export default function ChatPage() {
         )}
       </TitleRow>
       <Description>{teachDoor ? t('chat.subtitle_teach', { model: data?.runtime.model ?? info?.node.model ?? t('chat.model_unknown') }) : t('chat.subtitle')}</Description>
+      <LiveSources />
 
       {isLoading && <CenterProgress />}
       {!!error && !data && <Alert $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })}</Alert>}
