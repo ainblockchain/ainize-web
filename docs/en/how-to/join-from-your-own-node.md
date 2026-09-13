@@ -153,6 +153,36 @@ Training and serving must not share GPUs: the trainer loads a second copy of the
 model every verification and live test depends on. The node refuses to start a lesson when the two sets
 overlap, and pins the trainer to the GPUs it checked.
 
+### How long a lesson takes, and what to turn when it does not finish
+
+Measured on a 120-question lesson, one 40 GB A100 for the trainer:
+
+| what | how long |
+|---|---|
+| loading the model | 5 min, and it does not grow with the lesson |
+| asking your questions before training | 82 min — about 40 s each |
+| one training pass | 14 min |
+| **one evaluation** | **88 min — as much as all the questions again** |
+
+**The evaluation is what decides whether a lesson finishes.** It re-asks every question, so it costs what the
+first pass over them cost, and the default is one every two training passes. Twenty passes therefore means ten
+evaluations: fourteen hours of measuring around under five hours of teaching.
+
+Three settings, and the first one is the one that matters:
+
+```bash
+ainize config set teach.effort.balanced.evalEvery 12   # measure once, at the end
+ainize config set teach.effort.balanced.maxSteps 12    # where this dataset stopped improving
+ainize config set teach.trainer.timeoutMs 43200000     # 12 h; the 30-minute default finishes nothing real
+```
+
+If a lesson runs out of memory instead, the two knobs are `teach.trainer.microBatch` (8 fits a 40 GB card here;
+the default derives 64 for a large lesson) and `teach.trainer.maxContrast`. Lowering the second is a real trade,
+not free head room: contrast is what protects unrelated answers from the lesson.
+
+**Check what the node actually used, not what the config says**: the job it wrote is at
+`<runtime.repo>/.teach/<job-id>/job.json`, and it carries `micro`, `max_contrast`, `max_steps` and `eval_every`.
+
 After `teach publish` it is out of your hands: the anchor gossips, each verifier applies your knowledge and runs
 your benchmark **itself**, and signed attestations come back. Two independent passes and it is `VERIFIED`.
 
