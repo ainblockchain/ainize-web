@@ -8,7 +8,7 @@ import { Certified, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useNetworkKind } from '@/utils/useNetwork';
 import { browseDescription } from '@/lib/describe';
-import { bytes, denominator, num, pct, shortAddr } from '@/utils/format';
+import { benchmarkFormats, bytes, denominator, num, pct, shortAddr } from '@/utils/format';
 
 /* ------------------------------------------------------------------ shared helpers (used by landing / explore / benchmark) */
 
@@ -279,11 +279,7 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
    *
    * So the shape is narrowed rather than trusted. The same rule applies to anything else read off an anchor.
    */
-  const formats = ((): string | null => {
-    const f = a.benchmark?.format as unknown;
-    if (Array.isArray(f)) return f.filter((x) => typeof x === 'string' && x).join(' + ') || null;
-    return typeof f === 'string' && f ? f : null;
-  })();
+  const formats = benchmarkFormats(a.benchmark?.format).join(' + ') || null;
   const family = useFamily(entry, nameOf);
   /** Who may read the questions this was trained from — the thing that decides whether anyone can build on it. */
   const access = a.dataset?.access;

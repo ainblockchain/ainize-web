@@ -124,7 +124,14 @@ test('a malformed anchor from any node must not white-page the explorer', () => 
   // string sailed past the length check — a string has one — and threw on `.join`. Inside a `.map` over the
   // catalogue that is not a broken row, it is a blank page where /explore used to be, for every visitor, caused
   // by one record a stranger published. Anchors are written by other people's nodes; their shapes are claims.
-  const src = readFileSync(fileURLToPath(new URL('../src/components/public/PatchListItem.tsx', import.meta.url)), 'utf8');
-  assert.ok(!/benchmark\.format\?\.length \? a\.benchmark\.format\.join/.test(src), 'the unguarded join is back');
-  assert.ok(src.includes('Array.isArray(f)'), 'the shape is narrowed before it is used');
+  // Every page that renders it, not just the one that happened to crash. What must not appear is a read of the
+  // ANCHOR's field as though its type were guaranteed; a local already narrowed by benchmarkFormats() is fine,
+  // which is the difference between `g.format.join(…)` (safe) and `a.benchmark.format.join(…)` (the crash).
+  for (const f of ['components/public/PatchListItem.tsx', 'pages/PatchPage.tsx', 'pages/BenchmarkPage.tsx']) {
+    const src = code(f).join('\n');
+    assert.ok(!/benchmark\??\.format(\?\.|\.)(length|join)\b/.test(src), `${f}: an anchor field is read as if its type were guaranteed`);
+    if (/benchmark\??\.format/.test(src)) assert.match(src, /benchmarkFormats\(/, `${f}: reads benchmark.format without narrowing it`);
+  }
+  const helper = code('utils/format.ts').join('\n');
+  assert.ok(helper.includes('benchmarkFormats'), 'the shape is narrowed in one place');
 });
