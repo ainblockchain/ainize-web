@@ -59,3 +59,86 @@ node resolved its assets as `<cli>/../../web/dist` — whatever happened to be i
 public saw. That tree had drifted from the published repository and nothing said so. A deployment whose input
 is "whatever is on this disk" cannot be reproduced, rolled back or checked, which is why the default here is
 a git ref and why `--here` has to announce itself.
+
+---
+
+# The host this site runs on
+
+Everything above is how a deploy works anywhere. What follows is the state of the machine that serves
+ainize.ai today — carried over from the pre-split monorepo, which is the only place it was written down.
+
+One origin, one node behind it. The web app calls its API at `baseUrl: '/'`
+(`src/api/api.ts`), so it is same-origin by construction: a CDN serving the assets and pointing
+at a node elsewhere does not work without changing that, and changing it would put CORS, cookies and the
+signed `x-ngram-auth` header across origins.
+
+### What is already done on this machine
+
+```
+~/.ainize-web            a node dedicated to the public site, claimed with its own operator password
+  port 3400, host 127.0.0.1     only nginx reaches it; a node on 0.0.0.0 is reachable AROUND the proxy
+  publicUrl https://ainize.ai
+  roles seller,verifier         NO `serving` role and runtime.api → 127.0.0.1:9 (a dead address)
+```
+
+The runtime is pointed at a dead address on purpose. `serving` would put this node in front of the shared
+vLLM at `:8002`, where a visitor's live test takes the same runtime lock a benchmark run needs — one public
+click could stall a measurement. The site works read-only (catalogue, lineage, docs, verification records)
+until that is flipped deliberately.
+
+Verified: `GET /` returns the app and `GET /api/info` the API, both on 127.0.0.1:3400.
+
+### How it was set up, and the one thing that is easy to get wrong
+
+DNS, nginx and TLS are all done — the site answers 200 over HTTPS and the certificate runs to 2026-12-09.
+Kept because the DNS step below is the kind of thing that is re-derived wrongly the next time somebody points
+a domain at this machine.
+
+1. **DNS.** `ainize.ai` and `www.ainize.ai` both resolve to **101.202.37.20**, which reaches this
+   machine.
+
+   **Do not read the public address off an egress lookup.** This host has no public address of its own — its
+   interfaces are `192.168.1.41` and loopback — and `api.ipify.org` reports **103.139.119.10**, which is the
+   path traffic LEAVES by. Inbound arrives at **101.202.37.20**. They are different, and pointing DNS at the
+   egress address would have produced a domain that resolves, answers nothing, and gives certbot nothing to
+   validate against.
+
+   How to tell which is right without guessing: ask for a Host this nginx already answers and compare the
+   reply to the same request on loopback.
+   ```
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: finance-demo.ainetwork.ai' http://127.0.0.1/        # 301
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: finance-demo.ainetwork.ai' http://<candidate-ip>/    # 301 = it forwards here
+   ```
+   The TLS certificate a candidate presents is the second check: `openssl s_client -connect <ip>:443` showing
+   this machine's existing certificate means the connection terminated here.
+2. **nginx** (needs root):
+   ```
+   sudo cp deploy/nginx/ainize.ai.conf /etc/nginx/sites-available/ainize.ai
+   sudo ln -s /etc/nginx/sites-available/ainize.ai /etc/nginx/sites-enabled/ainize.ai
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+3. **TLS** (after DNS resolves): `sudo certbot --nginx -d ainize.ai -d www.ainize.ai`. Renewal is certbot's
+   own timer; the current certificate expires 2026-12-09.
+4. **Decide what the catalogue reads from** — see below. This one is still open.
+
+### The open decision: which ledger backs the public catalogue
+
+A node's catalogue is derived from its LEDGER, not from its peers, so this decides whether ainize.ai shows
+anything at all.
+
+Measured on this machine today: the `ngram-ain` container is running but **the chain is not serving** — it
+has had nothing listening on 8081 since it initialised on 2026-08-31, and node-a's 1,546 records come from
+its own store rather than from a live chain. So a fresh node set to `ledger: ain` would sync nothing.
+
+Three options, and the third is the only one that is both safe and honest today:
+
+- **Restart the AIN chain** and give the public node `ledger: ain`. Correct shape, but it changes the ledger
+  the benchmark cluster is attached to while a study is unfinished, and the chain has been dead for ten days
+  for reasons nobody has established.
+- **Proxy ainize.ai to node-a (:3402)**, which already has the catalogue. Expedient and wrong: node-a is a
+  throwaway dev cluster whose operator password is a dev credential, and it holds the benchmark's runtime
+  access. A public site must not be a door into it.
+- **Give the public node its own content.** `ainize seed`, or import the knowledges deliberately, so the site
+  shows what it is meant to show and nothing it is not. Self-contained, no dependency on a chain that is
+  down, and reversible.
+
