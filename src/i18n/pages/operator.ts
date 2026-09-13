@@ -1047,6 +1047,39 @@ export const operatorTeach: Dict = {
   'op.sign.wallet.no_install': { ko: 'MetaMask 설치하기', en: 'Install MetaMask' },
   'op.sign.signed_in_as': { ko: '{addr} 으로 연결됨', en: 'Connected as {addr}' },
 
+  // `ainize login` — the page a command line's URL opens. The one prompt in the product whose wrong click has a
+  // lasting consequence, so nothing here is decorative.
+  'op.authorize.title': { ko: '명령줄에 권한을 줄까요?', en: 'Authorize a command line?' },
+  'op.authorize.lead': { ko: '아래 키가 이 노드에서 당신을 대신하게 됩니다. 직접 `ainize login` 을 실행한 게 아니라면 거절하세요.', en: 'The key below will act as you on this node. If you did not just run `ainize login` yourself, reject it.' },
+  'op.authorize.key': { ko: '키', en: 'Key' },
+  'op.authorize.label': { ko: '자칭', en: 'Calls itself' },
+  'op.authorize.label_hint': { ko: '명령줄이 스스로 붙인 이름입니다. 노드가 보증하지 않습니다.', en: 'The command line’s own words about itself — not something this node vouches for.' },
+  'op.authorize.node': { ko: '노드', en: 'Node' },
+  'op.authorize.until': { ko: '만료', en: 'Until' },
+  'op.authorize.message': { ko: '지갑에서 서명할 내용', en: 'What your wallet will sign' },
+  'op.authorize.approve': { ko: '승인하고 서명', en: 'Approve and sign' },
+  'op.authorize.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
+  'op.authorize.reject': { ko: '거절', en: 'Reject' },
+  'op.authorize.signin_first': { ko: '먼저 지갑을 연결하세요. 승인은 연결된 주소로 이뤄집니다.', en: 'Connect your wallet first — the authorisation is made by the address you connect.' },
+  'op.authorize.done': { ko: '승인했습니다. 명령줄로 돌아가세요 — 몇 초 안에 로그인됩니다.', en: 'Approved. Go back to the command line; it will be signed in within a few seconds.' },
+  'op.authorize.done_end': { ko: '언제든지 계정 설정에서 이 키를 해제할 수 있습니다.', en: 'You can end this key at any time from Account settings.' },
+  'op.authorize.rejected': { ko: '거절했습니다. 명령줄은 아무 권한도 받지 못합니다.', en: 'Rejected. The command line gets nothing.' },
+  'op.authorize.expired': { ko: '이 요청은 만료되었습니다. 명령줄에서 `ainize login` 을 다시 실행하세요.', en: 'This request has expired — run `ainize login` again on the command line.' },
+  'op.authorize.used': { ko: '이 요청은 이미 처리되었습니다.', en: 'This request has already been answered.' },
+  'op.authorize.unknown': { ko: '이 노드가 만든 링크가 아닙니다.', en: 'That is not a link this node issued.' },
+  'op.authorize.no_code': { ko: '링크에 요청 코드가 없습니다.', en: 'The link carries no request code.' },
+
+  // Account: the machines that act as you.
+  'op.account.bindings.title': { ko: '나를 대신하는 키', en: 'Keys that act as you' },
+  'op.account.bindings.desc': { ko: '`ainize login` 으로 승인한 명령줄입니다. 해제하면 그 키가 만든 세션도 함께 끊깁니다.', en: 'Command lines you approved with `ainize login`. Ending one also ends the sessions it collected.' },
+  'op.account.bindings.none': { ko: '아직 없습니다.', en: 'None yet.' },
+  'op.account.bindings.this': { ko: '지금 이 세션', en: 'this session' },
+  'op.account.bindings.since': { ko: '{when} 부터', en: 'since {when}' },
+  'op.account.bindings.seen': { ko: '마지막 사용 {when}', en: 'last used {when}' },
+  'op.account.bindings.never': { ko: '사용된 적 없음', en: 'never used' },
+  'op.account.bindings.end': { ko: '해제', en: 'End' },
+  'op.account.bindings.ended': { ko: '{addr} 를 해제했고, 세션 {n}개를 끊었습니다.', en: 'Ended {addr}, and closed {n} session(s).' },
+
   // Signing in gives you a name. Owning the node is what the operator screens need, and it is not the same thing.
   'op.sign.not_owner.title': { ko: '이 노드는 당신의 것이 아닙니다', en: 'This node is not yours' },
   'op.sign.not_owner.body': { ko: '{addr} 으로 연결되어 있지만, 이 노드({node})를 운영하는 주소는 아닙니다. 지식을 가르치고 보상을 받는 데에는 문제가 없습니다 — 운영 화면만 잠겨 있습니다.', en: 'You are connected as {addr}, but that address does not run this node ({node}). Teaching and being paid work exactly as before; only the screens for whoever runs it are closed.' },

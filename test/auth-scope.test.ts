@@ -74,3 +74,25 @@ test('the only signing scheme the browser asks for is the one a wallet can produ
   // The wallet's own answer is checked here: left to the node it becomes an opaque 401 on an unrelated route.
   assert.ok(page.includes('personalSign(w.provider, ch.message, address)'));
 });
+
+test('the authorize page shows the bytes the wallet will sign, not its own account of them', () => {
+  const page = code('pages/AuthorizePage.tsx').join('\n');
+  // A page saying one thing while the wallet signs another is the whole attack. The node composes the message and
+  // stores it; this renders THAT string, so there is only one string and nothing for the two to disagree about.
+  assert.ok(page.includes('<Signed data-testid="authorize-message">{data.message}</Signed>'), 'the message is rendered verbatim');
+  assert.ok(page.includes('personalSign(w.provider, data.message, address)'), 'and it is what gets signed');
+  // The key in full. `0x04…cb55` cannot be compared against what the terminal printed, which is the one check a
+  // person can actually make here.
+  assert.ok(page.includes('<Mono>{data.delegate}</Mono>'), 'the key is not abbreviated');
+  // Readable before signed in: being told to connect a wallet before being allowed to read what for is backwards.
+  const app = code('App.tsx').join('\n');
+  assert.ok(app.includes('<Route path="/authorize" element={<Layout><AuthorizePage /></Layout>} />'), 'not behind a sign-in guard');
+});
+
+test('an expired or spent request is a different answer from a button that fails', () => {
+  const page = code('pages/AuthorizePage.tsx').join('\n');
+  // "Run it again" and "you already did this" are different things to do next, and a person who is told neither
+  // will click approve until something happens.
+  assert.match(page, /data\.status === 'expired' \? t\('op\.authorize\.expired'\)/);
+  assert.match(page, /data\.status !== 'pending' \? t\('op\.authorize\.used'\)/);
+});

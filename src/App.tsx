@@ -21,6 +21,7 @@ const TrackPage = lazy(() => import('./pages/TrackPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const SigningPage = lazy(() => import('./pages/SigningPage'));
+const AuthorizePage = lazy(() => import('./pages/AuthorizePage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ManagePage = lazy(() => import('./pages/ManagePage'));
 const LogsPage = lazy(() => import('./pages/LogsPage'));
@@ -65,6 +66,9 @@ export default function App() {
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />
                 <Route path="/terms" element={<Layout><TermsPage /></Layout>} />
                 <Route path="/signing" element={<Layout><SigningPage /></Layout>} />
+                {/* `ainize login` prints a link to here. Not behind a sign-in guard: a person who is not signed in
+                    must be able to READ what is being asked before being told to connect a wallet for it. */}
+                <Route path="/authorize" element={<Layout><AuthorizePage /></Layout>} />
                 {/* one route for the whole docs tree: /docs, /docs/<page>, /docs/ko/<page> — React Router matches the splat against the empty remainder, so /docs still resolves */}
                 <Route path="/docs/*" element={<Layout><DocsPage /></Layout>} />
                 <Route path="/chat" element={<Layout><ChatPage /></Layout>} />

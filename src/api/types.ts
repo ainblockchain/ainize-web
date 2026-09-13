@@ -295,6 +295,8 @@ export interface AuthMe {
   subject: string | null;
   /** how it proved itself: `eip191` is a person at a browser wallet, `ain` is a key acting on its own */
   scheme: 'ain' | 'eip191' | null;
+  /** the key that stood in for the subject, when one did — a CLI whose key they authorised. Null means they signed for themselves. */
+  via_key?: string | null;
   /** does `subject` own this node — the question every privileged route actually asks */
   isOwner: boolean;
   /** `self` for a session at all, plus `owner`. Read this rather than inferring permission from `signedIn`. */
@@ -306,6 +308,31 @@ export interface AuthMe {
   canEnroll: boolean;
   operators?: string[];
 }
+
+/**
+ * What a command line is asking for, as the node describes it.
+ *
+ * `message` is the exact string the wallet will be asked to sign. The page shows THAT, rather than composing its
+ * own description from the fields beside it, because the bytes are what the person actually approves — a page and
+ * a wallet prompt that say different things is the whole attack.
+ */
+export interface DeviceRequest {
+  status: 'pending' | 'approved' | 'claimed' | 'expired';
+  /** the CLI key's address — what is being asked to speak for you */
+  delegate: string;
+  /** what the CLI called itself. Its own words, never a claim the node stands behind. */
+  label: string | null;
+  message: string;
+  /** when the authorisation itself runs out — not when the request does */
+  expires: number;
+  expires_at: number;
+  node: string;
+  name: string;
+  owner: string | null;
+}
+
+/** A key that acts as a person on this node, until they end it. */
+export interface Binding { delegate: string; owner: string; label: string | null; created_at: number; last_seen_at: number | null }
 
 /** One claim to ownership of a node, and where it comes from — which decides whether it can be taken back. */
 export interface NodeOwner {

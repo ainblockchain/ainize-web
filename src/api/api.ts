@@ -4,7 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
-  AuthMe, NodeOwner, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
+  AuthMe, NodeOwner, Binding, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile, VerifierProfile,
@@ -142,6 +142,19 @@ export const api = createApi({
     // or with the one-time token — and demands a signature from the address, because nothing else vouches for a
     // first owner and a typo would enrol an address nobody holds the key to.
     enroll: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/enroll', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
+    // `ainize login`: what a command line is asking for, and the one signature that answers it. `message` is the
+    // exact string the wallet will sign — rendered rather than recomposed here, so what a person reads on the
+    // page and what they read in MetaMask cannot drift apart.
+    deviceRequest: b.query<DeviceRequest, string>({ query: (code) => `api/auth/device/${encodeURIComponent(code)}` }),
+    approveDevice: b.mutation<{ ok: boolean; delegate: string; owner: string; expires: number }, { code: string; signature: string }>({
+      query: ({ code, signature }) => ({ url: `api/auth/device/${encodeURIComponent(code)}/approve`, method: 'POST', body: { signature } }),
+    }),
+    // Every key that acts as you, and ending one. A binding outlives a session on purpose, so it has to be
+    // visible and revocable — and revoking ends the sessions the key already collected.
+    bindings: b.query<{ bindings: Binding[]; via: string | null }, void>({ query: () => 'api/auth/bindings', providesTags: ['Me'] }),
+    removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
+      query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
+    }),
     // Who owns this node. An owner may add another from here; only what was added from here may be removed from
     // here, because the other two claims live in the node's identity and in a file on its machine.
     owners: b.query<{ owners: NodeOwner[] }, void>({ query: () => 'api/auth/owners', providesTags: ['Me'] }),
@@ -339,6 +352,7 @@ export const {
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
+  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

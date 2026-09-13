@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import {
   errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
   useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery, useWalletSendMutation,
-  useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
+  useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation, useBindingsQuery, useRemoveBindingMutation,
 } from '@/api/api';
 import type { NodeOwner, PayoutRow, Settings, Settlement } from '@/api/types';
 import { useT } from '@/i18n';
@@ -157,6 +157,63 @@ function Owners() {
       {notice && <Muted style={{ display: 'block', marginTop: 10 }}>{notice}</Muted>}
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 10 }}>{error}</Alert>}
       <Muted style={{ display: 'block', marginTop: 10 }}>{t('op.account.operators.how')}</Muted>
+    </>
+  );
+}
+
+/**
+ * Every command line that acts as you, and ending one.
+ *
+ * A binding outlives a session on purpose — that is what stops `ainize login` from being something you do every
+ * morning — so it has to be visible and it has to be revocable. Ending one closes the sessions that key already
+ * collected, because a 30-day cookie would otherwise outlive the revocation by a month.
+ *
+ * This is yours, not the node's: it lists what acts as YOU, which is why it is shown to anyone signed in rather
+ * than only to whoever owns the machine.
+ */
+function Bindings() {
+  const { t } = useT();
+  const { data, isLoading } = useBindingsQuery();
+  const [removeBinding, removeState] = useRemoveBindingMutation();
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const end = async (delegate: string) => {
+    setNotice(null); setError(null);
+    try {
+      const r = await removeBinding(delegate).unwrap();
+      setNotice(t('op.account.bindings.ended', { addr: shortAddr(delegate, 6), n: r.sessions_ended }));
+    } catch (e) { setError(errorMessage(e)); }
+  };
+  const rows = data?.bindings ?? [];
+  return (
+    <>
+      <SubTitle $mt={56}>{t('op.account.bindings.title')}</SubTitle>
+      <Description>{t('op.account.bindings.desc')}</Description>
+      {isLoading && <CenterProgress />}
+      {!isLoading && rows.length === 0 && <Muted style={{ display: 'block' }}>{t('op.account.bindings.none')}</Muted>}
+      <KeyValue data-testid="bindings">
+        {rows.map((b) => (
+          <Fragment key={b.delegate}>
+            <dt>{b.label || shortAddr(b.delegate, 6)}</dt>
+            <dd>
+              <Mono>{b.delegate}</Mono>
+              {/* Which of these is the one reading this page. Without it, ending the right key is guesswork, and
+                  ending the wrong one signs you out of the terminal you were about to fix it from. */}
+              {data?.via === b.delegate && <Muted style={{ marginLeft: 8 }}>({t('op.account.bindings.this')})</Muted>}
+              <Muted style={{ marginLeft: 8 }}>
+                {t('op.account.bindings.since', { when: dateTime(b.created_at) })}
+                {' · '}
+                {b.last_seen_at ? t('op.account.bindings.seen', { when: dateTime(b.last_seen_at) }) : t('op.account.bindings.never')}
+              </Muted>
+              <Button variant="text" size="small" type="button" disabled={removeState.isLoading} onClick={() => void end(b.delegate)} style={{ marginLeft: 10 }}>
+                {t('op.account.bindings.end')}
+              </Button>
+            </dd>
+          </Fragment>
+        ))}
+      </KeyValue>
+      {notice && <Muted style={{ display: 'block', marginTop: 10 }}>{notice}</Muted>}
+      {error && <Alert $tone="error" role="alert" style={{ marginTop: 10 }}>{error}</Alert>}
     </>
   );
 }
@@ -349,7 +406,8 @@ export default function AccountPage() {
         </SettingsForm>
       )}
 
-      {/* --------------------------------------------------- who owns this node */}
+      {/* --------------------------------------------------- what acts as you, and who owns this node */}
+      <Bindings />
       <Owners />
 
       {/* ------------------------------------------------------------ teaching (settings live on My knowledge → Teaching, spec §5.13) */}
