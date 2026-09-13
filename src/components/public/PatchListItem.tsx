@@ -269,8 +269,21 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
   const seal: 'sealed' | 'retired' | 'pending' | null = entry.quorum_ok
     ? (entry.status === 'VERIFIED' ? 'sealed' : entry.status === 'SUPERSEDED' ? 'retired' : null)
     : (entry.status === 'VERIFYING' || entry.status === 'ANNOUNCED' ? 'pending' : null);
-  /** How the verifiers asked their questions — two knowledges scored on different forms are different exams. */
-  const formats = a.benchmark.format?.length ? a.benchmark.format.join(' + ') : null;
+  /**
+   * How the verifiers asked their questions — two knowledges scored on different forms are different exams.
+   *
+   * Read defensively, because this field comes off an ANCHOR: a record any node on the network may write. The
+   * type says `string[]` and a node that wrote a bare string sailed past `?.length` — a string has one — and then
+   * threw on `.join`, which in a `.map` over the catalogue is not a broken row, it is a white page where the
+   * explorer used to be. One malformed anchor from one stranger took down everyone's /explore.
+   *
+   * So the shape is narrowed rather than trusted. The same rule applies to anything else read off an anchor.
+   */
+  const formats = ((): string | null => {
+    const f = a.benchmark?.format as unknown;
+    if (Array.isArray(f)) return f.filter((x) => typeof x === 'string' && x).join(' + ') || null;
+    return typeof f === 'string' && f ? f : null;
+  })();
   const family = useFamily(entry, nameOf);
   /** Who may read the questions this was trained from — the thing that decides whether anyone can build on it. */
   const access = a.dataset?.access;
