@@ -6,10 +6,10 @@ summary: Every key of a node config.json, its type, its default and the rules it
 # Configuration reference
 
 > [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/core/src/config-schema.ts` and `packages/core/src/config.ts` and `packages/core/src/types.ts`.
+> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-core/src/config-schema.ts` and `ainize-core/src/config.ts` and `ainize-core/src/types.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-All 131 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
+All 134 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
 
 ## How to read this page
 
@@ -56,6 +56,7 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `verifier.quorum` | a number — must be a whole number; must be at least 1 | `2` |   |
 | `verifier.sellUnverified` | a boolean | unset | Sell knowledge that has NOT met the quorum, at the buyer's risk. Off by default. It does NOT change the status: an unverified anchor stays ANNOUNCED or VERIFYING and is never relabelled VERIFIED. Verification is the one quality signal this marketplace has, and a status claiming "verified" when nobody checked would be worth less than no status at all. What this permits is a buyer choosing, with the attestation count in front of them, to take the risk — which is a different thing from the network hiding that there is one. |
 | `verifier.stake` | a string — must be a decimal amount in quotes, e.g. "0.1" | unset | **Deprecated.** Never escrowed. Kept so existing config.json files still validate; the node ignores it and neither attestations nor challenges carry it any more (item 127). |
+| `verifier.requireBond` | a number — must not be negative | unset |   |
 | `verifier.allowSelfAttest` | a boolean | `false` | false (the default): the author of an anchor cannot attest it — the write is refused and such records never count toward the quorum. |
 | `verifier.intervalMs` | a number — must be a whole number; must be at least 1 | `5000` |   |
 | `verifier.auto` | a boolean | `true` | false = verify only on demand (`ainize patch verify` / POST /api/patches/:id/verify); no background rounds. Default true. |
@@ -105,6 +106,8 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `teach.trainer.timeoutMs` | a number — must be a whole number; must be at least 1 | `1800000` |   |
 | `teach.trainer.minFreeGpuMb` | a number — must be a whole number; must not be negative | `20000` |   |
 | `teach.trainer.idleStopMin` | a number — must be a whole number; must not be negative | `30` |   |
+| `teach.trainer.microBatch` | a number | unset | The two knobs that decide peak GPU memory. Unset, both are derived from the question count — and both derivations give the LARGEST value to the LARGEST lesson, which is backwards: they raise the pressure exactly on the runs that take hours to reach the point of failing, and the failure lands at the first training step, after the whole baseline probe. |
+| `teach.trainer.maxContrast` | a number | unset | Contrast pairs. Unset = ceil(rows/2) capped at 64. Fewer pairs means less protection for unrelated answers. |
 | `teach.locality` | an object (set its keys one at a time) |   | Locality gate: fixed prompts whose greedy answers must stay identical for at least `minSame` of them. |
 | `teach.locality.prompts` | a comma list | 12 items — [the default `config.json`](#the-default-configjson) |   |
 | `teach.locality.minSame` | a number — must be a whole number; must not be negative | `11` |   |
@@ -158,7 +161,7 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 
 ## Protected keys
 
-`ainize config set` refuses these: the identity is the node's only key pair, and the password hash is written by `ainize login`.
+`ainize config set` refuses these. The identity is the node's only key pair — changing it changes who everything this node published belongs to. `operatorPasswordHash` is a field nothing reads any more: it is still parsed so a config that has one still loads, and still refused here because there is nothing left that would act on it.
 
 - `identity`
 - `identity.privateKey`

@@ -2,7 +2,7 @@
 title: 빠른 시작
 summary: 내 노드를 띄우고, 남이 공개한 지식을 내 모델에 넣고, 같은 질문을 넣기 전과 뒤에 던져 봅니다.
 source: en/get-started/quickstart.md
-source_sha256: 879b8b1658cdbb9a665a1d92d833ec055ccc786288e97a99fc95762ca6916b5f
+source_sha256: dabc7add7c533dbb400cba994b49d651f24c23df1d9b8e55dd09edd0f7340bab
 ---
 
 # 빠른 시작
@@ -167,23 +167,47 @@ peers    0 configured
 
 ## 5. 로그인
 
-공개하고, 사고, 설정을 바꾸는 일은 운영자의 몫이고, 운영자란 이 노드의 비밀번호를 아는 사람입니다. 처음 실행하는
-`ainize login`이 비밀번호를 정하고, 그다음부터는 그것을 묻습니다.
+공개하고, 사고, 설정을 바꾸는 일은 이 노드를 **소유한** 사람의 몫입니다. 이 기계에서는 그게 이미 정해져 있습니다.
+이 홈 디렉터리의 `config.json`에 이 노드의 자기 키가 있고, 그 키가 이 노드가 공개하는 모든 것의 주인이기 때문입니다.
 
 ```bash
 ainize login
 ```
 
 ```text
-✓ signed in to http://localhost:3694 as 0x48A3BB4b…8ea4 (signed with a key — no password)
+✓ signed in to http://localhost:3694 as 0x48A3BB4b…8ea4 (signed with a key)
 ```
 
-**비밀번호가 없습니다.** 이 노드의 자기 키가 운영자이고, 그 키는 이 홈 디렉터리의 `config.json`에 있으며,
-`login`은 한 줄짜리 챌린지에 그 키로 서명합니다. 고를 것도, 외울 것도, 스크립트에 넣을 것도 없습니다 —
-그래서 이 명령은 프롬프트에서 멈춰 서지도 않습니다.
+**비밀번호가 없습니다.** `login`은 한 줄짜리 챌린지에 그 키로 서명합니다. 고를 것도, 외울 것도, 스크립트에 넣을
+것도 없습니다 — 그래서 이 명령은 프롬프트에서 멈춰 서지도 않습니다.
 
-`cli.json`에 담긴 토큰을 CLI가 이후 계속 보냅니다. 그래서 홈 디렉터리마다 한 번만 로그인하면 됩니다. (프롬프트에
-입력할 수 없는 스크립트라면 `--password`를 넘기거나 `AINIZE_PASSWORD`를 씁니다. 위 줄도 실제로는 그렇게 실행했습니다.)
+**다른 기계에는 그 키가 없습니다.** 그리고 지갑 키를 노트북에 복사해 두는 것이야말로 지갑이 막으려는 일입니다.
+그래서 CLI는 그 기계에서 쓸 자기 키를 따로 만들고, 그 키를 대신 승인해 달라고 사람에게 한 번 부탁합니다.
+
+```bash
+ainize login --node https://ainize.ai
+```
+
+```text
+  Open this to authorise this machine:
+
+    https://ainize.ai/authorize?code=7Qd…
+
+  key  0x9f2c…
+  name "you@laptop"
+
+  Waiting…  (Ctrl-C to stop)
+```
+
+링크를 열고, 지갑을 연결하고, 화면에 뜬 키가 터미널에 찍힌 키와 같은지 확인한 뒤 승인하면 됩니다. 그러면 CLI는
+**당신**인 세션을 갖게 됩니다 — 그 기계를 한 번도 떠나지 않은 키로 만들어진 세션입니다. 노드가 그 승인을 기록해
+두므로, 다음번 `ainize login`부터는 브라우저가 아예 필요 없습니다. `ainize whoami`는 지금 어떤 주소로 행동하고
+있는지와 그 일을 대신하는 키를 알려주고, `ainize bindings`는 나를 대신하는 기계들을 보여주고 그중 하나를 끊습니다.
+
+로그인은 누구나 할 수 있습니다. 로그인이 주는 것은 **이름**이지 권한이 아닙니다. 노드를 소유하는 것은 별개이고,
+`ainize operators`가 이 노드를 누가 소유하는지 보여줍니다.
+
+`cli.json`에 담긴 토큰을 CLI가 이후 계속 보냅니다. 그래서 홈 디렉터리마다 한 번만 로그인하면 됩니다.
 
 `cli.json`에는 노드의 주소도 함께 적힙니다. 이 파일에 대해 기억할 것은 그 한 가지입니다. CLI는 `config.json`이 지금
 무엇이라 적고 있든, 로그인할 때의 그 주소로 말을 겁니다. 로그인한 뒤에 노드의 포트를 바꾸면 이후 모든 명령이 옛 주소를

@@ -6,10 +6,10 @@ summary: Every `ainize` command, argument and option, generated from the CLI's o
 # CLI reference
 
 > [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/cli/src/bin.ts`.
+> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-cli/src/main.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-Every command the `ainize` CLI accepts — 29 top-level commands, 92 of them runnable — with the arguments, options, defaults and examples each one declares. The binary is also installed as `ngram`; the two names run the same program.
+Every command the `ainize` CLI accepts — 31 top-level commands, 94 of them runnable — with the arguments, options, defaults and examples each one declares.
 
 ## How to read this page
 
@@ -46,9 +46,11 @@ These are accepted by every command.
 | [`ainize nodes`](#ainize-nodes) | List the peers this node talks to and the nodes it knows of |
 | [`ainize blobs`](#ainize-blobs) | Knowledge files this node holds on disk, and what they cost |
 | [`ainize gc`](#ainize-gc) | Delete knowledge files this node neither published nor bought (verification copies) |
-| [`ainize login`](#ainize-login) | Sign in as the node operator — a signature, not a password |
-| [`ainize operators`](#ainize-operators) | Who may sign in to this node (its own key, always, plus operatorAddresses) |
-| [`ainize logout`](#ainize-logout) | Forget the operator session |
+| [`ainize login`](#ainize-login) | Sign in — on the node's own machine with its key, anywhere else by approving this machine in a browser |
+| [`ainize whoami`](#ainize-whoami) | Which address this session acts as, and which key is doing the acting |
+| [`ainize bindings`](#ainize-bindings) | Machines you have authorised to act as you on this node |
+| [`ainize operators`](#ainize-operators) | Who owns this node (its own key, always, plus operatorAddresses) |
+| [`ainize logout`](#ainize-logout) | End this session |
 | [`ainize peers`](#ainize-peers) | Manage peers |
 | [`ainize patch`](#ainize-patch) | Publish, inspect, verify, buy and apply knowledge patches — or give an ENS name to use one in a single line |
 | [`ainize publish`](#ainize-publish) | One line to sell knowledge: register a .npz + benchmark and announce it at once — the network verifies, you get paid per sale (`ainize patch publish` is the same operation, stopping at a draft) |
@@ -273,6 +275,7 @@ Start the node (foreground unless --detach)
 - **`--roles`** (`string`) — comma list of seller,verifier,serving,gateway for this run (default: the config value)
 - **`--public-url`** (`string`) — URL peers should reach this node at — an address on this machine is useless to them (default: the config value)
 - **`--detach`, `-d`** (`boolean`, default `false`) — run in the background (pid in AINIZE_HOME/node.pid)
+- **`--web-dist`** (`string`) — directory of built web assets to serve (default: the tree beside this CLI; also AINIZE_WEB_DIST)
 
 **Examples**
 
@@ -423,21 +426,62 @@ ainize gc --older-than 30d
 ainize login [options]
 ```
 
-Sign in as the node operator — a signature, not a password
+Sign in — on the node's own machine with its key, anywhere else by approving this machine in a browser
 
 **Options**
 
-- **`--as`** (`string`) — sign with this private key instead of the node's own — for an address already in operatorAddresses
-- **`--enroll`** (`boolean`) — also add the signing address to this node's operators (needs its own machine, or the one-time token)
+- **`--device`** (`boolean`) — print a URL and wait for someone to approve this machine's key in a browser — the default anywhere the node's config.json is not
+- **`--node-key`** (`boolean`) — sign with the node's own key from config.json (the default on its own machine)
+- **`--label`** (`string`) — what to call this machine in the approval prompt and in the list of what acts as you
+- **`--as`** (`string`) — sign with this private key instead — for an address that already owns this node
+- **`--enroll`** (`boolean`) — also make the signing address an owner of this node (needs its own machine, or the one-time token)
 - **`--setup-token`** (`string`) — with --enroll from another machine: the one-time token in the node's AINIZE_HOME/setup-token (or AINIZE_SETUP_TOKEN)
 
 **Examples**
 
 ```bash
-# signs a challenge with this node's own key
+# on the node's machine: signs with its own key; anywhere else: prints a link to approve
 ainize login
-# enrol another key as an operator, from another machine
-ainize login --as <key> --enroll --setup-token "$(ssh host cat ~/.ainize/setup-token)"
+# sign in to somebody else's node as yourself
+ainize login --node https://ainize.ai
+# approve this machine explicitly, under a name you will recognise later
+ainize login --device --label "ci runner"
+```
+
+## `ainize whoami`
+
+```bash
+ainize whoami
+```
+
+Which address this session acts as, and which key is doing the acting
+
+**Examples**
+
+```bash
+# and whether that address owns this node
+ainize whoami
+```
+
+## `ainize bindings`
+
+```bash
+ainize bindings [options]
+```
+
+Machines you have authorised to act as you on this node
+
+**Options**
+
+- **`--end`** (`string`) — stop a key acting as you, and close the sessions it collected
+
+**Examples**
+
+```bash
+# list them
+ainize bindings
+# shut out a laptop you no longer have
+ainize bindings --end 0x…
 ```
 
 ## `ainize operators`
@@ -446,11 +490,11 @@ ainize login --as <key> --enroll --setup-token "$(ssh host cat ~/.ainize/setup-t
 ainize operators [options]
 ```
 
-Who may sign in to this node (its own key, always, plus operatorAddresses)
+Who owns this node (its own key, always, plus operatorAddresses)
 
 **Options**
 
-- **`--add`** (`string`) — an address that may sign in from now on
+- **`--add`** (`string`) — an address that owns this node from now on
 - **`--remove`** (`string`) — take an address off the list
 
 **Examples**
@@ -458,17 +502,30 @@ Who may sign in to this node (its own key, always, plus operatorAddresses)
 ```bash
 # list them
 ainize operators
-# let an AIN Wallet address sign in
+# let a wallet address run this node
 ainize operators --add 0x…
 ```
 
 ## `ainize logout`
 
 ```bash
-ainize logout
+ainize logout [options]
 ```
 
-Forget the operator session
+End this session
+
+**Options**
+
+- **`--forget`** (`boolean`) — also destroy this machine's own key, so signing in here again needs approving in a browser
+
+**Examples**
+
+```bash
+# end the session, keep the key
+ainize logout
+# and leave nothing behind on this machine
+ainize logout --forget
+```
 
 ## `ainize peers`
 

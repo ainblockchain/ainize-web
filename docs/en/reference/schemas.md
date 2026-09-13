@@ -6,7 +6,7 @@ summary: The reusable request and response shapes of the node HTTP API
 # Schemas
 
 > [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/node/src/openapi.ts`.
+> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
 The 28 named shapes the [HTTP API](./http-api.md) refers to.

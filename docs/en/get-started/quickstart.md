@@ -165,20 +165,47 @@ peers    0 configured
 
 ## 5. Log in
 
-Publishing, buying and configuring are operator actions, and the operator is whoever knows this node's password. The
-first `ainize login` sets it; after that it asks for it.
+Publishing, buying and configuring belong to whoever **owns** this node — and on this machine that is already
+settled, because the node's own key is in the `config.json` this home directory holds and that key owns
+everything the node publishes.
 
 ```bash
 ainize login
 ```
 
 ```text
-✓ signed in to http://localhost:3694 as 0x48A3BB4b…8ea4 (signed with a key — no password)
+✓ signed in to http://localhost:3694 as 0x48A3BB4b…8ea4 (signed with a key)
 ```
 
-**There is no password.** The node's own key is its operator, it is in the `config.json` this home directory
-holds, and `login` signs a one-line challenge with it. Nothing to choose, nothing to remember, and nothing to
-type in a script — which is also why this command never blocks waiting for a prompt.
+**There is no password.** `login` signs a one-line challenge with the node's key. Nothing to choose, nothing to
+remember, and nothing to type in a script — which is also why this command never blocks waiting for a prompt.
+
+**From any other machine there is no such key**, and copying one onto a laptop is what wallets exist to prevent.
+So the CLI keeps a key of its own there and asks a person to vouch for it, once:
+
+```bash
+ainize login --node https://ainize.ai
+```
+
+```text
+  Open this to authorise this machine:
+
+    https://ainize.ai/authorize?code=7Qd…
+
+  key  0x9f2c…
+  name "you@laptop"
+
+  Waiting…  (Ctrl-C to stop)
+```
+
+Open the link, connect your wallet, check that the key on the page is the one printed here, and approve. The CLI
+then holds a session that is **you**, made by a key that never left that machine — and the next `ainize login`
+there needs no browser at all, because the node wrote the authorisation down. `ainize whoami` says which address
+you act as and which key is doing the acting; `ainize bindings` lists every machine that speaks for you and can
+shut one out.
+
+Signing in is open to anyone: it gives you a **name**, not a permission. Owning a node is separate —
+`ainize operators` lists who owns this one.
 
 The token in `cli.json` is what the CLI sends afterwards, so you sign in once per home directory.
 

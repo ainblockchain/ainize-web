@@ -6,10 +6,10 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 # HTTP API reference
 
 > [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `packages/node/src/openapi.ts`.
+> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-133 operations on 117 paths, grouped into the 8 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+142 operations on 125 paths, grouped into the 8 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -180,10 +180,19 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/chain`](#get-apichain) | none | Ledger / chain state and balance |
 | `GET` | [`/api/drive`](#get-apidrive) | none | aindrive state and file list |
 | `POST` | [`/api/drive`](#post-apidrive) | operator | aindrive start / stop / sync |
-| `GET` | [`/api/auth/me`](#get-apiauthme) | none | Who am I (signed in?, node address, canEnroll) |
-| `POST` | [`/api/auth/challenge`](#post-apiauthchallenge) | none | A single-use nonce to sign for sign-in |
-| `POST` | [`/api/auth/wallet`](#post-apiauthwallet) | none | Sign in by signature — the node's own key always, plus operatorAddresses |
-| `POST` | [`/api/auth/enroll`](#post-apiauthenroll) | none | Add an address to operatorAddresses (loopback or x-setup-token) and sign it in |
+| `GET` | [`/api/auth/me`](#get-apiauthme) | none | Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits |
+| `POST` | [`/api/auth/challenge`](#post-apiauthchallenge) | none | A single-use nonce to sign for sign-in — `scheme` picks the signing rules and is fixed from here on |
+| `POST` | [`/api/auth/wallet`](#post-apiauthwallet) | none | Sign in by signature, under the scheme the challenge was issued for — open to any address; owning the node is a separate question |
+| `POST` | [`/api/auth/enroll`](#post-apiauthenroll) | none | Become an owner of this node and sign in — needs the machine itself (loopback or x-setup-token) and a signature from the address |
+| `GET` | [`/api/auth/owners`](#get-apiauthowners) | none | Who owns this node — its own key, the config list, and grants made from a browser |
+| `POST` | [`/api/auth/owners`](#post-apiauthowners) | none | Grant ownership to an address (an owner vouches; no signature from the address) |
+| `DELETE` | [`/api/auth/owners/{address}`](#delete-apiauthownersaddress) | none | Revoke a granted ownership, ending that address's sessions |
+| `POST` | [`/api/auth/device`](#post-apiauthdevice) | none | `ainize login`: a command line asks to be authorised — returns a code, a URL to open, and the poll secret that alone can collect the session |
+| `GET` | [`/api/auth/device/{code}`](#get-apiauthdevicecode) | none | What is being authorised, for the page that shows it — including the exact message the wallet will sign |
+| `POST` | [`/api/auth/device/{code}/approve`](#post-apiauthdevicecodeapprove) | none | Approve it: one wallet signature (eip191) over the message the node issued, from the address that is signed in |
+| `POST` | [`/api/auth/device/{code}/claim`](#post-apiauthdevicecodeclaim) | none | The CLI collecting its session — single use, and needs the poll secret it never printed |
+| `GET` | [`/api/auth/bindings`](#get-apiauthbindings) | none | Every key that acts as you, and which one is acting now |
+| `DELETE` | [`/api/auth/bindings/{delegate}`](#delete-apiauthbindingsdelegate) | none | End one, and the sessions it collected |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | none | Log out |
 | `POST` | [`/api/branches/{name}/patches`](#post-apibranchesnamepatches) | operator | Add knowledge to a branch (owner only) |
 | `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Unsubscribe from a branch (unload its knowledge) |
@@ -2899,7 +2908,7 @@ aindrive start / stop / sync
 
 ### `GET /api/auth/me`
 
-Who am I (signed in?, node address, canEnroll)
+Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits
 
 **Auth** — none
 
@@ -2911,19 +2920,25 @@ Who am I (signed in?, node address, canEnroll)
 
 ### `POST /api/auth/challenge`
 
-A single-use nonce to sign for sign-in
+A single-use nonce to sign for sign-in — `scheme` picks the signing rules and is fixed from here on
 
 **Auth** — none
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `scheme` | `"ain"` \| `"eip191"` | ain = a key signs (CLI); eip191 = a person signs in a browser wallet (default `"ain"`) |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | nonce + the exact message to sign | `object` |
+| `200` | nonce + the exact message to sign, and the scheme it must be signed under | `object` |
 
 ### `POST /api/auth/wallet`
 
-Sign in by signature — the node's own key always, plus operatorAddresses
+Sign in by signature, under the scheme the challenge was issued for — open to any address; owning the node is a separate question
 
 **Auth** — none
 
@@ -2945,7 +2960,7 @@ Sign in by signature — the node's own key always, plus operatorAddresses
 
 ### `POST /api/auth/enroll`
 
-Add an address to operatorAddresses (loopback or x-setup-token) and sign it in
+Become an owner of this node and sign in — needs the machine itself (loopback or x-setup-token) and a signature from the address
 
 **Auth** — none
 
@@ -2963,6 +2978,183 @@ Add an address to operatorAddresses (loopback or x-setup-token) and sign it in
 |---|---|---|
 | `200` | token | `object` |
 | `403` | enroll_local_only |   |
+
+### `GET /api/auth/owners`
+
+Who owns this node — its own key, the config list, and grants made from a browser
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | owners[] with the source of each claim | `object` |
+
+### `POST /api/auth/owners`
+
+Grant ownership to an address (an owner vouches; no signature from the address)
+
+**Auth** — none
+
+**Request body** — `application/json`, optional
+
+| Field | Type |
+|---|---|
+| `address` | `string` |
+| `note` | `string` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the new owner list | `object` |
+| `401` | not signed in |   |
+| `403` | signed in, but not an owner |   |
+
+### `DELETE /api/auth/owners/{address}`
+
+Revoke a granted ownership, ending that address's sessions
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `address` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the new owner list | `object` |
+| `400` | the node's own key, a config entry, or yourself |   |
+| `404` | not an owner |   |
+
+### `POST /api/auth/device`
+
+`ainize login`: a command line asks to be authorised — returns a code, a URL to open, and the poll secret that alone can collect the session
+
+**Auth** — none
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `delegate` | `string` | yes | the CLI key's address |
+| `label` | `string` |   | what the CLI calls itself; shown in quotes, never a claim the node stands behind |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | code, url, poll_secret, interval_ms, expires_at | `object` |
+
+### `GET /api/auth/device/{code}`
+
+What is being authorised, for the page that shows it — including the exact message the wallet will sign
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `code` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | status, delegate, label, message, expires | `object` |
+| `404` | not a code this node issued |   |
+
+### `POST /api/auth/device/{code}/approve`
+
+Approve it: one wallet signature (eip191) over the message the node issued, from the address that is signed in
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `code` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `signature` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | delegate, owner, expires | `object` |
+| `401` | not signed in, or the signature is not the signed-in address over these bytes |   |
+| `409` | already approved or already collected |   |
+| `410` | the request timed out |   |
+
+### `POST /api/auth/device/{code}/claim`
+
+The CLI collecting its session — single use, and needs the poll secret it never printed
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `code` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `poll_secret` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {status:pending} or {status:approved, token, owner} | `object` |
+| `404` | unknown code or wrong poll secret — deliberately the same answer |   |
+| `409` | already collected |   |
+| `410` | nobody approved it in time |   |
+
+### `GET /api/auth/bindings`
+
+Every key that acts as you, and which one is acting now
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | bindings[], via | `object` |
+| `401` | not signed in |   |
+
+### `DELETE /api/auth/bindings/{delegate}`
+
+End one, and the sessions it collected
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `delegate` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | sessions_ended, bindings[] | `object` |
+| `404` | that key does not act as you |   |
 
 ### `POST /api/auth/logout`
 

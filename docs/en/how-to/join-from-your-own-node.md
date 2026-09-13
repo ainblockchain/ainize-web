@@ -38,7 +38,7 @@ address     0x8fdAAE00D648273Be5AD9b7f7D6a19e1A6e94D04
 listens on  127.0.0.1:3455  (this machine only)
 ledger      local
 roles       seller, serving
-operator    password set — this node is claimed
+owner       this node's own key  (`ainize login` signs in with it — no password)
 the private key lives in ~/.ainize/config.json and this is the only copy — back it up now: `ainize keys backup <file>`
 ```
 

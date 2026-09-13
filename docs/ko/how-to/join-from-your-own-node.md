@@ -2,7 +2,7 @@
 title: 내 노드로 네트워크에 합류하기
 summary: 이 기계 바깥의 노드가 네트워크를 찾고, 지식을 받아 쓰고, 자기 지식을 되팔기까지 해야 하는 일 — 아무도 나에게 닿을 수 없는 경우까지.
 source: en/how-to/join-from-your-own-node.md
-source_sha256: 6ba9e8e1b1ce9e9b1efb743f16808cf44b33daa79f208219796e56bb1ca6a4c2
+source_sha256: 942d8fb1603f7b080f5a0110628464db9c65899b685b203b781bf4629124b946
 ---
 
 # 내 노드로 네트워크에 합류하기
@@ -40,7 +40,7 @@ address     0x8fdAAE00D648273Be5AD9b7f7D6a19e1A6e94D04
 listens on  127.0.0.1:3455  (this machine only)
 ledger      local
 roles       seller, serving
-operator    password set — this node is claimed
+owner       this node's own key  (`ainize login` signs in with it — no password)
 the private key lives in ~/.ainize/config.json and this is the only copy — back it up now: `ainize keys backup <file>`
 ```
 
