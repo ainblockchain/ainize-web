@@ -29,10 +29,14 @@ live. Do not leave a dirty release serving: re-run without it once the work is p
    `build-info.json` beside them. About 70 MB; copying the tree and its `node_modules` instead was 1.1 GB per
    release, five of which do not fit on a disk that also holds a model.
 5. Flips `~/ainize-web-releases/current` to it with one `mv -T`. One syscall: nobody is served half a build.
-6. Restarts the app — `systemctl --user restart ainize-web` when the unit is installed, a `next start` by hand
-   otherwise — and **waits for it to answer** before reporting success. A release that exits on start-up used
-   to be reported as a good deploy while the previous process kept serving.
-7. Deletes all but the five most recent releases.
+6. Restarts the app — `systemctl --user restart ainize-web` when the unit is installed, a detached
+   `node server.js` otherwise — and **waits for it to answer** before reporting success. A release that exits
+   on start-up used to be reported as a good deploy while the previous process kept serving.
+7. Asks the **domain**, not just loopback, and rolls the symlink back if it is not 200. The app being healthy
+   on :3900 is not the same as the site working: `current` was once flipped to a standalone release while
+   nginx was still serving that directory as static files, and ainize.ai returned 403 for fifty minutes with
+   every other check green. Set `AINIZE_WEB_VERIFY_URL=` on a host that does not serve the public domain.
+8. Deletes all but the five most recent releases.
 
 ## Rollback
 

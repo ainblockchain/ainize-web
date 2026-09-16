@@ -104,6 +104,8 @@ printf '{"ref":"%s","sha":"%s","dirty":%s,"built_at":"%s","repo":"%s"}\n' \
   "$REF" "$SHA" "$DIRTY" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO" > "$DEST/build-info.json"
 
 # Atomic swap: a symlink flip is one syscall, so nobody is ever served half a build.
+# Kept so the verification below has somewhere to put the site back.
+PREVIOUS="$(readlink -f "$SERVE" 2>/dev/null || true)"
 mkdir -p "$(dirname "$SERVE")"
 ln -sfn "$DEST" "$SERVE.new"
 mv -Tf "$SERVE.new" "$SERVE"
@@ -137,6 +139,32 @@ for i in $(seq 1 30); do
   [ "$i" = 30 ] && { say "NOT answering on :$PORT after 30s — see $ROOT/ainize-web.log"; exit 1; }
   sleep 1
 done
+
+# …and then ask the DOMAIN, because the app answering on loopback is not the same as the site working.
+#
+# This check exists because of a real outage: `current` was flipped to a standalone release while nginx was
+# still configured to serve that directory as static files. The app was healthy on :3900, every check above
+# passed, and ainize.ai returned 403 for fifty minutes — there is no index.html in a Next build. A deploy that
+# changes what `current` MEANS cannot be verified from inside the process it starts.
+#
+# On failure the symlink goes back to where it was and the deploy fails. Set AINIZE_WEB_VERIFY_URL= (empty) on
+# a host that does not serve the public domain.
+VERIFY_URL="${AINIZE_WEB_VERIFY_URL-https://ainize.ai/}"
+if [ -n "$VERIFY_URL" ]; then
+  PUBLIC_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$VERIFY_URL" || echo 000)"
+  if [ "$PUBLIC_CODE" = "200" ]; then
+    say "$VERIFY_URL -> 200"
+  else
+    say "$VERIFY_URL -> $PUBLIC_CODE — rolling back"
+    if [ -n "${PREVIOUS:-}" ] && [ -e "$PREVIOUS" ]; then
+      ln -sfn "$PREVIOUS" "$SERVE.new" && mv -Tf "$SERVE.new" "$SERVE"
+      say "restored $PREVIOUS"
+    fi
+    say "the app answers on :$PORT but the domain does not. Most likely nginx still serves \$SERVE as files"
+    say "instead of forwarding to :$PORT — see deploy/nginx/ainize.ai.conf."
+    exit 1
+  fi
+fi
 
 # Keep the last five releases so a rollback is `ln -sfn <release> $SERVE`.
 ls -1dt "$RELEASES"/*/ 2>/dev/null | tail -n +6 | xargs -r rm -rf
