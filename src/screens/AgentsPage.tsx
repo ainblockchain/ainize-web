@@ -12,8 +12,10 @@
  *    debugging something that is working.
  *  - **The URL is public.** These endpoints take no authentication, because the protocol sends none. Anyone
  *    with the link can call them, and the page says so next to the copy button rather than in a doc.
- *  - **It takes as long as it takes.** A scoring turn fetches a search index and several publisher pages, so
- *    the elapsed time is shown while it runs; a spinner with no number reads as a hang at about eight seconds.
+ *  - **It takes as long as it takes.** An agent may do real work before answering — fetch a search index,
+ *    read several pages, run a model — so the elapsed time is shown while it runs; a spinner with no number
+ *    reads as a hang at about eight seconds. What the work IS belongs to the agent, not to this page: the
+ *    examples and the skills come off its card.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -60,18 +62,29 @@ const RenderedLabel = styled.div`
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: ${(p) => p.theme.color.GREY}; margin-bottom: 12px;
 `;
 
-const SAMPLES: { label: string; text: string }[] = [
-  {
-    label: 'Short article (fails length)',
-    text: `Teradyne opens Bengaluru semiconductor hub
+/**
+ * What to send an agent is the AGENT's answer, not this page's.
+ *
+ * These buttons used to be three news articles, because the first agent on this node scored news articles.
+ * Every other agent then got a form that asked for an article and a note about fetching publisher pages —
+ * a page describing one agent's job while addressed to another. The protocol already carries the answer:
+ * `skills[].examples` on the agent card is exactly "things you can say to me", written by whoever built it.
+ *
+ * So the examples come from the card, and when a card offers none there are no buttons — an empty box a
+ * reader fills in is honest, and a wrong suggestion is not.
+ */
+interface CardSkill { id?: string; name?: string; description?: string; examples?: string[] }
 
-Teradyne, the US maker of automated test equipment for chips, opened an engineering hub in Bengaluru on Tuesday, deepening a push into India that the company says will support customers across Asia. The facility will house design and applications teams working on test systems for advanced logic and memory devices.
-
-Executives said the site would grow to several hundred engineers over the next two years, drawing on the city's established pool of semiconductor design talent. The company did not disclose the investment.`,
-  },
-  { label: 'A URL instead of text', text: 'https://www.reuters.com/technology/' },
-  { label: 'Not an article (expect silence)', text: 'good morning everyone' },
-];
+/** One button: the example itself is the label, because it is also the text that gets sent. */
+function examplesOf(skills: CardSkill[]): { label: string; text: string; skill: string }[] {
+  const out: { label: string; text: string; skill: string }[] = [];
+  for (const s of skills) {
+    for (const e of s.examples ?? []) {
+      if (typeof e === 'string' && e.trim()) out.push({ label: e, text: e, skill: s.name ?? s.id ?? '' });
+    }
+  }
+  return out.slice(0, 8);
+}
 
 const state = (a: AgentSummary) => (a.reachable === true ? 'up' : a.reachable === false ? 'down' : 'unknown');
 
@@ -102,7 +115,9 @@ export function AgentsPage() {
   // rather than on whichever one the node happens to list first.
   const [params] = useSearchParams();
   const [selected, setSelected] = useState<string | null>(params.get('agent'));
-  const [article, setArticle] = useState(SAMPLES[0].text);
+  const [article, setArticle] = useState('');
+  // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
+  const [skills, setSkills] = useState<CardSkill[]>([]);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [result, setResult] = useState<string | null>(null);
@@ -117,6 +132,22 @@ export function AgentsPage() {
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
   const agent = agents.find((a) => a.id === selected) ?? null;
+
+  // The list carries skill names; the card carries what each one accepts. For an agent on a peer the node
+  // only gossips the names, so the examples exist nowhere but the card — which is one fetch away, on this
+  // origin, through the same front door a stranger's client would use.
+  useEffect(() => {
+    if (!agent) { setSkills([]); return; }
+    let live = true;
+    setSkills([]);
+    fetch(samePath(agent.card_url), { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((card: { skills?: CardSkill[] } | null) => { if (live && Array.isArray(card?.skills)) setSkills(card.skills); })
+      .catch(() => {/* no examples is a fine outcome; the box still works */});
+    return () => { live = false; };
+  }, [agent]);
+
+  const samples = examplesOf(skills);
 
   const run = async () => {
     if (!agent) return;
@@ -208,6 +239,16 @@ export function AgentsPage() {
       {agent && (
         <Panel>
           <h3 style={{ margin: 0 }}>Live test — {agent.name}</h3>
+          {agent.description && <Description style={{ marginBottom: 4 }}>{agent.description}</Description>}
+          {skills.length > 0 && (
+            <Description as="ul" style={{ margin: '4px 0 12px', paddingLeft: 18 }}>
+              {skills.slice(0, 6).map((sk) => (
+                <li key={sk.id ?? sk.name}>
+                  <b>{sk.name ?? sk.id}</b>{sk.description ? ` — ${sk.description}` : ''}
+                </li>
+              ))}
+            </Description>
+          )}
           <Description>
             Posts the same JSON-RPC a workspace would, to <Mono>{agent.a2a_url}</Mono>. That URL takes no
             authentication, because A2A sends none: anyone who can reach it can call it.
@@ -219,22 +260,27 @@ export function AgentsPage() {
               </>
             )}
           </Description>
-          <Row>
-            {SAMPLES.map((s) => (
-              <Button key={s.label} size="small" variant="outlined" disabled={busy} onClick={() => setArticle(s.text)}>
-                {s.label}
-              </Button>
-            ))}
-          </Row>
+          {/* The agent's own examples, from its card. No card examples, no buttons — see examplesOf. */}
+          {samples.length > 0 && (
+            <Row>
+              {samples.map((s) => (
+                <Button key={s.label} size="small" variant="outlined" disabled={busy}
+                  title={s.skill ? `${s.skill}` : undefined} onClick={() => setArticle(s.text)}>
+                  {s.label}
+                </Button>
+              ))}
+            </Row>
+          )}
           <Row style={{ display: 'block' }}>
             <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
-              placeholder="Paste an article — headline on the first line — or a URL to one." />
+              placeholder={samples[0] ? `e.g. ${samples[0].text}` : 'Send this agent a message.'} />
           </Row>
           <Row>
             <Button onClick={run} disabled={busy || !article.trim() || agent.reachable === false}>
-              {busy ? `Scoring… ${elapsed}s` : 'Send'}
+              {busy ? `Sending… ${elapsed}s` : 'Send'}
             </Button>
-            {busy && <Small>fetching a news index and several publisher pages — this takes tens of seconds</Small>}
+            {/* What it does with the message is its business; how long that takes is not this page's to claim. */}
+            {busy && <Small>the agent decides how long this takes — some do real work before answering</Small>}
             {agent.reachable === false && <Small>the agent is not answering, so there is nothing to send to</Small>}
           </Row>
           {failed && <Alert $tone="error">{failed}</Alert>}

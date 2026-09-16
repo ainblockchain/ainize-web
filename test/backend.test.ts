@@ -72,3 +72,14 @@ test('the live test posts to the origin the reader is on, not the one the node c
   // and the rewrite is limited to this app's own prefixes: an agent on another host must keep its host
   assert.match(page, /\^\\\/\(api\|agents\)\\\//, 'samePath only relativises /api and /agents');
 });
+
+test('the live test offers the AGENT\'s examples, not one agent\'s job hard-coded into the page', () => {
+  // Comments stripped: the file explains this history in prose, and the test is about what RENDERS.
+  const page = readFileSync(join(root, 'src/screens/AgentsPage.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  // The buttons were three news articles, so every other agent got a form asking for a news article.
+  assert.equal(/Paste an article/.test(page), false, 'the placeholder must not describe one agent\'s input');
+  assert.equal(/publisher pages|Scoring…/.test(page), false, 'nor must the waiting note describe one agent\'s work');
+  assert.match(page, /examplesOf\(skills\)/, 'examples come from the card');
+  assert.match(page, /samePath\(agent\.card_url\)/, 'the card is fetched from this app, same origin');
+});
