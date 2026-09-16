@@ -255,13 +255,20 @@ export function AgentPage() {
         </div>
       </Facts>
 
+      {/*
+        * The card address is the one to copy. A2A's endpoint is POST-only and answers a browser with 404,
+        * so offering it as the headline URL handed people a link that looks broken; the card is what a
+        * workspace reads when someone invites the agent, and it opens in a tab. The endpoint is still named
+        * below, where the live test says what it posts to.
+        */}
       <UrlRow>
-        <code>{agent.a2a_url}</code>
-        <Button size="small" onClick={() => navigator.clipboard?.writeText(agent.a2a_url)}>Copy</Button>
+        <code>{agent.card_url}</code>
+        <Button size="small" onClick={() => navigator.clipboard?.writeText(agent.card_url)}>Copy</Button>
       </UrlRow>
       <Small>
-        A public address — A2A sends no authentication, so whoever can reach it can call it ·{' '}
-        <ExternalLink href={samePath(agent.card_url)}>agent card</ExternalLink>
+        Give this to a workspace to invite the agent ·{' '}
+        <ExternalLink href={samePath(agent.card_url)}>open the card</ExternalLink> · A2A sends no
+        authentication, so whoever can reach the endpoint can call it
       </Small>
 
       {skills.length > 0 && (

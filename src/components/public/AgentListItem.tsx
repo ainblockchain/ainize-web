@@ -130,9 +130,14 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
           {agent.provider ? <> · <b>{t('agent.provider')}</b> {agent.provider}</> : null}
           {state === 'down' && agent.error ? <> · {agent.error}</> : null}
         </Meta>
+        {/*
+          * The CARD address, not the A2A endpoint. The endpoint is POST-only — a browser gets 404 from it —
+          * so showing it here offered a link that looks broken to anyone who clicks it. The card is what a
+          * workspace is given when someone invites the agent, and it is readable in a browser.
+          */}
         <UrlRow>
-          <code>{agent.a2a_url}</code>
-          <Button size="small" variant="outlined" onClick={() => { void navigator.clipboard?.writeText(agent.a2a_url); }}>
+          <code>{agent.card_url}</code>
+          <Button size="small" variant="outlined" onClick={() => { void navigator.clipboard?.writeText(agent.card_url); }}>
             {t('agent.copy')}
           </Button>
         </UrlRow>

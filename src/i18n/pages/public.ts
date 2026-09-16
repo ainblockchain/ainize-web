@@ -255,6 +255,9 @@ export const listing: Dict = {
   'agent.on_node': { ko: '{name} 노드', en: 'on {name}' },
   'agent.remote_note': { ko: '다른 노드의 에이전트입니다 — 호출은 그 노드로 바로 갑니다', en: 'Runs on another node — calls go straight there' },
   'agent.copy': { ko: '주소 복사', en: 'Copy' },
+  // The card, not the JSON-RPC endpoint: this is the address a person can open and a workspace is given.
+  // The endpoint itself is POST-only and answers a browser with 404, which reads as a broken link.
+  'agent.card_label': { ko: '에이전트 카드', en: 'Agent card' },
   'agent.free': { ko: '무료', en: 'Free' },
   'agent.public_note': { ko: 'A2A는 인증을 보내지 않습니다 — 이 주소에 닿을 수 있으면 누구나 호출합니다', en: 'A2A sends no authentication — whoever can reach this address can call it' },
   'agent.try': { ko: '라이브 테스트', en: 'Live test' },
