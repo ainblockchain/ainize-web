@@ -904,9 +904,18 @@ export interface AgentSummary {
   extensions: string[];
   provider: string | null;
   documentation_url: string | null;
-  /** The OWNING node's address for this agent. A peer's agent is linked, never proxied through this node. */
+  /** The OWNING node's address for this agent — what you give to someone else. */
   a2a_url: string;
   card_url: string;
+  /**
+   * Where THIS browser should send a call.
+   *
+   * The same as `a2a_url` for an agent this node runs. For one on a peer it is the mesh path on this node,
+   * because a page served over HTTPS cannot fetch another operator's address directly: it is refused as mixed
+   * content, and the browser asks the visitor for local network access when that address is a private one.
+   * The node can reach both ends; the browser cannot.
+   */
+  call_url?: string;
   reachable: boolean | null;
   last_checked: number | null;
   error: string | null;

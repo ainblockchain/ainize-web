@@ -109,8 +109,9 @@ export function AgentsPage() {
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
     try {
-      // exactly what a workspace sends — same method, same shape, same public URL
-      const res = await fetch(agent.a2a_url, {
+      // Exactly what a workspace sends — same method, same shape. `call_url` is this node's mesh path when the
+      // agent belongs to a peer: a browser cannot reach another operator's node, and this one can.
+      const res = await fetch(agent.call_url ?? agent.a2a_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -189,7 +190,14 @@ export function AgentsPage() {
           <h3 style={{ margin: 0 }}>Live test — {agent.name}</h3>
           <Description>
             Posts the same JSON-RPC a workspace would, to <Mono>{agent.a2a_url}</Mono>. That URL takes no
-            authentication, because A2A sends none: anyone who has it can call it.
+            authentication, because A2A sends none: anyone who can reach it can call it.
+            {agent.node && (
+              <>
+                {' '}This agent runs on <b>{agent.node.name}</b>, so the request goes through this node
+                (<Mono>{agent.call_url}</Mono>) rather than from your browser — a page on this origin cannot
+                open a connection to another operator&rsquo;s network, and should not ask you to.
+              </>
+            )}
           </Description>
           <Row>
             {SAMPLES.map((s) => (
