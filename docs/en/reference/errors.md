@@ -166,7 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 57 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 58 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 27 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -228,4 +228,5 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
 | `503` | model unavailable, try again in a few minutes | `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
+| `503` | Stored inference journal is invalid; preserve it for operator reconciliation | `src/api.ts` |
 | `503` | the patch hook could not be reached (ENGRAM_HOOK=1?) | `src/api.ts` |

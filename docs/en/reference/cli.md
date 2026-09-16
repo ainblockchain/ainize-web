@@ -595,7 +595,8 @@ Publish, inspect, verify, buy and apply knowledge patches — or give an ENS nam
 - **`--resolve-only`** (`boolean`, default `false`) — print where the name points and stop — buy nothing
 - **`--peer`** (`boolean`, default `true`) — add the seller node as a peer so the body can come over p2p (--no-peer to skip)
 - **`--rpc`** (`string`) — JSON-RPC endpoint for on-chain resolution (or ENS_RPC_URL)
-- **`--registry`** (`string`) — ENS registry address — never assumed, because ENSv2 is not final (or ENS_REGISTRY)
+- **`--ens-chain`** (`"sepolia" | "mainnet"`) — ENS network (or ENS_CHAIN / ens.chain); defaults to sepolia
+- **`--registry`** (`string`) — select legacy ENSv1 registry mode at this address (or ENS_REGISTRY); omit for Universal Resolver
 - **`--names`** (`string`) — names file to resolve from, instead of the default search order
 
 **Subcommands** — one of them is required

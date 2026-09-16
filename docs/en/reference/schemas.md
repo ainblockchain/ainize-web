@@ -236,6 +236,8 @@ Exactly one of `patch_id` (one knowledge) or `patch_ids` (0–3 knowledges, load
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `model` | `string` |   | Optional exact serving-model ID constraint. No automatic download, alias mapping or model switch. A mismatch is rejected; checked again before generation. (1–512 characters) |
+| `stream` | `boolean` |   | Stream real model output as OpenAI-style chat.completion.chunk SSE frames. Compare mode uses choice indexes 0 (base) and 1 (patched). An ainize.result event contains the final guarded answer and metadata, followed by data: [DONE]. (default `false`) |
 | `patch_id` | `string` |   |   |
 | `patch_ids` | `string`[] |   | (0–3 items) |
 | `mode` | `"base"` \| `"patched"` \| `"compare"` |   | (default `"compare"`) |
@@ -284,25 +286,29 @@ Where one live test is in the queue behind the shared serving model.
 
 ## `ChatResponse`
 
-| Field | Type | Description |
-|---|---|---|
-| `patch_id` | `string` |   |
-| `mode` | `string` |   |
-| `base` | [`ChatAnswer`](#chatanswer) |   |
-| `patched` | [`ChatAnswer`](#chatanswer) |   |
-| `applied_ms` | `integer` \| `null` | sum over all loaded knowledges (kept for single-knowledge clients) |
-| `was_applied` | `boolean` | first knowledge was already loaded by the operator |
-| `benchmark_hit` | `boolean` \| `null` | OR over benchmark_hits (kept for single-knowledge clients) |
-| `patch_ids` | `string`[] |   |
-| `applied` | [`ChatApplied`](#chatapplied)[] |   |
-| `benchmark_hits` | `object` | per knowledge: true/false when the question is one of its benchmark samples, else null |
-| `model` | `string` \| `null` |   |
-| `remaining_quota` | `integer` \| `null` |   |
-| `quota_limit` | `integer` \| `null` |   |
-| `history` | `object` | how many messages each column was sent, and whether the two conversations differed |
-| `history.base` | `integer` |   |
-| `history.patched` | `integer` |   |
-| `history.split` | `boolean` |   |
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `inference_receipt` | `object` |   | Optional durable server completion receipt, present only when recording is enabled and persistence succeeds. Not a chain inclusion or client-delivery proof. |
+| `inference_receipt.id` | `string (uuid)` | yes |   |
+| `inference_receipt.model_id` | `string` | yes |   |
+| `inference_receipt.completed_at` | `integer` | yes | Server epoch milliseconds |
+| `patch_id` | `string` |   |   |
+| `mode` | `string` |   |   |
+| `base` | [`ChatAnswer`](#chatanswer) |   |   |
+| `patched` | [`ChatAnswer`](#chatanswer) |   |   |
+| `applied_ms` | `integer` \| `null` |   | sum over all loaded knowledges (kept for single-knowledge clients) |
+| `was_applied` | `boolean` |   | first knowledge was already loaded by the operator |
+| `benchmark_hit` | `boolean` \| `null` |   | OR over benchmark_hits (kept for single-knowledge clients) |
+| `patch_ids` | `string`[] |   |   |
+| `applied` | [`ChatApplied`](#chatapplied)[] |   |   |
+| `benchmark_hits` | `object` |   | per knowledge: true/false when the question is one of its benchmark samples, else null |
+| `model` | `string` \| `null` |   |   |
+| `remaining_quota` | `integer` \| `null` |   |   |
+| `quota_limit` | `integer` \| `null` |   |   |
+| `history` | `object` |   | how many messages each column was sent, and whether the two conversations differed |
+| `history.base` | `integer` |   |   |
+| `history.patched` | `integer` |   |   |
+| `history.split` | `boolean` |   |   |
 
 ## `ChatApplied`
 

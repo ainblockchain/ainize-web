@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { useBranchesQuery, useCatalogQuery, useInfoQuery, errorMessage } from '@/api/api';
+import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, errorMessage } from '@/api/api';
+import { AgentListItem } from '@/components/public/AgentListItem';
 import { PatchListItem, PriceUnitNote, TermsLegend } from '@/components/public/PatchListItem';
 import { Shelves } from '@/components/public/Shelves';
 import { Alert, Input } from '@/components/ui/Form';
@@ -12,6 +14,16 @@ import { num } from '@/utils/format';
 // `built_on` and `trending` are the two orderings §10 of the lineage design defines: most built on (children on the
 // ledger plus this node's derive intents) and doing well this week (3·sales + 2·builds-on + loads + ½·tests·hit-rate).
 type Sort = 'popular' | 'latest' | 'price' | 'rows' | 'built_on' | 'trending' | 'fresh';
+/**
+ * A node sells two kinds of thing, and until now the browse page knew about one of them. Knowledge is memory a
+ * model loads; an agent is a process that does the work. They are two lists rather than one merged one because
+ * nothing knowledge is ordered or filtered by — model, topic, rows, price, verification — applies to an agent,
+ * and a merged list would have to drop all of it to find a common shape.
+ *
+ * The axis lives in the URL (`?kind=agent`) so the two halves of the marketplace are linkable: the agents view is
+ * a place a card, a docs page or a workspace invite can point at.
+ */
+type Kind = 'knowledge' | 'agent';
 // `fresh` is item 267's ordering: by the day the DATA is true of, not the day the file was registered.
 const SORTS: Sort[] = ['popular', 'trending', 'built_on', 'fresh', 'latest', 'price', 'rows'];
 /** Item 188: the subject chips are capped, and every taught lesson's own subject is one chip behind this prefix. */
@@ -108,7 +120,15 @@ function ListSkeleton() {
 
 export default function ExplorePage() {
   const { t, tech, help, term } = useT();
-  useTitle(t('explore.title'));
+  const [params, setParams] = useSearchParams();
+  const kind: Kind = params.get('kind') === 'agent' ? 'agent' : 'knowledge';
+  // after `kind`, never before: read through a closure this ran in the temporal dead zone of `params`
+  useTitle(kind === 'agent' ? t('explore.title_agent') : t('explore.title'));
+  const setKind = (k: Kind) => {
+    const next = new URLSearchParams(params);
+    if (k === 'agent') next.set('kind', 'agent'); else next.delete('kind');
+    setParams(next, { replace: true });
+  };
   const [sort, setSort] = useState<Sort>('popular');
   const [model, setModel] = useState('');
   const [schema, setSchema] = useState('');
@@ -119,6 +139,9 @@ export default function ExplorePage() {
   const [page, setPage] = useState(1);
   const { data: info } = useInfoQuery();
   const { data: tracks } = useBranchesQuery();
+  // "is it answering" goes stale as it is rendered, so the list re-checks; the node caches the probe for 30 s.
+  const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { pollingInterval: 60_000 });
+  const allAgents = useMemo(() => agentData?.agents ?? [], [agentData]);
   const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
   const { data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
@@ -163,6 +186,17 @@ export default function ExplorePage() {
    * two pages can be read against each other. Counted from the rows on screen, never from a node-wide total.
    */
   const verified = items.filter((e) => e.quorum_ok && e.sellable !== false).length;
+  /**
+   * The same search box serves both halves. The catalogue searches server-side because it is paged and can be
+   * large; the agent list is a handful of rows a node declares in its own config, so it is filtered here — over
+   * everything a reader can see on the row, which includes the skills the agent's card names.
+   */
+  const agents = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return allAgents;
+    return allAgents.filter((a) => [a.name, a.description ?? '', a.id, ...a.skills.flatMap((s2) => [s2.name, s2.description ?? '', ...s2.tags])]
+      .join(' ').toLowerCase().includes(needle));
+  }, [allAgents, q]);
   const countExact = !!data && items.length === data.total;
 
   const reset = () => setPage(1);
@@ -170,24 +204,40 @@ export default function ExplorePage() {
   return (
     <PageWrapper>
       <TitleRow>
-        <Title>{t('explore.title')}</Title>
-        <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} />
+        <Title>{kind === 'agent' ? t('explore.title_agent') : t('explore.title')}</Title>
+        {/* Every ordering here is a property of a knowledge (sales, rows, price, freshness of the data). None of
+            them is a property of an agent, so the control goes away rather than offering meaningless options. */}
+        {kind === 'knowledge' && <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} />}
       </TitleRow>
-      <Intro>{t('explore.sub')}</Intro>
+      <Intro>{kind === 'agent' ? t('explore.agents.sub') : t('explore.sub')}</Intro>
       <Skip href="#explore-results">{t('explore.skip')}</Skip>
 
       {/* SC-17: what is selling, what is being built ON, what is new, and what people asked for here. */}
-      <Shelves />
+      {kind === 'knowledge' && <Shelves />}
 
       <Filters>
-        {!!models.length && (
+        {/* Only offered where there is something to switch to: a node with no agents should not advertise an
+            empty half of its marketplace. The chip stays visible in the agents view either way, since it is the
+            way back. */}
+        {(allAgents.length > 0 || kind === 'agent') && (
+          <FilterGroup>
+            <span className="label">{t('explore.kind.label')}</span>
+            <Chip $active={kind === 'knowledge'} onClick={() => { setKind('knowledge'); reset(); }} data-testid="kind-knowledge">
+              {t('explore.kind.knowledge')}{data ? ` (${num(data.total)})` : ''}
+            </Chip>
+            <Chip $active={kind === 'agent'} onClick={() => { setKind('agent'); reset(); }} data-testid="kind-agent">
+              {t('explore.kind.agent')}{allAgents.length ? ` (${num(allAgents.length)})` : ''}
+            </Chip>
+          </FilterGroup>
+        )}
+        {kind === 'knowledge' && !!models.length && (
           <FilterGroup>
             <span className="label">{t('explore.filter.model')}</span>
             <Chip $active={!model} onClick={() => { setModel(''); reset(); }}>{t('explore.filter.all')}</Chip>
             {models.map((m) => <Chip key={m} $active={model === m} onClick={() => { setModel(model === m ? '' : m); reset(); }}>{m}</Chip>)}
           </FilterGroup>
         )}
-        {!!schemas.length && (
+        {kind === 'knowledge' && !!schemas.length && (
           <FilterGroup>
             <span className="label" title={`${t('explore.filter.schema_help')} (${tech('facts')})`}>{t('explore.filter.schema')}</span>
             <Chip $active={!schema} onClick={() => { setSchema(''); reset(); }}>{t('explore.filter.all')}</Chip>
@@ -207,23 +257,43 @@ export default function ExplorePage() {
         )}
         {/* Item 206: a track is how a returning consumer thinks about a catalogue ("today's KRX bake"), and it was
             the one axis of the API the browse page never offered. Only rendered when this node knows any. */}
-        {!!tracks?.branches.length && (
+        {kind === 'knowledge' && !!tracks?.branches.length && (
           <FilterGroup>
             <span className="label" title={`${help('branch')} (${tech('branch')})`}>{t('explore.filter.track')}</span>
             <Chip $active={!branch} onClick={() => { setBranch(''); reset(); }}>{t('explore.filter.all')}</Chip>
             {tracks.branches.map((b) => <Chip key={b.name} $active={branch === b.name} title={b.description} onClick={() => { setBranch(branch === b.name ? '' : b.name); reset(); }}>{b.name}</Chip>)}
           </FilterGroup>
         )}
-        <FilterGroup>
-          <span className="label" title={t('explore.filter.show_help')}>{t('explore.filter.show')}</span>
-          <Chip $active={!showAll} onClick={() => { setShowAll(false); reset(); }}>{t('explore.filter.current')}</Chip>
-          <Chip $active={showAll} onClick={() => { setShowAll(true); reset(); }}>{t('explore.filter.all_versions')}</Chip>
-        </FilterGroup>
+        {kind === 'knowledge' && (
+          <FilterGroup>
+            <span className="label" title={t('explore.filter.show_help')}>{t('explore.filter.show')}</span>
+            <Chip $active={!showAll} onClick={() => { setShowAll(false); reset(); }}>{t('explore.filter.current')}</Chip>
+            <Chip $active={showAll} onClick={() => { setShowAll(true); reset(); }}>{t('explore.filter.all_versions')}</Chip>
+          </FilterGroup>
+        )}
         <Search placeholder={t('explore.search')} value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label={t('explore.search')} />
       </Filters>
 
-      <ResultsHead id="explore-results" tabIndex={-1}>{t('explore.results')}</ResultsHead>
-      {error && (
+      <ResultsHead id="explore-results" tabIndex={-1}>{kind === 'agent' ? t('explore.agents.title') : t('explore.results')}</ResultsHead>
+
+      {kind === 'agent' && (
+        <>
+          {agentError && <Failure $tone="error" data-testid="agents-error">
+            <span>{t('explore.agents.unreachable')}</span>
+            <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(agentError)}</code></details>
+          </Failure>}
+          {agentsLoading && <ListSkeleton />}
+          {!agentsLoading && !agentError && (
+            <>
+              <Count data-testid="agents-count">{t('explore.agents.count', { n: num(agents.length) }, agents.length)}</Count>
+              <div>{agents.map((a) => <AgentListItem key={a.id} agent={a} />)}</div>
+              {agents.length === 0 && <Empty>{q.trim() ? t('explore.agents.empty_search') : t('explore.agents.empty')}</Empty>}
+            </>
+          )}
+        </>
+      )}
+
+      {kind === 'knowledge' && error && (
         <Failure $tone="error" data-testid="explore-error">
           <span>{t('explore.unreachable')}</span>
           <Retry type="button" onClick={() => { void refetch(); }} data-testid="explore-retry">{t('explore.retry')}</Retry>
@@ -233,8 +303,8 @@ export default function ExplorePage() {
           </details>
         </Failure>
       )}
-      {isLoading && <ListSkeleton />}
-      {!isLoading && data && (
+      {kind === 'knowledge' && isLoading && <ListSkeleton />}
+      {kind === 'knowledge' && !isLoading && data && (
         <>
           <Count data-testid="explore-count">
             {t('explore.count', { n: num(data.total) }, data.total)}
@@ -245,6 +315,13 @@ export default function ExplorePage() {
             <Hidden data-testid="explore-hidden" title={t('explore.filter.show_help')}>
               {t('explore.hidden', { n: num(hidden) }, hidden)}{' · '}
               <button type="button" onClick={() => { setShowAll(true); reset(); }}>{t('explore.hidden_show')}</button>
+            </Hidden>
+          )}
+          {/* The chip above is the control; this line is the one a reader who skipped the filters still sees. */}
+          {allAgents.length > 0 && (
+            <Hidden data-testid="explore-agents-also">
+              {t('explore.agents.also', { n: num(allAgents.length) }, allAgents.length)}{' · '}
+              <button type="button" onClick={() => { setKind('agent'); reset(); }}>{t('explore.agents.also_link')}</button>
             </Hidden>
           )}
           {items.length > 0 && <TermsLegend title={help('liveTest')} />}

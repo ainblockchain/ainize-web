@@ -16,6 +16,7 @@
  *    the elapsed time is shown while it runs; a spinner with no number reads as a hang at about eight seconds.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useAgentsQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -82,7 +83,10 @@ export function AgentsPage() {
   const { data, isLoading, error, refetch } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
   const agents = data?.agents ?? [];
 
-  const [selected, setSelected] = useState<string | null>(null);
+  // /explore?kind=agent links each row here with its id, so the page opens on the agent the reader clicked
+  // rather than on whichever one the node happens to list first.
+  const [params] = useSearchParams();
+  const [selected, setSelected] = useState<string | null>(params.get('agent'));
   const [article, setArticle] = useState(SAMPLES[0].text);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -92,7 +96,8 @@ export function AgentsPage() {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!selected && agents.length) setSelected(agents[0].id);
+    // an id in the URL that this node does not operate falls back to the first, rather than showing no panel
+    if (agents.length && !agents.some((a) => a.id === selected)) setSelected(agents[0].id);
   }, [agents, selected]);
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
@@ -104,8 +109,10 @@ export function AgentsPage() {
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
     try {
-      // exactly what a workspace sends — same method, same shape, same public URL
-      const res = await fetch(agent.a2a_url, {
+      // Exactly what a workspace sends — same method, same shape. The address is the proxy-safe one when the
+      // node offers it: behind a reverse proxy that forwards only `/api`, the canonical path answers with this
+      // very page, and a live test that "returned HTML" is the least useful failure there is.
+      const res = await fetch(agent.proxy_url ?? agent.a2a_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

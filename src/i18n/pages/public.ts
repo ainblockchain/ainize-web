@@ -210,6 +210,43 @@ export const listing: Dict = {
   'explore.error_detail': { ko: '기술 정보', en: 'Technical detail' },
   'explore.empty': { ko: '조건에 맞는 지식이 없습니다. 다른 모델·주제·검색어를 시도해 보세요.', en: 'No knowledge matches. Try another model, topic or search term.' },
 
+  // Agents in the marketplace. A node sells two kinds of thing — memory a model loads, and a process that does
+  // the work — and until now only the first was listed here. The two are separate lists rather than one merged
+  // one because nothing a knowledge is sorted or filtered by (model, topic, rows, price) applies to an agent.
+  'explore.kind.knowledge': { ko: '지식', en: 'Knowledge' },
+  'explore.kind.agent': { ko: '에이전트', en: 'Agents' },
+  'explore.kind.label': { ko: '무엇을', en: 'Show' },
+  'explore.agents.title': { ko: '에이전트', en: 'Agents' },
+  // The heading has to follow the view: a page headed "Explore knowledge" that is listing agents tells the
+  // reader they are in the wrong place, which is exactly the doubt the two-way chip exists to remove.
+  'explore.title_agent': { ko: '에이전트 둘러보기', en: 'Explore agents' },
+  'explore.agents.sub': { ko: '이 노드가 공개 주소를 주는 A2A 에이전트입니다. 지식은 모델 안에 넣는 기억이고, 에이전트는 일을 대신 해 주는 프로세스입니다. 주소를 그대로 복사해 다른 도구나 워크스페이스에 붙일 수 있고, 여기서 바로 보내볼 수도 있습니다.', en: 'A2A agents this node gives a public address to. Knowledge is memory you load into a model; an agent is a process that does the work for you. Copy an address into any tool or workspace, or send it something here.' },
+  'explore.agents.count': { ko: '에이전트 {n}개', en: '{n} agents' },
+  'explore.agents.count_one': { ko: '에이전트 1개', en: '1 agent' },
+  'explore.agents.empty': { ko: '이 노드는 에이전트를 운영하지 않습니다.', en: 'This node operates no agents.' },
+  'explore.agents.empty_search': { ko: '검색어에 맞는 에이전트가 없습니다.', en: 'No agent matches that search.' },
+  'explore.agents.unreachable': { ko: '에이전트 목록을 불러오지 못했습니다.', en: 'Could not load the agent list.' },
+  'explore.agents.also': { ko: '이 노드는 에이전트 {n}개도 운영합니다', en: 'This node also operates {n} agents' },
+  'explore.agents.also_one': { ko: '이 노드는 에이전트 1개도 운영합니다', en: 'This node also operates 1 agent' },
+  'explore.agents.also_link': { ko: '보기', en: 'see them' },
+
+  // one agent, as a row
+  'agent.state.up': { ko: '응답 중', en: 'Answering' },
+  'agent.state.down': { ko: '응답 없음', en: 'Not answering' },
+  'agent.state.unknown': { ko: '확인 전', en: 'Not checked' },
+  'agent.skill_more': { ko: '+{n}개 더', en: '+{n} more' },
+  'agent.protocol': { ko: 'A2A {v}', en: 'A2A {v}' },
+  'agent.a2ui': { ko: '화면으로 답함', en: 'Draws its answer' },
+  'agent.a2ui_help': { ko: '이 에이전트는 답을 문장뿐 아니라 화면(A2UI)으로도 보냅니다. 그릴 수 있는 곳에서는 표와 점수판으로 보입니다.', en: 'This agent describes its answer as a surface (A2UI) as well as text, so a client that can draw it shows a table or a score card instead of a paragraph.' },
+  'agent.calls_label': { ko: '호출', en: 'Calls' },
+  'agent.calls': { ko: '이 노드를 거쳐 {n}회', en: '{n} through this node' },
+  'agent.calls_one': { ko: '이 노드를 거쳐 1회', en: '1 through this node' },
+  'agent.provider': { ko: '운영', en: 'Operated by' },
+  'agent.copy': { ko: '주소 복사', en: 'Copy' },
+  'agent.free': { ko: '무료', en: 'Free' },
+  'agent.public_note': { ko: '누구나 호출할 수 있는 공개 주소입니다', en: 'A public address — anyone with it can call' },
+  'agent.try': { ko: '라이브 테스트', en: 'Live test' },
+
   // benchmark (same-topic) page
   'bench.title': { ko: '같은 주제의 지식', en: 'Knowledge on this topic' },
   // Finding 24 — the form the questions were asked in is part of what the score means

@@ -9,7 +9,7 @@ summary: Every key of a node config.json, its type, its default and the rules it
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-core/src/config-schema.ts` and `ainize-core/src/config.ts` and `ainize-core/src/types.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-All 134 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
+All 141 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
 
 ## How to read this page
 
@@ -76,6 +76,13 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `market.verifierShare` | a number — must be a fraction between 0 and 1 | `0.05` | Share of the SELLER side of each sale paid to the verifiers whose attestations count for that knowledge (item 325). Written into every anchor this node creates and floored at NETWORK_MIN_VERIFIER_SHARE when it is read back, so a seller cannot publish knowledge that pays its verifiers nothing. |
 | `market.initialCredit` | a string — must be a decimal amount in quotes, e.g. "0.1" | `"100"` |   |
 | `market.creditGrants` | a number — must be a whole number; must be at least 1 | `100` | How many addresses this node will ever hand `initialCredit` to (default 100). Local credit is issued by the node, not owned by the buyer: without a cap a fresh keypair is worth 100 CREDIT and any spend limit is one `ainize keys new` away (item 364). Every grant is recorded; past the cap a new address gets nothing. |
+| `agents` | a comma list | unset |   |
+| `sam` | an object (set its keys one at a time) | unset |   |
+| `sam.enabled` | a boolean | unset |   |
+| `sam.labels` | a record | unset |   |
+| `sam.labelAuthorities` | a comma list | unset |   |
+| `sam.trustSelfAttestedLabels` | a boolean | unset |   |
+| `sam.egressRequireLabels` | a record | unset |   |
 | `p2p` | an object (set its keys one at a time) |   | What this node accepts from the gossip network (items 136/137). Peer exchange used to add every endpoint any peer advertised — no cap, no record of where it came from, no way to refuse — so an operator could not answer "who is my node talking to?" from config.json, and `peers rm` survived exactly one gossip round. |
 | `p2p.acceptExchange` | a boolean | `true` | Learn peers from peer exchange at all (default true). false = talk only to the configured list. |
 | `p2p.relayBlobs` | a boolean | unset | Hold blobs other nodes offer (`POST /p2p/blob/:sha`), so a publisher with no reachable address can still sell. Blob transfer is pull-only, so without a relay a firewalled publisher's anchor gossips but its body can never be fetched — it stays ANNOUNCED for ever, with no error anywhere. |

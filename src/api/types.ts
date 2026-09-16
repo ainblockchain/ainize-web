@@ -884,12 +884,34 @@ export interface MergePreview {
  * having asked and been refused. An operator debugging a dead agent needs to know which of the two they are
  * looking at.
  */
+/** One skill off an agent card — what the agent says it accepts, which is what a browse row is chosen on. */
+export interface AgentSkill {
+  id: string;
+  name: string;
+  description?: string;
+  tags: string[];
+  examples: string[];
+}
 export interface AgentSummary {
   id: string;
   name: string;
   description: string | null;
+  /** Card `skills`. Empty for an agent that is not answering, or one whose card declares none. */
+  skills: AgentSkill[];
+  /** Protocol versions the card offers — `['1.0','0.3']` for an agent serving both. */
+  protocols: string[];
+  /** Extension URIs the card declares; the A2UI one is what tells this site the answer can be drawn. */
+  extensions: string[];
+  provider: string | null;
+  documentation_url: string | null;
   a2a_url: string;
   card_url: string;
+  /**
+   * The same agent under `/api`. A public node usually sits behind a proxy that forwards `/api` and serves
+   * everything else from the static build, and there `a2a_url` comes back as this page's own HTML. This one
+   * reaches the node through any such proxy, so it is what the live test posts to.
+   */
+  proxy_url?: string;
   reachable: boolean | null;
   last_checked: number | null;
   error: string | null;

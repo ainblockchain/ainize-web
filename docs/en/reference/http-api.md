@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-142 operations on 125 paths, grouped into the 8 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+143 operations on 126 paths, grouped into the 8 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -166,6 +166,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/patches/{id}/remove`](#post-apipatchesidremove) | operator | Unload from the model (same as DELETE …/apply) |
 | `GET` | [`/api/patches/{id}/check`](#get-apipatchesidcheck) | operator | Are the rows this knowledge was trained on the ones on the table right now? |
 | `POST` | [`/api/patches/{id}/forget`](#post-apipatchesidforget) | operator | Delete this node's copy of the knowledge file. NOT a takedown — the listing stays and the gateway keeps charging; POST /api/patches/{id}/retire is the takedown. 409 with `also_affects` when other items share the same file — repeat with `{"all_sharing": true}` to stop serving all of them |
+| `GET` | [`/api/ledger/inference`](#get-apiledgerinference) | operator | Read native inference batch submissions and local receipts |
 | `POST` | [`/api/branches`](#post-apibranches) | operator | Create a branch |
 | `POST` | [`/api/branches/{name}/subscribe`](#post-apibranchesnamesubscribe) | operator | Subscribe to a track: buy its current knowledge, load it, and keep it up to date |
 | `POST` | [`/api/branches/{name}/quote`](#post-apibranchesnamequote) | operator | What subscribing to a track would spend, item by item, before anything is spent |
@@ -707,7 +708,7 @@ Temporarily loads one to three knowledges into the shared serving model (in list
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | answers | [`ChatResponse`](./schemas.md#chatresponse) |
+| `200` | JSON answers by default; stream=true returns incremental SSE. After final guarded metadata in event: ainize.result, success ends with data: [DONE]. Errors after headers emit event: error without [DONE]. | [`ChatResponse`](./schemas.md#chatresponse) |
 | `429` | trial quota exhausted — the body carries `quota_reset` (epoch ms), the instant this visitor's hour ends |   |
 
 ## Teach
@@ -2655,6 +2656,34 @@ Delete this node's copy of the knowledge file. NOT a takedown — the listing st
 | Code | Description | Body |
 |---|---|---|
 | `200` | sha256, deleted_file, also_affects | `object` |
+
+### `GET /api/ledger/inference`
+
+Read native inference batch submissions and local receipts
+
+Read-only operator journal, newest batches first. No submission, retry or flush is triggered. Submitted means acknowledged, not block inclusion. Receipt commitment validation checks the retained array, not inference quality or client delivery. Stored records remain readable when recording is disabled.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default | Description |
+|---|---|---|---|---|
+| `id` | `query` | `string (uuid)` |   | Optional local batch ID, not a blockchain transaction hash |
+| `receipts` | `query` | `boolean` | `false` | Include retained receipts and receipt_commitment_valid; requires id |
+| `offset` | `query` | `integer` | `0` |   |
+| `limit` | `query` | `integer` | `50` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | enabled, total, offset, limit, unbatched_receipts, entries and scope | `object` |
+| `400` | Invalid pagination, ID or receipts without ID |   |
+| `401` | Sign in required |   |
+| `403` | Node operator required |   |
+| `404` | Requested batch not found |   |
+| `503` | Stored journal or receipt data invalid; preserve it for reconciliation |   |
 
 ### `POST /api/branches`
 
