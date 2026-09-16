@@ -13,6 +13,15 @@ import type { NextConfig } from 'next';
  */
 const config: NextConfig = {
   compiler: { styledComponents: true },
+  /**
+   * A release is a server, and a server has to be copied somewhere.
+   *
+   * The obvious way — copy the tree and its `node_modules` — produced a 1.1 GB directory per release, and the
+   * script keeps five. `standalone` traces what the server actually loads and writes a self-contained tree
+   * beside the build: one `server.js`, and only the packages reachable from it. Same code, a fraction of the
+   * bytes, and a release no longer depends on an install having resolved the same versions.
+   */
+  output: 'standalone',
   // The app is a marketplace, not a static site: the node it talks to changes while it runs.
   poweredByHeader: false,
   reactStrictMode: true,

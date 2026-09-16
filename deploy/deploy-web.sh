@@ -91,13 +91,14 @@ npm test 2>&1 | tail -3 || say "(tests reported failures — see above)"
 
 DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-$SHORT$SUFFIX"
 mkdir -p "$DEST"
-# What `next start` needs, and nothing else: the build, the static files it serves, and the manifest that says
-# which dependencies it may load. node_modules is copied rather than reinstalled so the release is exactly the
-# tree that was just built and tested — an install at swap time can resolve a different version.
-cp -r .next "$DEST/.next"
+# A standalone build (next.config.ts): `server.js` plus only the packages it actually loads. Copying the tree
+# and its node_modules instead produced a 1.1 GB release, five of which do not fit on a disk that also holds a
+# model. The two directories Next leaves outside it have to be placed by hand — that is documented behaviour,
+# not an oversight: static assets and `public/` are meant to be served by a CDN in deployments that have one.
+cp -r .next/standalone/. "$DEST/"
+mkdir -p "$DEST/.next"
+cp -r .next/static "$DEST/.next/static"
 cp -r public "$DEST/public"
-cp package.json package-lock.json "$DEST/"
-cp -r node_modules "$DEST/node_modules"
 printf '%s\n' "$SHA" > "$DEST/.git-sha"
 printf '{"ref":"%s","sha":"%s","dirty":%s,"built_at":"%s","repo":"%s"}\n' \
   "$REF" "$SHA" "$DIRTY" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO" > "$DEST/build-info.json"
@@ -117,10 +118,12 @@ if systemctl --user list-unit-files ainize-web.service >/dev/null 2>&1 \
   systemctl --user restart ainize-web.service
 else
   say "no ainize-web.service — restarting by hand on :$PORT"
-  pkill -f "next start -p $PORT" 2>/dev/null || true
-  sleep 1
+  # By PID from the listening socket, never `pkill -f`: the pattern matches this script's own command line.
+  OLD_PID="$(ss -ltnp 2>/dev/null | grep ":$PORT " | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)"
+  [ -n "${OLD_PID:-}" ] && kill "$OLD_PID" 2>/dev/null && sleep 1
   ( cd "$SERVE" && AINIZE_NODE_URL="${AINIZE_NODE_URL:-http://127.0.0.1:3400}" \
-      nohup "$NODE_BIN/npx" next start -p "$PORT" > "$ROOT/ainize-web.log" 2>&1 & )
+      PORT="$PORT" HOSTNAME=127.0.0.1 NODE_ENV=production \
+      nohup "$NODE_BIN/node" server.js > "$ROOT/ainize-web.log" 2>&1 & )
 fi
 
 # Wait for it to actually answer before calling the deploy done: a release that exits on start-up used to be

@@ -18,7 +18,10 @@ WorkingDirectory=%h/ainize-web-releases/current
 Environment=AINIZE_NODE_URL=http://127.0.0.1:3400
 Environment=NODE_ENV=production
 Environment=PORT=3900
-ExecStart=%h/.local/node/bin/npx next start -p 3900
+# Loopback only: nginx is the one thing that talks to this, and it is on the same box.
+Environment=HOSTNAME=127.0.0.1
+# A standalone build — `server.js` is what `next build` wrote, with only the packages it loads beside it.
+ExecStart=%h/.local/node/bin/node server.js
 Restart=always
 RestartSec=3
 
