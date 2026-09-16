@@ -41,11 +41,18 @@ export async function relayToNode(req: Request, path: string): Promise<Response>
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers });
 }
 
-/** The five verbs the node answers, wired to one path prefix. */
+/**
+ * The verbs the node answers, wired to one path prefix.
+ *
+ * OPTIONS is relayed rather than left to the framework. Next answers a preflight itself when no handler
+ * exports one — with `allow:` and no `access-control-allow-origin`, which a browser reads as "no" — and an
+ * A2A agent address is exactly the kind of URL a page on another origin calls. The node already answers
+ * preflights; this hands the question to it.
+ */
 export function nodeRoutes(prefix: string) {
   const handler = async (req: Request, ctx: { params: Promise<{ path?: string[] }> }) => {
     const { path } = await ctx.params;
     return relayToNode(req, `${prefix}/${(path ?? []).join('/')}`);
   };
-  return { GET: handler, POST: handler, PUT: handler, PATCH: handler, DELETE: handler };
+  return { GET: handler, POST: handler, PUT: handler, PATCH: handler, DELETE: handler, OPTIONS: handler };
 }

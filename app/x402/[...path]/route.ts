@@ -2,4 +2,4 @@
 import { nodeRoutes } from '@/lib/proxy';
 
 export const dynamic = 'force-dynamic';
-export const { GET, POST, PUT, PATCH, DELETE } = nodeRoutes('/x402');
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = nodeRoutes('/x402');

@@ -74,6 +74,21 @@ Executives said the site would grow to several hundred engineers over the next t
 ];
 
 const state = (a: AgentSummary) => (a.reachable === true ? 'up' : a.reachable === false ? 'down' : 'unknown');
+
+/**
+ * The path part of an address this app serves, so the call goes to the origin the reader is already on.
+ *
+ * Anything that is not one of this app's own prefixes is left alone: an agent list can carry an address on
+ * another host, and rewriting that to a local path would post somebody else's request to ourselves.
+ */
+export function samePath(url: string): string {
+  try {
+    const u = new URL(url, window.location.origin);
+    return /^\/(api|agents)\//.test(u.pathname) ? u.pathname + u.search : url;
+  } catch {
+    return url;
+  }
+}
 const ago = (t: number | null) => (t ? `${Math.max(0, Math.round((Date.now() - t) / 1000))}s ago` : 'never');
 
 export function AgentsPage() {
@@ -111,7 +126,12 @@ export function AgentsPage() {
     try {
       // Exactly what a workspace sends — same method, same shape. `call_url` is this node's mesh path when the
       // agent belongs to a peer: a browser cannot reach another operator's node, and this one can.
-      const res = await fetch(agent.call_url ?? agent.a2a_url, {
+      //
+      // Called as a PATH, not as the absolute URL the node reports. The node knows itself by one address
+      // (`https://ainize.ai`) and a visitor may be on another name for the same site (`www.`) — posting to the
+      // node's spelling from that page is a cross-origin request, and the browser blocks it before anything
+      // here runs. Every address on this list is this app's own, so the path is the part that matters.
+      const res = await fetch(samePath(agent.call_url ?? agent.a2a_url), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

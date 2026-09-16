@@ -2,4 +2,4 @@
 import { nodeRoutes } from '@/lib/proxy';
 
 export const dynamic = 'force-dynamic';
-export const { GET, POST, PUT, PATCH, DELETE } = nodeRoutes('/p2p');
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = nodeRoutes('/p2p');

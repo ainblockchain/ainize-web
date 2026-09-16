@@ -49,6 +49,9 @@ test('every prefix the browser can reach the node through has a route handler', 
     const src = readFileSync(route, 'utf8');
     assert.match(src, /nodeRoutes\('\/(api|agents|x402|p2p)'\)/, `${prefix} relays to the node`);
     assert.match(src, /export const \{ GET, POST/, 'a card is a GET and a call is a POST');
+    // Without this Next answers the preflight itself, with `allow:` and no `access-control-allow-origin`,
+    // and a browser on any other origin — including `www.` of this same site — reads that as a refusal.
+    assert.match(src, /OPTIONS \} =/, `${prefix} relays the preflight to the node, which sets the CORS headers`);
   }
 });
 
@@ -61,4 +64,11 @@ test('the app shell renders in the browser only, and says why', () => {
 test('src/pages is not resurrected — Next would read it as a second router', () => {
   assert.equal(existsSync(join(root, 'src/pages')), false,
     'the screens live in src/screens; a directory named pages turns on the Pages Router and breaks the build');
+});
+
+test('the live test posts to the origin the reader is on, not the one the node calls itself', () => {
+  const page = readFileSync(join(root, 'src/screens/AgentsPage.tsx'), 'utf8');
+  assert.match(page, /fetch\(samePath\(/, 'an absolute node address from a www. page is a cross-origin POST');
+  // and the rewrite is limited to this app's own prefixes: an agent on another host must keep its host
+  assert.match(page, /\^\\\/\(api\|agents\)\\\//, 'samePath only relativises /api and /agents');
 });
