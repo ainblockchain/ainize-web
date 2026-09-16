@@ -109,10 +109,8 @@ export function AgentsPage() {
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
     try {
-      // Exactly what a workspace sends — same method, same shape. The address is the proxy-safe one when the
-      // node offers it: behind a reverse proxy that forwards only `/api`, the canonical path answers with this
-      // very page, and a live test that "returned HTML" is the least useful failure there is.
-      const res = await fetch(agent.proxy_url ?? agent.a2a_url, {
+      // exactly what a workspace sends — same method, same shape, same public URL
+      const res = await fetch(agent.a2a_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,8 +175,8 @@ export function AgentsPage() {
                 {a.reachable === null && <>not checked yet</>}
               </Small>
               <Small>
-                {a.calls} call{a.calls === 1 ? '' : 's'} through this node
-                {a.last_call_at ? `, last ${ago(a.last_call_at)}` : ''} ·{' '}
+                {a.node ? `runs on ${a.node.name}` : `${a.calls ?? 0} call${a.calls === 1 ? '' : 's'} through this node`}
+                {!a.node && a.last_call_at ? `, last ${ago(a.last_call_at)}` : ''} ·{' '}
                 <ExternalLink href={a.card_url} onClick={(e) => e.stopPropagation()}>agent card</ExternalLink>
               </Small>
             </Card>

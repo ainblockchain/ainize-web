@@ -904,18 +904,22 @@ export interface AgentSummary {
   extensions: string[];
   provider: string | null;
   documentation_url: string | null;
+  /** The OWNING node's address for this agent. A peer's agent is linked, never proxied through this node. */
   a2a_url: string;
   card_url: string;
-  /**
-   * The same agent under `/api`. A public node usually sits behind a proxy that forwards `/api` and serves
-   * everything else from the static build, and there `a2a_url` comes back as this page's own HTML. This one
-   * reaches the node through any such proxy, so it is what the live test posts to.
-   */
-  proxy_url?: string;
   reachable: boolean | null;
   last_checked: number | null;
   error: string | null;
-  calls: number;
+  /** How many calls went through THIS node. `null` for an agent on a peer, which this node has not counted. */
+  calls: number | null;
   last_call_at: number | null;
+  /**
+   * Which node runs it. `null` means this one — the node serving this page.
+   *
+   * Agents reach the list the same way knowledge does: a node advertises what it operates on the gossip round
+   * (`PeerInfo.agents`), and every peer can then show it. So a marketplace page is the network's agents, not
+   * one box's, and the address on the row belongs to whoever accepted that agent.
+   */
+  node: { address: string; name: string; endpoint: string } | null;
 }
 export interface AgentsResponse { agents: AgentSummary[] }

@@ -114,13 +114,19 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
         </NameRow>
         {agent.description && <Desc>{agent.description}</Desc>}
         <Chips>
+          {/* Which node runs it, first: on a marketplace that lists the whole network, "whose agent is this"
+              decides who the reader is trusting and where their request actually goes. */}
+          {agent.node && <Tag $tone="peer" title={agent.node.endpoint}>{t('agent.on_node', { name: agent.node.name })}</Tag>}
           {skills.map((s) => <Tag key={s.id} $tone="skill" title={s.description}>{s.name}</Tag>)}
           {moreSkills > 0 && <Tag $tone="skill">{t('agent.skill_more', { n: moreSkills })}</Tag>}
           {!!agent.protocols.length && <Tag $tone="proto">{t('agent.protocol', { v: agent.protocols.join(' / ') })}</Tag>}
           {drawsUi && <Tag $tone="ui" title={t('agent.a2ui_help')}>{t('agent.a2ui')}</Tag>}
         </Chips>
         <Meta>
-          <b>{t('agent.calls_label')}</b> {t('agent.calls', { n: agent.calls }, agent.calls)}
+          {/* A peer's calls are not this node's to count, and a 0 would read as "nobody uses it". */}
+          {agent.calls !== null
+            ? <><b>{t('agent.calls_label')}</b> {t('agent.calls', { n: agent.calls }, agent.calls)}</>
+            : <b>{t('agent.remote_note')}</b>}
           {agent.provider ? <> · <b>{t('agent.provider')}</b> {agent.provider}</> : null}
           {state === 'down' && agent.error ? <> · {agent.error}</> : null}
         </Meta>

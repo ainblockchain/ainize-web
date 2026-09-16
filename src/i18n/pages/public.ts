@@ -220,7 +220,7 @@ export const listing: Dict = {
   // The heading has to follow the view: a page headed "Explore knowledge" that is listing agents tells the
   // reader they are in the wrong place, which is exactly the doubt the two-way chip exists to remove.
   'explore.title_agent': { ko: '에이전트 둘러보기', en: 'Explore agents' },
-  'explore.agents.sub': { ko: '이 노드가 공개 주소를 주는 A2A 에이전트입니다. 지식은 모델 안에 넣는 기억이고, 에이전트는 일을 대신 해 주는 프로세스입니다. 주소를 그대로 복사해 다른 도구나 워크스페이스에 붙일 수 있고, 여기서 바로 보내볼 수도 있습니다.', en: 'A2A agents this node gives a public address to. Knowledge is memory you load into a model; an agent is a process that does the work for you. Copy an address into any tool or workspace, or send it something here.' },
+  'explore.agents.sub': { ko: '이 노드와, 이 노드가 아는 노드들이 운영하는 A2A 에이전트입니다. 지식은 모델 안에 넣는 기억이고, 에이전트는 일을 대신 해 주는 프로세스입니다. 각 주소는 그 에이전트를 실제로 돌리는 노드의 주소라, 호출은 그 노드로 바로 갑니다.', en: 'A2A agents operated by this node and by the nodes it knows. Knowledge is memory you load into a model; an agent is a process that does the work for you. Every address belongs to the node that actually runs the agent, so a call goes straight there.' },
   'explore.agents.count': { ko: '에이전트 {n}개', en: '{n} agents' },
   'explore.agents.count_one': { ko: '에이전트 1개', en: '1 agent' },
   'explore.agents.empty': { ko: '이 노드는 에이전트를 운영하지 않습니다.', en: 'This node operates no agents.' },
@@ -242,9 +242,11 @@ export const listing: Dict = {
   'agent.calls': { ko: '이 노드를 거쳐 {n}회', en: '{n} through this node' },
   'agent.calls_one': { ko: '이 노드를 거쳐 1회', en: '1 through this node' },
   'agent.provider': { ko: '운영', en: 'Operated by' },
+  'agent.on_node': { ko: '{name} 노드', en: 'on {name}' },
+  'agent.remote_note': { ko: '다른 노드의 에이전트입니다 — 호출은 그 노드로 바로 갑니다', en: 'Runs on another node — calls go straight there' },
   'agent.copy': { ko: '주소 복사', en: 'Copy' },
   'agent.free': { ko: '무료', en: 'Free' },
-  'agent.public_note': { ko: '누구나 호출할 수 있는 공개 주소입니다', en: 'A public address — anyone with it can call' },
+  'agent.public_note': { ko: 'A2A는 인증을 보내지 않습니다 — 이 주소에 닿을 수 있으면 누구나 호출합니다', en: 'A2A sends no authentication — whoever can reach this address can call it' },
   'agent.try': { ko: '라이브 테스트', en: 'Live test' },
 
   // benchmark (same-topic) page
