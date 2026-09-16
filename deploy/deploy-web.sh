@@ -121,9 +121,13 @@ else
   # By PID from the listening socket, never `pkill -f`: the pattern matches this script's own command line.
   OLD_PID="$(ss -ltnp 2>/dev/null | grep ":$PORT " | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)"
   [ -n "${OLD_PID:-}" ] && kill "$OLD_PID" 2>/dev/null && sleep 1
-  ( cd "$SERVE" && AINIZE_NODE_URL="${AINIZE_NODE_URL:-http://127.0.0.1:3400}" \
+  # `setsid`, not `( … & )`. Bash collapses a subshell whose last command is backgrounded, so the server stayed
+  # a CHILD of this script and the script could not exit: a deploy that finished in a minute sat there for forty.
+  # A new session with stdin closed and output in the log is detached for real, and `disown` drops the job.
+  setsid env AINIZE_NODE_URL="${AINIZE_NODE_URL:-http://127.0.0.1:3400}" \
       PORT="$PORT" HOSTNAME=127.0.0.1 NODE_ENV=production \
-      nohup "$NODE_BIN/node" server.js > "$ROOT/ainize-web.log" 2>&1 & )
+      "$NODE_BIN/node" "$SERVE/server.js" < /dev/null > "$ROOT/ainize-web.log" 2>&1 &
+  disown 2>/dev/null || true
 fi
 
 # Wait for it to actually answer before calling the deploy done: a release that exits on start-up used to be
