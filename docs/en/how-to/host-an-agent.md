@@ -105,6 +105,8 @@ every agent, and your agent should enforce its own limits too. Neither layer is 
 
 ## See also
 
+- [An agent that buys knowledge and remembers it](./agent-memory.md) — the other direction: an agent of your
+  own that spends money on knowledge. Same word, opposite problem.
 - [`ainize agent`](../reference/cli.md#ainize-agent) — every subcommand and option
 - [`agents`](../reference/config.md) in the configuration reference — the same registration in `config.json`
 - [Run a node others can reach](./reachable-node.md) — if you want your node to be the address people are given

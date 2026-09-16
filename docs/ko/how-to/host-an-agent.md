@@ -2,7 +2,7 @@
 title: 에이전트를 노드에 올리기
 summary: 이미 돌고 있는 A2A 에이전트에 공개 주소와 에이전트 카드를 주고 마켓플레이스에 올립니다. 내 포트를 열 필요는 없습니다.
 source: en/how-to/host-an-agent.md
-source_sha256: 8c84c1879b014541f83523e29f9099d1114e59f5543e668c30eb03a6c2bbd9a4
+source_sha256: 56eab7f4811fd4bbc6e8dd82bfad1eaa75359d350adaf40b182451a63beb82a6
 ---
 
 # 에이전트를 노드에 올리기
@@ -104,6 +104,8 @@ id는 신원이 아닙니다. 두 노드가 `donga-desk`라는 에이전트를 �
 
 ## 같이 보기
 
+- [지식을 사서 기억하는 에이전트](./agent-memory.md) — 반대 방향입니다. 내 에이전트가 지식을 사서 쓰는 이야기.
+  같은 단어, 반대 문제.
 - [`ainize agent`](../reference/cli.md#ainize-agent) — 모든 하위 명령과 옵션
 - 설정 레퍼런스의 [`agents`](../reference/config.md) — 같은 등록을 `config.json`으로
 - [남들이 닿을 수 있는 노드 운영하기](./reachable-node.md) — 사람들이 받는 주소를 내 노드로 하고 싶을 때

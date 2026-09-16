@@ -2,7 +2,7 @@
 title: Ainize
 summary: 찾아본 것을 모델이 아는 것으로 굽고, 노드끼리 사고파는 방법.
 source: en/index.md
-source_sha256: bf3762cc4966a426b4b4d48d05b6efa1191643ef5504c42566d1886a0a7da162
+source_sha256: 5ff0072b3df54b38eebce796e62906d82aff52718664e7c26e0df78d15e63ee0
 ---
 
 # Ainize
@@ -15,13 +15,14 @@ source_sha256: bf3762cc4966a426b4b4d48d05b6efa1191643ef5504c42566d1886a0a7da162
 노드는 프로세스 하나입니다. 같은 프로그램이 마켓플레이스 웹사이트이자 HTTP API이고 `ainize` 명령줄이기도 해서, 따로 배포할
 웹 애플리케이션도 없고 서로 맞춰 둘 것도 없습니다.
 
-## 세 가지 사용 창구
+## 네 가지 사용 창구
 
 | 창구 | 무엇인가 | 누가 쓰는가 |
 |---|---|---|
 | 웹사이트 | 모든 노드가 자기 주소에서 직접 띄웁니다. 기본값은 `http://localhost:3402`. 둘러보기, 라이브 테스트, 가르치기, 공개 기록. | 지식을 쓰는 사람, 그리고 코드 없이 모델을 가르치려는 사람. |
 | CLI | `ainize` — 웹사이트가 부르는 것과 같은 명령에 노드를 띄우는 명령이 더해집니다: `init`, `start`, `status`, `publish`, `use`. | 노드를 운영하는 사람, 그리고 노드를 스크립트로 다루는 사람. |
 | MCP 서버 | [ainize-mcp](https://github.com/ainblockchain/ainize-mcp) — 에이전트가 직접 검색하고 라이브 테스트하고 사고 가르칠 수 있게 하는 [MCP](https://modelcontextprotocol.io) 서버. | 나를 대신해 일하는 AI 에이전트. |
+| 에이전트 표면 | `/agents/<id>` — 이미 돌고 있는 에이전트 프로세스에 주는 공개 A2A 주소. 노드가 카드를 서빙하고 호출을 넘겨줍니다. 에이전트를 실행해 주지는 않습니다. [`ainize agent add`](./how-to/host-an-agent.md). | 에이전트를 만들었고 올릴 곳이 필요한 사람. |
 
 ## 노드가 살아 있는지 확인하기
 

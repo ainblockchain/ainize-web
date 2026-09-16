@@ -14,13 +14,14 @@ AI Network that records the payments, the permissions and where each piece came 
 A node is one process. The same program serves the marketplace website, the HTTP API and the `ainize` command line,
 so there is no separate web application to deploy and nothing to keep in sync.
 
-## The three surfaces
+## The four surfaces
 
 | Surface | What it is | Who reaches for it |
 |---|---|---|
 | The site | Every node serves it at its own address — `http://localhost:3402` by default. Explore, live test, teach, the public record. | Anyone using knowledge, and anyone teaching the model without writing code. |
 | The CLI | `ainize` — the same commands the site calls, plus the ones that run a node: `init`, `start`, `status`, `publish`, `use`. | Whoever runs the node, and anyone scripting against it. |
 | The MCP server | [ainize-mcp](https://github.com/ainblockchain/ainize-mcp) — an [MCP](https://modelcontextprotocol.io) server that lets an agent search, live-test, buy and teach. | An AI agent working on your behalf. |
+| The agent surface | `/agents/<id>` — a public A2A address for an agent process you already run. The node serves its card and forwards the calls; it does not run the agent. [`ainize agent add`](./how-to/host-an-agent.md). | Whoever built an agent and needs somewhere to put it. |
 
 ## Check that a node is answering
 

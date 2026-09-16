@@ -48,7 +48,9 @@ export const landing: Dict = {
 
   // audience
   'landing.audience.title': { ko: '어떤 분이신가요?', en: 'Which one are you?' },
-  'landing.audience.sub': { ko: '위 그림의 선에는 저마다 주인이 있습니다. 그 세 사람입니다.', en: 'Every line in the picture above belongs to somebody. These are the three of them.' },
+  // Four, not three: the agent door was added and this line went on saying three, which is the kind of
+  // detail a reader checks against the cards in front of them.
+  'landing.audience.sub': { ko: '위 그림의 선에는 저마다 주인이 있습니다. 그 세 사람과, 이 노드에 에이전트를 올리는 네 번째 사람입니다.', en: 'Every line in the picture above belongs to somebody — those three, and a fourth who puts an agent on a node.' },
   'landing.audience.user.s1': { ko: '돈을 내는 쪽입니다. 내 주제와 내 모델에 맞으면서 다른 모델 서버 두 곳이 이미 채점한 지식을 찾습니다.', en: 'You are the one paying: find knowledge two other model servers already scored, for your topic and your model.' },
   'landing.audience.user.s2': { ko: '같은 질문을 넣기 전/후 모델에 물어 답이 달라지는지 직접 봅니다.', en: 'Ask the same question before and after loading it and see the answer change.' },
   'landing.audience.user.s3': { ko: '마음에 들면 결제 후 몇 초 만에 모델에 넣고, 언제든 뺍니다.', en: 'If you like it, pay and load it in seconds — unload any time.' },

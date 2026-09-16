@@ -1,9 +1,13 @@
 ---
-title: Give an agent a memory
+title: An agent that buys knowledge and remembers it
 summary: An agent that answers from what it already knows, buys a knowledge when one covers the question, looks it up when nothing does — and compiles the lookup into an engram once repeating it has cost more than compiling it would.
 ---
 
-# Give an agent a memory
+# An agent that buys knowledge and remembers it
+
+> Looking for where to PUT an agent you built, so other people can call it?
+> That is [Put an agent on a node](./host-an-agent.md). This page is the other direction: an agent of your own
+> that spends money on knowledge and keeps what it learns.
 
 `ainize-agent run` buys one knowledge, proves it changed the model's answer, and stops. Run it again tomorrow and it
 starts from nothing: it does not know what it bought, what it looked up, or what it already answered.
