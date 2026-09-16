@@ -1,0 +1,255 @@
+[
+ {
+  "kind": "text",
+  "text": "News fitness — 69/100\n\n  ① Title         85   (rank 2/6)\n  ② Lead          95   (rank 1/6)\n  ③ Readability  FK 14.05  ✗ fail   target 10–12\n  ④ Length       265 words  ✗ fail   target 450–550\n\nBiggest win: Teradyne Opens First India Office in Bengaluru to Boost Semiconductor Operations\nReadability is carried by: \"Karnataka has attracted a large share of India's electronics design activity, and the stat…\"\n\nCompared against 5 article(s) on the same story:\n  · Whalesbook — Teradyne Opens Bengaluru Semiconductor Hub to Boost India Operations\n  · BW Businessworld — US Chip Testing Major Teradyne Opens Bengaluru Office\n  · Moneycontrol.com — Global semiconductor testing and advanced robotics firm Teradyne opens first India office in Bengaluru\n  · Express Computer — Teradyne opens first dedicated India office in Bengaluru\n  · BusinessLine — Teradyne opens first dedicated India office in Bengaluru\n\n```json\n{\n  \"status\": \"ok\",\n  \"overall\": 69,\n  \"scored_on\": [\n    \"title\",\n    \"lead\",\n    \"readability\",\n    \"length\"\n  ],\n  \"skipped\": [],\n  \"weights\": {\n    \"title\": 0.35,\n    \"lead\": 0.35,\n    \"readability\": 0.15,\n    \"length\": 0.15\n  },\n  \"article\": {\n    \"title\": \"Teradyne opens Bengaluru semiconductor hub to expand India operations\",\n    \"lead\": \"Teradyne, the US maker of automated test equipment for chips and electronics, opened a new engineering hub in Bengaluru on Tuesday, deepening a push into India that the company says will support customers across Asia.\",\n    \"source_url\": null,\n    \"words\": 265,\n    \"sentences\": 13\n  },\n  \"title\": {\n    \"status\": \"ok\",\n    \"score\": 85,\n    \"rank\": 2,\n    \"of\": 6,\n    \"reasons\": {\n      \"specificity\": \"It correctly identifies the company, location, and purpose, though it omits the 'first' qualifier present in some references which adds context.\",\n      \"active voice\": \"Uses a clear active verb ('opens') with a definite subject ('Teradyne').\",\n      \"length\": \"Concise and comparable to the reference headlines, avoiding unnecessary filler words.\",\n      \"clickbait\": \"Straightforward and factual, with no curiosity gaps or sensationalism.\",\n      \"timeliness\": \"The present tense 'opens' implies recent news, consistent with standard news headline conventions.\"\n    },\n    \"suggestions\": [\n      \"Teradyne Opens First India Office in Bengaluru to Boost Semiconductor Operations\",\n      \"Teradyne Launches Bengaluru Hub as Its First Dedicated India Office\"\n    ]\n  },\n  \"lead\": {\n    \"status\": \"ok\",\n    \"score\": 95,\n    \"rank\": 1,\n    \"of\": 6,\n    \"reasons\": {\n      \"5W1H\": \"The lead successfully includes who (Teradyne), what (opened engineering hub), where (Bengaluru), and when (Tuesday), providing a complete factual snapshot.\",\n      \"standalone\": \"It is fully self-contained, explaining the company's identity and the strategic purpose of the opening without needing the headline.\",\n      \"length\": \"At 28 words, it fits perfectly within the ideal 25-35 word range, offering more detail than the shorter references without becoming verbose.\",\n      \"inverted pyramid\": \"It prioritizes the core news event (the opening) before adding context about the company's broader strategy, adhering to standard news structure.\",\n      \"throat-clearing\": \"The sentence begins directly with the subject and action, avoiding unnecessary preamble or subordinate clauses that delay the main news.\"\n    },\n    \"suggestions\": [\n      \"Consider specifying 'first' office if that is the primary news angle, as several references highlight this milestone.\",\n      \"Ensure 'engineering hub' accurately reflects the office's function, as other references emphasize 'customer support' and 'training'.\"\n    ]\n  },\n  \"readability\": {\n    \"verdict\": \"fail\",\n    \"fk\": 14.05,\n    \"target\": [\n      10,\n      12\n    ],\n    \"words\": 265,\n    \"sentences\": 13,\n    \"syllables\": 487,\n    \"words_per_sentence\": 20.38,\n    \"syllables_per_word\": 1.838,\n    \"syllable_method\": \"english-heuristic\",\n    \"hardest_sentences\": [\n      {\n        \"sentence\": \"Karnataka has attracted a large share of India's electronics design activity, and the state government has said it wants to add capacity in packaging and testing to complement t…\",\n        \"fk\": 20.6,\n        \"words\": 35\n      },\n      {\n        \"sentence\": \"Teradyne, the US maker of automated test equipment for chips and electronics, opened a new engineering hub in Bengaluru on Tuesday, deepening a push into India that the company …\",\n        \"fk\": 20.3,\n        \"words\": 35\n      },\n      {\n        \"sentence\": \"Teradyne competes with Advantest of Japan in automated test equipment, a market that has grown with the complexity of artificial intelligence accelerators.\",\n        \"fk\": 18.2,\n        \"words\": 22\n      }\n    ]\n  },\n  \"length\": {\n    \"verdict\": \"fail\",\n    \"words\": 265,\n    \"target\": [\n      450,\n      550\n    ],\n    \"warn\": [\n      400,\n      650\n    ],\n    \"delta\": -185\n  },\n  \"reference\": {\n    \"query\": \"Teradyne opens Bengaluru engineering hub\",\n    \"query_via\": \"model\",\n    \"status\": \"ok\",\n    \"feed_items\": 7,\n    \"matched\": [\n      {\n        \"title\": \"Teradyne Opens Bengaluru Semiconductor Hub to Boost India Operations\",\n        \"outlet\": \"Whalesbook\",\n        \"url\": \"https://www.whalesbook.com/news/English/technology/Teradyne-Opens-Bengaluru-Semiconductor-Hub-to-Boost-India-Operations/6aa9a68f0416c068539d89bd\",\n        \"published\": \"Tue, 15 Sep 2026 22:01:43 GMT\",\n        \"lead\": \"Teradyne, a U.S.-based specialist in automated test equipment for chips and electronics, has officially inaugurated its first dedicated semiconductor-focused office in India.\"\n      },\n      {\n        \"title\": \"US Chip Testing Major Teradyne Opens Bengaluru Office\",\n        \"outlet\": \"BW Businessworld\",\n        \"url\": \"https://www.businessworld.in/article/us-chip-testing-major-teradyne-opens-bengaluru-office-623872\",\n        \"published\": \"Tue, 15 Sep 2026 15:10:28 GMT\",\n        \"lead\": \"The US-based automated test equipment maker will use the Bengaluru office as a hub for customer support, training and partnerships as India scales up chip fabrication, packaging and testing\"\n      },\n      {\n        \"title\": \"Global semiconductor testing and advanced robotics firm Teradyne opens first India office in Bengaluru\",\n        \"outlet\": \"Moneycontrol.com\",\n        \"url\": \"https://www.moneycontrol.com/news/business/global-semiconductor-testing-and-advanced-robotics-firm-teradyne-opens-first-india-office-in-bengaluru-14030494.html\",\n        \"published\": \"Tue, 15 Sep 2026 14:16:28 GMT\",\n        \"lead\": \"Bengaluru office will serve as Teradyne’s local hub for customer engagement, applications support, training and strategic partnerships.\"\n      },\n      {\n        \"title\": \"Teradyne opens first dedicated India office in Bengaluru\",\n        \"outlet\": \"Express Computer\",\n        \"url\": \"https://www.expresscomputer.in/news/teradyne-opens-first-dedicated-india-office-in-bengaluru/138726/\",\n        \"published\": \"Tue, 15 Sep 2026 13:50:03 GMT\",\n        \"lead\": \"Semiconductor and electronics testing company Teradyne has inaugurated its first dedicated office in India in Bengaluru, marking a formal expansion of its presence in the country.\"\n      },\n      {\n        \"title\": \"Teradyne opens first dedicated India office in Bengaluru\",\n        \"outlet\": \"BusinessLine\",\n        \"url\": \"https://www.thehindubusinessline.com/info-tech/teradyne-opens-first-dedicated-india-office-in-bengaluru/article71468163.ece\",\n        \"published\": \"Tue, 15 Sep 2026 13:10:12 GMT\",\n        \"lead\": \"Teradyne opens its first office in Bengaluru, enhancing India's semiconductor ecosystem and showcasing Karnataka's innovation commitment.\"\n      }\n    ],\n    \"failures\": [\n      {\n        \"title\": \"Teradyne opens Bengaluru office to strengthen India's semiconductor ecosystem\",\n        \"url\": \"https://yourstory.com/2026/09/teradyne-first-india-office-bengaluru-semiconductor\",\n        \"stage\": \"fetch\",\n        \"error\": \"http 403\"\n      }\n    ]\n  },\n  \"notes\": [],\n  \"elapsed_ms\": 10165\n}\n```"
+ },
+ {
+  "kind": "data",
+  "data": {
+   "version": "v0.9",
+   "createSurface": {
+    "surfaceId": "news-fitness",
+    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+    "theme": {},
+    "sendDataModel": false
+   }
+  },
+  "metadata": {
+   "mimeType": "application/json+a2ui"
+  }
+ },
+ {
+  "kind": "data",
+  "data": {
+   "version": "v0.9",
+   "updateComponents": {
+    "surfaceId": "news-fitness",
+    "components": [
+     {
+      "id": "root",
+      "component": "Column",
+      "children": [
+       "headline",
+       "overall",
+       "axes",
+       "divider",
+       "refs"
+      ]
+     },
+     {
+      "id": "headline",
+      "component": "Text",
+      "text": "News fitness",
+      "variant": "h2"
+     },
+     {
+      "id": "overall",
+      "component": "Text",
+      "text": {
+       "path": "/overall_label"
+      },
+      "variant": "h1"
+     },
+     {
+      "id": "axes",
+      "component": "Card",
+      "child": "axes_col"
+     },
+     {
+      "id": "axes_col",
+      "component": "Column",
+      "children": [
+       "title_row",
+       "lead_row",
+       "read_row",
+       "len_row"
+      ]
+     },
+     {
+      "id": "divider",
+      "component": "Divider"
+     },
+     {
+      "id": "refs",
+      "component": "Column",
+      "children": [
+       "refs_head",
+       "refs_list"
+      ]
+     },
+     {
+      "id": "refs_head",
+      "component": "Text",
+      "text": {
+       "path": "/references_label"
+      },
+      "variant": "h3"
+     },
+     {
+      "id": "refs_list",
+      "component": "List",
+      "children": {
+       "template": {
+        "dataPath": "/references",
+        "componentId": "ref_row"
+       }
+      }
+     },
+     {
+      "id": "ref_row",
+      "component": "Row",
+      "children": [
+       "ref_outlet",
+       "ref_title"
+      ]
+     },
+     {
+      "id": "ref_outlet",
+      "component": "Text",
+      "text": {
+       "path": "outlet"
+      }
+     },
+     {
+      "id": "ref_title",
+      "component": "Text",
+      "text": {
+       "path": "title"
+      }
+     },
+     {
+      "id": "title_row",
+      "component": "Row",
+      "children": [
+       "title_label",
+       "title_value"
+      ]
+     },
+     {
+      "id": "title_label",
+      "component": "Text",
+      "text": "① Title"
+     },
+     {
+      "id": "title_value",
+      "component": "Text",
+      "text": {
+       "path": "/title"
+      }
+     },
+     {
+      "id": "lead_row",
+      "component": "Row",
+      "children": [
+       "lead_label",
+       "lead_value"
+      ]
+     },
+     {
+      "id": "lead_label",
+      "component": "Text",
+      "text": "② Lead"
+     },
+     {
+      "id": "lead_value",
+      "component": "Text",
+      "text": {
+       "path": "/lead"
+      }
+     },
+     {
+      "id": "read_row",
+      "component": "Row",
+      "children": [
+       "read_label",
+       "read_value"
+      ]
+     },
+     {
+      "id": "read_label",
+      "component": "Text",
+      "text": "③ Readability"
+     },
+     {
+      "id": "read_value",
+      "component": "Text",
+      "text": {
+       "path": "/read"
+      }
+     },
+     {
+      "id": "len_row",
+      "component": "Row",
+      "children": [
+       "len_label",
+       "len_value"
+      ]
+     },
+     {
+      "id": "len_label",
+      "component": "Text",
+      "text": "④ Length"
+     },
+     {
+      "id": "len_value",
+      "component": "Text",
+      "text": {
+       "path": "/len"
+      }
+     }
+    ]
+   }
+  },
+  "metadata": {
+   "mimeType": "application/json+a2ui"
+  }
+ },
+ {
+  "kind": "data",
+  "data": {
+   "version": "v0.9",
+   "updateDataModel": {
+    "surfaceId": "news-fitness",
+    "path": "/",
+    "value": {
+     "overall_label": "69/100",
+     "title": "85/100  (rank 2/6)",
+     "lead": "95/100  (rank 1/6)",
+     "read": "FK 14.05  ✗ fail  (target 10–12)",
+     "len": "265 words  ✗ fail  (target 450–550)",
+     "references_label": "Compared against 5 articles on the same story",
+     "references": [
+      {
+       "outlet": "Whalesbook",
+       "title": "Teradyne Opens Bengaluru Semiconductor Hub to Boost India Operations",
+       "url": "https://www.whalesbook.com/news/English/technology/Teradyne-Opens-Bengaluru-Semiconductor-Hub-to-Boost-India-Operations/6aa9a68f0416c068539d89bd"
+      },
+      {
+       "outlet": "BW Businessworld",
+       "title": "US Chip Testing Major Teradyne Opens Bengaluru Office",
+       "url": "https://www.businessworld.in/article/us-chip-testing-major-teradyne-opens-bengaluru-office-623872"
+      },
+      {
+       "outlet": "Moneycontrol.com",
+       "title": "Global semiconductor testing and advanced robotics firm Teradyne opens first India office in Bengaluru",
+       "url": "https://www.moneycontrol.com/news/business/global-semiconductor-testing-and-advanced-robotics-firm-teradyne-opens-first-india-office-in-bengaluru-14030494.html"
+      },
+      {
+       "outlet": "Express Computer",
+       "title": "Teradyne opens first dedicated India office in Bengaluru",
+       "url": "https://www.expresscomputer.in/news/teradyne-opens-first-dedicated-india-office-in-bengaluru/138726/"
+      },
+      {
+       "outlet": "BusinessLine",
+       "title": "Teradyne opens first dedicated India office in Bengaluru",
+       "url": "https://www.thehindubusinessline.com/info-tech/teradyne-opens-first-dedicated-india-office-in-bengaluru/article71468163.ece"
+      }
+     ]
+    }
+   }
+  },
+  "metadata": {
+   "mimeType": "application/json+a2ui"
+  }
+ }
+]

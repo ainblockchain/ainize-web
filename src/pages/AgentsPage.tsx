@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import type { AgentSummary } from '@/api/types';
+import { A2UISurface, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
 import { useTitle } from '@/utils/useTitle';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
@@ -51,6 +52,12 @@ const Out = styled.pre`
   font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre-wrap;
 `;
 const Row = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;`;
+const Rendered = styled.div`
+  margin-top: 16px; padding: 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fafafb;
+`;
+const RenderedLabel = styled.div`
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: ${(p) => p.theme.color.GREY}; margin-bottom: 12px;
+`;
 
 const SAMPLES: { label: string; text: string }[] = [
   {
@@ -80,6 +87,7 @@ export function AgentsPage() {
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [result, setResult] = useState<string | null>(null);
+  const [surface, setSurface] = useState<A2UISurfaceData | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -92,7 +100,7 @@ export function AgentsPage() {
 
   const run = async () => {
     if (!agent) return;
-    setBusy(true); setResult(null); setFailed(null); setElapsed(0);
+    setBusy(true); setResult(null); setSurface(null); setFailed(null); setElapsed(0);
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
     try {
@@ -113,6 +121,9 @@ export function AgentsPage() {
       const body = await res.json().catch(() => null);
       if (body?.error) { setFailed(`${body.error.message} (code ${body.error.code})`); return; }
       const parts = body?.result?.parts ?? [];
+      // A2UI first: an agent that describes its answer as a surface gets drawn rather than printed. The
+      // text part is always kept — it is the same answer, and it is what a reader copies out.
+      setSurface(readSurface(parts));
       const text = parts.map((p: { text?: string }) => p.text ?? '').join('\n').trim();
       // §2 — an empty parts array is a deliberate answer, not a missing one
       setResult(text || '(silence — the agent heard this and chose not to reply, which is how it stays quiet in a busy channel)');
