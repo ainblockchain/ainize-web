@@ -4,16 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "gen": "node scripts/gen-inline.mjs",
+    "gen:check": "node scripts/gen-inline.mjs --check",
+    "dev": "npm run gen && next dev",
+    "build": "npm run gen && next build",
+    "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "preview": "vite preview",
     "test": "node --test --import tsx test/*.test.ts"
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "@noble/secp256k1": "^2.3.0",
     "@reduxjs/toolkit": "^2.12.0",
+    "next": "^15.5.25",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-redux": "^9.3.0",
@@ -26,10 +29,8 @@
     "@ainize/node": "^0.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "@vitejs/plugin-react": "^6.1.1",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3",
-    "vite": "^8.2.2"
+    "typescript": "^5.9.3"
   },
   "license": "MIT"
 }

@@ -40,10 +40,10 @@ test('the route guards ask who owns the node, not who is signed in', () => {
 test('nothing private is shown to a wallet that merely connected', () => {
   // Each of these was `isSignedIn`, and each is something the NODE gives only to its owner: the runtime API and
   // repo path of the machine, the manage view of a published knowledge, and the unmetered live-test counter.
-  assert.ok(has('pages/NetworkPage.tsx', '{isOwner && (<>'), 'runtime api/repo');
-  assert.ok(has('pages/PatchPage.tsx', '{!(isOwner && data.owned) && ('), 'buy vs manage');
-  assert.ok(has('pages/ChatPage.tsx', 'const outOfTries = exhausted && !isOwner;'), 'free-try quota');
-  assert.ok(has('pages/ChatPage.tsx', 'const quotaText = isOwner || quota === null'), 'the counter a visitor reads');
+  assert.ok(has('screens/NetworkPage.tsx', '{isOwner && (<>'), 'runtime api/repo');
+  assert.ok(has('screens/PatchPage.tsx', '{!(isOwner && data.owned) && ('), 'buy vs manage');
+  assert.ok(has('screens/ChatPage.tsx', 'const outOfTries = exhausted && !isOwner;'), 'free-try quota');
+  assert.ok(has('screens/ChatPage.tsx', 'const quotaText = isOwner || quota === null'), 'the counter a visitor reads');
 });
 
 test('the header offers no link that lands on "this node is not yours"', () => {
@@ -66,7 +66,7 @@ test('the app asks the node whether it is an owner rather than deciding for itse
 });
 
 test('the only signing scheme the browser asks for is the one a wallet can produce', () => {
-  const page = code('pages/SigningPage.tsx').join('\n');
+  const page = code('screens/SigningPage.tsx').join('\n');
   // Stated, never inferred. The node fixes the scheme to the challenge it issues, so asking for the wrong one
   // fails at the signature rather than silently recording "a person approved this" when a key did.
   assert.ok(page.includes("challenge({ scheme: 'eip191' })"), 'the challenge names eip191');
@@ -76,7 +76,7 @@ test('the only signing scheme the browser asks for is the one a wallet can produ
 });
 
 test('the authorize page shows the bytes the wallet will sign, not its own account of them', () => {
-  const page = code('pages/AuthorizePage.tsx').join('\n');
+  const page = code('screens/AuthorizePage.tsx').join('\n');
   // A page saying one thing while the wallet signs another is the whole attack. The node composes the message and
   // stores it; this renders THAT string, so there is only one string and nothing for the two to disagree about.
   assert.ok(page.includes('<Signed data-testid="authorize-message">{data.message}</Signed>'), 'the message is rendered verbatim');
@@ -90,7 +90,7 @@ test('the authorize page shows the bytes the wallet will sign, not its own accou
 });
 
 test('an expired or spent request is a different answer from a button that fails', () => {
-  const page = code('pages/AuthorizePage.tsx').join('\n');
+  const page = code('screens/AuthorizePage.tsx').join('\n');
   // "Run it again" and "you already did this" are different things to do next, and a person who is told neither
   // will click approve until something happens.
   assert.match(page, /data\.status === 'expired' \? t\('op\.authorize\.expired'\)/);
@@ -127,7 +127,7 @@ test('a malformed anchor from any node must not white-page the explorer', () => 
   // Every page that renders it, not just the one that happened to crash. What must not appear is a read of the
   // ANCHOR's field as though its type were guaranteed; a local already narrowed by benchmarkFormats() is fine,
   // which is the difference between `g.format.join(…)` (safe) and `a.benchmark.format.join(…)` (the crash).
-  for (const f of ['components/public/PatchListItem.tsx', 'pages/PatchPage.tsx', 'pages/BenchmarkPage.tsx']) {
+  for (const f of ['components/public/PatchListItem.tsx', 'screens/PatchPage.tsx', 'screens/BenchmarkPage.tsx']) {
     const src = code(f).join('\n');
     assert.ok(!/benchmark\??\.format(\?\.|\.)(length|join)\b/.test(src), `${f}: an anchor field is read as if its type were guaranteed`);
     if (/benchmark\??\.format/.test(src)) assert.match(src, /benchmarkFormats\(/, `${f}: reads benchmark.format without narrowing it`);

@@ -11,38 +11,38 @@ import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SigningCheckLayo
 import { CenterProgress } from './components/ui/Misc';
 
 // Pages are code-split like ainize-web did with @loadable/component.
-const LandingPage = lazy(() => import('./pages/LandingPage'));
-const ExplorePage = lazy(() => import('./pages/ExplorePage'));
-const PatchPage = lazy(() => import('./pages/PatchPage'));
-const BenchmarkPage = lazy(() => import('./pages/BenchmarkPage'));
-const LedgerPage = lazy(() => import('./pages/LedgerPage'));
-const NetworkPage = lazy(() => import('./pages/NetworkPage'));
-const AgentsPage = lazy(() => import('./pages/AgentsPage'));
-const TrackPage = lazy(() => import('./pages/TrackPage'));
-const TermsPage = lazy(() => import('./pages/TermsPage'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
-const SigningPage = lazy(() => import('./pages/SigningPage'));
-const AuthorizePage = lazy(() => import('./pages/AuthorizePage'));
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const ManagePage = lazy(() => import('./pages/ManagePage'));
-const LogsPage = lazy(() => import('./pages/LogsPage'));
+const LandingPage = lazy(() => import('./screens/LandingPage'));
+const ExplorePage = lazy(() => import('./screens/ExplorePage'));
+const PatchPage = lazy(() => import('./screens/PatchPage'));
+const BenchmarkPage = lazy(() => import('./screens/BenchmarkPage'));
+const LedgerPage = lazy(() => import('./screens/LedgerPage'));
+const NetworkPage = lazy(() => import('./screens/NetworkPage'));
+const AgentsPage = lazy(() => import('./screens/AgentsPage'));
+const TrackPage = lazy(() => import('./screens/TrackPage'));
+const TermsPage = lazy(() => import('./screens/TermsPage'));
+const NotFoundPage = lazy(() => import('./screens/NotFoundPage'));
+const SigningPage = lazy(() => import('./screens/SigningPage'));
+const AuthorizePage = lazy(() => import('./screens/AuthorizePage'));
+const DashboardPage = lazy(() => import('./screens/DashboardPage'));
+const ManagePage = lazy(() => import('./screens/ManagePage'));
+const LogsPage = lazy(() => import('./screens/LogsPage'));
 // Finding 133: the node-wide event stream (`/api/events`) had no screen — only the per-knowledge log did.
-const NodeLogsPage = lazy(() => import('./pages/NodeLogsPage'));
-const NewPatchPage = lazy(() => import('./pages/NewPatchPage'));
-const AccountPage = lazy(() => import('./pages/AccountPage'));
-const DrivePage = lazy(() => import('./pages/DrivePage'));
-const ChatPage = lazy(() => import('./pages/ChatPage'));
-const DocsPage = lazy(() => import('./pages/DocsPage'));
-const TeacherPage = lazy(() => import('./pages/TeacherPage'));
-const VerifierPage = lazy(() => import('./pages/VerifierPage'));
+const NodeLogsPage = lazy(() => import('./screens/NodeLogsPage'));
+const NewPatchPage = lazy(() => import('./screens/NewPatchPage'));
+const AccountPage = lazy(() => import('./screens/AccountPage'));
+const DrivePage = lazy(() => import('./screens/DrivePage'));
+const ChatPage = lazy(() => import('./screens/ChatPage'));
+const DocsPage = lazy(() => import('./screens/DocsPage'));
+const TeacherPage = lazy(() => import('./screens/TeacherPage'));
+const VerifierPage = lazy(() => import('./screens/VerifierPage'));
 // Teach mode v2 — the dataset wizard (docs/teachable-dataset-design.md §5.1). One pipeline, two doors.
-const TeachPage = lazy(() => import('./pages/TeachPage'));
-const TeachUploadPage = lazy(() => import('./pages/TeachUploadPage'));
-const TeachDatasetPage = lazy(() => import('./pages/TeachDatasetPage'));
-const TeachSettingsPage = lazy(() => import('./pages/TeachSettingsPage'));
-const TeachLessonPage = lazy(() => import('./pages/TeachLessonPage'));
-const TeachMinePage = lazy(() => import('./pages/TeachMinePage'));
-const MergePage = lazy(() => import('./pages/MergePage'));
+const TeachPage = lazy(() => import('./screens/TeachPage'));
+const TeachUploadPage = lazy(() => import('./screens/TeachUploadPage'));
+const TeachDatasetPage = lazy(() => import('./screens/TeachDatasetPage'));
+const TeachSettingsPage = lazy(() => import('./screens/TeachSettingsPage'));
+const TeachLessonPage = lazy(() => import('./screens/TeachLessonPage'));
+const TeachMinePage = lazy(() => import('./screens/TeachMinePage'));
+const MergePage = lazy(() => import('./screens/MergePage'));
 
 const fallback = <CenterProgress />;
 

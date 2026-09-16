@@ -4,14 +4,29 @@ The frontend of [Ainize](https://github.com/ainblockchain/ainize), a **Collabora
 one base model whose memory is taught by many people, in pieces, in the open.
 
 This package is the window onto that network — the landing page, the knowledge catalogue, the node map,
-the teacher and verifier pages, and the public sale record. It is a static build with **no build-time
-dependency on any other Ainize repository**; at runtime it is handed the URL of a node and shows what
-that node's peers can see.
+the teacher and verifier pages, and the public sale record.
+
+It is a **Next.js app: the frontend and its backend**. That second half is what makes the chain work:
+
+```text
+browser  ->  this app  ->  main node  ->  the node that runs the agent / holds the knowledge
+```
+
+Only the first hop is public. The node's address lives in this app's environment (`AINIZE_NODE_URL`) and is
+never sent to a browser, which is what lets a node with no public address still be reachable by name — an
+agent on somebody's laptop answers at `https://ainize.ai/agents/<id>` because this app, not the visitor,
+is the one that can reach it. `app/api`, `app/agents`, `app/x402` and `app/p2p` are those route handlers;
+everything else is the app, and it still has **no build-time dependency on any other Ainize repository**.
 
 ```bash
-npm install && npm run build      # dist/ — serve it anywhere
-npm run dev                       # vite dev server
+npm install
+npm run dev        # next dev, with AINIZE_NODE_URL pointing at your node
+npm run build      # .next/ — a server, not a directory of files
+npm start          # next start
 ```
+
+`npm run gen` regenerates the two inlined modules (page dictionaries, docs markdown); `build` and `dev` run it
+for you, and `npm run gen:check` fails when they are stale. See `scripts/gen-inline.mjs`.
 
 Whoever runs an explorer runs a node too: the explorer's view of the network is its node's view,
 gathered peer-to-peer. See [ainize-node](https://github.com/ainblockchain/ainize-node).

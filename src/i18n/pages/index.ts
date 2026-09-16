@@ -4,10 +4,11 @@
  * Keys are namespaced by page: 'explore.title', 'patch.tab.overview', … Keep sentences plain-language (see glossary).
  */
 import type { Dict } from '../index';
+import { MODULES } from './generated';
 
-const modules = import.meta.glob<Record<string, Dict>>(['./*.ts', '!./index.ts'], { eager: true });
-
-export const PAGES: Dict = Object.values(modules).reduce<Dict>((acc, mod) => {
+// The discovery moved to `scripts/gen-inline.mjs` (see it for why) — adding a file here still needs no edit to
+// any shared module, and `npm run gen:check` fails the build if the generated list is stale.
+export const PAGES: Dict = MODULES.reduce<Dict>((acc, mod) => {
   for (const value of Object.values(mod)) {
     if (value && typeof value === 'object') Object.assign(acc, value);
   }

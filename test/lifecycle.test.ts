@@ -68,7 +68,7 @@ test('the role-grouped "one line is enough" block is gone from the page and the 
 });
 
 test('no command that cannot resolve, and no unshipped flag', (t) => {
-  const page = readFileSync(fileURLToPath(new URL('../src/pages/LandingPage.tsx', import.meta.url)), 'utf-8');
+  const page = readFileSync(fileURLToPath(new URL('../src/screens/LandingPage.tsx', import.meta.url)), 'utf-8');
   const every = LIFECYCLE.map((s) => s.cmd).join('\n') + '\n' + SECTION + '\n' + page;
   // `npm install -g ainize` was banned outright while the CLI was published as `@ainize/cli` and
   // `npm view ainize` 404d. That ban is now a CONDITION: the page may make the promise exactly when the

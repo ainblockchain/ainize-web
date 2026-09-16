@@ -85,7 +85,10 @@ function Terms({ info, t }: { info?: Partial<PeerInfo> | null; t: (k: string, v?
 const Soft = styled.span`color: ${(p) => p.theme.color.GREY};`;
 
 function Endpoint({ url, hidden }: { url: string | null; hidden: string }) {
-  if (!url) return <Soft title={hidden}>{hidden}</Soft>;
+  // A dash, not the sentence. The sentence is true of every hidden row, and on a table of seventy peers it
+  // printed itself seventy times and pushed the columns that differ off the screen; it belongs in the legend
+  // below the table, once. The cell still says something is there, and hovering says what.
+  if (!url) return <Soft title={hidden}>—</Soft>;
   return <ExternalLink href={`${url}/api/info`} target="_blank" rel="noopener noreferrer">{url}</ExternalLink>;
 }
 

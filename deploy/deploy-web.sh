@@ -18,9 +18,12 @@
 # AND THE NODE NO LONGER SERVES THE SITE AT ALL. It can — that is what gives an operator a working UI from a
 # single `ainize start`, and it is the right default there. It is the wrong thing in front of a domain: the
 # site then dies with the node process, a restart is an outage, and the deployed build is whatever directory
-# sits beside the installed CLI. nginx already terminates TLS here, so it is already in the path; it serves
-# the files and proxies /api to the node. Verified: with the node stopped, ainize.ai/ still answers 200 and
-# only /api/info returns 502.
+# sits beside the installed CLI.
+#
+# WHAT A RELEASE IS NOW. The site is a Next.js app: a frontend and its backend in one process. It is no longer
+# a directory nginx can serve, because the pages are only half of it — `/api/*` and `/agents/*` are route
+# handlers, and they are what keeps the node's address on the server instead of in the browser. So a release
+# is a directory AND a running process, nginx proxies to it, and the swap has to restart something.
 #
 # So the input is a git ref, the output records which ref produced it, and the served directory is replaced
 # atomically. Running this twice on the same ref gives the same site.
@@ -73,8 +76,11 @@ say "ref $REF -> $SHORT${SUFFIX:+ (dirty)}"
 say "installing"
 npm install --silent --no-audit --no-fund
 
-# The build typechecks first (`tsc --noEmit && vite build`), so a tree that does not compile never reaches the
-# releases directory, let alone the live one.
+say "typechecking"
+npm run typecheck --silent
+
+# `next build` fails on a type error by design (next.config.ts: typescript.ignoreBuildErrors false), so a tree
+# that does not compile never reaches the releases directory, let alone the live one.
 say "building"
 npm run build --silent
 
@@ -85,7 +91,13 @@ npm test 2>&1 | tail -3 || say "(tests reported failures — see above)"
 
 DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-$SHORT$SUFFIX"
 mkdir -p "$DEST"
-cp -r dist/. "$DEST/"
+# What `next start` needs, and nothing else: the build, the static files it serves, and the manifest that says
+# which dependencies it may load. node_modules is copied rather than reinstalled so the release is exactly the
+# tree that was just built and tested — an install at swap time can resolve a different version.
+cp -r .next "$DEST/.next"
+cp -r public "$DEST/public"
+cp package.json package-lock.json "$DEST/"
+cp -r node_modules "$DEST/node_modules"
 printf '%s\n' "$SHA" > "$DEST/.git-sha"
 printf '{"ref":"%s","sha":"%s","dirty":%s,"built_at":"%s","repo":"%s"}\n' \
   "$REF" "$SHA" "$DIRTY" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO" > "$DEST/build-info.json"
@@ -95,6 +107,29 @@ mkdir -p "$(dirname "$SERVE")"
 ln -sfn "$DEST" "$SERVE.new"
 mv -Tf "$SERVE.new" "$SERVE"
 say "serving $DEST"
+
+# The process has to be told. systemd if the unit is installed — that is what survives a reboot — and a plain
+# restart otherwise, so a machine without it is not left serving the previous release for ever.
+PORT="${AINIZE_WEB_PORT:-3900}"
+if systemctl --user list-unit-files ainize-web.service >/dev/null 2>&1 \
+   && systemctl --user is-enabled ainize-web.service >/dev/null 2>&1; then
+  say "restarting ainize-web.service"
+  systemctl --user restart ainize-web.service
+else
+  say "no ainize-web.service — restarting by hand on :$PORT"
+  pkill -f "next start -p $PORT" 2>/dev/null || true
+  sleep 1
+  ( cd "$SERVE" && AINIZE_NODE_URL="${AINIZE_NODE_URL:-http://127.0.0.1:3400}" \
+      nohup "$NODE_BIN/npx" next start -p "$PORT" > "$ROOT/ainize-web.log" 2>&1 & )
+fi
+
+# Wait for it to actually answer before calling the deploy done: a release that exits on start-up used to be
+# reported as success while the previous process kept serving.
+for i in $(seq 1 30); do
+  if curl -fsS --max-time 2 "http://127.0.0.1:$PORT/" >/dev/null 2>&1; then say "answering on :$PORT"; break; fi
+  [ "$i" = 30 ] && { say "NOT answering on :$PORT after 30s — see $ROOT/ainize-web.log"; exit 1; }
+  sleep 1
+done
 
 # Keep the last five releases so a rollback is `ln -sfn <release> $SERVE`.
 ls -1dt "$RELEASES"/*/ 2>/dev/null | tail -n +6 | xargs -r rm -rf
@@ -107,10 +142,11 @@ deployed
   release    $DEST
   served at  $SERVE
 
-nginx serves these files directly (root $SERVE in deploy/nginx/ainize.ai.conf) and proxies only /api, /x402
-and /p2p to the node. Nothing to restart: the symlink flip IS the deploy, and the site stays up while the
-node is down.
+nginx proxies the domain to this app on :${AINIZE_WEB_PORT:-3900} (deploy/nginx/ainize.ai.conf). The app serves
+the pages and answers /api, /agents, /x402
+and /p2p by relaying to the node — the node's address never reaches a browser.
 
-rollback: ln -sfn <older release under $RELEASES> "$SERVE"
+rollback: ln -sfn <older release under $RELEASES> "$SERVE" && systemctl --user restart ainize-web
 releases: ls -1dt $RELEASES/*/ | head
+logs:     journalctl --user -u ainize-web -f   (or $ROOT/ainize-web.log)
 EOF

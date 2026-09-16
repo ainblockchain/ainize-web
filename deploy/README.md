@@ -1,7 +1,11 @@
 # Deploying ainize.ai
 
-The site is a static build. nginx serves it and proxies `/api`, `/x402` and `/p2p` to a node. A deploy is one
-symlink flip, so it is atomic and the site stays up while the node is down.
+The site is a **Next.js app — the frontend and its backend in one process**. nginx terminates TLS and proxies
+the whole domain to it; the app serves the pages and answers `/api`, `/agents`, `/x402` and `/p2p` by relaying
+to the node, so the node's address stays on the server and never reaches a browser.
+
+A deploy is a symlink flip and a restart. The flip is atomic; the restart is not, which is the one thing that
+changed when this stopped being a directory of files.
 
 ```bash
 deploy/deploy-web.sh              # deploy origin/main — this is what a release is
@@ -20,20 +24,38 @@ live. Do not leave a dirty release serving: re-run without it once the work is p
    the releases directory, let alone the live one.
 3. Runs the tests and prints the result. A failure does not block the deploy — some tests assert things about
    the registry and the docs that fail for reasons outside this tree — but a deploy is never silent about it.
-4. Copies `dist/` to `~/ainize-web-releases/releases/<UTC timestamp>-<sha>`, writes `.git-sha` and
-   `build-info.json` beside it.
+4. Copies `.next/`, `public/`, `package.json` and `node_modules/` to
+   `~/ainize-web-releases/releases/<UTC timestamp>-<sha>`, and writes `.git-sha` and `build-info.json` beside
+   them. `node_modules` is copied rather than reinstalled so the release is exactly the tree that was built and
+   tested — an install at swap time can resolve a different version.
 5. Flips `~/ainize-web-releases/current` to it with one `mv -T`. One syscall: nobody is served half a build.
-6. Deletes all but the five most recent releases.
+6. Restarts the app — `systemctl --user restart ainize-web` when the unit is installed, a `next start` by hand
+   otherwise — and **waits for it to answer** before reporting success. A release that exits on start-up used
+   to be reported as a good deploy while the previous process kept serving.
+7. Deletes all but the five most recent releases.
 
 ## Rollback
 
 ```bash
 ls -1dt ~/ainize-web-releases/releases/*/ | head           # what is available
 ln -sfn ~/ainize-web-releases/releases/<one of them> ~/ainize-web-releases/current
+systemctl --user restart ainize-web
 ```
 
-No build, no restart, no downtime. Every release carries the sha it came from, so a rollback target is
-identifiable rather than "the one from Tuesday".
+No build. Every release carries the sha it came from, so a rollback target is identifiable rather than "the one
+from Tuesday".
+
+## The process
+
+```bash
+mkdir -p ~/.config/systemd/user && cp deploy/ainize-web.service ~/.config/systemd/user/
+sudo loginctl enable-linger $USER        # or it stops when your last login session ends
+systemctl --user daemon-reload && systemctl --user enable --now ainize-web
+journalctl --user -u ainize-web -f
+```
+
+`AINIZE_NODE_URL` in the unit is the main node — loopback on this machine. It is the one piece of configuration
+the app needs, and the one address that must never be published.
 
 ## First-time setup on a host
 

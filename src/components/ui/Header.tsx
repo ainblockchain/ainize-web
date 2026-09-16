@@ -111,7 +111,7 @@ export function Header() {
   const teaching = location.pathname.startsWith('/teach') || (location.pathname.startsWith('/chat') && new URLSearchParams(location.search).get('teach') === '1');
   return (
     <Wrapper>
-      {import.meta.env.DEV && <DevBadge>Development Mode</DevBadge>}
+      {process.env.NODE_ENV !== "production" && <DevBadge>Development Mode</DevBadge>}
       <Content>
         <Home to="/" aria-label="Ainize home" title={help('brand')}>
           <Logo src="/static/images/asset-logo.png" srcSet="/static/images/asset-logo@2x.png 2x, /static/images/asset-logo@3x.png 3x" alt="Ainize" />
