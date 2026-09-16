@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { A2UI_MIME, readSurface } from '../src/components/a2ui/surface';
+import { A2UI_MIME, actionPayload, isInteractive, readPath, readSurface, writePath } from '../src/components/a2ui/surface';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const parts = JSON.parse(readFileSync(join(here, 'fixtures-a2ui-parts.json'), 'utf8'));
@@ -95,4 +95,53 @@ test('the v1.0 part spelling is read as well as the v0.3 one', () => {
   const s = readSurface(v1)!;
   assert.equal(s.surfaceId, 's');
   assert.equal(s.components.get('root')!.text, 'hi');
+});
+
+/**
+ * The input half: a surface that asks for something back.
+ *
+ * `TextField` and `Button` are in the basic catalog, and an agent that uses them is describing its own form —
+ * which is the half this renderer was missing. The marketplace used to supply the form out of its own head,
+ * so every agent got the same one. What has to be right is small and unforgiving: the value the reader types
+ * has to reach the model, and the button has to carry THAT value rather than the one drawn with the tree.
+ */
+test('a pressed button carries what is in the model now, not what was there when it was drawn', () => {
+  const action = { event: { name: 'score', context: { article: { path: '/article' }, kind: 'news' } } };
+  const drawn = { article: '' };
+  assert.deepEqual(actionPayload(action, drawn), { name: 'score', context: { article: '', kind: 'news' } });
+
+  // …the reader types, which writes into the model…
+  const typed = writePath(drawn, '/article', 'Teradyne opens Bengaluru hub');
+  assert.equal(drawn.article, '', 'the write does not mutate: React decides to re-render by identity');
+  assert.deepEqual(actionPayload(action, typed), {
+    name: 'score',
+    context: { article: 'Teradyne opens Bengaluru hub', kind: 'news' },
+  });
+});
+
+test('a literal in the action context is carried as it is; only a {path} is read from the model', () => {
+  const out = actionPayload({ event: { name: 'go', context: { id: 'abc', v: { path: '/n' } } } }, { n: 7 });
+  assert.deepEqual(out, { name: 'go', context: { id: 'abc', v: 7 } });
+  assert.equal(actionPayload({ nothing: true }, {}), null, 'an action with no event is not an action');
+  assert.equal(actionPayload(null, {}), null);
+});
+
+test('writePath builds the missing levels rather than throwing on a path that is not there yet', () => {
+  assert.deepEqual(writePath({}, '/a/b', 1), { a: { b: 1 } });
+  assert.deepEqual(readPath({ a: { b: 1 } }, '/a/b'), 1);
+  assert.equal(readPath({ a: 1 }, '/a/b/c'), undefined, 'a path through a non-object is absent, not an error');
+});
+
+test('a form is told apart from a result by what it contains', () => {
+  const form = readSurface([
+    { kind: 'data', data: { version: 'v0.9', createSurface: { surfaceId: 's' } }, metadata: { mimeType: A2UI_MIME } },
+    { kind: 'data', metadata: { mimeType: A2UI_MIME },
+      data: { version: 'v0.9', updateComponents: { surfaceId: 's', components: [
+        { id: 'root', component: 'Column', children: ['f'] },
+        { id: 'f', component: 'TextField', label: 'x', value: { path: '/v' } },
+      ] } } },
+  ])!;
+  assert.equal(isInteractive(form), true);
+  const result = readSurface(parts)!;
+  assert.equal(isInteractive(result), false, 'the score card asks for nothing');
 });

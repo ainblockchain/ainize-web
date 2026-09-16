@@ -111,3 +111,65 @@ export function resolve(value: unknown, model: unknown, item: unknown): string {
   return cur === null || cur === undefined ? '' : String(cur);
 }
 
+
+/* ------------------------------------------------------------------ the input half */
+
+/**
+ * A surface can ask for something back.
+ *
+ * The basic catalog has `TextField` and `Button`, and an agent that uses them is describing its own input —
+ * which is the half this renderer was missing. The marketplace used to supply the form out of its own head,
+ * so every agent got the same one and the first agent's job ended up written into a page shared by all of
+ * them. These three functions are what an interactive surface needs beyond drawing: read a value, write a
+ * value, and work out what a pressed button carries back.
+ */
+
+/** True when the tree asks the reader for something, so a caller can tell a form from a result. */
+export const isInteractive = (surface: A2UISurfaceData): boolean =>
+  [...surface.components.values()].some((c) => c.component === 'TextField' || c.component === 'Button');
+
+/** Read one JSON Pointer out of the model. Returns undefined rather than throwing on a path that is not there. */
+export function readPath(model: unknown, path: string): unknown {
+  let cur: unknown = model;
+  for (const seg of path.replace(/^\//, '').split('/').filter(Boolean)) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[seg];
+  }
+  return cur;
+}
+
+/**
+ * Write one JSON Pointer, without mutating what was passed in.
+ *
+ * Copied down the path rather than edited in place: React decides whether to re-render by identity, and an
+ * in-place edit of the model leaves the typed characters invisible until something else happens to re-render.
+ */
+export function writePath<T>(model: T, path: string, value: unknown): T {
+  const segs = path.replace(/^\//, '').split('/').filter(Boolean);
+  if (!segs.length) return value as T;
+  const root: Record<string, unknown> = { ...(model && typeof model === 'object' ? (model as object) : {}) };
+  let cur = root;
+  for (const seg of segs.slice(0, -1)) {
+    const next = cur[seg];
+    cur[seg] = { ...(next && typeof next === 'object' ? (next as object) : {}) };
+    cur = cur[seg] as Record<string, unknown>;
+  }
+  cur[segs[segs.length - 1]] = value;
+  return root as T;
+}
+
+/** What a pressed Button sends back: the action's name and its context with every `{path}` read from the model. */
+export function actionPayload(
+  action: unknown,
+  model: unknown,
+): { name: string; context: Record<string, unknown> } | null {
+  const event = (action as { event?: { name?: unknown; context?: unknown } } | null)?.event;
+  if (!event || typeof event.name !== 'string') return null;
+  const context: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries((event.context ?? {}) as Record<string, unknown>)) {
+    // "Values can be literals or paths" — a literal is carried as it is, a binding is read at press time
+    const path = (v as { path?: unknown })?.path;
+    context[k] = typeof path === 'string' ? readPath(model, path) : v;
+  }
+  return { name: event.name, context };
+}

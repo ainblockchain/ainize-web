@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import type { AgentSummary } from '@/api/types';
-import { A2UISurface, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
+import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
 import { useTitle } from '@/utils/useTitle';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
@@ -157,7 +157,40 @@ export function AgentPage() {
 
   const samples = examplesOf(skills);
 
-  const run = async () => {
+  /**
+   * Ask the agent what it takes, and let it answer with a form.
+   *
+   * An empty message means "I have nothing for you yet" — this agent replies to that with its own input
+   * surface, so the box the reader types into is the one the AGENT described rather than the one this page
+   * would have guessed. An agent that does not answer with a surface simply leaves `form` null and the
+   * fallback box below is used, which is what every A2A agent that knows nothing about A2UI will do.
+   */
+  const [form, setForm] = useState<A2UISurfaceData | null>(null);
+  useEffect(() => {
+    if (!agent) { setForm(null); return; }
+    let live = true;
+    setForm(null);
+    fetch(samePath(agent.call_url ?? agent.a2a_url), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send',
+        params: {
+          message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text: '' }] },
+          configuration: { blocking: true, acceptedOutputModes: ['text/plain'] },
+        },
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        const asked = readSurface(b?.result?.parts ?? []);
+        if (live && asked && isInteractive(asked)) setForm(asked);
+      })
+      .catch(() => {/* no form is a fine outcome; the fallback box works */});
+    return () => { live = false; };
+  }, [agent]);
+
+  const run = async (message = article) => {
     if (!agent) return;
     setBusy(true); setResult(null); setSurface(null); setFailed(null); setElapsed(0);
     const started = Date.now();
@@ -178,7 +211,7 @@ export function AgentPage() {
           id: crypto.randomUUID(),
           method: 'message/send',
           params: {
-            message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text: article }] },
+            message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text: message }] },
             configuration: { blocking: true, acceptedOutputModes: ['text/plain'] },
           },
         }),
@@ -296,8 +329,28 @@ export function AgentPage() {
             </>
           )}
         </Description>
+        {/**
+          * The agent's own form, when it sent one.
+          *
+          * Its Button carries the values back through `onAction`; what the reader typed is inside the surface,
+          * so nothing on this page had to know that this agent wants an article rather than a question. The
+          * box below is the fallback for every agent that does not describe its input — which is most of them.
+          */}
+        {form && (
+          <Rendered>
+            <RenderedLabel>the agent&rsquo;s own form (A2UI)</RenderedLabel>
+            <A2UISurface
+              surface={form}
+              busy={busy}
+              onAction={(_name, context) => {
+                const sent = Object.values(context).find((v) => typeof v === 'string' && v.trim());
+                if (typeof sent === 'string') { setArticle(sent); void run(sent); }
+              }}
+            />
+          </Rendered>
+        )}
         {/* The agent's own examples, from its card. No card examples, no buttons — see examplesOf. */}
-        {samples.length > 0 && (
+        {!form && samples.length > 0 && (
           <Row>
             {samples.map((s) => (
               <Button key={s.label} size="small" variant="outlined" disabled={busy}
@@ -307,14 +360,19 @@ export function AgentPage() {
             ))}
           </Row>
         )}
-        <Row style={{ display: 'block' }}>
-          <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
-            placeholder={samples[0] ? `e.g. ${samples[0].text}` : 'Send this agent a message.'} />
-        </Row>
+        {!form && (
+          <Row style={{ display: 'block' }}>
+            <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
+              placeholder={samples[0] ? `e.g. ${samples[0].text}` : 'Send this agent a message.'} />
+          </Row>
+        )}
         <Row>
-          <Button onClick={run} disabled={busy || !article.trim() || agent.reachable === false}>
-            {busy ? `Sending… ${elapsed}s` : 'Send'}
-          </Button>
+          {!form && (
+            <Button onClick={() => run()} disabled={busy || !article.trim() || agent.reachable === false}>
+              {busy ? `Sending… ${elapsed}s` : 'Send'}
+            </Button>
+          )}
+          {form && busy && <Small>보내는 중… {elapsed}s</Small>}
           {busy && <Small>the agent decides how long this takes — some do real work before answering</Small>}
           {agent.reachable === false && <Small>the agent is not answering, so there is nothing to send to</Small>}
         </Row>
