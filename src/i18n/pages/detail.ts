@@ -483,6 +483,9 @@ export const detailNetwork: Dict = {
   'detail.net.this_node': { ko: '이 노드', en: 'This node' },
   'detail.net.address': { ko: '주소', en: 'Address' },
   'detail.net.endpoint': { ko: '접속 주소', en: 'Endpoint' },
+  // A peer's address is often on the operator's own network. A public page that printed it would describe
+  // somebody's LAN to strangers, and its links would send each reader to their own machine.
+  'detail.net.endpoint_private': { ko: '비공개 주소 (운영자만 확인)', en: 'private address — operator only' },
   'detail.net.roles': { ko: '역할', en: 'Roles' },
   'detail.net.ledger': { ko: '공개 기록', en: 'Public record' },
   'detail.net.ledger_records': { ko: '{kind} · 기록 {n}건', en: '{kind} · {n} records' },

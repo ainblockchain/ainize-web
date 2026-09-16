@@ -81,7 +81,8 @@ export interface PeerStatus {
   verifiers: number;
   ledger_mismatch: number;
   ledger: 'local' | 'ain';
-  mismatched: { endpoint: string; name: string | null; ledger: string }[];
+  /** `endpoint` is null for a visitor: a peer's address is the operator's to see (node endpoints.ts). */
+  mismatched: { endpoint: string | null; name: string | null; ledger: string }[];
 }
 
 /** Bytes this node holds, and what is free on the volume its data directory sits on (item 128). */
@@ -273,7 +274,8 @@ export interface RouteResponse {
 export interface NodesResponse {
   /** `blobs` is filtered through THIS node's catalogue; `blobs_advertised` is what the node itself says it holds (item 170). */
   nodes: (PeerInfo & { blobs_advertised?: number; ledger_mismatch?: boolean })[];
-  peers: { endpoint: string; address: string | null; info: PeerInfo | null; last_seen: number; failures: number; ledger?: string | null; ledger_mismatch?: boolean }[];
+  /** `endpoint` is null unless the reader is the operator — see NodesResponse.nodes. */
+  peers: { endpoint: string | null; name?: string | null; address: string | null; info: PeerInfo | null; last_seen: number; failures: number; ledger?: string | null; ledger_mismatch?: boolean }[];
   self: string;
   ledger?: 'local' | 'ain';
   peer_status?: PeerStatus;
@@ -912,8 +914,6 @@ export interface AgentSummary {
    */
   a2a_url: string;
   card_url: string;
-  /** Where the agent actually lives, when that is another node. Shown, never hidden. */
-  origin_url?: string;
   /**
    * Where THIS browser should send a call.
    *
@@ -933,9 +933,9 @@ export interface AgentSummary {
    * Which node runs it. `null` means this one — the node serving this page.
    *
    * Agents reach the list the same way knowledge does: a node advertises what it operates on the gossip round
-   * (`PeerInfo.agents`), and every peer can then show it. So a marketplace page is the network's agents, not
-   * one box's, and the address on the row belongs to whoever accepted that agent.
+   * (`PeerInfo.agents`), and every peer can then show it. A name and an address, never a location: how this
+   * node reaches that one is between the two of them.
    */
-  node: { address: string; name: string; endpoint: string } | null;
+  node: { address: string; name: string } | null;
 }
 export interface AgentsResponse { agents: AgentSummary[] }

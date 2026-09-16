@@ -116,7 +116,7 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
         <Chips>
           {/* Which node runs it, first: on a marketplace that lists the whole network, "whose agent is this"
               decides who the reader is trusting and where their request actually goes. */}
-          {agent.node && <Tag $tone="peer" title={agent.node.endpoint}>{t('agent.on_node', { name: agent.node.name })}</Tag>}
+          {agent.node && <Tag $tone="peer" title={agent.node.address}>{t('agent.on_node', { name: agent.node.name })}</Tag>}
           {skills.map((s) => <Tag key={s.id} $tone="skill" title={s.description}>{s.name}</Tag>)}
           {moreSkills > 0 && <Tag $tone="skill">{t('agent.skill_more', { n: moreSkills })}</Tag>}
           {!!agent.protocols.length && <Tag $tone="proto">{t('agent.protocol', { v: agent.protocols.join(' / ') })}</Tag>}

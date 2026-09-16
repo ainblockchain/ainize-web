@@ -604,14 +604,15 @@ export default function AccountPage() {
           <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.account.peers.endpoint')}</TableHead><TableHead>{t('op.name')}</TableHead><TableHead>{t('op.address')}</TableHead><TableHead>{t('op.roles')}</TableHead><TableHead>{t('op.account.peers.lastseen')}</TableHead><TableHead>{t('op.account.peers.failures')}</TableHead><TableHead /></TableRow></TableHeader>
           <TableBody>
             {(nodes.data?.peers ?? []).map((p) => (
-              <TableRow key={p.endpoint}>
-                <TableData $align="left" $padding="0 8px" $mono title={p.endpoint}>{p.endpoint}</TableData>
+              <TableRow key={p.endpoint ?? p.address ?? ''}>
+                {/* the operator sees every address; the type is nullable because a VISITOR does not */}
+                <TableData $align="left" $padding="0 8px" $mono title={p.endpoint ?? undefined}>{p.endpoint ?? '—'}</TableData>
                 <TableData>{p.info?.name ?? '—'}</TableData>
                 <TableData title={p.address ?? ''}>{shortAddr(p.address)}</TableData>
                 <TableData>{p.info?.roles.map(roleLabel).join(', ') ?? '—'}</TableData>
                 <TableData>{p.last_seen ? elapsed(p.last_seen) : t('op.never')}</TableData>
                 <TableData $color={p.failures > 0 ? '#e6173e' : undefined}>{p.failures}</TableData>
-                <TableData><Button size="small" variant="text" color="secondary" loading={removeState.isLoading && removeState.originalArgs?.endpoint === p.endpoint} onClick={() => run(() => removePeer({ endpoint: p.endpoint }).unwrap(), t('op.account.peers.removed'))}>{t('op.remove')}</Button></TableData>
+                <TableData><Button size="small" variant="text" color="secondary" disabled={!p.endpoint} loading={removeState.isLoading && removeState.originalArgs?.endpoint === p.endpoint} onClick={() => p.endpoint && run(() => removePeer({ endpoint: p.endpoint as string }).unwrap(), t('op.account.peers.removed'))}>{t('op.remove')}</Button></TableData>
               </TableRow>
             ))}
             {(nodes.data?.peers ?? []).length === 0 && <TableRowEmpty $height={72}><td colSpan={7}>{t('op.account.peers.empty')}</td></TableRowEmpty>}

@@ -73,6 +73,22 @@ function Terms({ info, t }: { info?: Partial<PeerInfo> | null; t: (k: string, v?
   );
 }
 
+
+/**
+ * A peer's address, when the reader is allowed to see it.
+ *
+ * The node hides the endpoints that are on its own network from anyone but the operator (node `endpoints.ts`),
+ * because a public page printing `http://192.168.1.41:3402` describes somebody's LAN to strangers and a
+ * `localhost:3514` link sends each reader to their own machine. A hidden one is SAID to be hidden rather than
+ * left blank: the row is still a real peer, and an empty cell reads as missing data.
+ */
+const Soft = styled.span`color: ${(p) => p.theme.color.GREY};`;
+
+function Endpoint({ url, hidden }: { url: string | null; hidden: string }) {
+  if (!url) return <Soft title={hidden}>{hidden}</Soft>;
+  return <ExternalLink href={`${url}/api/info`} target="_blank" rel="noopener noreferrer">{url}</ExternalLink>;
+}
+
 export default function NetworkPage() {
   const { t, term, help, tech } = useT();
   useTitle(t('detail.net.title'));
@@ -215,9 +231,9 @@ export default function NetworkPage() {
       {!!ps?.mismatched.length && (
         <Alert $tone="warning" style={{ marginTop: 12 }}>
           {ps.mismatched.map((m) => (
-            <div key={m.endpoint}>
-              {t('detail.net.ledger_mismatch', { node: m.name ?? m.endpoint, their: ledgerKind(m.ledger), ours: ledgerKind(ps.ledger) })}
-              <br /><Mono style={{ fontSize: 12 }}>{`ainize patch ls --node ${m.endpoint}`}</Mono>
+            <div key={m.endpoint ?? m.name ?? ''}>
+              {t('detail.net.ledger_mismatch', { node: m.name ?? m.endpoint ?? '—', their: ledgerKind(m.ledger), ours: ledgerKind(ps.ledger) })}
+              {m.endpoint && <><br /><Mono style={{ fontSize: 12 }}>{`ainize patch ls --node ${m.endpoint}`}</Mono></>}
             </div>
           ))}
         </Alert>
@@ -233,8 +249,8 @@ export default function NetworkPage() {
             </TableHeader>
             <TableBody>
               {peers.map((p) => (
-                <TableRow key={p.endpoint}>
-                  <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={p.failures === 0 && p.last_seen > 0} /><ExternalLink href={`${p.endpoint}/api/info`} target="_blank" rel="noopener noreferrer">{p.endpoint}</ExternalLink></TableData>
+                <TableRow key={p.endpoint ?? p.address ?? p.info?.name ?? ''}>
+                  <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={p.failures === 0 && p.last_seen > 0} /><Endpoint url={p.endpoint} hidden={t('detail.net.endpoint_private')} /></TableData>
                   <TableData $align="left">{p.info?.name ?? '—'}</TableData>
                   <TableData $align="left" $mono title={p.address ?? ''}>{shortAddr(p.address, 8)}</TableData>
                   <TableData $align="left">{roles(p.info?.roles ?? [])}</TableData>
@@ -249,7 +265,7 @@ export default function NetworkPage() {
               ))}
               {known.filter((n) => !peers.some((p) => p.address === n.address)).map((n) => (
                 <TableRow key={n.address}>
-                  <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={false} /><ExternalLink href={`${n.endpoint}/api/info`} target="_blank" rel="noopener noreferrer">{n.endpoint}</ExternalLink></TableData>
+                  <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={false} /><Endpoint url={n.endpoint} hidden={t('detail.net.endpoint_private')} /></TableData>
                   <TableData $align="left">{n.name}</TableData>
                   <TableData $align="left" $mono title={n.address}>{shortAddr(n.address, 8)}</TableData>
                   <TableData $align="left">{roles(n.roles)}</TableData>
@@ -326,7 +342,7 @@ export default function NetworkPage() {
                 {/* A subscribe record says a node once subscribed; `applied` says what it is serving right now. */}
                 {routed.nodes.map((n) => (
                   <div key={n.address}>
-                    <ExternalLink href={`${n.endpoint}/api/info`} target="_blank" rel="noopener noreferrer">{n.endpoint}</ExternalLink> <Mono>{shortAddr(n.address, 6)}</Mono> {n.model ? `· ${n.model}` : ''}
+                    <Endpoint url={n.endpoint} hidden={t('detail.net.endpoint_private')} /> <Mono>{shortAddr(n.address, 6)}</Mono> {n.model ? `· ${n.model}` : ''}
                     {n.current === false
                       ? <Muted style={{ color: '#e6173e' }}> · {t('detail.net.r.stale', { ids: (n.missing ?? []).join(', ') })}</Muted>
                       : n.current === true ? <Muted> · {t('detail.net.r.serving')}</Muted>
