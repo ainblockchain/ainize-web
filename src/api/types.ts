@@ -904,9 +904,16 @@ export interface AgentSummary {
   extensions: string[];
   provider: string | null;
   documentation_url: string | null;
-  /** The OWNING node's address for this agent — what you give to someone else. */
+  /**
+   * The address to give someone else.
+   *
+   * This node's own for an agent it runs, and also for one it has REGISTERED from a peer: the nodes are
+   * already connected, so a caller does not have to reach the peer — this node does, and forwards.
+   */
   a2a_url: string;
   card_url: string;
+  /** Where the agent actually lives, when that is another node. Shown, never hidden. */
+  origin_url?: string;
   /**
    * Where THIS browser should send a call.
    *
