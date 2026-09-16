@@ -67,7 +67,7 @@ test('src/pages is not resurrected — Next would read it as a second router', (
 });
 
 test('the live test posts to the origin the reader is on, not the one the node calls itself', () => {
-  const page = readFileSync(join(root, 'src/screens/AgentsPage.tsx'), 'utf8');
+  const page = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8');
   assert.match(page, /fetch\(samePath\(/, 'an absolute node address from a www. page is a cross-origin POST');
   // and the rewrite is limited to this app's own prefixes: an agent on another host must keep its host
   assert.match(page, /\^\\\/\(api\|agents\)\\\//, 'samePath only relativises /api and /agents');
@@ -75,7 +75,7 @@ test('the live test posts to the origin the reader is on, not the one the node c
 
 test('the live test offers the AGENT\'s examples, not one agent\'s job hard-coded into the page', () => {
   // Comments stripped: the file explains this history in prose, and the test is about what RENDERS.
-  const page = readFileSync(join(root, 'src/screens/AgentsPage.tsx'), 'utf8')
+  const page = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   // The buttons were three news articles, so every other agent got a form asking for a news article.
   assert.equal(/Paste an article/.test(page), false, 'the placeholder must not describe one agent\'s input');
@@ -118,4 +118,17 @@ test('the how-to an agent builder needs exists, in both languages, and is listed
   // the command it teaches must be the one that works without a restart
   const en = readFileSync(join(root, 'docs/en/how-to/host-an-agent.md'), 'utf8');
   assert.match(en, /ainize agent add [\w-]+ --upstream/);
+});
+
+test('one list, one item — the item page is not a second list', () => {
+  const app = readFileSync(join(root, 'src/App.tsx'), 'utf8');
+  // /agents was a grid of every agent PLUS a panel, so clicking a row on the marketplace showed both again
+  assert.match(app, /path="\/agent\/:id"/, 'the item has its own route');
+  assert.match(app, /path="\/agents" element=\{<Navigate to="\/explore\?kind=agent"/, 'the old list redirects');
+  const item = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8');
+  assert.equal(/agents\.map\(/.test(item), false, 'the item page must not render the list');
+  const row = readFileSync(join(root, 'src/components/public/AgentListItem.tsx'), 'utf8');
+  assert.match(row, /to=\{`\/agent\//, 'a row links to the item');
+  // singular, because /agents/<id> is the A2A endpoint served by app/agents/[...path]/route.ts
+  assert.equal(/to=\{`\/agents\//.test(row), false, 'a page under /agents/ would shadow the agent address');
 });

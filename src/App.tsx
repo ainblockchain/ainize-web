@@ -17,7 +17,7 @@ const PatchPage = lazy(() => import('./screens/PatchPage'));
 const BenchmarkPage = lazy(() => import('./screens/BenchmarkPage'));
 const LedgerPage = lazy(() => import('./screens/LedgerPage'));
 const NetworkPage = lazy(() => import('./screens/NetworkPage'));
-const AgentsPage = lazy(() => import('./screens/AgentsPage'));
+const AgentPage = lazy(() => import('./screens/AgentPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
 const TermsPage = lazy(() => import('./screens/TermsPage'));
 const NotFoundPage = lazy(() => import('./screens/NotFoundPage'));
@@ -63,7 +63,12 @@ export default function App() {
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
                 <Route path="/network" element={<Layout><NetworkPage /></Layout>} />
                 {/* A2A agents this node operates, and the live test for one (NEWS-AGENT-REQUIREMENTS §6) */}
-                <Route path="/agents" element={<Layout><AgentsPage /></Layout>} />
+                {/* One agent. `/agent/<id>` singular, because `/agents/<id>` is the agent's own A2A address
+                    (app/agents/[...path]/route.ts) and a page there would shadow the endpoint. */}
+                <Route path="/agent/:id" element={<Layout><AgentPage /></Layout>} />
+                {/* The list lives in one place. /agents used to be a second one, and clicking an item on the
+                    marketplace landed the reader back on a grid of every agent. */}
+                <Route path="/agents" element={<Navigate to="/explore?kind=agent" replace />} />
                 {/* a track name contains slashes (`finance/KRX-latest`), so the route is a splat: /tracks/finance/KRX-latest */}
                 <Route path="/tracks/*" element={<Layout><TrackPage /></Layout>} />
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />

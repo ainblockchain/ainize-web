@@ -107,7 +107,7 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
       <Glyph $state={state} aria-hidden="true">{initials(agent.name)}</Glyph>
       <Info>
         <NameRow>
-          <Name><NameLink to={`/agents?agent=${encodeURIComponent(agent.id)}`}>{agent.name}</NameLink></Name>
+          <Name><NameLink to={`/agent/${encodeURIComponent(agent.id)}`}>{agent.name}</NameLink></Name>
           <State $state={state}>
             {state === 'up' ? t('agent.state.up') : state === 'down' ? t('agent.state.down') : t('agent.state.unknown')}
           </State>

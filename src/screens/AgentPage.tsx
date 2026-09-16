@@ -1,24 +1,26 @@
 /**
- * A2A agents this node operates, and a place to try one (NEWS-AGENT-REQUIREMENTS §6.1, §6.2).
+ * One agent: what it is, what it takes, and a place to send it something.
  *
- * The list and the live test share one page because they answer one question — "is my agent working?" — and
- * splitting them would make an operator hold a URL in their head while navigating. The test posts the same
- * JSON-RPC a workspace would, to the same public URL, so what is exercised here is what a stranger gets.
+ * This page used to be the LIST as well, and clicking a row on the marketplace landed you back on a grid of
+ * every agent the node knows — two lists for one thing, and the item you clicked was one card among them. The
+ * marketplace (`/explore?kind=agent`) is the list; this is the item, at `/agent/<id>`.
+ *
+ * `/agent/<id>`, singular, and not `/agents/<id>`: that path is the agent's own A2A address, served by the
+ * route handler in `app/agents/`. A detail page there would either shadow the endpoint or be shadowed by it.
  *
  * Three things this page refuses to blur:
  *
  *  - **Silence is not failure.** An empty `parts` array means the agent heard and chose not to reply, which
- *    is how it stays quiet in a busy channel. Rendering that as "no response" would send an operator
- *    debugging something that is working.
+ *    is how it stays quiet in a busy channel. Rendering that as "no response" would send a reader debugging
+ *    something that is working.
  *  - **The URL is public.** These endpoints take no authentication, because the protocol sends none. Anyone
  *    with the link can call them, and the page says so next to the copy button rather than in a doc.
- *  - **It takes as long as it takes.** An agent may do real work before answering — fetch a search index,
- *    read several pages, run a model — so the elapsed time is shown while it runs; a spinner with no number
- *    reads as a hang at about eight seconds. What the work IS belongs to the agent, not to this page: the
- *    examples and the skills come off its card.
+ *  - **It takes as long as it takes.** An agent may do real work before answering, so the elapsed time is
+ *    shown while it runs; a spinner with no number reads as a hang at about eight seconds. What the work IS
+ *    belongs to the agent: the examples and the skills come off its card, never off this page.
  */
-import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useAgentsQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -45,6 +47,20 @@ const UrlRow = styled.div`
   code { flex: 1; font-size: 12px; overflow-wrap: anywhere; background: #f6f6f7; padding: 6px 8px; border-radius: 4px; }
 `;
 const Small = styled.div`font-size: 12px; color: ${(p) => p.theme.color.GREY}; margin-top: 6px;`;
+const Back = styled(Link)`
+  display: inline-block; margin: -8px 0 16px; font-size: 13px; color: ${(p) => p.theme.color.GREY};
+  text-decoration: none; &:hover { color: ${(p) => p.theme.color.PRIMARY}; text-decoration: underline; }
+`;
+/** The four facts a reader checks before sending anything: is it up, whose is it, what does it speak, is it used. */
+const Facts = styled.dl`
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 24px; margin: 16px 0;
+  div { min-width: 0; }
+  dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: ${(p) => p.theme.color.GREY}; }
+  dd { margin: 2px 0 0; font-size: 13px; color: ${(p) => p.theme.color.BLACK}; overflow-wrap: anywhere; }
+`;
+const SectionLabel = styled.div`
+  margin-top: 20px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: ${(p) => p.theme.color.GREY};
+`;
 const Panel = styled.div`margin-top: 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; padding: 20px 24px;`;
 const Area = styled.textarea`
   width: 100%; min-height: 220px; padding: 12px; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; line-height: 1.6;
@@ -104,17 +120,13 @@ export function samePath(url: string): string {
 }
 const ago = (t: number | null) => (t ? `${Math.max(0, Math.round((Date.now() - t) / 1000))}s ago` : 'never');
 
-export function AgentsPage() {
-  useTitle('Agents');
-  const { isSignedIn } = useAuth();
+export function AgentPage() {
+  const { id = '' } = useParams();
   // polled: "is it answering" goes stale the moment it is rendered
   const { data, isLoading, error, refetch } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
-  const agents = data?.agents ?? [];
-
-  // /explore?kind=agent links each row here with its id, so the page opens on the agent the reader clicked
-  // rather than on whichever one the node happens to list first.
-  const [params] = useSearchParams();
-  const [selected, setSelected] = useState<string | null>(params.get('agent'));
+  const agents = useMemo(() => data?.agents ?? [], [data]);
+  const agent = agents.find((a) => a.id === id) ?? null;
+  useTitle(agent ? agent.name : 'Agent');
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
@@ -125,13 +137,9 @@ export function AgentsPage() {
   const [failed, setFailed] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    // an id in the URL that this node does not operate falls back to the first, rather than showing no panel
-    if (agents.length && !agents.some((a) => a.id === selected)) setSelected(agents[0].id);
-  }, [agents, selected]);
+
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
-  const agent = agents.find((a) => a.id === selected) ?? null;
 
   // The list carries skill names; the card carries what each one accepts. For an agent on a peer the node
   // only gossips the names, so the examples exist nowhere but the card — which is one fetch away, on this
@@ -195,102 +203,125 @@ export function AgentsPage() {
 
   if (isLoading) return <CenterProgress />;
 
+  if (isLoading) return <CenterProgress />;
+
+  if (!agent) {
+    return (
+      <PageWrapper>
+        <TitleRow><Title>Agent</Title></TitleRow>
+        {error && <Alert $tone="error">{errorMessage(error)}</Alert>}
+        <Empty>
+          {/* An id that resolves nowhere is not the same as a node with no agents, and used to silently
+              become "whichever one is listed first" — a page about an agent the reader never asked for. */}
+          No agent called <Mono>{id}</Mono> is listed here. It may have been taken down, or it may be on a node
+          this one is not connected to. <Link to="/explore?kind=agent">See the agents →</Link>
+        </Empty>
+      </PageWrapper>
+    );
+  }
+
   return (
     <PageWrapper>
-      <TitleRow><Title>Agents</Title></TitleRow>
-      <Description>
-        A2A agents this node gives a public address to. Each serves an agent card and one <Mono>message/send</Mono>{' '}
-        endpoint, which is all the protocol requires. An agent is a process you run — the node does not run it, it
-        addresses it: <Mono>ainize agent add &lt;id&gt; --upstream &lt;where it listens&gt;</Mono>.{' '}
-        <ExternalLink href="/docs/how-to/host-an-agent">Put an agent on a node →</ExternalLink>
-      </Description>
+      <TitleRow>
+        <Title><Dot $state={state(agent)} />{agent.name}</Title>
+      </TitleRow>
+      <Back to="/explore?kind=agent">← {'All agents'}</Back>
 
       {error && <Alert $tone="error">{errorMessage(error)}</Alert>}
-      {!isSignedIn && <Alert $tone="info">You are signed out. The list is readable; the URLs below are public either way.</Alert>}
 
-      {!agents.length ? (
-        <Empty>
-          This node operates no agents. Declare one in <Mono>config.json</Mono> under <Mono>agents</Mono> with an{' '}
-          <Mono>id</Mono> and the <Mono>upstream</Mono> address of the process, then restart the node.
-        </Empty>
-      ) : (
-        <Cards>
-          {agents.map((a) => (
-            <Card key={a.id} $selected={a.id === selected} onClick={() => setSelected(a.id)}>
-              <h3><Dot $state={state(a)} />{a.name}</h3>
-              {a.description && <Small>{a.description}</Small>}
-              <UrlRow>
-                <code>{a.a2a_url}</code>
-                <Button size="small" onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(a.a2a_url); }}>Copy</Button>
-              </UrlRow>
-              <Small>
-                {a.reachable === true && <>answering · checked {ago(a.last_checked)}</>}
-                {a.reachable === false && <>not answering — {a.error} · checked {ago(a.last_checked)}</>}
-                {a.reachable === null && <>not checked yet</>}
-              </Small>
-              <Small>
-                {a.node ? `runs on ${a.node.name}` : `${a.calls ?? 0} call${a.calls === 1 ? '' : 's'} through this node`}
-                {!a.node && a.last_call_at ? `, last ${ago(a.last_call_at)}` : ''} ·{' '}
-                <ExternalLink href={a.card_url} onClick={(e) => e.stopPropagation()}>agent card</ExternalLink>
-              </Small>
-            </Card>
-          ))}
-        </Cards>
-      )}
+      {agent.description && <Description>{agent.description}</Description>}
 
-      {agent && (
-        <Panel>
-          <h3 style={{ margin: 0 }}>Live test — {agent.name}</h3>
-          {agent.description && <Description style={{ marginBottom: 4 }}>{agent.description}</Description>}
-          {skills.length > 0 && (
-            <Description as="ul" style={{ margin: '4px 0 12px', paddingLeft: 18 }}>
-              {skills.slice(0, 6).map((sk) => (
-                <li key={sk.id ?? sk.name}>
-                  <b>{sk.name ?? sk.id}</b>{sk.description ? ` — ${sk.description}` : ''}
-                </li>
-              ))}
-            </Description>
-          )}
-          <Description>
-            Posts the same JSON-RPC a workspace would, to <Mono>{agent.a2a_url}</Mono>. That URL takes no
-            authentication, because A2A sends none: anyone who can reach it can call it.
-            {agent.node && (
-              <>
-                {' '}This agent runs on <b>{agent.node.name}</b>, so the request goes through this node
-                (<Mono>{agent.call_url}</Mono>) rather than from your browser — a page on this origin cannot
-                open a connection to another operator&rsquo;s network, and should not ask you to.
-              </>
-            )}
+      <Facts>
+        <div>
+          <dt>Status</dt>
+          <dd>
+            {agent.reachable === true && <>answering · checked {ago(agent.last_checked)}</>}
+            {agent.reachable === false && <>not answering — {agent.error} · checked {ago(agent.last_checked)}</>}
+            {agent.reachable === null && <>not checked yet</>}
+          </dd>
+        </div>
+        <div>
+          <dt>Runs on</dt>
+          <dd>{agent.node ? agent.node.name : 'this node'}</dd>
+        </div>
+        <div>
+          <dt>Protocol</dt>
+          <dd>{agent.protocols.length ? `A2A ${agent.protocols.join(' / ')}` : '—'}</dd>
+        </div>
+        <div>
+          <dt>Calls</dt>
+          {/* A peer's calls are not this node's to count, and a 0 would read as "nobody uses it". */}
+          <dd>{agent.calls === null ? 'counted by the node that runs it' : `${agent.calls} through this node`}</dd>
+        </div>
+      </Facts>
+
+      <UrlRow>
+        <code>{agent.a2a_url}</code>
+        <Button size="small" onClick={() => navigator.clipboard?.writeText(agent.a2a_url)}>Copy</Button>
+      </UrlRow>
+      <Small>
+        A public address — A2A sends no authentication, so whoever can reach it can call it ·{' '}
+        <ExternalLink href={samePath(agent.card_url)}>agent card</ExternalLink>
+      </Small>
+
+      {skills.length > 0 && (
+        <>
+          <SectionLabel>What it does</SectionLabel>
+          <Description as="ul" style={{ margin: '4px 0 12px', paddingLeft: 18 }}>
+            {skills.slice(0, 8).map((sk) => (
+              <li key={sk.id ?? sk.name}>
+                <b>{sk.name ?? sk.id}</b>{sk.description ? ` — ${sk.description}` : ''}
+              </li>
+            ))}
           </Description>
-          {/* The agent's own examples, from its card. No card examples, no buttons — see examplesOf. */}
-          {samples.length > 0 && (
-            <Row>
-              {samples.map((s) => (
-                <Button key={s.label} size="small" variant="outlined" disabled={busy}
-                  title={s.skill ? `${s.skill}` : undefined} onClick={() => setArticle(s.text)}>
-                  {s.label}
-                </Button>
-              ))}
-            </Row>
-          )}
-          <Row style={{ display: 'block' }}>
-            <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
-              placeholder={samples[0] ? `e.g. ${samples[0].text}` : 'Send this agent a message.'} />
-          </Row>
-          <Row>
-            <Button onClick={run} disabled={busy || !article.trim() || agent.reachable === false}>
-              {busy ? `Sending… ${elapsed}s` : 'Send'}
-            </Button>
-            {/* What it does with the message is its business; how long that takes is not this page's to claim. */}
-            {busy && <Small>the agent decides how long this takes — some do real work before answering</Small>}
-            {agent.reachable === false && <Small>the agent is not answering, so there is nothing to send to</Small>}
-          </Row>
-          {failed && <Alert $tone="error">{failed}</Alert>}
-          {result && <Out>{result}</Out>}
-        </Panel>
+        </>
       )}
+
+      <Panel>
+        <h3 style={{ margin: 0 }}>Live test</h3>
+        <Description>
+          Posts the same JSON-RPC a workspace would, to <Mono>{agent.a2a_url}</Mono>.
+          {agent.node && (
+            <>
+              {' '}This agent runs on <b>{agent.node.name}</b>, so the request goes through this node
+              rather than from your browser — a page on this origin cannot open a connection to another
+              operator&rsquo;s network, and should not ask you to.
+            </>
+          )}
+        </Description>
+        {/* The agent's own examples, from its card. No card examples, no buttons — see examplesOf. */}
+        {samples.length > 0 && (
+          <Row>
+            {samples.map((s) => (
+              <Button key={s.label} size="small" variant="outlined" disabled={busy}
+                title={s.skill ? `${s.skill}` : undefined} onClick={() => setArticle(s.text)}>
+                {s.label}
+              </Button>
+            ))}
+          </Row>
+        )}
+        <Row style={{ display: 'block' }}>
+          <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
+            placeholder={samples[0] ? `e.g. ${samples[0].text}` : 'Send this agent a message.'} />
+        </Row>
+        <Row>
+          <Button onClick={run} disabled={busy || !article.trim() || agent.reachable === false}>
+            {busy ? `Sending… ${elapsed}s` : 'Send'}
+          </Button>
+          {busy && <Small>the agent decides how long this takes — some do real work before answering</Small>}
+          {agent.reachable === false && <Small>the agent is not answering, so there is nothing to send to</Small>}
+        </Row>
+        {failed && <Alert $tone="error">{failed}</Alert>}
+        {result && <Out>{result}</Out>}
+        {surface && (
+          <Rendered>
+            <RenderedLabel>drawn from the agent&rsquo;s own description of the answer (A2UI)</RenderedLabel>
+            <A2UISurface surface={surface} />
+          </Rendered>
+        )}
+      </Panel>
     </PageWrapper>
   );
 }
 
-export default AgentsPage;
+export default AgentPage;
