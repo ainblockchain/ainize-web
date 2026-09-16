@@ -92,6 +92,10 @@
       {
         "page": "how-to/agent-memory",
         "title": "Give an agent a memory"
+      },
+      {
+        "page": "how-to/host-an-agent",
+        "title": "Put an agent on a node"
       }
     ]
   },

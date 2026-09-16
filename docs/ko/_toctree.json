@@ -92,6 +92,10 @@
       {
         "page": "how-to/agent-memory",
         "title": "에이전트에 기억 붙이기"
+      },
+      {
+        "page": "how-to/host-an-agent",
+        "title": "에이전트를 노드에 올리기"
       }
     ]
   },

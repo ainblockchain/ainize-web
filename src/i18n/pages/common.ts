@@ -3,6 +3,7 @@ import type { Dict } from '../index';
 /** Strings shared by header/footer/layout and generic UI. */
 export const common: Dict = {
   'nav.explore': { ko: '지식 둘러보기', en: 'Explore knowledge' },
+  'nav.agents': { ko: '에이전트', en: 'Agents' },
   'nav.chat': { ko: '라이브 테스트', en: 'Live test' },
   'nav.network': { ko: '네트워크', en: 'Network' },
   'nav.ledger': { ko: '공개 기록', en: 'Public record' },

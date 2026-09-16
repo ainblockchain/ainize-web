@@ -338,6 +338,7 @@ export default function LandingPage() {
   const user = audience('user');
   const creator = audience('creator');
   const operator = audience('operator');
+  const agentBuilder = audience('agent');
 
   return (
     <>
@@ -348,6 +349,9 @@ export default function LandingPage() {
           <NavHome to="/" aria-label="Ainize"><NavLogo {...LOGO} alt="Ainize" /></NavHome>
           <NavLinks aria-label={t('landing.nav.aria')}>
             <NavLink to="/explore">{t('landing.nav.explore')}</NavLink>
+            {/* The landing has its own chrome, and adding the entry to the shared header (Header.tsx) left this
+                one without it — which is the nav a first-time visitor actually sees. */}
+            <NavLink to="/explore?kind=agent" data-testid="landing-nav-agents">{t('nav.agents')}</NavLink>
             <NavLink to="/chat">{t('landing.nav.chat')}</NavLink>
             {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
             {/* Finding 69: /docs was in every other page's header and in neither of the landing's chromes. */}
@@ -443,6 +447,21 @@ export default function LandingPage() {
                 <li><b>3</b><span title={`${help('autoPay')} (${tech('autoPay')})`}>{t('landing.audience.operator.s3')}</span></li>
               </Steps>
               <AudienceCta $dev to="/signing">{t('landing.audience.operator.cta')}</AudienceCta>
+            </AudienceCard>
+
+            {/* The fourth door. Everything it describes already shipped — `ainize agent add`, the public
+                address, the card, the listing — and this page offered three answers to "which one are you?",
+                none of which was "I built an agent". */}
+            <AudienceCard data-testid="landing-agent-card">
+              <AudienceTitle>{agentBuilder.title}</AudienceTitle>
+              <AudienceHelp>{agentBuilder.help}</AudienceHelp>
+              <Steps>
+                <li><b>1</b><span>{t('landing.audience.agent.s1')}</span></li>
+                <li><b>2</b><span>{t('landing.audience.agent.s2')}</span></li>
+                <li><b>3</b><span>{t('landing.audience.agent.s3')}</span></li>
+              </Steps>
+              <AudienceCta to="/explore?kind=agent" data-testid="landing-agent-cta">{t('landing.audience.agent.cta')}</AudienceCta>
+              <AudienceAlt to="/docs/how-to/host-an-agent">{t('landing.audience.agent.docs_link')}</AudienceAlt>
             </AudienceCard>
           </AudienceGrid>
         </Inner>

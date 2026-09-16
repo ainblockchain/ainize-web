@@ -200,7 +200,9 @@ export function AgentsPage() {
       <TitleRow><Title>Agents</Title></TitleRow>
       <Description>
         A2A agents this node gives a public address to. Each serves an agent card and one <Mono>message/send</Mono>{' '}
-        endpoint, which is all the protocol requires.
+        endpoint, which is all the protocol requires. An agent is a process you run — the node does not run it, it
+        addresses it: <Mono>ainize agent add &lt;id&gt; --upstream &lt;where it listens&gt;</Mono>.{' '}
+        <ExternalLink href="/docs/how-to/host-an-agent">Put an agent on a node →</ExternalLink>
       </Description>
 
       {error && <Alert $tone="error">{errorMessage(error)}</Alert>}

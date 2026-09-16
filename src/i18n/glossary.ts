@@ -39,4 +39,13 @@ export const AUDIENCE = {
   user: { ko: '지식을 사서 쓰는 분', en: 'I want to use knowledge', help_ko: '검증된 지식을 찾아 라이브 테스트하고 내 모델에 넣습니다.', help_en: 'Find verified knowledge, test it live, load it into your model.' },
   creator: { ko: '모델에게 가르치고 싶어요', en: 'I want to teach the model something', help_ko: '라이브 테스트에서 틀린 답을 바로잡으면 이 노드가 지식으로 학습합니다. 나만 쓰거나 공개해서 정산받습니다.', help_en: 'Correct a wrong answer in Live test and this node trains it into knowledge — keep it private or publish it and get paid.' },
   operator: { ko: '노드 운영자·개발자', en: 'Node operators & developers', help_ko: 'CLI로 노드를 띄워 검증에 참여하고 API/에이전트로 자동화합니다.', help_en: 'Run a node from the CLI, take part in verification, automate with the API and agents.' },
+  /**
+   * The fourth door, and the one that was missing.
+   *
+   * "Which one are you?" offered three answers, none of which was "I built an agent". Everything needed to
+   * host one was already shipped — `ainize agent add`, a public address, the card, the marketplace listing —
+   * and nothing on the way in said so, so an agent builder read the landing page as a knowledge marketplace
+   * and left.
+   */
+  agent: { ko: '에이전트를 만들었어요', en: 'I built an agent', help_ko: '이미 돌고 있는 에이전트에 공개 주소를 주고, 네트워크의 마켓플레이스에 올립니다. 서버를 새로 띄울 필요도, 주소를 열어둘 필요도 없습니다.', help_en: 'Give an agent you already run a public address, and list it on the network’s marketplace — no new server, and no port of your own to open.' },
 } as const;

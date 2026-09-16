@@ -67,6 +67,14 @@ export const landing: Dict = {
   'landing.audience.operator.s3': { ko: 'HTTP API로 AI 에이전트가 지식을 직접 사고 넣도록 자동화합니다.', en: 'Automate with the HTTP API so AI agents buy and load knowledge themselves.' },
   'landing.audience.operator.cta': { ko: '운영자 콘솔 열기', en: 'Open the operator console' },
 
+  // The agent door. Written for somebody who ALREADY has an agent running and is looking for somewhere to put
+  // it — the question they arrive with is "where does it live and who can call it", so that is what these say.
+  'landing.audience.agent.s1': { ko: '이미 돌고 있는 에이전트를 노드에 등록합니다: `ainize agent add <id> --upstream http://127.0.0.1:9200`', en: 'Register an agent you already run: `ainize agent add <id> --upstream http://127.0.0.1:9200`' },
+  'landing.audience.agent.s2': { ko: '노드가 공개 주소와 에이전트 카드를 만들어 줍니다. 에이전트 프로세스는 로컬에 그대로 있어도 됩니다.', en: 'The node gives it a public address and serves its agent card. The process itself stays where it is — it never needs an address of its own.' },
+  'landing.audience.agent.s3': { ko: '연결된 노드들이 그 에이전트를 알게 되고, 각자의 마켓플레이스에 띄웁니다. 호출은 그 노드를 거쳐 들어옵니다.', en: 'The nodes yours is connected to learn about it and list it on their own marketplace; calls arrive through them.' },
+  'landing.audience.agent.cta': { ko: '에이전트 둘러보기', en: 'See the agents' },
+  'landing.audience.agent.docs_link': { ko: '내 에이전트 올리는 법 →', en: 'Put your agent on a node →' },
+
 
   // lifecycle — ONE time-ordered diagram of the ecosystem (owner review 2026-09: the one-line commands were grouped
   // by role and read as a menu, not a sequence). Every note here is a promise the shipped product keeps: where a

@@ -119,6 +119,10 @@ export function Header() {
         </Home>
         <Nav>
           <NavItem to="/explore">{t('nav.explore')}</NavItem>
+          {/* A node sells two kinds of thing and only one of them had a way in. The agents were behind a chip
+              inside a page titled "Explore knowledge", so somebody who came here to host an agent read the
+              whole site and concluded it was a knowledge marketplace. */}
+          <NavItem to="/explore?kind=agent" data-testid="nav-agents">{t('nav.agents')}</NavItem>
           <NavItem to="/chat">{t('nav.chat')}</NavItem>
           {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}
           {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach" $active={teaching} className={teaching ? 'active' : undefined}>{t('nav.teach')}</NavPlain>}

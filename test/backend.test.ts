@@ -83,3 +83,39 @@ test('the live test offers the AGENT\'s examples, not one agent\'s job hard-code
   assert.match(page, /examplesOf\(skills\)/, 'examples come from the card');
   assert.match(page, /samePath\(agent\.card_url\)/, 'the card is fetched from this app, same origin');
 });
+
+/**
+ * The way in for somebody who built an agent.
+ *
+ * The UX review that produced these: a builder landing on the site read the nav (`Explore knowledge | Live test
+ * | Teach | Docs & API`), the three doors of "which one are you?" (use knowledge / teach / run a node) and the
+ * docs index, and nowhere learned that a node gives an agent a public address — although `ainize agent add`
+ * had shipped, the marketplace listed agents, and the whole path worked. The capability was complete and
+ * invisible. These assert the entrances exist, in every chrome, because the landing has its own.
+ */
+test('both navigations offer the agents, not just the one on inner pages', () => {
+  const header = readFileSync(join(root, 'src/components/ui/Header.tsx'), 'utf8');
+  const landing = readFileSync(join(root, 'src/screens/LandingPage.tsx'), 'utf8');
+  for (const [name, src] of [['Header', header], ['LandingPage', landing]] as const) {
+    assert.match(src, /to="\/explore\?kind=agent"/, `${name} has no way into the agents`);
+  }
+});
+
+test('the landing answers "which one are you?" for somebody holding an agent', () => {
+  const landing = readFileSync(join(root, 'src/screens/LandingPage.tsx'), 'utf8');
+  assert.match(landing, /audience\('agent'\)/, 'the fourth door');
+  assert.match(landing, /landing-agent-cta/);
+  assert.match(landing, /docs\/how-to\/host-an-agent/, 'and the page that tells them how');
+});
+
+test('the how-to an agent builder needs exists, in both languages, and is listed', () => {
+  for (const lang of ['en', 'ko']) {
+    const page = join(root, 'docs', lang, 'how-to/host-an-agent.md');
+    assert.ok(existsSync(page), `docs/${lang}/how-to/host-an-agent.md`);
+    const toc = readFileSync(join(root, 'docs', lang, '_toctree.json'), 'utf8');
+    assert.match(toc, /how-to\/host-an-agent/, `${lang} toctree does not list it, so nothing links to it`);
+  }
+  // the command it teaches must be the one that works without a restart
+  const en = readFileSync(join(root, 'docs/en/how-to/host-an-agent.md'), 'utf8');
+  assert.match(en, /ainize agent add [\w-]+ --upstream/);
+});
