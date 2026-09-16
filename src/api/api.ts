@@ -11,7 +11,7 @@ import type {
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
-  SubscribeResult, TrackQuote, CreditInfo,
+  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse,
 } from './types';
 import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
 
@@ -94,7 +94,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
@@ -120,6 +120,8 @@ export const api = createApi({
     branches: b.query<BranchesResponse, void>({ query: () => 'api/branches', providesTags: ['Branches'] }),
     route: b.query<RouteResponse, Record<string, string>>({ query: (ctx) => `api/route${toQuery(ctx)}`, providesTags: ['Branches', 'Nodes'] }),
     nodes: b.query<NodesResponse, void>({ query: () => 'api/nodes', providesTags: ['Nodes'] }),
+    /** A2A agents this node operates (§6.1). Polled, because "is it answering" is a live question. */
+    agents: b.query<AgentsResponse, void>({ query: () => 'api/agents', providesTags: ['Agents'] }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
     runtime: b.query<RuntimeResponse, void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
@@ -348,7 +350,7 @@ export const api = createApi({
 
 export const {
   useInfoQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
-  useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,

@@ -17,6 +17,7 @@ const PatchPage = lazy(() => import('./pages/PatchPage'));
 const BenchmarkPage = lazy(() => import('./pages/BenchmarkPage'));
 const LedgerPage = lazy(() => import('./pages/LedgerPage'));
 const NetworkPage = lazy(() => import('./pages/NetworkPage'));
+const AgentsPage = lazy(() => import('./pages/AgentsPage'));
 const TrackPage = lazy(() => import('./pages/TrackPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -61,6 +62,8 @@ export default function App() {
                 {/* Public pages (Layout) */}
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
                 <Route path="/network" element={<Layout><NetworkPage /></Layout>} />
+                {/* A2A agents this node operates, and the live test for one (NEWS-AGENT-REQUIREMENTS §6) */}
+                <Route path="/agents" element={<Layout><AgentsPage /></Layout>} />
                 {/* a track name contains slashes (`finance/KRX-latest`), so the route is a splat: /tracks/finance/KRX-latest */}
                 <Route path="/tracks/*" element={<Layout><TrackPage /></Layout>} />
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />

@@ -876,3 +876,24 @@ export interface MergePreview {
   licenses: { a: string | null; b: string | null; child_min: string | null };
   private_parent?: string;
 }
+
+/**
+ * An A2A agent this node gives a public address to (NEWS-AGENT-REQUIREMENTS §6.1).
+ *
+ * `reachable` is three-valued on purpose: `null` means the node has not asked yet, which is different from
+ * having asked and been refused. An operator debugging a dead agent needs to know which of the two they are
+ * looking at.
+ */
+export interface AgentSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  a2a_url: string;
+  card_url: string;
+  reachable: boolean | null;
+  last_checked: number | null;
+  error: string | null;
+  calls: number;
+  last_call_at: number | null;
+}
+export interface AgentsResponse { agents: AgentSummary[] }
