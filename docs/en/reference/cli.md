@@ -9,7 +9,7 @@ summary: Every `ainize` command, argument and option, generated from the CLI's o
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-cli/src/main.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-Every command the `ainize` CLI accepts — 31 top-level commands, 94 of them runnable — with the arguments, options, defaults and examples each one declares.
+Every command the `ainize` CLI accepts — 32 top-level commands, 101 of them runnable — with the arguments, options, defaults and examples each one declares.
 
 ## How to read this page
 
@@ -52,6 +52,7 @@ These are accepted by every command.
 | [`ainize operators`](#ainize-operators) | Who owns this node (its own key, always, plus operatorAddresses) |
 | [`ainize logout`](#ainize-logout) | End this session |
 | [`ainize peers`](#ainize-peers) | Manage peers |
+| [`ainize agent`](#ainize-agent) | A2A agents this node serves: register one, see whether it answers, and call it |
 | [`ainize patch`](#ainize-patch) | Publish, inspect, verify, buy and apply knowledge patches — or give an ENS name to use one in a single line |
 | [`ainize publish`](#ainize-publish) | One line to sell knowledge: register a .npz + benchmark and announce it at once — the network verifies, you get paid per sale (`ainize patch publish` is the same operation, stopping at a draft) |
 | [`ainize teach`](#ainize-teach) | Teach mode: turn your own questions and answers into knowledge. Two doors, one pipeline — a dataset file here, or corrections collected in the browser (\<node>/chat?teach=1) |
@@ -572,6 +573,130 @@ Remove a peer
 **Arguments**
 
 - **`<url>`** (`string`, required)
+
+## `ainize agent`
+
+```bash
+ainize agent <subcommand>
+```
+
+A2A agents this node serves: register one, see whether it answers, and call it
+
+**Subcommands** — one of them is required
+
+- `ainize agent ls` — List agents, their skills and whether they are answering
+- `ainize agent add` — Register an agent process at a public address on this node
+- `ainize agent rm` — Unregister an agent (its public address stops resolving)
+- `ainize agent on` — Publish a registered agent
+- `ainize agent off` — Keep the registration but take the public address down
+- `ainize agent card` — The agent card as this node serves it to a workspace
+- `ainize agent call` — Send a message the way a workspace would, through the public path
+
+### `ainize agent ls`
+
+```bash
+ainize agent ls
+```
+
+List agents, their skills and whether they are answering
+
+### `ainize agent add`
+
+```bash
+ainize agent add <id> [options]
+```
+
+Register an agent process at a public address on this node
+
+**Arguments**
+
+- **`<id>`** (`string`, required) — URL segment: /agents/\<id>
+
+**Options**
+
+- **`--upstream`** (`string`) — where the agent process listens, e.g. http://127.0.0.1:9200
+- **`--name`** (`string`) — label for the operator list (the card's own name is what a workspace shows)
+- **`--description`** (`string`) — shown until the agent's card answers for itself
+- **`--disabled`** (`boolean`, default `false`) — register without publishing it yet
+
+**Examples**
+
+```bash
+# give a running agent a public address
+ainize agent add donga-desk --upstream http://127.0.0.1:9200
+```
+
+### `ainize agent rm`
+
+```bash
+ainize agent rm <id> [options]
+```
+
+Unregister an agent (its public address stops resolving)
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+
+**Options**
+
+- **`--yes`** (`boolean`, default `false`) — skip the confirmation
+
+### `ainize agent on`
+
+```bash
+ainize agent on <id>
+```
+
+Publish a registered agent
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+
+### `ainize agent off`
+
+```bash
+ainize agent off <id>
+```
+
+Keep the registration but take the public address down
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+
+### `ainize agent card`
+
+```bash
+ainize agent card <id>
+```
+
+The agent card as this node serves it to a workspace
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+
+### `ainize agent call`
+
+```bash
+ainize agent call <id> <prompt…>
+```
+
+Send a message the way a workspace would, through the public path
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+- **`<prompt…>`** (`string[]`, required)
+
+**Examples**
+
+```bash
+# one JSON-RPC message/send, as a stranger would
+ainize agent call donga-desk "오늘 파이프라인 상태 알려줘"
+```
 
 ## `ainize patch`
 
