@@ -1111,7 +1111,7 @@ Copy this knowledge's questions into your own training set, and continue from th
 # start from its questions
 ainize patch fork krx-all-2761 --name "KRX + biotech"
 # then teach your additions on top of it
-ainize teach train <dataset> --on krx-all-2761
+ainize teach <dataset> --on krx-all-2761
 ```
 
 ### `ainize patch merge`
@@ -1311,19 +1311,53 @@ ainize publish ./lesson.npz --name "…" --model … --benchmark ./bench.json --
 ## `ainize teach`
 
 ```bash
-ainize teach <subcommand>
+ainize teach <target> [options] <subcommand>
 ```
 
 Teach mode: turn your own questions and answers into knowledge. Two doors, one pipeline — a dataset file here, or corrections collected in the browser (\<node>/chat?teach=1)
+
+`ainize teach <target>` runs without naming a subcommand.
+
+**Arguments**
+
+- **`<target>`** (`string`, required) — dataset id (`ainize teach dataset ls`) or a dataset file, which is uploaded first
+
+**Options**
+
+- **`--key`** (`string`) — teaching key (64-hex) — or AINIZE_TEACH_KEY
+- **`--key-file`** (`string`) — the key backup JSON from the browser (ainize-teaching-key-….json); default: \<home>/teaching-key.json, created on first use
+- **`--effort`** (`"quick" | "balanced" | "thorough"`) — how hard to train (see `ainize teach status <node>`)
+- **`--check`** (`boolean`) — --no-check skips the side-effect check on the live model (publishing then stays blocked until a recheck)
+- **`--alt`** (`boolean`) — --no-alt trains only the wording in the file, not the second phrasing
+- **`--rows`** (`number`) — train only the first N questions of the dataset
+- **`--name`** (`string`) — name for the lesson (and for the dataset, when a file is uploaded here)
+- **`--patch`** (`string`) — knowledge id(s) loaded while teaching, comma-separated — for comparison only
+- **`--on`** (`string`) — the knowledge this lesson is trained ON TOP OF: its questions are kept as known answers, it is recorded as the base, and buyers need it too
+- **`--inherit`** (`boolean`) — --no-inherit checks against the base without keeping its questions as known answers
+- **`--yes-change`** (`boolean`, default `false`) — my answers are meant to replace the base's where they differ
+- **`--wait`** (`boolean`, default `false`) — follow it until it is ready (prints each stage). Exit code says what happened: 0 ready · 4 did not stick (NEEDS_MORE) · 5 failed/cancelled/expired · 6 declined by the operator · 7 still running when the wait ran out · 8 ready but never measured on the live model
+- **`--timeout`** (`number`) — with --wait: give up after this many minutes and exit 7 (default 60)
 
 **Subcommands** — one of them is required
 
 - `ainize teach status` — Teaching policy of a node, the status of a lesson, or a data provider's lessons and earnings
 - `ainize teach dataset` — The questions a lesson is trained from: upload a file, list, inspect, download, delete
-- `ainize teach train` — Teach a lesson from a dataset id or a dataset file
 - `ainize teach jobs` — My lessons on this node and the dataset each came from
 - `ainize teach recheck` — Measure a lesson that was saved unchecked (the model server was unavailable)
-- `ainize teach publish` — Publish a READY lesson as knowledge (the last step of `teach train` — needs both consent flags)
+- `ainize teach publish` — Publish a READY lesson as knowledge (the last step of `teach <file>` — needs both consent flags)
+
+**Examples**
+
+```bash
+# train an uploaded dataset
+ainize teach 6f2c1b2a-…
+# file → lesson in one line
+ainize teach ./questions.csv --effort quick --wait
+# teach it on top of someone else's knowledge
+ainize teach 6f2c1b2a-… --on krx-all-2761
+# the same questions again, harder
+ainize teach 6f2c1b2a-… --effort thorough
+```
 
 ### `ainize teach status`
 
@@ -1397,7 +1431,7 @@ This is the default subcommand: `ainize teach dataset <file>` runs it without na
 - **`--effort`** (`"quick" | "balanced" | "thorough"`) — with --train: how hard to train
 - **`--check`** (`boolean`) — with --train: --no-check skips the side-effect check (publishing then stays blocked)
 - **`--rows`** (`number`) — with --train: train only the first N questions
-- **`--wait`** (`boolean`, default `false`) — with --train: follow the lesson until it is ready and exit with its outcome (0 ready · 4 did not stick · 5 failed · 6 declined · 7 timed out · 8 never measured) — the same wait as `teach train --wait`
+- **`--wait`** (`boolean`, default `false`) — with --train: follow the lesson until it is ready and exit with its outcome (0 ready · 4 did not stick · 5 failed · 6 declined · 7 timed out · 8 never measured) — the same wait as `teach <file> --wait`
 - **`--timeout`** (`number`) — with --wait: give up after this many minutes and exit 7 (default 60)
 
 **Examples**
@@ -1475,47 +1509,6 @@ Delete a dataset (the lessons trained from it are kept)
 - **`--key`** (`string`) — teaching key (64-hex) — or AINIZE_TEACH_KEY
 - **`--key-file`** (`string`) — the key backup JSON from the browser (ainize-teaching-key-….json); default: \<home>/teaching-key.json, created on first use
 
-### `ainize teach train`
-
-```bash
-ainize teach train <target> [options]
-```
-
-Teach a lesson from a dataset id or a dataset file
-
-**Arguments**
-
-- **`<target>`** (`string`, required) — dataset id (`ainize teach dataset ls`) or a dataset file, which is uploaded first
-
-**Options**
-
-- **`--key`** (`string`) — teaching key (64-hex) — or AINIZE_TEACH_KEY
-- **`--key-file`** (`string`) — the key backup JSON from the browser (ainize-teaching-key-….json); default: \<home>/teaching-key.json, created on first use
-- **`--effort`** (`"quick" | "balanced" | "thorough"`) — how hard to train (see `ainize teach status <node>`)
-- **`--check`** (`boolean`) — --no-check skips the side-effect check on the live model (publishing then stays blocked until a recheck)
-- **`--alt`** (`boolean`) — --no-alt trains only the wording in the file, not the second phrasing
-- **`--rows`** (`number`) — train only the first N questions of the dataset
-- **`--name`** (`string`) — name for the lesson (and for the dataset, when a file is uploaded here)
-- **`--patch`** (`string`) — knowledge id(s) loaded while teaching, comma-separated — for comparison only
-- **`--on`** (`string`) — the knowledge this lesson is trained ON TOP OF: its questions are kept as known answers, it is recorded as the base, and buyers need it too
-- **`--inherit`** (`boolean`) — --no-inherit checks against the base without keeping its questions as known answers
-- **`--yes-change`** (`boolean`, default `false`) — my answers are meant to replace the base's where they differ
-- **`--wait`** (`boolean`, default `false`) — follow it until it is ready (prints each stage). Exit code says what happened: 0 ready · 4 did not stick (NEEDS_MORE) · 5 failed/cancelled/expired · 6 declined by the operator · 7 still running when the wait ran out · 8 ready but never measured on the live model
-- **`--timeout`** (`number`) — with --wait: give up after this many minutes and exit 7 (default 60)
-
-**Examples**
-
-```bash
-# train an uploaded dataset
-ainize teach train 6f2c1b2a-…
-# file → lesson in one line
-ainize teach train ./questions.csv --effort quick --wait
-# teach it on top of someone else's knowledge
-ainize teach train 6f2c1b2a-… --on krx-all-2761
-# the same questions again, harder
-ainize teach train 6f2c1b2a-… --effort thorough
-```
-
 ### `ainize teach jobs`
 
 ```bash
@@ -1546,7 +1539,7 @@ Measure a lesson that was saved unchecked (the model server was unavailable)
 
 - **`--key`** (`string`) — teaching key (64-hex) — or AINIZE_TEACH_KEY
 - **`--key-file`** (`string`) — the key backup JSON from the browser (ainize-teaching-key-….json); default: \<home>/teaching-key.json, created on first use
-- **`--wait`** (`boolean`, default `false`) — follow it until it is measured (same exit codes as `teach train --wait`)
+- **`--wait`** (`boolean`, default `false`) — follow it until it is measured (same exit codes as `teach <file> --wait`)
 
 **Examples**
 
@@ -1561,7 +1554,7 @@ ainize teach recheck 3a417bb4-… --wait
 ainize teach publish <job-id> --name <value> [options]
 ```
 
-Publish a READY lesson as knowledge (the last step of `teach train` — needs both consent flags)
+Publish a READY lesson as knowledge (the last step of `teach <file>` — needs both consent flags)
 
 **Arguments**
 
@@ -1589,7 +1582,7 @@ Publish a READY lesson as knowledge (the last step of `teach train` — needs bo
 # the last line of a nightly bake
 ainize teach publish 8f0c… --name "KRX codes" --price 2 --consent-permanent --consent-rights
 # train, then publish only if the lesson stuck (--wait exits non-zero otherwise)
-ainize teach train today.jsonl --wait && ainize teach publish <id> --name … --consent-permanent --consent-rights
+ainize teach ./today.jsonl --wait && ainize teach publish <id> --name … --consent-permanent --consent-rights
 ```
 
 ## `ainize dataset`
@@ -1720,7 +1713,7 @@ Live-test a knowledge patch: the model's answer before vs after the patch is loa
 
 **Arguments**
 
-- **`[patchId]`** (`string`) — patch to test (see --list); `a,b` loads several together
+- **`[patchId]`** (`string`) — patch to test, or https://huggingface.co/\<owner>/\<model> for the exact model already served by this node
 - **`[prompt…]`** (`string[]`) — question; omit for an interactive session (/quit to exit)
 
 **Options**
@@ -1737,6 +1730,8 @@ Live-test a knowledge patch: the model's answer before vs after the patch is loa
 ```bash
 # what can be tested here
 ainize chat --list
+# ask this exact already-serving model without a knowledge patch
+ainize chat https://huggingface.co/owner/model "Question"
 # before/after in one shot
 ainize chat pixelplus-087600 "Pixelplus ticker code? Digits only."
 # interactive session with the patch loaded
@@ -1755,10 +1750,29 @@ Inspect the ledger
 
 **Subcommands** — one of them is required
 
+- `ainize ledger inference` — Inspect native inference batch submissions (operator only)
 - `ainize ledger ls` — List records
 - `ainize ledger verify` — Verify hashes, signatures and chain linkage
 - `ainize ledger graph` — ASCII lineage tree
 - `ainize ledger export` — Export records as JSON lines
+
+### `ainize ledger inference`
+
+```bash
+ainize ledger inference [id] [options]
+```
+
+Inspect native inference batch submissions (operator only)
+
+**Arguments**
+
+- **`[id]`** (`string`) — local batch ID; omit to list newest batches
+
+**Options**
+
+- **`--receipts`** (`boolean`, default `false`) — include receipts for one batch (use --json to export)
+- **`--offset`** (`number`, default `0`) — pagination offset
+- **`--limit`** (`number`, default `50`) — page size, at most 100
 
 ### `ainize ledger ls`
 

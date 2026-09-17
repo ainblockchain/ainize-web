@@ -29,6 +29,7 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import type { AgentSummary } from '@/api/types';
 import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
+import { readFrame, takeFrames } from '@/lib/a2a-stream';
 import { useTitle } from '@/utils/useTitle';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
@@ -60,6 +61,16 @@ const Facts = styled.dl`
 `;
 const SectionLabel = styled.div`
   margin-top: 20px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: ${(p) => p.theme.color.GREY};
+`;
+/** The running commentary. Monospace seconds so the column lines up as it grows. */
+const Steps = styled.ol`
+  list-style: none; margin: 16px 0 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;
+  border-left: 2px solid ${(p) => p.theme.color.LIGHT_GREY}; background: ${(p) => p.theme.color.PALE_GREY};
+  border-radius: 0 4px 4px 0;
+  li { display: flex; gap: 12px; font-size: 12px; line-height: 1.5; color: ${(p) => p.theme.color.DARK_GREY}; }
+  li b { flex: none; width: 34px; text-align: right; font-family: ${(p) => p.theme.font.mono}; font-weight: 500; color: ${(p) => p.theme.color.GREY}; }
+  li span { overflow-wrap: anywhere; }
+  li.live b, li.live span { color: ${(p) => p.theme.color.PRIMARY}; }
 `;
 const Panel = styled.div`margin-top: 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; padding: 20px 24px;`;
 const Area = styled.textarea`
@@ -134,6 +145,8 @@ export function AgentPage() {
   const [elapsed, setElapsed] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const [surface, setSurface] = useState<A2UISurfaceData | null>(null);
+  /** What the agent said it was doing, in order, with the second it said it. */
+  const [progress, setProgress] = useState<{ at: number; text: string }[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -190,41 +203,82 @@ export function AgentPage() {
     return () => { live = false; };
   }, [agent]);
 
+  /**
+   * Send, and watch it work.
+   *
+   * `message/stream` rather than `message/send`: a turn here takes tens of seconds and both agents report
+   * what they are doing while they do it — one names each stage of a scoring run, the other names each tool
+   * call as it makes it. Waiting in silence for the whole thing and then printing it is what made a working
+   * agent look hung.
+   *
+   * The fallback is not decoration. An agent whose card says it does not stream, one whose SDK answers
+   * `message/stream` with a plain JSON body, and one behind a proxy that buffers all arrive here the same
+   * way: the response is not an event stream, so it is read as the single answer it is.
+   */
   const run = async (message = article) => {
     if (!agent) return;
-    setBusy(true); setResult(null); setSurface(null); setFailed(null); setElapsed(0);
+    setBusy(true); setResult(null); setSurface(null); setFailed(null); setElapsed(0); setProgress([]);
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
+    const at = () => Math.round((Date.now() - started) / 1000);
+    const finish = (parts: unknown[]) => {
+      setSurface(readSurface(parts as never));
+      const text = (parts as { text?: string }[]).map((p) => p?.text ?? '').join('\n').trim();
+      // §2 — an empty parts array is a deliberate answer, not a missing one
+      setResult(text || '(silence — the agent heard this and chose not to reply, which is how it stays quiet in a busy channel)');
+    };
+
     try {
-      // Exactly what a workspace sends — same method, same shape. `call_url` is this node's mesh path when the
-      // agent belongs to a peer: a browser cannot reach another operator's node, and this one can.
-      //
       // Called as a PATH, not as the absolute URL the node reports. The node knows itself by one address
-      // (`https://ainize.ai`) and a visitor may be on another name for the same site (`www.`) — posting to the
-      // node's spelling from that page is a cross-origin request, and the browser blocks it before anything
-      // here runs. Every address on this list is this app's own, so the path is the part that matters.
+      // (`https://ainize.ai`) and a visitor may be on another name for the same site (`www.`) — posting to
+      // the node's spelling from that page is a cross-origin request the browser blocks before any of this
+      // runs. Every address on this list is this app's own, so the path is the part that matters.
       const res = await fetch(samePath(agent.call_url ?? agent.a2a_url), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: crypto.randomUUID(),
-          method: 'message/send',
+          method: 'message/stream',
           params: {
             message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text: message }] },
-            configuration: { blocking: true, acceptedOutputModes: ['text/plain'] },
+            configuration: { acceptedOutputModes: ['text/plain'] },
           },
         }),
       });
-      const body = await res.json().catch(() => null);
-      if (body?.error) { setFailed(`${body.error.message} (code ${body.error.code})`); return; }
-      const parts = body?.result?.parts ?? [];
-      // A2UI first: an agent that describes its answer as a surface gets drawn rather than printed. The
-      // text part is always kept — it is the same answer, and it is what a reader copies out.
-      setSurface(readSurface(parts));
-      const text = parts.map((p: { text?: string }) => p.text ?? '').join('\n').trim();
-      // §2 — an empty parts array is a deliberate answer, not a missing one
-      setResult(text || '(silence — the agent heard this and chose not to reply, which is how it stays quiet in a busy channel)');
+
+      const streamed = (res.headers.get('content-type') ?? '').includes('text/event-stream');
+      if (!streamed || !res.body) {
+        const body = await res.json().catch(() => null);
+        if (body?.error) { setFailed(`${body.error.message} (code ${body.error.code})`); return; }
+        finish(body?.result?.parts ?? body?.result?.status?.message?.parts ?? []);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let answered = false;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const { frames, rest } = takeFrames(buffer);
+        buffer = rest;
+        for (const frame of frames) {
+          const event = readFrame(frame);
+          if (!event) continue;
+          if (event.kind === 'working' && event.text) {
+            setProgress((lines) => [...lines, { at: at(), text: event.text }]);
+          } else if (event.kind === 'error') {
+            setFailed(event.text);
+          } else if (event.kind === 'final') {
+            answered = true;
+            finish(event.parts ?? []);
+          }
+        }
+      }
+      if (!answered) setFailed((f) => f ?? 'the stream ended before the agent answered');
     } catch (e) {
       setFailed(errorMessage(e));
     } finally {
@@ -376,6 +430,24 @@ export function AgentPage() {
           {busy && <Small>the agent decides how long this takes — some do real work before answering</Small>}
           {agent.reachable === false && <Small>the agent is not answering, so there is nothing to send to</Small>}
         </Row>
+        {/**
+          * What the agent said it was doing, while it was doing it.
+          *
+          * The seconds are the point. A list of stages with no clock is a nicer spinner; with one, a reader
+          * can see that the four seconds went on reading other newsrooms' articles and the twelve after it
+          * went on the comparison — and can tell a slow turn from a stuck one without asking anybody.
+          */}
+        {progress.length > 0 && (
+          <Steps>
+            {progress.map((line, i) => (
+              <li key={`${line.at}-${i}`}>
+                <b>{line.at}s</b>
+                <span>{line.text}</span>
+              </li>
+            ))}
+            {busy && <li className="live"><b>{elapsed}s</b><span>…</span></li>}
+          </Steps>
+        )}
         {failed && <Alert $tone="error">{failed}</Alert>}
         {result && <Out>{result}</Out>}
         {surface && (
