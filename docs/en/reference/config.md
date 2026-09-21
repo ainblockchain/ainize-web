@@ -9,7 +9,7 @@ summary: Every key of a node config.json, its type, its default and the rules it
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-core/src/config-schema.ts` and `ainize-core/src/config.ts` and `ainize-core/src/types.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-All 141 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
+All 142 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
 
 ## How to read this page
 
@@ -29,6 +29,7 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `port` | a number — must be a whole number; must be between 1 and 65535 | `3402` |   |
 | `host` | a string — must be an interface to bind: an IP address (0.0.0.0, 127.0.0.1, ::) or a hostname | `"127.0.0.1"` |   |
 | `publicUrl` | a string — must be an http(s) URL | unset |   |
+| `hub` | a string — must be an http(s) URL | unset | Where this node attaches itself so a person can claim it from a browser (see config-schema). |
 | `roles` | a comma list of 'seller', 'verifier', 'serving', 'gateway' | `["seller","verifier","serving"]` |   |
 | `peers` | a comma list | `[]` |   |
 | `ledger` | an object (set its keys one at a time) |   |   |

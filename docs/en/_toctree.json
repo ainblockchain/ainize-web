@@ -96,6 +96,10 @@
       {
         "page": "how-to/host-an-agent",
         "title": "Put an agent on a node"
+      },
+      {
+        "page": "how-to/build-for-ainteams",
+        "title": "Build an agent for AIN Teams"
       }
     ]
   },

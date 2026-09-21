@@ -96,6 +96,10 @@
       {
         "page": "how-to/host-an-agent",
         "title": "에이전트를 노드에 올리기"
+      },
+      {
+        "page": "how-to/build-for-ainteams",
+        "title": "AIN Teams용 에이전트 만들기"
       }
     ]
   },

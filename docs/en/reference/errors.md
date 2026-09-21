@@ -166,7 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 58 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 59 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 27 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -201,6 +201,7 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `401` | sign in with your wallet to end what acts as you | `src/api.ts` |
 | `401` | Sign in with your wallet to query live sources | `src/api.ts` |
 | `401` | sign in with your wallet to see what acts as you | `src/api.ts` |
+| `401` | sign in with your wallet to see your nodes | `src/api.ts` |
 | `401` | that signature does not come from the address it claims | `src/api.ts` |
 | `401` | that signature does not come from the address that is signed in | `src/api.ts` |
 | `401` | the sign-in challenge has expired — ask for a new one | `src/api.ts` |
