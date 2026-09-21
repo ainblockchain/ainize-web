@@ -13,6 +13,13 @@ import { useTitle } from '@/utils/useTitle';
 import { bytes, num, shortAddr } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 import { trackHref } from './TrackPage';
+import { networkEntryKey, orderNetworkEntries, uniqueNetworkWarnings } from '@/utils/networkOrder';
+
+const WarningDetails = styled.details`
+  summary { cursor: pointer; font-weight: 600; }
+  .warning-list { max-height: 220px; overflow-y: auto; margin-top: 12px; overflow-anchor: none; }
+  .warning-list > div + div { margin-top: 12px; }
+`;
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;`;
 const Card = styled.div`
@@ -170,10 +177,11 @@ export default function NetworkPage() {
   }
   const self = info.node;
   const rt = info.runtime;
-  const peers = nodes?.peers ?? [];
+  const peers = orderNetworkEntries(nodes?.peers ?? []);
   // item 170: a peer on the other ledger answers everything and serves an empty record set forever
   const ps = info.peer_status ?? nodes?.peer_status;
-  const known = (nodes?.nodes ?? []).filter((n) => n.address !== self.address);
+  const known = orderNetworkEntries((nodes?.nodes ?? []).filter((n) => n.address !== self.address));
+  const mismatches = uniqueNetworkWarnings(ps?.mismatched ?? []);
   const ledgerKind = (k: string) => (k === 'ain' ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local'));
   const roles = (rs: string[]) => rs.map((r) => <RoleChip key={r} $role={r} title={r}>{f.roleLabel(r)}</RoleChip>);
   const routeExample = routed?.branch?.name ?? branches?.branches[0]?.name ?? 'law/KR';
@@ -231,14 +239,19 @@ export default function NetworkPage() {
       </Cards>
 
       <SubTitle $mt={40}>{t('detail.net.peers_title')}</SubTitle>
-      {!!ps?.mismatched.length && (
+      {!!mismatches.length && ps && (
         <Alert $tone="warning" style={{ marginTop: 12 }}>
-          {ps.mismatched.map((m) => (
-            <div key={m.endpoint ?? m.name ?? ''}>
-              {t('detail.net.ledger_mismatch', { node: m.name ?? m.endpoint ?? '—', their: ledgerKind(m.ledger), ours: ledgerKind(ps.ledger) })}
-              {m.endpoint && <><br /><Mono style={{ fontSize: 12 }}>{`ainize patch ls --node ${m.endpoint}`}</Mono></>}
+          <WarningDetails>
+            <summary>{t('detail.net.ledger_mismatch_summary', { n: mismatches.length })}</summary>
+            <div className="warning-list">
+              {mismatches.map((m) => (
+                <div key={networkEntryKey(m)}>
+                  {t('detail.net.ledger_mismatch', { node: m.name ?? m.endpoint ?? '—', their: ledgerKind(m.ledger), ours: ledgerKind(ps.ledger) })}
+                  {m.endpoint && <><br /><Mono style={{ fontSize: 12 }}>{`ainize patch ls --node ${m.endpoint}`}</Mono></>}
+                </div>
+              ))}
             </div>
-          ))}
+          </WarningDetails>
         </Alert>
       )}
       {peers.length === 0 && known.length === 0 && <Empty style={{ marginTop: 12 }}>{t('detail.net.peers_empty')}</Empty>}
