@@ -82,6 +82,12 @@ const Out = styled.pre`
   font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre-wrap;
 `;
 const Row = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;`;
+/** The text answer, when a surface has already said it better. Closed by default, and clearly a fallback. */
+const Raw = styled.details`
+  margin-top: 12px;
+  summary { cursor: pointer; font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
+  summary:hover { color: ${(p) => p.theme.color.PRIMARY}; }
+`;
 const Rendered = styled.div`
   margin-top: 16px; padding: 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fafafb;
 `;
@@ -183,7 +189,7 @@ export function AgentPage() {
     if (!agent) { setForm(null); return; }
     let live = true;
     setForm(null);
-    fetch(samePath(agent.call_url ?? agent.a2a_url), {
+    fetch(samePath(agent.a2a_url), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -233,7 +239,7 @@ export function AgentPage() {
       // (`https://ainize.ai`) and a visitor may be on another name for the same site (`www.`) — posting to
       // the node's spelling from that page is a cross-origin request the browser blocks before any of this
       // runs. Every address on this list is this app's own, so the path is the part that matters.
-      const res = await fetch(samePath(agent.call_url ?? agent.a2a_url), {
+      const res = await fetch(samePath(agent.a2a_url), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
         body: JSON.stringify({
@@ -449,12 +455,20 @@ export function AgentPage() {
           </Steps>
         )}
         {failed && <Alert $tone="error">{failed}</Alert>}
-        {result && <Out>{result}</Out>}
-        {surface && (
-          <Rendered>
-            <RenderedLabel>drawn from the agent&rsquo;s own description of the answer (A2UI)</RenderedLabel>
-            <A2UISurface surface={surface} />
-          </Rendered>
+
+        {/**
+          * The answer, once.
+          *
+          * It used to be printed twice: the raw text in a black monospace block, and the same content again
+          * below as the surface the agent described — asterisks and pipe-tables above, real tables beneath.
+          * When the agent has described a surface, that IS the answer; the text stays one click away because
+          * it is the canonical copy and the one a reader copies out.
+          */}
+        {surface && <Rendered><A2UISurface surface={surface} /></Rendered>}
+        {result && (
+          surface
+            ? <Raw><summary>원문 텍스트</summary><Out>{result}</Out></Raw>
+            : <Out>{result}</Out>
         )}
       </Panel>
     </PageWrapper>

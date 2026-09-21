@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { actionPayload, resolve, writePath, type A2UIComponent, type A2UISurfaceData } from './surface';
+import { actionPayload, resolve, safeHref, writePath, type A2UIComponent, type A2UISurfaceData } from './surface';
 
 export { A2UI_MIME, readSurface, isInteractive } from './surface';
 export type { A2UIComponent, A2UISurfaceData } from './surface';
@@ -48,6 +48,12 @@ const H1 = styled.div`font-size: 28px; font-weight: 800;`;
 const H2 = styled.div`font-size: 18px; font-weight: 700;`;
 const H3 = styled.div`font-size: 14px; font-weight: 700;`;
 const Body = styled.div`font-size: 14px; line-height: 1.6;`;
+const Anchor = styled.a`
+  font-size: 14px; line-height: 1.6; color: ${(p) => p.theme.color.PRIMARY};
+  text-decoration: underline; text-underline-offset: 2px;
+  &:hover { filter: brightness(1.2); }
+`;
+
 
 interface Ctx {
   model: unknown;
@@ -123,6 +129,19 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
       if (c.variant === 'h2') return <H2>{value}</H2>;
       if (c.variant === 'h3') return <H3>{value}</H3>;
       return <Body>{value}</Body>;
+    }
+    /**
+     * A reference a reader can open.
+     *
+     * Not in the basic catalog, and it should be: a score that says it compared an article against four
+     * others is asking to be checked, and "DongA Science — <headline>" as dead text is the one thing a reader
+     * cannot check. `text` is what is drawn, `url` where it goes; a URL that is not http(s) draws as text.
+     */
+    case 'Link': {
+      const label = resolve(c.text, surface.data, item);
+      const href = safeHref(resolve((c as { url?: unknown }).url, surface.data, item));
+      if (!href) return <Body>{label}</Body>;
+      return <Anchor href={href} target="_blank" rel="noopener noreferrer">{label}</Anchor>;
     }
     case 'List': {
       // A template child draws one copy per item of the bound array; that is what keeps the tree

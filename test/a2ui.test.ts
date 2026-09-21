@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { A2UI_MIME, actionPayload, isInteractive, readPath, readSurface, writePath } from '../src/components/a2ui/surface';
+import { A2UI_MIME, actionPayload, isInteractive, readPath, readSurface, safeHref, writePath } from '../src/components/a2ui/surface';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const parts = JSON.parse(readFileSync(join(here, 'fixtures-a2ui-parts.json'), 'utf8'));
@@ -144,4 +144,19 @@ test('a form is told apart from a result by what it contains', () => {
   assert.equal(isInteractive(form), true);
   const result = readSurface(parts)!;
   assert.equal(isInteractive(result), false, 'the score card asks for nothing');
+});
+
+/**
+ * A Link is the one component that can leave the page, and the agent that wrote it is a stranger.
+ *
+ * `javascript:` in an href runs with the site's origin and session. Two schemes are drawable; the rest fall
+ * back to plain text, which is why `safeHref` returns null rather than throwing — the reference still shows,
+ * it just does not click.
+ */
+test('safeHref: http(s) only, so an agent-authored address cannot run as the page', () => {
+  assert.equal(safeHref('https://donga.example/1'), 'https://donga.example/1');
+  assert.equal(safeHref('http://donga.example/1'), 'http://donga.example/1');
+  for (const bad of ['javascript:alert(1)', 'data:text/html,<script>', 'file:///etc/passwd', '', null, undefined, 'not a url']) {
+    assert.equal(safeHref(bad), null, `${String(bad)} is not a link`);
+  }
 });

@@ -173,3 +173,21 @@ export function actionPayload(
   }
   return { name: event.name, context };
 }
+
+/**
+ * An agent wrote this address, and an agent may be operated by anyone.
+ *
+ * `javascript:` and `data:` in an href run as the page, which is the whole site's session; a link is the one
+ * place a surface can reach out of its own box. Two schemes are allowed, and anything else draws as text —
+ * visible, unclickable, and honest about why.
+ */
+export function safeHref(url: unknown): string | null {
+  const raw = String(url ?? '').trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
