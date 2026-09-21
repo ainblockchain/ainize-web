@@ -170,7 +170,7 @@ export default function NetworkPage() {
   if (!info) {
     return (
       <PageWrapper $wide>
-        <TitleRow><Title>{t('detail.net.title')}</Title></TitleRow>
+        <TitleRow><Title>{t('detail.net.title')}</Title><a href="/network/m1">M1 · 70개 작업 상태 →</a></TitleRow>
         <Offline error={infoQ.error} what={t('offline.what.network')} retrying={infoQ.isFetching} onRetry={() => { void infoQ.refetch(); }} />
       </PageWrapper>
     );
@@ -189,7 +189,7 @@ export default function NetworkPage() {
 
   return (
     <PageWrapper $wide>
-      <TitleRow><Title>{t('detail.net.title')}</Title></TitleRow>
+      <TitleRow><Title>{t('detail.net.title')}</Title><a href="/network/m1">M1 · 70개 작업 상태 →</a></TitleRow>
       <Description title={tech('node')}>{t('detail.net.intro')}</Description>
 
       <SubTitle $mt={32}>{t('detail.net.this_node')}</SubTitle>
