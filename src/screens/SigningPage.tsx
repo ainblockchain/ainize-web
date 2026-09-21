@@ -41,6 +41,15 @@ export default function SigningPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const next = params.get('next') || '/dashboard';
+  /**
+   * The one-time enrolment token, handed over in the link.
+   *
+   * A node with no owners yet cannot be claimed from a browser: the node accepts an enrolment from its own
+   * machine, or from whoever holds the token written in its home directory — which is how an operator invites
+   * a wallet that is not on the box. The token is read from the URL and never stored; it is consumed by the
+   * node on the first successful enrolment, so the link works exactly once.
+   */
+  const setupToken = params.get('token') || undefined;
   const [localError, setLocalError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -81,7 +90,9 @@ export default function SigningPage() {
       // that exact string before it goes anywhere.
       const ch = await challenge({ scheme: 'eip191' }).unwrap();
       const signature = await personalSign(w.provider, ch.message, address);
-      await (alsoEnroll ? enroll : loginWallet)({ address, nonce: ch.nonce, signature }).unwrap();
+      await (alsoEnroll || setupToken
+        ? enroll({ address, nonce: ch.nonce, signature, setupToken })
+        : loginWallet({ address, nonce: ch.nonce, signature })).unwrap();
       await auth.refresh();
       navigate(next, { replace: true });
     } catch (e) {
@@ -134,6 +145,11 @@ export default function SigningPage() {
         {wallets && wallets.length > 0 && (
           <>
             <Hint>{t('op.sign.wallet.what')}</Hint>
+            {/* An invitation is not an ordinary sign-in and must not look like one: signing here makes this
+                address an operator of the node, which is worth saying before the wallet prompt, not after. */}
+            {setupToken && !me?.canEnroll && (
+              <Alert $tone="info" role="status" style={{ marginTop: 12 }}>{t('op.sign.enroll_invite')}</Alert>
+            )}
             {/* Offered only when the node says this caller could actually do it — from its own machine, or with the
                 one-time token. Shown to anyone else it would be a button that always fails. */}
             {me?.canEnroll && (

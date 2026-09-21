@@ -50,6 +50,20 @@ export default function AuthorizePage() {
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
   if (error || !data) return <PageWrapper><Title>{t('op.authorize.title')}</Title><Alert $tone="error">{t('op.authorize.unknown')}</Alert></PageWrapper>;
 
+  /**
+   * Which of the two things is asking.
+   *
+   * One request shape serves a command line somebody just ran and a node that started in another room and
+   * printed its own link. The page described only the first: a person approving a node read "Authorize a
+   * command line?" and was told to reject it unless they had just run `ainize login` — advice to refuse the
+   * thing they came to approve. `kind` is what the node recorded when the request was made.
+   *
+   * The three screens above this line run before the request has been read, so they keep the neutral title:
+   * a page that does not yet know what is asking must not guess.
+   */
+  const k = data.kind === 'node' ? 'node' : 'cli';
+  const tt = (key: string) => t(`op.authorize.${k}.${key}`);
+
   const approve = async () => {
     setLocalError(null);
     try {
@@ -70,32 +84,35 @@ export default function AuthorizePage() {
   if (outcome === 'approved') {
     return (
       <PageWrapper>
-        <Title>{t('op.authorize.title')}</Title>
+        <Title>{tt('title')}</Title>
         <Panel>
-          <Alert $tone="success" data-testid="authorize-done">{t('op.authorize.done')}</Alert>
-          <Muted>{t('op.authorize.done_end')} <Link to="/account">{t('nav.account')} →</Link></Muted>
+          <Alert $tone="success" data-testid="authorize-done">{tt('done')}</Alert>
+          {/* Where the person actually wanted to go. What they just approved was most often a NODE asking to
+              belong to them, and the page that shows that is the list of their nodes — the account page shows
+              keys, which is the other half and not the half they came for. */}
+          <Muted>{t('op.authorize.done_end')} <Link to="/my-nodes">{t('op.mynodes.title')} →</Link>{' · '}<Link to="/account">{t('nav.account')} →</Link></Muted>
         </Panel>
       </PageWrapper>
     );
   }
   if (outcome === 'rejected') {
-    return <PageWrapper><Title>{t('op.authorize.title')}</Title><Panel><Alert $tone="info" data-testid="authorize-rejected">{t('op.authorize.rejected')}</Alert></Panel></PageWrapper>;
+    return <PageWrapper><Title>{tt('title')}</Title><Panel><Alert $tone="info" data-testid="authorize-rejected">{tt('rejected')}</Alert></Panel></PageWrapper>;
   }
   // A request that is over is not a button that fails: each of these is a different thing to do next, and saying
   // which is the difference between "run it again" and "you already did this".
-  const over = data.status === 'expired' ? t('op.authorize.expired') : data.status !== 'pending' ? t('op.authorize.used') : null;
-  if (over) return <PageWrapper><Title>{t('op.authorize.title')}</Title><Panel><Alert $tone="info" data-testid="authorize-over">{over}</Alert></Panel></PageWrapper>;
+  const over = data.status === 'expired' ? tt('expired') : data.status !== 'pending' ? t('op.authorize.used') : null;
+  if (over) return <PageWrapper><Title>{tt('title')}</Title><Panel><Alert $tone="info" data-testid="authorize-over">{over}</Alert></Panel></PageWrapper>;
 
   return (
     <PageWrapper>
-      <Title>{t('op.authorize.title')}</Title>
-      <Description>{t('op.authorize.lead')}</Description>
+      <Title>{tt('title')}</Title>
+      <Description>{tt('lead')}</Description>
       <Panel>
         <KeyValue data-testid="authorize-what">
           {/* In full, never abbreviated: this is the one field worth comparing character by character against what
               the terminal printed, and `0x04…cb55` is not comparable to anything. */}
-          <dt>{t('op.authorize.key')}</dt><dd><Mono>{data.delegate}</Mono></dd>
-          {data.label && <><dt>{t('op.authorize.label')}</dt><dd>“{data.label}”<Label>{t('op.authorize.label_hint')}</Label></dd></>}
+          <dt>{tt('key')}</dt><dd><Mono>{data.delegate}</Mono></dd>
+          {data.label && <><dt>{t('op.authorize.label')}</dt><dd>“{data.label}”<Label>{tt('label_hint')}</Label></dd></>}
           <dt>{t('op.authorize.node')}</dt><dd>{data.name} <Mono>{data.node.slice(0, 10)}…{data.node.slice(-4)}</Mono></dd>
           <dt>{t('op.authorize.until')}</dt><dd>{dateTime(data.expires)}</dd>
         </KeyValue>
@@ -109,7 +126,7 @@ export default function AuthorizePage() {
 
         <Row>
           <Button onClick={() => void approve()} disabled={approveState.isLoading || !wallets?.length} data-testid="authorize-approve">
-            {approveState.isLoading ? t('op.authorize.busy') : t('op.authorize.approve')}
+            {approveState.isLoading ? t('op.authorize.busy') : tt('approve')}
           </Button>
           {/* Rejecting writes nothing: the request simply runs out. Saying so is better than a button that looks
               like it revokes something. */}

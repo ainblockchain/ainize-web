@@ -319,6 +319,8 @@ export interface AuthMe {
  * a wallet prompt that say different things is the whole attack.
  */
 export interface DeviceRequest {
+  /** What asked: a command line somebody ran, or a node that printed its own link. Older nodes send none. */
+  kind?: 'cli' | 'node';
   status: 'pending' | 'approved' | 'claimed' | 'expired';
   /** the CLI key's address — what is being asked to speak for you */
   delegate: string;
@@ -335,6 +337,30 @@ export interface DeviceRequest {
 
 /** A key that acts as a person on this node, until they end it. */
 export interface Binding { delegate: string; owner: string; label: string | null; created_at: number; last_seen_at: number | null }
+
+/**
+ * One node that belongs to the signed-in wallet.
+ *
+ * No endpoint, deliberately: a person's own node usually sits on their own network, where a browser on this
+ * page cannot reach it and where its address is nobody else's business. What identifies a node here is its
+ * name and its address, and what a list of your nodes is for is seeing that they are all still there.
+ */
+export interface MyNode {
+  address: string;
+  name: string | null;
+  roles: string[];
+  ledger: string | null;
+  version: string | null;
+  agents: { id: string; name: string }[];
+  /** This is the node serving this page — the only one with operator screens here. */
+  is_this_hub: boolean;
+  /** Whether the hub has heard from it lately; null when it has never seen it at all. */
+  seen: boolean | null;
+  last_seen: number | null;
+  connected_at: number;
+  /** Whether this wallet can operate it FROM HERE, which is not the same as owning it. */
+  operable: boolean;
+}
 
 /** One claim to ownership of a node, and where it comes from — which decides whether it can be taken back. */
 export interface NodeOwner {
@@ -922,7 +948,6 @@ export interface AgentSummary {
    * content, and the browser asks the visitor for local network access when that address is a private one.
    * The node can reach both ends; the browser cannot.
    */
-  call_url?: string;
   reachable: boolean | null;
   last_checked: number | null;
   error: string | null;

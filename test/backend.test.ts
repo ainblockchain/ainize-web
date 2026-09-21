@@ -132,3 +132,21 @@ test('one list, one item — the item page is not a second list', () => {
   // singular, because /agents/<id> is the A2A endpoint served by app/agents/[...path]/route.ts
   assert.equal(/to=\{`\/agents\//.test(row), false, 'a page under /agents/ would shadow the agent address');
 });
+
+/**
+ * A page calls the address the agent is published at, and no other.
+ *
+ * `/api/sam/<peer>/a2a/<id>` reaches the same agent through the same relay — it was the only path that worked
+ * before `/agents/<id>` was routed here, and a fetch left on it keeps working, which is why it survived. It is
+ * the wrong address to call from a browser twice over: it prints which peer runs the agent into a URL a visitor
+ * can read, and it is a second public address for something that already has one. `a2a_url` is the registered
+ * front door, and the node already falls back to the mesh path there for the one case that needs it — an id
+ * two nodes both claim. So the page has one address to use, and this test says so.
+ */
+test('the browser calls an agent at its published address, never at a peer-qualified mesh path', () => {
+  const offenders = walk(join(root, 'src'))
+    .filter((f) => /\.tsx?$/.test(f))
+    .filter((f) => /['"`]\/api\/sam\/|\bcall_url\b/.test(readFileSync(f, 'utf8')))
+    .map((f) => f.slice(root.length + 1));
+  assert.deepEqual(offenders, [], 'call the agent at agent.a2a_url');
+});

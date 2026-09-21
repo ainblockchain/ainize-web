@@ -12,6 +12,7 @@ export const common: Dict = {
   'nav.register': { ko: '지식 파일 등록', en: 'Register a knowledge file' },
   'nav.signin': { ko: '로그인', en: 'Sign in' },
   'nav.account': { ko: '계정 설정', en: 'Account settings' },
+  'nav.logs': { ko: '노드 로그', en: 'Node log' },
   'nav.files': { ko: '파일과 변경 이력', en: 'Files & changes' },
   'nav.logout': { ko: '로그아웃', en: 'Log out' },
   'footer.terms': { ko: '이용약관', en: 'Terms and Policies' },

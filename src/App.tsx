@@ -28,6 +28,7 @@ const ManagePage = lazy(() => import('./screens/ManagePage'));
 const LogsPage = lazy(() => import('./screens/LogsPage'));
 // Finding 133: the node-wide event stream (`/api/events`) had no screen — only the per-knowledge log did.
 const NodeLogsPage = lazy(() => import('./screens/NodeLogsPage'));
+const MyNodesPage = lazy(() => import('./screens/MyNodesPage'));
 const NewPatchPage = lazy(() => import('./screens/NewPatchPage'));
 const AccountPage = lazy(() => import('./screens/AccountPage'));
 const DrivePage = lazy(() => import('./screens/DrivePage'));
@@ -102,6 +103,9 @@ export default function App() {
                 <Route path="/dashboard" element={<SigningCheckLayout><DashboardPage /></SigningCheckLayout>} />
                 {/* signed out → public pre-screen (spec §5.2); signed in → the register form */}
                 <Route path="/new-patch" element={<NewPatchGate><NewPatchPage /></NewPatchGate>} />
+                {/* Owning a node somewhere is not owning THIS node, so this page asks only for a signature —
+                    SigningCheckLayout would send the owner of a node in another room to "not your node". */}
+                <Route path="/my-nodes" element={<Layout><MyNodesPage /></Layout>} />
                 <Route path="/logs" element={<SigningCheckLayout><NodeLogsPage /></SigningCheckLayout>} />
                 <Route path="/project/:author/:patchId/logs" element={<SigningCheckLayout><LogsPage /></SigningCheckLayout>} />
                 <Route path="/project/:author/:patchId" element={<SigningCheckLayout><ManagePage /></SigningCheckLayout>} />

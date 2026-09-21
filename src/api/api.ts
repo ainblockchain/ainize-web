@@ -4,7 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
-  AuthMe, NodeOwner, Binding, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
+  AuthMe, NodeOwner, Binding, MyNode, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
   CreateTeachJobResponse, PreflightResponse, PublishChallenge, PublishRequest, PublishResponse, TeachFactInput, TeachJob, TeachJobPublic, TeachJobResponse, TeachPolicy, TeachSaveResponse, TeacherProfile, VerifierProfile,
@@ -143,7 +143,22 @@ export const api = createApi({
     // Makes the signing address an owner of this node on the way in. The node accepts it only from its own machine
     // or with the one-time token — and demands a signature from the address, because nothing else vouches for a
     // first owner and a typo would enrol an address nobody holds the key to.
-    enroll: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string }>({ query: (body) => ({ url: 'api/auth/enroll', method: 'POST', body }), invalidatesTags: ['Me', 'Catalog'] }),
+    enroll: b.mutation<{ ok: boolean; address: string }, { address: string; nonce: string; signature: string; setupToken?: string }>({
+      /**
+       * `setupToken` rides as a header, never in the body.
+       *
+       * It is the one-time secret from the node's home directory, and the only way a person who is NOT on the
+       * node's machine becomes its first owner. A header keeps it out of the JSON the node logs on a refusal,
+       * and out of anything a later replay of the request body would carry.
+       */
+      query: ({ setupToken, ...body }) => ({
+        url: 'api/auth/enroll',
+        method: 'POST',
+        body,
+        headers: setupToken ? { 'x-setup-token': setupToken } : undefined,
+      }),
+      invalidatesTags: ['Me', 'Catalog'],
+    }),
     // `ainize login`: what a command line is asking for, and the one signature that answers it. `message` is the
     // exact string the wallet will sign — rendered rather than recomposed here, so what a person reads on the
     // page and what they read in MetaMask cannot drift apart.
@@ -154,6 +169,14 @@ export const api = createApi({
     // Every key that acts as you, and ending one. A binding outlives a session on purpose, so it has to be
     // visible and revocable — and revoking ends the sessions the key already collected.
     bindings: b.query<{ bindings: Binding[]; via: string | null }, void>({ query: () => 'api/auth/bindings', providesTags: ['Me'] }),
+    /**
+     * The nodes that belong to the signed-in wallet.
+     *
+     * Not `nodes`, which is the whole network — this is the answer to "which of these are mine", which no
+     * screen could ask before: node ownership lives in each node's own database, and a node only becomes
+     * connected to a person when it asks this hub for a code at startup and that person approves it.
+     */
+    myNodes: b.query<{ nodes: MyNode[]; hub: string }, void>({ query: () => 'api/my/nodes', providesTags: ['Me'] }),
     removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
     }),
@@ -354,7 +377,7 @@ export const {
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
-  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useRemoveBindingMutation,
+  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

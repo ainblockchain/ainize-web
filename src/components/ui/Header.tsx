@@ -149,6 +149,12 @@ export function Header() {
                     answer "this node is not yours", which is a worse way to find out. */}
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/account'); }}>{t('nav.account')}</MenuItem>}
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/drive'); }}>{t('nav.files')}</MenuItem>}
+                {/* The node's log had a screen and no door: `/logs` was reachable only by typing it. An
+                    operator who cannot find the log cannot see that anything is wrong. */}
+                {/* Signed in is enough: a person can own nodes elsewhere and none here, and this is the page
+                    that tells them so. Gating it on owning THIS node is what hid it from exactly them. */}
+                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/my-nodes'); }}>{t('op.mynodes.title')}</MenuItem>
+                {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/logs'); }}>{t('nav.logs')}</MenuItem>}
                 <MenuItem role="menuitem" onClick={() => {
                   setOpen(false);
                   // signOut() flips isSignedIn to false synchronously and navigate('/') lands in the same render, so neither the landing guard (→ /dashboard) nor the dashboard guard (→ /signing) fires.

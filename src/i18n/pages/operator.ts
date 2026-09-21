@@ -1049,25 +1049,39 @@ export const operatorTeach: Dict = {
 
   // `ainize login` — the page a command line's URL opens. The one prompt in the product whose wrong click has a
   // lasting consequence, so nothing here is decorative.
-  'op.authorize.title': { ko: '명령줄에 권한을 줄까요?', en: 'Authorize a command line?' },
-  'op.authorize.lead': { ko: '아래 키가 이 노드에서 당신을 대신하게 됩니다. 직접 `ainize login` 을 실행한 게 아니라면 거절하세요.', en: 'The key below will act as you on this node. If you did not just run `ainize login` yourself, reject it.' },
-  'op.authorize.key': { ko: '키', en: 'Key' },
+  // The title used before the request has been read — the page does not yet know what is asking.
+  'op.authorize.title': { ko: '권한 요청', en: 'Authorisation request' },
+  'op.authorize.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
+  'op.authorize.reject': { ko: '거절', en: 'Reject' },
   'op.authorize.label': { ko: '자칭', en: 'Calls itself' },
-  'op.authorize.label_hint': { ko: '명령줄이 스스로 붙인 이름입니다. 노드가 보증하지 않습니다.', en: 'The command line’s own words about itself — not something this node vouches for.' },
   'op.authorize.node': { ko: '노드', en: 'Node' },
   'op.authorize.until': { ko: '만료', en: 'Until' },
   'op.authorize.message': { ko: '지갑에서 서명할 내용', en: 'What your wallet will sign' },
-  'op.authorize.approve': { ko: '승인하고 서명', en: 'Approve and sign' },
-  'op.authorize.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
-  'op.authorize.reject': { ko: '거절', en: 'Reject' },
   'op.authorize.signin_first': { ko: '먼저 지갑을 연결하세요. 승인은 연결된 주소로 이뤄집니다.', en: 'Connect your wallet first — the authorisation is made by the address you connect.' },
-  'op.authorize.done': { ko: '승인했습니다. 명령줄로 돌아가세요 — 몇 초 안에 로그인됩니다.', en: 'Approved. Go back to the command line; it will be signed in within a few seconds.' },
-  'op.authorize.done_end': { ko: '언제든지 계정 설정에서 이 키를 해제할 수 있습니다.', en: 'You can end this key at any time from Account settings.' },
-  'op.authorize.rejected': { ko: '거절했습니다. 명령줄은 아무 권한도 받지 못합니다.', en: 'Rejected. The command line gets nothing.' },
-  'op.authorize.expired': { ko: '이 요청은 만료되었습니다. 명령줄에서 `ainize login` 을 다시 실행하세요.', en: 'This request has expired — run `ainize login` again on the command line.' },
+  'op.authorize.done_end': { ko: '언제든지 계정 설정에서 해제할 수 있습니다.', en: 'You can end this at any time from Account settings.' },
   'op.authorize.used': { ko: '이 요청은 이미 처리되었습니다.', en: 'This request has already been answered.' },
   'op.authorize.unknown': { ko: '이 노드가 만든 링크가 아닙니다.', en: 'That is not a link this node issued.' },
   'op.authorize.no_code': { ko: '링크에 요청 코드가 없습니다.', en: 'The link carries no request code.' },
+
+  // A command line the person just ran themselves.
+  'op.authorize.cli.title': { ko: '명령줄에 권한을 줄까요?', en: 'Authorize a command line?' },
+  'op.authorize.cli.lead': { ko: '아래 키가 이 노드에서 당신을 대신하게 됩니다. 직접 `ainize login` 을 실행한 게 아니라면 거절하세요.', en: 'The key below will act as you on this node. If you did not just run `ainize login` yourself, reject it.' },
+  'op.authorize.cli.key': { ko: '키', en: 'Key' },
+  'op.authorize.cli.label_hint': { ko: '명령줄이 스스로 붙인 이름입니다. 노드가 보증하지 않습니다.', en: 'The command line\u2019s own words about itself — not something this node vouches for.' },
+  'op.authorize.cli.approve': { ko: '승인하고 서명', en: 'Approve and sign' },
+  'op.authorize.cli.done': { ko: '승인했습니다. 명령줄로 돌아가세요 — 몇 초 안에 로그인됩니다.', en: 'Approved. Go back to the command line; it will be signed in within a few seconds.' },
+  'op.authorize.cli.rejected': { ko: '거절했습니다. 명령줄은 아무 권한도 받지 못합니다.', en: 'Rejected. The command line gets nothing.' },
+  'op.authorize.cli.expired': { ko: '이 요청은 만료되었습니다. 명령줄에서 `ainize login` 을 다시 실행하세요.', en: 'This request has expired — run `ainize login` again on the command line.' },
+
+  // A node that started somewhere and printed its own link. The person here did not type anything.
+  'op.authorize.node.title': { ko: '이 노드를 내 계정에 연결할까요?', en: 'Connect this node to your account?' },
+  'op.authorize.node.lead': { ko: '노드가 시작하면서 이 링크를 찍었습니다. 승인하면 이 노드가 내 노드 목록에 올라가고, 이 주소를 대신해 활동할 수 있게 됩니다. 방금 시작한 내 노드가 아니라면 거절하세요.', en: 'A node printed this link when it started. Approving it puts that node in your list of nodes and lets it act as this address. If no node of yours just started, reject it.' },
+  'op.authorize.node.key': { ko: '노드 주소', en: 'Node address' },
+  'op.authorize.node.label_hint': { ko: '노드가 스스로 붙인 이름입니다. 여기서 보증하지 않습니다.', en: 'The node\u2019s own words about itself — not something this hub vouches for.' },
+  'op.authorize.node.approve': { ko: '연결하고 서명', en: 'Connect and sign' },
+  'op.authorize.node.done': { ko: '연결했습니다. 이 노드는 이제 내 노드 목록에 있습니다.', en: 'Connected. That node is now in your list of nodes.' },
+  'op.authorize.node.rejected': { ko: '거절했습니다. 노드는 연결되지 않았습니다.', en: 'Rejected. The node is not connected to you.' },
+  'op.authorize.node.expired': { ko: '이 요청은 만료되었습니다. 노드를 다시 시작하면 새 링크를 찍습니다.', en: 'This request has expired — start the node again and it prints a new link.' },
 
   // Account: the machines that act as you.
   'op.account.bindings.title': { ko: '나를 대신하는 키', en: 'Keys that act as you' },
@@ -1096,6 +1110,19 @@ export const operatorTeach: Dict = {
   'op.sign.not_owner.own_hint': { ko: '이 화면들은 자기 노드에서 열립니다. 설치는 명령 두 줄입니다.', en: 'These screens open on a node you run. Setting one up is two commands.' },
   'op.sign.key.no_wallet': { ko: '브라우저에서 지갑을 찾지 못했습니다. 노드가 돌아가는 기계에서는 명령 한 줄이면 됩니다.', en: 'No wallet in this browser. On the machine the node runs on it is one command.' },
   'op.sign.key.no_wallet_cmd': { ko: '노드 자기 키로 서명해 로그인합니다', en: 'signs a challenge with the node’s own key' },
+  'op.sign.enroll_invite': { ko: '운영자 초대 링크로 들어왔습니다. 지갑으로 서명하면 이 주소가 이 노드의 운영자로 등록되고, 로그를 포함한 운영 화면을 볼 수 있습니다. 링크는 한 번만 쓸 수 있습니다.', en: 'You followed an operator invitation. Signing with your wallet makes this address an operator of this node, with access to the logs and the rest of the operator screens. The link works once.' },
+  'op.mynodes.title': { ko: '내 노드', en: 'My nodes' },
+  'op.mynodes.desc': { ko: '{addr} 지갑에 연결된 노드입니다. 노드가 시작할 때 인증 링크를 찍고, 그 링크를 지갑으로 승인하면 여기에 나타납니다.', en: 'The nodes connected to {addr}. A node prints an authorisation link when it starts; approving that link with your wallet is what puts it here.' },
+  'op.mynodes.empty': { ko: '아직 이 지갑에 연결된 노드가 없습니다. 노드가 붙을 곳을 알려주고 다시 시작하면, 터미널에 승인 링크가 나옵니다.', en: 'No node is connected to this wallet yet. Tell a node where to attach itself and start it again — it prints an approval link to the terminal.' },
+  'op.mynodes.unnamed': { ko: '이름 없는 노드', en: 'unnamed node' },
+  'op.mynodes.seen': { ko: '응답 중', en: 'answering' },
+  'op.mynodes.unseen': { ko: '응답 없음', en: 'not answering' },
+  'op.mynodes.never': { ko: '아직 본 적 없음', en: 'never seen here' },
+  'op.mynodes.this_one': { ko: '이 화면을 띄운 노드', en: 'the node serving this page' },
+  'op.mynodes.agents': { ko: '에이전트 {n}개', en: '{n} agent(s)' },
+  'op.mynodes.no_agents': { ko: '에이전트 없음', en: 'no agents' },
+  'op.mynodes.logs': { ko: '로그 보기', en: 'Open the log' },
+  'op.mynodes.dashboard': { ko: '운영 화면', en: 'Operator screens' },
   'op.sign.key.enroll': { ko: '이 지갑 주소를 이 노드의 소유자로 등록하고 로그인', en: 'Make this wallet an owner of this node and sign in' },
   // Account: who may sign in, in place of the password form.
   // Not "who may sign in" — anyone may. This is who OWNS the node, which is the thing these screens require.

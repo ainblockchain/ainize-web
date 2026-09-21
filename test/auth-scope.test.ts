@@ -93,7 +93,9 @@ test('an expired or spent request is a different answer from a button that fails
   const page = code('screens/AuthorizePage.tsx').join('\n');
   // "Run it again" and "you already did this" are different things to do next, and a person who is told neither
   // will click approve until something happens.
-  assert.match(page, /data\.status === 'expired' \? t\('op\.authorize\.expired'\)/);
+  // `tt` resolves to the cli or node wording — a node prints a new link on its next start, a CLI is re-run,
+  // and telling somebody the wrong one of those is telling them to do something that will not work.
+  assert.match(page, /data\.status === 'expired' \? tt\('expired'\)/);
   assert.match(page, /data\.status !== 'pending' \? t\('op\.authorize\.used'\)/);
 });
 
@@ -134,4 +136,32 @@ test('a malformed anchor from any node must not white-page the explorer', () => 
   }
   const helper = code('utils/format.ts').join('\n');
   assert.ok(helper.includes('benchmarkFormats'), 'the shape is narrowed in one place');
+});
+
+/**
+ * The page describes what is actually asking.
+ *
+ * One request shape serves two situations: a command line the person just ran, and a node that started in
+ * another room and printed its own link. The page was written for the first only, so somebody approving a
+ * node read "Authorize a command line?" over a lead telling them to reject it unless they had just run
+ * `ainize login` — which is advice to refuse the thing they came to approve. The prompt that says what you
+ * are approving is the one a security page cannot get wrong.
+ */
+test('the authorisation page speaks about a node when a node is what asked', () => {
+  const page = code('screens/AuthorizePage.tsx').join('\n');
+  assert.match(page, /const k = data\.kind === 'node' \? 'node' : 'cli'/, 'the wording follows what the node recorded');
+  // Nothing user-visible may reach for the flat key again: that is how the cli wording came back last time.
+  const flat = [...page.matchAll(/t\('op\.authorize\.(\w+)'\)/g)].map((m) => m[1]);
+  const neutral = new Set(['title', 'busy', 'reject', 'label', 'node', 'until', 'message', 'signin_first', 'done_end', 'used', 'unknown', 'no_code']);
+  assert.deepEqual(flat.filter((key) => !neutral.has(key)), [], 'a string that differs between a CLI and a node must go through tt()');
+
+  const strings = code('i18n/pages/operator.ts').join('\n');
+  for (const key of ['title', 'lead', 'key', 'label_hint', 'approve', 'done', 'rejected', 'expired']) {
+    for (const kind of ['cli', 'node']) {
+      assert.ok(strings.includes(`'op.authorize.${kind}.${key}'`), `op.authorize.${kind}.${key} is missing`);
+    }
+  }
+  // The advice that is wrong for the other case, in the case it is wrong for.
+  const nodeLead = strings.match(/'op\.authorize\.node\.lead':[^\n]*/)![0];
+  assert.ok(!nodeLead.includes('ainize login'), 'a node did not come from `ainize login`, and must not tell its owner it did');
 });
