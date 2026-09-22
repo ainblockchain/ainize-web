@@ -15,6 +15,11 @@ import { useDetailFormat } from './detail/recordText';
 import { trackHref } from './TrackPage';
 import { networkEntryKey, orderNetworkEntries, uniqueNetworkWarnings } from '@/utils/networkOrder';
 
+const GpuAllocation = styled.span`
+  display: inline-block; margin-left: 8px; padding: 2px 7px; border-radius: 4px;
+  background: #e8f0fe; color: #2458a6; font-size: 11px; font-weight: 500; white-space: nowrap;
+`;
+
 const WarningDetails = styled.details`
   summary { cursor: pointer; font-weight: 600; }
   .warning-list { max-height: 220px; overflow-y: auto; margin-top: 12px; overflow-anchor: none; }
@@ -183,6 +188,9 @@ export default function NetworkPage() {
   const known = orderNetworkEntries((nodes?.nodes ?? []).filter((n) => n.address !== self.address));
   const mismatches = uniqueNetworkWarnings(ps?.mismatched ?? []);
   const ledgerKind = (k: string) => (k === 'ain' ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local'));
+  const nodeName = (name?: string | null) => <>{name ?? '—'}{name && /^ain-kpi-gpu-0?[1-5]$/.test(name) && (
+    <GpuAllocation title={t('detail.net.gpu_allocation_help')}>{t('detail.net.gpu_allocation')}</GpuAllocation>
+  )}</>;
   const roles = (rs: string[]) => rs.map((r) => <RoleChip key={r} $role={r} title={r}>{f.roleLabel(r)}</RoleChip>);
   const routeExample = routed?.branch?.name ?? branches?.branches[0]?.name ?? 'law/KR';
   const entries = new Map((catalog?.items ?? []).map((e) => [e.anchor.id, e]));
@@ -267,7 +275,7 @@ export default function NetworkPage() {
               {peers.map((p) => (
                 <TableRow key={p.endpoint ?? p.address ?? p.info?.name ?? ''}>
                   <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={p.failures === 0 && p.last_seen > 0} /><Endpoint url={p.endpoint} hidden={t('detail.net.endpoint_private')} /></TableData>
-                  <TableData $align="left">{p.info?.name ?? '—'}</TableData>
+                  <TableData $align="left">{nodeName(p.info?.name)}</TableData>
                   <TableData $align="left" $mono title={p.address ?? ''}>{shortAddr(p.address, 8)}</TableData>
                   <TableData $align="left">{roles(p.info?.roles ?? [])}</TableData>
                   <TableData $align="left"><TrackRecord address={p.address} /></TableData>
@@ -282,7 +290,7 @@ export default function NetworkPage() {
               {known.filter((n) => !peers.some((p) => p.address === n.address)).map((n) => (
                 <TableRow key={n.address}>
                   <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={false} /><Endpoint url={n.endpoint} hidden={t('detail.net.endpoint_private')} /></TableData>
-                  <TableData $align="left">{n.name}</TableData>
+                  <TableData $align="left">{nodeName(n.name)}</TableData>
                   <TableData $align="left" $mono title={n.address}>{shortAddr(n.address, 8)}</TableData>
                   <TableData $align="left">{roles(n.roles)}</TableData>
                   <TableData $align="left"><TrackRecord address={n.address} /></TableData>

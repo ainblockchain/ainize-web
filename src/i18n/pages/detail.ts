@@ -492,6 +492,8 @@ export const detailNetwork: Dict = {
   'detail.net.peers': { ko: '연결된 노드', en: 'Connected nodes' },
   'detail.net.peers_value': { ko: '직접 연결 {peers}개 · 기록으로 아는 노드 {known}개', en: '{peers} direct · {known} known from the record' },
   'detail.net.peers_value_health': { ko: '직접 연결 {peers}개 중 {answered}개 응답 · 검증 노드 {verifiers}개 · 기록으로 아는 노드 {known}개', en: '{answered} of {peers} answered · {verifiers} verifying · {known} known from the record' },
+  'detail.net.gpu_allocation': { ko: 'GPU memory 48GB 할당', en: 'GPU memory 48GB allocated' },
+  'detail.net.gpu_allocation_help': { ko: 'M1 학습기에 설정된 노드별 GPU 메모리 상한입니다.', en: 'Configured GPU memory limit per node for M1 training.' },
   'detail.net.ledger_mismatch_summary': { ko: '다른 원장을 사용하는 노드 {n}개 · 상세 보기', en: '{n} nodes use a different ledger · Show details' },
   'detail.net.ledger_mismatch': { ko: '{node} 노드는 {their}에 지식을 올립니다. 이 노드는 {ours}만 읽으므로, 그 노드의 지식은 이 목록에 절대 나타나지 않습니다. 그 노드와 직접 거래하거나, 이 노드를 같은 기록으로 다시 초기화하세요.', en: '{node} publishes on {their}. This node reads {ours}, so its knowledge can never appear in this catalogue — trade with that node directly, or re-initialise this one on the same record.' },
   'detail.net.bodies': { ko: '보관 중인 지식 파일', en: 'Knowledge files stored' },
