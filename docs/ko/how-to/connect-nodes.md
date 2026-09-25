@@ -1,6 +1,6 @@
 ---
 source: en/how-to/connect-nodes.md
-source_sha256: fcafb06c94df0a4c92f9bb0c8d1c1612250384870ef5a31b1cb43ce05b736000
+source_sha256: cade99840a78913fafa6afd1dc3d325c50ad5856283013db74e6de6ea2806844
 ---
 
 # 지갑에 노드 연결
@@ -12,7 +12,10 @@ source_sha256: fcafb06c94df0a4c92f9bb0c8d1c1612250384870ef5a31b1cb43ce05b736000
 새 로그인 방식의 npm 릴리스 전에는 최신 CLI 소스를 설치하세요.
 
 ```bash
-npm install -g github:ainblockchain/ainize-cli
+git clone https://github.com/ainblockchain/ainize-cli.git
+cd ainize-cli
+npm ci
+npm install -g .
 ainize init --home ~/.ainize-a --name node-a --port 3402
 ainize login --home ~/.ainize-a
 ainize start --home ~/.ainize-a -d

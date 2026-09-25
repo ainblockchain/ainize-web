@@ -7,7 +7,10 @@ Sign in at [Ainize](/signing) with any MetaMask or compatible wallet. No particu
 Use the latest CLI source while the new login flow is awaiting an npm release:
 
 ```bash
-npm install -g github:ainblockchain/ainize-cli
+git clone https://github.com/ainblockchain/ainize-cli.git
+cd ainize-cli
+npm ci
+npm install -g .
 ainize init --home ~/.ainize-a --name node-a --port 3402
 ainize login --home ~/.ainize-a
 ainize start --home ~/.ainize-a -d
