@@ -1,6 +1,6 @@
 ---
 source: en/get-started/quickstart.md
-source_sha256: e25b373bc0938a1a4cc20da17651d862b288d7de83629225980121ef8da16fa3
+source_sha256: 4eb7ee1ad9858ec01a24f076d46c5ae573b3351a3c8591f66a5ca3d6052e3d73
 ---
 
 # 빠른 시작
@@ -15,12 +15,12 @@ export AINIZE_HOME="$HOME/ainize-quickstart"
 ainize init --name quickstart --port 3694 --roles seller
 ainize start -d
 ainize status
-ainize login
+ainize login --node-key
 ainize wallet
 ```
 
 로컬 원장의 초기 CREDIT은 테스트용이며 AIN 메인넷 잔액이 아닙니다.
-노드 머신에서 `ainize login`을 실행하면 해당 노드 키로 서명합니다.
+노드 머신에서 `ainize login --node-key`을 실행하면 해당 노드 키로 서명합니다.
 
 ## 모델 연결
 

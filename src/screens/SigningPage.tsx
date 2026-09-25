@@ -7,7 +7,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
-import { Mono, PageWrapper, Title } from '@/components/ui/Misc';
+import { PageWrapper, Title } from '@/components/ui/Misc';
 
 const OptionContainer = styled.div`margin-top: 40px; max-width: 460px;`;
 const StyledLink = styled(Link)`color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { border-bottom: 1px solid #8b3eeb; }`;
@@ -22,7 +22,6 @@ const Hint = styled.p`
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; background: #f4f4f5; border-radius: 3px; padding: 1px 5px; color: ${(p) => p.theme.color.BLACK}; }
 `;
 const EnrollRow = styled.div`margin-top: 14px;`;
-const Who = styled.p`margin: 8px 0 0; font-size: 13.5px; color: ${(p) => p.theme.color.GREY};`;
 const Fine = styled.p`margin: 24px 0 0; font-size: 12.5px; color: ${(p) => p.theme.color.GREY};`;
 const WalletButton = styled.button`
   min-width: 196px; height: 44px; padding: 0 16px; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; background: #fff;
@@ -40,7 +39,8 @@ export default function SigningPage() {
   const { data: me } = useMeQuery();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const next = params.get('next') || '/dashboard';
+  const requestedNext = params.get('next');
+  const next = requestedNext?.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/my-nodes';
   /**
    * The one-time enrolment token, handed over in the link.
    *
@@ -100,15 +100,13 @@ export default function SigningPage() {
     } finally { setBusy(false); }
   };
 
-  const loginDocs = locale === 'ko' ? '/docs/ko/get-started/quickstart#5-로그인' : '/docs/get-started/quickstart#5-log-in';
+  const loginDocs = locale === 'ko' ? '/docs/ko/how-to/connect-nodes' : '/docs/how-to/connect-nodes';
   const [agreeBefore, agreeAfter] = t('op.sign.agree', { terms: '|' }).split('|');
 
   return (
     <PageWrapper>
       <Title>{t('op.sign.login.title')}</Title>
-      {/* Which node, on one line: signing into the wrong one is a real mistake, and the name and address are what
-          tell you it is the one you meant. */}
-      {me && <Who data-testid="sign-node">{me.name} <Mono>{me.address.slice(0, 10)}…{me.address.slice(-4)}</Mono></Who>}
+      <Hint data-testid="sign-general">{t('op.sign.general')}</Hint>
 
       <OptionContainer>
         {wallets !== null && wallets.length === 0 && (
@@ -116,7 +114,7 @@ export default function SigningPage() {
             {t('op.sign.key.no_wallet')}
             <Hint>
               <Outbound href="https://metamask.io/download/" target="_blank" rel="noreferrer noopener">{t('op.sign.wallet.no_install')} →</Outbound>
-              {' · '}<code>ainize login</code> — {t('op.sign.key.no_wallet_cmd')}{' '}
+              {' · '}
               <StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink>
             </Hint>
           </Alert>
