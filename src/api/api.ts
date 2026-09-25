@@ -95,7 +95,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -103,6 +103,17 @@ export const api = createApi({
      * visitor to authenticate — see `src/api/models.ts` for how a newer or older node's answer is read.
      */
     models: b.query<unknown, void>({ query: () => 'api/models' }),
+    /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
+    apiKeys: b.query<{ keys: { prefix: string; issuedAt: number; label: string | null }[] }, void>({
+      query: () => 'api/keys', providesTags: ['ApiKeys'],
+    }),
+    /** Issue one. The secret is in this response and nowhere else, ever again. */
+    createApiKey: b.mutation<{ api_key: string; prefix: string; label: string | null }, { label?: string }>({
+      query: (body) => ({ url: 'api/keys', method: 'POST', body }), invalidatesTags: ['ApiKeys'],
+    }),
+    revokeApiKey: b.mutation<{ revoked: boolean }, string>({
+      query: (prefix) => ({ url: `api/keys/${encodeURIComponent(prefix)}`, method: 'DELETE' }), invalidatesTags: ['ApiKeys'],
+    }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     patch: b.query<PatchDetail, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog'] }),
     patchRecords: b.query<{ records: LedgerRecord[] }, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/records`, providesTags: ['Ledger'] }),
@@ -182,6 +193,7 @@ export const api = createApi({
      * screen could ask before: node ownership lives in each node's own database, and a node only becomes
      * connected to a person when it asks this hub for a code at startup and that person approves it.
      */
+    unlinkNode: b.mutation<{ ok: boolean }, string>({ query: (address) => ({ url: `api/my/nodes/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     myNodes: b.query<{ nodes: MyNode[]; hub: string }, void>({ query: () => 'api/my/nodes', providesTags: ['Me'] }),
     removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
@@ -382,12 +394,12 @@ export const api = createApi({
 });
 
 export const {
-  useInfoQuery, useModelsQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
+  useInfoQuery, useModelsQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
-  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useRemoveBindingMutation,
+  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

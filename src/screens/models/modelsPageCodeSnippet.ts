@@ -21,7 +21,15 @@ export interface SnippetOptions {
   model: string;
   nodeUrl: string;
   prompt?: string;
+  /**
+   * The caller's own key, when they have one. It is written straight into the snippet so somebody signed in can
+   * paste and run — which is the whole difference between a quickstart that works and one that needs a detour.
+   */
+  apiKey?: string;
 }
+
+/** Obviously a placeholder, so nobody copies it and wonders why it 401s. */
+const KEY_PLACEHOLDER = 'ainize-sk-...';
 
 /** A literal that is valid in all three languages. */
 const lit = (value: string): string => JSON.stringify(value);
@@ -33,7 +41,8 @@ function python(o: SnippetOptions): string {
   const url = lit(o.nodeUrl.replace(/\/+$/, ''));
   const model = lit(o.model);
   const prompt = lit(o.prompt ?? '');
-  const head = `# pip install ainize\nimport ainize\n\n# The key signs a login, never a transfer. Any EVM key works.\nclient = ainize.connect(\n    ${url},\n    private_key="0x<your key>",\n)\n\n`;
+  const key = lit(o.apiKey || KEY_PLACEHOLDER);
+  const head = `# pip install ainize\nimport ainize\n\nclient = ainize.connect(${url}, api_key=${key})\n\n`;
   if (o.modality === 'transcription') {
     return `${head}with open("audio.flac", "rb") as f:\n    print(client.audio.transcriptions.create(model=${model}, file=f).text)\n`;
   }
@@ -47,7 +56,8 @@ function typescript(o: SnippetOptions): string {
   const url = lit(o.nodeUrl.replace(/\/+$/, ''));
   const model = lit(o.model);
   const prompt = lit(o.prompt ?? '');
-  const head = `// npm install @ainize/sdk\nimport { connectAinize } from '@ainize/sdk';\n\n// The key signs a login, never a transfer. Any EVM key works.\nconst client = await connectAinize(${url}, { privateKey: '0x<your key>' });\n\n`;
+  const key = lit(o.apiKey || KEY_PLACEHOLDER);
+  const head = `// npm install @ainize/sdk\nimport { connectAinize } from '@ainize/sdk';\n\nconst client = await connectAinize(${url}, { apiKey: ${key} });\n\n`;
   if (o.modality === 'transcription') {
     return `${head}const text = await client.audio.transcriptions.create({\n  model: ${model},\n  file: await fetch('audio.flac').then((r) => r.blob()),\n});\nconsole.log(text.text);\n`;
   }
@@ -60,15 +70,16 @@ function typescript(o: SnippetOptions): string {
 function curl(o: SnippetOptions): string {
   const model = lit(o.model);
   const prompt = lit(o.prompt ?? '');
-  const key = '# Authorization: Bearer <your key> — get one by signing in, see the docs link below\n';
+  const bearer = o.apiKey || KEY_PLACEHOLDER;
+  const key = '';
   if (o.modality === 'transcription') {
     // Multipart, not JSON: an audio upload has a file in it, and a JSON content type would be rejected.
-    return `${key}curl ${v1(o.nodeUrl, 'audio/transcriptions')} \\\n  -H "Authorization: Bearer $AINIZE_KEY" \\\n  -F model=${model} \\\n  -F file=@audio.flac\n`;
+    return `${key}curl ${v1(o.nodeUrl, 'audio/transcriptions')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -F model=${model} \\\n  -F file=@audio.flac\n`;
   }
   if (o.modality === 'image') {
-    return `${key}curl ${v1(o.nodeUrl, 'images/generations')} \\\n  -H "Authorization: Bearer $AINIZE_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": ${model}, "prompt": ${prompt}, "size": "512x512"}'\n`;
+    return `${key}curl ${v1(o.nodeUrl, 'images/generations')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": ${model}, "prompt": ${prompt}, "size": "512x512"}'\n`;
   }
-  return `${key}curl ${v1(o.nodeUrl, 'chat/completions')} \\\n  -H "Authorization: Bearer $AINIZE_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": ${model}, "messages": [{"role": "user", "content": ${prompt}}]}'\n`;
+  return `${key}curl ${v1(o.nodeUrl, 'chat/completions')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": ${model}, "messages": [{"role": "user", "content": ${prompt}}]}'\n`;
 }
 
 export function modelsPageCodeSnippet(o: SnippetOptions): string {

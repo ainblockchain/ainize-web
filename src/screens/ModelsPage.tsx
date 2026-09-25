@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useModelsQuery } from '@/api/api';
+import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useModelsQuery } from '@/api/api';
 import { modelsByModality, modelsFetchState, parseModelsResponse, type ModelModality, type PublicModelCard } from '@/api/models';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
@@ -17,6 +17,7 @@ import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, SubT
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './models/modelsPageCodeSnippet';
+import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './models/issuedKeyMemory';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0 28px;`;
 
@@ -88,9 +89,18 @@ export default function ModelsPage() {
   const [language, setLanguage] = useState<SnippetLanguage>('python');
   const [copied, setCopied] = useState(false);
 
+  // Signed in? Then the snippet should be paste-and-run rather than paste-and-go-find-a-key.
+  const { data: me } = useMeQuery();
+  const signedIn = !!me?.signedIn;
+  const { data: keyList } = useApiKeysQuery(undefined, { skip: !signedIn });
+  const [createKey, createState] = useCreateApiKeyMutation();
+  const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
+  const [keyError, setKeyError] = useState<string | null>(null);
+
   const snippet = useMemo(() => (selected ? modelsPageCodeSnippet({
     language, modality: selected.modality, model: selected.id, nodeUrl: nodeUrlFromBrowser(), prompt,
-  }) : ''), [language, selected, prompt]);
+    apiKey: issuedKey ?? undefined,
+  }) : ''), [language, selected, prompt, issuedKey]);
 
   async function press() {
     if (!selected) return;
@@ -208,6 +218,48 @@ export default function ModelsPage() {
 
       {selected && (
         <>
+          <SubTitle>{t('models.key.title')}</SubTitle>
+          <Panel>
+            {!signedIn && (
+              <>
+                <Description>{t('models.key.none')}</Description>
+                <StyledLink to="/signing?next=%2Fmodels">{t('models.key.signin')}</StyledLink>
+              </>
+            )}
+            {signedIn && !issuedKey && (
+              <Row>
+                <Button
+                  type="button"
+                  data-testid="models-create-key"
+                  disabled={createState.isLoading}
+                  onClick={() => {
+                    setKeyError(null);
+                    void createKey({ label: 'ainize.ai' }).unwrap()
+                      .then((r) => { rememberIssuedKey(r.api_key); setIssuedKey(r.api_key); })
+                      .catch((e: unknown) => setKeyError(errorMessage(e)));
+                  }}
+                >
+                  {createState.isLoading ? t('models.key.creating') : t('models.key.create')}
+                </Button>
+                {(keyList?.keys.length ?? 0) > 0 && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
+              </Row>
+            )}
+            {issuedKey && (
+              <>
+                <Mono data-testid="models-issued-key">{issuedKey}</Mono>
+                {/* Said out loud: a secret nobody knows is held is a secret held badly. */}
+                <Description>{t('models.key.held')}</Description>
+                <Row>
+                  <Button type="button" variant="text" onClick={() => { forgetIssuedKey(); setIssuedKey(null); }}>
+                    {t('models.key.forget')}
+                  </Button>
+                  <StyledLink to="/account">{t('models.key.manage')}</StyledLink>
+                </Row>
+              </>
+            )}
+            {keyError && <Alert>{t('models.key.failed', { why: keyError })}</Alert>}
+          </Panel>
+
           <SubTitle>{t('models.code.title')}</SubTitle>
           <Description>{t('models.code.lede')}</Description>
           <Panel>

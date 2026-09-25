@@ -44,7 +44,7 @@ These are accepted by every command.
 | [`ainize nodes`](#ainize-nodes) | List the peers this node talks to and the nodes it knows of |
 | [`ainize blobs`](#ainize-blobs) | Knowledge files this node holds on disk, and what they cost |
 | [`ainize gc`](#ainize-gc) | Delete knowledge files this node neither published nor bought (verification copies) |
-| [`ainize login`](#ainize-login) | Sign in — on the node's own machine with its key, anywhere else by approving this machine in a browser |
+| [`ainize login`](#ainize-login) | Connect a node to any wallet through the website; --node-key performs local operator login |
 | [`ainize whoami`](#ainize-whoami) | Which address this session acts as, and which key is doing the acting |
 | [`ainize bindings`](#ainize-bindings) | Machines you have authorised to act as you on this node |
 | [`ainize operators`](#ainize-operators) | Who owns this node (its own key, always, plus operatorAddresses) |
@@ -304,7 +304,7 @@ Delete knowledge files this node neither published nor bought (verification copi
 ainize login [options]
 ```
 
-Sign in — on the node's own machine with its key, anywhere else by approving this machine in a browser
+Connect a node to any wallet through the website; --node-key performs local operator login
 
 
 ## `ainize whoami`

@@ -42,6 +42,7 @@ export default function AuthorizePage() {
   const { data, isLoading, error, refetch } = useDeviceRequestQuery(code, { skip: !code });
   const [approveDevice, approveState] = useApproveDeviceMutation();
   const [wallets, setWallets] = useState<DiscoveredWallet[] | null>(null);
+  const [walletIndex, setWalletIndex] = useState(0);
   const [outcome, setOutcome] = useState<'approved' | 'rejected' | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   useEffect(() => { let live = true; void discoverWallets().then((w) => { if (live) setWallets(w); }); return () => { live = false; }; }, []);
@@ -67,9 +68,10 @@ export default function AuthorizePage() {
   const approve = async () => {
     setLocalError(null);
     try {
-      const w = wallets?.[0];
+      const w = wallets?.[walletIndex];
       if (!w) throw new WalletError('no_extension');
       const address = await connect(w.provider);
+      if (address.toLowerCase() !== auth.subject?.toLowerCase()) throw new Error(t('op.authorize.wallet_mismatch'));
       // Signed exactly as shown, and the wallet's answer is recovered here against the same string before it is
       // sent — the node will check it against its stored copy, so a mismatch has to surface now, not as a 401.
       const signature = await personalSign(w.provider, data.message, address);
@@ -120,12 +122,13 @@ export default function AuthorizePage() {
         <Muted style={{ marginTop: 22 }}>{t('op.authorize.message')}</Muted>
         <Signed data-testid="authorize-message">{data.message}</Signed>
 
-        {!auth.subject && <Alert $tone="info" style={{ marginTop: 18 }}>{t('op.authorize.signin_first')}</Alert>}
+        {!auth.subject && <Alert $tone="info" style={{ marginTop: 18 }}><Link to={`/signing?next=${encodeURIComponent(`/authorize?code=${code}`)}`}>{t('op.authorize.signin_first')}</Link></Alert>}
+        {wallets && wallets.length > 1 && <select aria-label={t('op.sign.wallet.pick')} value={walletIndex} onChange={e => setWalletIndex(Number(e.target.value))}>{wallets.map((w, i) => <option key={w.info.uuid} value={i}>{w.info.name}</option>)}</select>}
         {wallets !== null && wallets.length === 0 && <Alert $tone="error" style={{ marginTop: 18 }}>{t('op.sign.wallet.err_no_extension')}</Alert>}
         {localError && <Alert $tone="error" role="alert" style={{ marginTop: 18 }}>{localError}</Alert>}
 
         <Row>
-          <Button onClick={() => void approve()} disabled={approveState.isLoading || !wallets?.length} data-testid="authorize-approve">
+          <Button onClick={() => void approve()} disabled={!auth.subject || approveState.isLoading || !wallets?.length} data-testid="authorize-approve">
             {approveState.isLoading ? t('op.authorize.busy') : tt('approve')}
           </Button>
           {/* Rejecting writes nothing: the request simply runs out. Saying so is better than a button that looks

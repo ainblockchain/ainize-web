@@ -1,11 +1,11 @@
 ---
 source: en/tutorials/buy-and-apply.md
-source_sha256: 2960cae3944356ddbc305d9c19b3ad8f8e9188cb0d0ecc6b17242cfeac344149
+source_sha256: baac59762ebf19be068902546762aeba8c152d652d079b50dd35987b6365cb78
 ---
 
 # 다른 사람이 공개한 지식 사용하기
 
-실행 중인 노드와 운영자 세션(`ainize login`)이 필요합니다. 지식 적용에는 호환 런타임도 필요합니다.
+실행 중인 노드와 운영자 세션(`ainize login --node-key`)이 필요합니다. 지식 적용에는 호환 런타임도 필요합니다.
 [빠른 시작](../get-started/quickstart.md)을 참고하세요.
 
 ## 찾고 확인하기

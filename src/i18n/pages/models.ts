@@ -46,6 +46,21 @@ export const models: Dict = {
   'models.try.failed': { ko: '실행하지 못했습니다: {why}', en: 'That did not run: {why}' },
   'models.try.unavailable': { ko: '이 모델의 백엔드가 지금 응답하지 않습니다.', en: 'This model’s backend is not answering right now.' },
 
+  'models.key.title': { ko: 'API 키', en: 'API key' },
+  'models.key.none': {
+    ko: '키가 있으면 아래 코드에 바로 채워집니다. 지갑으로 로그인한 뒤 발급받으세요 — 개인키는 이 기기를 떠나지 않습니다.',
+    en: 'A key gets written straight into the code below. Sign in with your wallet and create one — your private key never leaves this device.',
+  },
+  'models.key.signin': { ko: '로그인하고 키 발급받기 →', en: 'Sign in and create a key →' },
+  'models.key.create': { ko: '키 발급', en: 'Create a key' },
+  'models.key.creating': { ko: '발급 중…', en: 'Creating…' },
+  'models.key.manage': { ko: '내 키 관리 →', en: 'Manage your keys →' },
+  'models.key.held': {
+    ko: '이 키는 이 탭에만 보관됩니다. 노드는 해시만 저장하므로 다시 보여줄 수 없습니다 — 지금 안전한 곳에 복사해 두세요.',
+    en: 'This key is held in this tab only. The node stores a hash, so it cannot be shown again — copy it somewhere safe now.',
+  },
+  'models.key.forget': { ko: '이 탭에서 지우기', en: 'Forget it in this tab' },
+  'models.key.failed': { ko: '키를 발급하지 못했습니다: {why}', en: 'The key could not be created: {why}' },
   'models.code.title': { ko: '코드로 가져가기', en: 'Take the code' },
   'models.code.lede': {
     ko: '위에서 방금 한 호출을, 내 프로그램에서 하는 형태로. 예치한 지분이 처리량 중 내 몫이 됩니다.',

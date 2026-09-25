@@ -1,6 +1,6 @@
 ---
 source: en/how-to/call-the-model.md
-source_sha256: 6f0f7a49ee532dc3dbcbd8dc42a68763a4257c9dcdc20a93f0a0a4416174bbc3
+source_sha256: 4734cb2ed2e784cc98edeaaea272871efbbc33c8b495e75f91a2b6d9d22cf82d
 ---
 
 # 내 코드에서 모델 호출하기
@@ -13,6 +13,13 @@ source_sha256: 6f0f7a49ee532dc3dbcbd8dc42a68763a4257c9dcdc20a93f0a0a4416174bbc3
 > [남이 공개한 지식 쓰기](../tutorials/buy-and-apply.md)입니다.
 
 Python SDK를 설치하고 환경 변수에 보관한 지갑 키로 인증합니다.
+**키는 사이트에서 받습니다.** 지갑으로 로그인한 뒤 [모델 페이지](/models)에서 발급하면, 그 페이지가 보여주는
+코드에 바로 채워집니다. 개인키는 브라우저를 떠나지 않습니다 — 전송에 서명할 수 있는 키는 소스 파일에도, CI 변수에도,
+스크린샷에도 있을 이유가 없고, 다른 어떤 LLM API도 그런 걸 요구하지 않습니다.
+
+이미 지갑을 들고 있는 프로그램(트랜잭션도 보내는 에이전트 같은)은 `private_key=`로 키를 자동 발급받을 수 있습니다.
+그건 예외이지 quickstart가 아닙니다.
+
 `connect()`는 표준 클라이언트를 반환하고, 여기서 요구하는 서명은 로그인이라 자금을 옮기지 않습니다.
 
 ```bash
@@ -23,7 +30,7 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", private_key=os.environ["AINIZE_PRIVATE_KEY"])
+client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
 models = client.models.list().data
 print([model.id for model in models])
 ```
