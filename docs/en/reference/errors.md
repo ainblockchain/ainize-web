@@ -5,9 +5,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 
 # Error codes
 
-> [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
-> Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
+
 
 What an error body looks like, how a thrown error becomes an HTTP status, and the 64 codes a client can match on.
 
@@ -166,7 +164,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 60 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 59 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 27 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -201,6 +199,7 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `401` | sign in with your wallet to end what acts as you | `src/api.ts` |
 | `401` | Sign in with your wallet to query live sources | `src/api.ts` |
 | `401` | sign in with your wallet to see what acts as you | `src/api.ts` |
+| `401` | sign in with your wallet to see your nodes | `src/api.ts` |
 | `401` | that signature does not come from the address it claims | `src/api.ts` |
 | `401` | that signature does not come from the address that is signed in | `src/api.ts` |
 | `401` | the sign-in challenge has expired — ask for a new one | `src/api.ts` |
@@ -226,9 +225,7 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
-| `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
+| `503` | model unavailable, try again in a few minutes | `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
-| `503` | seller file unavailable; no payment accepted | `src/api.ts` |
 | `503` | Stored inference journal is invalid; preserve it for operator reconciliation | `src/api.ts` |
-| `503` | the \<modality> backend stopped accepting work before this request started | `src/modality-gate.ts` |
 | `503` | the patch hook could not be reached (ENGRAM_HOOK=1?) | `src/api.ts` |
