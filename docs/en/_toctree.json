@@ -58,6 +58,10 @@
     "group": "How-to",
     "pages": [
       {
+        "page": "how-to/call-the-model",
+        "title": "Call the model from your own code"
+      },
+      {
         "page": "how-to/join-from-your-own-node",
         "title": "Join the network from your own node"
       },
