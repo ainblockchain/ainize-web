@@ -48,7 +48,7 @@ export default function NodeLogsPage() {
 
   const events = useEventsQuery({ limit }, { pollingInterval: follow ? 5000 : 0 });
   // Which knowledge a line is about: the catalogue is the only place the web knows an id's author.
-  const catalog = useCatalogQuery({ limit: 500, include_drafts: true });
+  const catalog = useCatalogQuery({ limit: 200, include_drafts: true });
   const authors = useMemo(() => new Map((catalog.data?.items ?? []).map((e) => [e.anchor.id, e.anchor.author])), [catalog.data]);
 
   const all = useMemo(() => events.data?.events ?? [], [events.data]);

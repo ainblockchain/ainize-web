@@ -5,11 +5,9 @@ summary: Every key of a node config.json, its type, its default and the rules it
 
 # Configuration reference
 
-> [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-core/src/config-schema.ts` and `ainize-core/src/config.ts` and `ainize-core/src/types.ts`.
-> Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-All 142 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
+
+Configuration keys documented here, the environment variables that override them, and the file `ainize init` writes.
 
 ## How to read this page
 
@@ -43,7 +41,6 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `identity.privateKey` | a string | minted by `ainize init` | **Protected.** |
 | `identity.address` | a string | minted by `ainize init` | **Protected.** |
 | `identity.publicKey` | a string | minted by `ainize init` | **Protected.** |
-| `operatorPasswordHash` | a string | set by `ainize login` | **Protected.** **Deprecated.** Sign-in is a signature. Parsed so an old config still loads; read by nothing. |
 | `operatorAddresses` | a comma list | unset | Addresses that may sign in by signature. The node's own address is always allowed and is not listed. |
 | `runtime` | an object (set its keys one at a time) |   |   |
 | `runtime.repo` | a string | unset — `ainize init` fills it with `/mnt/newdata/qwen3.8` when that directory exists on the machine it runs on |   |

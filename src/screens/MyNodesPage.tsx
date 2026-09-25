@@ -1,10 +1,10 @@
-import { Link } from 'react-router';
+import { Link, Navigate } from 'react-router';
 import styled from 'styled-components';
 import { useMyNodesQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { Description, PageWrapper, StyledLink, Title } from '@/components/ui/Misc';
+import { CenterProgress, Description, PageWrapper, StyledLink, Title } from '@/components/ui/Misc';
 import { QueryError } from '@/components/operator/common';
 
 /**
@@ -41,18 +41,20 @@ const Empty = styled.div`
 
 export default function MyNodesPage() {
   const { t } = useT();
-  const { address } = useAuth();
+  const { subject, isSignedIn, loading } = useAuth();
   useTitle(t('op.mynodes.title'));
-  const { data, error, isLoading, refetch, isFetching } = useMyNodesQuery();
+  const { data, error, isLoading, refetch, isFetching } = useMyNodesQuery(undefined, { skip: loading || !isSignedIn });
   const rows = data?.nodes ?? [];
+  if (loading) return <CenterProgress />;
+  if (!isSignedIn) return <Navigate to="/signing?next=%2Fmy-nodes" replace />;
 
   return (
     <PageWrapper>
       <Title>{t('op.mynodes.title')}</Title>
-      <Description>{t('op.mynodes.desc', { addr: address ? `${address.slice(0, 10)}…${address.slice(-4)}` : '' })}</Description>
+      <Description>{t('op.mynodes.desc', { addr: subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : '' })}</Description>
       {error && <QueryError error={error} what={t('op.mynodes.title')} onRetry={() => void refetch()} retrying={isFetching} />}
 
-      {!isLoading && rows.length === 0 && (
+      {!isLoading && !error && data && rows.length === 0 && (
         <Empty data-testid="mynodes-empty">
           {/* The empty state is the instructions: this page is most often first seen by somebody who has one
               node running somewhere and no idea how it is supposed to find them. */}

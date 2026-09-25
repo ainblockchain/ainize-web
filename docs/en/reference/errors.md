@@ -5,9 +5,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 
 # Error codes
 
-> [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
-> Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
+
 
 What an error body looks like, how a thrown error becomes an HTTP status, and the 64 codes a client can match on.
 

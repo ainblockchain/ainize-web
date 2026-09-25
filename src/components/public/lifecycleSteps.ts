@@ -1,24 +1,4 @@
-/**
- * The ecosystem lifecycle, in the order it happens — the data behind the landing diagram (Lifecycle.tsx) AND the
- * README table. It lives in its own import-free module so `test/lifecycle.test.ts` can load it under plain node
- * and fail the build the moment the page and README.md disagree about a command or a route.
- *
- * Every command below was verified with `--help` against `packages/cli/dist/bin.js` before it was written here.
- * Rules this file is under:
- *
- *  - Nothing here may promise something the product does not do. Where a step has no shipped command (a data
- *    provider's publish is browser-only) the note in the dictionary says so instead of inventing one; where a step
- *    needs an earlier one (a derivative's author must hold the base) the acquisition is its own command line.
- *  - `npm install -g ainize` was banned here while the CLI was published as `@ainize/cli` and
- *    `npm view ainize` 404d. The rule is now a condition rather than a ban on a string: lifecycle.test.ts
- *    asks the registry and fails if this page makes that promise while it cannot be kept.
- *  - No measured number appears here or in the dictionary. A dev node's teach backend is a stub, so any "x %" or
- *    "n seconds" would be a number no node measured.
- *  - `ainize patch apply --with-base` is NOT here: the node's own error message names it but `patch apply --help`
- *    does not list it. Nothing goes on this page until `--help` shows it.
- */
-
-/** Who is acting at this step. The landing diagram tints each card by it; the README prints it in the "Who" column. */
+/** Commands and routes shared by the landing page and README. */
 export type Actor = 'you' | 'node' | 'network' | 'other';
 
 export interface LifecycleStep {

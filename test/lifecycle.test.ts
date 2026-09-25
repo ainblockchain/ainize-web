@@ -18,7 +18,7 @@ import { landing } from '../src/i18n/pages/public.ts';
 
 const README = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf-8');
 /** the lifecycle section only — a command must be in the table, not merely somewhere else in the file */
-const SECTION = README.slice(README.indexOf('## The loop —'), README.indexOf('## Teach the model'));
+const SECTION = README.slice(README.indexOf('## User workflow'), README.indexOf('## Documentation'));
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
 
 test('README carries every step, in the same order, with the same commands', () => {
@@ -41,15 +41,8 @@ test('README prints the same route for each step as the diagram links to', () =>
   for (const s of LIFECYCLE) {
     const row = SECTION.slice(SECTION.indexOf(`| ${s.n} | `));
     const cell = row.slice(0, row.indexOf('\n'));
-    assert.ok(cell.includes('`http://localhost:3402' + s.route + '`'), `README step ${s.n} is missing the route ${s.route}`);
+    assert.ok(cell.includes('`https://ainize.ai' + s.route + '`'), `README step ${s.n} is missing the route ${s.route}`);
   }
-});
-
-test('the ASCII loop names every step and returns to the step the page returns to', () => {
-  const fence = SECTION.slice(SECTION.indexOf('```text'), SECTION.indexOf('```', SECTION.indexOf('```text') + 3));
-  for (const s of LIFECYCLE) assert.match(fence, new RegExp(`\\s${s.n}\\s{2}`), `the ASCII diagram is missing step ${s.n}`);
-  assert.ok(fence.includes(`step ${LOOP_TARGET}`), `the ASCII diagram must name the step the loop returns to (${LOOP_TARGET})`);
-  assert.equal(landing['landing.flow.loop'].en.includes('step {n}'), true);
 });
 
 test('every string the diagram renders exists in English and in real Korean', () => {

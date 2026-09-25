@@ -1,187 +1,98 @@
 #!/usr/bin/env bash
-# Deploy ainize.ai. This script lives in the repository it deploys.
-#
-#   deploy/deploy-web.sh              # deploy origin/main (the default, and what a release should be)
-#   deploy/deploy-web.sh v1.2.0       # …or any ref that exists on the remote
-#   deploy/deploy-web.sh --here       # deploy THIS working tree, uncommitted changes and all
-#
-# `--here` is for looking at something on the real domain before committing it. It records the sha it was
-# based on plus `dirty: true`, so a release directory always says what it came from and nobody has to guess
-# later which of two builds is on the site.
-#
-# WHY THIS EXISTS. The site was serving a build of a LOCAL working tree — the node resolves its web assets as
-# `<cli>/../../web/dist`, so whatever happened to be in that directory is what the public saw. That tree had
-# diverged from the published repository, so ainize.ai was showing an older site than the one under version
-# control, and nothing anywhere said so. A deployment whose input is "whatever is on this disk" cannot be
-# reproduced, rolled back, or checked.
-#
-# AND THE NODE NO LONGER SERVES THE SITE AT ALL. It can — that is what gives an operator a working UI from a
-# single `ainize start`, and it is the right default there. It is the wrong thing in front of a domain: the
-# site then dies with the node process, a restart is an outage, and the deployed build is whatever directory
-# sits beside the installed CLI.
-#
-# WHAT A RELEASE IS NOW. The site is a Next.js app: a frontend and its backend in one process. It is no longer
-# a directory nginx can serve, because the pages are only half of it — `/api/*` and `/agents/*` are route
-# handlers, and they are what keeps the node's address on the server instead of in the browser. So a release
-# is a directory AND a running process, nginx proxies to it, and the swap has to restart something.
-#
-# So the input is a git ref, the output records which ref produced it, and the served directory is replaced
-# atomically. Running this twice on the same ref gives the same site.
+# Deploy a committed ref; --here is for local staging only.
 set -euo pipefail
-
 ARG="${1:-main}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPO="$(git -C "$HERE" remote get-url origin 2>/dev/null || echo https://github.com/ainblockchain/ainize-web.git)"
-# NOT under a dotted directory. `res.sendFile` defaults to `dotfiles: 'ignore'`, and it applies that to every
-# SEGMENT of the path it is given — so a release served from ~/.ainize-web/... answers 404 for the SPA
-# fallback while express.static happily serves the same files, because static opens what it resolved and
-# sendFile walks the path. Symptom: every asset 200, every route 404. Measured, not guessed: the identical
-# directory copied to a dot-free path served `/` with 200.
+REPO="$(git -C "$HERE" remote get-url origin)"
 ROOT="${AINIZE_WEB_ROOT:-$HOME/ainize-web-releases}"
 RELEASES="$ROOT/releases"
-SERVE="$ROOT/current"          # what the node serves — a dot-free path, see the note above
+SERVE="$ROOT/current"
 NODE_BIN="${NODE_BIN:-$HOME/.local/node/bin}"
+PORT="${AINIZE_WEB_PORT:-3900}"
+VERIFY_URL="${AINIZE_WEB_VERIFY_URL-https://ainize.ai/}"
 export PATH="$NODE_BIN:$PATH"
-
-say() { printf '  %s\n' "$*"; }
-
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-if [ "$ARG" = "--here" ]; then
-  # The working tree, verbatim. `git archive` would drop uncommitted edits, which is the one thing this mode
-  # exists to include, so the tree is copied — minus the directories that must be rebuilt for this release.
-  REF="(working tree)"
-  DIRTY=true
-  say "deploying the working tree at $HERE"
+if [ "$ARG" = --here ]; then
+  REF='(working tree)'
+  SHA="$(git -C "$HERE" rev-parse HEAD)"
+  DIRTY=false
+  [ -z "$(git -C "$HERE" status --porcelain)" ] || DIRTY=true
   mkdir -p "$WORK/src"
-  tar -C "$HERE" --exclude=node_modules --exclude=dist --exclude=.git -cf - . | tar -C "$WORK/src" -xf -
-  SHA="$(git -C "$HERE" rev-parse HEAD 2>/dev/null || echo unknown)"
-  if git -C "$HERE" diff --quiet && git -C "$HERE" diff --cached --quiet; then DIRTY=false; fi
-  cd "$WORK/src"
+  tar -C "$HERE" --exclude=node_modules --exclude=dist --exclude=.next --exclude=.git -cf - . | tar -C "$WORK/src" -xf -
 else
   REF="$ARG"
   DIRTY=false
-  say "cloning $REPO @ $REF"
-  git clone --quiet --depth 1 --branch "$REF" "$REPO" "$WORK/src" 2>/dev/null \
-    || git clone --quiet "$REPO" "$WORK/src"
-  cd "$WORK/src"
-  git checkout --quiet "$REF" 2>/dev/null || true
-  SHA="$(git rev-parse HEAD)"
+  git clone --quiet "$REPO" "$WORK/src"
+  git -C "$WORK/src" checkout --quiet "$REF"
+  SHA="$(git -C "$WORK/src" rev-parse HEAD)"
 fi
-SHORT="${SHA:0:12}"
-if [ "$DIRTY" = true ]; then SUFFIX="-dirty"; else SUFFIX=""; fi
-say "ref $REF -> $SHORT${SUFFIX:+ (dirty)}"
+cd "$WORK/src"
+npm ci --no-audit --no-fund
+npm run gen:check
+npm run typecheck
+npm test
+npm run build
 
-say "installing"
-npm install --silent --no-audit --no-fund
-
-say "typechecking"
-npm run typecheck --silent
-
-# `next build` fails on a type error by design (next.config.ts: typescript.ignoreBuildErrors false), so a tree
-# that does not compile never reaches the releases directory, let alone the live one.
-say "building"
-npm run build --silent
-
-say "testing"
-# A failing test does not block a deploy here — the tests assert things about the registry and the docs that
-# can fail for reasons outside this tree — but the result is printed so a deploy is never silent about it.
-npm test 2>&1 | tail -3 || say "(tests reported failures — see above)"
-
-DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-$SHORT$SUFFIX"
-mkdir -p "$DEST"
-# A standalone build (next.config.ts): `server.js` plus only the packages it actually loads. Copying the tree
-# and its node_modules instead produced a 1.1 GB release, five of which do not fit on a disk that also holds a
-# model. The two directories Next leaves outside it have to be placed by hand — that is documented behaviour,
-# not an oversight: static assets and `public/` are meant to be served by a CDN in deployments that have one.
-cp -r .next/standalone/. "$DEST/"
+DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-${SHA:0:12}"
+[ "$DIRTY" = false ] || DEST="$DEST-dirty"
 mkdir -p "$DEST/.next"
+cp -r .next/standalone/. "$DEST/"
 cp -r .next/static "$DEST/.next/static"
 cp -r public "$DEST/public"
 printf '%s\n' "$SHA" > "$DEST/.git-sha"
-printf '{"ref":"%s","sha":"%s","dirty":%s,"built_at":"%s","repo":"%s"}\n' \
-  "$REF" "$SHA" "$DIRTY" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO" > "$DEST/build-info.json"
+node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ref:process.argv[2],sha:process.argv[3],dirty:process.argv[4]==="true",built_at:new Date().toISOString(),repo:process.argv[5]},null,2))' "$DEST/build-info.json" "$REF" "$SHA" "$DIRTY" "$REPO"
 
-# Atomic swap: a symlink flip is one syscall, so nobody is ever served half a build.
-# Kept so the verification below has somewhere to put the site back.
+restart_app() {
+  if systemctl --user is-enabled ainize-web.service >/dev/null 2>&1; then
+    systemctl --user restart ainize-web.service
+  else
+    local old_pid
+    old_pid="$(ss -ltnp 2>/dev/null | grep ":$PORT " | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)"
+    if [ -n "$old_pid" ]; then
+      kill "$old_pid"
+      for _ in $(seq 1 30); do
+        kill -0 "$old_pid" 2>/dev/null || break
+        sleep 1
+      done
+      if kill -0 "$old_pid" 2>/dev/null; then echo "Previous server did not stop" >&2; return 1; fi
+    fi
+    setsid env AINIZE_NODE_URL="${AINIZE_NODE_URL:-http://127.0.0.1:3400}" PORT="$PORT" HOSTNAME=127.0.0.1 NODE_ENV=production \
+      "$NODE_BIN/node" "$SERVE/server.js" < /dev/null > "$ROOT/ainize-web.log" 2>&1 &
+    disown 2>/dev/null || true
+  fi
+}
+wait_ready() {
+  for _ in $(seq 1 30); do
+    if curl -fsS --max-time 2 "http://127.0.0.1:$PORT/" >/dev/null; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
 PREVIOUS="$(readlink -f "$SERVE" 2>/dev/null || true)"
-mkdir -p "$(dirname "$SERVE")"
+rollback() {
+  trap - ERR
+  echo "Deployment failed; restoring $PREVIOUS" >&2
+  if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ]; then
+    ln -sfn "$PREVIOUS" "$SERVE.new"
+    mv -Tf "$SERVE.new" "$SERVE"
+    restart_app && wait_ready || echo 'Rollback needs attention; inspect the process log.' >&2
+  fi
+  exit 1
+}
+trap rollback ERR
 ln -sfn "$DEST" "$SERVE.new"
 mv -Tf "$SERVE.new" "$SERVE"
-say "serving $DEST"
-
-# The process has to be told. systemd if the unit is installed — that is what survives a reboot — and a plain
-# restart otherwise, so a machine without it is not left serving the previous release for ever.
-PORT="${AINIZE_WEB_PORT:-3900}"
-if systemctl --user list-unit-files ainize-web.service >/dev/null 2>&1 \
-   && systemctl --user is-enabled ainize-web.service >/dev/null 2>&1; then
-  say "restarting ainize-web.service"
-  systemctl --user restart ainize-web.service
-else
-  say "no ainize-web.service — restarting by hand on :$PORT"
-  # By PID from the listening socket, never `pkill -f`: the pattern matches this script's own command line.
-  OLD_PID="$(ss -ltnp 2>/dev/null | grep ":$PORT " | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)"
-  [ -n "${OLD_PID:-}" ] && kill "$OLD_PID" 2>/dev/null && sleep 1
-  # `setsid`, not `( … & )`. Bash collapses a subshell whose last command is backgrounded, so the server stayed
-  # a CHILD of this script and the script could not exit: a deploy that finished in a minute sat there for forty.
-  # A new session with stdin closed and output in the log is detached for real, and `disown` drops the job.
-  setsid env AINIZE_NODE_URL="${AINIZE_NODE_URL:-http://127.0.0.1:3400}" \
-      PORT="$PORT" HOSTNAME=127.0.0.1 NODE_ENV=production \
-      "$NODE_BIN/node" "$SERVE/server.js" < /dev/null > "$ROOT/ainize-web.log" 2>&1 &
-  disown 2>/dev/null || true
-fi
-
-# Wait for it to actually answer before calling the deploy done: a release that exits on start-up used to be
-# reported as success while the previous process kept serving.
-for i in $(seq 1 30); do
-  if curl -fsS --max-time 2 "http://127.0.0.1:$PORT/" >/dev/null 2>&1; then say "answering on :$PORT"; break; fi
-  [ "$i" = 30 ] && { say "NOT answering on :$PORT after 30s — see $ROOT/ainize-web.log"; exit 1; }
-  sleep 1
-done
-
-# …and then ask the DOMAIN, because the app answering on loopback is not the same as the site working.
-#
-# This check exists because of a real outage: `current` was flipped to a standalone release while nginx was
-# still configured to serve that directory as static files. The app was healthy on :3900, every check above
-# passed, and ainize.ai returned 403 for fifty minutes — there is no index.html in a Next build. A deploy that
-# changes what `current` MEANS cannot be verified from inside the process it starts.
-#
-# On failure the symlink goes back to where it was and the deploy fails. Set AINIZE_WEB_VERIFY_URL= (empty) on
-# a host that does not serve the public domain.
-VERIFY_URL="${AINIZE_WEB_VERIFY_URL-https://ainize.ai/}"
+restart_app
+wait_ready
 if [ -n "$VERIFY_URL" ]; then
-  PUBLIC_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$VERIFY_URL" || echo 000)"
-  if [ "$PUBLIC_CODE" = "200" ]; then
-    say "$VERIFY_URL -> 200"
-  else
-    say "$VERIFY_URL -> $PUBLIC_CODE — rolling back"
-    if [ -n "${PREVIOUS:-}" ] && [ -e "$PREVIOUS" ]; then
-      ln -sfn "$PREVIOUS" "$SERVE.new" && mv -Tf "$SERVE.new" "$SERVE"
-      say "restored $PREVIOUS"
-    fi
-    say "the app answers on :$PORT but the domain does not. Most likely nginx still serves \$SERVE as files"
-    say "instead of forwarding to :$PORT — see deploy/nginx/ainize.ai.conf."
-    exit 1
-  fi
+  [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$VERIFY_URL")" = 200 ]
 fi
+trap - ERR
 
-# Keep the last five releases so a rollback is `ln -sfn <release> $SERVE`.
-ls -1dt "$RELEASES"/*/ 2>/dev/null | tail -n +6 | xargs -r rm -rf
-
-cat <<EOF
-
-deployed
-  ref        $REF
-  commit     $SHA
-  release    $DEST
-  served at  $SERVE
-
-nginx proxies the domain to this app on :${AINIZE_WEB_PORT:-3900} (deploy/nginx/ainize.ai.conf). The app serves
-the pages and answers /api, /agents, /x402
-and /p2p by relaying to the node — the node's address never reaches a browser.
-
-rollback: ln -sfn <older release under $RELEASES> "$SERVE" && systemctl --user restart ainize-web
-releases: ls -1dt $RELEASES/*/ | head
-logs:     journalctl --user -u ainize-web -f   (or $ROOT/ainize-web.log)
-EOF
+mapfile -t OLD_RELEASES < <(ls -1dt "$RELEASES"/*/ 2>/dev/null | tail -n +6)
+for old in "${OLD_RELEASES[@]}"; do
+  [ "${old%/}" = "$DEST" ] || [ "${old%/}" = "$PREVIOUS" ] || rm -rf -- "$old"
+done
+printf 'Deployed %s\nRelease: %s\nPrevious: %s\n' "$SHA" "$DEST" "$PREVIOUS"

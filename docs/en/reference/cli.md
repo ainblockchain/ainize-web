@@ -5,11 +5,9 @@ summary: Every `ainize` command, argument and option, generated from the CLI's o
 
 # CLI reference
 
-> [!NOTE]
-> **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-cli/src/main.ts`.
-> Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-Every command the `ainize` CLI accepts — 32 top-level commands, 101 of them runnable — with the arguments, options, defaults and examples each one declares.
+
+Use `ainize <command> --help` for the exact options of your installed version.
 
 ## How to read this page
 

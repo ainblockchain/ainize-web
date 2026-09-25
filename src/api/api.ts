@@ -13,7 +13,7 @@ import type {
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
   SubscribeResult, TrackQuote, CreditInfo, AgentsResponse,
 } from './types';
-import { currentTeacherKey, teachAuthHeader, teachAuthHeaderFor } from '@/lib/teacherKey';
+import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
  * Endpoints that carry the visitor's signed `x-ainize-auth` when this browser has a teaching key (spec §6.1).
@@ -47,7 +47,7 @@ const nodeAddress = (): Promise<string | null> => {
 /**
  * fetch with the request-bound v2 `x-ainize-auth` (`teach:<node>:<METHOD>:<path+query>:<ts>[:<sha256 body>]`) on marked
  * requests — single-use on the node and bound to route + body, so a captured header cannot be replayed elsewhere.
- * Falls back to the legacy `teach:<ts>` header only when the node address cannot be read.
+ * Stop when the node identity is unavailable; never downgrade to an unbound legacy signature.
  */
 const signedFetch: typeof fetch = async (input, init) => {
   const req = input instanceof Request ? input : new Request(input, init);
@@ -56,13 +56,14 @@ const signedFetch: typeof fetch = async (input, init) => {
   headers.delete(SIGN_MARKER);
   if (currentTeacherKey()) {
     const node = await nodeAddress();
+    if (!node) throw new Error('Cannot verify the node identity. Retry when the node is available.');
     const method = req.method.toUpperCase();
     // A multipart body is never captured as `rawBody` on the node, so the client signs the value of
     // `x-ainize-dataset-sha256` instead and the node re-hashes the stored file against it (design §D14).
     const declared = headers.get(DATASET_SHA_HEADER);
     const body = declared ?? (method === 'GET' || method === 'HEAD' ? null : await req.clone().text());
     const u = new URL(req.url);
-    const h = node ? teachAuthHeaderFor({ node, method, path: `${u.pathname}${u.search}`, body }) : teachAuthHeader();
+    const h = teachAuthHeaderFor({ node, method, path: `${u.pathname}${u.search}`, body });
     if (h) headers.set('x-ainize-auth', h);
   }
   return fetch(new Request(req, { headers }));

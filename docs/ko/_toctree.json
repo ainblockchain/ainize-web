@@ -58,6 +58,10 @@
     "group": "실전 가이드",
     "pages": [
       {
+        "page": "how-to/call-the-model",
+        "title": "내 코드에서 모델 호출하기"
+      },
+      {
         "page": "how-to/join-from-your-own-node",
         "title": "내 노드로 네트워크에 합류하기"
       },
