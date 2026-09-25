@@ -7,18 +7,6 @@ import { useTitle } from '@/utils/useTitle';
 import { CenterProgress, Description, PageWrapper, StyledLink, Title } from '@/components/ui/Misc';
 import { QueryError } from '@/components/operator/common';
 
-/**
- * Your nodes.
- *
- * There was no such page and no such question: a node's owners live in that node's own database, so nothing
- * anywhere knew that two machines in two rooms were run by one person. A node now asks this hub for an
- * authorisation code when it starts and prints the link; the wallet that approves it is written into
- * `bindings`, and this page is that table read back — plus the node serving this page, when you operate it.
- *
- * No addresses of machines are shown, only identities. A node of yours is normally on your own network: this
- * browser could not reach it, and printing where it lives would describe your LAN to whoever else reads over
- * your shoulder. What belongs here is that it exists, that it is still being heard from, and what it runs.
- */
 const List = styled.div`display: flex; flex-direction: column; gap: 12px; margin-top: 24px;`;
 const Card = styled.div`
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 8px; padding: 18px 20px; background: #fff;
@@ -60,9 +48,7 @@ export default function MyNodesPage() {
               node running somewhere and no idea how it is supposed to find them. */}
           {t('op.mynodes.empty')}
           <br /><br />
-          <code>ainize config set hub {data?.hub ?? 'https://ainize.ai'}</code>
-          <br />
-          <code>ainize start</code>
+          <code>ainize login --node https://ainize.ai --device</code>
         </Empty>
       )}
 

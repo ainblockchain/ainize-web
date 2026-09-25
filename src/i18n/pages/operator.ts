@@ -1114,7 +1114,7 @@ export const operatorTeach: Dict = {
   'op.sign.enroll_invite': { ko: '운영자 초대 링크로 들어왔습니다. 지갑으로 서명하면 이 주소가 이 노드의 운영자로 등록되고, 로그를 포함한 운영 화면을 볼 수 있습니다. 링크는 한 번만 쓸 수 있습니다.', en: 'You followed an operator invitation. Signing with your wallet makes this address an operator of this node, with access to the logs and the rest of the operator screens. The link works once.' },
   'op.mynodes.title': { ko: '내 노드', en: 'My nodes' },
   'op.mynodes.desc': { ko: '{addr} 지갑에 연결된 노드입니다. 노드가 시작할 때 인증 링크를 찍고, 그 링크를 지갑으로 승인하면 여기에 나타납니다.', en: 'The nodes connected to {addr}. A node prints an authorisation link when it starts; approving that link with your wallet is what puts it here.' },
-  'op.mynodes.empty': { ko: '아직 이 지갑에 연결된 노드가 없습니다. 노드가 붙을 곳을 알려주고 다시 시작하면, 터미널에 승인 링크가 나옵니다.', en: 'No node is connected to this wallet yet. Tell a node where to attach itself and start it again — it prints an approval link to the terminal.' },
+  'op.mynodes.empty': { ko: '연결된 노드가 없습니다. 연결할 노드의 홈 디렉터리에서 다음 명령을 실행하고 이 지갑으로 승인하세요.', en: 'No node is connected. Run this command with the node’s home directory selected and approve it with this wallet.' },
   'op.mynodes.unnamed': { ko: '이름 없는 노드', en: 'unnamed node' },
   'op.mynodes.seen': { ko: '응답 중', en: 'answering' },
   'op.mynodes.unseen': { ko: '응답 없음', en: 'not answering' },

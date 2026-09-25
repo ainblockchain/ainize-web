@@ -179,7 +179,7 @@ test('search finds a term inside a page body, not only in titles', () => {
 });
 
 test('search reaches into the real tree, including the generated reference pages', () => {
-  const hits = searchDocs(SITES.en, 'ai·nize');
+  const hits = searchDocs(SITES.en, 'ongoing file availability');
   assert.equal(hits[0]?.entry.slug, 'index', 'a phrase that appears once in one body is findable');
   assert.equal(hits[0]?.where, 'body');
 });
