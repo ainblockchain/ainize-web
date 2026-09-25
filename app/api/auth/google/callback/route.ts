@@ -10,6 +10,10 @@ import {
   googleRedirectUri, readGoogleOAuthConfig,
 } from '@/lib/googleOAuth';
 
+// A Google sign-in is intentionally app-only. Clear a wallet session left by an earlier
+// visit so AuthContext cannot mistake that old address for the Google identity.
+const NODE_SESSION_COOKIE = 'ainize_session';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -23,6 +27,7 @@ export async function GET(req: NextRequest) {
     const res = NextResponse.redirect(new URL(next, origin), 302);
     res.cookies.set(GOOGLE_SESSION_COOKIE, sessionCookie, googleCookieOptions(req, GOOGLE_SESSION_TTL_S));
     res.cookies.set(GOOGLE_FLOW_COOKIE, '', googleCookieOptions(req, 0));
+    res.cookies.set(NODE_SESSION_COOKIE, '', googleCookieOptions(req, 0));
     return res;
   } catch (e) {
     const reason = e instanceof GoogleOAuthError ? e.message : 'Google sign-in failed';
