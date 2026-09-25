@@ -354,6 +354,12 @@ export default function LandingPage() {
             <NavLink to="/explore?kind=agent" data-testid="landing-nav-agents">{t('nav.agents')}</NavLink>
             <NavLink to="/chat">{t('landing.nav.chat')}</NavLink>
             {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
+            {/* The network and the public record were in every page's header and in neither of the landing's
+                chromes — the third time an entry was added to Header.tsx and not to this one. The two are now
+                held to the same list by test/nav-parity.test.ts, so a fourth is a failing test rather than a
+                visitor who never finds the page. */}
+            <NavLink to="/network" data-testid="landing-nav-network">{t('nav.network')}</NavLink>
+            <NavLink to="/ledger" data-testid="landing-nav-ledger">{t('nav.ledger')}</NavLink>
             {/* Finding 69: /docs was in every other page's header and in neither of the landing's chromes. */}
             <NavLink to="/docs" data-testid="landing-nav-docs">{t('nav.docs')}</NavLink>
             <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>
