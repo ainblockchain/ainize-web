@@ -70,7 +70,7 @@ export const operatorSign: Dict = {
   // Finding 89: the node answers 401 with the bare string "wrong password". This is what the reader sees instead —
   // in their own language, and with the one command that gets a forgotten node back.
   // Item 89: the same door now counts attempts, and a refusal that is only "wait" has to say how long and why.
-  'op.sign.err.throttled': { ko: '비밀번호를 {n}번 틀려서 이 주소에서의 시도를 {s}초 동안 받지 않습니다. 잊었다면 노드가 도는 컴퓨터에서 `ainize password --reset`으로 새로 정하세요.', en: '{n} wrong passwords from this address — sign-in is refused here for {s}s. If it is lost, run `ainize password --reset` on the machine the node runs on.' },
+  'op.sign.err.throttled': { ko: "로그인 시도가 너무 많습니다. {s}초 후 다시 시도하세요.", en: "Too many sign-in attempts. Try again in {s}s." },
   // Finding 71: "Open the operator console" led here, and nothing on the page said where the password comes from.
   'op.sign.login.where': { ko: '이 노드를 직접 운영하고 있다면, 노드가 도는 컴퓨터에서 {cmd}을 처음 실행할 때 정한 비밀번호입니다. 이 화면에서는 비밀번호를 새로 만들거나 되돌릴 수 없습니다.', en: 'Running this node yourself? It is the password set the first time {cmd} ran on the machine the node runs on — this page can neither create one nor reset one.' },
   'op.sign.login.where_link': { ko: '노드 설치·로그인 안내', en: 'Node setup and log-in guide' },
@@ -1076,13 +1076,13 @@ export const operatorTeach: Dict = {
 
   // A node that started somewhere and printed its own link. The person here did not type anything.
   'op.authorize.node.title': { ko: '이 노드를 내 계정에 연결할까요?', en: 'Connect this node to your account?' },
-  'op.authorize.node.lead': { ko: '노드가 시작하면서 이 링크를 찍었습니다. 승인하면 이 노드가 내 노드 목록에 올라가고, 이 주소를 대신해 활동할 수 있게 됩니다. 방금 시작한 내 노드가 아니라면 거절하세요.', en: 'A node printed this link when it started. Approving it puts that node in your list of nodes and lets it act as this address. If no node of yours just started, reject it.' },
+  'op.authorize.node.lead': { ko: "터미널에서 요청한 노드를 이 지갑의 내 노드 목록에 연결합니다. 지갑의 자산 사용이나 계정 대행 권한은 부여하지 않습니다.", en: "Connect the node requested in your terminal to this wallet’s My nodes list. This grants no wallet spending or account-operation permission." },
   'op.authorize.node.key': { ko: '노드 주소', en: 'Node address' },
   'op.authorize.node.label_hint': { ko: '노드가 스스로 붙인 이름입니다. 여기서 보증하지 않습니다.', en: 'The node\u2019s own words about itself — not something this hub vouches for.' },
   'op.authorize.node.approve': { ko: '연결하고 서명', en: 'Connect and sign' },
   'op.authorize.node.done': { ko: '연결했습니다. 이 노드는 이제 내 노드 목록에 있습니다.', en: 'Connected. That node is now in your list of nodes.' },
   'op.authorize.node.rejected': { ko: '거절했습니다. 노드는 연결되지 않았습니다.', en: 'Rejected. The node is not connected to you.' },
-  'op.authorize.node.expired': { ko: '이 요청은 만료되었습니다. 노드를 다시 시작하면 새 링크를 찍습니다.', en: 'This request has expired — start the node again and it prints a new link.' },
+  'op.authorize.node.expired': { ko: "요청이 만료되었습니다. ainize login을 다시 실행하세요.", en: "This request expired. Run ainize login again." },
 
   // Account: the machines that act as you.
   'op.account.bindings.title': { ko: '나를 대신하는 키', en: 'Keys that act as you' },
@@ -1109,12 +1109,12 @@ export const operatorTeach: Dict = {
   'op.sign.not_owner.teach_hint': { ko: 'GPU도 계정도 필요 없습니다. 공개하면 판매 수익의 지분을 받습니다.', en: 'No GPU, no account. Publish it and you earn a share of every sale.' },
   'op.sign.not_owner.own': { ko: '내 노드 직접 띄우기', en: 'Run a node of your own' },
   'op.sign.not_owner.own_hint': { ko: '이 화면들은 자기 노드에서 열립니다. 설치는 명령 두 줄입니다.', en: 'These screens open on a node you run. Setting one up is two commands.' },
-  'op.sign.key.no_wallet': { ko: '브라우저에서 지갑을 찾지 못했습니다. 노드가 돌아가는 기계에서는 명령 한 줄이면 됩니다.', en: 'No wallet in this browser. On the machine the node runs on it is one command.' },
+  'op.sign.key.no_wallet': { ko: "MetaMask 또는 호환 지갑을 설치한 뒤 로그인하세요.", en: "Install MetaMask or a compatible wallet to sign in." },
   'op.sign.key.no_wallet_cmd': { ko: '노드 자기 키로 서명해 로그인합니다', en: 'signs a challenge with the node’s own key' },
   'op.sign.enroll_invite': { ko: '운영자 초대 링크로 들어왔습니다. 지갑으로 서명하면 이 주소가 이 노드의 운영자로 등록되고, 로그를 포함한 운영 화면을 볼 수 있습니다. 링크는 한 번만 쓸 수 있습니다.', en: 'You followed an operator invitation. Signing with your wallet makes this address an operator of this node, with access to the logs and the rest of the operator screens. The link works once.' },
   'op.mynodes.title': { ko: '내 노드', en: 'My nodes' },
   'op.mynodes.desc': { ko: '{addr} 지갑에 연결된 노드입니다. 노드가 시작할 때 인증 링크를 찍고, 그 링크를 지갑으로 승인하면 여기에 나타납니다.', en: 'The nodes connected to {addr}. A node prints an authorisation link when it starts; approving that link with your wallet is what puts it here.' },
-  'op.mynodes.empty': { ko: '연결된 노드가 없습니다. 연결할 노드의 홈 디렉터리에서 다음 명령을 실행하고 이 지갑으로 승인하세요.', en: 'No node is connected. Run this command with the node’s home directory selected and approve it with this wallet.' },
+  'op.mynodes.empty': { ko: "연결된 노드가 없습니다. 노드의 홈 디렉터리에서 다음 명령을 실행하고 이 지갑으로 승인하세요.", en: "No nodes are connected. Run this command with your node’s home directory selected and approve it with this wallet." },
   'op.mynodes.unnamed': { ko: '이름 없는 노드', en: 'unnamed node' },
   'op.mynodes.seen': { ko: '응답 중', en: 'answering' },
   'op.mynodes.unseen': { ko: '응답 없음', en: 'not answering' },
@@ -1138,4 +1138,9 @@ export const operatorTeach: Dict = {
   'op.account.operators.removed': { ko: '{addr} 의 소유권을 해제했고, 진행 중이던 세션 {n}개를 끊었습니다.', en: 'Removed {addr}, and ended {n} session(s) it was holding.' },
   'op.account.operators.already': { ko: '{addr} 은(는) 이미 이 노드의 소유자입니다.', en: '{addr} already owns this node.' },
   'op.account.operators.how': { ko: '여기서 추가한 주소만 여기서 해제할 수 있습니다. 노드 자기 키와 설정 파일에 적힌 주소는 노드가 도는 기계에서 다룹니다: `ainize operators add 0x…`. 그 파일이 세션을 모두 잃었을 때 돌아올 수 있는 길이라 화면에서 지우지 않습니다.', en: 'Only what was added here can be removed here. The node’s own key and the addresses in its config file are handled on the machine it runs on (`ainize operators add 0x…`) — that file is the way back when every session is lost, so this page cannot erase it.' },
+  'op.sign.general': { ko: "모든 MetaMask·호환 지갑으로 로그인할 수 있습니다. 로그인 후 내 노드를 연결하고 관리하세요.", en: "Sign in with any MetaMask or compatible wallet. Then connect and manage your nodes." },
+  'op.mynodes.add': { ko: "노드 추가 연결", en: "Connect another node" },
+  'op.mynodes.add_hint': { ko: "노드마다 별도의 홈 디렉터리와 포트를 사용하세요. login이 웹 승인 화면을 엽니다.", en: "Use a separate home directory and port for each node. login opens the website approval page." },
+  'op.mynodes.disconnect': { ko: "연결 해제", en: "Disconnect" },
+  'op.authorize.wallet_mismatch': { ko: "웹사이트에 로그인한 지갑 계정으로 전환한 뒤 승인하세요.", en: "Switch your wallet to the account signed in on this website before approving." },
 };

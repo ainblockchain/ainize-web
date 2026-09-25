@@ -13,6 +13,10 @@
       {
         "page": "get-started/quickstart",
         "title": "빠른 시작"
+      },
+      {
+        "page": "how-to/connect-nodes",
+        "title": "지갑에 노드 연결"
       }
     ]
   },

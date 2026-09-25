@@ -1,6 +1,6 @@
 # Use knowledge someone else published
 
-You need a running node, an operator session (`ainize login`) and a compatible runtime
+You need a running node, an operator session (`ainize login --node-key`) and a compatible runtime
 for applying knowledge. Check the [quickstart](../get-started/quickstart.md).
 
 ## Find and inspect

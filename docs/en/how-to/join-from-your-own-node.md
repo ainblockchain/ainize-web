@@ -10,7 +10,7 @@ export AINIZE_HOME="$HOME/ainize-joiner"
 ainize init --name joiner --port 3455 --peer https://ainize.ai --roles seller
 ainize start -d
 ainize status
-ainize login
+ainize login --node-key
 ainize nodes
 ```
 

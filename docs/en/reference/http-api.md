@@ -1151,7 +1151,7 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 ## `POST /api/auth/device`
 
-`ainize login`: a command line asks to be authorised — returns a code, a URL to open, and the poll secret that alone can collect the session
+Request wallet approval for a node link or explicit CLI delegation
 
 Auth: No security scheme declared; check required headers below. Responses: `200`.
 
@@ -1190,6 +1190,22 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 | `code` | path | yes | string |
 
 Body: application/json. See OpenAPI for fields.
+
+## `POST /api/my/nodes/heartbeat`
+
+Report a linked node online using its dedicated node-link Bearer token
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`.
+
+## `DELETE /api/my/nodes/{address}`
+
+Disconnect one node from the signed-in wallet without stopping its process
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `address` | path | yes | string |
 
 ## `GET /api/my/nodes`
 

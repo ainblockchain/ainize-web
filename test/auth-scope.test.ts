@@ -152,7 +152,7 @@ test('the authorisation page speaks about a node when a node is what asked', () 
   assert.match(page, /const k = data\.kind === 'node' \? 'node' : 'cli'/, 'the wording follows what the node recorded');
   // Nothing user-visible may reach for the flat key again: that is how the cli wording came back last time.
   const flat = [...page.matchAll(/t\('op\.authorize\.(\w+)'\)/g)].map((m) => m[1]);
-  const neutral = new Set(['title', 'busy', 'reject', 'label', 'node', 'until', 'message', 'signin_first', 'done_end', 'used', 'unknown', 'no_code']);
+  const neutral = new Set(['title', 'busy', 'reject', 'label', 'node', 'until', 'message', 'signin_first', 'done_end', 'used', 'unknown', 'no_code', 'wallet_mismatch']);
   assert.deepEqual(flat.filter((key) => !neutral.has(key)), [], 'a string that differs between a CLI and a node must go through tt()');
 
   const strings = code('i18n/pages/operator.ts').join('\n');
@@ -163,5 +163,5 @@ test('the authorisation page speaks about a node when a node is what asked', () 
   }
   // The advice that is wrong for the other case, in the case it is wrong for.
   const nodeLead = strings.match(/'op\.authorize\.node\.lead':[^\n]*/)![0];
-  assert.ok(!nodeLead.includes('ainize login'), 'a node did not come from `ainize login`, and must not tell its owner it did');
+  assert.ok(nodeLead.includes('no wallet spending'), 'node linking must not promise account delegation');
 });

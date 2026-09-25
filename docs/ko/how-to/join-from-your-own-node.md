@@ -1,6 +1,6 @@
 ---
 source: en/how-to/join-from-your-own-node.md
-source_sha256: 1de1c0b8fd62c29fc882ff228bb3a259a5fb9cf513d39c37d991bbb1079ebc75
+source_sha256: dbbe78522734b8f34e4116d2cc020b7812c5725ad4b2d45f9a16070ab53bb110
 ---
 
 # 내 노드로 네트워크 참여하기
@@ -15,7 +15,7 @@ export AINIZE_HOME="$HOME/ainize-joiner"
 ainize init --name joiner --port 3455 --peer https://ainize.ai --roles seller
 ainize start -d
 ainize status
-ainize login
+ainize login --node-key
 ainize nodes
 ```
 

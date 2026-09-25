@@ -10,12 +10,12 @@ export AINIZE_HOME="$HOME/ainize-quickstart"
 ainize init --name quickstart --port 3694 --roles seller
 ainize start -d
 ainize status
-ainize login
+ainize login --node-key
 ainize wallet
 ```
 
 A local ledger starts with test CREDIT. It is not an AIN mainnet balance.
-`ainize login` on the node's machine signs with that node's key.
+`ainize login --node-key` on the node's machine signs with that node's key.
 
 ## Connect a model
 

@@ -182,6 +182,7 @@ export const api = createApi({
      * screen could ask before: node ownership lives in each node's own database, and a node only becomes
      * connected to a person when it asks this hub for a code at startup and that person approves it.
      */
+    unlinkNode: b.mutation<{ ok: boolean }, string>({ query: (address) => ({ url: `api/my/nodes/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     myNodes: b.query<{ nodes: MyNode[]; hub: string }, void>({ query: () => 'api/my/nodes', providesTags: ['Me'] }),
     removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
@@ -383,7 +384,7 @@ export const {
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
-  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useRemoveBindingMutation,
+  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
