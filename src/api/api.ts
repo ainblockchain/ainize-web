@@ -97,6 +97,11 @@ export const api = createApi({
   tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
+    /**
+     * What this node serves over the LLM API. Public, unlike `/v1/models`, because the page asking has no
+     * visitor to authenticate — see `src/api/models.ts` for how a newer or older node's answer is read.
+     */
+    models: b.query<unknown, void>({ query: () => 'api/models' }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     patch: b.query<PatchDetail, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog'] }),
     patchRecords: b.query<{ records: LedgerRecord[] }, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/records`, providesTags: ['Ledger'] }),
@@ -372,7 +377,7 @@ export const api = createApi({
 });
 
 export const {
-  useInfoQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
+  useInfoQuery, useModelsQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,

@@ -59,6 +59,11 @@ const landingNav = () => navDestinations(landing, /<NavLinks\b/, '</NavLinks>');
 const ALLOWED_ONLY_IN_HEADER: Record<string, string> = {
   '/dashboard': 'the node runner\'s screen, shown only to an owner; the landing has no session yet',
 };
+/**
+ * `/network` and `/ledger` are in neither nav any more: they moved into /account, where they belong to the
+ * person reading them. Both keep their public URLs and their footer links — the menu got shorter, access did
+ * not change. `/chat` likewise: the landing hero and the patch pages still link to it.
+ */
 const ALLOWED_ONLY_IN_LANDING: Record<string, string> = {
   '/chat?teach=1': 'the landing links straight to the chat door; the header leads to the entry choice at /teach',
 };
@@ -87,14 +92,13 @@ test('the landing nav offers nothing the header has forgotten', () => {
     `these are on the landing and nowhere else, so a visitor loses them the moment they navigate: ${extra.join(', ')}`);
 });
 
-test('the three destinations this drifted on before are in both', () => {
+test('the destinations this drifted on before are in both', () => {
   // Named rather than left to the general check, so a regression says which one and why it mattered.
   const inHeader = new Set(headerNav());
   const inLanding = new Set(landingNav());
   for (const [to, why] of [
     ['/docs', 'Finding 69 — documentation was on every page but the front one'],
-    ['/network', 'the map of nodes'],
-    ['/ledger', 'the public record of sales'],
+    ['/models', 'what this node serves — and the reason the menu had room for it'],
   ] as const) {
     assert.ok(inHeader.has(to), `${to} is missing from the shared header (${why})`);
     assert.ok(inLanding.has(to), `${to} is missing from the landing nav (${why})`);
