@@ -95,8 +95,10 @@ export default function ModelsPage() {
   // The node's own session, i.e. a wallet. A Google sign-in sets \`google\` on the auth context but not this, and
   // /api/keys answers 401 to it, so it is told apart below instead of being shown the same sign-in prompt again.
   const signedIn = !!me?.signedIn;
+  // A Google account holds keys too: this app vouches for it to the node on /api/keys (src/lib/siteAssertion.ts).
   const { google } = useAuth();
-  const { data: keyList } = useApiKeysQuery(undefined, { skip: !signedIn });
+  const canHoldKeys = signedIn || !!google;
+  const { data: keyList } = useApiKeysQuery(undefined, { skip: !canHoldKeys });
   const [createKey, createState] = useCreateApiKeyMutation();
   const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
   const [keyError, setKeyError] = useState<string | null>(null);
@@ -224,19 +226,16 @@ export default function ModelsPage() {
         <>
           <SubTitle>{t('models.key.title')}</SubTitle>
           <Panel>
-            {!signedIn && !google && (
+            {!canHoldKeys && (
               <>
                 <Description>{t('models.key.none')}</Description>
                 <StyledLink to="/signing?next=%2Fmodels">{t('models.key.signin')}</StyledLink>
               </>
             )}
-            {!signedIn && google && (
-              <>
-                <Description data-testid="models-key-google">{t('models.key.google', { email: google.email })}</Description>
-                <StyledLink to="/signing?next=%2Fmodels">{t('models.key.connect')}</StyledLink>
-              </>
+            {!signedIn && google && !issuedKey && (
+              <Description data-testid="models-key-google">{t('models.key.google', { email: google.email })}</Description>
             )}
-            {signedIn && !issuedKey && (
+            {canHoldKeys && !issuedKey && (
               <Row>
                 <Button
                   type="button"
@@ -251,7 +250,7 @@ export default function ModelsPage() {
                 >
                   {createState.isLoading ? t('models.key.creating') : t('models.key.create')}
                 </Button>
-                {(keyList?.keys.length ?? 0) > 0 && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
+                {signedIn && (keyList?.keys.length ?? 0) > 0 && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
               </Row>
             )}
             {issuedKey && (
@@ -263,7 +262,7 @@ export default function ModelsPage() {
                   <Button type="button" variant="text" onClick={() => { forgetIssuedKey(); setIssuedKey(null); }}>
                     {t('models.key.forget')}
                   </Button>
-                  <StyledLink to="/account">{t('models.key.manage')}</StyledLink>
+                  {signedIn && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
                 </Row>
               </>
             )}
