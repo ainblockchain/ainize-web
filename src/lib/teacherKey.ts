@@ -215,12 +215,6 @@ export function teacherKeyBackup(key: TeacherKey): string {
 
 export function teacherKeyBackupName(key: TeacherKey): string { return `ainize-teaching-key-${key.address.slice(2, 10).toLowerCase()}.json`; }
 
-/** Legacy signed header for the current key, or null when this browser has no key yet (fallback when the node address is unknown). */
-export function teachAuthHeader(purpose = 'teach'): string | null {
-  const k = currentTeacherKey();
-  return k ? authHeader(k.privateKey, k.address, purpose) : null;
-}
-
 /** Request-bound v2 header for the current key, or null when this browser has no key yet. */
 export function teachAuthHeaderFor(t: TeachAuthTarget): string | null {
   const k = currentTeacherKey();

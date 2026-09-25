@@ -174,7 +174,8 @@ A verifier disputing a listed knowledge. While the newest challenge is newer tha
 | `self_checks` | `integer` | attestations by the anchor's own author, excluded from every count above |
 | `quorum` | `integer` |   |
 | `quorum_ok` | `boolean` |   |
-| `sellable` | `boolean` | quorum met AND no open challenge — the flag the 402 gate reads |
+| `sellable` | `boolean` | Quorum met, no open challenge, and no known missing seller file. |
+| `body_available` | `boolean,null` | Whether this seller has the file; null for remote sellers whose availability is unknown. |
 | `open_challenge` | [`Challenge`](#challenge) |   |
 | `downloads` | `integer` |   |
 | `revenue` | `string` |   |
