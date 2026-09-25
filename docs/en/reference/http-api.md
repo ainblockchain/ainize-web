@@ -1169,6 +1169,12 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 Body: application/json. See OpenAPI for fields.
 
+## `GET /api/my/nodes`
+
+Nodes linked to the signed-in wallet, including this node when operated by that wallet
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`.
+
 ## `GET /api/auth/bindings`
 
 Every key that acts as you, and which one is acting now
