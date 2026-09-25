@@ -52,6 +52,12 @@ export const models: Dict = {
     en: 'A key gets written straight into the code below. Sign in with your wallet and create one — your private key never leaves this device.',
   },
   'models.key.signin': { ko: '로그인하고 키 발급받기 →', en: 'Sign in and create a key →' },
+  // A Google session names a person to this app; it is not a session on the node, and the node is what issues keys.
+  'models.key.google': {
+    ko: '{email} 계정(Google)으로 로그인되어 있습니다. API 키는 노드가 발급하고, 노드는 지갑 서명으로만 로그인을 받습니다 — 키를 받으려면 지갑을 연결하세요.',
+    en: 'Signed in as {email} with Google. API keys are issued by the node, and the node only accepts a wallet signature — connect a wallet to create one.',
+  },
+  'models.key.connect': { ko: '지갑 연결하고 키 발급받기 →', en: 'Connect a wallet and create a key →' },
   'models.key.create': { ko: '키 발급', en: 'Create a key' },
   'models.key.creating': { ko: '발급 중…', en: 'Creating…' },
   'models.key.manage': { ko: '내 키 관리 →', en: 'Manage your keys →' },

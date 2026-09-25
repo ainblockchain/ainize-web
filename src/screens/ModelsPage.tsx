@@ -14,6 +14,7 @@ import { modelsByModality, modelsFetchState, parseModelsResponse, type ModelModa
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
+import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './models/modelsPageCodeSnippet';
@@ -91,7 +92,10 @@ export default function ModelsPage() {
 
   // Signed in? Then the snippet should be paste-and-run rather than paste-and-go-find-a-key.
   const { data: me } = useMeQuery();
+  // The node's own session, i.e. a wallet. A Google sign-in sets \`google\` on the auth context but not this, and
+  // /api/keys answers 401 to it, so it is told apart below instead of being shown the same sign-in prompt again.
   const signedIn = !!me?.signedIn;
+  const { google } = useAuth();
   const { data: keyList } = useApiKeysQuery(undefined, { skip: !signedIn });
   const [createKey, createState] = useCreateApiKeyMutation();
   const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
@@ -220,10 +224,16 @@ export default function ModelsPage() {
         <>
           <SubTitle>{t('models.key.title')}</SubTitle>
           <Panel>
-            {!signedIn && (
+            {!signedIn && !google && (
               <>
                 <Description>{t('models.key.none')}</Description>
                 <StyledLink to="/signing?next=%2Fmodels">{t('models.key.signin')}</StyledLink>
+              </>
+            )}
+            {!signedIn && google && (
+              <>
+                <Description data-testid="models-key-google">{t('models.key.google', { email: google.email })}</Description>
+                <StyledLink to="/signing?next=%2Fmodels">{t('models.key.connect')}</StyledLink>
               </>
             )}
             {signedIn && !issuedKey && (
