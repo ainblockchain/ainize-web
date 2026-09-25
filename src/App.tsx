@@ -17,6 +17,7 @@ const PatchPage = lazy(() => import('./screens/PatchPage'));
 const BenchmarkPage = lazy(() => import('./screens/BenchmarkPage'));
 const LedgerPage = lazy(() => import('./screens/LedgerPage'));
 const NetworkPage = lazy(() => import('./screens/NetworkPage'));
+const ModelsPage = lazy(() => import('./screens/ModelsPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
 const TermsPage = lazy(() => import('./screens/TermsPage'));
@@ -62,6 +63,7 @@ export default function App() {
 
                 {/* Public pages (Layout) */}
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
+                <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
                 <Route path="/network" element={<Layout><NetworkPage /></Layout>} />
                 {/* A2A agents this node operates, and the live test for one (NEWS-AGENT-REQUIREMENTS §6) */}
                 {/* One agent. `/agent/<id>` singular, because `/agents/<id>` is the agent's own A2A address

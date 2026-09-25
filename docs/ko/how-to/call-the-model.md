@@ -1,12 +1,19 @@
 ---
 source: en/how-to/call-the-model.md
-source_sha256: d38b1938e9e501f09a2c8d55150b3ebb927668c88464d94dfb79028f8b701c1e
+source_sha256: 6f0f7a49ee532dc3dbcbd8dc42a68763a4257c9dcdc20a93f0a0a4416174bbc3
 ---
 
 # 내 코드에서 모델 호출하기
 
+> 읽기보다 눌러보고 싶다면 — [모델 페이지](/models)가 이 노드가 서빙하는 것을 보여주고 세 가지를 브라우저에서
+> 바로 실행합니다. 키도 예치도 없이. 그리고 같은 코드를 모델 이름까지 채워서 건네줍니다.
+
+> 이 문서는 노드의 모델을 **쓰는** 쪽입니다 — 내 프로그램에서 대화, 음성, 이미지를 호출하는 이야기.
+> 가르치는 쪽은 [모델을 고쳐 가르치기](../tutorials/teach-in-chat.md), 남의 지식을 사는 쪽은
+> [남이 공개한 지식 쓰기](../tutorials/buy-and-apply.md)입니다.
+
 Python SDK를 설치하고 환경 변수에 보관한 지갑 키로 인증합니다.
-`connect()`는 표준 OpenAI 호환 클라이언트를 반환합니다. 로그인 서명은 자금을 이체하지 않습니다.
+`connect()`는 표준 클라이언트를 반환하고, 여기서 요구하는 서명은 로그인이라 자금을 옮기지 않습니다.
 
 ```bash
 pip install ainize

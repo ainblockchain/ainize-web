@@ -6,7 +6,7 @@ import type { Dict } from '../index';
  */
 export const landing: Dict = {
   // nav
-  'landing.nav.explore': { ko: '지식 둘러보기', en: 'Explore knowledge' },
+  'landing.nav.explore': { ko: '지식', en: 'Knowledge' },
   'landing.nav.chat': { ko: '라이브 테스트', en: 'Live test' },
   'landing.nav.teach': { ko: '가르치기', en: 'Teach' },
   'landing.nav.signin': { ko: '로그인', en: 'Sign in' },

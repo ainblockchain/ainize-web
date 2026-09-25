@@ -726,6 +726,7 @@ export const operatorAccount: Dict = {
   'op.account.chain.note': { ko: '처음 한 번만 필요하며, 여러 번 눌러도 안전합니다.', en: 'Needed once; safe to run again.' },
   'op.account.sales': { ko: '판매', en: 'Sales' },
   // Item 317: gross sale amounts above a net balance, with no line for what left.
+  'op.account.sales.public': { ko: '공개 기록에서 전체 보기 →', en: 'See the whole public record →' },
   'op.account.sales.yours': { ko: '내 몫', en: 'Your share' },
   'op.account.sales.yours_help': { ko: '판매액에서 원작자·데이터 제공자·검증 노드 몫을 뺀, 이 노드에 남는 금액입니다.', en: 'What stayed here: the sale minus the creator, data-provider and verification shares it paid out.' },
   'op.account.sales.shared_with': { ko: '나눠 준 몫: {who}', en: 'paid out: {who}' },

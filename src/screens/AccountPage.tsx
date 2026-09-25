@@ -460,6 +460,11 @@ export default function AccountPage() {
           <Grid>
             <div>
               <strong style={{ fontSize: 14 }}>{t('op.account.sales')}</strong>
+              {/* The public record left the top menu; this is the way back to it. Your sales are here, and
+                  everybody's — including the ones you can audit against — are still public at /ledger. */}
+              <Muted style={{ marginLeft: 8, fontSize: 12 }}>
+                <StyledLink to="/ledger" title={help('ledger')}>{t('op.account.sales.public')}</StyledLink>
+              </Muted>
               <TableWrapper style={{ marginTop: 8 }}>
                 <Table>
                   <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.knowledge')}</TableHead><TableHead>{t('op.buyer')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead title={t('op.account.sales.yours_help')}>{t('op.account.sales.yours')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>

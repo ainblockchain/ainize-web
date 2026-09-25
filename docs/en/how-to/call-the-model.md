@@ -1,7 +1,16 @@
 # Call the model from your own code
 
-Install the Python SDK and authenticate with a wallet key stored in your environment.
-`connect()` returns a standard OpenAI-compatible client. This login signature does not transfer funds.
+> Want to press one rather than read about it? The [Models page](/models) lists what this node serves and runs
+> all three in the browser, with no key and no deposit — then hands you this same code with the model filled in.
+
+> This page is about **using** a node's model — chat, speech and images — from your own program.
+> Teaching one is [Teach by correcting the model](../tutorials/teach-in-chat.md); buying somebody's knowledge is
+> [Use knowledge someone else published](../tutorials/buy-and-apply.md).
+
+A node serves its model over the LLM API that every client already speaks. That is the whole of the compatibility
+claim: after one line, the code you write is the code you would have written against any hosted model, and the
+rest of your program does not know this node exists. `connect()` returns a standard client; the signature it asks
+for is a login and moves no funds.
 
 ```bash
 pip install ainize
