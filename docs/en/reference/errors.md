@@ -201,7 +201,6 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `401` | sign in with your wallet to end what acts as you | `src/api.ts` |
 | `401` | Sign in with your wallet to query live sources | `src/api.ts` |
 | `401` | sign in with your wallet to see what acts as you | `src/api.ts` |
-| `401` | sign in with your wallet to see your nodes | `src/api.ts` |
 | `401` | that signature does not come from the address it claims | `src/api.ts` |
 | `401` | that signature does not come from the address that is signed in | `src/api.ts` |
 | `401` | the sign-in challenge has expired — ask for a new one | `src/api.ts` |
@@ -227,7 +226,8 @@ A further 27 throw sites build their message at the time (a validator's own word
 | `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
-| `503` | model unavailable, try again in a few minutes | `src/runtime.ts` |
+| `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
 | `503` | Stored inference journal is invalid; preserve it for operator reconciliation | `src/api.ts` |
+| `503` | the \<modality> backend stopped accepting work before this request started | `src/modality-gate.ts` |
 | `503` | the patch hook could not be reached (ENGRAM_HOOK=1?) | `src/api.ts` |

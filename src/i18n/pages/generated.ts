@@ -8,13 +8,14 @@ import * as m3 from './docs';
 import * as m4 from './lineage-check';
 import * as m5 from './lineage';
 import * as m6 from './merge';
-import * as m7 from './operator';
-import * as m8 from './public';
-import * as m9 from './retire';
-import * as m10 from './table';
-import * as m11 from './teach';
-import * as m12 from './tracks';
-import * as m13 from './verifier';
+import * as m7 from './models';
+import * as m8 from './operator';
+import * as m9 from './public';
+import * as m10 from './retire';
+import * as m11 from './table';
+import * as m12 from './teach';
+import * as m13 from './tracks';
+import * as m14 from './verifier';
 
 /** Every dictionary module, in filename order. The index merges them. */
-export const MODULES: Record<string, Dict>[] = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13] as unknown as Record<string, Dict>[];
+export const MODULES: Record<string, Dict>[] = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14] as unknown as Record<string, Dict>[];

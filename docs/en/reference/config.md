@@ -9,7 +9,7 @@ summary: Every key of a node config.json, its type, its default and the rules it
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-core/src/config-schema.ts` and `ainize-core/src/config.ts` and `ainize-core/src/types.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-All 142 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
+All 151 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
 
 ## How to read this page
 
@@ -29,7 +29,6 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `port` | a number — must be a whole number; must be between 1 and 65535 | `3402` |   |
 | `host` | a string — must be an interface to bind: an IP address (0.0.0.0, 127.0.0.1, ::) or a hostname | `"127.0.0.1"` |   |
 | `publicUrl` | a string — must be an http(s) URL | unset |   |
-| `hub` | a string — must be an http(s) URL | unset | Where this node attaches itself so a person can claim it from a browser (see config-schema). |
 | `roles` | a comma list of 'seller', 'verifier', 'serving', 'gateway' | `["seller","verifier","serving"]` |   |
 | `peers` | a comma list | `[]` |   |
 | `ledger` | an object (set its keys one at a time) |   |   |
@@ -39,6 +38,7 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `ledger.ain.eventHandlerUrl` | a string — must be an http(s) URL | `null` |   |
 | `ledger.ain.chainId` | a number — must be a whole number; must not be negative | `0` |   |
 | `ledger.ain.appName` | a string — must not be empty | `"knowledge"` |   |
+| `ledger.ain.pollMs` | a number — must be at least 1000 ms | unset | How often this node re-reads the whole market subtree. Default 8 s. The read is the ENTIRE `/apps/knowledge/market` tree, and it grows with every published knowledge, so its cost is the catalogue size — not the size of what changed. One node at eight seconds is nothing. Seventy nodes on one chain is seventy full-tree reads every eight seconds, which is enough to fill a validator's accept queue and stop it answering at all. A node that only publishes its own work does not need the network's catalogue that fresh. |
 | `identity` | an object (set its keys one at a time) | minted by `ainize init` | **Protected.** |
 | `identity.privateKey` | a string | minted by `ainize init` | **Protected.** |
 | `identity.address` | a string | minted by `ainize init` | **Protected.** |
@@ -53,6 +53,14 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `runtime.patchDir` | a string | unset | Patch-hook mailbox of the serving instance `api` points at (default \<repo>/ple_patch). One directory per vLLM instance: it carries the apply/remove requests and the cross-process runtime lock, so two servers (e.g. the demo cluster on its own GPUs and a second instance) never write into each other's table. |
 | `runtime.gpus` | a string | unset | Which GPUs the serving instance `api` addresses occupies, e.g. "4,5" (item 145). Nothing on the node can discover this — the model is behind an HTTP URL — and without it the teach trainer cannot be stopped from being pointed at the GPUs that serve every verification and live test. Unset = no cross-check is possible. |
 | `runtime.sampling` | a record | unset | Sampling + degeneracy guard per generation path (D1). Omit for the measured defaults. |
+| `backends` | a comma list | unset | The inference backends served on the OpenAI-compatible `/v1` surface (chat, transcription, image). Declared, not probed: `/v1/models` answers from this list, so the node advertises what an operator configured rather than whatever container happened to be up. Unset = no `/v1` surface. |
+| `deposits` | an object (set its keys one at a time) | unset | Accepting AIN for a share of this node's throughput. Unset = this node sells no throughput. The vault and the receiving address have no defaults on purpose: getting either wrong credits share for money the operator does not hold, and the mistake is invisible at runtime. |
+| `deposits.receivingAddress` | a string — must be an EVM address | unset |   |
+| `deposits.vault` | an object (set its keys one at a time) | unset | The AIN staking contract every deposit is priced through, so deposits on different chains share one unit. Not ERC-4626: sAIN has asset() but no convertToShares, and the rate lives on this contract. |
+| `deposits.vault.address` | a string — must be an EVM address | unset |   |
+| `deposits.vault.chain` | a string | unset |   |
+| `deposits.chains` | a comma list | unset |   |
+| `deposits.pollMs` | a number — must be a whole number; must be at least 1 | unset |   |
 | `verifier` | an object (set its keys one at a time) |   |   |
 | `verifier.quorum` | a number — must be a whole number; must be at least 1 | `2` |   |
 | `verifier.sellUnverified` | a boolean | unset | Sell knowledge that has NOT met the quorum, at the buyer's risk. Off by default. It does NOT change the status: an unverified anchor stays ANNOUNCED or VERIFYING and is never relabelled VERIFIED. Verification is the one quality signal this marketplace has, and a status claiming "verified" when nobody checked would be worth less than no status at all. What this permits is a buyer choosing, with the attestation count in front of them, to take the risk — which is a different thing from the network hiding that there is one. |
@@ -102,6 +110,7 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `teach.jobsPerKeyPerDay` | a number — must be a whole number; must not be negative | `3` |   |
 | `teach.jobsPerIpPerDay` | a number — must be a whole number; must not be negative | `5` |   |
 | `teach.queueMax` | a number — must be a whole number; must not be negative | `10` |   |
+| `teach.activeJobsPerKey` | a number | `2` |   |
 | `teach.contributorShare` | a number — must be a fraction between 0 and 1 | `0.7` | Default `Contributor.share` frozen into the anchor at publish (fraction of the seller remainder after lineage). |
 | `teach.draftTtlDays` | a number — must be a whole number; must be at least 1 | `7` | Private READY drafts expire after this many days without save/publish. |
 | `teach.backend` | one of 'gradient', 'stub' | `"gradient"` | 'gradient' runs train/teach.py in the trainer container; 'stub' copies a fixture npz (CI/e2e, no GPU). |
@@ -263,6 +272,7 @@ What `ainize init` writes, with the identity removed — it is minted per node.
     "jobsPerKeyPerDay": 3,
     "jobsPerIpPerDay": 5,
     "queueMax": 10,
+    "activeJobsPerKey": 2,
     "contributorShare": 0.7,
     "draftTtlDays": 7,
     "backend": "gradient",
