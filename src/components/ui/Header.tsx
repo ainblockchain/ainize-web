@@ -93,7 +93,9 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, isOwner, subject, name, address, signOut } = useAuth();
+  const { isSignedIn, isOwner, subject, google, name, address, signOut } = useAuth();
+  // A Google-only session has no address to show, so it shows the account instead.
+  const who = subject ? shortAddr(subject, 6) : google?.email ?? '—';
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -138,9 +140,10 @@ export function Header() {
               {/* YOUR address, not the node's. The button said the NODE's name and the row under it showed the
                   NODE's address, which is the same wrong idea twice: that being signed in means being this node.
                   What a person wants to see here is which of their wallets is connected. */}
-              <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{shortAddr(subject, 6)} ▾</UserMenuButton>
+              <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{who} ▾</UserMenuButton>
               <Menu $open={open} role="menu">
-                <MenuInfo title={subject ?? ''}>{shortAddr(subject, 8)}</MenuInfo>
+                {subject && <MenuInfo title={subject}>{shortAddr(subject, 8)}</MenuInfo>}
+                {google && <MenuInfo title={google.email} data-testid="menu-google">{google.email}</MenuInfo>}
                 {/* Which node you are looking at, said separately, because it is a different fact. */}
                 <MenuInfo title={address ?? ''}>{name ?? ''} · {shortAddr(address, 6)}</MenuInfo>
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>}
@@ -153,7 +156,8 @@ export function Header() {
                     operator who cannot find the log cannot see that anything is wrong. */}
                 {/* Signed in is enough: a person can own nodes elsewhere and none here, and this is the page
                     that tells them so. Gating it on owning THIS node is what hid it from exactly them. */}
-                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/my-nodes'); }}>{t('op.mynodes.title')}</MenuItem>
+                {/* …but it asks the node by address, and a Google-only session has none to ask with. */}
+                {subject && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/my-nodes'); }}>{t('op.mynodes.title')}</MenuItem>}
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/logs'); }}>{t('nav.logs')}</MenuItem>}
                 <MenuItem role="menuitem" onClick={() => {
                   setOpen(false);

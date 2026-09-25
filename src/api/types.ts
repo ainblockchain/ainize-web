@@ -293,6 +293,20 @@ export interface ChainResponse extends LedgerInfo { address: string; balance: nu
  * `subject` are a NAME and grant nothing, `isOwner` and `scope` are the permission, and reading the first as the
  * second would be wrong about nearly every visitor.
  */
+/** A Google account signed in to this app (not to the node) — see src/lib/googleOAuth.ts. */
+export interface GoogleIdentityView {
+  sub: string;
+  email: string;
+  name: string | null;
+  picture: string | null;
+}
+
+export interface GoogleSessionResponse {
+  /** this server has Google credentials — without them the sign-in page does not offer Google */
+  configured: boolean;
+  identity: GoogleIdentityView | null;
+}
+
 export interface AuthMe {
   signedIn: boolean;
   /** the address behind this session, or null when there is none */

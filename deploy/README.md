@@ -44,6 +44,17 @@ When the unit is absent, the deployment script starts a detached process and wri
 | `AINIZE_NODE_URL` | `http://127.0.0.1:3400` (manual process mode) |
 | `AINIZE_WEB_VERIFY_URL` | `https://ainize.ai/`; empty disables the public-domain check for staging |
 | `TMPDIR` | System temporary directory; choose a filesystem with build space |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Unset; Google sign-in is offered only when both are set together with `AINIZE_WEB_SESSION_SECRET` |
+| `AINIZE_WEB_SESSION_SECRET` | Unset; signs the Google session cookie (`openssl rand -base64 32`). Changing it signs everyone out of Google |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Derived from the request (`https://<host>/api/auth/google/callback`); set it when a proxy rewrites `Host` |
+
+### Google sign-in
+
+Create an OAuth client (type *Web application*) in Google Cloud Console and register
+`https://ainize.ai/api/auth/google/callback` (plus `http://localhost:3000/api/auth/google/callback` for `next dev`)
+as an authorized redirect URI. Put the three secrets in `~/ainize-web-releases/google-oauth.env` (mode 600), which
+the unit loads; in manual process mode, export them before running the deploy script. A Google session belongs to
+this app only — the node does not see it, so it signs a person in but grants no wallet or owner permission.
 
 ## Rollback
 
