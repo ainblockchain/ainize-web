@@ -5,6 +5,9 @@ summary: A node serves its model over the standard LLM API, so one line points a
 
 # Call the model from your own code
 
+> Want to press one rather than read about it? The [Models page](/models) lists what this node serves and runs
+> all three in the browser, with no key and no deposit — then hands you this same code with the model filled in.
+
 > This page is about **using** a node's model — chat, speech and images — from your own program.
 > Teaching one is [Teach by correcting the model](../tutorials/teach-in-chat.md); buying somebody's knowledge is
 > [Use knowledge someone else published](../tutorials/buy-and-apply.md).

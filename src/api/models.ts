@@ -55,3 +55,21 @@ export function modelsByModality(cards: PublicModelCard[]): ModelGroup[] {
     .map((modality) => ({ modality, models: cards.filter((c) => c.modality === modality) }))
     .filter((group) => group.models.length > 0);
 }
+
+/** What the fetch told us about the node, beyond whether it worked. */
+export type ModelsFetchState = 'ok' | 'outdated' | 'offline';
+
+/**
+ * Tell a node that is down from one that is merely older than this page.
+ *
+ * Production hit exactly this distinction: the node answered `/api/info` and every other route, served a model,
+ * and had never heard of `/api/models` — because the route shipped after it did. Rendering "this node is not
+ * answering" there is wrong twice over, and it points whoever reads it at the wrong problem.
+ */
+export function modelsFetchState(error: { status?: number | string; originalStatus?: number } | undefined | null): ModelsFetchState {
+  if (!error) return 'ok';
+  // Express answers an unknown route with an HTML page, so RTK Query cannot parse it as JSON and moves the real
+  // code to `originalStatus`. Reading only `status` reported a live node on an older build as unreachable.
+  const code = typeof error.status === 'number' ? error.status : error.originalStatus;
+  return code === 404 ? 'outdated' : 'offline';
+}

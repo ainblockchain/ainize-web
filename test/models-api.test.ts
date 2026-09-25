@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseModelsResponse, modelsByModality } from '../src/api/models';
+import { parseModelsResponse, modelsByModality, modelsFetchState } from '../src/api/models';
 
 test('a node answer parses into cards', () => {
   const parsed = parseModelsResponse({ object: 'list', data: [{ id: 'qwen3-asr', modality: 'transcription', available: true }] });
@@ -67,4 +67,30 @@ test('two models of one modality stay together, in the order the node gave them'
     { id: 'second', modality: 'chat', available: false },
   ]);
   assert.deepEqual(grouped[0].models.map((m) => m.id), ['first', 'second']);
+});
+
+test('a 404 is a node older than this page, not a node that is down', () => {
+  // Production hit exactly this: the node answered every other route and had never heard of /api/models.
+  // Calling that "not answering" is wrong twice over — it answers, and it serves a model.
+  assert.equal(modelsFetchState({ status: 404 }), 'outdated');
+});
+
+test('a 404 delivered as HTML is still a 404', () => {
+  // What actually arrives: Express answers an unknown route with an HTML page, RTK Query cannot parse it as
+  // JSON, and the real code moves to `originalStatus`. Reading only `status` here reported production — a live
+  // node running an older build — as unreachable.
+  assert.equal(modelsFetchState({ status: 'PARSING_ERROR', originalStatus: 404 }), 'outdated');
+});
+
+test('a parsing error over a real failure is still a failure', () => {
+  assert.equal(modelsFetchState({ status: 'PARSING_ERROR', originalStatus: 502 }), 'offline');
+});
+
+test('any other error is a node that is not answering', () => {
+  assert.equal(modelsFetchState({ status: 502 }), 'offline');
+  assert.equal(modelsFetchState({ status: 'FETCH_ERROR' }), 'offline');
+});
+
+test('no error at all is a node that answered', () => {
+  assert.equal(modelsFetchState(undefined), 'ok');
 });

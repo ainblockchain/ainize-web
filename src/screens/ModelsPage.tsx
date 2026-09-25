@@ -10,7 +10,7 @@
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useModelsQuery } from '@/api/api';
-import { modelsByModality, parseModelsResponse, type ModelModality, type PublicModelCard } from '@/api/models';
+import { modelsByModality, modelsFetchState, parseModelsResponse, type ModelModality, type PublicModelCard } from '@/api/models';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
@@ -71,7 +71,8 @@ type RunState =
 export default function ModelsPage() {
   const { t } = useT();
   useTitle(t('models.title'));
-  const { data, isLoading, isError } = useModelsQuery();
+  const { data, isLoading, error } = useModelsQuery();
+  const fetchState = modelsFetchState(error as { status?: number | string; originalStatus?: number } | undefined);
   const cards = useMemo(() => parseModelsResponse(data), [data]);
   const groups = useMemo(() => modelsByModality(cards), [cards]);
 
@@ -127,13 +128,19 @@ export default function ModelsPage() {
       <Description>{t('models.lede')}</Description>
 
       {/* The two states production is in when its node is down. Neither pretends to be a model list. */}
-      {isError && (
+      {fetchState === 'offline' && (
         <Empty>
           <SubTitle>{t('models.offline.title')}</SubTitle>
           <Description>{t('models.offline.body')}</Description>
         </Empty>
       )}
-      {!isError && cards.length === 0 && (
+      {fetchState === 'outdated' && (
+        <Empty>
+          <SubTitle>{t('models.outdated.title')}</SubTitle>
+          <Description>{t('models.outdated.body')}</Description>
+        </Empty>
+      )}
+      {fetchState === 'ok' && cards.length === 0 && (
         <Empty>
           <SubTitle>{t('models.empty.title')}</SubTitle>
           <Description>{t('models.empty.body')}</Description>

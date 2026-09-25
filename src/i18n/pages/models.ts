@@ -21,6 +21,11 @@ export const models: Dict = {
     ko: '운영자가 config.json에 backends 블록을 넣으면 여기에 나타납니다. 무엇이 설정되었는지만 알리고 무엇이 떠 있는지 추측하지 않으므로, 이 목록은 비어 있을 수 있습니다.',
     en: 'It appears here once an operator adds a backends block to config.json. A node advertises what was configured rather than guessing what happens to be running, so this list can be empty.',
   },
+  'models.outdated.title': { ko: '이 노드는 아직 모델 목록을 알리지 않습니다', en: 'This node does not publish a model list yet' },
+  'models.outdated.body': {
+    ko: '노드는 정상 응답 중이지만, 이 목록을 제공하는 라우트가 없는 버전입니다. 운영자가 노드를 올리면 여기에 나타납니다 — 모델을 서빙하지 않는다는 뜻은 아닙니다.',
+    en: 'The node is answering, but it is running a build from before this list existed. It appears here once the operator updates — which is not the same as serving no models.',
+  },
   'models.offline.title': { ko: '이 노드가 응답하지 않습니다', en: 'This node is not answering' },
   'models.offline.body': {
     ko: '모델 목록을 가져오지 못했습니다. 노드가 내려갔거나 이 사이트에서 닿지 못하는 상태입니다 — 서빙하는 모델이 없다는 뜻은 아닙니다.',
