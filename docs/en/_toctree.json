@@ -123,12 +123,20 @@
         "title": "HTTP API reference"
       },
       {
+        "page": "reference/api-index",
+        "title": "API index (a running node)"
+      },
+      {
         "page": "reference/x402",
         "title": "Paying from your own client"
       },
       {
         "page": "reference/schemas",
         "title": "Schemas"
+      },
+      {
+        "page": "reference/schema-index",
+        "title": "Schema index (a running node)"
       },
       {
         "page": "reference/config",
