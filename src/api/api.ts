@@ -11,7 +11,7 @@ import type {
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
-  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse,
+  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse,
 } from './types';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
@@ -95,7 +95,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -192,6 +192,10 @@ export const api = createApi({
     addOwner: b.mutation<{ ok: boolean; already: boolean; owners: NodeOwner[] }, { address: string; note?: string }>({ query: (body) => ({ url: 'api/auth/owners', method: 'POST', body }), invalidatesTags: ['Me'] }),
     removeOwner: b.mutation<{ ok: boolean; sessions_ended: number; owners: NodeOwner[] }, string>({ query: (address) => ({ url: `api/auth/owners/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
+    // Google sign-in lives in this app, not on the node (src/lib/googleOAuth.ts). The session is read here; signing in
+    // is a full-page redirect to /api/auth/google/start, because Google's consent screen is not something to fetch.
+    googleSession: b.query<GoogleSessionResponse, void>({ query: () => 'api/auth/google/session', providesTags: ['GoogleSession'] }),
+    googleLogout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/google/session', method: 'DELETE' }), invalidatesTags: ['GoogleSession'] }),
 
     // operator
     myPatches: b.query<{ items: CatalogEntry[] }, void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
@@ -381,7 +385,7 @@ export const {
   useInfoQuery, useModelsQuery, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
-  useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation,
+  useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,

@@ -1033,6 +1033,10 @@ export const operatorTeach: Dict = {
   // Connecting a wallet. Not "logging in as the operator": signing in says which address is here, and owning the
   // node is a separate question the node answers on its own. Most people who connect will never own one.
   'op.sign.wallet.button': { ko: '지갑 연결', en: 'Connect wallet' },
+  'op.sign.google.button': { ko: 'Google로 로그인', en: 'Sign in with Google' },
+  'op.sign.google.or': { ko: '또는', en: 'or' },
+  'op.sign.google.signed_in': { ko: '{email} 계정으로 로그인되어 있습니다. 보상을 받거나 노드를 운영하려면 지갑도 연결하세요.', en: 'Signed in as {email}. To be paid or to run a node, connect a wallet as well.' },
+  'op.sign.google.err': { ko: 'Google 로그인에 실패했습니다: {reason}', en: 'Google sign-in failed: {reason}' },
   'op.sign.wallet.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
   'op.sign.wallet.pick': { ko: '어느 지갑으로 서명할까요?', en: 'Which wallet should sign?' },
   'op.sign.wallet.err_no_extension': { ko: '브라우저에서 지갑을 찾지 못했습니다. MetaMask를 설치하고 새로고침하세요.', en: 'No wallet found in this browser. Install MetaMask and reload.' },

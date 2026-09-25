@@ -53,7 +53,9 @@ test('the header offers no link that lands on "this node is not yours"', () => {
     assert.match(line, /isOwner/, `${owned} is an owner-only route and must be offered only to an owner`);
   }
   // The menu showed the NODE's name and the NODE's address as though they were yours — the same wrong idea twice.
-  assert.ok(header.includes('{shortAddr(subject, 6)} ▾'), 'the button names the wallet that is connected');
+  // A Google-only session has no wallet, so it is named by its account — still the person, never the node.
+  assert.ok(header.includes("const who = subject ? shortAddr(subject, 6) : google?.email ?? '—';"), 'the button names the wallet that is connected');
+  assert.ok(header.includes('{who} ▾'), 'the button shows who is signed in');
 });
 
 test('the app asks the node whether it is an owner rather than deciding for itself', () => {

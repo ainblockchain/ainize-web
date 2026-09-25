@@ -29,12 +29,13 @@ const Empty = styled.div`
 
 export default function MyNodesPage() {
   const { t } = useT();
-  const { subject, isSignedIn, loading } = useAuth();
+  const { subject, loading } = useAuth();
   useTitle(t('op.mynodes.title'));
-  const { data, error, isLoading, refetch, isFetching } = useMyNodesQuery(undefined, { skip: loading || !isSignedIn });
+  const { data, error, isLoading, refetch, isFetching } = useMyNodesQuery(undefined, { skip: loading || !subject });
   const rows = data?.nodes ?? [];
   if (loading) return <CenterProgress />;
-  if (!isSignedIn) return <Navigate to="/signing?next=%2Fmy-nodes" replace />;
+  // `subject`, not `isSignedIn`: the node finds your nodes by wallet address, which a Google-only session does not have.
+  if (!subject) return <Navigate to="/signing?next=%2Fmy-nodes" replace />;
 
   return (
     <PageWrapper>

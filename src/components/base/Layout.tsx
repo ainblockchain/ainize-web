@@ -114,8 +114,8 @@ const Way = styled(Link)`
  */
 function NotYourNode() {
   const { t, locale } = useT();
-  const { subject, name } = useAuth();
-  const short = subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : '';
+  const { subject, google, name } = useAuth();
+  const short = subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : google?.email ?? '';
   const setup = locale === 'ko' ? '/docs/ko/get-started/quickstart' : '/docs/get-started/quickstart';
   return (
     <NotYours data-testid="not-owner">

@@ -120,7 +120,7 @@ export default function AuthorizePage() {
         <Muted style={{ marginTop: 22 }}>{t('op.authorize.message')}</Muted>
         <Signed data-testid="authorize-message">{data.message}</Signed>
 
-        {!auth.isSignedIn && <Alert $tone="info" style={{ marginTop: 18 }}>{t('op.authorize.signin_first')}</Alert>}
+        {!auth.subject && <Alert $tone="info" style={{ marginTop: 18 }}>{t('op.authorize.signin_first')}</Alert>}
         {wallets !== null && wallets.length === 0 && <Alert $tone="error" style={{ marginTop: 18 }}>{t('op.sign.wallet.err_no_extension')}</Alert>}
         {localError && <Alert $tone="error" role="alert" style={{ marginTop: 18 }}>{localError}</Alert>}
 

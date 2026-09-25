@@ -32,6 +32,26 @@ const WalletButton = styled.button`
   img { width: 20px; height: 20px; border-radius: 4px; }
 `;
 const WalletList = styled.div`margin-top: 32px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;`;
+const GoogleButton = styled.a`
+  min-width: 196px; height: 44px; padding: 0 16px; border: 1px solid #dadce0; border-radius: 4px; background: #fff;
+  color: #3c4043; font-size: 15px; font-weight: 500; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 10px;
+  &:hover { background: #f8f9fa; }
+  svg { width: 18px; height: 18px; flex: none; }
+`;
+const Or = styled.p`margin: 24px 0 0; font-size: 13px; color: ${(p) => p.theme.color.GREY};`;
+
+/** Google's four-colour "G", inline so the button needs no asset and no request to Google before it is pressed. */
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
+  );
+}
 
 export default function SigningPage() {
   const { t, locale } = useT();
@@ -70,7 +90,12 @@ export default function SigningPage() {
   const [loginWallet] = useLoginWalletMutation();
   const [enroll] = useEnrollMutation();
 
-  useEffect(() => { if (!auth.loading && auth.isSignedIn) navigate(next, { replace: true }); }, [auth.loading, auth.isSignedIn, navigate, next]);
+  // A wallet session is what sends you on. A Google-only one does not: it is the person this page must still be able
+  // to offer a wallet to, and every guard that needs an address sends them here to get one.
+  useEffect(() => { if (!auth.loading && auth.subject) navigate(next, { replace: true }); }, [auth.loading, auth.subject, navigate, next]);
+  const googleError = params.get('google_error');
+  // Not the /dashboard default: that screen is the node owner's, and a Google session can never own a node.
+  const googleNext = params.get('next') || '/';
 
   const signInError = (e: unknown): string => {
     const r = e as { status?: number | string; data?: { error?: string; retry_after_s?: number; attempts?: number } } | null | undefined;
@@ -159,6 +184,19 @@ export default function SigningPage() {
             )}
           </>
         )}
+
+        {/* Google is a separate door into this app, not into the node: a full-page redirect, because the consent
+            screen is Google's page and cannot be fetched. Offered only when this server holds the credentials. */}
+        {auth.googleConfigured && !auth.google && (
+          <>
+            {wallets && wallets.length > 0 && <Or>{t('op.sign.google.or')}</Or>}
+            <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(googleNext)}`} data-testid="google-signin" style={{ marginTop: wallets && wallets.length > 0 ? 12 : 32 }}>
+              <GoogleMark />{t('op.sign.google.button')}
+            </GoogleButton>
+          </>
+        )}
+        {auth.google && <Alert $tone="info" role="status" data-testid="google-signed-in" style={{ marginTop: 24 }}>{t('op.sign.google.signed_in', { email: auth.google.email })}</Alert>}
+        {googleError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.google.err', { reason: googleError })}</Alert>}
 
         {localError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{localError}</Alert>}
         <Fine>
