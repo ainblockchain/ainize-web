@@ -87,8 +87,33 @@ test('a node URL with a trailing slash does not become a double slash', () => {
   assert.ok(!s.includes('example//v1'), 'the URL is joined, not concatenated');
 });
 
-test('the snippet says how the caller is paying', () => {
-  // Somebody who copies this and gets a 401 should already know what the missing piece is.
+test('the snippet asks for an API key, never a private key', () => {
+  // No other model API asks for a private key, and the thing being pasted into a source file would be the whole
+  // wallet. Our own quickstart used to teach exactly that.
+  for (const language of SNIPPET_LANGUAGES) {
+    const s = modelsPageCodeSnippet({ ...base, language, modality: 'chat' });
+    assert.ok(!s.includes('private_key'), `${language} still asks for a private key`);
+    assert.ok(!s.includes('privateKey'), `${language} still asks for a private key`);
+    assert.ok(!/0x<your key>/.test(s), `${language} still shows a hex key placeholder`);
+  }
+});
+
+test('a key the caller already has is written into the snippet', () => {
+  const s = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat', apiKey: 'ainize-sk-real' });
+  assert.match(s, /api_key="ainize-sk-real"/, 'somebody signed in should be able to paste and run');
+});
+
+test('without a key the snippet carries a placeholder that is obviously one', () => {
   const s = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat' });
-  assert.match(s, /private_key|api_key/, 'the call needs an identity and the snippet must show where it goes');
+  assert.match(s, /api_key="ainize-sk-\.\.\."/);
+});
+
+test('the key reaches the curl snippet too, where it is a header', () => {
+  const s = modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'chat', apiKey: 'ainize-sk-real' });
+  assert.match(s, /Authorization: Bearer ainize-sk-real/);
+});
+
+test('a key is escaped like every other interpolated value', () => {
+  const s = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat', apiKey: 'ainize-sk-"x"' });
+  assert.ok(!s.includes('"ainize-sk-"x""'), 'an unescaped key would be a syntax error in the pasted file');
 });

@@ -20,10 +20,18 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", private_key=os.environ["AINIZE_PRIVATE_KEY"])
+client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
 models = client.models.list().data
 print([model.id for model in models])
 ```
+
+**You get the key from the site.** Sign in there with your wallet and create one on the
+[Models page](/models), which also writes it into the snippet it shows you. Your private key never leaves the
+browser: a key that can sign a transfer has no business in a source file, a CI variable or a screenshot, and no
+other model API asks you to put one in any of them.
+
+A program that already holds a wallet — an agent that also sends transactions — can pass `private_key=` instead
+and be issued a key automatically. That is the exception, not the quickstart.
 
 ## Chat
 
