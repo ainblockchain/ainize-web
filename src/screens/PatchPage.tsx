@@ -511,7 +511,7 @@ export default function PatchPage() {
       <Content>
         <ContentInner>
           <NameRow>
-            <StatusChip status={data.status} supersededBy={newest?.id} />
+            <StatusChip bodyAvailable={data.body_available} status={data.status} supersededBy={newest?.id} />
             <Quorum title={`${t('detail.patch.quorum_help', { quorum: data.quorum })} (${tech('verified')})`}>
               {/* Item 146: the numerator is clamped to the quorum — `3/2` is not a fraction a reader can use —
                   and the extra independent attestations are stated instead of being folded into the ratio. */}
@@ -1564,7 +1564,8 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
             {t('detail.buy.retired')}{d.retire_reason ? ` ${t('detail.buy.retired.reason', { reason: d.retire_reason })}` : ''}
           </Alert>
         )}
-        {!d.owned && d.quorum_ok && !d.sellable && d.status !== 'RETIRED' && (
+        {d.body_available === false && <Alert $tone="warning">{t('status.UNAVAILABLE_help')}</Alert>}
+        {!d.owned && d.body_available !== false && d.quorum_ok && !d.sellable && d.status !== 'RETIRED' && (
           <Alert $tone="warning" data-testid="buy-challenged">
             {t('detail.buy.challenged')}{d.open_challenge ? ` ${t('detail.challenge.banner', { who: shortAddr(d.open_challenge.challenger, 8), reason: d.open_challenge.reason, when: f.ago(d.open_challenge.created_at) })}` : ''}
           </Alert>

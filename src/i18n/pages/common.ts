@@ -62,6 +62,8 @@ export const common: Dict = {
   'status.VERIFYING': { ko: '검증 중', en: 'Verifying' },
   // "Verified" is the attestation badge (quorum reached). This chip is about the LISTING: the knowledge is current
   // and on sale. Printing "Verified · Verified" on one row made the word mean two things at once (finding 29).
+  'status.UNAVAILABLE': { ko: '파일 제공 불가', en: 'File unavailable' },
+  'status.UNAVAILABLE_help': { ko: '판매 노드에 원본 파일이 없어 구매할 수 없습니다. 과거 검증 기록은 유지됩니다.', en: 'The seller no longer has the file. Purchases are unavailable; historical verification is retained.' },
   'status.VERIFIED': { ko: '판매 중', en: 'For sale' },
   'status.VERIFIED_help': { ko: '이 주제의 현재 버전으로 판매 중입니다. 검증 자체는 옆의 "검증 완료" 배지가 말합니다.', en: 'On sale as the current version for this topic. Whether it passed verification is what the "Verified" badge beside it says.' },
   'status.REJECTED': { ko: '검증 실패', en: 'Failed verification' },

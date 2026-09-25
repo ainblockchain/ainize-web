@@ -68,7 +68,7 @@ export function Shelves() {
             {s.items.map((c) => (
               <Card key={c.id} to={`/${encodeURIComponent(c.author)}/${encodeURIComponent(c.id)}`}>
                 <span className="nm">{c.name}</span>
-                <span className="st"><StatusChip status={c.status} /></span>
+                <span className="st"><StatusChip bodyAvailable={c.body_available} status={c.status} /></span>
                 <span className="by">{c.author_name ?? c.topic_path}</span>
                 <span className="fact">{fact(c, s.id)}</span>
                 {c.requires.length > 0 && <span className="needs">{t('explore.card.needs', { name: c.requires.map((r) => r.name).join(', ') })}</span>}

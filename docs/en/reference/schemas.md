@@ -100,6 +100,7 @@ A verifier disputing a listed knowledge.
 | `quorum` | integer | no |
 | `quorum_ok` | boolean | no |
 | `sellable` | boolean | no |
+| `body_available` | boolean,null | no |
 | `open_challenge` | Challenge | no |
 | `downloads` | integer | no |
 | `revenue` | string | no |

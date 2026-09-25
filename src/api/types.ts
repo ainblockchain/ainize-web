@@ -24,6 +24,8 @@ export interface CatalogEntry {
   quorum_ok: boolean;
   /** Quorum met AND no open challenge: the only flag that means "buyable". */
   sellable: boolean;
+  /** Local seller file presence; null when the seller is another node. */
+  body_available?: boolean | null;
   open_challenge?: Challenge;
   /** Every challenge and what the verifiers said about it afterwards (item 328). */
   challenge_log?: { challenge: Challenge; state: 'open' | 'upheld' | 'dismissed'; answered_at?: number; answered_by?: string }[];
@@ -876,6 +878,7 @@ export interface PatchDatasetResponse {
   preview?: { prompt: string; answer: string; from?: string }[];
 }
 export interface ShelfCard {
+  body_available?: boolean | null;
   id: string; name: string; author: string; author_name: string | null; status: string;
   price: string; currency: string; rows: number; topic_path: string;
   requires: { id: string; name: string }[];

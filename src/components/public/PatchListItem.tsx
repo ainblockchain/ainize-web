@@ -297,7 +297,7 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
               "Re-verification requested", and the two together would read as a bug. `sellable` is undefined on a node
               running an older build, which keeps the old behaviour there. */}
           {entry.quorum_ok && entry.sellable !== false && <Certified label={term('verified')} />}
-          <StatusChip status={entry.status} supersededBy={entry.superseded_by[0]} />
+          <StatusChip bodyAvailable={entry.body_available} status={entry.status} supersededBy={entry.superseded_by[0]} />
         </NameRow>
         <Ident>{author} / {a.id}</Ident>
         {taught && (

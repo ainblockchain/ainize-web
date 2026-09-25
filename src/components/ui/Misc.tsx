@@ -84,8 +84,9 @@ const Dot = styled.span<{ $color: string; $pulse?: boolean }>`
 `;
 
 /** `supersededBy` names the successor in the chip itself ("Newer version: krx-all-2761") instead of the bare "Newer version available". */
-export function StatusChip({ status, title, supersededBy }: { status: string; title?: string; supersededBy?: string }) {
+export function StatusChip({ status, title, supersededBy, bodyAvailable }: { status: string; title?: string; supersededBy?: string; bodyAvailable?: boolean | null }) {
   const { t, help } = useT();
+  if (bodyAvailable === false) return <Chip $color="#8a4b00" $bg="#fff4e5" title={t('status.UNAVAILABLE_help')}>{t('status.UNAVAILABLE')}</Chip>;
   const m = STATUS_META[status] ?? { label: status, color: '#8d8d8f', bg: '#f2f2f2', hint: '' };
   const label = status === 'SUPERSEDED' && supersededBy
     ? t('status.SUPERSEDED_by', { id: supersededBy })
