@@ -146,6 +146,9 @@ export function Header() {
                 {google && <MenuInfo title={google.email} data-testid="menu-google">{google.email}</MenuInfo>}
                 {/* Which node you are looking at, said separately, because it is a different fact. */}
                 <MenuInfo title={address ?? ''}>{name ?? ''} · {shortAddr(address, 6)}</MenuInfo>
+                {/* First, and gated on nothing but being signed in. Every other item here is an operator screen,
+                    so somebody who merely has an account used to open this menu and find nothing of their own. */}
+                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/me'); }}>{t('me.title')}</MenuItem>
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>}
                 {/* /account and /drive are the node runner's screens too — they read this node's wallet, its
                     payout settings and its files. Every menu item that is not offered here is a route that would
