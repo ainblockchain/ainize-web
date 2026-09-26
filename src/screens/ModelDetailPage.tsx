@@ -14,12 +14,13 @@
  * not serve this id, the node is older than the model routes, or the node is not answering at all.
  */
 import { useMemo } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useAgentsByModelQuery, useModelDetailQuery, useModelsQuery, useThroughputQuoteQuery } from '@/api/api';
+import { errorMessage, useAgentsByModelQuery, useModelDetailQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery } from '@/api/api';
+import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse, pickNetworkModelProvider } from '@/api/networkModels';
 import { parseBillingThroughputResponse } from '@/api/billingThroughput';
 import { agentsBuiltOnModel } from '@/api/hostedAgents';
-import { modelDetailViewState } from '@/api/models';
+import { modelDetailViewState, parseModelsResponse } from '@/api/models';
 import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
 import { Button } from '@/components/ui/Button';
@@ -57,6 +58,16 @@ const ModelDetailSpeedLink = styled(StyledLink)<{ $busy: boolean }>`
   color: ${(p) => (p.$busy ? p.theme.color.PRIMARY : p.theme.color.GREY)};
 `;
 const ModelDetailAgents = styled.div`margin-top: 12px;`;
+const ModelDetailProviders = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 4px;
+  span { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: ${(p) => p.theme.color.GREY}; margin-right: 4px; }
+`;
+const ModelDetailProvider = styled(Link)<{ $selected: boolean }>`
+  font-size: 13px; padding: 4px 12px; border-radius: 999px; text-decoration: none;
+  border: 1px solid ${(p) => (p.$selected ? p.theme.color.PRIMARY : '#e2e4ea')};
+  background: ${(p) => (p.$selected ? p.theme.color.PALE_GREY : '#fff')};
+  color: ${(p) => (p.$selected ? p.theme.color.PRIMARY : p.theme.color.BLACK)};
+`;
 
 export default function ModelDetailPage() {
   const { t } = useT();
@@ -70,11 +81,26 @@ export default function ModelDetailPage() {
   // second, so it is re-read; 15 s is often enough to see a queue form without polling a page nobody watches.
   const throughputQuery = useThroughputQuoteQuery({ model: id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN }, { skip: !id, pollingInterval: 15_000 });
   const list = useModelsQuery();
-  const view = modelDetailViewState({
+  const ownView = modelDetailViewState({
     id,
     detail: detail.data, detailError: detail.error as never, detailLoading: detail.isLoading,
     list: list.data, listError: list.error as never, listLoading: list.isLoading,
   });
+  // The model as the network has it: which nodes serve this id, and which one this page drives (`?node=`).
+  const [params] = useSearchParams();
+  const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000 });
+  const netModel = useMemo(
+    () => networkModelCatalogue(parseModelsResponse(list.data), parseNetworkModelsResponse(network.data)).find((m) => m.id === id) ?? null,
+    [list.data, network.data, id],
+  );
+  const provider = netModel ? pickNetworkModelProvider(netModel, params.get('node')) : null;
+  const onPeer = !!provider && !provider.local;
+  // Served only by another node: the page still exists, it just describes that node's model.
+  const view = ownView.kind === 'ok' || ownView.kind === 'loading'
+    ? (ownView.kind === 'loading' && netModel ? { kind: 'ok' as const, model: { id, modality: netModel.modality, available: provider?.available ?? true, agents: null } } : ownView)
+    : netModel && provider
+      ? { kind: 'ok' as const, model: { id, modality: netModel.modality, available: provider.available, agents: null } }
+      : network.isLoading ? { kind: 'loading' as const } : ownView;
   const served = view.kind === 'ok';
   const agentsQuery = useAgentsByModelQuery(id, { skip: !served, pollingInterval: 60_000 });
   const agents = useMemo(() => agentsBuiltOnModel(agentsQuery.data?.agents, id), [agentsQuery.data, id]);
@@ -131,7 +157,8 @@ export default function ModelDetailPage() {
         </div>
         {/* Speed is a fact about the model, so it sits with the other facts — and says whether it is busy, which is
             the only time a deposit changes anything. An older node without /api/throughput shows no cell. */}
-        {isChat && speed && (
+        {/* Speed is this node's; a peer's is its own and not reported here. */}
+        {isChat && speed && !onPeer && (
           <div data-testid="model-speed">
             <dt>{t('billing.fact.title')}</dt>
             <dd>
@@ -147,7 +174,27 @@ export default function ModelDetailPage() {
         )}
       </ModelDetailFacts>
 
-      {isChat && (
+      {/* Who serves it. The same id on two nodes is two models — a different context window, a different queue —
+          so the page names the one it drives and lets the reader switch. */}
+      {netModel && netModel.providers.some((p) => p.node.address) && (
+        <ModelDetailProviders data-testid="model-providers">
+          <span>{t('modelDetail.providers')}</span>
+          {netModel.providers.map((p) => (
+            <ModelDetailProvider
+              key={p.node.address}
+              to={`/models/${encodeURIComponent(id)}?node=${p.node.address}`}
+              $selected={p === provider}
+              title={p.node.address}
+              data-testid={`model-provider-${p.node.address}`}
+            >
+              {networkProviderLabel(p)}{p.local ? ` · ${t('modelDetail.provider_here')}` : ''}
+            </ModelDetailProvider>
+          ))}
+        </ModelDetailProviders>
+      )}
+
+      {/* An agent is built on a model its node runs itself, so only this node's own model offers it. */}
+      {isChat && !onPeer && (
         <ModelDetailCreateRow>
           <Button variant="contained" size="large" data-testid="model-create-agent" onClick={startCreate}>
             {t('modelDetail.create')}
@@ -156,8 +203,15 @@ export default function ModelDetailPage() {
         </ModelDetailCreateRow>
       )}
 
-      <ModelPlaygroundPanel key={model.id} model={model} signInNext={here} />
+      <ModelPlaygroundPanel
+        key={`${model.id}:${provider?.ref ?? ''}`}
+        model={model}
+        signInNext={onPeer && provider ? `${here}?node=${provider.node.address}` : here}
+        callModel={onPeer && provider ? provider.ref : model.id}
+        peer={onPeer}
+      />
 
+      {!onPeer && <>
       <SubTitle>{t('modelDetail.agents.title')}</SubTitle>
       <Description>{t('modelDetail.agents.lede')}</Description>
       <ModelDetailAgents data-testid="model-agents">
@@ -171,6 +225,7 @@ export default function ModelDetailPage() {
         )}
         {agents.map((a) => <AgentListItem key={a.id} agent={a} />)}
       </ModelDetailAgents>
+      </>}
     </PageWrapper>
   );
 }

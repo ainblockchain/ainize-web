@@ -55,7 +55,12 @@ type RunState =
  * `signInNext` is where the sign-in link returns to — the page this panel sits on, so signing in for a key does
  * not drop the reader back on a different model.
  */
-export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModelCard; signInNext: string }) {
+/**
+ * `callModel` is what the calls and the snippet name: the bare id for this node's own model, `id@0x<node>` for a
+ * peer's (api/networkModels.ts). `peer` turns off what is this node's alone — its speed and its deposits.
+ */
+export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = false }: { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean }) {
+  const modelRef = callModel ?? model.id;
   const { t } = useT();
   const [prompt, setPrompt] = useState('');
   const [audio, setAudio] = useState<File | null>(null);
@@ -79,7 +84,8 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
 
   // The model's speed and whether it is busy — read faster while a request of ours is waiting, since that is when
   // "paid work is ahead of you" is worth saying. Chat only: a deposit buys the language model's queue.
-  const isChat = model.modality === 'chat';
+  // A peer's speed and deposits are its own, not this node's: nothing here can quote them.
+  const isChat = model.modality === 'chat' && !peer;
   const throughputQuery = useThroughputQuoteQuery(
     { model: model.id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN },
     { skip: !isChat, pollingInterval: run.kind === 'running' ? 2_000 : 15_000 },
@@ -89,14 +95,14 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
   const offer = modelSpeedPriorityOfferOf(throughput);
 
   const snippet = useMemo(() => modelsPageCodeSnippet({
-    language, modality: model.modality, model: model.id, nodeUrl: nodeUrlFromBrowser(), prompt,
+    language, modality: model.modality, model: modelRef, nodeUrl: nodeUrlFromBrowser(), prompt,
     apiKey: issuedKey ?? undefined,
   }), [language, model, prompt, issuedKey]);
 
   async function press() {
     setRun({ kind: 'running' });
     try {
-      const res = await callFreeTier(model, prompt, audio);
+      const res = await callFreeTier(model, modelRef, peer, prompt, audio);
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
         setRun({ kind: 'failed', why: body?.error?.code === 'backend_unavailable' ? t('models.try.unavailable') : (body?.error?.message ?? String(res.status)) });
@@ -251,17 +257,24 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
 }
 
 /** The free-tier route for this modality. Not `/v1`: that needs a key, and this page has no visitor to sign in. */
-function callFreeTier(model: PublicModelCard, prompt: string, audio: File | null): Promise<Response> {
+function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, prompt: string, audio: File | null): Promise<Response> {
   if (model.modality === 'transcription') {
     const form = new FormData();
-    form.set('model', model.id);
+    form.set('model', modelRef);
     if (audio) form.set('file', audio);
     return fetch('/api/transcribe', { method: 'POST', body: form, credentials: 'include' });
   }
   if (model.modality === 'image') {
     return fetch('/api/image', {
       method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: model.id, prompt, size: '512x512' }),
+      body: JSON.stringify({ model: modelRef, prompt, size: '512x512' }),
+    });
+  }
+  // Another node's chat model has no runtime here — only its completion, through the node's peer door.
+  if (peer) {
+    return fetch('/api/peer-chat', {
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: modelRef, messages: [{ role: 'user', content: prompt }] }),
     });
   }
   return fetch('/api/chat', {
@@ -276,5 +289,7 @@ function answerText(modality: ModelModality, body: Record<string, unknown>): str
   const base = (body.base ?? null) as { content?: string } | null;
   if (base?.content) return base.content;
   const choices = body.choices as { message?: { content?: string } }[] | undefined;
-  return choices?.[0]?.message?.content ?? JSON.stringify(body, null, 2);
+  // Another node's model arrives raw — Qwen3 leaves blank lines ahead of the answer, which read as a gap.
+  const content = choices?.[0]?.message?.content;
+  return typeof content === 'string' ? content.trim() : JSON.stringify(body, null, 2);
 }

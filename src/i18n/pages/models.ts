@@ -2,6 +2,9 @@
 import type { Dict } from '../index';
 
 export const models: Dict = {
+  'models.served_by': { ko: '제공 노드: {nodes}', en: 'Served by {nodes}' },
+  'modelDetail.providers': { ko: '제공 노드', en: 'Served by' },
+  'modelDetail.provider_here': { ko: '이 노드', en: 'this node' },
   'models.title': { ko: '모델', en: 'Models' },
   'models.lede': {
     ko: '이 노드가 LLM API로 서빙하는 모델입니다. 아래에서 바로 눌러볼 수 있고 — 키도 예치도 필요 없습니다 — 같은 호출을 코드로 복사해 갈 수 있습니다.',
