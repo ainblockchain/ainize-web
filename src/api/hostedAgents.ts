@@ -104,6 +104,16 @@ export interface HostedAgentSpecInput {
   allowedHosts: string[];
   secretNames: string[];
   skills?: { id: string; name: string; description?: string; examples?: string[] }[];
+  /** The node's speech and image models, per agent. A node older than this ignores the field. */
+  media?: HostedAgentMedia;
+}
+
+/** Speech in (voice notes are transcribed) and pictures out (a `generate_image` tool) — each off unless turned on. */
+export interface HostedAgentMedia { transcription: boolean; image: boolean }
+
+/** Which media this node can offer at all: a medium needs a model of that modality in `/api/models`. */
+export function hostedAgentMediaServed(cards: PublicModelCard[]): HostedAgentMedia {
+  return { transcription: cards.some((c) => c.modality === 'transcription'), image: cards.some((c) => c.modality === 'image') };
 }
 
 /**
@@ -177,6 +187,8 @@ export interface HostedAgentFormDraft {
   code: string;
   packageJson: string;
   a2ui: boolean;
+  mediaTranscription: boolean;
+  mediaImage: boolean;
   allowedHostsText: string;
   secrets: HostedAgentSecretDraft[];
 }
@@ -236,6 +248,8 @@ export function hostedAgentSpecInputFromDraft(draft: HostedAgentFormDraft): Host
     a2ui: draft.a2ui,
     allowedHosts: hostedAgentAllowedHostsFromText(draft.allowedHostsText),
     secretNames: draft.secrets.map((s) => s.name.trim()).filter(Boolean),
+    // Always sent: the node replaces the whole spec on PUT, so leaving it out would turn both off on every save.
+    media: { transcription: draft.mediaTranscription, image: draft.mediaImage },
   };
 }
 
@@ -294,6 +308,10 @@ export function parseHostedAgentSpecResponse(raw: unknown): HostedAgentSpecView 
     mode,
     files,
     a2ui: inner.a2ui === true,
+    media: {
+      transcription: (inner.media as { transcription?: unknown } | undefined)?.transcription === true,
+      image: (inner.media as { image?: unknown } | undefined)?.image === true,
+    },
     allowedHosts: strList(inner.allowedHosts),
     secretNames: strList(inner.secretNames),
     owner: typeof inner.owner === 'string' ? inner.owner.toLowerCase() : null,
@@ -315,6 +333,8 @@ export function hostedAgentDraftFromSpec(spec: HostedAgentSpecView): HostedAgent
     code: spec.files[HOSTED_AGENT_ENTRY_FILE] ?? '',
     packageJson: spec.files['package.json'] ?? '',
     a2ui: spec.a2ui,
+    mediaTranscription: spec.media?.transcription === true,
+    mediaImage: spec.media?.image === true,
     allowedHostsText: spec.allowedHosts.join('\n'),
     secrets: spec.secrets.map((s) => ({ name: s.name, value: '', set: s.set })),
   };

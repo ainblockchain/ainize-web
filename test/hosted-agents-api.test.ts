@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   agentSummaryHostedFieldsOf, agentsBuiltOnModel, chatModelsForHostedAgent, hostedAgentAllowedHostsFromText, hostedAgentApiErrorOf,
-  hostedAgentDraftFromSpec, hostedAgentFormProblems, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
+  hostedAgentDraftFromSpec, hostedAgentFormProblems, hostedAgentMediaServed, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
   isHostedAgentIdValid, isHostedAgentOwnedBy, parseHostedAgentLogsResponse, parseHostedAgentSpecResponse, type HostedAgentFormDraft,
 } from '../src/api/hostedAgents';
 import { modelDetailViewState, parseModelDetailResponse } from '../src/api/models';
@@ -26,7 +26,7 @@ const row = (extra: Record<string, unknown>): AgentSummary => ({
 
 const draft = (over: Partial<HostedAgentFormDraft> = {}): HostedAgentFormDraft => ({
   id: 'score-bot', name: 'Score bot', description: '', model: 'qwen', systemPrompt: 'Score things.', mode: 'prompt',
-  code: '', packageJson: '', a2ui: false, allowedHostsText: '', secrets: [], ...over,
+  code: '', packageJson: '', a2ui: false, mediaTranscription: false, mediaImage: false, allowedHostsText: '', secrets: [], ...over,
 });
 
 // ── agent rows
@@ -117,7 +117,7 @@ test('the body carries files only for code modes, and secret names but never val
   assert.deepEqual(code.allowedHosts, ['a.com', 'b.com']);
   assert.deepEqual(code.secretNames, ['API_KEY']);
   assert.ok(!JSON.stringify(code).includes('shh'), 'a secret value never travels in the spec');
-  assert.deepEqual(Object.keys(code).sort(), ['a2ui', 'allowedHosts', 'description', 'files', 'id', 'mode', 'model', 'name', 'secretNames', 'systemPrompt']);
+  assert.deepEqual(Object.keys(code).sort(), ['a2ui', 'allowedHosts', 'description', 'files', 'id', 'media', 'mode', 'model', 'name', 'secretNames', 'systemPrompt']);
 });
 
 test('only secrets with a typed value are sent afterwards — empty means keep', () => {
@@ -141,6 +141,15 @@ test('a stored spec round-trips into the form and back', () => {
   assert.deepEqual(back.files, { 'index.mjs': 'code', 'package.json': '{}' }, 'the non-string file is not carried back');
   assert.deepEqual(back.secretNames, ['API_KEY', 'OTHER']);
   assert.equal(back.a2ui, true);
+  assert.deepEqual(back.media, { transcription: false, image: false }, 'a spec from a node without media reads as all off');
+});
+
+test('media round-trips, and is always sent so a save never quietly turns it off', () => {
+  const spec = parseHostedAgentSpecResponse({ id: 'aindrive-cloud', mode: 'prompt', model: 'qwen', media: { transcription: true, image: 'yes' } })!;
+  assert.deepEqual(spec.media, { transcription: true, image: false }, 'only a real true is on');
+  const back = hostedAgentSpecInputFromDraft({ ...hostedAgentDraftFromSpec(spec), mediaImage: true });
+  assert.deepEqual(back.media, { transcription: true, image: true });
+  assert.deepEqual(hostedAgentMediaServed([{ id: 'q', modality: 'chat', available: true }, { id: 'asr', modality: 'transcription', available: true }]), { transcription: true, image: false });
 });
 
 test('a create answer wraps the spec as { agent }', () => {

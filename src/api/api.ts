@@ -117,6 +117,8 @@ export const api = createApi({
     throughputDepositStatus: b.query<unknown, string>({
       query: (txHash) => `api/throughput/deposits/${encodeURIComponent(txHash)}`,
     }),
+    // Every model the node can reach, its own and its peers' (ainize-node peer-models.ts). An older node answers 404.
+    networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
     apiKeys: b.query<{ keys: { prefix: string; issuedAt: number; label: string | null }[] }, void>({
       query: () => 'api/keys', providesTags: ['ApiKeys'],
@@ -438,7 +440,7 @@ export const api = createApi({
 });
 
 export const {
-  useInfoQuery, useModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
+  useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,

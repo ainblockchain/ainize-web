@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 64 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 63 codes a client can match on.
 
 ## The error envelope
 
@@ -36,7 +36,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-64 codes are raised by name, in 123 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+63 codes are raised by name, in 122 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -135,7 +135,6 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `published_immutable` | `409` | published knowledge cannot be deleted | `src/teach.ts` |
 | `quota_bytes` | `429` | you have uploaded as much as this node accepts from one teaching key today | `src/teach-datasets.ts` |
 | `quota_chat` | `429` | free live-test quota exhausted for this hour (this pre-flight needs \<units> unit(s)) — try again later | `src/api.ts` |
-| `quota_chat_network` | `429` | this network has used all … free live tests for this hour — everyone sharing this address shares them | `src/api.ts` |
 | `quota_dataset` | `429` | \<c.perKeyPerDay> new datasets per day for one teaching key | `src/teach-datasets.ts` |
 | `quota_dataset` | `429` | this node keeps \<c.keptPerKey> datasets for one teaching key — delete one first | `src/teach-datasets.ts` |
 | `quota_ip` | `429` | daily lesson limit (\<c.jobsPerIpPerDay>) reached for this address — resets … | `src/teach.ts` |
@@ -166,14 +165,17 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 65 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 68 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 27 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 26 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
 | `null` | … (retrying for … more min before hash-only fallback) | `src/verifier.ts` |
+| `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
+| `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts` |
+| `null` | this node runs its maximum of \<this.limits.total> agents | `src/hosted-agent-store.ts` |
 | `400` | \<address> is listed in operatorAddresses in this node's config file — remove it there, on the machine this node runs on (`ainize operators remove <address>`), and restart | `src/api.ts` |
 | `400` | \<label> must be a non-negative number (e.g. "0", "0.1", "25") | `../ainize-core/src/catalog.ts` |
 | `400` | a dispute has to say what did not work — at least \<DISPUTE_MIN_REASON> characters (this is a permanent public record, and the seller answers it on the same record) | `src/market.ts` |

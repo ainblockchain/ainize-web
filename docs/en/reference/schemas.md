@@ -304,8 +304,8 @@ Where one live test is in the queue behind the shared serving model.
 | `applied` | [`ChatApplied`](#chatapplied)[] |   |   |
 | `benchmark_hits` | `object` |   | per knowledge: true/false when the question is one of its benchmark samples, else null |
 | `model` | `string` \| `null` |   |   |
-| `remaining_quota` | `integer` \| `null` |   |   |
-| `quota_limit` | `integer` \| `null` |   |   |
+| `remaining_quota` | `integer` \| `null` |   | Always null: free model access is no longer metered by a request count. Kept so existing clients still find the field. |
+| `quota_limit` | `integer` \| `null` |   | Always null; see remaining_quota. |
 | `history` | `object` |   | how many messages each column was sent, and whether the two conversations differed |
 | `history.base` | `integer` |   |   |
 | `history.patched` | `integer` |   |   |

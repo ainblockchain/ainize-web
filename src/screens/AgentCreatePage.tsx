@@ -23,10 +23,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  useCreateHostedAgentMutation, useHostedAgentQuery, useModelsQuery, useSetHostedAgentSecretMutation, useUpdateHostedAgentMutation,
+  useCreateHostedAgentMutation, useHostedAgentQuery, useModelsQuery, useNetworkModelsQuery, useSetHostedAgentSecretMutation, useUpdateHostedAgentMutation,
 } from '@/api/api';
 import {
-  chatModelsForHostedAgent, HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
+  chatModelsForHostedAgent, hostedAgentMediaServed, HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
   hostedAgentFormProblems, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
   isHostedAgentCodeMode, parseHostedAgentSpecResponse,
   type HostedAgentApiError, type HostedAgentFormDraft, type HostedAgentFormProblem, type HostedAgentMode,
@@ -75,7 +75,7 @@ const AgentCreateActions = styled.div`display: flex; gap: 12px; align-items: cen
 
 const emptyHostedAgentDraft = (model: string): HostedAgentFormDraft => ({
   id: '', name: '', description: '', model, systemPrompt: '', mode: 'prompt', code: '', packageJson: '',
-  a2ui: false, allowedHostsText: '', secrets: [],
+  a2ui: false, mediaTranscription: false, mediaImage: false, allowedHostsText: '', secrets: [],
 });
 
 export default function AgentCreatePage() {
@@ -93,6 +93,12 @@ export default function AgentCreatePage() {
   const modelOptions = useMemo(
     () => chatModelsForHostedAgent(parseModelsResponse(modelsQuery.data), prefilledModel || null),
     [modelsQuery.data, prefilledModel],
+  );
+  // Speech and pictures may come from a peer node, so the switches follow the network's models, not only this node's.
+  const networkModelsQuery = useNetworkModelsQuery();
+  const mediaServed = useMemo(
+    () => hostedAgentMediaServed([...parseModelsResponse(modelsQuery.data), ...parseModelsResponse(networkModelsQuery.data)]),
+    [modelsQuery.data, networkModelsQuery.data],
   );
 
   const stored = useHostedAgentQuery(editId ?? '', { skip: !editing || !auth.subject });
@@ -326,6 +332,19 @@ export default function AgentCreatePage() {
             label={t('agentCreate.field.a2ui')} checked={draft.a2ui} data-testid="agent-create-a2ui"
             onChange={(e) => set('a2ui', e.target.checked)}
           />
+          {/* Offered only where the node serves the model — the node refuses the switch otherwise. One already on
+              stays switchable off even if the model went away, so an agent is never stuck with a promise it cannot keep. */}
+          <Checkbox
+            label={t('agentCreate.field.media_transcription')} checked={draft.mediaTranscription} data-testid="agent-create-media-transcription"
+            disabled={!mediaServed.transcription && !draft.mediaTranscription}
+            onChange={(e) => set('mediaTranscription', e.target.checked)}
+          />
+          <Checkbox
+            label={t('agentCreate.field.media_image')} checked={draft.mediaImage} data-testid="agent-create-media-image"
+            disabled={!mediaServed.image && !draft.mediaImage}
+            onChange={(e) => set('mediaImage', e.target.checked)}
+          />
+          {(!mediaServed.transcription || !mediaServed.image) && <HelperText>{t('agentCreate.field.media_unavailable')}</HelperText>}
         </AgentCreateSection>
 
         <AgentCreateSection>

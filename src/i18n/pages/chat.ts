@@ -169,7 +169,7 @@ export const chat: Dict = {
   'chat.quota.resets_hour': { ko: '무료 체험은 한 시간 뒤 다시 채워집니다', en: 'Free tries come back within the hour' },
   'chat.quota.buy': { ko: '이 지식 구매하기', en: 'Buy this knowledge' },
   'chat.quota.resets_at': { ko: '무료 체험은 {time}에 다시 채워집니다', en: 'Free tries reset at {time}' },
-  'chat.quota.visitor': { ko: '무료 체험은 시간당 횟수가 제한됩니다. 로그인 없이 바로 써 볼 수 있습니다.', en: 'Free tries are limited per hour. No sign-in needed.' },
+  'chat.quota.visitor': { ko: '로그인 없이 바로 써 볼 수 있습니다. 횟수 제한은 없고, 유료 호출이 함께 들어오면 그 뒤로 순서가 밀립니다.', en: 'Try it without signing in. There is no request limit — when paid calls are also waiting, yours go after them.' },
   'chat.quota.operator': { ko: '이 노드의 운영자로 로그인되어 있어 횟수 제한 없이 테스트할 수 있습니다.', en: 'You are signed in as this node’s operator — unlimited tests.' },
 
   // controls
