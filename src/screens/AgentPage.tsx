@@ -261,7 +261,7 @@ export function AgentPage() {
       setImages(pictures);
       const text = (parts as { text?: string }[]).map((p) => p?.text ?? '').join('\n').trim();
       // §2 — an empty parts array is a deliberate answer, not a missing one; a picture alone is an answer too
-      setResult(text || (pictures.length ? null : '(silence — the agent heard this and chose not to reply, which is how it stays quiet in a busy channel)'));
+      setResult(text || (pictures.length ? null : t('agentPage.live.silence')));
     };
 
     try {
@@ -317,7 +317,7 @@ export function AgentPage() {
           }
         }
       }
-      if (!answered) setFailed((f) => f ?? 'the stream ended before the agent answered');
+      if (!answered) setFailed((f) => f ?? t('agentPage.live.stream_ended'));
     } catch (e) {
       setFailed(errorMessage(e));
     } finally {
@@ -425,16 +425,10 @@ export function AgentPage() {
       )}
 
       <Panel>
-        <h3 style={{ margin: 0 }}>Live test</h3>
+        <h3 style={{ margin: 0 }}>{t('agentPage.live.title')}</h3>
         <Description>
-          Posts the same JSON-RPC a workspace would, to <Mono>{agent.a2a_url}</Mono>.
-          {agent.node && (
-            <>
-              {' '}This agent runs on <b>{agent.node.name}</b>, so the request goes through this node
-              rather than from your browser — a page on this origin cannot open a connection to another
-              operator&rsquo;s network, and should not ask you to.
-            </>
-          )}
+          {t('agentPage.live.posts')} <Mono>{agent.a2a_url}</Mono>
+          {agent.node && <>{' '}{t('agentPage.live.via_node', { node: agent.node.name })}</>}
         </Description>
         {/**
           * The agent's own form, when it sent one.
@@ -445,7 +439,7 @@ export function AgentPage() {
           */}
         {form && (
           <Rendered>
-            <RenderedLabel>the agent&rsquo;s own form (A2UI)</RenderedLabel>
+            <RenderedLabel>{t('agentPage.live.own_form')}</RenderedLabel>
             <A2UISurface
               surface={form}
               busy={busy}
@@ -470,7 +464,7 @@ export function AgentPage() {
         {!form && (
           <Row style={{ display: 'block' }}>
             <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
-              placeholder={samples[0] ? `e.g. ${samples[0].text}` : 'Send this agent a message.'} />
+              placeholder={samples[0] ? t('agentPage.live.example', { text: samples[0].text }) : t('agentPage.live.placeholder')} />
             {/* Only for an agent whose card says it hears audio. Sent inline, so it is capped by what one A2A
                 request may carry — longer recordings go through a workspace that sends links (aindrive). */}
             {takesAudio && (
@@ -499,12 +493,12 @@ export function AgentPage() {
         <Row>
           {!form && (
             <Button onClick={() => run()} disabled={busy || (!article.trim() && !audio) || agent.reachable === false}>
-              {busy ? `Sending… ${elapsed}s` : 'Send'}
+              {busy ? t('agentPage.live.sending', { s: elapsed }) : t('agentPage.live.send')}
             </Button>
           )}
-          {form && busy && <Small>보내는 중… {elapsed}s</Small>}
-          {busy && <Small>the agent decides how long this takes — some do real work before answering</Small>}
-          {agent.reachable === false && <Small>the agent is not answering, so there is nothing to send to</Small>}
+          {form && busy && <Small>{t('agentPage.live.sending', { s: elapsed })}</Small>}
+          {busy && <Small>{t('agentPage.live.slow')}</Small>}
+          {agent.reachable === false && <Small>{t('agentPage.live.unreachable')}</Small>}
         </Row>
         {/**
           * What the agent said it was doing, while it was doing it.
@@ -542,7 +536,7 @@ export function AgentPage() {
         )}
         {result && (
           surface
-            ? <Raw><summary>원문 텍스트</summary><Out>{result}</Out></Raw>
+            ? <Raw><summary>{t('agentPage.live.raw')}</summary><Out>{result}</Out></Raw>
             : <Out>{result}</Out>
         )}
       </Panel>
