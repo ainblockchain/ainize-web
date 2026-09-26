@@ -20,6 +20,11 @@ const NetworkPage = lazy(() => import('./screens/NetworkPage'));
 const ModelsPage = lazy(() => import('./screens/ModelsPage'));
 const MyPage = lazy(() => import('./screens/MyPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
+// Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
+const ModelDetailPage = lazy(() => import('./screens/ModelDetailPage'));
+const AgentCreatePage = lazy(() => import('./screens/AgentCreatePage'));
+// Throughput billing (ainize-node throughput-billing design): now N tok/s → deposit X → M tok/s, and the deposit.
+const BillingPage = lazy(() => import('./screens/BillingPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
 const TermsPage = lazy(() => import('./screens/TermsPage'));
 const NotFoundPage = lazy(() => import('./screens/NotFoundPage'));
@@ -65,10 +70,18 @@ export default function App() {
                 {/* Public pages (Layout) */}
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
                 <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
+                <Route path="/models/:id" element={<Layout><ModelDetailPage /></Layout>} />
+                {/* `?model=` preselects; linked from the model page and from the free tier's "tries used up" */}
+                <Route path="/billing" element={<Layout><BillingPage /></Layout>} />
                 <Route path="/network" element={<Layout><NetworkPage /></Layout>} />
                 {/* A2A agents this node operates, and the live test for one (NEWS-AGENT-REQUIREMENTS §6) */}
                 {/* One agent. `/agent/<id>` singular, because `/agents/<id>` is the agent's own A2A address
                     (app/agents/[...path]/route.ts) and a page there would shadow the endpoint. */}
+                {/* `/agent/new` beside `/agent/:id`: React Router ranks a static segment above a dynamic one, so the
+                    form wins. An agent whose id were `new` would therefore have no page — the form refuses that id
+                    (`HOSTED_AGENT_RESERVED_IDS`). The form checks sign-in itself so it can send you back here after. */}
+                <Route path="/agent/new" element={<Layout><AgentCreatePage /></Layout>} />
+                <Route path="/agent/:id/edit" element={<Layout><AgentCreatePage /></Layout>} />
                 <Route path="/agent/:id" element={<Layout><AgentPage /></Layout>} />
                 {/* The list lives in one place. /agents used to be a second one, and clicking an item on the
                     marketplace landed the reader back on a grid of every agent. */}

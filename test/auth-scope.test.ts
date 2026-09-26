@@ -43,7 +43,10 @@ test('nothing private is shown to a wallet that merely connected', () => {
   assert.ok(has('screens/NetworkPage.tsx', '{isOwner && (<>'), 'runtime api/repo');
   assert.ok(has('screens/PatchPage.tsx', '{!(isOwner && data.owned) && ('), 'buy vs manage');
   assert.ok(has('screens/ChatPage.tsx', 'const outOfTries = exhausted && !isOwner;'), 'free-try quota');
-  assert.ok(has('screens/ChatPage.tsx', 'const quotaText = isOwner || quota === null'), 'the counter a visitor reads');
+  // `|| quota === null` used to be part of this line. The node no longer counts free requests, so null is what a
+  // VISITOR gets too, and the operator's "unlimited tests" line was shown to all of them.
+  assert.ok(has('screens/ChatPage.tsx', 'const quotaText = isOwner'), 'the counter a visitor reads');
+  assert.ok(!has('screens/ChatPage.tsx', "isOwner || quota === null"), 'a null counter is not proof of ownership');
 });
 
 test('the header offers no link that lands on "this node is not yours"', () => {

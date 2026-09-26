@@ -18,6 +18,10 @@
  *  - **It takes as long as it takes.** An agent may do real work before answering, so the elapsed time is
  *    shown while it runs; a spinner with no number reads as a hang at about eight seconds. What the work IS
  *    belongs to the agent: the examples and the skills come off its card, never off this page.
+ *
+ * A hosted agent (one the node runs from a spec, built on a model page) carries four more fields on its row:
+ * `model` becomes a link back to `/models/<model>`, `kind` and `status` become chips, and when `owner` is the
+ * signed-in address the owner's panel (`agent/HostedAgentOwnerPanel.tsx`) offers edit, delete and the logs.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -30,7 +34,12 @@ import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, Ti
 import type { AgentSummary } from '@/api/types';
 import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
 import { readFrame, takeFrames } from '@/lib/a2a-stream';
+import { A2A_INLINE_AUDIO_MAX_BYTES, a2aAudioPart, a2aCardTakesAudio, a2aImagesOf, type A2aImage } from '@/lib/a2aFileParts';
 import { useTitle } from '@/utils/useTitle';
+import { agentSummaryHostedFieldsOf, isHostedAgentOwnedBy } from '@/api/hostedAgents';
+import { HostedAgentBadges } from '@/components/public/HostedAgentBadges';
+import { useT } from '@/i18n';
+import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
 const Card = styled.div<{ $selected?: boolean }>`
@@ -48,6 +57,10 @@ const UrlRow = styled.div`
   code { flex: 1; font-size: 12px; overflow-wrap: anywhere; background: #f6f6f7; padding: 6px 8px; border-radius: 4px; }
 `;
 const Small = styled.div`font-size: 12px; color: ${(p) => p.theme.color.GREY}; margin-top: 6px;`;
+const AgentPageImages = styled.div`
+  display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px;
+  img { max-width: min(100%, 512px); border-radius: 8px; border: 1px solid #e5e5e8; }
+`;
 const Back = styled(Link)`
   display: inline-block; margin: -8px 0 16px; font-size: 13px; color: ${(p) => p.theme.color.GREY};
   text-decoration: none; &:hover { color: ${(p) => p.theme.color.PRIMARY}; text-decoration: underline; }
@@ -144,6 +157,10 @@ export function AgentPage() {
   const agents = useMemo(() => data?.agents ?? [], [data]);
   const agent = agents.find((a) => a.id === id) ?? null;
   useTitle(agent ? agent.name : 'Agent');
+  const { t } = useT();
+  const { subject } = useAuth();
+  const hosted = agentSummaryHostedFieldsOf(agent);
+  const ownsIt = isHostedAgentOwnedBy(hosted.owner, subject);
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
@@ -151,6 +168,12 @@ export function AgentPage() {
   const [elapsed, setElapsed] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const [surface, setSurface] = useState<A2UISurfaceData | null>(null);
+  /** Pictures the agent sent back as file parts (a hosted agent with image generation on). */
+  const [images, setImages] = useState<A2aImage[]>([]);
+  /** Whether the card takes audio, and the voice note picked to send with the next message. */
+  const [takesAudio, setTakesAudio] = useState(false);
+  const [audio, setAudio] = useState<{ name: string; mimeType: string; bytesBase64: string } | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
   /** What the agent said it was doing, in order, with the second it said it. */
   const [progress, setProgress] = useState<{ at: number; text: string }[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
@@ -167,9 +190,14 @@ export function AgentPage() {
     if (!agent) { setSkills([]); return; }
     let live = true;
     setSkills([]);
+    setTakesAudio(false);
     fetch(samePath(agent.card_url), { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((card: { skills?: CardSkill[] } | null) => { if (live && Array.isArray(card?.skills)) setSkills(card.skills); })
+      .then((card: { skills?: CardSkill[] } | null) => {
+        if (!live) return;
+        if (Array.isArray(card?.skills)) setSkills(card.skills);
+        setTakesAudio(a2aCardTakesAudio(card));
+      })
       .catch(() => {/* no examples is a fine outcome; the box still works */});
     return () => { live = false; };
   }, [agent]);
@@ -223,15 +251,17 @@ export function AgentPage() {
    */
   const run = async (message = article) => {
     if (!agent) return;
-    setBusy(true); setResult(null); setSurface(null); setFailed(null); setElapsed(0); setProgress([]);
+    setBusy(true); setResult(null); setSurface(null); setImages([]); setFailed(null); setElapsed(0); setProgress([]);
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
     const at = () => Math.round((Date.now() - started) / 1000);
     const finish = (parts: unknown[]) => {
       setSurface(readSurface(parts as never));
+      const pictures = a2aImagesOf(parts);
+      setImages(pictures);
       const text = (parts as { text?: string }[]).map((p) => p?.text ?? '').join('\n').trim();
-      // §2 — an empty parts array is a deliberate answer, not a missing one
-      setResult(text || '(silence — the agent heard this and chose not to reply, which is how it stays quiet in a busy channel)');
+      // §2 — an empty parts array is a deliberate answer, not a missing one; a picture alone is an answer too
+      setResult(text || (pictures.length ? null : '(silence — the agent heard this and chose not to reply, which is how it stays quiet in a busy channel)'));
     };
 
     try {
@@ -247,8 +277,11 @@ export function AgentPage() {
           id: crypto.randomUUID(),
           method: 'message/stream',
           params: {
-            message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text: message }] },
-            configuration: { acceptedOutputModes: ['text/plain'] },
+            message: {
+              kind: 'message', messageId: crypto.randomUUID(), role: 'user',
+              parts: [...(message.trim() ? [{ kind: 'text', text: message }] : []), ...(audio ? [a2aAudioPart(audio.bytesBase64, audio.name, audio.mimeType)] : [])],
+            },
+            configuration: { acceptedOutputModes: ['text/plain', 'image/png', 'image/jpeg'] },
           },
         }),
       });
@@ -318,6 +351,9 @@ export function AgentPage() {
       <TitleRow>
         <Title><Dot $state={state(agent)} />{agent.name}</Title>
       </TitleRow>
+      {(hosted.model || hosted.kind || hosted.status) && (
+        <Row style={{ marginTop: -12, marginBottom: 16 }} data-testid="agent-hosted-badges"><HostedAgentBadges agent={agent} /></Row>
+      )}
       <Back to="/explore?kind=agent">← {'All agents'}</Back>
 
       {error && <Alert $tone="error">{errorMessage(error)}</Alert>}
@@ -333,6 +369,12 @@ export function AgentPage() {
             {agent.reachable === null && <>not checked yet</>}
           </dd>
         </div>
+        {hosted.model && (
+          <div>
+            <dt>{t('hostedAgent.fact.model')}</dt>
+            <dd><Link to={`/models/${encodeURIComponent(hosted.model)}`} data-testid="agent-model-link">{hosted.model}</Link></dd>
+          </div>
+        )}
         <div>
           <dt>Runs on</dt>
           <dd>{agent.node ? agent.node.name : 'this node'}</dd>
@@ -363,6 +405,11 @@ export function AgentPage() {
         <ExternalLink href={samePath(agent.card_url)}>open the card</ExternalLink> · A2A sends no
         authentication, so whoever can reach the endpoint can call it
       </Small>
+
+      {hosted.status === 'building' && <Alert $tone="info" style={{ marginTop: 16 }}>{t('hostedAgent.status.building_help')}</Alert>}
+      {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
+
+      {ownsIt && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} />}
 
       {skills.length > 0 && (
         <>
@@ -424,11 +471,34 @@ export function AgentPage() {
           <Row style={{ display: 'block' }}>
             <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
               placeholder={samples[0] ? `e.g. ${samples[0].text}` : 'Send this agent a message.'} />
+            {/* Only for an agent whose card says it hears audio. Sent inline, so it is capped by what one A2A
+                request may carry — longer recordings go through a workspace that sends links (aindrive). */}
+            {takesAudio && (
+              <Small>
+                <label>
+                  {t('agentPage.audio.attach')}{' '}
+                  <input type="file" accept="audio/*" disabled={busy} data-testid="agent-audio-input"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      setAudioError(null); setAudio(null);
+                      if (!f) return;
+                      if (f.size > A2A_INLINE_AUDIO_MAX_BYTES) { setAudioError(t('agentPage.audio.too_large', { kb: Math.round(A2A_INLINE_AUDIO_MAX_BYTES / 1024) })); e.target.value = ''; return; }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const b64 = String(reader.result ?? '').split(',')[1] ?? '';
+                        setAudio({ name: f.name, mimeType: f.type || 'audio/webm', bytesBase64: b64 });
+                      };
+                      reader.readAsDataURL(f);
+                    }} />
+                </label>
+                {audioError && <span style={{ color: '#c62828', marginLeft: 8 }}>{audioError}</span>}
+              </Small>
+            )}
           </Row>
         )}
         <Row>
           {!form && (
-            <Button onClick={() => run()} disabled={busy || !article.trim() || agent.reachable === false}>
+            <Button onClick={() => run()} disabled={busy || (!article.trim() && !audio) || agent.reachable === false}>
               {busy ? `Sending… ${elapsed}s` : 'Send'}
             </Button>
           )}
@@ -465,6 +535,11 @@ export function AgentPage() {
           * it is the canonical copy and the one a reader copies out.
           */}
         {surface && <Rendered><A2UISurface surface={surface} /></Rendered>}
+        {images.length > 0 && (
+          <AgentPageImages data-testid="agent-images">
+            {images.map((img, i) => <img key={`${img.name}-${i}`} src={img.src} alt={img.name} />)}
+          </AgentPageImages>
+        )}
         {result && (
           surface
             ? <Raw><summary>원문 텍스트</summary><Out>{result}</Out></Raw>

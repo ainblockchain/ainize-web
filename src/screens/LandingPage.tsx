@@ -11,6 +11,7 @@ import { ScoreBar, Shimmer } from '@/components/ui/Misc';
 import { Offline } from '@/components/ui/Offline';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { useAuth } from '@/auth/AuthContext';
 import { num, shortAddr } from '@/utils/format';
 
 /* ---------------------------------------------------------------- hero (dark, original Ainize white logo) */
@@ -290,6 +291,13 @@ export default function LandingPage() {
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
   }, []);
   const infoQ = useInfoQuery();
+  /**
+   * Who is signed in, for the nav. The landing drew "Sign in" whatever the session said — and "/" is where a
+   * Google sign-in lands by default — so a person who had just signed in arrived on a page telling them to sign
+   * in, and read it as the sign-in not having held.
+   */
+  const auth = useAuth();
+  const signedInAs = auth.subject ? shortAddr(auth.subject, 6) : auth.google?.email ?? null;
   const info = infoQ.data;
   const { data: trending, isLoading, error: trendError, isFetching: trendFetching, refetch: refetchTrending } = useCatalogQuery({ status: 'VERIFIED', sort: 'popular', limit: 6 });
   /**
@@ -360,7 +368,9 @@ export default function LandingPage() {
                 visitor who never finds the page. */}
             {/* Finding 69: /docs was in every other page's header and in neither of the landing's chromes. */}
             <NavLink to="/docs" data-testid="landing-nav-docs">{t('nav.docs')}</NavLink>
-            <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>
+            {auth.isSignedIn && signedInAs
+              ? <NavMuted to={auth.subject ? '/my-nodes' : '/models'} data-testid="landing-nav-account" title={auth.subject ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>
+              : <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>}
           </NavLinks>
           <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
         </NavContent>
