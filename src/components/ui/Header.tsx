@@ -134,7 +134,9 @@ export function Header() {
           {/* The dashboard is the node runner's screen and the node refuses it to anyone else, so offering it to
               every signed-in visitor would be a link that lands on "this node is not yours". */}
           {isOwner && <NavItem to="/dashboard">{t('nav.dashboard')}</NavItem>}
-          {!isSignedIn && <NavItem to="/signing">{t('nav.signin')}</NavItem>}
+          {/* With the page you are on as `next`: without it every sign-in — Google's above all, whose default is "/" —
+              ended on the landing page instead of where the person was. */}
+          {!isSignedIn && <NavItem to={location.pathname === '/signing' ? '/signing' : `/signing?next=${encodeURIComponent(location.pathname + location.search)}`}>{t('nav.signin')}</NavItem>}
           {isSignedIn && (
             <div ref={ref} style={{ position: 'relative' }}>
               {/* YOUR address, not the node's. The button said the NODE's name and the row under it showed the
