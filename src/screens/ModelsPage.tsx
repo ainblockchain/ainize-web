@@ -1,5 +1,5 @@
 /**
- * What this node serves — every model, grouped by what it does, each one a door to its own page.
+ * What the network serves — every model any connected node offers, grouped by what it does, each one a door to its own page.
  *
  * This page used to be one model at a time: a card grid that selected, a playground under it and the code to take
  * away. A model now has more than a playground — the agents built on it, and the button that builds one — so each

@@ -125,7 +125,7 @@ export function Header() {
               inside a page titled "Explore knowledge", so somebody who came here to host an agent read the
               whole site and concluded it was a knowledge marketplace. */}
           <NavItem to="/explore?kind=agent" data-testid="nav-agents">{t('nav.agents')}</NavItem>
-          {/* What this node serves over the LLM API, and a place to press it. It was documentation three levels
+          {/* What the network's nodes serve over the LLM API, and a place to press it. It was documentation three levels
               down, which is not where somebody arriving to see what this can do will find it. */}
           <NavItem to="/models" data-testid="nav-models">{t('nav.models')}</NavItem>
           {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}

@@ -1,4 +1,4 @@
-/** The Models page — what this node serves, a place to press it, and the code to take away. */
+/** The Models page — what the network's nodes serve, a place to press it, and the code to take away. */
 import type { Dict } from '../index';
 
 export const models: Dict = {
@@ -7,8 +7,8 @@ export const models: Dict = {
   'modelDetail.provider_here': { ko: '이 노드', en: 'this node' },
   'models.title': { ko: '모델', en: 'Models' },
   'models.lede': {
-    ko: '이 노드가 LLM API로 서빙하는 모델입니다. 아래에서 바로 눌러볼 수 있고 — 키도 예치도 필요 없습니다 — 같은 호출을 코드로 복사해 갈 수 있습니다.',
-    en: 'What this node serves over the LLM API. Press one below — no key, no deposit — and take the same call away as code.',
+    ko: 'Ainize 네트워크에 연결된 노드들이 제공하는 모델입니다. 누구나 자기 노드에 모델을 올려 연결할 수 있고, 모델마다 어느 노드가 제공하는지 함께 표시됩니다. 아래에서 바로 눌러볼 수 있고 — 키도 예치도 필요 없습니다 — 같은 호출을 코드로 복사해 갈 수 있습니다.',
+    en: 'Models served by the nodes connected to the Ainize network. Anyone can join with models on their own node, and each model shows which nodes serve it. Press one below — no key, no deposit — and take the same call away as code.',
   },
 
   'models.modality.chat': { ko: '대화', en: 'Chat' },
@@ -19,10 +19,10 @@ export const models: Dict = {
   'models.select': { ko: '선택', en: 'Select' },
   'models.selected': { ko: '선택됨', en: 'Selected' },
 
-  'models.empty.title': { ko: '이 노드는 API로 모델을 서빙하지 않습니다', en: 'This node serves no models over the API' },
+  'models.empty.title': { ko: '아직 네트워크에서 제공되는 모델이 없습니다', en: 'No node on the network serves a model yet' },
   'models.empty.body': {
-    ko: '운영자가 config.json에 backends 블록을 넣으면 여기에 나타납니다. 무엇이 설정되었는지만 알리고 무엇이 떠 있는지 추측하지 않으므로, 이 목록은 비어 있을 수 있습니다.',
-    en: 'It appears here once an operator adds a backends block to config.json. A node advertises what was configured rather than guessing what happens to be running, so this list can be empty.',
+    ko: '노드 운영자가 자기 노드의 config.json에 backends 블록을 넣고 네트워크에 연결하면 여기에 나타납니다. 노드는 설정된 것만 알리고 무엇이 떠 있는지 추측하지 않으므로, 이 목록은 비어 있을 수 있습니다.',
+    en: 'A model appears here once a node operator adds a backends block to their node\'s config.json and connects it to the network. Nodes advertise what was configured rather than guessing what happens to be running, so this list can be empty.',
   },
   'models.outdated.title': { ko: '이 노드는 아직 모델 목록을 알리지 않습니다', en: 'This node does not publish a model list yet' },
   'models.outdated.body': {
