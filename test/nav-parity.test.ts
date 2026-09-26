@@ -42,7 +42,12 @@ function navDestinations(source: string, open: RegExp, close: string): string[] 
   const end = source.indexOf(close, start);
   assert.ok(end > start, `could not find ${close} after the nav opened`);
   const block = source.slice(start, end);
-  return [...new Set([...block.matchAll(/\bto="([^"]+)"/g)].map((m) => m[1]))];
+  const literal = [...block.matchAll(/\bto="([^"]+)"/g)].map((m) => m[1]!);
+  // A destination chosen at render — `to={signedIn ? '/a' : '/b'}`, `to={`/signing?next=${…}`}` — counts every
+  // path literal it can go to; a `?next=` tail is where to come back to, not a different destination.
+  const computed = [...block.matchAll(/\bto=\{([^}]*)/g)]
+    .flatMap((m) => [...m[1]!.matchAll(/['"`](\/[^'"`$]*)/g)].map((p) => p[1]!.replace(/\?next=.*$/, '')));
+  return [...new Set([...literal, ...computed])];
 }
 
 /** The shared header's nav, on every page but the landing. */
@@ -65,6 +70,7 @@ const ALLOWED_ONLY_IN_HEADER: Record<string, string> = {
  * not change. `/chat` likewise: the landing hero and the patch pages still link to it.
  */
 const ALLOWED_ONLY_IN_LANDING: Record<string, string> = {
+  '/my-nodes': 'the signed-in account link that replaces "Sign in" on the landing; the header reaches it from its account menu',
   '/chat?teach=1': 'the landing links straight to the chat door; the header leads to the entry choice at /teach',
 };
 const ALLOWED_EQUIVALENT: Record<string, string> = {
