@@ -16,7 +16,8 @@
 import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useAgentsByModelQuery, useModelDetailQuery, useModelsQuery } from '@/api/api';
+import { errorMessage, useAgentsByModelQuery, useModelDetailQuery, useModelsQuery, useThroughputQuoteQuery } from '@/api/api';
+import { parseBillingThroughputResponse } from '@/api/billingThroughput';
 import { agentsBuiltOnModel } from '@/api/hostedAgents';
 import { modelDetailViewState } from '@/api/models';
 import { useAuth } from '@/auth/AuthContext';
@@ -27,6 +28,7 @@ import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, SubT
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { ModelPlaygroundPanel } from './models/ModelPlaygroundPanel';
+import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf } from './models/modelSpeedHints';
 
 const ModelDetailBack = styled(Link)`
   display: inline-block; margin: -8px 0 16px; font-size: 13px; color: ${(p) => p.theme.color.GREY};
@@ -44,6 +46,16 @@ const ModelDetailDot = styled.span<{ $up: boolean }>`
 `;
 const ModelDetailCreateRow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 20px 0 8px;`;
 const ModelDetailSmall = styled.span`font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
+/** Busy is not down: amber, not the grey of "unavailable" — the model answers, free requests just wait. */
+const ModelDetailSpeedDot = styled.span<{ $busy: boolean }>`
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px;
+  background: ${(p) => (p.$busy ? '#e8a317' : '#1ea672')};
+`;
+/** Quiet while idle (a deposit changes nothing then), the way in while free requests are waiting. */
+const ModelDetailSpeedLink = styled(StyledLink)<{ $busy: boolean }>`
+  display: inline-block; margin-top: 4px; font-size: ${(p) => (p.$busy ? '13px' : '12px')}; font-weight: ${(p) => (p.$busy ? 600 : 400)};
+  color: ${(p) => (p.$busy ? p.theme.color.PRIMARY : p.theme.color.GREY)};
+`;
 const ModelDetailAgents = styled.div`margin-top: 12px;`;
 
 export default function ModelDetailPage() {
@@ -54,6 +66,9 @@ export default function ModelDetailPage() {
   useTitle(id || t('models.title'));
 
   const detail = useModelDetailQuery(id, { skip: !id });
+  // Same arguments as the playground's, so the two share one request (and one poll). Busy/idle changes by the
+  // second, so it is re-read; 15 s is often enough to see a queue form without polling a page nobody watches.
+  const throughputQuery = useThroughputQuoteQuery({ model: id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN }, { skip: !id, pollingInterval: 15_000 });
   const list = useModelsQuery();
   const view = modelDetailViewState({
     id,
@@ -95,6 +110,7 @@ export default function ModelDetailPage() {
 
   const { model } = view;
   const isChat = model.modality === 'chat';
+  const speed = modelSpeedFactOf(parseBillingThroughputResponse(throughputQuery.data));
 
   return (
     <PageWrapper>
@@ -113,6 +129,22 @@ export default function ModelDetailPage() {
           {/* The node's count when it gave one; an older node did not, and a 0 would read as "nobody built on it". */}
           <dd>{model.agents !== null ? model.agents : agentsQuery.data ? agents.length : '—'}</dd>
         </div>
+        {/* Speed is a fact about the model, so it sits with the other facts — and says whether it is busy, which is
+            the only time a deposit changes anything. An older node without /api/throughput shows no cell. */}
+        {isChat && speed && (
+          <div data-testid="model-speed">
+            <dt>{t('billing.fact.title')}</dt>
+            <dd>
+              <ModelDetailSpeedDot $busy={speed.busy} />
+              {t(speed.busy ? 'billing.fact.busy' : 'billing.fact.idle', { tokS: speed.tokS })}
+              {!speed.measured && <ModelDetailSmall> ({t('billing.fact.estimated')})</ModelDetailSmall>}
+              <br />
+              <ModelDetailSpeedLink $busy={speed.busy} to={modelSpeedBillingHref(model.id)} data-testid="model-speed-link">
+                {t(speed.busy ? 'billing.fact.link_busy' : 'billing.fact.link_idle')}
+              </ModelDetailSpeedLink>
+            </dd>
+          </div>
+        )}
       </ModelDetailFacts>
 
       {isChat && (
@@ -121,8 +153,6 @@ export default function ModelDetailPage() {
             {t('modelDetail.create')}
           </Button>
           <ModelDetailSmall>{auth.subject ? t('modelDetail.create_help') : t('modelDetail.create_signin')}</ModelDetailSmall>
-          {/* What a deposit would do to this model's speed — the billing page, with this model chosen. */}
-          <StyledLink to={`/billing?model=${encodeURIComponent(model.id)}`} data-testid="model-speed-up">{t('billing.link.speed_up')} →</StyledLink>
         </ModelDetailCreateRow>
       )}
 

@@ -39,10 +39,6 @@ export const models: Dict = {
   'models.try.run': { ko: '실행', en: 'Run' },
   'models.try.running': { ko: '실행 중…', en: 'Running…' },
   'models.try.answer': { ko: '답변', en: 'Answer' },
-  'models.try.spent': {
-    ko: '이번 시간의 무료 횟수를 다 썼습니다. {at}에 다시 채워집니다 — 기다리거나, 예치하고 /v1을 직접 호출하세요.',
-    en: 'The free tries for this hour are used up. They refill at {at} — wait, or deposit and call /v1 yourself.',
-  },
   'models.try.failed': { ko: '실행하지 못했습니다: {why}', en: 'That did not run: {why}' },
   'models.try.unavailable': { ko: '이 모델의 백엔드가 지금 응답하지 않습니다.', en: 'This model’s backend is not answering right now.' },
 

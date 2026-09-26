@@ -105,7 +105,17 @@ export const billing: Dict = {
   'billing.err.unknown_chain': { ko: '이 체인은 지갑으로 선택할 수 없습니다 — 직접 보내기를 이용하세요.', en: 'This chain cannot be selected in a wallet — use “Send it yourself”.' },
   'billing.err.status_failed': { ko: '적립 여부를 확인하지 못했습니다: {why}', en: 'Could not check whether it was credited: {why}' },
 
-  // the links in
-  'billing.link.speed_up': { ko: 'sAIN으로 속도 올리기', en: 'Speed up with sAIN' },
-  'billing.link.spent': { ko: '기다리기 싫다면 — sAIN을 예치하고 API 키로 호출하세요', en: 'Don’t want to wait? Deposit sAIN and call with an API key' },
+  // the ways in, from a model page (screens/models/modelSpeedHints.ts): where a deposit is true and felt
+  'billing.fact.title': { ko: '속도', en: 'Speed' },
+  'billing.fact.idle': { ko: '{tokS} tok/s · 한가함', en: '{tokS} tok/s · idle' },
+  'billing.fact.busy': { ko: '{tokS} tok/s · 바쁨', en: '{tokS} tok/s · busy' },
+  'billing.fact.estimated': { ko: '추정치', en: 'estimated' },
+  'billing.fact.link_idle': { ko: '바쁠 때도 먼저 처리받기 →', en: 'Be served first when busy →' },
+  'billing.fact.link_busy': { ko: '무료는 대기 중 — sAIN으로 먼저 처리받기 →', en: 'Free requests are waiting — be served first with sAIN →' },
+  'billing.try.waiting': { ko: '유료 요청이 먼저 처리되는 중이라, 무료 요청은 그 뒤에서 기다립니다.', en: 'Paid requests are being served first, so free ones wait behind them.' },
+  'billing.try.offer': { ko: '{amount} sAIN을 예치하면 바쁠 때도 {after} tok/s — 지금은 {now} tok/s', en: 'Deposit {amount} sAIN for {after} tok/s even when busy — {now} tok/s now' },
+  'billing.try.after_idle': { ko: '무료 · 모델 속도 {tokS} tok/s · 한가해서 모델 전체를 썼습니다', en: 'Free · model speed {tokS} tok/s · idle, so you had the whole model' },
+  'billing.try.after_busy': { ko: '무료 · 모델 속도 {tokS} tok/s · 바빠서 유료 요청 뒤에 처리됐습니다', en: 'Free · model speed {tokS} tok/s · busy, so it ran after paid requests' },
+  'billing.key.offer': { ko: '이 키로 호출할 때 — 바쁠 때 {now} tok/s → {amount} sAIN 예치 시 {after} tok/s', en: 'Calls with this key — when busy: {now} tok/s → {after} tok/s with {amount} sAIN' },
+  'billing.cta.deposit': { ko: '예치하기 →', en: 'Deposit →' },
 };

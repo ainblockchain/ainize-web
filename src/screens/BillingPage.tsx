@@ -111,9 +111,12 @@ export default function BillingPage() {
   const chooseModel = (id: string) => setParams((p) => { const next = new URLSearchParams(p); next.set('model', id); return next; }, { replace: true });
 
   // ── the amount, and the quote asked for 300 ms after the typing stops
-  const [token, setToken] = useState<BillingDepositToken>('sAIN');
-  const [amount, setAmount] = useState('100');
-  const [quotedAmount, setQuotedAmount] = useState('100');
+  // `?token=` / `?amount=` preselect what the link quoted (a model page's "100 sAIN → …"), so the reader lands on
+  // the number they were just shown rather than a default that happens to differ.
+  const [token, setToken] = useState<BillingDepositToken>(() => (params.get('token') === 'AIN' ? 'AIN' : 'sAIN'));
+  const initialAmount = billingAmountToUnits(params.get('amount') ?? '') !== null ? params.get('amount')! : '100';
+  const [amount, setAmount] = useState(initialAmount);
+  const [quotedAmount, setQuotedAmount] = useState(initialAmount);
   useEffect(() => {
     const timer = setTimeout(() => setQuotedAmount(amount.trim()), 300);
     return () => clearTimeout(timer);

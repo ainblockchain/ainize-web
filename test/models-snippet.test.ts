@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { modelsPageCodeSnippet, SNIPPET_LANGUAGES } from '../src/screens/models/modelsPageCodeSnippet';
+import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, SNIPPET_SAMPLE_PROMPT } from '../src/screens/models/modelsPageCodeSnippet';
 
 const base = { model: 'qwen2.5-7b-instruct', nodeUrl: 'https://node.example', prompt: 'hello' } as const;
 
@@ -74,12 +74,20 @@ test('a prompt with a backslash survives every language', () => {
   }
 });
 
-test('an empty prompt still produces a runnable snippet', () => {
+test('an empty prompt still produces a snippet that gets an answer — never an empty message', () => {
   for (const language of SNIPPET_LANGUAGES) {
-    const s = modelsPageCodeSnippet({ ...base, language, modality: 'chat', prompt: '' });
-    assert.ok(s.length > 0);
-    assert.ok(!s.includes('undefined'), `${language} leaked an undefined into the snippet`);
+    for (const prompt of ['', '   ', undefined]) {
+      const s = modelsPageCodeSnippet({ ...base, language, modality: 'chat', prompt });
+      assert.ok(!s.includes('undefined'), `${language} leaked an undefined into the snippet`);
+      // `"content": ""` sends nothing to answer; the pasted code then prints nothing and looks broken.
+      assert.ok(!/content["']?:\s*""/.test(s), `${language} sends an empty message`);
+      assert.ok(s.includes(JSON.stringify(SNIPPET_SAMPLE_PROMPT.chat)), `${language} asks the sample question`);
+    }
+    const image = modelsPageCodeSnippet({ ...base, language, modality: 'image', prompt: '' });
+    assert.ok(image.includes(JSON.stringify(SNIPPET_SAMPLE_PROMPT.image)), `${language} draws the sample picture`);
   }
+  const typed = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat', prompt: 'What is 2+2?' });
+  assert.ok(typed.includes('"What is 2+2?"') && !typed.includes(SNIPPET_SAMPLE_PROMPT.chat), 'what was typed wins');
 });
 
 test('a node URL with a trailing slash does not become a double slash', () => {
