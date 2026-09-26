@@ -73,3 +73,55 @@ export function modelsFetchState(error: { status?: number | string; originalStat
   const code = typeof error.status === 'number' ? error.status : error.originalStatus;
   return code === 404 ? 'outdated' : 'offline';
 }
+
+/** `GET /api/models/:id` — one model, and how many agents are built on it. */
+export interface PublicModelDetail extends PublicModelCard {
+  /** Agents built on this model, as the node counts them. `null` when the node did not say (an older node). */
+  agents: number | null;
+}
+
+/** Read one model's answer. `null` for anything without an id and a modality this build can drive. */
+export function parseModelDetailResponse(raw: unknown): PublicModelDetail | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const [card] = parseModelsResponse({ data: [raw] });
+  if (!card) return null;
+  const agents = (raw as { agents?: unknown }).agents;
+  return { ...card, agents: typeof agents === 'number' && agents >= 0 ? agents : null };
+}
+
+/** What the model page can say about the id in its URL. */
+export type ModelDetailViewState =
+  | { kind: 'loading' }
+  | { kind: 'ok'; model: PublicModelDetail }
+  | { kind: 'not_served' }
+  | { kind: 'outdated' }
+  | { kind: 'offline' };
+
+type RtkError = { status?: number | string; originalStatus?: number } | undefined | null;
+
+/**
+ * Decide the model page from two answers: `/api/models/:id` and the list `/api/models`.
+ *
+ * Both are asked because a 404 from the first means two different things. A node with the route says 404 for a
+ * model it does not serve — a JSON answer; a node from before the route says 404 for the ROUTE, as an Express
+ * HTML page. The list settles it: when it carries the id, the model is served and the node is merely older (the
+ * page still works, it just cannot count agents); when it does not, the model really is not served here.
+ */
+export function modelDetailViewState(input: {
+  id: string;
+  detail: unknown; detailError: RtkError; detailLoading: boolean;
+  list: unknown; listError: RtkError; listLoading: boolean;
+}): ModelDetailViewState {
+  const parsed = parseModelDetailResponse(input.detail);
+  if (parsed && parsed.id === input.id) return { kind: 'ok', model: parsed };
+  if (input.detailLoading || input.listLoading) return { kind: 'loading' };
+  const fromList = parseModelsResponse(input.list).find((c) => c.id === input.id);
+  if (fromList) return { kind: 'ok', model: { ...fromList, agents: null } };
+  const listState = modelsFetchState(input.listError);
+  if (listState === 'offline') return { kind: 'offline' };
+  if (!input.detailError) return { kind: 'not_served' };
+  const detailState = modelsFetchState(input.detailError);
+  if (detailState === 'offline') return { kind: 'offline' };
+  // The route answered 404 and the list does not carry the id. If the list is also missing, this is an old node.
+  return listState === 'outdated' ? { kind: 'outdated' } : { kind: 'not_served' };
+}

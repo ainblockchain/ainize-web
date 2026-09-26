@@ -18,6 +18,10 @@
  *  - **It takes as long as it takes.** An agent may do real work before answering, so the elapsed time is
  *    shown while it runs; a spinner with no number reads as a hang at about eight seconds. What the work IS
  *    belongs to the agent: the examples and the skills come off its card, never off this page.
+ *
+ * A hosted agent (one the node runs from a spec, built on a model page) carries four more fields on its row:
+ * `model` becomes a link back to `/models/<model>`, `kind` and `status` become chips, and when `owner` is the
+ * signed-in address the owner's panel (`agent/HostedAgentOwnerPanel.tsx`) offers edit, delete and the logs.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -31,6 +35,10 @@ import type { AgentSummary } from '@/api/types';
 import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
 import { readFrame, takeFrames } from '@/lib/a2a-stream';
 import { useTitle } from '@/utils/useTitle';
+import { agentSummaryHostedFieldsOf, isHostedAgentOwnedBy } from '@/api/hostedAgents';
+import { HostedAgentBadges } from '@/components/public/HostedAgentBadges';
+import { useT } from '@/i18n';
+import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
 const Card = styled.div<{ $selected?: boolean }>`
@@ -144,6 +152,10 @@ export function AgentPage() {
   const agents = useMemo(() => data?.agents ?? [], [data]);
   const agent = agents.find((a) => a.id === id) ?? null;
   useTitle(agent ? agent.name : 'Agent');
+  const { t } = useT();
+  const { subject } = useAuth();
+  const hosted = agentSummaryHostedFieldsOf(agent);
+  const ownsIt = isHostedAgentOwnedBy(hosted.owner, subject);
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
@@ -318,6 +330,9 @@ export function AgentPage() {
       <TitleRow>
         <Title><Dot $state={state(agent)} />{agent.name}</Title>
       </TitleRow>
+      {(hosted.model || hosted.kind || hosted.status) && (
+        <Row style={{ marginTop: -12, marginBottom: 16 }} data-testid="agent-hosted-badges"><HostedAgentBadges agent={agent} /></Row>
+      )}
       <Back to="/explore?kind=agent">← {'All agents'}</Back>
 
       {error && <Alert $tone="error">{errorMessage(error)}</Alert>}
@@ -333,6 +348,12 @@ export function AgentPage() {
             {agent.reachable === null && <>not checked yet</>}
           </dd>
         </div>
+        {hosted.model && (
+          <div>
+            <dt>{t('hostedAgent.fact.model')}</dt>
+            <dd><Link to={`/models/${encodeURIComponent(hosted.model)}`} data-testid="agent-model-link">{hosted.model}</Link></dd>
+          </div>
+        )}
         <div>
           <dt>Runs on</dt>
           <dd>{agent.node ? agent.node.name : 'this node'}</dd>
@@ -363,6 +384,11 @@ export function AgentPage() {
         <ExternalLink href={samePath(agent.card_url)}>open the card</ExternalLink> · A2A sends no
         authentication, so whoever can reach the endpoint can call it
       </Small>
+
+      {hosted.status === 'building' && <Alert $tone="info" style={{ marginTop: 16 }}>{t('hostedAgent.status.building_help')}</Alert>}
+      {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
+
+      {ownsIt && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} />}
 
       {skills.length > 0 && (
         <>

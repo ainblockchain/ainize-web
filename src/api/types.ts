@@ -980,5 +980,19 @@ export interface AgentSummary {
    * node reaches that one is between the two of them.
    */
   node: { address: string; name: string } | null;
+  /**
+   * Hosted agents (ainize-node hosted-agents design). All four are OPTIONAL because a node from before that
+   * design sends none of them — read them through `agentSummaryHostedFieldsOf` (src/api/hostedAgents.ts), which
+   * turns a missing or malformed value into `null` instead of trusting the type.
+   *
+   *  - `model`: the model this agent is built on; the agent page links to `/models/<model>`.
+   *  - `kind`: `upstream` for an operator's config agent, else the hosted mode.
+   *  - `owner`: the lower-case address of whoever created it — the one who sees edit / delete / logs.
+   *  - `status`: a code agent's image build.
+   */
+  model?: string | null;
+  kind?: 'upstream' | 'prompt' | 'tools' | 'handler' | null;
+  owner?: string | null;
+  status?: 'building' | 'ready' | 'failed' | null;
 }
 export interface AgentsResponse { agents: AgentSummary[] }

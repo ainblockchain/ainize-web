@@ -20,6 +20,7 @@ import styled from 'styled-components';
 import type { AgentSummary } from '@/api/types';
 import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
+import { HostedAgentBadges } from './HostedAgentBadges';
 
 /** The A2UI extension, by URI prefix — the version moves (v0.8 → v0.9) and the badge should not. */
 const A2UI = 'a2ui.org';
@@ -117,6 +118,8 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
           {/* Which node runs it, first: on a marketplace that lists the whole network, "whose agent is this"
               decides who the reader is trusting and where their request actually goes. */}
           {agent.node && <Tag $tone="peer" title={agent.node.address}>{t('agent.on_node', { name: agent.node.name })}</Tag>}
+          {/* The model it is built on, next — a hosted agent is a model plus instructions, and the model decides a lot. */}
+          <HostedAgentBadges agent={agent} />
           {skills.map((s) => <Tag key={s.id} $tone="skill" title={s.description}>{s.name}</Tag>)}
           {moreSkills > 0 && <Tag $tone="skill">{t('agent.skill_more', { n: moreSkills })}</Tag>}
           {!!agent.protocols.length && <Tag $tone="proto">{t('agent.protocol', { v: agent.protocols.join(' / ') })}</Tag>}
