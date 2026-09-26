@@ -10,6 +10,7 @@
  * it here would turn that into one late burst, which is how a working chat reads as a hang.
  */
 import { NODE_URL, forwardHeaders } from './node-url';
+import { SITE_SUBJECT_HEADER, siteSubjectFor, vouchesFor } from './siteAssertion';
 
 /** Body-carrying methods. A GET with a body is not a thing fetch will send. */
 const WITH_BODY = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -17,11 +18,19 @@ const WITH_BODY = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export async function relayToNode(req: Request, path: string): Promise<Response> {
   const url = new URL(req.url);
   const target = `${NODE_URL}${path}${url.search}`;
+  const headers = forwardHeaders(req);
+  // Only this app may vouch for a Google account, and only on the paths it vouches for. A visitor's own copy of
+  // the header is dropped everywhere: the node would reject a forged one, but it should never even see one.
+  headers.delete(SITE_SUBJECT_HEADER);
+  if (vouchesFor(path)) {
+    const subject = siteSubjectFor(req);
+    if (subject) headers.set(SITE_SUBJECT_HEADER, subject);
+  }
   let upstream: Response;
   try {
     upstream = await fetch(target, {
       method: req.method,
-      headers: forwardHeaders(req),
+      headers,
       body: WITH_BODY.has(req.method) ? await req.arrayBuffer() : undefined,
       redirect: 'manual',
       // a scoring turn or a live test runs for minutes; the platform default would cut it off
@@ -34,11 +43,11 @@ export async function relayToNode(req: Request, path: string): Promise<Response>
       { status: 502 },
     );
   }
-  const headers = new Headers(upstream.headers);
+  const out = new Headers(upstream.headers);
   // set-cookie is the node's to set: an operator signs in there, and the cookie is scoped to this origin
-  headers.delete('content-encoding');
-  headers.delete('content-length');
-  return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers });
+  out.delete('content-encoding');
+  out.delete('content-length');
+  return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
 }
 
 /**

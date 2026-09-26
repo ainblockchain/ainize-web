@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery } from '@/api/api';
+import { useAuth } from '@/auth/AuthContext';
 import type { ModelModality, PublicModelCard } from '@/api/models';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
@@ -63,8 +64,14 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
 
   // Signed in? Then the snippet should be paste-and-run rather than paste-and-go-find-a-key.
   const { data: me } = useMeQuery();
+  // The node's own session, i.e. a wallet. A Google sign-in sets `google` on the auth context but not this,
+  // and /api/keys answers 401 to it, so it is told apart below instead of being shown the sign-in prompt
+  // again by a page it is already signed in to.
   const signedIn = !!me?.signedIn;
-  const { data: keyList } = useApiKeysQuery(undefined, { skip: !signedIn });
+  // A Google account holds keys too: this app vouches for it to the node on /api/keys (lib/siteAssertion.ts).
+  const { google } = useAuth();
+  const canHoldKeys = signedIn || !!google;
+  const { data: keyList } = useApiKeysQuery(undefined, { skip: !canHoldKeys });
   const [createKey, createState] = useCreateApiKeyMutation();
   const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
   const [keyError, setKeyError] = useState<string | null>(null);
@@ -141,13 +148,16 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
 
       <SubTitle>{t('models.key.title')}</SubTitle>
       <Panel>
-        {!signedIn && (
+        {!canHoldKeys && (
           <>
             <Description>{t('models.key.none')}</Description>
             <StyledLink to={`/signing?next=${encodeURIComponent(signInNext)}`}>{t('models.key.signin')}</StyledLink>
           </>
         )}
-        {signedIn && !issuedKey && (
+        {!signedIn && google && !issuedKey && (
+          <Description data-testid="models-key-google">{t('models.key.google', { email: google.email })}</Description>
+        )}
+        {canHoldKeys && !issuedKey && (
           <Row>
             <Button
               type="button"
@@ -162,7 +172,7 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
             >
               {createState.isLoading ? t('models.key.creating') : t('models.key.create')}
             </Button>
-            {(keyList?.keys.length ?? 0) > 0 && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
+            {signedIn && (keyList?.keys.length ?? 0) > 0 && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
           </Row>
         )}
         {issuedKey && (
@@ -174,7 +184,7 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
               <Button type="button" variant="text" onClick={() => { forgetIssuedKey(); setIssuedKey(null); }}>
                 {t('models.key.forget')}
               </Button>
-              <StyledLink to="/account">{t('models.key.manage')}</StyledLink>
+              {signedIn && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
             </Row>
           </>
         )}
