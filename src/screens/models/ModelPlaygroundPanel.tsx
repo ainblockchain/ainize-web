@@ -8,7 +8,8 @@
  */
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery } from '@/api/api';
+import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useThroughputQuoteQuery } from '@/api/api';
+import { parseBillingThroughputResponse } from '@/api/billingThroughput';
 import { useAuth } from '@/auth/AuthContext';
 import type { ModelModality, PublicModelCard } from '@/api/models';
 import { Button } from '@/components/ui/Button';
@@ -17,6 +18,7 @@ import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
 import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './issuedKeyMemory';
+import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
 
 const Panel = styled.div`border: 1px solid #e2e4ea; border-radius: 10px; padding: 18px; margin-bottom: 28px;`;
 const Row = styled.div`display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px;`;
@@ -47,7 +49,6 @@ type RunState =
   | { kind: 'running' }
   | { kind: 'text'; text: string; remaining: number | null }
   | { kind: 'image'; dataUrl: string; remaining: number | null }
-  | { kind: 'spent'; resetAt: number }
   | { kind: 'failed'; why: string };
 
 /**
@@ -76,6 +77,17 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
   const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
   const [keyError, setKeyError] = useState<string | null>(null);
 
+  // The model's speed and whether it is busy — read faster while a request of ours is waiting, since that is when
+  // "paid work is ahead of you" is worth saying. Chat only: a deposit buys the language model's queue.
+  const isChat = model.modality === 'chat';
+  const throughputQuery = useThroughputQuoteQuery(
+    { model: model.id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN },
+    { skip: !isChat, pollingInterval: run.kind === 'running' ? 2_000 : 15_000 },
+  );
+  const throughput = parseBillingThroughputResponse(throughputQuery.data);
+  const speed = modelSpeedFactOf(throughput);
+  const offer = modelSpeedPriorityOfferOf(throughput);
+
   const snippet = useMemo(() => modelsPageCodeSnippet({
     language, modality: model.modality, model: model.id, nodeUrl: nodeUrlFromBrowser(), prompt,
     apiKey: issuedKey ?? undefined,
@@ -85,11 +97,6 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
     setRun({ kind: 'running' });
     try {
       const res = await callFreeTier(model, prompt, audio);
-      if (res.status === 429) {
-        const body = await res.json() as { quota_reset?: number };
-        setRun({ kind: 'spent', resetAt: body.quota_reset ?? Date.now() + 3600_000 });
-        return;
-      }
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
         setRun({ kind: 'failed', why: body?.error?.code === 'backend_unavailable' ? t('models.try.unavailable') : (body?.error?.message ?? String(res.status)) });
@@ -135,17 +142,22 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
               </Button>
             </Row>
 
-            {run.kind === 'text' && <Answer data-testid="models-answer">{run.text}</Answer>}
-            {run.kind === 'image' && <AnswerImage data-testid="models-answer-image" src={run.dataUrl} alt={prompt} />}
-            {run.kind === 'spent' && (
-              <Alert>
-                {t('models.try.spent', { at: new Date(run.resetAt).toLocaleTimeString() })}
-                {/* The way out of the wait, for a chat model: the billing page says what a deposit buys. */}
-                {model.modality === 'chat' && (
-                  <> <StyledLink to={`/billing?model=${encodeURIComponent(model.id)}`} data-testid="models-spent-billing">{t('billing.link.spent')} →</StyledLink></>
+            {/* Waiting behind paid work: the one moment the free tier is slow, and the moment a deposit is felt. */}
+            {isChat && run.kind === 'running' && speed?.busy && (
+              <Alert $tone="info" data-testid="models-waiting">
+                {t('billing.try.waiting')}
+                {offer && (
+                  <> {t('billing.try.offer', { amount: offer.amount, after: offer.afterBusyTokS, now: offer.nowBusyTokS })}{' '}
+                    <StyledLink to={modelSpeedBillingHref(model.id, offer.amount)} data-testid="models-waiting-billing">{t('billing.cta.deposit')}</StyledLink></>
                 )}
               </Alert>
             )}
+            {run.kind === 'text' && <Answer data-testid="models-answer">{run.text}</Answer>}
+            {/* What the answer ran at, so the reader has a number to compare with when the node is busy. */}
+            {isChat && run.kind === 'text' && speed && (
+              <Description data-testid="models-answer-speed">{t(speed.busy ? 'billing.try.after_busy' : 'billing.try.after_idle', { tokS: speed.tokS })}</Description>
+            )}
+            {run.kind === 'image' && <AnswerImage data-testid="models-answer-image" src={run.dataUrl} alt={prompt} />}
             {run.kind === 'failed' && <Alert>{t('models.try.failed', { why: run.why })}</Alert>}
             {(run.kind === 'text' || run.kind === 'image') && run.remaining !== null && (
               <Description>{t('models.try.free', { n: String(run.remaining) })}</Description>
@@ -197,6 +209,14 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
           </>
         )}
         {keyError && <Alert>{t('models.key.failed', { why: keyError })}</Alert>}
+        {/* A deposit applies to exactly the calls a key makes, so this is where it is said — with this visitor's
+            own busy-time number, not a general "faster". */}
+        {isChat && offer && (
+          <Description data-testid="models-key-speed">
+            {t('billing.key.offer', { now: offer.nowBusyTokS, after: offer.afterBusyTokS, amount: offer.amount })}{' '}
+            <StyledLink to={modelSpeedBillingHref(model.id, offer.amount)} data-testid="models-key-billing">{t('billing.cta.deposit')}</StyledLink>
+          </Description>
+        )}
       </Panel>
 
       <SubTitle>{t('models.code.title')}</SubTitle>

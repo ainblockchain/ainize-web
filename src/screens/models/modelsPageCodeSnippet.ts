@@ -31,6 +31,17 @@ export interface SnippetOptions {
 /** Obviously a placeholder, so nobody copies it and wonders why it 401s. */
 const KEY_PLACEHOLDER = 'ainize-sk-...';
 
+/**
+ * What the snippet asks when the playground's box is still empty.
+ *
+ * An empty prompt is not a harmless default: `"content": ""` sends a message with nothing in it, the model has
+ * nothing to answer, and the copied code "works" by printing nothing — which reads as the call being broken.
+ * A real question gets a real reply, so the first paste proves the key, the URL and the model all at once.
+ */
+export const SNIPPET_SAMPLE_PROMPT = { chat: 'Hello! Introduce yourself in one sentence.', image: 'a lighthouse at sunset, photo' } as const;
+const promptOf = (o: SnippetOptions): string =>
+  (o.prompt?.trim() ? o.prompt : o.modality === 'image' ? SNIPPET_SAMPLE_PROMPT.image : SNIPPET_SAMPLE_PROMPT.chat);
+
 /** A literal that is valid in all three languages. */
 const lit = (value: string): string => JSON.stringify(value);
 
@@ -40,7 +51,7 @@ const v1 = (nodeUrl: string, path: string): string => `${nodeUrl.replace(/\/+$/,
 function python(o: SnippetOptions): string {
   const url = lit(o.nodeUrl.replace(/\/+$/, ''));
   const model = lit(o.model);
-  const prompt = lit(o.prompt ?? '');
+  const prompt = lit(promptOf(o));
   const key = lit(o.apiKey || KEY_PLACEHOLDER);
   const head = `# pip install ainize\nimport ainize\n\nclient = ainize.connect(${url}, api_key=${key})\n\n`;
   if (o.modality === 'transcription') {
@@ -55,7 +66,7 @@ function python(o: SnippetOptions): string {
 function typescript(o: SnippetOptions): string {
   const url = lit(o.nodeUrl.replace(/\/+$/, ''));
   const model = lit(o.model);
-  const prompt = lit(o.prompt ?? '');
+  const prompt = lit(promptOf(o));
   const key = lit(o.apiKey || KEY_PLACEHOLDER);
   const head = `// npm install @ainize/sdk\nimport { connectAinize } from '@ainize/sdk';\n\nconst client = await connectAinize(${url}, { apiKey: ${key} });\n\n`;
   if (o.modality === 'transcription') {
@@ -69,7 +80,7 @@ function typescript(o: SnippetOptions): string {
 
 function curl(o: SnippetOptions): string {
   const model = lit(o.model);
-  const prompt = lit(o.prompt ?? '');
+  const prompt = lit(promptOf(o));
   const bearer = o.apiKey || KEY_PLACEHOLDER;
   const key = '';
   if (o.modality === 'transcription') {
