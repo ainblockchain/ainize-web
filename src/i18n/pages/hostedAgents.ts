@@ -64,6 +64,11 @@ export const hostedAgents: Dict = {
     en: 'e.g. You are an editor who rewrites news sentences to be easier to read. Never change their meaning.',
   },
   'agentCreate.field.mode': { ko: '방식', en: 'Mode' },
+  'agentPage.audio.attach': { ko: '음성 첨부:', en: 'Attach audio:' },
+  'agentPage.audio.too_large': { ko: '여기서는 {kb}KB까지 보낼 수 있습니다. 더 긴 녹음은 aindrive처럼 링크로 보내는 워크스페이스를 쓰세요.', en: 'Up to {kb} KB can be sent from here. Longer recordings go through a workspace that sends links, like aindrive.' },
+  'agentCreate.field.media_transcription': { ko: '음성 메시지를 받아씀 (STT) — 첨부된 음성을 글로 바꿔 모델에게 전합니다', en: 'Hears voice messages (speech-to-text) — attached audio is transcribed before the model reads it' },
+  'agentCreate.field.media_image': { ko: '이미지를 그림 — 모델이 필요할 때 이미지를 만들어 답에 첨부합니다', en: 'Draws images — the model can generate a picture and attach it to its answer' },
+  'agentCreate.field.media_unavailable': { ko: '이 노드와 연결된 노드 어디에도 해당 모델(STT·이미지)이 없는 항목은 켤 수 없습니다.', en: 'An option is unavailable when neither this node nor any connected node serves a model of that kind (speech-to-text, image).' },
   'agentCreate.field.a2ui': { ko: '답을 화면(A2UI)으로도 보냄 — 에이전트 카드에 A2UI 확장을 선언합니다', en: 'Answers can carry a surface (A2UI) — declares the A2UI extension on the card' },
   'agentCreate.field.hosts': { ko: '허용 호스트', en: 'Allowed hosts' },
   'agentCreate.field.hosts_help': {
