@@ -13,6 +13,7 @@ import type {
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
   SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse,
 } from './types';
+import type { HostedAgentSpecInput } from './hostedAgents';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
@@ -95,7 +96,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -139,6 +140,36 @@ export const api = createApi({
     nodes: b.query<NodesResponse, void>({ query: () => 'api/nodes', providesTags: ['Nodes'] }),
     /** A2A agents this node operates (§6.1). Polled, because "is it answering" is a live question. */
     agents: b.query<AgentsResponse, void>({ query: () => 'api/agents', providesTags: ['Agents'] }),
+    /**
+     * Hosted agents (ainize-node hosted-agents design, "HTTP API"). Every answer is typed `unknown` on purpose and
+     * read through `src/api/hostedAgents.ts` / `src/api/models.ts`: the node is released separately, and a page
+     * that trusted the declared type would render an older node's answer as blanks instead of saying what is missing.
+     */
+    /** One model: `{ id, modality, available, agents }`, 404 when this node does not serve it. */
+    modelDetail: b.query<unknown, string>({ query: (id) => `api/models/${encodeURIComponent(id)}`, providesTags: ['Agents'] }),
+    /** The agents built on one model. An older node ignores `?model=`, so the page filters again (`agentsBuiltOnModel`). */
+    agentsByModel: b.query<AgentsResponse, string>({ query: (model) => `api/agents${toQuery({ model })}`, providesTags: ['Agents'] }),
+    /** The signed-in person's own hosted agents (summaries). */
+    myHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
+    /** The full stored spec, files included — owner only; anyone else gets 403. */
+    hostedAgent: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'HostedAgent', id }] }),
+    createHostedAgent: b.mutation<unknown, HostedAgentSpecInput>({
+      query: (body) => ({ url: 'api/hosted-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'HostedAgent'],
+    }),
+    updateHostedAgent: b.mutation<unknown, HostedAgentSpecInput>({
+      query: (body) => ({ url: `api/hosted-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
+      invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }],
+    }),
+    deleteHostedAgent: b.mutation<unknown, string>({
+      query: (id) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'HostedAgent'],
+    }),
+    /** A secret's value goes on its own request, after the spec: the spec is readable by its owner, a value never is. */
+    setHostedAgentSecret: b.mutation<unknown, { id: string; name: string; value: string }>({
+      query: ({ id, name, value }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/secrets/${encodeURIComponent(name)}`, method: 'PUT', body: { value } }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'HostedAgent', id: a.id }],
+    }),
+    /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
+    hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
     runtime: b.query<RuntimeResponse, void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
@@ -395,7 +426,8 @@ export const api = createApi({
 
 export const {
   useInfoQuery, useModelsQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
-  useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
+  useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,

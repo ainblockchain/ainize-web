@@ -106,6 +106,10 @@
         "title": "에이전트를 노드에 올리기"
       },
       {
+        "page": "how-to/create-an-agent-from-a-model",
+        "title": "모델로 에이전트 만들기"
+      },
+      {
         "page": "how-to/build-for-ainteams",
         "title": "AIN Teams용 에이전트 만들기"
       }

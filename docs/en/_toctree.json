@@ -106,6 +106,10 @@
         "title": "Put an agent on a node"
       },
       {
+        "page": "how-to/create-an-agent-from-a-model",
+        "title": "Create an agent from a model"
+      },
+      {
         "page": "how-to/build-for-ainteams",
         "title": "Build an agent for AIN Teams"
       }
