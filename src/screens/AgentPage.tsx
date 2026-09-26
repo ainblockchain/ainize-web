@@ -309,6 +309,9 @@ export function AgentPage() {
           if (!event) continue;
           if (event.kind === 'working' && event.text) {
             setProgress((lines) => [...lines, { at: at(), text: event.text }]);
+          } else if (event.kind === 'chunk') {
+            // The answer as the agent writes it; the final event replaces it with the whole, parts included.
+            setResult((cur) => (event.append && cur ? cur + event.text : event.text));
           } else if (event.kind === 'error') {
             setFailed(event.text);
           } else if (event.kind === 'final') {

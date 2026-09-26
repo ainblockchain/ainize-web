@@ -11,7 +11,9 @@
 
 /** One thing that happened during a turn, in the order it happened. */
 export interface A2AStreamEvent {
-  kind: 'task' | 'working' | 'final' | 'error';
+  /** `chunk`: a piece of the answer as the agent writes it (an artifact update), appended unless `append` is false. */
+  kind: 'task' | 'working' | 'chunk' | 'final' | 'error';
+  append?: boolean;
   /** A line worth showing a reader. Empty for events that carry no words. */
   text: string;
   /** The parts of the final message, when this is the one that carries the answer. */
@@ -46,6 +48,16 @@ export function progressText(parts: unknown): string {
   return text;
 }
 
+/**
+ * A piece of the answer's text exactly as sent — unlike `progressText`, never trimmed: " there" after "Hello" keeps
+ * its space, or the words run together on screen.
+ */
+function chunkText(parts: unknown[]): string {
+  return (parts as { kind?: string; text?: string; content?: { $case?: string; value?: string } }[])
+    .map((p) => (typeof p?.text === 'string' ? p.text : p?.content?.$case === 'text' && typeof p.content.value === 'string' ? p.content.value : ''))
+    .join('');
+}
+
 /** One JSON-RPC frame from the stream, as something the page can render. */
 export function readFrame(frame: unknown): A2AStreamEvent | null {
   const result = (frame as { result?: Record<string, unknown>; error?: { message?: string } })?.result;
@@ -59,6 +71,11 @@ export function readFrame(frame: unknown): A2AStreamEvent | null {
     return { kind: 'final', text: '', parts: (result.parts as unknown[]) ?? [] };
   }
 
+  // A streaming agent writes its answer into an artifact, piece by piece; the page shows it growing.
+  if (result.kind === 'artifact-update') {
+    const artifact = (result.artifact ?? {}) as { parts?: unknown[] };
+    return { kind: 'chunk', text: chunkText(artifact.parts ?? []), append: result.append === true };
+  }
   if (result.kind === 'status-update') {
     const status = (result.status ?? {}) as { state?: string; message?: { parts?: unknown[] } };
     const parts = status.message?.parts ?? [];

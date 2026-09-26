@@ -61,3 +61,9 @@ test('a JSON-RPC error frame is surfaced rather than swallowed', () => {
   assert.equal(event.kind, 'error');
   assert.match(event.text, /bad order \(code -32004\)/);
 });
+
+test('an artifact update is a piece of the answer, appended unless it starts one', () => {
+  const chunk = (text: string, append: boolean) => ({ jsonrpc: '2.0', id: 1, result: { kind: 'artifact-update', taskId: 't', contextId: 'c', append, lastChunk: false, artifact: { artifactId: 'answer', parts: [{ kind: 'text', text }] } } });
+  assert.deepEqual(readFrame(chunk('Hello', false)), { kind: 'chunk', text: 'Hello', append: false });
+  assert.deepEqual(readFrame(chunk(' there', true)), { kind: 'chunk', text: ' there', append: true });
+});
