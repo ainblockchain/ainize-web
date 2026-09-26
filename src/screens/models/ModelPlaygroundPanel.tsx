@@ -137,7 +137,15 @@ export function ModelPlaygroundPanel({ model, signInNext }: { model: PublicModel
 
             {run.kind === 'text' && <Answer data-testid="models-answer">{run.text}</Answer>}
             {run.kind === 'image' && <AnswerImage data-testid="models-answer-image" src={run.dataUrl} alt={prompt} />}
-            {run.kind === 'spent' && <Alert>{t('models.try.spent', { at: new Date(run.resetAt).toLocaleTimeString() })}</Alert>}
+            {run.kind === 'spent' && (
+              <Alert>
+                {t('models.try.spent', { at: new Date(run.resetAt).toLocaleTimeString() })}
+                {/* The way out of the wait, for a chat model: the billing page says what a deposit buys. */}
+                {model.modality === 'chat' && (
+                  <> <StyledLink to={`/billing?model=${encodeURIComponent(model.id)}`} data-testid="models-spent-billing">{t('billing.link.spent')} →</StyledLink></>
+                )}
+              </Alert>
+            )}
             {run.kind === 'failed' && <Alert>{t('models.try.failed', { why: run.why })}</Alert>}
             {(run.kind === 'text' || run.kind === 'image') && run.remaining !== null && (
               <Description>{t('models.try.free', { n: String(run.remaining) })}</Description>

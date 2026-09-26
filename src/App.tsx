@@ -22,6 +22,8 @@ const AgentPage = lazy(() => import('./screens/AgentPage'));
 // Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
 const ModelDetailPage = lazy(() => import('./screens/ModelDetailPage'));
 const AgentCreatePage = lazy(() => import('./screens/AgentCreatePage'));
+// Throughput billing (ainize-node throughput-billing design): now N tok/s → deposit X → M tok/s, and the deposit.
+const BillingPage = lazy(() => import('./screens/BillingPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
 const TermsPage = lazy(() => import('./screens/TermsPage'));
 const NotFoundPage = lazy(() => import('./screens/NotFoundPage'));
@@ -68,6 +70,8 @@ export default function App() {
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
                 <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
                 <Route path="/models/:id" element={<Layout><ModelDetailPage /></Layout>} />
+                {/* `?model=` preselects; linked from the model page and from the free tier's "tries used up" */}
+                <Route path="/billing" element={<Layout><BillingPage /></Layout>} />
                 <Route path="/network" element={<Layout><NetworkPage /></Layout>} />
                 {/* A2A agents this node operates, and the live test for one (NEWS-AGENT-REQUIREMENTS §6) */}
                 {/* One agent. `/agent/<id>` singular, because `/agents/<id>` is the agent's own A2A address

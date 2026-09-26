@@ -96,7 +96,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -104,6 +104,19 @@ export const api = createApi({
      * visitor to authenticate — see `src/api/models.ts` for how a newer or older node's answer is read.
      */
     models: b.query<unknown, void>({ query: () => 'api/models' }),
+    /**
+     * What speed a caller can expect from a chat model now, and after depositing `amount` of `token` (the billing
+     * page, `/billing`). Public; `you` is filled from the wallet site-session cookie. Returned as `unknown` and read
+     * by `parseBillingThroughputResponse` (`billingThroughput.ts`) — an older node answers 404 for the route.
+     */
+    throughputQuote: b.query<unknown, { model: string; amount?: string; token?: 'sAIN' | 'AIN' }>({
+      query: ({ model, amount, token }) => `api/throughput${toQuery({ model, amount, token: amount ? token : undefined })}`,
+      providesTags: ['Throughput'],
+    }),
+    /** Has this deposit transfer been credited to the signed-in wallet yet. Polled by the billing page until it has. */
+    throughputDepositStatus: b.query<unknown, string>({
+      query: (txHash) => `api/throughput/deposits/${encodeURIComponent(txHash)}`,
+    }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
     apiKeys: b.query<{ keys: { prefix: string; issuedAt: number; label: string | null }[] }, void>({
       query: () => 'api/keys', providesTags: ['ApiKeys'],
@@ -425,7 +438,7 @@ export const api = createApi({
 });
 
 export const {
-  useInfoQuery, useModelsQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
+  useInfoQuery, useModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,

@@ -23,7 +23,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
-import { CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
+import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { ModelPlaygroundPanel } from './models/ModelPlaygroundPanel';
@@ -121,6 +121,8 @@ export default function ModelDetailPage() {
             {t('modelDetail.create')}
           </Button>
           <ModelDetailSmall>{auth.subject ? t('modelDetail.create_help') : t('modelDetail.create_signin')}</ModelDetailSmall>
+          {/* What a deposit would do to this model's speed — the billing page, with this model chosen. */}
+          <StyledLink to={`/billing?model=${encodeURIComponent(model.id)}`} data-testid="model-speed-up">{t('billing.link.speed_up')} →</StyledLink>
         </ModelDetailCreateRow>
       )}
 
