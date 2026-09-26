@@ -53,7 +53,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/patches/{id}/conflicts`](#get-apipatchesidconflicts) | none | Overlap check result |
 | `GET` | [`/api/benchmarks/{schema}`](#get-apibenchmarksschema) | none | Knowledge on the same subject (benchmark schema) |
 
-**Live test** — compare the model's answer before vs after the knowledge is loaded (trial quota)
+**Live test** — compare the model's answer before vs after the knowledge is loaded
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
@@ -587,7 +587,7 @@ Knowledge on the same subject (benchmark schema)
 
 ## Live test
 
-compare the model's answer before vs after the knowledge is loaded (trial quota)
+compare the model's answer before vs after the knowledge is loaded
 
 ### `POST /api/chat/feedback`
 
@@ -707,7 +707,7 @@ While the request is still queued the node drops it before calling the model and
 
 Compare answers before vs after the knowledge is loaded
 
-Temporarily loads one to three knowledges into the shared serving model (in list order, restored in reverse afterwards). In `compare` mode each column replays its own earlier answers: send `messages_base` (what the base model said) and `messages_patched` (what the patched model said) alongside `messages`, all ending with the same question — otherwise the second turn feeds the patched answer back to the un-patched model and the comparison stops being one. Every patched answer is metered as one usage event per knowledge. Anonymous visitors: 20 requests per hour. A private draft (a taught lesson before publishing) can be loaded only by its owner — send the visitor `x-ainize-auth` (v2) — or the operator; everyone else gets 404.
+Temporarily loads one to three knowledges into the shared serving model (in list order, restored in reverse afterwards). In `compare` mode each column replays its own earlier answers: send `messages_base` (what the base model said) and `messages_patched` (what the patched model said) alongside `messages`, all ending with the same question — otherwise the second turn feeds the patched answer back to the un-patched model and the comparison stops being one. Every patched answer is metered as one usage event per knowledge. Signed-out callers are not limited by a request count — their turns are queued behind callers who paid, so a busy node makes them wait rather than refusing them. A private draft (a taught lesson before publishing) can be loaded only by its owner — send the visitor `x-ainize-auth` (v2) — or the operator; everyone else gets 404.
 
 **Auth** — none
 
@@ -720,7 +720,7 @@ Temporarily loads one to three knowledges into the shared serving model (in list
 | Code | Description | Body |
 |---|---|---|
 | `200` | JSON answers by default; stream=true returns incremental SSE. After final guarded metadata in event: ainize.result, success ends with data: [DONE]. Errors after headers emit event: error without [DONE]. | [`ChatResponse`](./schemas.md#chatresponse) |
-| `429` | trial quota exhausted — the body carries `quota_reset` (epoch ms), the instant this visitor's hour ends |   |
+| `429` | a rate limit unrelated to model access (for example the per-address write limits) |   |
 
 ## Models
 
@@ -752,7 +752,7 @@ Configured models and current backend availability
 
 Free transcription trial on a configured audio backend
 
-Multipart audio upload, at most 10 MiB. Shares the visitor free-trial quota. Requires a configured transcription backend.
+Multipart audio upload, at most 10 MiB. No request count applies; unpaid work is queued behind paying callers on the same backend. Requires a configured transcription backend.
 
 **Auth** — operator
 
@@ -767,17 +767,16 @@ Multipart audio upload, at most 10 MiB. Shares the visitor free-trial quota. Req
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | transcription and remaining_free_tries | `object` |
+| `200` | transcription | `object` |
 | `400` | invalid request |   |
 | `404` | model not configured |   |
-| `429` | quota exceeded |   |
 | `503` | backend unavailable |   |
 
 ### `POST /api/image`
 
 Free image-generation trial on a configured image backend
 
-Shares the visitor free-trial quota. At most one image and 20 steps; requires a configured image backend.
+No request count applies; unpaid work is queued behind paying callers on the same backend. At most one image and 20 steps; requires a configured image backend.
 
 **Auth** — operator
 
@@ -794,10 +793,9 @@ Shares the visitor free-trial quota. At most one image and 20 steps; requires a 
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | image data and remaining_free_tries | `object` |
+| `200` | image data | `object` |
 | `400` | invalid request |   |
 | `404` | model not configured |   |
-| `429` | quota exceeded |   |
 | `503` | backend unavailable |   |
 
 ## Teach

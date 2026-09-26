@@ -759,9 +759,11 @@ export default function ChatPage() {
       {quotaReset === null && <em>{t('chat.quota.resets_hour')}</em>}
     </QuotaOffer>
   );
-  const quotaText = isOwner || quota === null
+  // The node stopped counting free requests, so `remaining_quota` arrives null for everybody. Null used to mean
+  // "operator, unmetered", and reading it that way now tells every visitor they are signed in as the operator.
+  const quotaText = isOwner
     ? t('chat.quota.operator')
-    : quota === undefined ? t('chat.quota.visitor')
+    : quota === undefined || quota === null ? t('chat.quota.visitor')
       : exhausted || quota <= 0 ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short')
         : quotaLimit ? t('chat.quota.left_of', { n: quota, limit: quotaLimit }) : t('chat.quota.left', { n: quota });
 
