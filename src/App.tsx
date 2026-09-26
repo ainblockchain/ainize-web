@@ -7,7 +7,7 @@ import { theme } from './theme/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { AuthProvider } from './auth/AuthContext';
 import { LocaleProvider } from './i18n';
-import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SigningCheckLayout } from './components/base/Layout';
+import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SignedInLayout, SigningCheckLayout } from './components/base/Layout';
 import { CenterProgress } from './components/ui/Misc';
 
 // Pages are code-split like ainize-web did with @loadable/component.
@@ -18,6 +18,7 @@ const BenchmarkPage = lazy(() => import('./screens/BenchmarkPage'));
 const LedgerPage = lazy(() => import('./screens/LedgerPage'));
 const NetworkPage = lazy(() => import('./screens/NetworkPage'));
 const ModelsPage = lazy(() => import('./screens/ModelsPage'));
+const MyPage = lazy(() => import('./screens/MyPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
 // Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
 const ModelDetailPage = lazy(() => import('./screens/ModelDetailPage'));
@@ -114,6 +115,8 @@ export default function App() {
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />
                 <Route path="/:author/:patchId" element={<Layout><PatchPage /></Layout>} />
 
+                {/* Signed in is enough: these are the caller's own things, not this node's. */}
+                <Route path="/me" element={<SignedInLayout><MyPage /></SignedInLayout>} />
                 {/* Operator pages (SigningCheckLayout) */}
                 <Route path="/dashboard" element={<SigningCheckLayout><DashboardPage /></SigningCheckLayout>} />
                 {/* signed out → public pre-screen (spec §5.2); signed in → the register form */}

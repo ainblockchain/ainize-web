@@ -1,9 +1,13 @@
 /**
  * What left the menu has to be reachable from somewhere.
  *
- * `/network` and `/ledger` were taken out of the top navigation on the promise that the account page leads to
- * them — the menu got shorter, access did not change. A promise like that is kept by a link, and a link is
- * exactly the kind of thing that survives one refactor and not the next.
+ * `/network` and `/ledger` were taken out of the top navigation on the promise that a signed-in page leads to
+ * them — the menu got shorter, access did not change.
+ *
+ * The first version of this file checked for a link in `AccountPage.tsx` and passed, while the promise was
+ * broken: `/account` is gated on owning THIS node, so everybody else was answered "this node is not yours". A
+ * link on a page somebody cannot open is not a way in. The destination test now names `/me`, which asks only
+ * for a session — see `my-page-reachability.test.ts`, which asserts that gate rather than this link.
  *
  * Both pages already existed in fuller form than any summary could be, so the account page links rather than
  * reimplements. That is the point of testing the link and not the content: a section that copies a page is a
@@ -30,9 +34,12 @@ for (const [to, what] of [
   ['/network', 'the map of nodes'],
   ['/ledger', 'the public record of sales'],
 ] as const) {
-  test(`${to} left the menu, so /account leads to it (${what})`, () => {
-    assert.ok(account.includes(`to="${to}"`),
-      `${to} is in neither navigation any more; if /account does not link to it, nothing does`);
+  test(`${to} left the menu, so a signed-in page leads to it (${what})`, () => {
+    const mine = read('src/screens/MyPage.tsx');
+    assert.ok(mine.includes(`to="${to}"`) || account.includes(`to="${to}"`),
+      `${to} is in neither navigation any more; /me is where somebody signed in should find it`);
+    assert.ok(mine.includes(`to="${to}"`),
+      `${to} is linked only from /account, which refuses anybody who does not run this node`);
   });
 
   test(`${to} is still routed, so the URL somebody bookmarked still works`, () => {

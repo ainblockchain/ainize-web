@@ -70,6 +70,30 @@ export function FocusedLayout({ children }: { children: ReactNode }) {
  * back here and the two would trade the tab for ever. It is also not really an error: connecting a wallet to a
  * node you do not run is the ordinary case, so it is answered with a sentence saying what still works.
  */
+/**
+ * Signed in is enough.
+ *
+ * `SigningCheckLayout` also requires owning THIS node, which is right for the screens that run it — operators,
+ * settings, runtime, the node's wallet. It was the only signed-in gate there was, so every page behind a session
+ * inherited "and you must run this node too", and a visitor who merely has an account was answered "this node is
+ * not yours" on pages that were about them.
+ *
+ * The two are different questions and now have different gates. A page belongs here when its content is the
+ * caller's: their keys, their record, the nodes they run somewhere else.
+ */
+export function SignedInLayout({ children }: { children: ReactNode }) {
+  const { isSignedIn, loading, signingOut } = useAuth();
+  const { pathname } = useLocation();
+  const [sawSignOut, setSawSignOut] = useState(false);
+  useEffect(() => { if (signingOut) setSawSignOut(true); }, [signingOut]);
+  if (loading) return <Layout><CenterProgress /></Layout>;
+  // A deliberate sign-out rests on the landing page; only an expired session asks to sign in again, and
+  // remembers where to come back to. Same rule as the operator gate, for the same reason.
+  if (signingOut || (sawSignOut && !isSignedIn)) return <Navigate to="/" replace />;
+  if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(pathname)}`} replace />;
+  return <Layout>{children}</Layout>;
+}
+
 export function SigningCheckLayout({ children }: { children: ReactNode }) {
   const { isSignedIn, isOwner, loading, signingOut } = useAuth();
   const { pathname } = useLocation();
