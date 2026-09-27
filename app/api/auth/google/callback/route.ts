@@ -9,6 +9,8 @@ import {
   GOOGLE_FLOW_COOKIE, GOOGLE_SESSION_COOKIE, GOOGLE_SESSION_TTL_S, GoogleOAuthError, finishGoogleFlow, googleCookieOptions,
   googleRedirectUri, readGoogleOAuthConfig,
 } from '@/lib/googleOAuth';
+import { legacyGoogleVerdict } from '@/lib/legacyLogin';
+import { legacyRefusalMessage } from '@/lib/ssoMessages';
 
 // A Google sign-in is intentionally app-only. Clear a wallet session left by an earlier
 // visit so AuthContext cannot mistake that old address for the Google identity.
@@ -23,7 +25,11 @@ export async function GET(req: NextRequest) {
   // can name the loopback address the server listens on.
   const origin = new URL(googleRedirectUri(req, config)).origin;
   try {
-    const { sessionCookie, next } = await finishGoogleFlow(req, config, req.cookies.get(GOOGLE_FLOW_COOKIE)?.value);
+    const { identity, sessionCookie, next } = await finishGoogleFlow(req, config, req.cookies.get(GOOGLE_FLOW_COOKIE)?.value);
+    // A legacy sign-in, once AIN SSO exists: not for an account AIN SSO suspended, and — under
+    // LEGACY_LOGIN=unlinked_only — not for one that is linked to an AIN account (src/lib/legacyLogin.ts).
+    const verdict = await legacyGoogleVerdict({ identity, iat: Math.floor(Date.now() / 1000) });
+    if (!verdict.ok) throw new GoogleOAuthError(legacyRefusalMessage(verdict.reason));
     const res = NextResponse.redirect(new URL(next, origin), 302);
     res.cookies.set(GOOGLE_SESSION_COOKIE, sessionCookie, googleCookieOptions(req, GOOGLE_SESSION_TTL_S));
     res.cookies.set(GOOGLE_FLOW_COOKIE, '', googleCookieOptions(req, 0));

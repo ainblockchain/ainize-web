@@ -13,7 +13,9 @@
  * Only /api/keys carries it. Anything wider would make a Google sign-in stand for more than it was ever checked for.
  */
 import { createHmac } from 'node:crypto';
-import { GOOGLE_SESSION_COOKIE, readGoogleOAuthConfig, readGoogleSession } from './googleOAuth';
+import { GOOGLE_SESSION_COOKIE, readGoogleOAuthConfig, readGoogleSessionWithIat } from './googleOAuth';
+import { legacyGoogleVerdict } from './legacyLogin';
+import { siteAssertionSecret } from './siteSecret';
 
 export const SITE_SUBJECT_HEADER = 'x-ainize-site-subject';
 const LABEL = 'ainize-site-subject';
@@ -23,10 +25,7 @@ export function signSiteSubject(secret: string, subject: string, issuedAtS: numb
   return `${subject}.${issuedAtS}.${mac}`;
 }
 
-export function siteAssertionSecret(env: NodeJS.ProcessEnv = process.env): string | null {
-  const s = env.AINIZE_SITE_ASSERTION_SECRET?.trim();
-  return s && s.length >= 32 ? s : null;
-}
+export { siteAssertionSecret };
 
 /** The paths a Google account may act on through this app. */
 export function vouchesFor(path: string): boolean {
@@ -46,11 +45,17 @@ function cookieValue(req: Request, name: string): string | undefined {
  *
  * Null whenever any part is missing — no secret, no Google config, no valid Google cookie — so a deployment
  * that has not been set up behaves exactly as it did before, and the node answers 401 as it always has.
+ *
+ * Also null when the legacy Google sign-in may no longer act (legacyLogin.ts): switched off by `LEGACY_LOGIN`, an
+ * account AIN SSO suspended or signed out everywhere, or — under `LEGACY_LOGIN=unlinked_only` — one that is linked
+ * to an AIN account and must now sign in with it.
  */
-export function siteSubjectFor(req: Request, now = Date.now(), env: NodeJS.ProcessEnv = process.env): string | null {
+export async function siteSubjectFor(req: Request, now = Date.now(), env: NodeJS.ProcessEnv = process.env, fetchImpl: typeof fetch = fetch): Promise<string | null> {
   const secret = siteAssertionSecret(env);
   const config = readGoogleOAuthConfig(env);
   if (!secret || !config) return null;
-  const identity = readGoogleSession(cookieValue(req, GOOGLE_SESSION_COOKIE), config, now);
-  return identity ? signSiteSubject(secret, `google:${identity.sub}`, Math.floor(now / 1000)) : null;
+  const session = readGoogleSessionWithIat(cookieValue(req, GOOGLE_SESSION_COOKIE), config, now);
+  if (!session) return null;
+  const verdict = await legacyGoogleVerdict(session, env, fetchImpl);
+  return verdict.ok ? signSiteSubject(secret, `google:${session.identity.sub}`, Math.floor(now / 1000)) : null;
 }

@@ -10,6 +10,7 @@
  * it here would turn that into one late burst, which is how a working chat reads as a hang.
  */
 import { NODE_URL, forwardHeaders } from './node-url';
+import { SITE_CALL_HEADER } from './nodeCall';
 import { SITE_SUBJECT_HEADER, siteSubjectFor, vouchesFor } from './siteAssertion';
 
 /** Body-carrying methods. A GET with a body is not a thing fetch will send. */
@@ -22,8 +23,10 @@ export async function relayToNode(req: Request, path: string): Promise<Response>
   // Only this app may vouch for a Google account, and only on the paths it vouches for. A visitor's own copy of
   // the header is dropped everywhere: the node would reject a forged one, but it should never even see one.
   headers.delete(SITE_SUBJECT_HEADER);
+  // Likewise this app's own signed calls (nodeCall.ts): they are this app speaking, never a visitor.
+  headers.delete(SITE_CALL_HEADER);
   if (vouchesFor(path)) {
-    const subject = siteSubjectFor(req);
+    const subject = await siteSubjectFor(req);
     if (subject) headers.set(SITE_SUBJECT_HEADER, subject);
   }
   let upstream: Response;
