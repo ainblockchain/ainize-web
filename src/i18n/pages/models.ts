@@ -55,6 +55,10 @@ export const models: Dict = {
     ko: '{email} 계정(Google)으로 발급됩니다. 키는 이 Google 계정에 묶이고, 예치는 지갑으로만 할 수 있어 예치 없는 기본 몫으로 호출됩니다.',
     en: 'Issued to {email} (Google). The key belongs to this Google account; deposits come from a wallet, so it calls at the base share a caller with no deposit gets.',
   },
+  'models.key.sso': {
+    ko: 'AIN 계정 {who}(으)로 발급됩니다. 로그인한 조직의 키가 되며, 예치는 지갑으로만 할 수 있어 예치 없는 기본 몫으로 호출됩니다.',
+    en: 'Issued to your AIN account {who}, for the organization you signed in with. Deposits come from a wallet, so it calls at the base share a caller with no deposit gets.',
+  },
   'models.key.create': { ko: '키 발급', en: 'Create a key' },
   'models.key.creating': { ko: '발급 중…', en: 'Creating…' },
   'models.key.manage': { ko: '내 키 관리 →', en: 'Manage your keys →' },

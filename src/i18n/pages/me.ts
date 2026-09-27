@@ -12,6 +12,16 @@ export const me: Dict = {
   'me.identity.address': { ko: '지갑 주소', en: 'Wallet address' },
   'me.identity.google': { ko: 'Google 계정', en: 'Google account' },
   'me.identity.none': { ko: '연결된 지갑이 없습니다.', en: 'No wallet connected.' },
+  'me.identity.sso': { ko: 'AIN 계정', en: 'AIN account' },
+  'me.identity.orgs': { ko: '조직: {orgs}', en: 'Organizations: {orgs}' },
+  'me.keys.scope': { ko: '범위', en: 'Scope' },
+  'me.keys.personal': { ko: '개인', en: 'Personal' },
+  'me.keys.disabled': { ko: '일시 중지됨', en: 'suspended' },
+  'me.keys.for': { ko: '발급 대상', en: 'Key for' },
+  'me.keys.org_hint': {
+    ko: '조직 키는 조직이 계정을 정지하면 멈추고, 퇴사 처리되면 폐기됩니다. 개인 키는 조직과 상관없이 유지됩니다.',
+    en: 'An organization key stops when the organization suspends your account and is deleted when you leave it. A personal key stays yours either way.',
+  },
 
   'me.keys.title': { ko: 'API 키', en: 'API keys' },
   'me.keys.lede': {

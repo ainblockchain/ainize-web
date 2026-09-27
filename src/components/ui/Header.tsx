@@ -93,9 +93,9 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, isOwner, subject, google, name, address, signOut } = useAuth();
-  // A Google-only session has no address to show, so it shows the account instead.
-  const who = subject ? shortAddr(subject, 6) : google?.email ?? '—';
+  const { isSignedIn, isOwner, subject, google, sso, name, address, signOut } = useAuth();
+  // A Google-only or AIN-only session has no address to show, so it shows the account instead.
+  const who = subject ? shortAddr(subject, 6) : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -145,6 +145,7 @@ export function Header() {
               <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{who} ▾</UserMenuButton>
               <Menu $open={open} role="menu">
                 {subject && <MenuInfo title={subject}>{shortAddr(subject, 8)}</MenuInfo>}
+                {sso && <MenuInfo title={sso.email ?? sso.sub} data-testid="menu-sso">AIN · {sso.email ?? sso.name ?? sso.sub}</MenuInfo>}
                 {google && <MenuInfo title={google.email} data-testid="menu-google">{google.email}</MenuInfo>}
                 {/* Which node you are looking at, said separately, because it is a different fact. */}
                 <MenuInfo title={address ?? ''}>{name ?? ''} · {shortAddr(address, 6)}</MenuInfo>

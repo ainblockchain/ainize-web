@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { useGoogleLogoutMutation, useGoogleSessionQuery, useLogoutMutation, useMeQuery } from '@/api/api';
-import type { GoogleIdentityView } from '@/api/types';
+import { useGoogleLogoutMutation, useGoogleSessionQuery, useLogoutMutation, useMeQuery, useSsoStatusQuery } from '@/api/api';
+import type { GoogleIdentityView, SsoSessionView } from '@/api/types';
 
 /**
  * Who is here, and what that lets them do — two questions, kept apart.
@@ -18,6 +18,9 @@ import type { GoogleIdentityView } from '@/api/types';
  * A Google account is a third way to be here, and a weaker one: this app checked it, the node has never heard of it.
  * So it signs you in — `isSignedIn`, a name in the header — and grants nothing else. `subject` stays null for it,
  * because `subject` is an address and a Google account is not one; read `google` for who it is.
+ *
+ * An AIN account (AIN SSO) is the fourth, and stands for what a Google session stood for: a name and API keys. The
+ * node keeps its session and reports it apart (`sso`), so `subject` stays null for it too.
  */
 export interface AuthState {
   loading: boolean;
@@ -25,8 +28,12 @@ export interface AuthState {
   isSignedIn: boolean;
   /** the address signed in, or null — also null for a Google-only session, which has no address */
   subject: string | null;
-  /** how it proved itself: `eip191` is a person at a browser wallet, `ain` is a key acting on its own, `google` is a Google account this app checked */
-  scheme: 'ain' | 'eip191' | 'google' | null;
+  /** how it proved itself: `eip191` is a person at a browser wallet, `ain` is a key acting on its own, `google` is a Google account this app checked, `sso` an AIN account */
+  scheme: 'ain' | 'eip191' | 'google' | 'sso' | null;
+  /** the AIN account signed in (AIN SSO), or null */
+  sso: SsoSessionView | null;
+  /** this server offers "Continue with AIN" */
+  ssoConfigured: boolean;
   /** the Google account signed in to this app, whether or not a wallet is too */
   google: GoogleIdentityView | null;
   /** this server can do Google sign-in at all */
@@ -48,7 +55,7 @@ export interface AuthState {
 }
 
 const EMPTY: AuthState = {
-  loading: true, isSignedIn: false, subject: null, scheme: null, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
+  loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
   canEnroll: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined,
 };
 const AuthContext = createContext<AuthState>(EMPTY);
@@ -56,6 +63,7 @@ const AuthContext = createContext<AuthState>(EMPTY);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, refetch } = useMeQuery(undefined, { pollingInterval: 60_000 });
   const { data: googleData, isLoading: googleLoading, refetch: refetchGoogle } = useGoogleSessionQuery(undefined, { pollingInterval: 60_000 });
+  const { data: ssoStatus } = useSsoStatusQuery();
   const [logout] = useLogoutMutation();
   const [googleLogout] = useGoogleLogoutMutation();
   const [signingOut, setSigningOut] = useState(false);
@@ -65,12 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const live = !!data?.signedIn && !signingOut;
   const google = !signingOut ? googleData?.identity ?? null : null;
+  const sso = !signingOut ? data?.sso ?? null : null;
   const value: AuthState = {
     loading: isLoading || googleLoading,
-    isSignedIn: live || !!google,
+    isSignedIn: live || !!google || !!sso,
     subject: live ? data?.subject ?? null : null,
     // The wallet wins when both are present: it is the one the node can act on.
-    scheme: live ? data?.scheme ?? null : google ? 'google' : null,
+    scheme: live ? data?.scheme ?? null : sso ? 'sso' : google ? 'google' : null,
+    sso,
+    ssoConfigured: !!ssoStatus?.configured,
     google,
     googleConfigured: !!googleData?.configured,
     // Ownership is the node's answer, never inferred here from having a session. It is also re-read on every
