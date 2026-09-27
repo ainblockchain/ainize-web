@@ -11,7 +11,7 @@ import type {
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
-  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse,
+  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse, ApiKeySummary,
 } from './types';
 import type { HostedAgentSpecInput } from './hostedAgents';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
@@ -96,7 +96,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -120,11 +120,11 @@ export const api = createApi({
     // Every model the node can reach, its own and its peers' (ainize-node peer-models.ts). An older node answers 404.
     networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
-    apiKeys: b.query<{ keys: { prefix: string; issuedAt: number; label: string | null }[] }, void>({
+    apiKeys: b.query<{ keys: ApiKeySummary[] }, void>({
       query: () => 'api/keys', providesTags: ['ApiKeys'],
     }),
     /** Issue one. The secret is in this response and nowhere else, ever again. */
-    createApiKey: b.mutation<{ api_key: string; prefix: string; label: string | null }, { label?: string }>({
+    createApiKey: b.mutation<{ api_key: string; prefix: string; label: string | null; org_id?: string | null }, { label?: string; org_id?: string | null }>({
       query: (body) => ({ url: 'api/keys', method: 'POST', body }), invalidatesTags: ['ApiKeys'],
     }),
     revokeApiKey: b.mutation<{ revoked: boolean }, string>({
@@ -254,6 +254,11 @@ export const api = createApi({
     // is a full-page redirect to /api/auth/google/start, because Google's consent screen is not something to fetch.
     googleSession: b.query<GoogleSessionResponse, void>({ query: () => 'api/auth/google/session', providesTags: ['GoogleSession'] }),
     googleLogout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/google/session', method: 'DELETE' }), invalidatesTags: ['GoogleSession'] }),
+    // AIN SSO (src/lib/ainSso.ts): whether it is offered, and finishing a sign-in that had no link yet.
+    ssoStatus: b.query<SsoStatusResponse, void>({ query: () => 'api/auth/sso/status', providesTags: ['SsoStatus'] }),
+    ssoConnect: b.mutation<{ ok: boolean; next: string; linked: string | null }, { choice: 'legacy' | 'new' }>({
+      query: (body) => ({ url: 'api/auth/sso/connect', method: 'POST', body }), invalidatesTags: ['Me', 'GoogleSession', 'SsoStatus', 'ApiKeys'],
+    }),
 
     // operator
     myPatches: b.query<{ items: CatalogEntry[] }, void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
@@ -444,7 +449,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
-  useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation,
+  useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,

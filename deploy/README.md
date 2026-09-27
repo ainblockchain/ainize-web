@@ -47,6 +47,10 @@ When the unit is absent, the deployment script starts a detached process and wri
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Unset; Google sign-in is offered only when both are set together with `AINIZE_WEB_SESSION_SECRET` |
 | `AINIZE_WEB_SESSION_SECRET` | Unset; signs the Google session cookie (`openssl rand -base64 32`). Changing it signs everyone out of Google |
 | `GOOGLE_OAUTH_REDIRECT_URI` | Derived from the request (`https://<host>/api/auth/google/callback`); set it when a proxy rewrites `Host` |
+| `AINIZE_SITE_ASSERTION_SECRET` | Unset; the secret shared with the node's `<AINIZE_HOME>/site-assertion.secret` (≥ 32 chars). Vouches for Google accounts on `/api/keys`, and signs this app's own calls to the node for AIN sign-in |
+| `AIN_SSO_ISSUER` / `AIN_SSO_CLIENT_ID` / `AIN_SSO_CLIENT_SECRET` | Unset; "Continue with AIN" is offered only when all three are set **and** `AINIZE_SITE_ASSERTION_SECRET` is (see below) |
+| `AIN_SSO_REDIRECT_URI` | Derived from the request (`https://<host>/api/auth/sso/callback`); set it when a proxy rewrites `Host` |
+| `LEGACY_LOGIN` | `true` (default): Google sign-in as before. `unlinked_only`: only Google accounts not connected to an AIN account. `false`: Google sign-in off. Anything else counts as `false` |
 
 ### Google sign-in
 
@@ -55,6 +59,31 @@ Create an OAuth client (type *Web application*) in Google Cloud Console and regi
 as an authorized redirect URI. Put the three secrets in `~/ainize-web-releases/google-oauth.env` (mode 600), which
 the unit loads; in manual process mode, export them before running the deploy script. A Google session belongs to
 this app only — the node does not see it, so it signs a person in but grants no wallet or owner permission.
+
+### AIN sign-in (AIN SSO)
+
+"Continue with AIN" (AIN 계정으로 계속) is an alternative to the Google button, not a replacement, and it is off until
+configured. This app is the OpenID Connect client (code flow with PKCE, `state` and `nonce`; the ID token is verified
+against AIN SSO's keys); the session itself is the node's, so AIN SSO can end it (back-channel logout, suspension).
+The node side — adapter, sessions, what suspension revokes — is described in ainize-node `docs/ain-sso.md`; configure
+the node first (`AIN_SSO_ISSUER`, `AIN_SSO_CLIENT_ID`, `AIN_SSO_ADAPTER_URL`).
+
+1. Register the ainize client at AIN SSO: redirect URI `https://ainize.ai/api/auth/sso/callback`, back-channel logout
+   URI `https://ainize.ai/api/auth/sso/backchannel-logout`, adapter URL `https://ainize.ai/api/sso/adapter`,
+   scopes `openid profile email org`, `client_secret_basic`.
+2. Add `AIN_SSO_ISSUER`, `AIN_SSO_CLIENT_ID` and `AIN_SSO_CLIENT_SECRET` to the environment file the unit loads
+   (`~/ainize-web-releases/google-oauth.env`, mode 600) and restart. `AINIZE_SITE_ASSERTION_SECRET` must already be
+   there.
+3. Move `LEGACY_LOGIN` from `true` to `unlinked_only` to `false` following the AIN SSO rollout runbook
+   (`docs/runbooks/migration-rollback.md` in ainetwork-ai/sso). Wallet sign-in is never affected.
+
+Accounts are linked by AIN's verified subject, never by email. A person signing in with AIN for the first time, while
+Google sign-in is still allowed, may connect their existing ainize.ai Google account by being signed in to it in the
+same browser; the link is reported to AIN SSO. Whatever `LEGACY_LOGIN` says, a Google session is refused once AIN SSO
+has suspended the account — the node keeps that state, and this app asks it whenever `AINIZE_SITE_ASSERTION_SECRET`
+is set, including after AIN sign-in is switched off again.
+
+Rollback: remove the three `AIN_SSO_*` variables and restart. The button disappears; suspensions still hold.
 
 ## Rollback
 

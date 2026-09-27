@@ -297,7 +297,7 @@ export default function LandingPage() {
    * in, and read it as the sign-in not having held.
    */
   const auth = useAuth();
-  const signedInAs = auth.subject ? shortAddr(auth.subject, 6) : auth.google?.email ?? null;
+  const signedInAs = auth.subject ? shortAddr(auth.subject, 6) : auth.sso ? (auth.sso.email ?? auth.sso.name ?? 'AIN') : auth.google?.email ?? null;
   const info = infoQ.data;
   const { data: trending, isLoading, error: trendError, isFetching: trendFetching, refetch: refetchTrending } = useCatalogQuery({ status: 'VERIFIED', sort: 'popular', limit: 6 });
   /**
@@ -369,7 +369,7 @@ export default function LandingPage() {
             {/* Finding 69: /docs was in every other page's header and in neither of the landing's chromes. */}
             <NavLink to="/docs" data-testid="landing-nav-docs">{t('nav.docs')}</NavLink>
             {auth.isSignedIn && signedInAs
-              ? <NavMuted to={auth.subject ? '/my-nodes' : '/models'} data-testid="landing-nav-account" title={auth.subject ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>
+              ? <NavMuted to={auth.subject ? '/my-nodes' : '/models'} data-testid="landing-nav-account" title={auth.subject ?? auth.sso?.email ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>
               : <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>}
           </NavLinks>
           <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>

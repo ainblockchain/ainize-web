@@ -49,7 +49,8 @@ export interface GoogleIdentity {
   picture: string | null;
 }
 
-interface GoogleSessionPayload extends GoogleIdentity { exp: number }
+/** `iat` was added with AIN SSO (a sign-out everywhere has to date cookies); older cookies are dated from `exp`. */
+interface GoogleSessionPayload extends GoogleIdentity { exp: number; iat?: number }
 interface GoogleFlowPayload { state: string; verifier: string; nonce: string; next: string; exp: number }
 
 const b64url = (buf: Buffer | string) => Buffer.from(buf).toString('base64url');
@@ -176,7 +177,7 @@ export async function finishGoogleFlow(
   if (!res.ok || !body.id_token) throw new GoogleOAuthError(`token exchange failed: ${body.error_description ?? body.error ?? res.status}`);
 
   const identity = checkGoogleIdToken(body.id_token, config, flow.nonce, now);
-  const session: GoogleSessionPayload = { ...identity, exp: Math.floor(now / 1000) + GOOGLE_SESSION_TTL_S };
+  const session: GoogleSessionPayload = { ...identity, iat: Math.floor(now / 1000), exp: Math.floor(now / 1000) + GOOGLE_SESSION_TTL_S };
   return { identity, sessionCookie: signGoogleCookie(session, config.sessionSecret), next: flow.next };
 }
 
@@ -185,9 +186,16 @@ export function readGoogleSession(cookieValue: string | undefined, config: Googl
   return s ? { sub: s.sub, email: s.email, name: s.name, picture: s.picture } : null;
 }
 
+/** The session and when its cookie was minted (seconds) — what a sign-out-everywhere from AIN SSO is compared with. */
+export function readGoogleSessionWithIat(cookieValue: string | undefined, config: GoogleOAuthConfig, now = Date.now()): { identity: GoogleIdentity; iat: number } | null {
+  const s = verifyGoogleCookie<GoogleSessionPayload>(cookieValue, config.sessionSecret, now);
+  if (!s) return null;
+  return { identity: { sub: s.sub, email: s.email, name: s.name, picture: s.picture }, iat: typeof s.iat === 'number' ? s.iat : s.exp - GOOGLE_SESSION_TTL_S };
+}
+
 /** Test seam: mint a session without a round trip to Google. */
 export function mintGoogleSessionCookie(identity: GoogleIdentity, config: GoogleOAuthConfig, now = Date.now()): string {
-  return signGoogleCookie({ ...identity, exp: Math.floor(now / 1000) + GOOGLE_SESSION_TTL_S }, config.sessionSecret);
+  return signGoogleCookie({ ...identity, iat: Math.floor(now / 1000), exp: Math.floor(now / 1000) + GOOGLE_SESSION_TTL_S }, config.sessionSecret);
 }
 
 /** `Secure` everywhere but plain-http localhost, where a browser would drop a Secure cookie and sign-in would silently fail. */

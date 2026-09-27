@@ -29,8 +29,17 @@ const Links = styled.div`display: flex; gap: 18px; flex-wrap: wrap; margin-top: 
 export default function MyPage() {
   const { t } = useT();
   useTitle(t('me.title'));
-  const { isOwner } = useAuth();
+  const { isOwner, sso } = useAuth();
   const { data: me, isLoading } = useMeQuery();
+  /**
+   * An AIN account makes keys for one of its organizations, or personal ones (ainize-node src/sso.ts). The default
+   * is the organization it signed in for — the company's key is the company's to switch off — and the choice is
+   * shown, because a personal key is the one that outlives leaving.
+   */
+  const orgs = sso?.orgs ?? [];
+  const [keyFor, setKeyFor] = useState<string | null | undefined>(undefined);
+  const scope = keyFor !== undefined ? keyFor : sso ? (sso.activeOrg ?? orgs[0]?.id ?? null) : undefined;
+  const orgName = (id: string | null | undefined) => (id ? orgs.find((o) => o.id === id)?.name ?? id : t('me.keys.personal'));
   const { data: keys } = useApiKeysQuery();
   const { data: myNodes } = useMyNodesQuery(undefined, { skip: !me?.subject });
   const [createKey, createState] = useCreateApiKeyMutation();
@@ -50,6 +59,12 @@ export default function MyPage() {
         {me?.subject
           ? <Mono title={me.subject} data-testid="me-address">{shortAddr(me.subject, 10)}</Mono>
           : <Description>{t('me.identity.none')}</Description>}
+        {sso && (
+          <Description data-testid="me-sso">
+            {t('me.identity.sso')}: {sso.email ?? sso.name ?? sso.sub}
+            {orgs.length > 0 && <> · {t('me.identity.orgs', { orgs: orgs.map((o) => o.name).join(', ') })}</>}
+          </Description>
+        )}
       </Panel>
 
       <SubTitle>{t('me.keys.title')}</SubTitle>
@@ -69,6 +84,7 @@ export default function MyPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead $align="left" $padding="0 8px">{t('me.keys.label')}</TableHead>
+                  {sso && <TableHead>{t('me.keys.scope')}</TableHead>}
                   <TableHead>{t('me.keys.created')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -77,6 +93,7 @@ export default function MyPage() {
                 {(keys?.keys ?? []).map((k) => (
                   <TableRow key={k.prefix}>
                     <TableData $align="left" $padding="0 8px">{k.label ?? k.prefix}</TableData>
+                    {sso && <TableData>{orgName(k.org_id)}{k.disabled ? ` (${t('me.keys.disabled')})` : ''}</TableData>}
                     <TableData>{new Date(k.issuedAt).toLocaleDateString()}</TableData>
                     <TableData>
                       <Button
@@ -92,6 +109,16 @@ export default function MyPage() {
             </Table>
           </TableWrapper>
         )}
+        {sso && orgs.length > 0 && (
+          <Row>
+            <label htmlFor="me-key-for">{t('me.keys.for')}</label>
+            <select id="me-key-for" data-testid="me-key-for" value={scope ?? ''} onChange={(e) => setKeyFor(e.target.value || null)}>
+              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              <option value="">{t('me.keys.personal')}</option>
+            </select>
+            <Description style={{ margin: 0 }}>{t('me.keys.org_hint')}</Description>
+          </Row>
+        )}
         <Row>
           <Button
             type="button"
@@ -99,7 +126,7 @@ export default function MyPage() {
             disabled={createState.isLoading}
             onClick={() => {
               setError(null);
-              void createKey({}).unwrap()
+              void createKey(scope !== undefined ? { org_id: scope } : {}).unwrap()
                 .then((r) => setIssued(r.api_key))
                 .catch((e: unknown) => setError(errorMessage(e)));
             }}

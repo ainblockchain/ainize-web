@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery } from '@/api/api';
+import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery, useSsoConnectMutation, useSsoStatusQuery } from '@/api/api';
 import { connect, discoverWallets, personalSign, WalletError, type DiscoveredWallet } from '@/lib/ethWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
@@ -39,6 +39,15 @@ const GoogleButton = styled.a`
   svg { width: 18px; height: 18px; flex: none; }
 `;
 const Or = styled.p`margin: 24px 0 0; font-size: 13px; color: ${(p) => p.theme.color.GREY};`;
+/** AIN SSO's door: the same shape as Google's, in the brand colour, because it is this company's own account. */
+const SsoButton = styled.a`
+  min-width: 196px; height: 44px; padding: 0 16px; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; background: ${(p) => p.theme.color.PRIMARY};
+  color: #fff; font-size: 15px; font-weight: 500; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 10px;
+  &:hover { background: ${(p) => p.theme.color.HOVER}; }
+`;
+const ConnectPanel = styled.div`margin-top: 32px; padding: 18px; border: 1px solid #e2e4ea; border-radius: 10px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start;`;
+const ConnectTitle = styled.p`margin: 0; font-size: 16px; font-weight: 600; color: ${(p) => p.theme.color.BLACK};`;
 
 /** Google's four-colour "G", inline so the button needs no asset and no request to Google before it is pressed. */
 function GoogleMark() {
@@ -96,6 +105,32 @@ export default function SigningPage() {
   const googleError = params.get('google_error');
   // Not the /dashboard default: that screen is the node owner's, and a Google session can never own a node.
   const googleNext = params.get('next') || '/';
+
+  /**
+   * AIN SSO (src/lib/ainSso.ts). The button is offered only where the server can complete it. `?sso=connect` is where
+   * the callback sends an AIN sign-in that has no ainize.ai account yet: the person may connect their existing
+   * Google-based one — proven by being signed in to it in this browser, never by email — or start fresh.
+   */
+  const ssoError = params.get('sso_error');
+  const connecting = params.get('sso') === 'connect';
+  const { data: ssoStatus, refetch: refetchSso } = useSsoStatusQuery();
+  const [ssoConnect, ssoConnectState] = useSsoConnectMutation();
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const pending = connecting ? ssoStatus?.pending ?? null : null;
+  const finishConnect = async (choice: 'legacy' | 'new') => {
+    setConnectError(null);
+    try {
+      const r = await ssoConnect({ choice }).unwrap();
+      await auth.refresh();
+      navigate(r.next || '/', { replace: true });
+    } catch (e) {
+      const body = (e as { data?: { message?: string; error?: string } } | null)?.data;
+      setConnectError(body?.message ?? body?.error ?? errorMessage(e));
+      void refetchSso();
+    }
+  };
+  // Back here from the old Google sign-in, the connect panel is waiting with the account it can now connect.
+  const connectAgain = `/signing?sso=connect&next=${encodeURIComponent(pending?.next ?? googleNext)}`;
 
   const signInError = (e: unknown): string => {
     const r = e as { status?: number | string; data?: { error?: string; retry_after_s?: number; attempts?: number } } | null | undefined;
@@ -183,9 +218,42 @@ export default function SigningPage() {
           </>
         )}
 
+        {/* The AIN sign-in waiting to be finished: connect the old account, or not. */}
+        {connecting && pending && (
+          <ConnectPanel data-testid="sso-connect">
+            <ConnectTitle>{t('op.sign.sso.connect.title')}</ConnectTitle>
+            <Hint style={{ marginTop: 0 }}>{t('op.sign.sso.connect.lede', { who: pending.email ?? pending.name ?? 'AIN' })}</Hint>
+            {ssoStatus?.legacyGoogle && (
+              <ConfirmButton type="button" style={{ marginTop: 0, width: 'auto', padding: '0 16px' }} disabled={ssoConnectState.isLoading} onClick={() => void finishConnect('legacy')} data-testid="sso-connect-legacy">
+                {ssoConnectState.isLoading ? t('op.sign.sso.connect.busy') : t('op.sign.sso.connect.legacy', { email: ssoStatus.legacyGoogle.email })}
+              </ConfirmButton>
+            )}
+            {!ssoStatus?.legacyGoogle && ssoStatus?.legacyGoogleAvailable && (
+              <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(connectAgain)}`} data-testid="sso-connect-google">
+                <GoogleMark />{t('op.sign.sso.connect.google_first')}
+              </GoogleButton>
+            )}
+            <WalletButton type="button" disabled={ssoConnectState.isLoading} onClick={() => void finishConnect('new')} data-testid="sso-connect-new">{t('op.sign.sso.connect.new')}</WalletButton>
+            {connectError && <Alert $tone="error" role="alert">{connectError}</Alert>}
+          </ConnectPanel>
+        )}
+        {connecting && ssoStatus && !pending && <Alert $tone="info" role="status" style={{ marginTop: 24 }}>{t('op.sign.sso.connect.expired')}</Alert>}
+
+        {/* AIN SSO: another door beside Google's, never instead of the wallet. Offered only where configured. */}
+        {auth.ssoConfigured && !auth.sso && !pending && (
+          <>
+            {wallets && wallets.length > 0 && <Or>{t('op.sign.google.or')}</Or>}
+            <SsoButton href={`/api/auth/sso/start?next=${encodeURIComponent(googleNext)}`} data-testid="sso-signin" style={{ marginTop: wallets && wallets.length > 0 ? 12 : 32 }}>
+              {t('op.sign.sso.button')}
+            </SsoButton>
+          </>
+        )}
+        {auth.sso && <Alert $tone="info" role="status" data-testid="sso-signed-in" style={{ marginTop: 24 }}>{t('op.sign.sso.signed_in', { who: auth.sso.email ?? auth.sso.name ?? auth.sso.sub })}</Alert>}
+        {ssoError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.sso.err', { reason: ssoError })}</Alert>}
+
         {/* Google is a separate door into this app, not into the node: a full-page redirect, because the consent
             screen is Google's page and cannot be fetched. Offered only when this server holds the credentials. */}
-        {auth.googleConfigured && !auth.google && (
+        {auth.googleConfigured && !auth.google && !pending && (
           <>
             {wallets && wallets.length > 0 && <Or>{t('op.sign.google.or')}</Or>}
             <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(googleNext)}`} data-testid="google-signin" style={{ marginTop: wallets && wallets.length > 0 ? 12 : 32 }}>

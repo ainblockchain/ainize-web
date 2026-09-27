@@ -75,8 +75,9 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
   // again by a page it is already signed in to.
   const signedIn = !!me?.signedIn;
   // A Google account holds keys too: this app vouches for it to the node on /api/keys (lib/siteAssertion.ts).
-  const { google } = useAuth();
-  const canHoldKeys = signedIn || !!google;
+  const { google, sso } = useAuth();
+  // …and so does an AIN account (AIN SSO): the node keeps its session and issues it keys for its organization.
+  const canHoldKeys = signedIn || !!google || !!sso;
   const { data: keyList } = useApiKeysQuery(undefined, { skip: !canHoldKeys });
   const [createKey, createState] = useCreateApiKeyMutation();
   const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
@@ -180,7 +181,10 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
             <StyledLink to={`/signing?next=${encodeURIComponent(signInNext)}`}>{t('models.key.signin')}</StyledLink>
           </>
         )}
-        {!signedIn && google && !issuedKey && (
+        {!signedIn && sso && !issuedKey && (
+          <Description data-testid="models-key-sso">{t('models.key.sso', { who: sso.email ?? sso.name ?? sso.sub })}</Description>
+        )}
+        {!signedIn && !sso && google && !issuedKey && (
           <Description data-testid="models-key-google">{t('models.key.google', { email: google.email })}</Description>
         )}
         {canHoldKeys && !issuedKey && (

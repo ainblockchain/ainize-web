@@ -307,7 +307,33 @@ export interface GoogleSessionResponse {
   identity: GoogleIdentityView | null;
 }
 
+/** An AIN SSO session on the node (ainize-node src/sso.ts) — reported apart from `signedIn`, which means an address. */
+export interface SsoSessionView {
+  /** who the session acts as on the node: `sso:<sub>`, or the ainize.ai Google account it is connected to (`google:<sub>`) */
+  principal: string;
+  sub: string;
+  name: string | null;
+  email: string | null;
+  orgs: { id: string; slug: string; name: string }[];
+  activeOrg: string | null;
+}
+
+/** `/api/auth/sso/status` (app/api/auth/sso/status/route.ts). */
+export interface SsoStatusResponse {
+  configured: boolean;
+  legacyLogin: 'true' | 'unlinked_only' | 'false';
+  /** an AIN sign-in waiting for "connect your existing account" */
+  pending: { name: string | null; email: string | null; next: string; expiresAt: number } | null;
+  /** the ainize.ai Google account signed in in this browser, which could be connected */
+  legacyGoogle: { email: string } | null;
+  legacyGoogleAvailable: boolean;
+}
+
+export interface ApiKeySummary { prefix: string; issuedAt: number; label: string | null; org_id?: string | null; disabled?: boolean }
+
 export interface AuthMe {
+  /** an AIN SSO session, or null/absent (a node from before AIN SSO) */
+  sso?: SsoSessionView | null;
   signedIn: boolean;
   /** the address behind this session, or null when there is none */
   subject: string | null;
