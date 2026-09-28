@@ -16,8 +16,8 @@
  */
 import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from 'node:crypto';
 import * as oidc from 'openid-client';
+import type { AinSsoConfig } from './ainSsoConfig';
 import { safeGoogleNext } from './googleOAuth';
-import { siteAssertionSecret } from './siteSecret';
 
 export const SSO_FLOW_COOKIE = 'ainize_sso_flow';
 /** the verified identity waiting for "connect your existing account" or "continue" */
@@ -30,34 +30,7 @@ export const NODE_SESSION_COOKIE = 'ainize_session';
 export const SSO_SESSION_TTL_S = 14 * 24 * 3600;
 export const SSO_SCOPE = 'openid profile email org';
 
-export interface AinSsoConfig {
-  issuer: string;
-  clientId: string;
-  clientSecret: string;
-  /** fixed callback URL, when the one derived from the request would be wrong (a proxy that rewrites Host) */
-  redirectUri: string | null;
-}
-
-const isLoopback = (host: string) => host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
-let warned = false;
-const warnOnce = (message: string) => { if (!warned) { warned = true; console.error(`[ain-sso] ${message}`); } };
-
-/**
- * Null — no "Continue with AIN" button, no route that does anything — unless `AIN_SSO_ISSUER`, `AIN_SSO_CLIENT_ID`
- * and `AIN_SSO_CLIENT_SECRET` are all set, and this app can speak to the node (`AINIZE_SITE_ASSERTION_SECRET`),
- * which is where the session lives.
- */
-export function readAinSsoConfig(env: NodeJS.ProcessEnv = process.env): AinSsoConfig | null {
-  const issuer = env.AIN_SSO_ISSUER?.trim();
-  const clientId = env.AIN_SSO_CLIENT_ID?.trim();
-  const clientSecret = env.AIN_SSO_CLIENT_SECRET?.trim();
-  if (!issuer || !clientId || !clientSecret) return null;
-  let url: URL;
-  try { url = new URL(issuer); } catch { warnOnce('AIN_SSO_ISSUER is not a URL — AIN sign-in stays off'); return null; }
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback(url.hostname))) { warnOnce('AIN_SSO_ISSUER must be https — AIN sign-in stays off'); return null; }
-  if (!siteAssertionSecret(env)) { warnOnce('AINIZE_SITE_ASSERTION_SECRET is not set, and the node keeps the sessions — AIN sign-in stays off'); return null; }
-  return { issuer, clientId, clientSecret, redirectUri: env.AIN_SSO_REDIRECT_URI?.trim() || null };
-}
+export { readAinSsoConfig, silentSsoEnabled, type AinSsoConfig } from './ainSsoConfig';
 
 export class SsoFlowError extends Error {}
 
@@ -118,14 +91,41 @@ export function ssoRedirectUri(req: Request, cfg: AinSsoConfig): string {
   return `${proto}://${host}/api/auth/sso/callback`;
 }
 
-interface FlowPayload { state: string; nonce: string; verifier: string; redirectUri: string; next: string; exp: number }
+interface FlowPayload { state: string; nonce: string; verifier: string; redirectUri: string; next: string; exp: number; silent?: true }
+
+/**
+ * What the person asked for besides signing in. `prompt=none`: automatic sign-in (silentSso.ts) — AIN SSO answers
+ * without showing anything. `prompt=create`: the sign-up page (OIDC Prompt Create 1.0). `idp=google`: straight to
+ * Google (`ain_idp=google`) — AIN SSO skips its own sign-in page, or answers at once for a browser signed in there.
+ */
+export interface SsoStartOptions { prompt?: 'none' | 'create' | null; idp?: 'google' | null }
+
+/** Only the values this app means; anything else in a hand-written URL is dropped rather than passed on. */
+export function readSsoStartOptions(params: URLSearchParams): SsoStartOptions {
+  const prompt = params.get('prompt');
+  return { prompt: prompt === 'none' || prompt === 'create' ? prompt : null, idp: params.get('idp') === 'google' ? 'google' : null };
+}
+
+/**
+ * A silent sign-in's `state` also says that it is silent, and where the visitor was going: `sn.<random>.<next>`.
+ * It is the one thing that comes back from AIN SSO even to a browser that kept no cookie — so such a browser is
+ * still returned quietly to its page instead of to a sign-in error it never asked for. It is never trusted for
+ * more than that: the sign-in itself is held to the sealed cookie, as always.
+ */
+const SILENT_STATE = /^sn\.[A-Za-z0-9_-]{16,}(?:\.([A-Za-z0-9_-]{1,700}))?$/;
+function silentState(next: string): string {
+  const packed = Buffer.from(next, 'utf8').toString('base64url');
+  return `sn.${oidc.randomState()}${packed.length <= 700 ? `.${packed}` : ''}`;
+}
 
 /** Step one: the AIN SSO authorization URL, and the sealed cookie the callback will be held to. */
-export async function startSsoFlow(req: Request, cfg: AinSsoConfig, next: string | null, now = Date.now()) {
+export async function startSsoFlow(req: Request, cfg: AinSsoConfig, next: string | null, options: SsoStartOptions = {}, now = Date.now()) {
   const client = await ssoClient(cfg);
+  const silent = options.prompt === 'none';
+  const safeNext = safeGoogleNext(next);
   const flow: FlowPayload = {
-    state: oidc.randomState(), nonce: oidc.randomNonce(), verifier: oidc.randomPKCECodeVerifier(),
-    redirectUri: ssoRedirectUri(req, cfg), next: safeGoogleNext(next), exp: Math.floor(now / 1000) + SSO_FLOW_TTL_S,
+    state: silent ? silentState(safeNext) : oidc.randomState(), nonce: oidc.randomNonce(), verifier: oidc.randomPKCECodeVerifier(),
+    redirectUri: ssoRedirectUri(req, cfg), next: safeNext, exp: Math.floor(now / 1000) + SSO_FLOW_TTL_S, ...(silent ? { silent: true as const } : {}),
   };
   const url = oidc.buildAuthorizationUrl(client, {
     redirect_uri: flow.redirectUri,
@@ -135,9 +135,41 @@ export async function startSsoFlow(req: Request, cfg: AinSsoConfig, next: string
     nonce: flow.nonce,
     code_challenge: await oidc.calculatePKCECodeChallenge(flow.verifier),
     code_challenge_method: 'S256',
+    ...(options.prompt ? { prompt: options.prompt } : {}),
+    ...(options.idp ? { ain_idp: options.idp } : {}),
   });
-  return { authorizeUrl: url.href, flowCookie: seal(flow, cfg, 'flow') };
+  return { authorizeUrl: url.href, flowCookie: seal(flow, cfg, 'flow'), state: flow.state };
 }
+
+/**
+ * Is the browser coming back from a silent sign-in, and to which page? From the sealed flow cookie when it is there
+ * and belongs to this callback, else from the silent `state` (a browser that kept no cookie). Null: an ordinary
+ * sign-in, which shows its errors as it always has.
+ */
+export interface SilentReturn {
+  next: string;
+  /** no flow cookie came back at all: this browser keeps none, so it is sent back with a marker instead */
+  cookieless: boolean;
+  /** the flow cookie is this sign-in's own (and may be spent), not another sign-in's in another tab */
+  ownFlow: boolean;
+}
+export function silentReturnOf(req: Request, cfg: AinSsoConfig, flowCookie: string | undefined, now = Date.now()): SilentReturn | null {
+  const state = new URL(req.url).searchParams.get('state') ?? '';
+  const flow = unseal<FlowPayload>(flowCookie, cfg, 'flow', now);
+  if (flow?.silent && (!state || state === flow.state)) return { next: flow.next, cookieless: false, ownFlow: true };
+  const m = SILENT_STATE.exec(state);
+  if (!m) return null;
+  if (flow && flow.state === state) return { next: flow.next, cookieless: false, ownFlow: true };
+  let next = '/';
+  try { next = m[1] ? safeGoogleNext(Buffer.from(m[1], 'base64url').toString('utf8')) : '/'; } catch { next = '/'; }
+  return { next, cookieless: !flowCookie, ownFlow: false };
+}
+
+/**
+ * The OIDC errors a `prompt=none` request answers with when the browser would have to see a page — no AIN session,
+ * a consent or an account choice to make. For a silent sign-in they mean "not signed in", not "something failed".
+ */
+export const SILENT_SIGN_IN_ERRORS = new Set(['login_required', 'interaction_required', 'consent_required', 'account_selection_required']);
 
 /** Who AIN SSO says signed in, after every check. */
 export interface SsoIdentity {
@@ -238,4 +270,18 @@ export async function reportAppProof(cfg: AinSsoConfig, sub: string, legacyUserI
     console.error('[ain-sso] app-proof report failed', (e as Error).message);
     return 'failed';
   }
+}
+
+// ------------------------------------------------------------------------------------------------ sign-out
+
+/**
+ * RP-initiated logout (OpenID Connect RP-Initiated Logout 1.0, ADR-0005 path 1): AIN SSO's end-session URL, which
+ * asks the person whether to sign out of AIN in this browser and — if they do — ends the AIN session and, through
+ * back-channel logout, their sessions in the other apps; then returns to this site. Null when AIN SSO has none.
+ */
+export async function ssoEndSessionUrl(req: Request, cfg: AinSsoConfig): Promise<string | null> {
+  const client = await ssoClient(cfg);
+  if (!client.serverMetadata().end_session_endpoint) return null;
+  const origin = new URL(ssoRedirectUri(req, cfg)).origin;
+  return oidc.buildEndSessionUrl(client, { post_logout_redirect_uri: `${origin}/` }).href;
 }

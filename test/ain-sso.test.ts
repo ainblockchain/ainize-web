@@ -356,6 +356,6 @@ test('the AIN SSO modules are server-only', async () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const f = join(dir, n); return statSync(f).isDirectory() ? walk(f) : [f]; });
   const offenders = walk(join(root, 'src'))
-    .filter((f) => /\.tsx$/.test(f) && /from '[^']*lib\/(ainSso|nodeCall|legacyLogin|siteSecret)'/.test(readFileSync(f, 'utf8')));
+    .filter((f) => /\.tsx$/.test(f) && /from '[^']*lib\/(ainSso|ainSsoConfig|silentSso|nodeCall|legacyLogin|siteSecret)'/.test(readFileSync(f, 'utf8')));
   assert.deepEqual(offenders, [], 'no component imports them');
 });

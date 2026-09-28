@@ -34,7 +34,9 @@ test('config is all-or-nothing — a server missing one secret offers no Google 
 
 test('next is a path on this site and nothing else — otherwise sign-in is an open redirect', () => {
   assert.equal(safeGoogleNext('/teach?x=1'), '/teach?x=1');
-  for (const bad of ['https://evil.com', '//evil.com', '/\\evil.com', 'javascript:alert(1)', '', null, undefined]) assert.equal(safeGoogleNext(bad), '/');
+  for (const bad of ['https://evil.com', '//evil.com', '/\\evil.com', '/\t/evil.com', '/\n/evil.com', '/\r//evil.com', '/a\\..\\evil', 'javascript:alert(1)', '', null, undefined]) {
+    assert.equal(safeGoogleNext(bad), '/', JSON.stringify(bad));
+  }
 });
 
 test('the callback URL follows the public origin behind a proxy, and an explicit one wins', () => {

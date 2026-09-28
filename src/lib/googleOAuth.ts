@@ -79,10 +79,12 @@ function verifyGoogleCookie<T extends { exp: number }>(value: string | undefined
  * Where to land after Google, reduced to a path on this site.
  *
  * `next` arrives in a URL anyone can write, so an absolute URL, a protocol-relative `//evil.com` or a `/\evil.com`
- * that some browsers read the same way would make this sign-in page an open redirect.
+ * that some browsers read the same way would make this sign-in page an open redirect. So would `/<TAB>/evil.com`:
+ * a browser drops tabs and newlines from a URL before reading it, leaving `//evil.com` — so no control character
+ * and no backslash anywhere.
  */
 export function safeGoogleNext(next: string | null | undefined): string {
-  if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/';
+  if (!next || !next.startsWith('/') || next.startsWith('//') || /[\u0000-\u001f\u007f\\]/.test(next)) return '/';
   return next;
 }
 
