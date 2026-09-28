@@ -1040,6 +1040,11 @@ export const operatorTeach: Dict = {
   // AIN SSO (src/lib/ainSso.ts) — an alternative to the Google door, shown only where the server offers it.
   'op.sign.sso.button': { ko: 'AIN 계정으로 계속', en: 'Continue with AIN' },
   'op.sign.sso.err': { ko: 'AIN 로그인에 실패했습니다: {reason}', en: 'AIN sign-in failed: {reason}' },
+  // Sign-up at AIN SSO (OIDC prompt=create): one AIN account for every ComCom app. Beside, not instead of, Google.
+  'op.sign.sso.create': { ko: 'AIN 계정으로 가입', en: 'Create an AIN account' },
+  'op.sign.sso.create_hint': { ko: 'AIN 계정 하나로 ComCom의 다른 서비스에도 자동으로 로그인됩니다.', en: 'One AIN account signs you in to the other ComCom apps automatically.' },
+  // Google through AIN SSO (ain_idp=google) — the Google door once this site's own Google sign-in is switched off.
+  'op.sign.sso.google': { ko: 'Google로 계속', en: 'Continue with Google' },
   'op.sign.sso.signed_in': { ko: 'AIN 계정 {who}(으)로 로그인되어 있습니다. 보상을 받거나 노드를 운영하려면 지갑도 연결하세요.', en: 'Signed in with your AIN account {who}. To be paid or to run a node, connect a wallet as well.' },
   'op.sign.sso.connect.title': { ko: '기존 ainize.ai 계정을 연결할까요?', en: 'Connect your existing ainize.ai account?' },
   'op.sign.sso.connect.lede': {

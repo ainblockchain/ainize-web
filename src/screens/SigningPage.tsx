@@ -46,6 +46,11 @@ const SsoButton = styled.a`
   display: inline-flex; align-items: center; gap: 10px;
   &:hover { background: ${(p) => p.theme.color.HOVER}; }
 `;
+/** Sign-up at AIN SSO: a quieter door under the AIN button — the same account, asked for the first time. */
+const SsoCreate = styled.a`
+  display: inline-block; margin-top: 12px; font-size: 14px; font-weight: 500; color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none;
+  &:hover { border-bottom: 1px solid #8b3eeb; }
+`;
 const ConnectPanel = styled.div`margin-top: 32px; padding: 18px; border: 1px solid #e2e4ea; border-radius: 10px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start;`;
 const ConnectTitle = styled.p`margin: 0; font-size: 16px; font-weight: 600; color: ${(p) => p.theme.color.BLACK};`;
 
@@ -239,14 +244,27 @@ export default function SigningPage() {
         )}
         {connecting && ssoStatus && !pending && <Alert $tone="info" role="status" style={{ marginTop: 24 }}>{t('op.sign.sso.connect.expired')}</Alert>}
 
-        {/* AIN SSO: another door beside Google's, never instead of the wallet. Offered only where configured. */}
+        {/* AIN SSO: another door beside Google's, never instead of the wallet. Offered only where configured. Under it,
+            sign-up at AIN SSO (prompt=create) — this site has no sign-up of its own to keep beside it. */}
         {auth.ssoConfigured && !auth.sso && !pending && (
           <>
             {wallets && wallets.length > 0 && <Or>{t('op.sign.google.or')}</Or>}
             <SsoButton href={`/api/auth/sso/start?next=${encodeURIComponent(googleNext)}`} data-testid="sso-signin" style={{ marginTop: wallets && wallets.length > 0 ? 12 : 32 }}>
               {t('op.sign.sso.button')}
             </SsoButton>
+            <div>
+              <SsoCreate href={`/api/auth/sso/start?prompt=create&next=${encodeURIComponent(googleNext)}`} data-testid="sso-create" title={t('op.sign.sso.create_hint')}>
+                {t('op.sign.sso.create')} →
+              </SsoCreate>
+            </div>
           </>
+        )}
+        {/* Once this site's own Google sign-in is switched off (LEGACY_LOGIN=false), the Google door goes through AIN SSO,
+            straight to Google (ain_idp=google): the same account as everywhere else, not a separate one here. */}
+        {auth.ssoConfigured && ssoStatus?.legacyLogin === 'false' && !auth.sso && !pending && (
+          <GoogleButton href={`/api/auth/sso/start?idp=google&next=${encodeURIComponent(googleNext)}`} data-testid="sso-google" style={{ marginTop: 16 }}>
+            <GoogleMark />{t('op.sign.sso.google')}
+          </GoogleButton>
         )}
         {auth.sso && <Alert $tone="info" role="status" data-testid="sso-signed-in" style={{ marginTop: 24 }}>{t('op.sign.sso.signed_in', { who: auth.sso.email ?? auth.sso.name ?? auth.sso.sub })}</Alert>}
         {ssoError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.sso.err', { reason: ssoError })}</Alert>}
