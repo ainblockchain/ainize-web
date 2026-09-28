@@ -272,6 +272,52 @@ export async function reportAppProof(cfg: AinSsoConfig, sub: string, legacyUserI
   }
 }
 
+// ------------------------------------------------------------------------------------------------ attestation
+
+/**
+ * Tell AIN SSO that a legacy user just signed in here with this app's own Google login
+ * (`POST {issuer}/api/upstream/app-attest`, shape B of ainetwork-ai/sso docs/specs/management-api.md §13.2):
+ * `{legacyUserId, googleSub, legacyLoginAt}`. AIN SSO links that legacy user to the AIN account that has this Google
+ * identity — at once when one exists, else on that identity's first sign-in through AIN SSO — and pushes
+ * `legacyUserId` to the node's adapter, which links it (an account that holds nothing yet included).
+ *
+ * `legacyUserId` is `google:<sub>`: the principal the node keys a Google sign-in's API keys by, and the only legacy
+ * shape the node's adapter links (ainize-node docs/ain-sso.md §3). `googleSub` is the `sub` of the Google ID token
+ * this app verified at this login. Any email domain; no email is sent.
+ *
+ * Best effort and off the sign-in's path: the caller does not wait for it, a short timeout, one call per login, and
+ * nothing but the status and error code is logged. 403/409/422 are normal answers ("nothing to do").
+ */
+export type AttestOutcome = 'linked' | 'pending' | 'refused' | 'failed' | 'skipped';
+const ATTEST_EXPECTED = new Set([403, 409, 422]);
+
+export async function attestLegacyGoogleLogin(
+  cfg: AinSsoConfig, googleSub: string, loginAt = new Date(), fetchImpl: typeof fetch = fetch,
+): Promise<AttestOutcome> {
+  // A Google subject is at most 255 ASCII characters (OIDC Core §2); the node links `google:` + [0-9a-z_-] only.
+  if (!/^[0-9A-Za-z_-]{1,193}$/.test(googleSub)) return 'skipped';
+  const url = new URL('api/upstream/app-attest', cfg.issuer.endsWith('/') ? cfg.issuer : `${cfg.issuer}/`);
+  const basic = Buffer.from(`${encodeURIComponent(cfg.clientId)}:${encodeURIComponent(cfg.clientSecret)}`).toString('base64');
+  try {
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: { authorization: `Basic ${basic}`, 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ legacyUserId: `google:${googleSub}`, googleSub, legacyLoginAt: loginAt.toISOString() }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(5_000),
+    });
+    const body = await res.json().catch(() => ({})) as { status?: string; error?: string };
+    const code = typeof body.error === 'string' && /^[a-z_]{1,64}$/.test(body.error) ? body.error : '';
+    if (res.ok) return body.status === 'linked' ? 'linked' : 'pending';
+    if (ATTEST_EXPECTED.has(res.status)) { console.debug(`[ain-sso] app-attest: ${res.status} ${code}`); return 'refused'; }
+    console.error(`[ain-sso] app-attest answered ${res.status} ${code}`);
+    return 'failed';
+  } catch (e) {
+    console.error('[ain-sso] app-attest failed:', (e as Error).name);
+    return 'failed';
+  }
+}
+
 // ------------------------------------------------------------------------------------------------ sign-out
 
 /**

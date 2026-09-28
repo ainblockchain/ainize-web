@@ -3,8 +3,13 @@
  *
  * A failure lands on the sign-in page with the reason in `google_error`, not on a JSON body: the person arrived here
  * by a redirect and has no page of ours to read an error from otherwise.
+ *
+ * A successful sign-in is also reported to AIN SSO when it is configured (`app-attest` with the verified Google
+ * `sub`, src/lib/ainSso.ts), so the legacy account is linked to the AIN account with the same Google identity —
+ * without the person doing anything. Not waited for: it can neither slow nor fail the sign-in.
  */
 import { NextResponse, type NextRequest } from 'next/server';
+import { attestLegacyGoogleLogin, readAinSsoConfig } from '@/lib/ainSso';
 import {
   GOOGLE_FLOW_COOKIE, GOOGLE_SESSION_COOKIE, GOOGLE_SESSION_TTL_S, GoogleOAuthError, finishGoogleFlow, googleCookieOptions,
   googleRedirectUri, readGoogleOAuthConfig,
@@ -30,6 +35,8 @@ export async function GET(req: NextRequest) {
     // LEGACY_LOGIN=unlinked_only — not for one that is linked to an AIN account (src/lib/legacyLogin.ts).
     const verdict = await legacyGoogleVerdict({ identity, iat: Math.floor(Date.now() / 1000) });
     if (!verdict.ok) throw new GoogleOAuthError(legacyRefusalMessage(verdict.reason));
+    const sso = readAinSsoConfig();
+    if (sso) void attestLegacyGoogleLogin(sso, identity.sub).catch(() => undefined);
     const res = NextResponse.redirect(new URL(next, origin), 302);
     res.cookies.set(GOOGLE_SESSION_COOKIE, sessionCookie, googleCookieOptions(req, GOOGLE_SESSION_TTL_S));
     res.cookies.set(GOOGLE_FLOW_COOKIE, '', googleCookieOptions(req, 0));
