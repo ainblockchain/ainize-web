@@ -61,16 +61,18 @@ test('app-attest: shape B exactly — legacyUserId google:<sub>, googleSub, a fr
   assert.ok(!('email' in call!.body), 'nothing email-based: a Google subject is never reassigned');
 });
 
-test('app-attest answers: linked, pending, the normal refusals, and failures — none of them thrown', async () => {
+test('app-attest answers: linked, pending, 4xx "nothing to do", and failures (401, 429, 5xx, network) — none of them thrown', async () => {
   const cfg = readAinSsoConfig()!;
   I.attestReply.status = 200; I.attestReply.body = { status: 'linked', mappingId: 'lgm_1', expiresAt: null };
   assert.equal(await attestLegacyGoogleLogin(cfg, GOOGLE_SUB), 'linked');
-  for (const [status, error] of [[409, 'legacy_user_already_linked'], [403, 'client_not_allowed'], [422, 'stale_legacy_login']] as const) {
+  for (const [status, error] of [[409, 'legacy_user_already_linked'], [403, 'client_not_allowed'], [422, 'stale_legacy_login'], [400, 'invalid_google_sub']] as const) {
     I.attestReply.status = status; I.attestReply.body = { error, message: 'x' };
-    assert.equal(await attestLegacyGoogleLogin(cfg, GOOGLE_SUB), 'refused', String(status));
+    assert.equal(await attestLegacyGoogleLogin(cfg, GOOGLE_SUB), 'refused', `${status}: nothing to do`);
   }
-  I.attestReply.status = 500; I.attestReply.body = { error: 'server_error' };
-  assert.equal(await attestLegacyGoogleLogin(cfg, GOOGLE_SUB), 'failed');
+  for (const [status, error] of [[401, 'invalid_client'], [429, 'rate_limited'], [500, 'server_error']] as const) {
+    I.attestReply.status = status; I.attestReply.body = { error };
+    assert.equal(await attestLegacyGoogleLogin(cfg, GOOGLE_SUB), 'failed', `${status}: worth a line in the log`);
+  }
   const unreachable = { ...cfg, issuer: 'http://127.0.0.1:9' };
   assert.equal(await attestLegacyGoogleLogin(unreachable, GOOGLE_SUB), 'failed');
   const before = I.appAttests.length;

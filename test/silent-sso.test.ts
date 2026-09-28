@@ -223,10 +223,24 @@ test('prompt=create asks AIN SSO for its sign-up page; idp=google goes straight 
   assert.equal(junk.searchParams.get('ain_idp'), null);
 });
 
+test('prompt=create is sent only to an AIN SSO that lists it; elsewhere the ordinary sign-in page instead of an error', async () => {
+  const { ssoClient, readAinSsoConfig } = await import('../src/lib/ainSso');
+  I.state.promptCreate = false;
+  // A fresh discovery (the cache is keyed by issuer, client and secret).
+  process.env.AIN_SSO_CLIENT_SECRET = `${SECRET}-rotated`;
+  try {
+    await ssoClient(readAinSsoConfig()!);
+    const { GET } = await import('../app/api/auth/sso/start/route');
+    const u = new URL((await GET(page('/api/auth/sso/start?prompt=create'))).headers.get('location')!);
+    assert.equal(u.origin + u.pathname, `${I.issuer}/oidc/auth`);
+    assert.equal(u.searchParams.get('prompt'), null);
+  } finally { I.state.promptCreate = true; process.env.AIN_SSO_CLIENT_SECRET = SECRET; }
+});
+
 // ------------------------------------------------------------------------------------------------ callback
 
-test('login_required and the other "would need a page" answers return the visitor to their page, anonymous, without an error', async () => {
-  for (const error of ['login_required', 'interaction_required', 'consent_required', 'account_selection_required']) {
+test('login_required, the other "would need a page" answers and access_denied return the visitor to their page, anonymous, without an error', async () => {
+  for (const error of ['login_required', 'interaction_required', 'consent_required', 'account_selection_required', 'access_denied']) {
     const start = await silentStart('/teach?x=1');
     const flow = cookieOf(start, 'ainize_sso_flow')!.value;
     const before = I.tokenRequests.length;

@@ -122,6 +122,10 @@ function silentState(next: string): string {
 export async function startSsoFlow(req: Request, cfg: AinSsoConfig, next: string | null, options: SsoStartOptions = {}, now = Date.now()) {
   const client = await ssoClient(cfg);
   const silent = options.prompt === 'none';
+  // `prompt=create` only where AIN SSO says it supports it (OIDC Prompt Create: listed in prompt_values_supported);
+  // anywhere else it would be refused, and the ordinary sign-in page, which also offers sign-up, is the better answer.
+  const listed = client.serverMetadata().prompt_values_supported;
+  const prompt = options.prompt === 'create' && !(Array.isArray(listed) && listed.includes('create')) ? null : options.prompt;
   const safeNext = safeGoogleNext(next);
   const flow: FlowPayload = {
     state: silent ? silentState(safeNext) : oidc.randomState(), nonce: oidc.randomNonce(), verifier: oidc.randomPKCECodeVerifier(),
@@ -135,7 +139,7 @@ export async function startSsoFlow(req: Request, cfg: AinSsoConfig, next: string
     nonce: flow.nonce,
     code_challenge: await oidc.calculatePKCECodeChallenge(flow.verifier),
     code_challenge_method: 'S256',
-    ...(options.prompt ? { prompt: options.prompt } : {}),
+    ...(prompt ? { prompt } : {}),
     ...(options.idp ? { ain_idp: options.idp } : {}),
   });
   return { authorizeUrl: url.href, flowCookie: seal(flow, cfg, 'flow'), state: flow.state };
@@ -166,10 +170,11 @@ export function silentReturnOf(req: Request, cfg: AinSsoConfig, flowCookie: stri
 }
 
 /**
- * The OIDC errors a `prompt=none` request answers with when the browser would have to see a page — no AIN session,
- * a consent or an account choice to make. For a silent sign-in they mean "not signed in", not "something failed".
+ * The answers AIN SSO gives a `prompt=none` request when it cannot sign the browser in without showing a page — no AIN
+ * session, a consent or an account choice to make — or when the account may not use this app (`access_denied`). For a
+ * silent sign-in they all mean "not signed in", not "something failed": the visitor stays anonymous, nothing is logged.
  */
-export const SILENT_SIGN_IN_ERRORS = new Set(['login_required', 'interaction_required', 'consent_required', 'account_selection_required']);
+export const SILENT_SIGN_IN_ERRORS = new Set(['login_required', 'interaction_required', 'consent_required', 'account_selection_required', 'access_denied']);
 
 /** Who AIN SSO says signed in, after every check. */
 export interface SsoIdentity {
@@ -286,10 +291,11 @@ export async function reportAppProof(cfg: AinSsoConfig, sub: string, legacyUserI
  * this app verified at this login. Any email domain; no email is sent.
  *
  * Best effort and off the sign-in's path: the caller does not wait for it, a short timeout, one call per login, and
- * nothing but the status and error code is logged. 403/409/422 are normal answers ("nothing to do").
+ * nothing but the status and error code is logged. 4xx other than 401/429 are normal answers ("nothing to do").
  */
 export type AttestOutcome = 'linked' | 'pending' | 'refused' | 'failed' | 'skipped';
-const ATTEST_EXPECTED = new Set([403, 409, 422]);
+/** 4xx other than 401 (our credentials) and 429 (rate limit) mean "nothing to do" (management-api.md §13.2). */
+const nothingToDo = (status: number) => status >= 400 && status < 500 && status !== 401 && status !== 429;
 
 export async function attestLegacyGoogleLogin(
   cfg: AinSsoConfig, googleSub: string, loginAt = new Date(), fetchImpl: typeof fetch = fetch,
@@ -309,7 +315,7 @@ export async function attestLegacyGoogleLogin(
     const body = await res.json().catch(() => ({})) as { status?: string; error?: string };
     const code = typeof body.error === 'string' && /^[a-z_]{1,64}$/.test(body.error) ? body.error : '';
     if (res.ok) return body.status === 'linked' ? 'linked' : 'pending';
-    if (ATTEST_EXPECTED.has(res.status)) { console.debug(`[ain-sso] app-attest: ${res.status} ${code}`); return 'refused'; }
+    if (nothingToDo(res.status)) { console.debug(`[ain-sso] app-attest: ${res.status} ${code}`); return 'refused'; }
     console.error(`[ain-sso] app-attest answered ${res.status} ${code}`);
     return 'failed';
   } catch (e) {

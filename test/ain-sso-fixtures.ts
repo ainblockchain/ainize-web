@@ -31,7 +31,7 @@ export async function startIssuer(clientId: string, clientSecret: string) {
   /** what app-attest answers; a test may change it */
   const attestReply = { status: 201, body: { status: 'pending', mappingId: 'lgm_1', expiresAt: '2026-10-27T00:00:00.000Z' } as unknown };
   const tokenRequests: URLSearchParams[] = [];
-  const state = { spoil: null as null | ((claims: Record<string, unknown>) => Record<string, unknown>), signWithForeign: false, discoveryDown: false, discoveryHits: 0 };
+  const state = { spoil: null as null | ((claims: Record<string, unknown>) => Record<string, unknown>), signWithForeign: false, discoveryDown: false, discoveryHits: 0, promptCreate: true };
   let issuer = '';
 
   const server = createServer(async (req, res) => {
@@ -45,6 +45,7 @@ export async function startIssuer(clientId: string, clientSecret: string) {
         response_types_supported: ['code'], subject_types_supported: ['public'], id_token_signing_alg_values_supported: ['RS256'],
         token_endpoint_auth_methods_supported: ['client_secret_basic'], code_challenge_methods_supported: ['S256'],
         scopes_supported: ['openid', 'profile', 'email', 'org', 'offline_access'],
+        ...(state.promptCreate ? { prompt_values_supported: ['none', 'create', 'login', 'consent'] } : {}),
       });
     }
     if (req.url === '/oidc/jwks') return json(200, { keys: [jwk] });
