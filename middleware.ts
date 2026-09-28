@@ -1,19 +1,33 @@
 /**
- * Canonical host: `www.ainize.ai/…` → `ainize.ai/…` (308, method and body kept). Why: src/lib/canonicalHostRedirect.ts.
+ * Two things happen before any route runs:
  *
- * The host is read from the request as nginx forwarded it (`x-forwarded-host`, then `host`), not from `nextUrl`,
- * which behind the proxy names the loopback address this server listens on.
+ * 1. Canonical host: `www.ainize.ai/…` → `ainize.ai/…` (308, method and body kept). Why: src/lib/canonicalHostRedirect.ts.
+ *    The host is read from the request as nginx forwarded it (`x-forwarded-host`, then `host`), not from `nextUrl`,
+ *    which behind the proxy names the loopback address this server listens on.
+ * 2. Automatic sign-in (src/lib/silentSso.ts decides, src/lib/silentSignIn.ts answers): a person's browser opening a
+ *    page with no session here gets, as the answer to that very request, the one redirect to AIN SSO with
+ *    `prompt=none`. Everything else — APIs, assets, crawlers, prefetches, signed-in browsers — passes through
+ *    untouched, after a few string comparisons.
+ *
+ * The Node.js runtime, because the answer needs what the route handlers use (Node's crypto for the sealed flow cookie,
+ * the OIDC client) and the client secret. (A rewrite to the start route cannot stand in for it: behind this app's
+ * loopback HOSTNAME, Next treats a middleware rewrite as an external URL and proxies it.)
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { canonicalHostRedirect } from './src/lib/canonicalHostRedirect';
+import { silentSsoStart } from './src/lib/silentSso';
+import { silentSignIn } from './src/lib/silentSignIn';
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
   const target = canonicalHostRedirect(host, req.nextUrl.pathname + req.nextUrl.search);
-  return target ? NextResponse.redirect(target, 308) : NextResponse.next();
+  if (target) return NextResponse.redirect(target, 308);
+  if (silentSsoStart(req)) return silentSignIn(req, req.nextUrl.pathname + req.nextUrl.search);
+  return NextResponse.next();
 }
 
 export const config = {
   // Everything, including /api and /agents: an A2A client or a sign-in callback on www must land on the apex too.
   matcher: '/:path*',
+  runtime: 'nodejs',
 };

@@ -50,7 +50,7 @@ export interface AuthState {
   roles: string[];
   /** Re-read /api/auth/me; resolves once the fresh state is in the store. */
   refresh: () => Promise<void>;
-  /** Sign out: reports isSignedIn=false immediately (so route guards do not bounce through /dashboard), then clears both cookies — the node's and Google's — and re-reads both. */
+  /** Sign out: reports isSignedIn=false immediately (so route guards do not bounce through /dashboard), then clears both cookies — the node's and Google's — and re-reads both. An AIN session then continues to AIN SSO's sign-out page. */
   signOut: () => Promise<void>;
 }
 
@@ -95,8 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     roles: data?.roles ?? [],
     refresh,
     signOut: async () => {
+      const wasSso = !!sso;
       setSigningOut(true);   // optimistic: the very next render is already signed-out
       await Promise.all([logout().unwrap(), googleLogout().unwrap()].map((p) => p.catch(() => undefined)));   // either cookie may already be gone
+      // An AIN session continues to AIN SSO's sign-out (RP-initiated logout), which asks whether to sign out of AIN in
+      // this browser too, and comes back to this site. Otherwise the AIN session would sign the person back in here.
+      if (wasSso && typeof window !== 'undefined') { window.location.assign('/api/auth/sso/logout'); return; }
       await refresh();
       setSigningOut(false);
     },

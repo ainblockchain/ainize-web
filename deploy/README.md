@@ -51,6 +51,7 @@ When the unit is absent, the deployment script starts a detached process and wri
 | `AIN_SSO_ISSUER` / `AIN_SSO_CLIENT_ID` / `AIN_SSO_CLIENT_SECRET` | Unset; "Continue with AIN" is offered only when all three are set **and** `AINIZE_SITE_ASSERTION_SECRET` is (see below) |
 | `AIN_SSO_REDIRECT_URI` | Derived from the request (`https://<host>/api/auth/sso/callback`); set it when a proxy rewrites `Host` |
 | `LEGACY_LOGIN` | `true` (default): Google sign-in as before. `unlinked_only`: only Google accounts not connected to an AIN account. `false`: Google sign-in off. Anything else counts as `false` |
+| `AIN_SSO_SILENT_LOGIN` | On wherever AIN sign-in is. `false` turns off only the automatic sign-in (below); the AIN button stays |
 
 ### Google sign-in
 
@@ -84,6 +85,42 @@ has suspended the account — the node keeps that state, and this app asks it wh
 is set, including after AIN sign-in is switched off again.
 
 Rollback: remove the three `AIN_SSO_*` variables and restart. The button disappears; suspensions still hold.
+
+### Automatic sign-in, sign-up and sign-out
+
+With AIN sign-in configured, a browser that is signed in to AIN elsewhere is signed in here without a click
+(silent SSO, `src/lib/silentSso.ts`, `src/lib/silentSignIn.ts`, `middleware.ts`):
+
+- A page request (GET/HEAD) from a browser with no session here — no `ainize_session`, no Google session, no sign-in
+  under way — is answered with one redirect to AIN SSO with `prompt=none`. With an AIN session the ordinary sign-in
+  follows and the person lands on the page they asked for; without one AIN SSO answers `login_required` and they land
+  on it anonymous, with no error. An automatic sign-in never stops anyone to ask about connecting an old account
+  (that stays with the "Continue with AIN" button); a new AIN account gets a fresh ainize account at once.
+- Left alone: `/api`, `/agents`, `/x402`, `/p2p`, `/v1`, `/_next`, `/static`, `/.well-known`, file-like paths,
+  `/signing`; other methods; crawlers, link unfurlers, monitors, headless and command-line clients (by User-Agent —
+  search engines see the landing exactly as before); prefetches and prerenders (`Sec-Purpose`, `Purpose`), fetches and
+  iframes (`Sec-Fetch-*`), Next's RSC requests.
+- At most once per 30 minutes per browser: `ain_sso_checked` (HttpOnly, SameSite=Lax, Secure) is set on the response
+  that leaves for AIN SSO. A client that keeps no cookies comes back with `?ain_sso_checked=1`, which also counts.
+- It never puts AIN SSO's problems in front of the site: when AIN SSO has not answered its discovery document within
+  the last minute, or when most silent sign-ins of the last ten minutes left and never came back (an error page at
+  AIN SSO), visitors go straight to their page (paused for ten minutes, logged once). `AIN_SSO_SILENT_LOGIN=false`
+  switches it off by hand.
+
+"AIN 계정으로 가입 / Create an AIN account" under the AIN button opens AIN SSO's sign-up page (`prompt=create`). With
+`LEGACY_LOGIN=false` the Google button goes through AIN SSO straight to Google (`ain_idp=google`) instead of this
+app's own Google sign-in.
+
+A Google sign-in here (the legacy one) is reported to AIN SSO right after it succeeds —
+`POST {issuer}/api/upstream/app-attest {legacyUserId: "google:<sub>", googleSub, legacyLoginAt}`, client_secret_basic,
+not waited for, nothing but the status logged — so AIN SSO links that ainize account to the AIN account with the same
+Google identity and pushes `legacyUserId` to the node's adapter (ainize-node `docs/ain-sso.md` §3). No email is sent.
+
+"Log out" marks the browser checked, so the automatic sign-in does not undo it; for an AIN session the page then goes
+to AIN SSO's sign-out (`/api/auth/sso/logout` → `end_session_endpoint`, RP-initiated logout), which asks whether to
+sign out of AIN in this browser too and returns to `https://ainize.ai/` (registered as the client's
+`post_logout_redirect_uri`). A session cookie the node no longer knows (back-channel logout, suspension) is cleared the
+next time the page asks `/api/auth/me`, so automatic sign-in can work again.
 
 ## Rollback
 

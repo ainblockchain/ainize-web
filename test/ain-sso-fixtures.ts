@@ -3,7 +3,7 @@
  *
  * - a small OpenID provider: discovery, JWKS, and a token endpoint that holds the client to client_secret_basic,
  *   the redirect URI and PKCE S256, and signs RS256 ID tokens — which a test can spoil one claim at a time;
- *   plus the `/api/upstream/app-proof` endpoint, recorded;
+ *   plus the `/api/upstream/app-proof` and `/api/upstream/app-attest` endpoints, recorded, and an end-session endpoint;
  * - a stand-in node that answers the two site calls only when they carry a valid `x-ainize-site-call`.
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -27,18 +27,25 @@ export async function startIssuer(clientId: string, clientSecret: string) {
   const jwk: JWK = { ...(await exportJWK(publicKey)), kid, alg: 'RS256', use: 'sig' };
   const codes = new Map<string, IssuedCode>();
   const appProofs: { authorization: string | undefined; body: unknown }[] = [];
+  const appAttests: { authorization: string | undefined; cookie: string | undefined; body: Record<string, unknown> }[] = [];
+  /** what app-attest answers; a test may change it */
+  const attestReply = { status: 201, body: { status: 'pending', mappingId: 'lgm_1', expiresAt: '2026-10-27T00:00:00.000Z' } as unknown };
   const tokenRequests: URLSearchParams[] = [];
-  const state = { spoil: null as null | ((claims: Record<string, unknown>) => Record<string, unknown>), signWithForeign: false };
+  const state = { spoil: null as null | ((claims: Record<string, unknown>) => Record<string, unknown>), signWithForeign: false, discoveryDown: false, discoveryHits: 0, promptCreate: true };
   let issuer = '';
 
   const server = createServer(async (req, res) => {
     const json = (status: number, body: unknown) => { res.statusCode = status; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(body)); };
     if (req.url === '/.well-known/openid-configuration') {
+      state.discoveryHits++;
+      if (state.discoveryDown) return json(503, { error: 'down' });
       return json(200, {
         issuer, authorization_endpoint: `${issuer}/oidc/auth`, token_endpoint: `${issuer}/oidc/token`, jwks_uri: `${issuer}/oidc/jwks`,
+        end_session_endpoint: `${issuer}/oidc/session/end`,
         response_types_supported: ['code'], subject_types_supported: ['public'], id_token_signing_alg_values_supported: ['RS256'],
         token_endpoint_auth_methods_supported: ['client_secret_basic'], code_challenge_methods_supported: ['S256'],
         scopes_supported: ['openid', 'profile', 'email', 'org', 'offline_access'],
+        ...(state.promptCreate ? { prompt_values_supported: ['none', 'create', 'login', 'consent'] } : {}),
       });
     }
     if (req.url === '/oidc/jwks') return json(200, { keys: [jwk] });
@@ -64,13 +71,17 @@ export async function startIssuer(clientId: string, clientSecret: string) {
       appProofs.push({ authorization: req.headers.authorization, body: JSON.parse(await readBody(req)) });
       return json(201, { mapping: { status: 'linked' }, created: true });
     }
+    if (req.url === '/api/upstream/app-attest' && req.method === 'POST') {
+      appAttests.push({ authorization: req.headers.authorization, cookie: req.headers.cookie, body: JSON.parse(await readBody(req)) as Record<string, unknown> });
+      return json(attestReply.status, attestReply.body);
+    }
     json(404, { error: 'not_found' });
   });
   issuer = await listen(server);
 
   return {
     get issuer() { return issuer; },
-    codes, appProofs, tokenRequests, state,
+    codes, appProofs, appAttests, attestReply, tokenRequests, state,
     /**
      * What AIN SSO does between the redirect and the callback: read the app's authorization request, remember
      * the challenge, nonce and redirect URI with a fresh code, and send the browser back with it.
