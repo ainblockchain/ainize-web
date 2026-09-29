@@ -168,7 +168,7 @@ export default function ExplorePage() {
   const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.data), [shared.data]);
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
   const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
-  const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal), [auth.subject, auth.sso?.principal]);
+  const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal), [auth.subject, auth.sso?.principal, auth.sitePrincipal]);
   /** The rows for the chip in force: the registry's when it answered, the public list (filtered where it can be) otherwise. */
   const scopedAgents = useMemo(() => {
     if (agentFilter === 'all') return allAgents;
