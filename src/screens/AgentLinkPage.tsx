@@ -11,16 +11,17 @@
  * `src/api/linkedAgents.ts`, pure and tested; this file is the form around it.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useUpdateLinkedAgentMutation } from '@/api/api';
+import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useMyOrgsQuery, useOrgQuery, useUpdateLinkedAgentMutation } from '@/api/api';
+import { parseOrgList, parseOrgProfile, roleAtLeast } from '@/api/organizations';
 import {
   linkedAgentApiErrorOf, linkedAgentDraftFromView, linkedAgentFormProblems, linkedAgentIdFromName, linkedAgentInputFromDraft,
   parseLinkedAgentResponse, type LinkedAgentFormDraft, type LinkedAgentFormField,
 } from '@/api/linkedAgents';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { Alert, Field, FieldLabel, HelperText, Input, Textarea } from '@/components/ui/Form';
+import { Alert, Field, FieldLabel, HelperText, Input, SelectField, Textarea } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -34,7 +35,7 @@ const AgentLinkSection = styled.section`
 const AgentLinkTwoCol = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;`;
 const AgentLinkActions = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap;`;
 
-const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '' };
+const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '', org: null, visibility: 'public', group: null };
 
 export default function AgentLinkPage() {
   const { t } = useT();
@@ -43,12 +44,20 @@ export default function AgentLinkPage() {
   const location = useLocation();
   const { id: editId } = useParams<{ id: string }>();
   const editing = !!editId;
+  // `/agent/link?org=comcom` — the organization page's "register an agent here" preselects the organization
+  const [search] = useSearchParams();
+  const orgFromUrl = search.get('org');
   useTitle(t(editing ? 'agentLink.title_edit' : 'agentLink.title'));
 
   const stored = useLinkedAgentQuery(editId ?? '', { skip: !editing || !auth.isSignedIn });
   const storedView = useMemo(() => parseLinkedAgentResponse(stored.data), [stored.data]);
 
-  const [draft, setDraft] = useState<LinkedAgentFormDraft>(EMPTY);
+  const [draft, setDraft] = useState<LinkedAgentFormDraft>({ ...EMPTY, org: orgFromUrl || null });
+  // Organizations the person may register under (contributor or above), and the chosen one's resource groups.
+  const orgsRaw = useMyOrgsQuery(undefined, { skip: !auth.isSignedIn });
+  const registrable = useMemo(() => parseOrgList(orgsRaw.data).orgs.filter((o) => roleAtLeast(o.my_role, 'contributor')), [orgsRaw.data]);
+  const orgRaw = useOrgQuery(draft.org ?? '', { skip: !draft.org || !auth.isSignedIn });
+  const orgProfile = useMemo(() => parseOrgProfile(orgRaw.data), [orgRaw.data]);
   const [idTouched, setIdTouched] = useState(false);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -155,6 +164,30 @@ export default function AgentLinkPage() {
               onChange={(e) => set('description', e.target.value)} />
             <HelperText $error={!!problemFor('description')}>{problemFor('description') ? t(problemFor('description')!.key) : t('agentLink.field.description_help')}</HelperText>
           </Field>
+        </AgentLinkSection>
+
+        <AgentLinkSection data-testid="agent-link-org-section">
+          <h2>{t('agentLink.section.org')}</h2>
+          <SelectField label={t('agentLink.field.org')} helper={t('agentLink.field.org_help')} value={draft.org ?? ''} data-testid="agent-link-org"
+            onChange={(e) => setDraft((d) => ({ ...d, org: e.target.value || null, group: null }))}>
+            <option value="">{t('agentLink.field.org_personal')}</option>
+            {registrable.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.id})</option>)}
+            {draft.org && !registrable.some((o) => o.id === draft.org) && <option value={draft.org}>{draft.org}</option>}
+          </SelectField>
+          {draft.org && (
+            <AgentLinkTwoCol>
+              <SelectField label={t('agentLink.field.visibility')} helper={t('org.private_help')} value={draft.visibility} data-testid="agent-link-visibility"
+                onChange={(e) => set('visibility', e.target.value === 'private' ? 'private' : 'public')}>
+                <option value="public">{t('org.public')}</option>
+                <option value="private">🔒 {t('org.private')}</option>
+              </SelectField>
+              <SelectField label={t('agentLink.field.group')} helper={t('agentLink.field.group_help')} value={draft.group ?? ''} data-testid="agent-link-group"
+                disabled={draft.visibility !== 'private'} onChange={(e) => set('group', e.target.value || null)}>
+                <option value="">{t('agentLink.field.group_none')}</option>
+                {(orgProfile?.groups ?? []).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </SelectField>
+            </AgentLinkTwoCol>
+          )}
         </AgentLinkSection>
 
         {serverError && <Alert $tone="error" data-testid="agent-link-error">{serverError}</Alert>}

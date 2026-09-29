@@ -1020,5 +1020,8 @@ export interface AgentSummary {
   kind?: 'upstream' | 'prompt' | 'tools' | 'handler' | null;
   owner?: string | null;
   status?: 'building' | 'ready' | 'failed' | null;
+  /** Organizations (ainize-node organizations design): the organization a linked agent is registered under, and whether it is listed to its members only. Absent on older nodes. */
+  org?: string | null;
+  visibility?: 'public' | 'private' | null;
 }
 export interface AgentsResponse { agents: AgentSummary[] }

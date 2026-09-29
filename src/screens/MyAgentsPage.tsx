@@ -64,6 +64,7 @@ export default function MyAgentsPage() {
       <MyAgentsActions>
         <StyledLink to="/agent/link" data-testid="my-agents-link">{t('myAgents.link')} →</StyledLink>
         <StyledLink to="/agent/new" data-testid="my-agents-create">{t('myAgents.create')} →</StyledLink>
+        <StyledLink to="/org" data-testid="my-agents-orgs">{t('org.nav')} →</StyledLink>
       </MyAgentsActions>
 
       {error && <Alert $tone="error">{error}</Alert>}

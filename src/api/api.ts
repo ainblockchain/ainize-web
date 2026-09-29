@@ -15,6 +15,7 @@ import type {
 } from './types';
 import type { HostedAgentSpecInput } from './hostedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
+import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
@@ -97,7 +98,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -192,15 +193,69 @@ export const api = createApi({
     /** The stored record, upstream included — owner only; anyone else gets 403. */
     linkedAgent: b.query<unknown, string>({ query: (id) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'LinkedAgent', id }] }),
     createLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
-      query: (body) => ({ url: 'api/linked-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'LinkedAgent'],
+      query: (body) => ({ url: 'api/linked-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'LinkedAgent', 'Org'],
     }),
     updateLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
       query: (body) => ({ url: `api/linked-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
-      invalidatesTags: (_r, _e, a) => ['Agents', { type: 'LinkedAgent', id: a.id }],
+      invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'LinkedAgent', id: a.id }],
     }),
     deleteLinkedAgent: b.mutation<unknown, string>({
-      query: (id) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'LinkedAgent'],
+      query: (id) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'LinkedAgent', 'Org'],
     }),
+    /**
+     * Organizations (ainize-node organizations design). Typed `unknown` and read through `src/api/organizations.ts`
+     * for the same reason as the agents above: a node from before organizations answers 404 for all of these.
+     */
+    myOrgs: b.query<unknown, void>({ query: () => 'api/orgs', providesTags: ['Org', 'Me'] }),
+    org: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
+    createOrg: b.mutation<unknown, OrgCreateInput>({ query: (body) => ({ url: 'api/orgs', method: 'POST', body }), invalidatesTags: ['Org'] }),
+    updateOrg: b.mutation<unknown, { id: string; patch: OrgUpdateInput }>({
+      query: ({ id, patch }) => ({ url: `api/orgs/${encodeURIComponent(id)}`, method: 'PUT', body: patch }), invalidatesTags: (_r, _e, a) => ['Org', { type: 'Org', id: a.id }],
+    }),
+    deleteOrg: b.mutation<unknown, string>({ query: (id) => ({ url: `api/orgs/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Org', 'Agents'] }),
+    addOrgMember: b.mutation<unknown, { id: string; principal: string; role: OrgRole }>({
+      query: ({ id, principal, role }) => ({ url: `api/orgs/${encodeURIComponent(id)}/members`, method: 'POST', body: { principal, role } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
+    }),
+    setOrgMemberRole: b.mutation<unknown, { id: string; principal: string; role: OrgRole }>({
+      query: ({ id, principal, role }) => ({ url: `api/orgs/${encodeURIComponent(id)}/members/${encodeURIComponent(principal)}`, method: 'PUT', body: { role } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
+    }),
+    removeOrgMember: b.mutation<unknown, { id: string; principal: string }>({
+      query: ({ id, principal }) => ({ url: `api/orgs/${encodeURIComponent(id)}/members/${encodeURIComponent(principal)}`, method: 'DELETE' }), invalidatesTags: ['Org'],
+    }),
+    requestJoinOrg: b.mutation<unknown, { id: string; message: string }>({
+      query: ({ id, message }) => ({ url: `api/orgs/${encodeURIComponent(id)}/join`, method: 'POST', body: { message } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
+    }),
+    orgRequests: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/requests`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/requests` }] }),
+    approveOrgRequest: b.mutation<unknown, { id: string; principal: string; role: OrgRole }>({
+      query: ({ id, principal, role }) => ({ url: `api/orgs/${encodeURIComponent(id)}/requests/${encodeURIComponent(principal)}/approve`, method: 'POST', body: { role } }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/requests` }],
+    }),
+    rejectOrgRequest: b.mutation<unknown, { id: string; principal: string }>({
+      query: ({ id, principal }) => ({ url: `api/orgs/${encodeURIComponent(id)}/requests/${encodeURIComponent(principal)}`, method: 'DELETE' }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/requests` }],
+    }),
+    orgInvites: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/invites`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/invites` }] }),
+    createOrgInvite: b.mutation<unknown, { id: string; role: OrgRole; email: string | null; ttlHours: number }>({
+      query: ({ id, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/invites`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/invites` }],
+    }),
+    revokeOrgInvite: b.mutation<unknown, { id: string; token: string }>({
+      query: ({ id, token }) => ({ url: `api/orgs/${encodeURIComponent(id)}/invites/${encodeURIComponent(token)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.id}/invites` }],
+    }),
+    /** What an invite link leads to — public, so the page can say the organization's name before asking to sign in. */
+    peekOrgInvite: b.query<unknown, string>({ query: (token) => `api/orgs/join/${encodeURIComponent(token)}` }),
+    acceptOrgInvite: b.mutation<unknown, string>({ query: (token) => ({ url: `api/orgs/join/${encodeURIComponent(token)}`, method: 'POST' }), invalidatesTags: ['Org'] }),
+    createOrgGroup: b.mutation<unknown, { id: string; name: string; members: string[]; agents: string[] }>({
+      query: ({ id, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
+    }),
+    updateOrgGroup: b.mutation<unknown, { id: string; groupId: string; name: string; members: string[]; agents: string[] }>({
+      query: ({ id, groupId, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupId)}`, method: 'PUT', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
+    }),
+    deleteOrgGroup: b.mutation<unknown, { id: string; groupId: string }>({
+      query: ({ id, groupId }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupId)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
+    }),
+    orgAudit: b.query<unknown, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/orgs/${encodeURIComponent(id)}/audit?limit=${limit ?? 200}`, providesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }] }),
+    orgBilling: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/billing`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
+    orgSecurity: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/security`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
     hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
@@ -466,7 +521,10 @@ export const {
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation,
+  useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
+  useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
+  usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,

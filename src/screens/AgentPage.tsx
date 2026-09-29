@@ -363,6 +363,13 @@ export function AgentPage() {
       {(hosted.model || hosted.kind || hosted.status) && (
         <Row style={{ marginTop: -12, marginBottom: 16 }} data-testid="agent-hosted-badges"><HostedAgentBadges agent={agent} /></Row>
       )}
+      {/* Organizations (ainize-node organizations design): whose page this agent belongs on, and whether only its members are shown it. */}
+      {agent.org && (
+        <Row style={{ marginTop: -8, marginBottom: 16, fontSize: 13 }} data-testid="agent-org">
+          <Link to={`/org/${encodeURIComponent(agent.org)}`}>🏢 {agent.org}</Link>
+          {agent.visibility === 'private' && <span title={t('org.private_help')}>🔒 {t('org.private')}</span>}
+        </Row>
+      )}
       <Back to="/explore?kind=agent">← {'All agents'}</Back>
 
       {error && <Alert $tone="error">{errorMessage(error)}</Alert>}

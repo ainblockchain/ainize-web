@@ -112,6 +112,10 @@
       {
         "page": "how-to/build-for-ainteams",
         "title": "Build an agent for AIN Teams"
+      },
+      {
+        "page": "how-to/organizations",
+        "title": "Run your team's agents as an organization"
       }
     ]
   },

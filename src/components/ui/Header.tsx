@@ -154,6 +154,8 @@ export function Header() {
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/me'); }}>{t('me.title')}</MenuItem>
                 {/* Also gated on nothing but a session: the agents a person built or linked here are theirs, not the node's. */}
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/me/agents'); }}>{t('myAgents.title')}</MenuItem>
+                {/* The team's place: also gated on nothing but a session — the node decides which organizations you are in. */}
+                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/org'); }} data-testid="menu-orgs">{t('org.nav')}</MenuItem>
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>}
                 {/* /account and /drive are the node runner's screens too — they read this node's wallet, its
                     payout settings and its files. Every menu item that is not offered here is a route that would

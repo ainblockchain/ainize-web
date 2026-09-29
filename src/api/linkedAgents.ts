@@ -27,6 +27,12 @@ export interface LinkedAgentFormDraft {
   name: string;
   description: string;
   upstream: string;
+  /** the organization to register under (ainize-node organizations design); null = personal */
+  org: string | null;
+  /** private = listed to the organization's members only; meaningless without `org` and sent as public then */
+  visibility: 'public' | 'private';
+  /** a resource group of the organization that narrows who sees a private agent */
+  group: string | null;
 }
 
 export type LinkedAgentFormField = keyof LinkedAgentFormDraft;
@@ -52,10 +58,14 @@ export function linkedAgentFormProblems(draft: LinkedAgentFormDraft): LinkedAgen
   return out;
 }
 
-export interface LinkedAgentInput { id: string; name: string; description: string; upstream: string }
+export interface LinkedAgentInput { id: string; name: string; description: string; upstream: string; org: string | null; visibility: 'public' | 'private'; group: string | null }
 
 export function linkedAgentInputFromDraft(draft: LinkedAgentFormDraft): LinkedAgentInput {
-  return { id: draft.id.trim(), name: draft.name.trim(), description: draft.description.trim(), upstream: draft.upstream.trim() };
+  const org = draft.org?.trim() || null;
+  return {
+    id: draft.id.trim(), name: draft.name.trim(), description: draft.description.trim(), upstream: draft.upstream.trim(),
+    org, visibility: org ? draft.visibility : 'public', group: org ? draft.group?.trim() || null : null,
+  };
 }
 
 /** The node's answer to register / read / change, read defensively. */
@@ -71,6 +81,9 @@ export interface LinkedAgentView {
   /** Set on register and change: did the upstream answer with a card just now? */
   reachable: boolean | null;
   error: string | null;
+  org: string | null;
+  visibility: 'public' | 'private';
+  group: string | null;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -85,20 +98,21 @@ export function parseLinkedAgentResponse(body: unknown): LinkedAgentView | null 
     upstream: str(agent.upstream),
     reachable: typeof agent.reachable === 'boolean' ? agent.reachable : null,
     error: str(agent.error),
+    org: str(agent.org), visibility: agent.visibility === 'private' ? 'private' : 'public', group: str(agent.group),
   };
 }
 
 export function linkedAgentDraftFromView(view: LinkedAgentView): LinkedAgentFormDraft {
-  return { id: view.id, name: view.name, description: view.description, upstream: view.upstream ?? '' };
+  return { id: view.id, name: view.name, description: view.description, upstream: view.upstream ?? '', org: view.org, visibility: view.visibility, group: view.group };
 }
 
 export type LinkedAgentApiErrorCode =
   | 'not_signed_in' | 'invalid_request' | 'upstream_not_public' | 'name_required' | 'id_taken' | 'limit_reached'
-  | 'not_owner' | 'not_found' | 'unreachable' | 'unknown';
+  | 'not_owner' | 'not_found' | 'org_not_found' | 'org_role' | 'not_member' | 'unreachable' | 'unknown';
 
 export interface LinkedAgentApiError { status: number | null; code: LinkedAgentApiErrorCode; message: string | null }
 
-const KNOWN: readonly LinkedAgentApiErrorCode[] = ['not_signed_in', 'invalid_request', 'upstream_not_public', 'name_required', 'id_taken', 'limit_reached', 'not_owner', 'not_found'];
+const KNOWN: readonly LinkedAgentApiErrorCode[] = ['not_signed_in', 'invalid_request', 'upstream_not_public', 'name_required', 'id_taken', 'limit_reached', 'not_owner', 'not_found', 'org_not_found', 'org_role', 'not_member'];
 
 /**
  * An RTK Query error into something a page can switch on. A newer node says `{ error: { code, message } }`; an older
