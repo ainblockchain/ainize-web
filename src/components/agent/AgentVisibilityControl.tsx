@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { useT } from '@/i18n';
 import { SharingFields } from './SharingFields';
+import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 
 const VisibilityBox = styled.div`margin-top: 16px; display: flex; flex-direction: column; gap: 10px;`;
 const VisibilityNow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13px;`;
@@ -22,7 +23,7 @@ const VisibilityActions = styled.div`display: flex; gap: 12px; align-items: cent
 
 export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId: string; visibility: AgentVisibility | null; orgId: string | null }) {
   const { t } = useT();
-  const { sso } = useAuth();
+  const shareable = useShareableOrgs();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<{ visibility: AgentVisibility; orgId: string | null }>({ visibility: visibility ?? 'public', orgId });
   const [saved, setSaved] = useState(false);
@@ -30,7 +31,7 @@ export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId
   const [unsupported, setUnsupported] = useState(false);
   const [save, state] = useSetAgentVisibilityMutation();
 
-  const problem = editing ? sharingProblemKey(draft.visibility, draft.orgId, sso?.orgs) : null;
+  const problem = editing ? sharingProblemKey(draft.visibility, draft.orgId, shareable.orgs) : null;
   const current = visibility ?? 'public';
 
   const submit = async () => {
@@ -63,7 +64,7 @@ export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId
       {saved && <Alert $tone="success">{t('sharing.owner.saved')}</Alert>}
       {editing && (
         <>
-          <SharingFields visibility={draft.visibility} orgId={draft.orgId} orgs={sso?.orgs} activeOrg={sso?.activeOrg} onChange={setDraft} problemKey={problem} idPrefix="agent-visibility" />
+          <SharingFields visibility={draft.visibility} orgId={draft.orgId} orgs={shareable.orgs} activeOrg={shareable.activeOrg} onChange={setDraft} problemKey={problem} idPrefix="agent-visibility" />
           <VisibilityActions>
             <Button size="small" variant="contained" loading={state.isLoading} disabled={!!problem} onClick={() => { void submit(); }} data-testid="agent-visibility-save">{t('sharing.owner.save')}</Button>
             <Button size="small" variant="text" onClick={() => setEditing(false)}>{t('sharing.owner.cancel')}</Button>

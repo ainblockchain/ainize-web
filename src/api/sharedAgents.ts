@@ -49,6 +49,25 @@ export function agentOrgIdOf(row: Record<string, unknown> | AgentSummary | null 
 export interface OrgOption { id: string; slug: string; name: string }
 
 /**
+ * The organizations a person may share an agent with: the ainize organizations where they are at least a
+ * `contributor` (ainize-node organizations — an agent's `orgId` is then the organization's id), then the AIN SSO
+ * organizations their session names that no listed ainize organization already stands for. A wallet session has no
+ * AIN organizations but can be a member of an ainize one, so it gets options too. `null` when neither source has
+ * answered, so the control can tell "not signed in with AIN" from "in no organization".
+ */
+export function shareableOrgOptions(
+  ssoOrgs: readonly OrgOption[] | null | undefined,
+  ainizeOrgs: readonly { id: string; name: string; role: string | null }[] | null | undefined,
+): OrgOption[] | null {
+  if (!ssoOrgs && !ainizeOrgs) return null;
+  const out: OrgOption[] = [];
+  const RANK: Record<string, number> = { read: 0, contributor: 1, write: 2, admin: 3 };
+  for (const o of ainizeOrgs ?? []) if ((RANK[o.role ?? ''] ?? -1) >= 1) out.push({ id: o.id, slug: o.id, name: o.name });
+  for (const o of ssoOrgs ?? []) if (!out.some((x) => x.id === o.id)) out.push(o);
+  return out;
+}
+
+/**
  * What the visibility control may offer this person.
  *
  * `org` needs an organization to share with, and only an AIN SSO session has any: a wallet belongs to none, and the
@@ -288,6 +307,28 @@ export function fallbackRows(filter: AgentListFilter, agents: readonly AgentSumm
 
 /** `PUT /api/shared-agents/:id/visibility` body. */
 export interface AgentVisibilityInput { id: string; visibility: AgentVisibility; orgId?: string | null }
+
+// ─────────────────────────────────────────────────────────────── agents the caller may manage
+
+/** A row of `GET /api/hosted-agents?manageable=1`: the agent, and what this caller may do with it. */
+export interface ManageableAgent { agent: AgentSummary; canManage: boolean; canDelete: boolean; updatedBy: string | null }
+
+/**
+ * `?manageable=1` → the caller's own hosted agents plus those shared with an organization where they may edit
+ * (ainize-node: owner, or a `write` member). `null` when the body is not that list — a node from before it answers
+ * the public list instead (rows without `can_manage`), and the page then keeps to what it can prove.
+ */
+export function parseManageableHostedAgents(raw: unknown, origin: string): ManageableAgent[] | null {
+  const agents = (raw as { agents?: unknown } | null | undefined)?.agents;
+  if (!Array.isArray(agents)) return null;
+  if (agents.some((a) => !a || typeof a !== 'object' || typeof (a as { can_manage?: unknown }).can_manage !== 'boolean')) return null;
+  const out: ManageableAgent[] = [];
+  for (const a of agents as Record<string, unknown>[]) {
+    const agent = agentSummaryFromHostedSpecResponse(a, origin);
+    if (agent) out.push({ agent, canManage: a.can_manage === true, canDelete: a.can_delete === true, updatedBy: str(a.updated_by) });
+  }
+  return out;
+}
 
 // ─────────────────────────────────────────────────────────────── one agent, found off the public list
 

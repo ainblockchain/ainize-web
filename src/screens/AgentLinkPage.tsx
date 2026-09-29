@@ -25,6 +25,7 @@ import { Alert, Field, FieldLabel, HelperText, Input, Textarea } from '@/compone
 import { CenterProgress, Description, Empty, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 
 const AgentLinkForm = styled.form`display: flex; flex-direction: column; gap: 24px; margin-top: 8px; max-width: 760px;`;
 const AgentLinkSection = styled.section`
@@ -40,6 +41,7 @@ const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstrea
 export default function AgentLinkPage() {
   const { t } = useT();
   const auth = useAuth();
+  const shareable = useShareableOrgs();
   const navigate = useNavigate();
   const location = useLocation();
   const { id: editId } = useParams<{ id: string }>();
@@ -49,7 +51,9 @@ export default function AgentLinkPage() {
   const stored = useLinkedAgentQuery(editId ?? '', { skip: !editing || !auth.isSignedIn });
   const storedView = useMemo(() => parseLinkedAgentResponse(stored.data), [stored.data]);
 
-  const [draft, setDraft] = useState<LinkedAgentFormDraft>(EMPTY);
+  // `?org=<id>` (the organization page's "share an agent" door): start shared with that organization.
+  const presetOrg = new URLSearchParams(location.search).get('org');
+  const [draft, setDraft] = useState<LinkedAgentFormDraft>(() => (presetOrg && !editing ? { ...EMPTY, visibility: 'org', orgId: presetOrg } : EMPTY));
   const [idTouched, setIdTouched] = useState(false);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,7 +67,7 @@ export default function AgentLinkPage() {
   // The id follows the name until the person types an id of their own — the same courtesy the hosted form does.
   const setName = (name: string) => setDraft((d) => ({ ...d, name, ...(editing || idTouched ? {} : { id: linkedAgentIdFromName(name) }) }));
 
-  const problems = useMemo(() => linkedAgentFormProblems(draft, auth.sso?.orgs ?? null), [draft, auth.sso?.orgs]);
+  const problems = useMemo(() => linkedAgentFormProblems(draft, shareable.orgs), [draft, shareable.orgs]);
   const problemFor = (f: LinkedAgentFormField) => (touched ? problems.find((p) => p.field === f) : undefined);
 
   const submit = async () => {
@@ -161,7 +165,7 @@ export default function AgentLinkPage() {
         <AgentLinkSection>
           <h2>{t('agentLink.section.sharing')}</h2>
           <SharingFields
-            visibility={draft.visibility} orgId={draft.orgId} orgs={auth.sso?.orgs} activeOrg={auth.sso?.activeOrg}
+            visibility={draft.visibility} orgId={draft.orgId} orgs={shareable.orgs} activeOrg={shareable.activeOrg}
             onChange={(next) => setDraft((d) => ({ ...d, ...next }))} problemKey={problemFor('orgId')?.key ?? null} idPrefix="agent-link"
           />
           <HelperText>{t('sharing.wire_note')}</HelperText>

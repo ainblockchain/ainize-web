@@ -26,8 +26,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useAgentsQuery, useHostedAgentQuery, useLinkedAgentsQuery } from '@/api/api';
-import { agentOrgIdOf, agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList, agentVisibilityOf } from '@/api/sharedAgents';
+import { errorMessage, useAgentsQuery, useHostedAgentQuery, useLinkedAgentsQuery, useManageableHostedAgentsQuery } from '@/api/api';
+import { agentOrgIdOf, agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList, agentVisibilityOf, parseManageableHostedAgents } from '@/api/sharedAgents';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -176,7 +176,7 @@ export function AgentPage() {
   const lookingFurther = missed && (hostedSpec.isLoading || linkedList.isLoading);
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
-  const { subject, sso } = useAuth();
+  const { subject, sso, isSignedIn } = useAuth();
   const hosted = agentSummaryHostedFieldsOf(agent);
   const visibility = agentVisibilityOf(agent);
   const orgId = agentOrgIdOf(agent);
@@ -186,6 +186,11 @@ export function AgentPage() {
   const linked = !!agent && isLinkedAgentRow(agent);
   const ownsLinked = linked && isAgentOwnedBy(hosted.owner, principals);
   const ownsIt = !linked && isHostedAgentOwnedBy(hosted.owner, principals);
+  // An organization member may edit an agent shared with the organization without owning it (ainize-node: `write`
+  // members edit; delete and sharing stay with the owner and admins). The manageable list says which.
+  const manageable = useManageableHostedAgentsQuery(undefined, { skip: !isSignedIn || linked || ownsIt || !agent });
+  const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.data, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.data, agent?.id]);
+  const managesIt = !linked && !ownsIt && !!managedRow?.canManage;
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
@@ -443,7 +448,7 @@ export function AgentPage() {
       {hosted.status === 'building' && <Alert $tone="info" style={{ marginTop: 16 }}>{t('hostedAgent.status.building_help')}</Alert>}
       {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
 
-      {ownsIt && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} />}
+      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} />}
       {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} />}
 
       {skills.length > 0 && (

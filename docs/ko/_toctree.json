@@ -112,6 +112,10 @@
       {
         "page": "how-to/build-for-ainteams",
         "title": "AIN Teams용 에이전트 만들기"
+      },
+      {
+        "page": "how-to/organizations",
+        "title": "팀의 에이전트를 조직으로 운영하기"
       }
     ]
   },
