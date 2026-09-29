@@ -334,6 +334,11 @@ export interface ApiKeySummary { prefix: string; issuedAt: number; label: string
 export interface AuthMe {
   /** an AIN SSO session, or null/absent (a node from before AIN SSO) */
   sso?: SsoSessionView | null;
+  /**
+   * The ainize.ai Google account this site vouched for on the request (ainize-node #43: `x-ainize-site-subject`),
+   * or null/absent (no Google session, or a node from before it). It owns what it makes as `google:<sub>`.
+   */
+  site?: { principal: string } | null;
   signedIn: boolean;
   /** the address behind this session, or null when there is none */
   subject: string | null;

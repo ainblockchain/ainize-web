@@ -43,8 +43,8 @@ const MyAgentsRow = styled.div`display: flex; gap: 12px; align-items: center; fl
 export default function MyAgentsPage() {
   const { t } = useT();
   useTitle(t('myAgents.title'));
-  const { subject, sso } = useAuth();
-  const principals = useMemo(() => viewerPrincipals(subject, sso?.principal), [subject, sso?.principal]);
+  const { subject, sso, sitePrincipal } = useAuth();
+  const principals = useMemo(() => viewerPrincipals(subject, sso?.principal, sitePrincipal), [subject, sso?.principal, sitePrincipal]);
   const { data, isLoading } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
   const manageable = useManageableHostedAgentsQuery(undefined, { pollingInterval: 30_000 });
   const rows = useMemo(() => {

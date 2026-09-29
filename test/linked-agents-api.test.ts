@@ -99,3 +99,15 @@ test('"mine" is a principal match: wallet case-folded, SSO principal kept, nobod
   // an older node sends no `kind`: an upstream is the default, so an owned row without it still reads as linked
   assert.ok(isLinkedAgentRow(row({ owner: 'sso:Carol' })));
 });
+
+test('a Google-only viewer (the site-vouched `google:<sub>`) owns what it made; no duplicates, case kept', () => {
+  const google = viewerPrincipals(null, null, 'google:1100AB');
+  assert.deepEqual(google, ['google:1100AB']);
+  assert.ok(isAgentOwnedBy('google:1100AB', google));
+  assert.ok(!isAgentOwnedBy('google:1100ab', google), 'a Google sub is case-sensitive');
+  assert.ok(!isAgentOwnedBy('google:other', google));
+  // An SSO session connected to that Google account reports it as its principal too: listed once.
+  assert.deepEqual(viewerPrincipals(null, 'google:1100AB', 'google:1100AB'), ['google:1100AB']);
+  assert.deepEqual(viewerPrincipals('0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', null, 'google:1100AB'), ['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'google:1100AB']);
+  assert.deepEqual(viewerPrincipals(null, null, null), []);
+});

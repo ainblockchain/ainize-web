@@ -142,13 +142,18 @@ function fromStatus(status: number | null): LinkedAgentApiErrorCode {
 
 /**
  * Every principal the signed-in person is on this node: their wallet address (lower-case) and their AIN SSO
- * principal (`sso:<sub>`, case kept — an OIDC `sub` is case-sensitive). A hosted agent is owned by the former, a
- * linked agent by whichever the person was signed in with when they registered it.
+ * principal (`sso:<sub>`, case kept — an OIDC `sub` is case-sensitive), and the Google account the site vouches for
+ * (`google:<sub>`). An agent is owned by whichever of these the person was signed in with when they made it.
  */
-export function viewerPrincipals(subject: string | null | undefined, ssoPrincipal: string | null | undefined): string[] {
+export function viewerPrincipals(
+  subject: string | null | undefined,
+  ssoPrincipal: string | null | undefined,
+  sitePrincipal?: string | null,
+): string[] {
   const out: string[] = [];
   if (subject) out.push(subject.toLowerCase());
   if (ssoPrincipal) out.push(ssoPrincipal);
+  if (sitePrincipal && !out.includes(sitePrincipal)) out.push(sitePrincipal);
   return out;
 }
 

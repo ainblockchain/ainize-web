@@ -32,9 +32,11 @@ export interface AuthState {
   scheme: 'ain' | 'eip191' | 'google' | 'sso' | null;
   /** the AIN account signed in (AIN SSO), or null */
   sso: SsoSessionView | null;
+  /** the Google account the node accepted from this site (`google:<sub>`), or null — it owns what a Google-only person makes */
+  sitePrincipal: string | null;
   /**
    * Who the node would record as the OWNER of something this person makes: the wallet address when there is one,
-   * else the AIN account's principal (`sso:<sub>`), else null. A hosted or linked agent's `owner` is this string —
+   * else the AIN account's principal (`sso:<sub>`), else the vouched Google account (`google:<sub>`), else null. A hosted or linked agent's `owner` is this string —
    * so this, not `subject`, is what an ownership check compares against (`isHostedAgentOwnedBy`, `viewerPrincipals`).
    */
   principal: string | null;
@@ -61,7 +63,7 @@ export interface AuthState {
 }
 
 const EMPTY: AuthState = {
-  loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
+  loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, sitePrincipal: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
   canEnroll: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined,
 };
 const AuthContext = createContext<AuthState>(EMPTY);
@@ -80,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const live = !!data?.signedIn && !signingOut;
   const google = !signingOut ? googleData?.identity ?? null : null;
   const sso = !signingOut ? data?.sso ?? null : null;
+  const sitePrincipal = !signingOut ? data?.site?.principal ?? null : null;
   const value: AuthState = {
     loading: isLoading || googleLoading,
     isSignedIn: live || !!google || !!sso,
@@ -87,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The wallet wins when both are present: it is the one the node can act on.
     scheme: live ? data?.scheme ?? null : sso ? 'sso' : google ? 'google' : null,
     sso,
-    principal: live ? data?.subject ?? sso?.principal ?? null : sso?.principal ?? null,
+    sitePrincipal,
+    principal: live ? data?.subject ?? sso?.principal ?? sitePrincipal : sso?.principal ?? sitePrincipal,
     ssoConfigured: !!ssoStatus?.configured,
     google,
     googleConfigured: !!googleData?.configured,

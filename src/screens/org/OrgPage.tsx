@@ -17,6 +17,7 @@ import { parseDoc } from '@/components/docs/markdown';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, Empty, ExternalLink, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
+import { viewerPrincipals } from '@/api/linkedAgents';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 
@@ -108,7 +109,7 @@ export default function OrgPage() {
   const admin = roleAtLeast(org.my_role, 'admin');
   const contributor = roleAtLeast(org.my_role, 'contributor');
   const write = roleAtLeast(org.my_role, 'write');
-  const principals = [auth.subject?.toLowerCase(), auth.sso?.principal].filter((p): p is string => !!p);
+  const principals = viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal);
 
   return (
     <PageWrapper>

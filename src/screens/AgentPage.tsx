@@ -176,13 +176,13 @@ export function AgentPage() {
   const lookingFurther = missed && (hostedSpec.isLoading || linkedList.isLoading);
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
-  const { subject, sso, isSignedIn } = useAuth();
+  const { subject, sso, sitePrincipal, isSignedIn } = useAuth();
   const hosted = agentSummaryHostedFieldsOf(agent);
   const visibility = agentVisibilityOf(agent);
   const orgId = agentOrgIdOf(agent);
   // A linked agent (an upstream with an owner) may belong to an AIN SSO principal as well as to a wallet, and so may
   // a hosted one now (shared-agent registry). Two panels, because the two kinds offer different things (no logs for a proxy).
-  const principals = viewerPrincipals(subject, sso?.principal);
+  const principals = viewerPrincipals(subject, sso?.principal, sitePrincipal);
   const linked = !!agent && isLinkedAgentRow(agent);
   const ownsLinked = linked && isAgentOwnedBy(hosted.owner, principals);
   const ownsIt = !linked && isHostedAgentOwnedBy(hosted.owner, principals);
