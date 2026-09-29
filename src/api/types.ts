@@ -1020,5 +1020,12 @@ export interface AgentSummary {
   kind?: 'upstream' | 'prompt' | 'tools' | 'handler' | null;
   owner?: string | null;
   status?: 'building' | 'ready' | 'failed' | null;
+  /**
+   * Shared-agent registry (ainize-node `feat/shared-agent-registry`): who may see this agent, and the AIN SSO
+   * organization an `org` agent is shared with. Both OPTIONAL for the same reason as the four above — read them
+   * through `agentVisibilityOf` / `agentOrgIdOf` (src/api/sharedAgents.ts), never as a default.
+   */
+  visibility?: 'public' | 'org' | 'private' | 'unlisted' | null;
+  org_id?: string | null;
 }
 export interface AgentsResponse { agents: AgentSummary[] }

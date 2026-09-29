@@ -14,6 +14,7 @@ import type {
   SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse, ApiKeySummary,
 } from './types';
 import type { HostedAgentSpecInput } from './hostedAgents';
+import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
@@ -201,6 +202,21 @@ export const api = createApi({
     deleteLinkedAgent: b.mutation<unknown, string>({
       query: (id) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'LinkedAgent'],
     }),
+    /**
+     * The shared-agent registry (ainize-node `feat/shared-agent-registry`, contract 1.0): the agents the caller may
+     * see, by scope. Typed `unknown` and read through `src/api/sharedAgents.ts`; an older node answers 404 and the
+     * page falls back to `agents`. `org` narrows `shared_with_org` to one organization.
+     */
+    sharedAgents: b.query<unknown, { scope: AgentListScope; q?: string; org?: string; limit?: number }>({
+      query: ({ scope, q, org, limit }) => `api/shared-agents${toQuery({ scope, q, org, limit })}`, providesTags: ['Agents', 'HostedAgent', 'LinkedAgent'],
+    }),
+    /** Who may see one agent — owner or node operator. Applies to hosted and linked agents alike. */
+    setAgentVisibility: b.mutation<unknown, AgentVisibilityInput>({
+      query: ({ id, ...body }) => ({ url: `api/shared-agents/${encodeURIComponent(id)}/visibility`, method: 'PUT', body }),
+      invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }],
+    }),
+    /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
+    linkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
     hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
@@ -466,7 +482,7 @@ export const {
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,

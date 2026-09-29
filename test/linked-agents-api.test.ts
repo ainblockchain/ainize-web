@@ -19,7 +19,7 @@ const row = (extra: Record<string, unknown>): AgentSummary => ({
   calls: 0, last_call_at: null, node: null, ...extra,
 } as AgentSummary);
 
-const draft = (over: Partial<LinkedAgentFormDraft> = {}): LinkedAgentFormDraft => ({ id: 'coffee-bot', name: 'Coffee Bot', description: '', upstream: 'https://coffee.example', ...over });
+const draft = (over: Partial<LinkedAgentFormDraft> = {}): LinkedAgentFormDraft => ({ id: 'coffee-bot', name: 'Coffee Bot', description: '', upstream: 'https://coffee.example', visibility: 'public', orgId: null, ...over });
 
 test('the id rule is the node’s, and the two route words are not ids', () => {
   assert.ok(isLinkedAgentIdValid('coffee-bot'));
@@ -45,16 +45,26 @@ test('form problems name the field and the message key', () => {
   assert.deepEqual(linkedAgentFormProblems(draft({ id: 'link' })), [{ field: 'id', key: 'agentLink.problem.id_reserved' }]);
   assert.deepEqual(linkedAgentFormProblems(draft({ id: 'X', upstream: 'nope' })).map((p) => p.field), ['id', 'upstream']);
   assert.deepEqual(linkedAgentFormProblems(draft({ name: 'n'.repeat(81), description: 'd'.repeat(501) })).map((p) => p.key), ['agentLink.problem.name', 'agentLink.problem.description']);
-  assert.deepEqual(linkedAgentInputFromDraft(draft({ name: ' Coffee ', upstream: ' https://coffee.example ' })), { id: 'coffee-bot', name: 'Coffee', description: '', upstream: 'https://coffee.example' });
+  assert.deepEqual(linkedAgentInputFromDraft(draft({ name: ' Coffee ', upstream: ' https://coffee.example ' })), { id: 'coffee-bot', name: 'Coffee', description: '', upstream: 'https://coffee.example', visibility: 'public', orgId: null });
+  // Sharing (shared-agent registry): `org` needs an organization the AIN account is in; the form says so before the node does.
+  const orgs = [{ id: 'org_comcom', slug: 'comcom', name: 'ComCom' }];
+  assert.deepEqual(linkedAgentFormProblems(draft({ visibility: 'org', orgId: null }), orgs).map((p) => p.key), ['sharing.err.org_required']);
+  assert.deepEqual(linkedAgentFormProblems(draft({ visibility: 'org', orgId: 'org_other' }), orgs).map((p) => p.key), ['sharing.err.org_not_member']);
+  assert.deepEqual(linkedAgentFormProblems(draft({ visibility: 'org', orgId: 'org_comcom' }), null).map((p) => p.key), ['sharing.err.org_needs_sso'], 'a wallet belongs to no organization');
+  assert.deepEqual(linkedAgentFormProblems(draft({ visibility: 'org', orgId: 'org_comcom' }), orgs), []);
+  assert.deepEqual(linkedAgentInputFromDraft(draft({ visibility: 'private', orgId: 'org_comcom' })).orgId, null, 'orgId goes with org only');
 });
 
 test('the node’s answer is read defensively, and the owner’s read carries the upstream', () => {
   assert.equal(parseLinkedAgentResponse(null), null);
   assert.equal(parseLinkedAgentResponse({ agent: { id: 'x' } }), null, 'half a record is no record');
   const v = parseLinkedAgentResponse({ agent: { id: 'coffee', name: 'Coffee Bot', description: 'd', owner: 'sso:carol', a2a_url: 'https://n/agents/coffee', card_url: 'https://n/agents/coffee/.well-known/agent-card.json', reachable: false, error: 'upstream timeout' } });
-  assert.deepEqual(v, { id: 'coffee', name: 'Coffee Bot', description: 'd', owner: 'sso:carol', a2a_url: 'https://n/agents/coffee', card_url: 'https://n/agents/coffee/.well-known/agent-card.json', upstream: null, reachable: false, error: 'upstream timeout' });
+  assert.deepEqual(v, { id: 'coffee', name: 'Coffee Bot', description: 'd', owner: 'sso:carol', a2a_url: 'https://n/agents/coffee', card_url: 'https://n/agents/coffee/.well-known/agent-card.json', upstream: null, reachable: false, error: 'upstream timeout', visibility: null, orgId: null });
   const owned = parseLinkedAgentResponse({ agent: { ...{ id: 'coffee', name: 'Coffee Bot', a2a_url: 'a', card_url: 'c' }, upstream: 'https://coffee.example' } })!;
-  assert.deepEqual(linkedAgentDraftFromView(owned), { id: 'coffee', name: 'Coffee Bot', description: '', upstream: 'https://coffee.example' });
+  assert.deepEqual(linkedAgentDraftFromView(owned), { id: 'coffee', name: 'Coffee Bot', description: '', upstream: 'https://coffee.example', visibility: 'public', orgId: null }, 'an older node’s record reads as public — what every agent was');
+  const shared = parseLinkedAgentResponse({ agent: { id: 'coffee', name: 'Coffee Bot', a2a_url: 'a', card_url: 'c', visibility: 'org', org_id: 'org_comcom' } })!;
+  assert.deepEqual([shared.visibility, shared.orgId], ['org', 'org_comcom']);
+  assert.deepEqual(linkedAgentDraftFromView(shared).orgId, 'org_comcom');
 });
 
 test('refusals: a coded body, a text body, no answer at all', () => {

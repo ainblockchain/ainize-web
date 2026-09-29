@@ -19,6 +19,7 @@ import {
   parseLinkedAgentResponse, type LinkedAgentFormDraft, type LinkedAgentFormField,
 } from '@/api/linkedAgents';
 import { useAuth } from '@/auth/AuthContext';
+import { SharingFields } from '@/components/agent/SharingFields';
 import { Button } from '@/components/ui/Button';
 import { Alert, Field, FieldLabel, HelperText, Input, Textarea } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -34,7 +35,7 @@ const AgentLinkSection = styled.section`
 const AgentLinkTwoCol = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;`;
 const AgentLinkActions = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap;`;
 
-const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '' };
+const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '', visibility: 'public', orgId: null };
 
 export default function AgentLinkPage() {
   const { t } = useT();
@@ -62,7 +63,7 @@ export default function AgentLinkPage() {
   // The id follows the name until the person types an id of their own — the same courtesy the hosted form does.
   const setName = (name: string) => setDraft((d) => ({ ...d, name, ...(editing || idTouched ? {} : { id: linkedAgentIdFromName(name) }) }));
 
-  const problems = useMemo(() => linkedAgentFormProblems(draft), [draft]);
+  const problems = useMemo(() => linkedAgentFormProblems(draft, auth.sso?.orgs ?? null), [draft, auth.sso?.orgs]);
   const problemFor = (f: LinkedAgentFormField) => (touched ? problems.find((p) => p.field === f) : undefined);
 
   const submit = async () => {
@@ -155,6 +156,15 @@ export default function AgentLinkPage() {
               onChange={(e) => set('description', e.target.value)} />
             <HelperText $error={!!problemFor('description')}>{problemFor('description') ? t(problemFor('description')!.key) : t('agentLink.field.description_help')}</HelperText>
           </Field>
+        </AgentLinkSection>
+
+        <AgentLinkSection>
+          <h2>{t('agentLink.section.sharing')}</h2>
+          <SharingFields
+            visibility={draft.visibility} orgId={draft.orgId} orgs={auth.sso?.orgs} activeOrg={auth.sso?.activeOrg}
+            onChange={(next) => setDraft((d) => ({ ...d, ...next }))} problemKey={problemFor('orgId')?.key ?? null} idPrefix="agent-link"
+          />
+          <HelperText>{t('sharing.wire_note')}</HelperText>
         </AgentLinkSection>
 
         {serverError && <Alert $tone="error" data-testid="agent-link-error">{serverError}</Alert>}

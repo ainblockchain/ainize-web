@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation } from '@/api/api';
 import { agentsOwnedBy, isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
+import { agentListKey, visibilityBadgeOf } from '@/api/sharedAgents';
 import type { AgentSummary } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -75,10 +76,11 @@ export default function MyAgentsPage() {
           const linked = isLinkedAgentRow(agent);
           const kind = agent.kind ?? 'upstream';
           return (
-            <MyAgentsItem key={agent.id} data-testid={`my-agent-${agent.id}`}>
+            <MyAgentsItem key={agentListKey(agent)} data-testid={`my-agent-${agent.id}`}>
               <MyAgentsHead>
                 <MyAgentsName>{agent.name}</MyAgentsName>
                 <MyAgentsChip>{t(`myAgents.kind.${kind}`)}</MyAgentsChip>
+                {visibilityBadgeOf(agent) && <MyAgentsChip data-testid={`my-agent-visibility-${agent.id}`}>{t(`sharing.visibility.${visibilityBadgeOf(agent)}`)}</MyAgentsChip>}
                 <MyAgentsChip $tone={agent.reachable === true ? 'ok' : agent.reachable === false ? 'warn' : 'muted'}>
                   {agent.reachable === true ? t('myAgents.reachable') : agent.reachable === false ? t('myAgents.unreachable') : t('myAgents.unknown')}
                 </MyAgentsChip>

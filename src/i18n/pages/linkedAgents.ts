@@ -19,6 +19,7 @@ export const linkedAgents: Dict = {
   'agentLink.signin.cta': { ko: '로그인 →', en: 'Sign in →' },
   'agentLink.section.address': { ko: '주소', en: 'Address' },
   'agentLink.section.listing': { ko: '카탈로그에 보일 것', en: 'How it is listed' },
+  'agentLink.section.sharing': { ko: '누가 볼 수 있나', en: 'Who can see it' },
   'agentLink.field.upstream': { ko: '에이전트 주소 (upstream)', en: 'Agent address (upstream)' },
   'agentLink.field.upstream_help': {
     ko: '에이전트가 듣고 있는 http(s) 주소입니다. 공개 인터넷에서 닿아야 하고(사설망 주소는 거절됩니다), 이 주소는 공개되지 않습니다 — 사람들이 받는 것은 이 노드의 주소입니다.',

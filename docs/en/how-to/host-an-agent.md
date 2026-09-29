@@ -92,6 +92,32 @@ An id is not an identity. If two nodes run an agent called `donga-desk`, only on
 any given node, and the other is still reachable at the peer-qualified path — `/sam/<peer>/a2a/donga-desk` — which
 always names exactly one.
 
+## Who sees it
+
+Everything above lists the agent to everyone, which is what every agent was until now. An agent you registered
+yourself — on the **Link an agent by URL** form at `/agent/link`, or built on a model at `/agent/new` — can be
+narrower. Under **Who can see it**, pick one of four:
+
+| Visibility | Listed to | Notes |
+|---|---|---|
+| Public | everyone | the default, and what every older agent is |
+| Organization | members of the organization you pick | one of the organizations your AIN account is in |
+| Private | you alone | |
+| Unlisted | nobody | anyone who holds the id can still call it |
+
+**Organization** needs an AIN account sign-in: an organization is something an AIN account belongs to, and a
+wallet belongs to none, so the option is disabled for a wallet session with that reason beside it. An agent shared
+with an organization appears, as the same agent, in the organization's other products — AIN Teams imports its
+agents from this list — and disappears from them when you change the visibility back.
+
+Two things visibility does not do. It does not hide the A2A address: A2A sends no authentication, so anyone who has
+the address can call it, whatever the listing says. And it does not travel to other nodes: only public agents are
+advertised on the gossip round, so an organization's agent is listed on the node it lives on and nowhere else.
+
+On the marketplace (`/explore?kind=agent`) a signed-in person sees three chips — **All**, **Mine**, **My
+organization** — and an agent that is not public carries its visibility as a badge. On the agent's own page, the
+owner changes the visibility in place under **Visibility**.
+
 ## What the node does not do
 
 It does not run your agent. An agent is a separate process with its own dependencies, its own failure modes and its
