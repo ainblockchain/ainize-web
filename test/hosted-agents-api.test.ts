@@ -26,7 +26,7 @@ const row = (extra: Record<string, unknown>): AgentSummary => ({
 
 const draft = (over: Partial<HostedAgentFormDraft> = {}): HostedAgentFormDraft => ({
   id: 'score-bot', name: 'Score bot', description: '', model: 'qwen', systemPrompt: 'Score things.', mode: 'prompt',
-  code: '', packageJson: '', a2ui: false, mediaTranscription: false, mediaImage: false, allowedHostsText: '', secrets: [], ...over,
+  code: '', packageJson: '', a2ui: false, mediaTranscription: false, mediaImage: false, allowedHostsText: '', secrets: [], visibility: 'public', orgId: null, ...over,
 });
 
 // ── agent rows
@@ -50,6 +50,12 @@ test('ownership is case-insensitive and never true for a missing side', () => {
   assert.equal(isHostedAgentOwnedBy('0xabc', '0xabd'), false);
   assert.equal(isHostedAgentOwnedBy(null, '0xabc'), false);
   assert.equal(isHostedAgentOwnedBy('0xabc', null), false);
+  // An AIN SSO principal may own a hosted agent too (shared-agent registry); an OIDC sub is case-sensitive.
+  assert.equal(isHostedAgentOwnedBy('sso:Carol', 'sso:Carol'), true);
+  assert.equal(isHostedAgentOwnedBy('sso:Carol', 'sso:carol'), false);
+  assert.equal(isHostedAgentOwnedBy('sso:Carol', ['0xabc', 'sso:Carol']), true, 'any one of the viewer’s principals may match');
+  assert.equal(isHostedAgentOwnedBy('0xABC', ['0xabc']), true);
+  assert.equal(isHostedAgentOwnedBy('0xabc', []), false);
 });
 
 test('the model page keeps only agents built on that model — an older node ignores ?model=', () => {
@@ -117,7 +123,8 @@ test('the body carries files only for code modes, and secret names but never val
   assert.deepEqual(code.allowedHosts, ['a.com', 'b.com']);
   assert.deepEqual(code.secretNames, ['API_KEY']);
   assert.ok(!JSON.stringify(code).includes('shh'), 'a secret value never travels in the spec');
-  assert.deepEqual(Object.keys(code).sort(), ['a2ui', 'allowedHosts', 'description', 'files', 'id', 'media', 'mode', 'model', 'name', 'secretNames', 'systemPrompt']);
+  assert.deepEqual(Object.keys(code).sort(), ['a2ui', 'allowedHosts', 'description', 'files', 'id', 'media', 'mode', 'model', 'name', 'orgId', 'secretNames', 'systemPrompt', 'visibility']);
+  assert.deepEqual([code.visibility, code.orgId], ['public', null], 'sharing is always sent: PUT replaces the spec, and a dropped visibility would make an org agent public again');
 });
 
 test('only secrets with a typed value are sent afterwards — empty means keep', () => {

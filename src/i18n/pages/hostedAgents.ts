@@ -44,6 +44,7 @@ export const hostedAgents: Dict = {
   'agentCreate.section.identity': { ko: '이름과 모델', en: 'Name and model' },
   'agentCreate.section.behaviour': { ko: '동작', en: 'Behaviour' },
   'agentCreate.section.access': { ko: '외부 접근', en: 'Outside access' },
+  'agentCreate.section.sharing': { ko: '누가 볼 수 있나', en: 'Who can see it' },
   'agentCreate.field.name': { ko: '이름', en: 'Name' },
   'agentCreate.field.id': { ko: 'ID (주소)', en: 'Id (address)' },
   'agentCreate.field.id_help': { ko: '주소가 /agents/{id} 가 됩니다. 영문 소문자, 숫자, 하이픈 — 40자까지.', en: 'The address becomes /agents/{id}. Lower-case letters, digits and hyphens — up to 40.' },

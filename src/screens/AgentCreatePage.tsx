@@ -33,6 +33,7 @@ import {
 } from '@/api/hostedAgents';
 import { parseModelsResponse } from '@/api/models';
 import { useAuth } from '@/auth/AuthContext';
+import { SharingFields } from '@/components/agent/SharingFields';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select, Textarea } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -75,7 +76,7 @@ const AgentCreateActions = styled.div`display: flex; gap: 12px; align-items: cen
 
 const emptyHostedAgentDraft = (model: string): HostedAgentFormDraft => ({
   id: '', name: '', description: '', model, systemPrompt: '', mode: 'prompt', code: '', packageJson: '',
-  a2ui: false, mediaTranscription: false, mediaImage: false, allowedHostsText: '', secrets: [],
+  a2ui: false, mediaTranscription: false, mediaImage: false, allowedHostsText: '', secrets: [], visibility: 'public', orgId: null,
 });
 
 export default function AgentCreatePage() {
@@ -101,7 +102,8 @@ export default function AgentCreatePage() {
     [modelsQuery.data, networkModelsQuery.data],
   );
 
-  const stored = useHostedAgentQuery(editId ?? '', { skip: !editing || !auth.subject });
+  // An AIN account (SSO) may own a hosted agent now, so "somebody who can own one" is `principal`, not `subject`.
+  const stored = useHostedAgentQuery(editId ?? '', { skip: !editing || !auth.principal });
   const storedSpec = useMemo(() => parseHostedAgentSpecResponse(stored.data), [stored.data]);
 
   const [draft, setDraft] = useState<HostedAgentFormDraft>(() => emptyHostedAgentDraft(prefilledModel));
@@ -133,7 +135,7 @@ export default function AgentCreatePage() {
     }
   }, [editing, draft.model, modelOptions]);
 
-  const problems = useMemo(() => hostedAgentFormProblems(draft), [draft]);
+  const problems = useMemo(() => hostedAgentFormProblems(draft, auth.sso?.orgs ?? null), [draft, auth.sso?.orgs]);
   const problemFor = (field: HostedAgentFormProblem['field']) => (showProblems ? problems.find((p) => p.field === field) : undefined);
   const set = <K extends keyof HostedAgentFormDraft>(key: K, value: HostedAgentFormDraft[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -177,7 +179,7 @@ export default function AgentCreatePage() {
 
   if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
 
-  if (!auth.subject) {
+  if (!auth.principal) {
     const next = `${location.pathname}${location.search}`;
     return (
       <PageWrapper>
@@ -345,6 +347,15 @@ export default function AgentCreatePage() {
             onChange={(e) => set('mediaImage', e.target.checked)}
           />
           {(!mediaServed.transcription || !mediaServed.image) && <HelperText>{t('agentCreate.field.media_unavailable')}</HelperText>}
+        </AgentCreateSection>
+
+        <AgentCreateSection>
+          <h2>{t('agentCreate.section.sharing')}</h2>
+          <SharingFields
+            visibility={draft.visibility} orgId={draft.orgId} orgs={auth.sso?.orgs} activeOrg={auth.sso?.activeOrg}
+            onChange={(next) => setDraft((d) => ({ ...d, ...next }))} problemKey={problemFor('orgId')?.key ?? null} idPrefix="agent-create"
+          />
+          <HelperText>{t('sharing.wire_note')}</HelperText>
         </AgentCreateSection>
 
         <AgentCreateSection>

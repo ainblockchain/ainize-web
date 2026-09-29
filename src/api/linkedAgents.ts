@@ -9,6 +9,7 @@
  */
 import type { AgentSummary } from './types';
 import { HOSTED_AGENT_ID_PATTERN, HOSTED_AGENT_RESERVED_IDS } from './hostedAgents';
+import { agentOrgIdOf, agentVisibilityOf, sharingFieldsOf, sharingProblemKey, type AgentVisibility, type OrgOption } from './sharedAgents';
 
 /** One id rule for every agent on a node — the address is `/agents/<id>` whatever kind it is. */
 export const LINKED_AGENT_ID_PATTERN = HOSTED_AGENT_ID_PATTERN;
@@ -27,6 +28,9 @@ export interface LinkedAgentFormDraft {
   name: string;
   description: string;
   upstream: string;
+  /** Who may see it (shared-agent registry). `orgId` goes with `org` only. */
+  visibility: AgentVisibility;
+  orgId: string | null;
 }
 
 export type LinkedAgentFormField = keyof LinkedAgentFormDraft;
@@ -43,8 +47,10 @@ export function isLinkedAgentUpstreamValid(upstream: string): boolean {
 }
 
 /** What the form shows beside a field before it asks the node. Mirrors the node's zod schema, so a refusal is rare. */
-export function linkedAgentFormProblems(draft: LinkedAgentFormDraft): LinkedAgentFormProblem[] {
+export function linkedAgentFormProblems(draft: LinkedAgentFormDraft, orgs?: readonly OrgOption[] | null): LinkedAgentFormProblem[] {
   const out: LinkedAgentFormProblem[] = [];
+  const sharing = sharingProblemKey(draft.visibility, draft.orgId, orgs);
+  if (sharing) out.push({ field: 'orgId', key: sharing });
   if (!isLinkedAgentIdValid(draft.id)) out.push({ field: 'id', key: LINKED_AGENT_RESERVED_IDS.includes(draft.id) ? 'agentLink.problem.id_reserved' : 'agentLink.problem.id' });
   if (draft.name.trim().length > 80) out.push({ field: 'name', key: 'agentLink.problem.name' });
   if (draft.description.trim().length > 500) out.push({ field: 'description', key: 'agentLink.problem.description' });
@@ -52,10 +58,11 @@ export function linkedAgentFormProblems(draft: LinkedAgentFormDraft): LinkedAgen
   return out;
 }
 
-export interface LinkedAgentInput { id: string; name: string; description: string; upstream: string }
+export interface LinkedAgentInput { id: string; name: string; description: string; upstream: string; visibility?: AgentVisibility; orgId?: string | null }
 
+/** The body. `visibility` is always sent: PUT replaces the record, and a save that dropped it would make an org agent public again. */
 export function linkedAgentInputFromDraft(draft: LinkedAgentFormDraft): LinkedAgentInput {
-  return { id: draft.id.trim(), name: draft.name.trim(), description: draft.description.trim(), upstream: draft.upstream.trim() };
+  return { id: draft.id.trim(), name: draft.name.trim(), description: draft.description.trim(), upstream: draft.upstream.trim(), ...sharingFieldsOf(draft.visibility, draft.orgId) };
 }
 
 /** The node's answer to register / read / change, read defensively. */
@@ -71,6 +78,9 @@ export interface LinkedAgentView {
   /** Set on register and change: did the upstream answer with a card just now? */
   reachable: boolean | null;
   error: string | null;
+  /** Who may see it; `null` from a node older than the registry, which the form reads as `public`. */
+  visibility: AgentVisibility | null;
+  orgId: string | null;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -85,11 +95,13 @@ export function parseLinkedAgentResponse(body: unknown): LinkedAgentView | null 
     upstream: str(agent.upstream),
     reachable: typeof agent.reachable === 'boolean' ? agent.reachable : null,
     error: str(agent.error),
+    visibility: agentVisibilityOf(agent),
+    orgId: agentOrgIdOf(agent),
   };
 }
 
 export function linkedAgentDraftFromView(view: LinkedAgentView): LinkedAgentFormDraft {
-  return { id: view.id, name: view.name, description: view.description, upstream: view.upstream ?? '' };
+  return { id: view.id, name: view.name, description: view.description, upstream: view.upstream ?? '', visibility: view.visibility ?? 'public', orgId: view.orgId };
 }
 
 export type LinkedAgentApiErrorCode =

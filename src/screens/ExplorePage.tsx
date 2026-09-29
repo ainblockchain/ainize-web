@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, errorMessage } from '@/api/api';
+import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
+import {
+  AGENT_LIST_FILTERS, agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsErrorCode, sharedAgentsUnsupported,
+  type AgentListFilter,
+} from '@/api/sharedAgents';
+import { viewerPrincipals } from '@/api/linkedAgents';
+import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
 import { PatchListItem, PriceUnitNote, TermsLegend } from '@/components/public/PatchListItem';
 import { Shelves } from '@/components/public/Shelves';
 import { Alert, Input } from '@/components/ui/Form';
-import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, Title, TitleRow } from '@/components/ui/Misc';
+import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { num } from '@/utils/format';
@@ -75,6 +81,9 @@ const Hidden = styled.div`
   button { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; cursor: pointer; text-decoration: underline; }
 `;
 const Intro = styled(Description)`margin: 0 0 24px;`;
+/** The doors to make more agents, beside the list they land in. Signed-in only: each one asks for an owner. */
+const MakeRow = styled.div`display: flex; gap: 16px; flex-wrap: wrap; margin: -8px 0 16px; font-size: 13px;`;
+const ScopeNote = styled.div`margin: -6px 0 12px; font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
 /**
  * Finding 76 — a failing catalogue printed the raw exception ("Something went wrong: TypeError: Failed to fetch")
  * and offered nothing to do about it. The sentence says what actually happened on this network — a peer node is
@@ -137,11 +146,36 @@ export default function ExplorePage() {
   const [q, setQ] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
+  /**
+   * Which agents: everyone's, mine, or my organization's (`?agents=mine|org`). The registry answers by scope
+   * (`/api/shared-agents`); an older node has no registry, and then "mine" is the public list filtered by owner
+   * here and "my organization" is the public list with a sentence saying why.
+   */
+  const auth = useAuth();
+  const agentFilter: AgentListFilter = (AGENT_LIST_FILTERS as readonly string[]).includes(params.get('agents') ?? '') && auth.isSignedIn ? (params.get('agents') as AgentListFilter) : 'all';
+  const setAgentFilter = (f: AgentListFilter) => {
+    const next = new URLSearchParams(params);
+    if (f === 'all') next.delete('agents'); else next.set('agents', f);
+    setParams(next, { replace: true });
+  };
   const { data: info } = useInfoQuery();
   const { data: tracks } = useBranchesQuery();
   // "is it answering" goes stale as it is rendered, so the list re-checks; the node caches the probe for 30 s.
   const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { pollingInterval: 60_000 });
   const allAgents = useMemo(() => agentData?.agents ?? [], [agentData]);
+  // The registry, asked only for a narrower view than "everyone's" — the public list is `/api/agents`, which every node has.
+  const shared = useSharedAgentsQuery({ scope: scopeForFilter(agentFilter), limit: 200 }, { skip: kind !== 'agent' || agentFilter === 'all', pollingInterval: 60_000 });
+  const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.data), [shared.data]);
+  const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
+  const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
+  const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal), [auth.subject, auth.sso?.principal]);
+  /** The rows for the chip in force: the registry's when it answered, the public list (filtered where it can be) otherwise. */
+  const scopedAgents = useMemo(() => {
+    if (agentFilter === 'all') return allAgents;
+    if (sharedPage) return sharedPage.items.map((it) => agentSummaryFromRef(it.ref, info?.node?.endpoint ?? null));
+    if (registryMissing) return fallbackRows(agentFilter, allAgents, principals);
+    return [];
+  }, [agentFilter, allAgents, sharedPage, registryMissing, principals, info?.node?.endpoint]);
   const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
   const { data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
@@ -193,10 +227,12 @@ export default function ExplorePage() {
    */
   const agents = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return allAgents;
-    return allAgents.filter((a) => [a.name, a.description ?? '', a.id, ...a.skills.flatMap((s2) => [s2.name, s2.description ?? '', ...s2.tags])]
+    if (!needle) return scopedAgents;
+    return scopedAgents.filter((a) => [a.name, a.description ?? '', a.id, ...a.skills.flatMap((s2) => [s2.name, s2.description ?? '', ...s2.tags])]
       .join(' ').toLowerCase().includes(needle));
-  }, [allAgents, q]);
+  }, [scopedAgents, q]);
+  const scopedLoading = agentFilter !== 'all' && shared.isLoading;
+  const scopedError = agentFilter !== 'all' && shared.error && !registryMissing ? shared.error : null;
   const countExact = !!data && items.length === data.total;
 
   const reset = () => setPage(1);
@@ -228,6 +264,16 @@ export default function ExplorePage() {
             <Chip $active={kind === 'agent'} onClick={() => { setKind('agent'); reset(); }} data-testid="kind-agent">
               {t('explore.kind.agent')}{allAgents.length ? ` (${num(allAgents.length)})` : ''}
             </Chip>
+          </FilterGroup>
+        )}
+        {kind === 'agent' && auth.isSignedIn && (
+          <FilterGroup>
+            <span className="label">{t('explore.agents.filter.label')}</span>
+            {AGENT_LIST_FILTERS.map((f) => (
+              <Chip key={f} $active={agentFilter === f} onClick={() => { setAgentFilter(f); reset(); }} data-testid={`agents-filter-${f}`}>
+                {t(`explore.agents.filter.${f}`)}
+              </Chip>
+            ))}
           </FilterGroup>
         )}
         {kind === 'knowledge' && !!models.length && (
@@ -278,16 +324,41 @@ export default function ExplorePage() {
 
       {kind === 'agent' && (
         <>
+          {/* The doors to make more, beside the list they land in. Each asks for an owner, so signed-in only. */}
+          {auth.isSignedIn ? (
+            <MakeRow data-testid="agents-make">
+              <StyledLink to="/agent/new">{t('explore.agents.make.create')} →</StyledLink>
+              <StyledLink to="/agent/link">{t('explore.agents.make.link')} →</StyledLink>
+              <StyledLink to="/me/agents">{t('explore.agents.make.mine')} →</StyledLink>
+            </MakeRow>
+          ) : (
+            <ScopeNote data-testid="agents-signin-note">{t('explore.agents.signin_for_scope')}</ScopeNote>
+          )}
+          {/* Why the org chip shows what it shows, when the answer is not simply "your organization's agents". */}
+          {agentFilter === 'org' && registryMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
+          {agentFilter === 'org' && registryRefused === 'auth_required' && <ScopeNote data-testid="agents-org-needs-sso">{t('explore.agents.org_needs_sso')}</ScopeNote>}
           {agentError && <Failure $tone="error" data-testid="agents-error">
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(agentError)}</code></details>
           </Failure>}
-          {agentsLoading && <ListSkeleton />}
-          {!agentsLoading && !agentError && (
+          {scopedError && registryRefused !== 'auth_required' && <Failure $tone="error" data-testid="agents-scope-error">
+            <span>{t('explore.agents.unreachable')}</span>
+            <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(scopedError)}</code></details>
+          </Failure>}
+          {(agentsLoading || scopedLoading) && <ListSkeleton />}
+          {!agentsLoading && !scopedLoading && !agentError && (
             <>
               <Count data-testid="agents-count">{t('explore.agents.count', { n: num(agents.length) }, agents.length)}</Count>
-              <div>{agents.map((a) => <AgentListItem key={a.id} agent={a} />)}</div>
-              {agents.length === 0 && <Empty>{q.trim() ? t('explore.agents.empty_search') : t('explore.agents.empty')}</Empty>}
+              {/* Keyed by node and id: two nodes may each run a `donga-desk`, and one key for both re-used one row's state for the other. */}
+              <div>{agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}</div>
+              {agents.length === 0 && (
+                <Empty>
+                  {q.trim() ? t('explore.agents.empty_search')
+                    : agentFilter === 'mine' ? t('explore.agents.empty_mine')
+                      : agentFilter === 'org' ? t('explore.agents.empty_org')
+                        : t('explore.agents.empty')}
+                </Empty>
+              )}
             </>
           )}
         </>

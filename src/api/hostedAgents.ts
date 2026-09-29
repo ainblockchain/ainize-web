@@ -18,6 +18,7 @@
  */
 import type { AgentSummary } from './types';
 import type { PublicModelCard } from './models';
+import { agentOrgIdOf, agentVisibilityOf, sharingFieldsOf, sharingProblemKey, type AgentVisibility, type OrgOption } from './sharedAgents';
 
 // ─────────────────────────────────────────────────────────────── the agent row's new fields
 
@@ -41,13 +42,18 @@ export interface AgentSummaryHostedFields {
 const oneOf = <T extends string>(list: readonly T[], value: unknown): T | null =>
   typeof value === 'string' && (list as readonly string[]).includes(value) ? (value as T) : null;
 
+/** An owner as it compares: an EVM address in lower case, anything else (`sso:<sub>`, `google:<sub>`) exactly as written. */
+export const foldOwner = (owner: string): string => (/^0x[0-9a-fA-F]+$/.test(owner) ? owner.toLowerCase() : owner);
+
 /** Read the optional hosted-agent fields off a row, whatever node sent it. */
 export function agentSummaryHostedFieldsOf(agent: AgentSummary | Record<string, unknown> | null | undefined): AgentSummaryHostedFields {
   const row = (agent ?? {}) as Record<string, unknown>;
   return {
     model: typeof row.model === 'string' && row.model ? row.model : null,
     kind: oneOf(HOSTED_AGENT_KINDS, row.kind),
-    owner: typeof row.owner === 'string' && row.owner ? row.owner.toLowerCase() : null,
+    // An address is case-folded; an SSO principal (`sso:<sub>`) is kept as written — an OIDC `sub` is case-sensitive,
+    // and folding it made `isAgentOwnedBy` miss the owner of every linked or SSO-owned agent on the agent page.
+    owner: typeof row.owner === 'string' && row.owner ? foldOwner(row.owner) : null,
     status: oneOf(HOSTED_AGENT_BUILD_STATUSES, row.status),
   };
 }
@@ -59,9 +65,14 @@ export function agentSummaryHostedFieldsOf(agent: AgentSummary | Record<string, 
  * wallet must not lock its own owner out of the edit button. A missing side is never a match — no owner on the row
  * means an older node or a config agent, and nobody signed in owns nothing.
  */
-export function isHostedAgentOwnedBy(owner: string | null | undefined, subject: string | null | undefined): boolean {
+export function isHostedAgentOwnedBy(owner: string | null | undefined, subject: string | readonly string[] | null | undefined): boolean {
   if (!owner || !subject) return false;
-  return owner.toLowerCase() === subject.toLowerCase();
+  // An AIN SSO principal (`sso:<sub>`) may own a hosted agent too, and an OIDC `sub` is case-sensitive — so only an
+  // address is case-folded. A list is every principal the viewer is (`viewerPrincipals`), any one of which may match.
+  const isAddress = (s: string) => /^0x[0-9a-fA-F]+$/.test(s);
+  const same = (a: string, b: string) => (isAddress(a) && isAddress(b) ? a.toLowerCase() === b.toLowerCase() : a === b);
+  if (typeof subject === 'string') return same(owner, subject);
+  return subject.some((s) => same(owner, s));
 }
 
 /**
@@ -106,6 +117,12 @@ export interface HostedAgentSpecInput {
   skills?: { id: string; name: string; description?: string; examples?: string[] }[];
   /** The node's speech and image models, per agent. A node older than this ignores the field. */
   media?: HostedAgentMedia;
+  /**
+   * Who may see it (shared-agent registry). Absent means `public`, what every agent was; a node older than the
+   * registry ignores both. `orgId` goes with `org` and only with `org` — an AIN SSO organization the owner is in.
+   */
+  visibility?: AgentVisibility;
+  orgId?: string | null;
 }
 
 /** Speech in (voice notes are transcribed) and pictures out (a `generate_image` tool) — each off unless turned on. */
@@ -192,6 +209,8 @@ export interface HostedAgentFormDraft {
   mediaImage: boolean;
   allowedHostsText: string;
   secrets: HostedAgentSecretDraft[];
+  visibility: AgentVisibility;
+  orgId: string | null;
 }
 
 /** A field the form marks, with the dictionary key of the sentence it shows. */
@@ -204,8 +223,11 @@ const utf8Bytes = (s: string): number => new TextEncoder().encode(s).length;
  *
  * Returns dictionary keys rather than sentences so this stays pure and testable; the page translates them.
  */
-export function hostedAgentFormProblems(draft: HostedAgentFormDraft): HostedAgentFormProblem[] {
+export function hostedAgentFormProblems(draft: HostedAgentFormDraft, orgs?: readonly OrgOption[] | null): HostedAgentFormProblem[] {
   const problems: HostedAgentFormProblem[] = [];
+  // `org` needs an organization the signed-in AIN account is in; checked here in the words of the field, and again by the node.
+  const sharing = sharingProblemKey(draft.visibility, draft.orgId, orgs);
+  if (sharing) problems.push({ field: 'orgId', key: sharing });
   if (!draft.name.trim()) problems.push({ field: 'name', key: 'agentCreate.err.name_required' });
   else if (draft.name.trim().length > HOSTED_AGENT_LIMITS.name) problems.push({ field: 'name', key: 'agentCreate.err.name_long' });
   if (!isHostedAgentIdValid(draft.id)) problems.push({ field: 'id', key: 'agentCreate.err.id_format' });
@@ -251,6 +273,8 @@ export function hostedAgentSpecInputFromDraft(draft: HostedAgentFormDraft): Host
     secretNames: draft.secrets.map((s) => s.name.trim()).filter(Boolean),
     // Always sent: the node replaces the whole spec on PUT, so leaving it out would turn both off on every save.
     media: { transcription: draft.mediaTranscription, image: draft.mediaImage },
+    // Likewise: PUT replaces the spec, and a save that dropped `visibility` would make an org agent public again.
+    ...sharingFieldsOf(draft.visibility, draft.orgId),
   };
 }
 
@@ -315,10 +339,14 @@ export function parseHostedAgentSpecResponse(raw: unknown): HostedAgentSpecView 
     },
     allowedHosts: strList(inner.allowedHosts),
     secretNames: strList(inner.secretNames),
-    owner: typeof inner.owner === 'string' ? inner.owner.toLowerCase() : null,
+    // An address is case-folded; an SSO principal (`sso:<sub>`) is kept as written — an OIDC `sub` is case-sensitive.
+    owner: typeof inner.owner === 'string' ? foldOwner(inner.owner) : null,
     version: typeof inner.version === 'number' ? inner.version : null,
     status: oneOf(HOSTED_AGENT_BUILD_STATUSES, inner.status),
     secrets,
+    // A spec stored before visibility existed has none: it was public, and the form must say so rather than blank.
+    visibility: agentVisibilityOf(inner) ?? 'public',
+    orgId: agentOrgIdOf(inner),
   };
 }
 
@@ -338,6 +366,8 @@ export function hostedAgentDraftFromSpec(spec: HostedAgentSpecView): HostedAgent
     mediaImage: spec.media?.image === true,
     allowedHostsText: spec.allowedHosts.join('\n'),
     secrets: spec.secrets.map((s) => ({ name: s.name, value: '', set: s.set })),
+    visibility: spec.visibility ?? 'public',
+    orgId: spec.orgId ?? null,
   };
 }
 

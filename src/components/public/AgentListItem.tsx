@@ -21,6 +21,7 @@ import type { AgentSummary } from '@/api/types';
 import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
 import { HostedAgentBadges } from './HostedAgentBadges';
+import { visibilityBadgeOf } from '@/api/sharedAgents';
 
 /** The A2UI extension, by URI prefix — the version moves (v0.8 → v0.9) and the badge should not. */
 const A2UI = 'a2ui.org';
@@ -62,11 +63,11 @@ const State = styled.span<{ $state: 'up' | 'down' | 'unknown' }>`
   background: ${(p) => (p.$state === 'up' ? '#e3f4e8' : p.$state === 'down' ? '#fdeaea' : '#eef1f4')};
   color: ${(p) => (p.$state === 'up' ? '#1c6b34' : p.$state === 'down' ? '#9b2226' : '#4a5560')};
 `;
-const Tag = styled.span<{ $tone: 'skill' | 'proto' | 'ui' | 'peer' }>`
+const Tag = styled.span<{ $tone: 'skill' | 'proto' | 'ui' | 'peer' | 'org' | 'private' | 'unlisted' }>`
   ${chipCss}
   position: relative; z-index: 1;
-  background: ${(p) => ({ skill: '#eef1f4', proto: '#fff1de', ui: '#f0eafd', peer: '#e1eef3' }[p.$tone])};
-  color: ${(p) => ({ skill: '#4a5560', proto: '#8a4b00', ui: '#5b1ca8', peer: '#0b5468' }[p.$tone])};
+  background: ${(p) => ({ skill: '#eef1f4', proto: '#fff1de', ui: '#f0eafd', peer: '#e1eef3', org: '#e6f1ea', private: '#fbe9e7', unlisted: '#f1f2f5' }[p.$tone])};
+  color: ${(p) => ({ skill: '#4a5560', proto: '#8a4b00', ui: '#5b1ca8', peer: '#0b5468', org: '#1c6b34', private: '#8d3b2f', unlisted: '#555' }[p.$tone])};
 `;
 const Chips = styled.div`margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;`;
 const Desc = styled.div`
@@ -102,6 +103,8 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
   const skills = agent.skills.slice(0, 3);
   const moreSkills = agent.skills.length - skills.length;
   const drawsUi = agent.extensions.some((u) => u.includes(A2UI));
+  // Only an agent that is NOT for everyone gets a chip: `public` is the ordinary state, and an older node's row has no visibility at all.
+  const visibility = visibilityBadgeOf(agent);
 
   return (
     <Wrapper data-testid="agent-row">
@@ -118,6 +121,7 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
           {/* Which node runs it, first: on a marketplace that lists the whole network, "whose agent is this"
               decides who the reader is trusting and where their request actually goes. */}
           {agent.node && <Tag $tone="peer" title={agent.node.address}>{t('agent.on_node', { name: agent.node.name })}</Tag>}
+          {visibility && <Tag $tone={visibility} title={t(`agentPage.badge.${visibility}_help`)} data-testid="agent-visibility-badge">{t(`sharing.visibility.${visibility}`)}</Tag>}
           {/* The model it is built on, next — a hosted agent is a model plus instructions, and the model decides a lot. */}
           <HostedAgentBadges agent={agent} />
           {skills.map((s) => <Tag key={s.id} $tone="skill" title={s.description}>{s.name}</Tag>)}
