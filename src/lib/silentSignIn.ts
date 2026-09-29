@@ -19,18 +19,48 @@ import { SSO_CHECKED_COOKIE, SSO_CHECKED_PARAM, SSO_CHECKED_TTL_S } from './sile
  * - AIN SSO must have answered its discovery document within the last minute (a quick, cached probe), or the visitor
  *   goes straight to the page;
  * - silent sign-ins that leave and never come back (an error page at AIN SSO has no way back) pause the feature
- *   for ten minutes: at least 20 sign-ins due back in the last ten minutes, fewer than one in five returned.
+ *   for ten minutes: at least 20 CLIENTS sent in the last ten minutes and due back, fewer than one in five of them
+ *   back. Counted per client (`clientOf`), never per request: a single client that asks for pages and never
+ *   follows the redirect — a script, a link scanner with a browser's User-Agent — is one vote however often it asks,
+ *   so it cannot switch the feature off for everybody else; and it holds at most a few places in the record, so it
+ *   cannot crowd out the visitors who did come back either.
  *
  * The state lives on `globalThis`: the middleware and the route handlers are separate bundles in one process, and the
  * starts the middleware counts must meet the returns the callback counts.
  */
 interface Guards {
   probe: { at: number; ok: boolean; pending: Promise<boolean> | null };
-  starts: { at: number; state: string; back: boolean }[];
+  starts: { at: number; state: string; client: string; back: boolean }[];
   pausedUntil: number;
 }
 const G: Guards = ((globalThis as { __ainizeSilentSignIn?: Guards }).__ainizeSilentSignIn ??= { probe: { at: 0, ok: false, pending: null }, starts: [], pausedUntil: 0 });
-const BREAKER = { windowMs: 10 * 60_000, graceMs: 30_000, minSamples: 20, openMs: 10 * 60_000, max: 2_000 };
+const BREAKER = { windowMs: 10 * 60_000, graceMs: 30_000, minClients: 20, openMs: 10 * 60_000, max: 2_000, perClient: 5 };
+
+/** The first 64 bits of an IPv6 address (what one subscriber usually holds whole), or null if it is not one. */
+function ipv6Prefix(address: string): string | null {
+  const a = address.replace(/^\[|\]$/g, '').split('%')[0]!;
+  if (!a.includes(':')) return null;
+  const v4 = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(a);
+  if (v4) return v4[1]!;
+  const [head, tail, extra] = a.split('::');
+  if (extra !== undefined) return null;
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const groups = tail === undefined ? h : [...h, ...Array<string>(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+  if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/i.test(g))) return null;
+  return `${groups.slice(0, 4).map((g) => parseInt(g, 16).toString(16)).join(':')}::/64`;
+}
+
+/**
+ * Who a silent sign-in was for, as far as the breaker cares: the address nginx puts in `X-Real-IP`
+ * (deploy/nginx/ainize.ai.conf sets it from the connection, over anything the client sent), else the last hop of
+ * `X-Forwarded-For` (the one the nearest proxy added), else '' — every request that names no address counts as one
+ * client together. IPv6 by its /64.
+ */
+export function clientOf(headers: Headers): string {
+  const hop = headers.get('x-real-ip')?.trim() || headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || '';
+  return (ipv6Prefix(hop) ?? hop).toLowerCase().slice(0, 64);
+}
 
 export async function ssoReachable(cfg: AinSsoConfig, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<boolean> {
   if (now - G.probe.at < 60_000) return G.probe.ok;
@@ -44,9 +74,13 @@ export async function ssoReachable(cfg: AinSsoConfig, fetchImpl: typeof fetch = 
   return pending;
 }
 
-export function noteSilentStart(state: string, now = Date.now()): void {
+export function noteSilentStart(state: string, client: string, now = Date.now()): void {
   const s = G.starts;
-  s.push({ at: now, state, back: false });
+  // A client already holding its share gives up its oldest place, so no single client can fill the record.
+  let mine = 0;
+  for (const x of s) if (x.client === client) mine++;
+  if (mine >= BREAKER.perClient) s.splice(s.findIndex((x) => x.client === client), 1);
+  s.push({ at: now, state, client, back: false });
   while (s.length > BREAKER.max || (s[0] && now - s[0].at > BREAKER.windowMs)) s.shift();
 }
 
@@ -57,11 +91,17 @@ export function noteSilentReturn(state: string | null): void {
 
 export function silentSignInPaused(now = Date.now()): boolean {
   if (now < G.pausedUntil) return true;
-  const due = G.starts.filter((s) => now - s.at > BREAKER.graceMs && now - s.at <= BREAKER.windowMs);
-  if (due.length >= BREAKER.minSamples && due.filter((s) => s.back).length * 5 < due.length) {
+  // One vote per client: back if any of its sign-ins due back came back.
+  const clients = new Map<string, boolean>();
+  for (const s of G.starts) {
+    if (now - s.at > BREAKER.graceMs && now - s.at <= BREAKER.windowMs) clients.set(s.client, clients.get(s.client) === true || s.back);
+  }
+  let back = 0;
+  for (const b of clients.values()) if (b) back++;
+  if (clients.size >= BREAKER.minClients && back * 5 < clients.size) {
     G.pausedUntil = now + BREAKER.openMs;
     G.starts.length = 0;
-    console.error(`[ain-sso] automatic sign-in paused for ${BREAKER.openMs / 60_000} minutes: ${due.length} browsers sent to AIN SSO, almost none came back`);
+    console.error(`[ain-sso] automatic sign-in paused for ${BREAKER.openMs / 60_000} minutes: ${clients.size} clients sent to AIN SSO, almost none came back`);
     return true;
   }
   return false;
@@ -101,7 +141,7 @@ export async function silentSignIn(req: NextRequest, next: string | null): Promi
     res.cookies.set(SSO_FLOW_COOKIE, flowCookie, googleCookieOptions(req, SSO_FLOW_TTL_S));
     res.cookies.set(SSO_CHECKED_COOKIE, '1', googleCookieOptions(req, SSO_CHECKED_TTL_S));
     res.headers.set('cache-control', 'no-store');
-    noteSilentStart(state);
+    noteSilentStart(state, clientOf(req.headers));
     return res;
   } catch (e) {
     console.error('[ain-sso] could not start an automatic sign-in:', (e as Error).message);

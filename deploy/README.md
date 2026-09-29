@@ -102,10 +102,15 @@ With AIN sign-in configured, a browser that is signed in to AIN elsewhere is sig
   iframes (`Sec-Fetch-*`), Next's RSC requests.
 - At most once per 30 minutes per browser: `ain_sso_checked` (HttpOnly, SameSite=Lax, Secure) is set on the response
   that leaves for AIN SSO. A client that keeps no cookies comes back with `?ain_sso_checked=1`, which also counts.
+- A Google cookie that can never count again — `LEGACY_LOGIN=false`, or signed with a rotated
+  `AINIZE_WEB_SESSION_SECRET` — is cleared by the page's own session check (`/api/auth/google/session`), so it does
+  not keep the automatic sign-in away from that browser until it expires.
 - It never puts AIN SSO's problems in front of the site: when AIN SSO has not answered its discovery document within
   the last minute, or when most silent sign-ins of the last ten minutes left and never came back (an error page at
   AIN SSO), visitors go straight to their page (paused for ten minutes, logged once). `AIN_SSO_SILENT_LOGIN=false`
-  switches it off by hand.
+  switches it off by hand. The pause counts clients, not requests — at least 20 addresses (IPv6 by /64, from the
+  `X-Real-IP` nginx sets; keep that header in the proxy config), fewer than one in five of them back — so one client
+  that requests pages and never follows the redirect cannot switch it off for everybody.
 
 "AIN 계정으로 가입 / Create an AIN account" under the AIN button opens AIN SSO's sign-up page (`prompt=create`). With
 `LEGACY_LOGIN=false` the Google button goes through AIN SSO straight to Google (`ain_idp=google`) instead of this

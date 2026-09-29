@@ -12,7 +12,8 @@ import { NextRequest } from 'next/server';
 import { startFakeNode, startIssuer } from './ain-sso-fixtures';
 import { middleware } from '../middleware';
 import { isBrowserPageNavigation, silentSsoStart } from '../src/lib/silentSso';
-import { noteSilentReturn, noteSilentStart, resetSilentSignInGuards, silentSignInPaused } from '../src/lib/silentSignIn';
+import { mintGoogleSessionCookie } from '../src/lib/googleOAuth';
+import { clientOf, noteSilentReturn, noteSilentStart, resetSilentSignInGuards, silentSignInPaused } from '../src/lib/silentSignIn';
 
 const CLIENT = 'app_ainize';
 const SECRET = 'client-secret-for-tests';
@@ -193,14 +194,62 @@ test('an automatic sign-in that cannot go to AIN SSO goes to the page instead �
 
 test('silent sign-ins that leave and never come back pause the feature (AIN SSO showing an error page to visitors)', async () => {
   const t0 = Date.now();
-  for (let i = 0; i < 25; i++) noteSilentStart(`sn.lost${i}`, t0 - 60_000);
+  for (let i = 0; i < 25; i++) noteSilentStart(`sn.lost${i}`, `198.51.100.${i}`, t0 - 60_000);
   assert.equal(silentSignInPaused(t0), true);
   const res = await silentStart('/');
   assert.equal(res.headers.get('location'), '/', 'paused: straight to the page');
   resetSilentSignInGuards();
-  for (let i = 0; i < 25; i++) noteSilentStart(`sn.ok${i}`, t0 - 60_000);
+  for (let i = 0; i < 25; i++) noteSilentStart(`sn.ok${i}`, `198.51.100.${i}`, t0 - 60_000);
   for (let i = 0; i < 25; i++) noteSilentReturn(`sn.ok${i}`);
   assert.equal(silentSignInPaused(t0), false, 'the ones that came back keep it on');
+});
+
+/** A visitor's page request as nginx forwards it, from `ip`. */
+const from = (ip: string, headers: Record<string, string> = NAV) => ({ ...headers, 'x-real-ip': ip, 'x-forwarded-for': ip });
+
+test('one client that asks for pages and never follows the redirect cannot pause automatic sign-in for everybody', async () => {
+  const realNow = Date.now;
+  try {
+    // A script with a browser's User-Agent, or a link scanner that looks like one: 25 pages, never following the 302…
+    for (let i = 0; i < 25; i++) {
+      const r = await middleware(page(`/?n=${i}`, from('203.0.113.9')));
+      assert.equal(new URL(r.headers.get('location')!).searchParams.get('prompt'), 'none');
+    }
+    // …and the start route's own door, which checks no User-Agent or cookie at all.
+    const { GET } = await import('../app/api/auth/sso/start/route');
+    for (let i = 0; i < 25; i++) await GET(page(`/api/auth/sso/start?prompt=none&next=%2F${i}`, from('203.0.113.9', { 'user-agent': 'curl/8.5.0' })));
+    // Also through requests that name no address at all (they count as one client together).
+    for (let i = 0; i < 25; i++) await middleware(page(`/?anon=${i}`));
+    const t = realNow() + 60_000;
+    Date.now = () => t;
+    const visitor = await middleware(page('/models', from('198.51.100.7')));
+    assert.ok(visitor.headers.get('location')?.startsWith(`${I.issuer}/oidc/auth`), `a real visitor still goes to AIN SSO; got ${visitor.headers.get('location')}`);
+    assert.equal(silentSignInPaused(t), false);
+  } finally { Date.now = realNow; }
+});
+
+test('the breaker counts clients: one client flooding the record neither trips it nor hides an outage', () => {
+  const t0 = Date.now();
+  // Real visitors who came back, then one client with thousands of starts that never come back.
+  for (let i = 0; i < 25; i++) { noteSilentStart(`sn.back${i}`, `198.51.100.${i}`, t0 - 120_000); noteSilentReturn(`sn.back${i}`); }
+  for (let i = 0; i < 2_500; i++) noteSilentStart(`sn.flood${i}`, '203.0.113.9', t0 - 60_000);
+  assert.equal(silentSignInPaused(t0), false, 'the visitors who came back are still counted');
+  // An outage: many different clients, none of them back — still pauses, flood or no flood.
+  resetSilentSignInGuards();
+  for (let i = 0; i < 25; i++) noteSilentStart(`sn.lost${i}`, `198.51.100.${i}`, t0 - 120_000);
+  for (let i = 0; i < 2_500; i++) noteSilentStart(`sn.flood${i}`, '203.0.113.9', t0 - 60_000);
+  assert.equal(silentSignInPaused(t0), true);
+});
+
+test('a client is the address nginx forwards (X-Real-IP, else the last X-Forwarded-For hop), IPv6 by its /64', () => {
+  const h = (o: Record<string, string>) => new Headers(o);
+  assert.equal(clientOf(h({ 'x-real-ip': '203.0.113.9', 'x-forwarded-for': '1.2.3.4, 203.0.113.9' })), '203.0.113.9');
+  assert.equal(clientOf(h({ 'x-forwarded-for': '1.2.3.4, 203.0.113.9' })), '203.0.113.9', 'what a client writes itself comes first, the proxy\'s hop last');
+  assert.equal(clientOf(h({})), '');
+  assert.equal(clientOf(h({ 'x-real-ip': '2001:db8:1:2:aaaa::1' })), '2001:db8:1:2::/64');
+  assert.equal(clientOf(h({ 'x-real-ip': '2001:DB8:1:2:ffff:ffff:ffff:ffff' })), '2001:db8:1:2::/64', 'one /64 is one client');
+  assert.equal(clientOf(h({ 'x-real-ip': '2001:db8::1' })), '2001:db8:0:0::/64');
+  assert.equal(clientOf(h({ 'x-real-ip': '::ffff:203.0.113.9' })), '203.0.113.9');
 });
 
 // ------------------------------------------------------------------------------------------------ the other doors of the start route
@@ -357,6 +406,41 @@ test('an AIN session continues to AIN SSO\'s sign-out (RP-initiated logout) and 
   assert.equal(cookieOf(res, 'ainize_session'), undefined, 'a GET anyone can link to signs nobody out; the POST did');
   for (const k of ['AIN_SSO_ISSUER', 'AIN_SSO_CLIENT_ID', 'AIN_SSO_CLIENT_SECRET']) delete process.env[k];
   assert.equal((await GET(page('/api/auth/sso/logout'))).headers.get('location'), '/', 'without AIN SSO: home');
+});
+
+test('a Google cookie that can never count again is cleared, so automatic sign-in can work again', async () => {
+  const { GET } = await import('../app/api/auth/google/session/route');
+  const google = { clientId: 'g-client', clientSecret: 'g-secret', sessionSecret: 'k'.repeat(32), redirectUri: null };
+  const person = { sub: '1122334455', email: 'a@gmail.com', name: 'A', picture: null };
+  N.replies.set('/api/auth/sso/principal', () => ({ status: 200, body: { linked: false, blocked: false, notBefore: null } }));
+  /** The page's own session check (AuthContext asks on every page), then the next page with what the browser kept. */
+  async function checkThenPage(cookie: string) {
+    const res = await GET(page('/api/auth/google/session', withCookie(`ainize_google_session=${cookie}`, { accept: 'application/json' })));
+    const identity = (await res.json() as { identity: unknown }).identity;
+    const cleared = maxAge(cookieOf(res, 'ainize_google_session')) === 0;
+    const next = await middleware(page('/models', cleared ? NAV : withCookie(`ainize_google_session=${cookie}`)));
+    return { identity, cleared, location: next.headers.get('location') ?? '' };
+  }
+
+  const live = await checkThenPage(mintGoogleSessionCookie(person, google));
+  assert.deepEqual([(live.identity as { sub: string }).sub, live.cleared, live.location], ['1122334455', false, ''], 'a Google session that counts stays, and means no check');
+
+  process.env.LEGACY_LOGIN = 'false';
+  const off = await checkThenPage(mintGoogleSessionCookie(person, google));
+  assert.equal(off.identity, null);
+  assert.equal(off.cleared, true, 'LEGACY_LOGIN=false: the leftover cookie is cleared');
+  assert.ok(off.location.startsWith(`${I.issuer}/oidc/auth`), `and the next page is the automatic sign-in; got ${off.location}`);
+
+  delete process.env.LEGACY_LOGIN;
+  resetSilentSignInGuards();
+  const rotated = await checkThenPage(mintGoogleSessionCookie(person, { ...google, sessionSecret: 'old'.padEnd(32, 'x') }));
+  assert.equal(rotated.identity, null);
+  assert.equal(rotated.cleared, true, 'a cookie signed with a rotated AINIZE_WEB_SESSION_SECRET is cleared');
+  assert.ok(rotated.location.startsWith(`${I.issuer}/oidc/auth`));
+
+  // A server that has lost its Google configuration for now cannot tell a good cookie from a bad one: left alone.
+  for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'AINIZE_WEB_SESSION_SECRET']) delete process.env[k];
+  assert.equal((await checkThenPage(mintGoogleSessionCookie(person, google))).cleared, false);
 });
 
 test('a session cookie the node no longer knows is cleared, so automatic sign-in can work again', async () => {
