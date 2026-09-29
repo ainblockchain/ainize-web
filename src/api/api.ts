@@ -14,6 +14,7 @@ import type {
   SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse, ApiKeySummary,
 } from './types';
 import type { HostedAgentSpecInput } from './hostedAgents';
+import type { LinkedAgentInput } from './linkedAgents';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
@@ -96,7 +97,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -182,6 +183,23 @@ export const api = createApi({
     setHostedAgentSecret: b.mutation<unknown, { id: string; name: string; value: string }>({
       query: ({ id, name, value }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/secrets/${encodeURIComponent(name)}`, method: 'PUT', body: { value } }),
       invalidatesTags: (_r, _e, a) => [{ type: 'HostedAgent', id: a.id }],
+    }),
+    /**
+     * Linked agents (ainize-node linked-agents design): external A2A agents a person registers by URL. Typed
+     * `unknown` and read through `src/api/linkedAgents.ts`, as the hosted ones are and for the same reason.
+     */
+    myLinkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents?mine=1', providesTags: ['LinkedAgent', 'Me'] }),
+    /** The stored record, upstream included — owner only; anyone else gets 403. */
+    linkedAgent: b.query<unknown, string>({ query: (id) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'LinkedAgent', id }] }),
+    createLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
+      query: (body) => ({ url: 'api/linked-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'LinkedAgent'],
+    }),
+    updateLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
+      query: (body) => ({ url: `api/linked-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
+      invalidatesTags: (_r, _e, a) => ['Agents', { type: 'LinkedAgent', id: a.id }],
+    }),
+    deleteLinkedAgent: b.mutation<unknown, string>({
+      query: (id) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'LinkedAgent'],
     }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
     hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
@@ -447,7 +465,8 @@ export const api = createApi({
 export const {
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
-  useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,

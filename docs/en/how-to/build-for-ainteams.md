@@ -1,6 +1,6 @@
 ---
 title: Build an agent for AIN Teams
-summary: Write an A2A agent, give it a public address with a node, and invite it into an AIN Teams workspace as a member that answers mentions and DMs.
+summary: Write an A2A agent, put it in the Ainize catalogue, and import it into an AIN Teams workspace as a member that answers mentions and DMs.
 ---
 
 # Build an agent for AIN Teams
@@ -10,11 +10,13 @@ agents. A member agent is not a plugin and not a bot framework: it is a standard
 agent somewhere on the internet, and AIN Teams is a client that calls it. Implement the two calls A2A already
 specifies and it works; nothing on this page is an AIN Teams SDK, because there isn't one.
 
-What you do need is an address AIN Teams can reach, which is where a node comes in. The whole path is three
-steps: write the agent, register it on a node, paste the address into the invite dialog.
+What you do need is a row in the Ainize catalogue, which is where a node comes in: AIN Teams shows only agents
+it imported from that catalogue, and has no "paste a URL" door of its own. The whole path is three steps: write
+the agent, register it on a node, pick it in AIN Teams.
 
-This page assumes a node you can already run — `ainize status` answers — and covers the agent side. If you do
-not have a node yet, [join the network from your own node](./join-from-your-own-node.md) first.
+This page covers the agent side. Registering needs either a node you run (`ainize status` answers) or an account
+on a node somebody else runs — ainize.ai is one — where you link your agent's address with a form. If you want
+your own node, [join the network from your own node](./join-from-your-own-node.md) first.
 
 ## The contract, in two calls
 
@@ -103,6 +105,16 @@ leave it out, and blocking `message/send` carries the whole conversation.
 
 ## Give it an address
 
+Two ways, one result: a row in the catalogue at `/agents/coffee-bot` on some node.
+
+**On a node you do not run** — sign in (a wallet or an AIN account both work), open **My agents → Link an
+external agent** (`/agent/link`), and give the id and the public address where your agent listens. The node
+fetches the card once, takes the name from it, and tells you whether it answered. The address you register must
+be reachable from the public internet: a node refuses a private-network address, because otherwise a visitor could
+make it call into the operator's own network. Only your account can change or unlink the agent afterwards.
+
+**On your own node** — the operator's command, which also accepts an upstream on your LAN:
+
 ```bash
 ainize agent add coffee-bot --upstream http://127.0.0.1:9200
 ainize agent ls
@@ -126,18 +138,16 @@ ainize agent call coffee-bot "where should we get coffee?"
 [Put an agent on a node](./host-an-agent.md) is the longer version of this step — taking it down, what happens
 on other nodes, what the node does not do for you.
 
-## Invite it into a workspace
+## Import it into a workspace
 
-In AIN Teams, open **Agents** in the sidebar, choose **Invite agent**, and paste the public address:
+In AIN Teams, open **Agents** in the sidebar and choose **Invite agent**. The dialog is the Ainize catalogue of
+the node the workspace is pointed at — your own agents first, then everything public — with a search box. Pick
+**Coffee Bot** and press **Import**. There is nothing to paste: AIN Teams takes the row's address
+(`https://ainize.ai/agents/coffee-bot`), fetches the card from it, and makes the agent a member. An agent that is
+not in the catalogue cannot be added to a workspace, which is the point — one place says what exists.
 
-```text
-https://ainize.ai/agents/coffee-bot
-```
-
-The base URL is enough — AIN Teams tries `/.well-known/agent-card.json` and then the legacy `agent.json` — and
-the card URL works too. Press **Preview**: the name, description and skills from your card appear. That preview
-is the same fetch the invitation will make, so a preview that fails is a reachability problem, not a formatting
-one.
+"Mine" in that dialog is a match on the account that registered the agent: the wallet address you signed in to
+the node with, or your AIN account. Sign in to both products with the same one and your agents sort to the top.
 
 Then pick a **receive mode**:
 
@@ -173,7 +183,8 @@ issue from the agent's profile. A2A alone is a complete conversation; the two ar
 
 | What you see | Usually | Check |
 | --- | --- | --- |
-| Preview cannot fetch the card | The address is not reachable from the AIN Teams server | `curl` the public node URL, not the upstream one, from another machine |
+| The agent is not in the import dialog | It is not in the catalogue of the node AIN Teams uses | `/me/agents` on that node; the workspace operator sets which node with `AINIZE_URL` |
+| Import fails to fetch the card | The node's address is not reachable from the AIN Teams server | `curl` the public node URL, not the upstream one, from another machine |
 | `ainize agent ls` says the agent is not answering | The card path or the process | `curl http://127.0.0.1:9200/.well-known/agent-card.json` |
 | "I'm currently unavailable…" in the channel | `message/send` itself failed | The cause is in that message's metadata; most often JSON-RPC is not mounted at `/` |
 | The agent never remembers anything | `contextId` is not echoed | Return it in the result; conversations still work without it, one turn at a time |

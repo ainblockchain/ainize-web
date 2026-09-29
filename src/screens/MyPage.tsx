@@ -67,6 +67,12 @@ export default function MyPage() {
         )}
       </Panel>
 
+      <SubTitle>{t('myAgents.title')}</SubTitle>
+      <Description>{t('me.agents.lede')}</Description>
+      <Panel>
+        <Links><StyledLink to="/me/agents" data-testid="me-agents-link">{t('me.agents.link')}</StyledLink></Links>
+      </Panel>
+
       <SubTitle>{t('me.keys.title')}</SubTitle>
       <Description>{t('me.keys.lede')}</Description>
       <Panel>
