@@ -40,6 +40,8 @@ import { agentSummaryHostedFieldsOf, isHostedAgentOwnedBy } from '@/api/hostedAg
 import { HostedAgentBadges } from '@/components/public/HostedAgentBadges';
 import { useT } from '@/i18n';
 import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
+import { LinkedAgentOwnerPanel } from './agent/LinkedAgentOwnerPanel';
+import { isAgentOwnedBy, isLinkedAgentRow, viewerPrincipals } from '@/api/linkedAgents';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
 const Card = styled.div<{ $selected?: boolean }>`
@@ -158,9 +160,13 @@ export function AgentPage() {
   const agent = agents.find((a) => a.id === id) ?? null;
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
-  const { subject } = useAuth();
+  const { subject, sso } = useAuth();
   const hosted = agentSummaryHostedFieldsOf(agent);
-  const ownsIt = isHostedAgentOwnedBy(hosted.owner, subject);
+  // A linked agent (an upstream with an owner) may belong to an AIN SSO principal as well as to a wallet; a hosted
+  // agent only ever to a wallet. Two panels, because the two kinds offer different things (no logs for a proxy).
+  const linked = !!agent && isLinkedAgentRow(agent);
+  const ownsLinked = linked && isAgentOwnedBy(hosted.owner, viewerPrincipals(subject, sso?.principal));
+  const ownsIt = !linked && isHostedAgentOwnedBy(hosted.owner, subject);
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
@@ -413,6 +419,7 @@ export function AgentPage() {
       {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
 
       {ownsIt && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} />}
+      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} />}
 
       {skills.length > 0 && (
         <>

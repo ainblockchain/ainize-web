@@ -23,6 +23,8 @@ const AgentPage = lazy(() => import('./screens/AgentPage'));
 // Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
 const ModelDetailPage = lazy(() => import('./screens/ModelDetailPage'));
 const AgentCreatePage = lazy(() => import('./screens/AgentCreatePage'));
+const AgentLinkPage = lazy(() => import('./screens/AgentLinkPage'));
+const MyAgentsPage = lazy(() => import('./screens/MyAgentsPage'));
 // Throughput billing (ainize-node throughput-billing design): now N tok/s → deposit X → M tok/s, and the deposit.
 const BillingPage = lazy(() => import('./screens/BillingPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
@@ -82,6 +84,11 @@ export default function App() {
                     (`HOSTED_AGENT_RESERVED_IDS`). The form checks sign-in itself so it can send you back here after. */}
                 <Route path="/agent/new" element={<Layout><AgentCreatePage /></Layout>} />
                 <Route path="/agent/:id/edit" element={<Layout><AgentCreatePage /></Layout>} />
+                {/* An agent that already runs somewhere, registered by URL (ainize-node linked-agents design). `link` is
+                    reserved as an id for the same reason `new` is. Edit keeps its own segment (`/link`, not `/edit`) so the
+                    hosted edit form is never opened on a linked agent, whose record it could not read. */}
+                <Route path="/agent/link" element={<Layout><AgentLinkPage /></Layout>} />
+                <Route path="/agent/:id/link" element={<Layout><AgentLinkPage /></Layout>} />
                 <Route path="/agent/:id" element={<Layout><AgentPage /></Layout>} />
                 {/* The list lives in one place. /agents used to be a second one, and clicking an item on the
                     marketplace landed the reader back on a grid of every agent. */}
@@ -117,6 +124,9 @@ export default function App() {
 
                 {/* Signed in is enough: these are the caller's own things, not this node's. */}
                 <Route path="/me" element={<SignedInLayout><MyPage /></SignedInLayout>} />
+                {/* The caller's own agents — built here or linked by address. Signed in is enough: an AIN account with
+                    no wallet owns linked agents, and this is the one place that lists what AIN Teams can import. */}
+                <Route path="/me/agents" element={<SignedInLayout><MyAgentsPage /></SignedInLayout>} />
                 {/* Operator pages (SigningCheckLayout) */}
                 <Route path="/dashboard" element={<SigningCheckLayout><DashboardPage /></SigningCheckLayout>} />
                 {/* signed out → public pre-screen (spec §5.2); signed in → the register form */}

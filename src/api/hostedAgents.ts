@@ -138,7 +138,8 @@ export function hostedAgentIdFromName(name: string): string {
  * Ids the node would accept but this site cannot show: `/agent/new` is the create form, so an agent called `new`
  * would have no page. Refused by the form only — the node is not this site's router.
  */
-export const HOSTED_AGENT_RESERVED_IDS: readonly string[] = ['new'];
+/** `/agent/new` and `/agent/link` are routes (App.tsx), so no agent may be called that — it would have no page. */
+export const HOSTED_AGENT_RESERVED_IDS: readonly string[] = ['new', 'link'];
 
 export const isHostedAgentIdValid = (id: string): boolean => HOSTED_AGENT_ID_PATTERN.test(id) && !HOSTED_AGENT_RESERVED_IDS.includes(id);
 export const isHostedAgentSecretNameValid = (name: string): boolean => HOSTED_AGENT_SECRET_NAME_PATTERN.test(name);

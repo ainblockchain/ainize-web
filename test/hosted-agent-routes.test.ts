@@ -21,6 +21,9 @@ for (const [path, page] of [
   ['/agent/new', 'AgentCreatePage'],
   ['/agent/:id/edit', 'AgentCreatePage'],
   ['/agent/:id', 'AgentPage'],
+  // linked agents (ainize-node linked-agents design): registered by URL, edited under their own segment
+  ['/agent/link', 'AgentLinkPage'],
+  ['/agent/:id/link', 'AgentLinkPage'],
 ] as const) {
   test(`${path} renders ${page}`, () => {
     assert.ok(new RegExp(`path="${path.replace(/[/:]/g, (c) => `\\${c}`)}" element={<Layout><${page} />`).test(app), `${path} → ${page} is not routed`);
@@ -29,4 +32,17 @@ for (const [path, page] of [
 
 test('no page is routed under /agents/, which is the A2A address', () => {
   assert.ok(!/path="\/agents\/[^"]/.test(app));
+});
+
+test('/me/agents is routed behind sign-in, not behind ownership or a wallet', () => {
+  const route = app.split('\n').find((l) => l.includes('path="/me/agents"'));
+  assert.ok(route, '/me/agents has no route');
+  assert.ok(/SignedInLayout/.test(route!), 'an AIN account with no wallet owns linked agents, so a session is the gate');
+  assert.ok(!route!.includes('SigningCheckLayout'), 'owning this node is not what this page is about');
+});
+
+test('the two route words under /agent/ are reserved as ids, so no agent is left without a page', () => {
+  const hosted = readFileSync(join(root, 'src/api/hostedAgents.ts'), 'utf8');
+  const reserved = /HOSTED_AGENT_RESERVED_IDS[^=]*=\s*\[([^\]]*)\]/.exec(hosted)?.[1] ?? '';
+  for (const word of ['new', 'link']) assert.ok(reserved.includes(`'${word}'`), `${word} is a route under /agent/ and must be a reserved id`);
 });
