@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { Description, StyledLink } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import type { AgentVisibility } from '@/api/sharedAgents';
+import { AgentVisibilityControl } from '@/components/agent/AgentVisibilityControl';
 
 const HostedAgentOwnerBox = styled.div`
   margin-top: 24px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
@@ -28,7 +30,11 @@ const HostedAgentOwnerLogs = styled.pre`
   font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
 `;
 
-export function HostedAgentOwnerPanel({ agentId, agentName }: { agentId: string; agentName: string }) {
+/**
+ * `canAdminister` is false for an organization member who may edit the agent but not delete it or change who sees
+ * it (ainize-node: those stay with the owner and the organization's admins); the panel then offers edit and logs only.
+ */
+export function HostedAgentOwnerPanel({ agentId, agentName, visibility = null, orgId = null, canAdminister = true }: { agentId: string; agentName: string; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean }) {
   const { t } = useT();
   const navigate = useNavigate();
   const [logsOpen, setLogsOpen] = useState(false);
@@ -63,11 +69,14 @@ export function HostedAgentOwnerPanel({ agentId, agentName }: { agentId: string;
             {t('agentOwner.logs_refresh')}
           </Button>
         )}
-        <Button size="small" variant="text" color="secondary" loading={deleteState.isLoading} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
-          {t('agentOwner.delete')}
-        </Button>
+        {canAdminister && (
+          <Button size="small" variant="text" color="secondary" loading={deleteState.isLoading} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
+            {t('agentOwner.delete')}
+          </Button>
+        )}
       </HostedAgentOwnerRow>
       {deleteError && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: deleteError })}</Alert>}
+      {canAdminister && <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />}
       {logsOpen && (
         logs.error
           ? <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.logs_failed', { why: hostedAgentApiErrorOf(logs.error).message ?? String(hostedAgentApiErrorOf(logs.error).status ?? '') })}</Alert>

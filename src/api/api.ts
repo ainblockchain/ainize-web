@@ -14,6 +14,7 @@ import type {
   SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse, ApiKeySummary,
 } from './types';
 import type { HostedAgentSpecInput } from './hostedAgents';
+import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
@@ -168,6 +169,8 @@ export const api = createApi({
     agentsByModel: b.query<AgentsResponse, string>({ query: (model) => `api/agents${toQuery({ model })}`, providesTags: ['Agents'] }),
     /** The signed-in person's own hosted agents (summaries). */
     myHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
+    /** Own hosted agents plus the ones shared with an organization where the caller may edit — read through `parseManageableHostedAgents`. */
+    manageableHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?manageable=1', providesTags: ['HostedAgent', 'Me', 'Org'] }),
     /** The full stored spec, files included — owner only; anyone else gets 403. */
     hostedAgent: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'HostedAgent', id }] }),
     createHostedAgent: b.mutation<unknown, HostedAgentSpecInput>({
@@ -256,6 +259,21 @@ export const api = createApi({
     orgAudit: b.query<unknown, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/orgs/${encodeURIComponent(id)}/audit?limit=${limit ?? 200}`, providesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }] }),
     orgBilling: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/billing`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
     orgSecurity: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/security`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
+    /**
+     * The shared-agent registry (ainize-node `feat/shared-agent-registry`, contract 1.0): the agents the caller may
+     * see, by scope. Typed `unknown` and read through `src/api/sharedAgents.ts`; an older node answers 404 and the
+     * page falls back to `agents`. `org` narrows `shared_with_org` to one organization.
+     */
+    sharedAgents: b.query<unknown, { scope: AgentListScope; q?: string; org?: string; limit?: number }>({
+      query: ({ scope, q, org, limit }) => `api/shared-agents${toQuery({ scope, q, org, limit })}`, providesTags: ['Agents', 'HostedAgent', 'LinkedAgent'],
+    }),
+    /** Who may see one agent — owner or node operator. Applies to hosted and linked agents alike. */
+    setAgentVisibility: b.mutation<unknown, AgentVisibilityInput>({
+      query: ({ id, ...body }) => ({ url: `api/shared-agents/${encodeURIComponent(id)}/visibility`, method: 'PUT', body }),
+      invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }],
+    }),
+    /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
+    linkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
     hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
@@ -519,9 +537,9 @@ export const api = createApi({
 
 export const {
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
-  useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useHostedAgentQuery,
+  useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
   usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,

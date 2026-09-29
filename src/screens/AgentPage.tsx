@@ -26,7 +26,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useAgentsQuery } from '@/api/api';
+import { errorMessage, useAgentsQuery, useHostedAgentQuery, useLinkedAgentsQuery, useManageableHostedAgentsQuery } from '@/api/api';
+import { agentOrgIdOf, agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList, agentVisibilityOf, parseManageableHostedAgents } from '@/api/sharedAgents';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -157,16 +158,39 @@ export function AgentPage() {
   // polled: "is it answering" goes stale the moment it is rendered
   const { data, isLoading, error, refetch } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
   const agents = useMemo(() => data?.agents ?? [], [data]);
-  const agent = agents.find((a) => a.id === id) ?? null;
+  const listed = agents.find((a) => a.id === id) ?? null;
+  /**
+   * Not on the public list is not the same as not here. An `org`, `private` or `unlisted` agent (shared-agent
+   * registry) is left off `/api/agents` on purpose, so when the list misses, the two stores that know non-public
+   * agents are asked: the hosted spec — which the node answers to its owner and, as a listing view, to anyone it is
+   * visible to, and with 404 to everyone else — and the linked-agents list. Only asked once the public list has said no.
+   */
+  const missed = !isLoading && !listed && !!id;
+  const hostedSpec = useHostedAgentQuery(id, { skip: !missed });
+  const linkedList = useLinkedAgentsQuery(undefined, { skip: !missed || hostedSpec.isLoading || !!hostedSpec.data });
+  const agent = useMemo(() => {
+    if (listed) return listed;
+    if (!missed) return null;
+    return agentSummaryFromHostedSpecResponse(hostedSpec.data, window.location.origin) ?? agentSummaryFromLinkedList(linkedList.data, id);
+  }, [listed, missed, hostedSpec.data, linkedList.data, id]);
+  const lookingFurther = missed && (hostedSpec.isLoading || linkedList.isLoading);
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
-  const { subject, sso } = useAuth();
+  const { subject, sso, isSignedIn } = useAuth();
   const hosted = agentSummaryHostedFieldsOf(agent);
-  // A linked agent (an upstream with an owner) may belong to an AIN SSO principal as well as to a wallet; a hosted
-  // agent only ever to a wallet. Two panels, because the two kinds offer different things (no logs for a proxy).
+  const visibility = agentVisibilityOf(agent);
+  const orgId = agentOrgIdOf(agent);
+  // A linked agent (an upstream with an owner) may belong to an AIN SSO principal as well as to a wallet, and so may
+  // a hosted one now (shared-agent registry). Two panels, because the two kinds offer different things (no logs for a proxy).
+  const principals = viewerPrincipals(subject, sso?.principal);
   const linked = !!agent && isLinkedAgentRow(agent);
-  const ownsLinked = linked && isAgentOwnedBy(hosted.owner, viewerPrincipals(subject, sso?.principal));
-  const ownsIt = !linked && isHostedAgentOwnedBy(hosted.owner, subject);
+  const ownsLinked = linked && isAgentOwnedBy(hosted.owner, principals);
+  const ownsIt = !linked && isHostedAgentOwnedBy(hosted.owner, principals);
+  // An organization member may edit an agent shared with the organization without owning it (ainize-node: `write`
+  // members edit; delete and sharing stay with the owner and admins). The manageable list says which.
+  const manageable = useManageableHostedAgentsQuery(undefined, { skip: !isSignedIn || linked || ownsIt || !agent });
+  const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.data, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.data, agent?.id]);
+  const managesIt = !linked && !ownsIt && !!managedRow?.canManage;
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
@@ -336,9 +360,7 @@ export function AgentPage() {
     }
   };
 
-  if (isLoading) return <CenterProgress />;
-
-  if (isLoading) return <CenterProgress />;
+  if (isLoading || lookingFurther) return <CenterProgress />;
 
   if (!agent) {
     return (
@@ -362,13 +384,6 @@ export function AgentPage() {
       </TitleRow>
       {(hosted.model || hosted.kind || hosted.status) && (
         <Row style={{ marginTop: -12, marginBottom: 16 }} data-testid="agent-hosted-badges"><HostedAgentBadges agent={agent} /></Row>
-      )}
-      {/* Organizations (ainize-node organizations design): whose page this agent belongs on, and whether only its members are shown it. */}
-      {agent.org && (
-        <Row style={{ marginTop: -8, marginBottom: 16, fontSize: 13 }} data-testid="agent-org">
-          <Link to={`/org/${encodeURIComponent(agent.org)}`}>🏢 {agent.org}</Link>
-          {agent.visibility === 'private' && <span title={t('org.private_help')}>🔒 {t('org.private')}</span>}
-        </Row>
       )}
       <Back to="/explore?kind=agent">← {'All agents'}</Back>
 
@@ -395,6 +410,14 @@ export function AgentPage() {
           <dt>Runs on</dt>
           <dd>{agent.node ? agent.node.name : 'this node'}</dd>
         </div>
+        {visibility && visibility !== 'public' && (
+          <div>
+            <dt>{t('agentPage.fact.visibility')}</dt>
+            <dd data-testid="agent-visibility-fact">
+              {t(`sharing.visibility.${visibility}`)}{visibility === 'org' && orgId ? ` · ${t('agentPage.visibility.org_with', { org: orgId })}` : ''}
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Protocol</dt>
           <dd>{agent.protocols.length ? `A2A ${agent.protocols.join(' / ')}` : '—'}</dd>
@@ -425,8 +448,8 @@ export function AgentPage() {
       {hosted.status === 'building' && <Alert $tone="info" style={{ marginTop: 16 }}>{t('hostedAgent.status.building_help')}</Alert>}
       {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
 
-      {ownsIt && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} />}
-      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} />}
+      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} />}
+      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} />}
 
       {skills.length > 0 && (
         <>

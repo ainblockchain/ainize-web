@@ -1,10 +1,10 @@
 /**
- * `/org/:id` — an organization's page: the README card at the top, then its agents (🔒 for the private ones, which
- * only members see at all), then its members. Members only; a non-member gets the name and a way to ask to join.
+ * `/org/:id` — an organization's page: the README card at the top, then its agents, then its members. Members only;
+ * a non-member gets the name and a way to ask to join.
  *
- * The page renders what the node admits to THIS viewer: a private agent in a resource group the viewer is not in is
- * simply not in the list, and `hidden_agents` says how many such there are rather than pretending the count is
- * complete. Registering an agent under the organization goes through the ordinary link form with `?org=`.
+ * The agents are the ones shared with the organization (ainize-node: `visibility: 'org'` with the organization's id
+ * or one of its linked AIN SSO organization ids). Every member sees all of them; resource groups only label. Sharing
+ * an agent with the organization goes through the ordinary link form with `?org=`.
  */
 import { useMemo, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
@@ -145,21 +145,22 @@ export default function OrgPage() {
           {org.agents.length === 0 && <Empty data-testid="org-agents-empty">{t('org.agents.empty')}</Empty>}
           <List data-testid="org-agents">
             {org.agents.map((a) => {
-              const group = a.group ? org.groups.find((g) => g.id === a.group) : null;
+              const groups = org.groups.filter((g) => a.groups.includes(g.id));
               const mine = principals.includes(a.owner);
+              // The node's rules: a hosted agent is edited by its owner or a write member; a linked agent's upstream by its owner alone.
+              const editTo = a.kind === 'linked' ? (mine ? `/agent/${encodeURIComponent(a.id)}/link` : null) : (mine || write ? `/agent/${encodeURIComponent(a.id)}/edit` : null);
               return (
                 <Item key={a.id} data-testid={`org-agent-${a.id}`}>
                   <Head>
                     <Name>{a.name}</Name>
-                    {a.visibility === 'private' && <OrgChip $tone="lock" title={t('org.private_help')}>🔒 {t('org.private')}</OrgChip>}
-                    {group && <OrgChip>{t('org.agents.group', { name: group.name })}</OrgChip>}
+                    {groups.map((g) => <OrgChip key={g.id}>{t('org.agents.group', { name: g.name })}</OrgChip>)}
                     <OrgChip>{t('org.agents.calls', { n: a.calls })}</OrgChip>
                   </Head>
                   {a.description && <Description style={{ margin: 0 }}>{a.description}</Description>}
                   <Row><Mono>{a.a2a_url}</Mono><CopyButton text={a.a2a_url} label={t('myAgents.copy')} /></Row>
                   <Row>
                     <StyledLink to={`/agent/${encodeURIComponent(a.id)}`}>{t('org.agents.open')}</StyledLink>
-                    {(write || mine) && <StyledLink to={`/agent/${encodeURIComponent(a.id)}/link`}>{t('org.agents.edit')}</StyledLink>}
+                    {editTo && <StyledLink to={editTo}>{t('org.agents.edit')}</StyledLink>}
                     <ExternalLink href={a.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
                   </Row>
                 </Item>

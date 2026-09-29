@@ -11,20 +11,21 @@
  * `src/api/linkedAgents.ts`, pure and tested; this file is the form around it.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
-import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useMyOrgsQuery, useOrgQuery, useUpdateLinkedAgentMutation } from '@/api/api';
-import { parseOrgList, parseOrgProfile, roleAtLeast } from '@/api/organizations';
+import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useUpdateLinkedAgentMutation } from '@/api/api';
 import {
   linkedAgentApiErrorOf, linkedAgentDraftFromView, linkedAgentFormProblems, linkedAgentIdFromName, linkedAgentInputFromDraft,
   parseLinkedAgentResponse, type LinkedAgentFormDraft, type LinkedAgentFormField,
 } from '@/api/linkedAgents';
 import { useAuth } from '@/auth/AuthContext';
+import { SharingFields } from '@/components/agent/SharingFields';
 import { Button } from '@/components/ui/Button';
-import { Alert, Field, FieldLabel, HelperText, Input, SelectField, Textarea } from '@/components/ui/Form';
+import { Alert, Field, FieldLabel, HelperText, Input, Textarea } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 
 const AgentLinkForm = styled.form`display: flex; flex-direction: column; gap: 24px; margin-top: 8px; max-width: 760px;`;
 const AgentLinkSection = styled.section`
@@ -35,29 +36,24 @@ const AgentLinkSection = styled.section`
 const AgentLinkTwoCol = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;`;
 const AgentLinkActions = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap;`;
 
-const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '', org: null, visibility: 'public', group: null };
+const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '', visibility: 'public', orgId: null };
 
 export default function AgentLinkPage() {
   const { t } = useT();
   const auth = useAuth();
+  const shareable = useShareableOrgs();
   const navigate = useNavigate();
   const location = useLocation();
   const { id: editId } = useParams<{ id: string }>();
   const editing = !!editId;
-  // `/agent/link?org=comcom` — the organization page's "register an agent here" preselects the organization
-  const [search] = useSearchParams();
-  const orgFromUrl = search.get('org');
   useTitle(t(editing ? 'agentLink.title_edit' : 'agentLink.title'));
 
   const stored = useLinkedAgentQuery(editId ?? '', { skip: !editing || !auth.isSignedIn });
   const storedView = useMemo(() => parseLinkedAgentResponse(stored.data), [stored.data]);
 
-  const [draft, setDraft] = useState<LinkedAgentFormDraft>({ ...EMPTY, org: orgFromUrl || null });
-  // Organizations the person may register under (contributor or above), and the chosen one's resource groups.
-  const orgsRaw = useMyOrgsQuery(undefined, { skip: !auth.isSignedIn });
-  const registrable = useMemo(() => parseOrgList(orgsRaw.data).orgs.filter((o) => roleAtLeast(o.my_role, 'contributor')), [orgsRaw.data]);
-  const orgRaw = useOrgQuery(draft.org ?? '', { skip: !draft.org || !auth.isSignedIn });
-  const orgProfile = useMemo(() => parseOrgProfile(orgRaw.data), [orgRaw.data]);
+  // `?org=<id>` (the organization page's "share an agent" door): start shared with that organization.
+  const presetOrg = new URLSearchParams(location.search).get('org');
+  const [draft, setDraft] = useState<LinkedAgentFormDraft>(() => (presetOrg && !editing ? { ...EMPTY, visibility: 'org', orgId: presetOrg } : EMPTY));
   const [idTouched, setIdTouched] = useState(false);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,7 +67,7 @@ export default function AgentLinkPage() {
   // The id follows the name until the person types an id of their own — the same courtesy the hosted form does.
   const setName = (name: string) => setDraft((d) => ({ ...d, name, ...(editing || idTouched ? {} : { id: linkedAgentIdFromName(name) }) }));
 
-  const problems = useMemo(() => linkedAgentFormProblems(draft), [draft]);
+  const problems = useMemo(() => linkedAgentFormProblems(draft, shareable.orgs), [draft, shareable.orgs]);
   const problemFor = (f: LinkedAgentFormField) => (touched ? problems.find((p) => p.field === f) : undefined);
 
   const submit = async () => {
@@ -166,28 +162,13 @@ export default function AgentLinkPage() {
           </Field>
         </AgentLinkSection>
 
-        <AgentLinkSection data-testid="agent-link-org-section">
-          <h2>{t('agentLink.section.org')}</h2>
-          <SelectField label={t('agentLink.field.org')} helper={t('agentLink.field.org_help')} value={draft.org ?? ''} data-testid="agent-link-org"
-            onChange={(e) => setDraft((d) => ({ ...d, org: e.target.value || null, group: null }))}>
-            <option value="">{t('agentLink.field.org_personal')}</option>
-            {registrable.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.id})</option>)}
-            {draft.org && !registrable.some((o) => o.id === draft.org) && <option value={draft.org}>{draft.org}</option>}
-          </SelectField>
-          {draft.org && (
-            <AgentLinkTwoCol>
-              <SelectField label={t('agentLink.field.visibility')} helper={t('org.private_help')} value={draft.visibility} data-testid="agent-link-visibility"
-                onChange={(e) => set('visibility', e.target.value === 'private' ? 'private' : 'public')}>
-                <option value="public">{t('org.public')}</option>
-                <option value="private">🔒 {t('org.private')}</option>
-              </SelectField>
-              <SelectField label={t('agentLink.field.group')} helper={t('agentLink.field.group_help')} value={draft.group ?? ''} data-testid="agent-link-group"
-                disabled={draft.visibility !== 'private'} onChange={(e) => set('group', e.target.value || null)}>
-                <option value="">{t('agentLink.field.group_none')}</option>
-                {(orgProfile?.groups ?? []).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </SelectField>
-            </AgentLinkTwoCol>
-          )}
+        <AgentLinkSection>
+          <h2>{t('agentLink.section.sharing')}</h2>
+          <SharingFields
+            visibility={draft.visibility} orgId={draft.orgId} orgs={shareable.orgs} activeOrg={shareable.activeOrg}
+            onChange={(next) => setDraft((d) => ({ ...d, ...next }))} problemKey={problemFor('orgId')?.key ?? null} idPrefix="agent-link"
+          />
+          <HelperText>{t('sharing.wire_note')}</HelperText>
         </AgentLinkSection>
 
         {serverError && <Alert $tone="error" data-testid="agent-link-error">{serverError}</Alert>}

@@ -173,7 +173,7 @@ export const organizations: Dict = {
   'orgSettings.security.domains': { ko: '입장 도메인', en: 'Admitting domains' },
   'orgSettings.security.members_by_via': { ko: '멤버가 들어온 경로', en: 'How members got in' },
   'orgSettings.security.admins': { ko: '관리자', en: 'Admins' },
-  'orgSettings.security.private_agents': { ko: '비공개 에이전트 {n}개', en: '{n} private agents' },
+  'orgSettings.security.private_agents': { ko: '조직에만 공유된 에이전트 {n}개', en: '{n} agents shared with the organization only' },
   'orgSettings.security.audit': { ko: '감사 기록', en: 'Audit log' },
   'orgSettings.security.audit_lede': { ko: '멤버·역할·초대·요청·그룹·설정, 그리고 조직 에이전트의 등록·수정·삭제. 최신순, 최근 2,000건.', en: 'Members, roles, invites, requests, groups, settings, and the organization’s agents being registered, changed or removed. Newest first, last 2,000 kept.' },
   'orgSettings.security.audit_empty': { ko: '기록이 없습니다.', en: 'Nothing recorded yet.' },

@@ -50,14 +50,15 @@ test('answers are read defensively: a full profile, a bare list, an older node',
     id: 'comcom', name: 'ComCom', description: 'we', readme: '# hi', domains: ['comcom.ai'], domain_role: 'contributor', sso_org_ids: ['org_1'], my_role: 'read',
     members: [{ principal: 'sso:a', role: 'admin', name: 'A', email: 'a…@comcom.ai', added_at: 1, via: 'creator' }, { bogus: 1 }],
     groups: [{ id: 'g1', name: 'Desk', members: ['sso:a'], agents: ['desk'] }],
-    agents: [{ id: 'desk', name: 'Desk', owner: 'sso:a', org: 'comcom', visibility: 'private', group: 'g1', a2a_url: 'https://n/agents/desk', calls: 4 }, { id: 'no-url' }],
+    agents: [{ id: 'desk', name: 'Desk', owner: 'sso:a', kind: 'hosted', visibility: 'org', org_id: 'comcom', groups: ['g1'], a2a_url: 'https://n/agents/desk', calls: 4 }, { id: 'no-url' }],
     hidden_agents: 1, pending_requests: 2, open_invites: 1, spend_cap_credits: 5000,
   } });
   assert.ok(profile);
   assert.equal(profile.readme, '# hi');
   assert.equal(profile.domain_role, 'contributor');
   assert.deepEqual(profile.members.map((m) => m.principal), ['sso:a']);
-  assert.deepEqual(profile.agents.map((a) => [a.id, a.visibility, a.group, a.card_url, a.calls]), [['desk', 'private', 'g1', 'https://n/agents/desk/.well-known/agent-card.json', 4]]);
+  // the node's agent row (ainize-node #42): #40's visibility/org_id, the kind, and the resource groups that label it
+  assert.deepEqual(profile.agents.map((a) => [a.id, a.kind, a.visibility, a.org_id, a.groups, a.card_url, a.calls]), [['desk', 'hosted', 'org', 'comcom', ['g1'], 'https://n/agents/desk/.well-known/agent-card.json', 4]]);
   assert.equal(profile.hidden_agents, 1);
   assert.equal(profile.spend_cap_credits, 5000);
   assert.equal(myMembership(profile, ['sso:a'])?.role, 'admin');
@@ -68,7 +69,7 @@ test('answers are read defensively: a full profile, a bare list, an older node',
   assert.equal(invite?.url, 'https://ainize.ai/org/join/abc');
   assert.equal(parseOrgInvite({ invite: { role: 'read' } }), null, 'no prefix, no invite');
 
-  const billing = parseOrgBilling({ spend_cap_credits: null, sso_org_ids: [], keys_available: true, spend_metered: false, agent_calls_total: 4, keys: [{ prefix: 'abcd', owner: 'sso:a', org_id: 'org_1', disabled: false }], agents: [{ id: 'desk', name: 'Desk', visibility: 'private', total: 4, last_at: null }] });
+  const billing = parseOrgBilling({ spend_cap_credits: null, sso_org_ids: [], keys_available: true, spend_metered: false, agent_calls_total: 4, keys: [{ prefix: 'abcd', owner: 'sso:a', org_id: 'org_1', disabled: false }], agents: [{ id: 'desk', name: 'Desk', kind: 'hosted', visibility: 'org', total: 4, last_at: null }] });
   assert.equal(billing?.spend_metered, false);
   assert.deepEqual(billing?.keys.map((k) => k.prefix), ['abcd']);
   assert.deepEqual(billing?.agents.map((a) => [a.id, a.total]), [['desk', 4]]);
@@ -90,4 +91,31 @@ test('refusals are named by the node’s code, with the not_member extras; older
   assert.equal(orgApiErrorOf({ status: 403, data: { error: 'nope' } }).code, 'insufficient_role');
   assert.equal(orgApiErrorOf({ error: 'TypeError: fetch failed' }).code, 'unreachable');
   assert.equal(orgApiErrorOf({ status: 500 }).code, 'unknown');
+});
+
+test('who may share into an organization: ainize organizations from contributor up, then the AIN organizations not already listed', async () => {
+  const { shareableOrgOptions } = await import('../src/api/sharedAgents');
+  const { orgRoleAtLeast } = await import('../src/api/organizations');
+  assert.equal(shareableOrgOptions(null, null), null, 'no source answered: not the same as "in no organization"');
+  const sso = [{ id: 'org_comcom', slug: 'comcom', name: 'ComCom (AIN)' }];
+  const ainize = [{ id: 'comcom', name: 'ComCom', role: 'write' }, { id: 'readers', name: 'Readers', role: 'read' }, { id: 'org_comcom', name: 'Linked', role: 'contributor' }];
+  assert.deepEqual(shareableOrgOptions(sso, ainize)?.map((o) => o.id), ['comcom', 'org_comcom'], 'read cannot share; an id listed once');
+  assert.deepEqual(shareableOrgOptions(null, [{ id: 'comcom', name: 'ComCom', role: 'contributor' }])?.map((o) => o.id), ['comcom'], 'a wallet member of an ainize organization can share');
+  assert.equal(orgRoleAtLeast('write', 'contributor'), true);
+  assert.equal(orgRoleAtLeast('read', 'contributor'), false);
+  assert.equal(orgRoleAtLeast(null, 'read'), false);
+});
+
+test('the manageable list: own and organization agents with what the caller may do; an older node\'s public list is not it', async () => {
+  const { parseManageableHostedAgents } = await import('../src/api/sharedAgents');
+  const rows = parseManageableHostedAgents({ agents: [
+    { id: 'mine', name: 'Mine', owner: 'sso:a', mode: 'prompt', visibility: 'private', org_id: null, can_manage: true, can_delete: true, updated_by: 'sso:a' },
+    { id: 'desk', name: 'Desk', owner: 'sso:b', mode: 'handler', visibility: 'org', org_id: 'comcom', can_manage: true, can_delete: false, updated_by: 'sso:a' },
+  ] }, 'https://ainize.ai');
+  assert.deepEqual(rows?.map((r) => [r.agent.id, r.agent.visibility, r.agent.org_id, r.canManage, r.canDelete, r.updatedBy]), [
+    ['mine', 'private', null, true, true, 'sso:a'], ['desk', 'org', 'comcom', true, false, 'sso:a'],
+  ]);
+  assert.equal(rows?.[1].agent.a2a_url, 'https://ainize.ai/agents/desk');
+  assert.equal(parseManageableHostedAgents({ agents: [{ id: 'x', name: 'X' }] }, 'https://n'), null, 'rows without can_manage: an older node answering the public list');
+  assert.equal(parseManageableHostedAgents('<html>', 'https://n'), null);
 });

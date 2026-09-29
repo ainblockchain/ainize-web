@@ -32,6 +32,12 @@ export interface AuthState {
   scheme: 'ain' | 'eip191' | 'google' | 'sso' | null;
   /** the AIN account signed in (AIN SSO), or null */
   sso: SsoSessionView | null;
+  /**
+   * Who the node would record as the OWNER of something this person makes: the wallet address when there is one,
+   * else the AIN account's principal (`sso:<sub>`), else null. A hosted or linked agent's `owner` is this string —
+   * so this, not `subject`, is what an ownership check compares against (`isHostedAgentOwnedBy`, `viewerPrincipals`).
+   */
+  principal: string | null;
   /** this server offers "Continue with AIN" */
   ssoConfigured: boolean;
   /** the Google account signed in to this app, whether or not a wallet is too */
@@ -55,7 +61,7 @@ export interface AuthState {
 }
 
 const EMPTY: AuthState = {
-  loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
+  loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
   canEnroll: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined,
 };
 const AuthContext = createContext<AuthState>(EMPTY);
@@ -81,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The wallet wins when both are present: it is the one the node can act on.
     scheme: live ? data?.scheme ?? null : sso ? 'sso' : google ? 'google' : null,
     sso,
+    principal: live ? data?.subject ?? sso?.principal ?? null : sso?.principal ?? null,
     ssoConfigured: !!ssoStatus?.configured,
     google,
     googleConfigured: !!googleData?.configured,

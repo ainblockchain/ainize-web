@@ -6,11 +6,17 @@
  * against every principal the viewer is (`viewerPrincipals`) — one source of truth for "what is on this node",
  * and the same rows AIN Teams reads when it offers agents to import. What is not here is not there either, and the
  * page says so.
+ *
+ * Hosted agents also come from `GET /api/hosted-agents?manageable=1`: the person's own (whatever their visibility —
+ * an `org` or `private` one is not in the public catalogue) and the ones shared with an organization where they may
+ * edit. `can_manage` / `can_delete` decide the buttons, the node's rule: edit = owner or a `write` member, delete =
+ * owner or an organization admin.
  */
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation } from '@/api/api';
-import { agentsOwnedBy, isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
+import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery } from '@/api/api';
+import { agentsOwnedBy, isAgentOwnedBy, isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
+import { agentListKey, parseManageableHostedAgents, visibilityBadgeOf } from '@/api/sharedAgents';
 import type { AgentSummary } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -40,7 +46,19 @@ export default function MyAgentsPage() {
   const { subject, sso } = useAuth();
   const principals = useMemo(() => viewerPrincipals(subject, sso?.principal), [subject, sso?.principal]);
   const { data, isLoading } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
-  const mine = useMemo(() => agentsOwnedBy(data?.agents ?? [], principals), [data, principals]);
+  const manageable = useManageableHostedAgentsQuery(undefined, { pollingInterval: 30_000 });
+  const rows = useMemo(() => {
+    const managed = parseManageableHostedAgents(manageable.data, window.location.origin) ?? [];
+    const out: { agent: AgentSummary; canEdit: boolean; canDelete: boolean; shared: boolean }[] = managed.map((m) => {
+      // the catalogue row, when there is one, carries what the spec does not (reachability, calls)
+      const listed = (data?.agents ?? []).find((a) => a.id === m.agent.id && !a.node);
+      return { agent: listed ? { ...listed, visibility: m.agent.visibility, org_id: m.agent.org_id } : m.agent, canEdit: m.canManage, canDelete: m.canDelete, shared: !isAgentOwnedBy(m.agent.owner, principals) };
+    });
+    for (const agent of agentsOwnedBy(data?.agents ?? [], principals)) {
+      if (!out.some((r) => r.agent.id === agent.id)) out.push({ agent, canEdit: true, canDelete: true, shared: false });
+    }
+    return out;
+  }, [data, manageable.data, principals]);
   const [deleteLinked] = useDeleteLinkedAgentMutation();
   const [deleteHosted] = useDeleteHostedAgentMutation();
   const [error, setError] = useState<string | null>(null);
@@ -69,17 +87,19 @@ export default function MyAgentsPage() {
 
       {error && <Alert $tone="error">{error}</Alert>}
       {isLoading && <CenterProgress />}
-      {!isLoading && mine.length === 0 && <Empty data-testid="my-agents-empty">{t('myAgents.empty')}</Empty>}
+      {!isLoading && rows.length === 0 && <Empty data-testid="my-agents-empty">{t('myAgents.empty')}</Empty>}
 
       <MyAgentsList data-testid="my-agents-list">
-        {mine.map((agent) => {
+        {rows.map(({ agent, canEdit, canDelete, shared }) => {
           const linked = isLinkedAgentRow(agent);
           const kind = agent.kind ?? 'upstream';
           return (
-            <MyAgentsItem key={agent.id} data-testid={`my-agent-${agent.id}`}>
+            <MyAgentsItem key={agentListKey(agent)} data-testid={`my-agent-${agent.id}`}>
               <MyAgentsHead>
                 <MyAgentsName>{agent.name}</MyAgentsName>
                 <MyAgentsChip>{t(`myAgents.kind.${kind}`)}</MyAgentsChip>
+                {shared && agent.org_id && <MyAgentsChip data-testid={`my-agent-org-${agent.id}`}>🏢 {agent.org_id}</MyAgentsChip>}
+                {visibilityBadgeOf(agent) && <MyAgentsChip data-testid={`my-agent-visibility-${agent.id}`}>{t(`sharing.visibility.${visibilityBadgeOf(agent)}`)}</MyAgentsChip>}
                 <MyAgentsChip $tone={agent.reachable === true ? 'ok' : agent.reachable === false ? 'warn' : 'muted'}>
                   {agent.reachable === true ? t('myAgents.reachable') : agent.reachable === false ? t('myAgents.unreachable') : t('myAgents.unknown')}
                 </MyAgentsChip>
@@ -92,9 +112,9 @@ export default function MyAgentsPage() {
               </MyAgentsRow>
               <MyAgentsRow>
                 <StyledLink to={`/agent/${encodeURIComponent(agent.id)}`}>{t('myAgents.open')}</StyledLink>
-                <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>
+                {canEdit && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
                 <ExternalLink href={agent.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
-                <Button size="small" variant="text" color="secondary" onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t('myAgents.delete')}</Button>
+                {canDelete && <Button size="small" variant="text" color="secondary" onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t('myAgents.delete')}</Button>}
               </MyAgentsRow>
             </MyAgentsItem>
           );

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery, useSsoConnectMutation, useSsoStatusQuery } from '@/api/api';
 import { connect, discoverWallets, personalSign, WalletError, type DiscoveredWallet } from '@/lib/ethWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
+import { servedOutsideApp } from '@/lib/nextNavigation';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
 import { PageWrapper, Title } from '@/components/ui/Misc';
@@ -72,7 +73,15 @@ export default function SigningPage() {
   const auth = useAuth();
   const { data: me } = useMeQuery();
   const [params] = useSearchParams();
-  const navigate = useNavigate();
+  const routerNavigate = useNavigate();
+  // `next` may be a path this app does not render (ainize.ai/code); those need a real page load, not a route change.
+  const navigate = useCallback((to: string, options?: { replace?: boolean }) => {
+    if (servedOutsideApp(to)) {
+      if (options?.replace) window.location.replace(to); else window.location.assign(to);
+      return;
+    }
+    routerNavigate(to, options);
+  }, [routerNavigate]);
   const requestedNext = params.get('next');
   const next = requestedNext?.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/my-nodes';
   /**

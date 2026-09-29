@@ -325,7 +325,7 @@ function GroupsTab({ org }: { org: OrgProfile }) {
           </div>
           <div>
             <FieldLabel>{t('orgSettings.groups.agents')}</FieldLabel>
-            <Row>{org.agents.map((a) => <Checkbox key={a.id} label={`${a.name}${a.visibility === 'private' ? ' 🔒' : ''}`} checked={agents.includes(a.id)} onChange={() => toggle(agents, setAgents, a.id)} />)}</Row>
+            <Row>{org.agents.map((a) => <Checkbox key={a.id} label={a.name} checked={agents.includes(a.id)} onChange={() => toggle(agents, setAgents, a.id)} />)}</Row>
             <HelperText>{t('orgSettings.groups.agents_hint')}</HelperText>
           </div>
           {error && <Alert $tone="error">{error}</Alert>}
@@ -386,7 +386,7 @@ function BillingTab({ org }: { org: OrgProfile }) {
           <thead><tr><th>{t('org.tab.agents')}</th><th>{t('orgSettings.billing.agents')}</th><th>{t('orgSettings.billing.last_call')}</th></tr></thead>
           <tbody>{billing.agents.map((a) => (
             <tr key={a.id} data-testid={`org-billing-agent-${a.id}`}>
-              <td>{a.name}{a.visibility === 'private' && ' 🔒'}</td>
+              <td>{a.name}</td>
               <td><Bar pct={(a.total / max) * 100} label={String(a.total)} /></td>
               <td>{a.last_at ? when(a.last_at) : t('orgSettings.billing.never')}</td>
             </tr>

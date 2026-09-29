@@ -8,6 +8,7 @@
  * newer node may add fields — so a missing field becomes `null`, never a crash.
  */
 import { HOSTED_AGENT_ID_PATTERN } from './hostedAgents';
+import { agentOrgIdOf, agentVisibilityOf, type AgentVisibility } from './sharedAgents';
 
 export const ORG_ROLES = ['read', 'contributor', 'write', 'admin'] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
@@ -62,6 +63,12 @@ export interface OrgUpdateInput {
   name?: string; description?: string; readme?: string; domains?: string[]; domainRole?: OrgRole; ssoOrgIds?: string[]; spendCapCredits?: number | null;
 }
 
+/** Roles in rank order, as the node ranks them (`roleAtLeast`). */
+const ROLE_RANK: Record<OrgRole, number> = { read: 0, contributor: 1, write: 2, admin: 3 };
+export function orgRoleAtLeast(role: OrgRole | null | undefined, min: OrgRole): boolean {
+  return !!role && ROLE_RANK[role] >= ROLE_RANK[min];
+}
+
 // ------------------------------------------------------------------------------------------------ views
 
 export interface OrgSummary {
@@ -73,8 +80,12 @@ export interface OrgSummary {
 
 export interface OrgMemberView { principal: string; role: OrgRole; name: string | null; email: string | null; added_at: number | null; via: string }
 export interface OrgGroupView { id: string; name: string; members: string[]; agents: string[] }
+/**
+ * An agent shared with the organization (ainize-node: `visibility: 'org'` and an `orgId` that is the organization's
+ * id or one of its linked AIN SSO organization ids). Every member sees all of them; resource groups only label.
+ */
 export interface OrgAgentView {
-  id: string; name: string; description: string; owner: string; org: string | null; visibility: 'public' | 'private'; group: string | null;
+  id: string; name: string; description: string; owner: string; kind: 'hosted' | 'linked' | null; visibility: AgentVisibility | null; org_id: string | null; groups: string[];
   a2a_url: string; card_url: string; calls: number; last_call_at: number | null; created_at: number | null; updated_at: number | null;
 }
 
@@ -120,8 +131,8 @@ export function parseOrgAgent(raw: unknown): OrgAgentView | null {
   const a2a = r && str(r.a2a_url);
   if (!r || !id || !a2a) return null;
   return {
-    id, name: str(r.name) ?? id, description: str(r.description) ?? '', owner: str(r.owner) ?? '', org: str(r.org),
-    visibility: r.visibility === 'private' ? 'private' : 'public', group: str(r.group), a2a_url: a2a, card_url: str(r.card_url) ?? `${a2a}/.well-known/agent-card.json`,
+    id, name: str(r.name) ?? id, description: str(r.description) ?? '', owner: str(r.owner) ?? '',
+    kind: r.kind === 'hosted' || r.kind === 'linked' ? r.kind : null, visibility: agentVisibilityOf(r), org_id: agentOrgIdOf(r), groups: strs(r.groups), a2a_url: a2a, card_url: str(r.card_url) ?? `${a2a}/.well-known/agent-card.json`,
     calls: num(r.calls) ?? 0, last_call_at: num(r.last_call_at), created_at: num(r.created_at), updated_at: num(r.updated_at),
   };
 }
@@ -176,7 +187,7 @@ export const parseOrgAudit = (raw: unknown): OrgAuditEntry[] => (Array.isArray(o
 export interface OrgBillingView {
   spend_cap_credits: number | null; sso_org_ids: string[]; keys_available: boolean; spend_metered: boolean; agent_calls_total: number;
   keys: { prefix: string; owner: string; label: string | null; issuedAt: number | null; org_id: string | null; disabled: boolean }[];
-  agents: { id: string; name: string; visibility: 'public' | 'private'; total: number; last_at: number | null }[];
+  agents: { id: string; name: string; kind: 'hosted' | 'linked' | null; visibility: AgentVisibility | null; total: number; last_at: number | null }[];
 }
 export function parseOrgBilling(raw: unknown): OrgBillingView | null {
   const r = obj(raw);
@@ -185,7 +196,7 @@ export function parseOrgBilling(raw: unknown): OrgBillingView | null {
     spend_cap_credits: num(r.spend_cap_credits), sso_org_ids: strs(r.sso_org_ids), keys_available: r.keys_available === true, spend_metered: r.spend_metered === true,
     agent_calls_total: num(r.agent_calls_total) ?? 0,
     keys: (Array.isArray(r.keys) ? r.keys : []).map((k) => { const o = obj(k); return o && str(o.prefix) ? { prefix: str(o.prefix) as string, owner: str(o.owner) ?? '', label: str(o.label), issuedAt: num(o.issuedAt), org_id: str(o.org_id), disabled: o.disabled === true } : null; }).filter((k): k is OrgBillingView['keys'][number] => k !== null),
-    agents: (Array.isArray(r.agents) ? r.agents : []).map((a) => { const o = obj(a); return o && str(o.id) ? { id: str(o.id) as string, name: str(o.name) ?? (str(o.id) as string), visibility: o.visibility === 'private' ? 'private' as const : 'public' as const, total: num(o.total) ?? 0, last_at: num(o.last_at) } : null; }).filter((a): a is OrgBillingView['agents'][number] => a !== null),
+    agents: (Array.isArray(r.agents) ? r.agents : []).map((a) => { const o = obj(a); return o && str(o.id) ? { id: str(o.id) as string, name: str(o.name) ?? (str(o.id) as string), kind: o.kind === 'hosted' || o.kind === 'linked' ? o.kind : null, visibility: agentVisibilityOf(o), total: num(o.total) ?? 0, last_at: num(o.last_at) } : null; }).filter((a): a is OrgBillingView['agents'][number] => a !== null),
   };
 }
 
