@@ -10,7 +10,11 @@
  * signed with AINIZE_SITE_ASSERTION_SECRET, the same secret the node reads from `<AINIZE_HOME>/site-assertion.secret`.
  * The format and the rules live in ainize-node's src/site-assertion.ts; this is the signing half only.
  *
- * Only /api/keys carries it. Anything wider would make a Google sign-in stand for more than it was ever checked for.
+ * It carries on the routes where a Google account acts as itself: its API keys, its agents (hosted, linked and the
+ * shared registry — it owns what it makes as `google:<sub>`, the way an AIN SSO account does), and `/api/auth/me`, so
+ * a service calling through this app with the visitor's cookies (the ainize.ai/code gateway) learns who it is. Nothing
+ * that a wallet signature guards — deposits, publishing, the node's operator routes — ever sees it; the node gives the
+ * account no organization either. A wallet or AIN SSO session on the same request outranks it at the node.
  */
 import { createHmac } from 'node:crypto';
 import { GOOGLE_SESSION_COOKIE, readGoogleOAuthConfig, readGoogleSessionWithIat } from './googleOAuth';
@@ -27,9 +31,13 @@ export function signSiteSubject(secret: string, subject: string, issuedAtS: numb
 
 export { siteAssertionSecret };
 
+/** The path prefixes a Google account may act on through this app (each matches itself and `<prefix>/…`). */
+const VOUCHED_PREFIXES = ['/api/keys', '/api/hosted-agents', '/api/linked-agents', '/api/shared-agents'] as const;
+
 /** The paths a Google account may act on through this app. */
 export function vouchesFor(path: string): boolean {
-  return path === '/api/keys' || path.startsWith('/api/keys/');
+  if (path === '/api/auth/me') return true;
+  return VOUCHED_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
 function cookieValue(req: Request, name: string): string | undefined {

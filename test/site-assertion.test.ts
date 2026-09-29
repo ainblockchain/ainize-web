@@ -36,8 +36,9 @@ test('nothing is vouched for without a session, a valid cookie, or the secret', 
   assert.equal(await siteSubjectFor(signedIn(cookie), NOW, { ...env, AINIZE_SITE_ASSERTION_SECRET: 'short' }), null);
 });
 
-test('only /api/keys carries it', () => {
-  assert.ok(vouchesFor('/api/keys'));
-  assert.ok(vouchesFor('/api/keys/abc'));
-  for (const p of ['/api/keysx', '/api/auth/me', '/api/patches', '/agents/x', '/api/']) assert.ok(!vouchesFor(p), p);
+test('it carries on keys, agents and who-am-I — and nowhere a wallet signature guards', () => {
+  for (const p of ['/api/keys', '/api/keys/abc', '/api/auth/me', '/api/hosted-agents', '/api/hosted-agents/x/secrets/K',
+    '/api/linked-agents', '/api/linked-agents/x', '/api/shared-agents', '/api/shared-agents/x/visibility']) assert.ok(vouchesFor(p), p);
+  for (const p of ['/api/keysx', '/api/hosted-agentsx', '/api/auth/me/x', '/api/auth/wallet', '/api/auth/owners', '/api/orgs',
+    '/api/patches', '/api/publish', '/agents/x', '/api/']) assert.ok(!vouchesFor(p), p);
 });
