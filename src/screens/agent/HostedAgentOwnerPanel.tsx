@@ -30,7 +30,11 @@ const HostedAgentOwnerLogs = styled.pre`
   font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
 `;
 
-export function HostedAgentOwnerPanel({ agentId, agentName, visibility = null, orgId = null }: { agentId: string; agentName: string; visibility?: AgentVisibility | null; orgId?: string | null }) {
+/**
+ * `canAdminister` is false for an organization member who may edit the agent but not delete it or change who sees
+ * it (ainize-node: those stay with the owner and the organization's admins); the panel then offers edit and logs only.
+ */
+export function HostedAgentOwnerPanel({ agentId, agentName, visibility = null, orgId = null, canAdminister = true }: { agentId: string; agentName: string; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean }) {
   const { t } = useT();
   const navigate = useNavigate();
   const [logsOpen, setLogsOpen] = useState(false);
@@ -65,12 +69,14 @@ export function HostedAgentOwnerPanel({ agentId, agentName, visibility = null, o
             {t('agentOwner.logs_refresh')}
           </Button>
         )}
-        <Button size="small" variant="text" color="secondary" loading={deleteState.isLoading} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
-          {t('agentOwner.delete')}
-        </Button>
+        {canAdminister && (
+          <Button size="small" variant="text" color="secondary" loading={deleteState.isLoading} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
+            {t('agentOwner.delete')}
+          </Button>
+        )}
       </HostedAgentOwnerRow>
       {deleteError && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: deleteError })}</Alert>}
-      <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />
+      {canAdminister && <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />}
       {logsOpen && (
         logs.error
           ? <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.logs_failed', { why: hostedAgentApiErrorOf(logs.error).message ?? String(hostedAgentApiErrorOf(logs.error).status ?? '') })}</Alert>

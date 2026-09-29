@@ -25,6 +25,11 @@ const ModelDetailPage = lazy(() => import('./screens/ModelDetailPage'));
 const AgentCreatePage = lazy(() => import('./screens/AgentCreatePage'));
 const AgentLinkPage = lazy(() => import('./screens/AgentLinkPage'));
 const MyAgentsPage = lazy(() => import('./screens/MyAgentsPage'));
+const OrgsPage = lazy(() => import('./screens/org/OrgsPage'));
+const OrgCreatePage = lazy(() => import('./screens/org/OrgCreatePage'));
+const OrgPage = lazy(() => import('./screens/org/OrgPage'));
+const OrgJoinPage = lazy(() => import('./screens/org/OrgJoinPage'));
+const OrgSettingsPage = lazy(() => import('./screens/org/OrgSettingsPage'));
 // Throughput billing (ainize-node throughput-billing design): now N tok/s → deposit X → M tok/s, and the deposit.
 const BillingPage = lazy(() => import('./screens/BillingPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
@@ -127,6 +132,13 @@ export default function App() {
                 {/* The caller's own agents — built here or linked by address. Signed in is enough: an AIN account with
                     no wallet owns linked agents, and this is the one place that lists what AIN Teams can import. */}
                 <Route path="/me/agents" element={<SignedInLayout><MyAgentsPage /></SignedInLayout>} />
+                {/* Organizations (ainize-node organizations design). `/org/new` and `/org/join/…` are declared before
+                    `/org/:id` so an organization called "new" cannot shadow them (and the id rule reserves the words). */}
+                <Route path="/org" element={<Layout><OrgsPage /></Layout>} />
+                <Route path="/org/new" element={<SignedInLayout><OrgCreatePage /></SignedInLayout>} />
+                <Route path="/org/join/:token" element={<Layout><OrgJoinPage /></Layout>} />
+                <Route path="/org/:id/settings" element={<SignedInLayout><OrgSettingsPage /></SignedInLayout>} />
+                <Route path="/org/:id" element={<Layout><OrgPage /></Layout>} />
                 {/* Operator pages (SigningCheckLayout) */}
                 <Route path="/dashboard" element={<SigningCheckLayout><DashboardPage /></SigningCheckLayout>} />
                 {/* signed out → public pre-screen (spec §5.2); signed in → the register form */}

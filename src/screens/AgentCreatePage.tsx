@@ -39,6 +39,7 @@ import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select, Textarea
 import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 import {
   HOSTED_AGENT_PACKAGE_JSON_TEMPLATE, hostedAgentCodeTemplateFor, isUntouchedHostedAgentTemplate,
 } from './agentCreate/hostedAgentCodeTemplates';
@@ -87,6 +88,7 @@ export default function AgentCreatePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
+  const shareable = useShareableOrgs();
   useTitle(editing ? t('agentCreate.title_edit') : t('agentCreate.title'));
 
   const prefilledModel = params.get('model') ?? '';
@@ -135,7 +137,7 @@ export default function AgentCreatePage() {
     }
   }, [editing, draft.model, modelOptions]);
 
-  const problems = useMemo(() => hostedAgentFormProblems(draft, auth.sso?.orgs ?? null), [draft, auth.sso?.orgs]);
+  const problems = useMemo(() => hostedAgentFormProblems(draft, shareable.orgs), [draft, shareable.orgs]);
   const problemFor = (field: HostedAgentFormProblem['field']) => (showProblems ? problems.find((p) => p.field === field) : undefined);
   const set = <K extends keyof HostedAgentFormDraft>(key: K, value: HostedAgentFormDraft[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -352,7 +354,7 @@ export default function AgentCreatePage() {
         <AgentCreateSection>
           <h2>{t('agentCreate.section.sharing')}</h2>
           <SharingFields
-            visibility={draft.visibility} orgId={draft.orgId} orgs={auth.sso?.orgs} activeOrg={auth.sso?.activeOrg}
+            visibility={draft.visibility} orgId={draft.orgId} orgs={shareable.orgs} activeOrg={shareable.activeOrg}
             onChange={(next) => setDraft((d) => ({ ...d, ...next }))} problemKey={problemFor('orgId')?.key ?? null} idPrefix="agent-create"
           />
           <HelperText>{t('sharing.wire_note')}</HelperText>

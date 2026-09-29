@@ -24,9 +24,16 @@ for (const [path, page] of [
   // linked agents (ainize-node linked-agents design): registered by URL, edited under their own segment
   ['/agent/link', 'AgentLinkPage'],
   ['/agent/:id/link', 'AgentLinkPage'],
+  // organizations (ainize-node organizations design): `/org/new` and `/org/join/:token` are declared before `/org/:id`
+  ['/org', 'OrgsPage'],
+  ['/org/new', 'OrgCreatePage'],
+  ['/org/join/:token', 'OrgJoinPage'],
+  ['/org/:id/settings', 'OrgSettingsPage'],
+  ['/org/:id', 'OrgPage'],
 ] as const) {
   test(`${path} renders ${page}`, () => {
-    assert.ok(new RegExp(`path="${path.replace(/[/:]/g, (c) => `\\${c}`)}" element={<Layout><${page} />`).test(app), `${path} → ${page} is not routed`);
+    // `<Layout>` for a public page, `<SignedInLayout>` for one behind sign-in — either is "routed"; which one is the route's own business
+    assert.ok(new RegExp(`path="${path.replace(/[/:]/g, (c) => `\\${c}`)}" element={<(?:SignedIn)?Layout><${page} />`).test(app), `${path} → ${page} is not routed`);
   });
 }
 
