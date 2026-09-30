@@ -37,6 +37,7 @@ import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@
 import { readFrame, takeFrames } from '@/lib/a2a-stream';
 import { A2A_INLINE_AUDIO_MAX_BYTES, a2aAudioPart, a2aCardTakesAudio, a2aImagesOf, type A2aImage } from '@/lib/a2aFileParts';
 import { useTitle } from '@/utils/useTitle';
+import { OrganizationName } from '@/components/agent/OrganizationName';
 import { agentSummaryHostedFieldsOf, isHostedAgentOwnedBy } from '@/api/hostedAgents';
 import { HostedAgentBadges } from '@/components/public/HostedAgentBadges';
 import { useT } from '@/i18n';
@@ -414,7 +415,7 @@ export function AgentPage() {
           <div>
             <dt>{t('agentPage.fact.visibility')}</dt>
             <dd data-testid="agent-visibility-fact">
-              {t(`sharing.visibility.${visibility}`)}{visibility === 'org' && orgId ? ` · ${t('agentPage.visibility.org_with', { org: orgId })}` : ''}
+              {visibility === 'org' && orgId ? <OrganizationName orgId={orgId} /> : t(`sharing.visibility.${visibility}`)}
             </dd>
           </div>
         )}

@@ -76,6 +76,7 @@ export interface OrgSummary {
   created_at: number | null; updated_at: number | null; my_role: OrgRole | null;
   /** how the viewer is in it, on the list page */
   via: 'member' | 'domain' | 'sso' | null;
+  sso_org_ids: string[];
 }
 
 export interface OrgMemberView { principal: string; role: OrgRole; name: string | null; email: string | null; added_at: number | null; via: string }
@@ -105,7 +106,7 @@ export function parseOrgSummary(raw: unknown): OrgSummary | null {
   if (!r || !id) return null;
   const role = r.my_role;
   return {
-    id, name: str(r.name) ?? id, description: str(r.description) ?? '', domains: strs(r.domains),
+    id, name: str(r.name) ?? id, description: str(r.description) ?? '', domains: strs(r.domains), sso_org_ids: strs(r.sso_org_ids),
     member_count: num(r.member_count) ?? 0, agent_count: num(r.agent_count) ?? 0, created_at: num(r.created_at), updated_at: num(r.updated_at),
     my_role: isOrgRole(role) ? role : null, via: r.via === 'member' || r.via === 'domain' || r.via === 'sso' ? r.via : null,
   };
