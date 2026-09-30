@@ -46,7 +46,15 @@ export function agentOrgIdOf(row: Record<string, unknown> | AgentSummary | null 
 }
 
 /** An organization the signed-in AIN account belongs to, as `/api/auth/me` reports it. */
-export interface OrgOption { id: string; slug: string; name: string }
+export interface OrgOption { id: string; slug: string; name: string; aliases?: readonly string[] }
+
+export function organizationDisplay(orgId: string | null, orgs: readonly { id: string; name: string; sso_org_ids?: readonly string[] }[], ssoOrgs: readonly OrgOption[] | null | undefined): { name: string; href: string | null } | null {
+  if (!orgId) return null;
+  const org = orgs.find((o) => o.id === orgId || o.sso_org_ids?.includes(orgId));
+  if (org) return { name: org.name, href: `/org/${encodeURIComponent(org.id)}` };
+  const sso = ssoOrgs?.find((o) => o.id === orgId);
+  return sso ? { name: sso.name || sso.slug, href: null } : null;
+}
 
 /**
  * The organizations a person may share an agent with: the ainize organizations where they are at least a
@@ -57,13 +65,13 @@ export interface OrgOption { id: string; slug: string; name: string }
  */
 export function shareableOrgOptions(
   ssoOrgs: readonly OrgOption[] | null | undefined,
-  ainizeOrgs: readonly { id: string; name: string; role: string | null }[] | null | undefined,
+  ainizeOrgs: readonly { id: string; name: string; role: string | null; ssoOrgIds?: readonly string[] }[] | null | undefined,
 ): OrgOption[] | null {
   if (!ssoOrgs && !ainizeOrgs) return null;
   const out: OrgOption[] = [];
   const RANK: Record<string, number> = { read: 0, contributor: 1, write: 2, admin: 3 };
-  for (const o of ainizeOrgs ?? []) if ((RANK[o.role ?? ''] ?? -1) >= 1) out.push({ id: o.id, slug: o.id, name: o.name });
-  for (const o of ssoOrgs ?? []) if (!out.some((x) => x.id === o.id)) out.push(o);
+  for (const o of ainizeOrgs ?? []) if ((RANK[o.role ?? ''] ?? -1) >= 1) out.push({ id: o.id, slug: o.id, name: o.name, ...(o.ssoOrgIds?.length ? { aliases: o.ssoOrgIds } : {}) });
+  for (const o of ssoOrgs ?? []) if (!(ainizeOrgs ?? []).some((x) => x.id === o.id || x.ssoOrgIds?.includes(o.id))) out.push(o);
   return out;
 }
 
@@ -84,7 +92,8 @@ export function orgVisibilityAvailable(orgs: readonly OrgOption[] | null | undef
  */
 export function defaultOrgIdFor(orgs: readonly OrgOption[] | null | undefined, activeOrg: string | null | undefined): string | null {
   if (!Array.isArray(orgs) || orgs.length === 0) return null;
-  if (activeOrg && orgs.some((o) => o.id === activeOrg)) return activeOrg;
+  const active = orgs.find((o) => o.id === activeOrg || (activeOrg && o.aliases?.includes(activeOrg)));
+  if (active) return active.id;
   return orgs.length === 1 ? orgs[0].id : null;
 }
 
@@ -99,7 +108,7 @@ export function sharingProblemKey(visibility: AgentVisibility, orgId: string | n
   if (visibility !== 'org') return null;
   if (!orgVisibilityAvailable(orgs)) return 'sharing.err.org_needs_sso';
   if (!orgId) return 'sharing.err.org_required';
-  if (!orgs!.some((o) => o.id === orgId)) return 'sharing.err.org_not_member';
+  if (!orgs!.some((o) => o.id === orgId || o.aliases?.includes(orgId))) return 'sharing.err.org_not_member';
   return null;
 }
 

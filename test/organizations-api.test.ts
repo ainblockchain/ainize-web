@@ -119,3 +119,18 @@ test('the manageable list: own and organization agents with what the caller may 
   assert.equal(parseManageableHostedAgents({ agents: [{ id: 'x', name: 'X' }] }, 'https://n'), null, 'rows without can_manage: an older node answering the public list');
   assert.equal(parseManageableHostedAgents('<html>', 'https://n'), null);
 });
+
+
+test('linked SSO ids use one readable organization and cannot bypass a read role', async () => {
+  const { organizationDisplay, shareableOrgOptions, defaultOrgIdFor, sharingProblemKey } = await import('../src/api/sharedAgents');
+  const sso = [{ id: 'org_long_id', slug: 'comcom', name: 'ComCom' }];
+  const orgs = [{ id: 'comcom', name: 'ComCom', role: 'write', ssoOrgIds: ['org_long_id'] }];
+  const choices = shareableOrgOptions(sso, orgs)!;
+  assert.deepEqual(choices.map((o) => o.id), ['comcom']);
+  assert.equal(defaultOrgIdFor(choices, 'org_long_id'), 'comcom');
+  assert.equal(sharingProblemKey('org', 'org_long_id', choices), null);
+  assert.deepEqual(shareableOrgOptions(sso, [{ ...orgs[0], role: 'read' }]), []);
+  const summaries = [{ id: 'comcom', name: 'ComCom', sso_org_ids: ['org_long_id'] }];
+  for (const id of ['comcom', 'org_long_id']) assert.deepEqual(organizationDisplay(id, summaries, sso), { name: 'ComCom', href: '/org/comcom' });
+  assert.equal(organizationDisplay('org_unknown', summaries, sso), null);
+});

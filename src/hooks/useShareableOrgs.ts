@@ -15,7 +15,7 @@ export function useShareableOrgs(): { orgs: OrgOption[] | null; activeOrg: strin
   const { data } = useMyOrgsQuery(undefined, { skip: !isSignedIn });
   return useMemo(() => {
     const list = data ? parseOrgList(data) : null;
-    const ainize = list?.signed_in ? list.orgs.map((o) => ({ id: o.id, name: o.name, role: o.my_role })) : null;
+    const ainize = list?.signed_in ? list.orgs.map((o) => ({ id: o.id, name: o.name, role: o.my_role, ssoOrgIds: o.sso_org_ids })) : null;
     return { orgs: shareableOrgOptions(sso?.orgs, ainize && ainize.length ? ainize : null), activeOrg: sso?.activeOrg ?? null };
   }, [data, sso?.orgs, sso?.activeOrg]);
 }

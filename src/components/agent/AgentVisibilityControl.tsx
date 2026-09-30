@@ -10,7 +10,7 @@ import styled from 'styled-components';
 import { useSetAgentVisibilityMutation } from '@/api/api';
 import { hostedAgentApiErrorOf } from '@/api/hostedAgents';
 import { sharedAgentsUnsupported, sharingFieldsOf, sharingProblemKey, type AgentVisibility } from '@/api/sharedAgents';
-import { useAuth } from '@/auth/AuthContext';
+import { OrganizationName } from './OrganizationName';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { useT } from '@/i18n';
@@ -52,7 +52,7 @@ export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId
       <VisibilityNow>
         <b>{t('sharing.owner.title')}</b>
         <span data-testid="agent-visibility-now">
-          {current === 'org' && orgId ? t('sharing.owner.current_org', { org: orgId }) : t('sharing.owner.current', { visibility: t(`sharing.visibility.${current}`) })}
+          {current === 'org' && orgId ? <><OrganizationName orgId={orgId} /> · {t('sharing.owner.shared_org')}</> : t('sharing.owner.current', { visibility: t(`sharing.visibility.${current}`) })}
         </span>
         {!editing && !unsupported && (
           <Button size="small" variant="outlined" onClick={() => { setDraft({ visibility: current, orgId }); setEditing(true); setSaved(false); }} data-testid="agent-visibility-change">

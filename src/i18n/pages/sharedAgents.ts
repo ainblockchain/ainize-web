@@ -36,6 +36,7 @@ export const sharedAgents: Dict = {
   // ── the owner's control on the agent page
   'sharing.owner.title': { ko: '공개 범위', en: 'Visibility' },
   'sharing.owner.current': { ko: '지금: {visibility}', en: 'Now: {visibility}' },
+  'sharing.owner.shared_org': { ko: '조직에 공유됨', en: 'Shared with organization' },
   'sharing.owner.current_org': { ko: '지금: 조직 {org}에 공유', en: 'Now: shared with organization {org}' },
   'sharing.owner.change': { ko: '바꾸기', en: 'Change' },
   'sharing.owner.save': { ko: '저장', en: 'Save' },

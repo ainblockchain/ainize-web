@@ -29,6 +29,7 @@ export interface SharingFieldsProps {
 export function SharingFields({ visibility, orgId, orgs, activeOrg, onChange, problemKey, idPrefix = 'sharing' }: SharingFieldsProps) {
   const { t } = useT();
   const orgAvailable = orgVisibilityAvailable(orgs);
+  const selectedOrg = (orgs ?? []).find((o) => o.id === orgId || (orgId && o.aliases?.includes(orgId)));
 
   const setVisibility = (v: AgentVisibility) => {
     onChange({ visibility: v, orgId: v === 'org' ? orgId ?? defaultOrgIdFor(orgs, activeOrg) : null });
@@ -50,11 +51,11 @@ export function SharingFields({ visibility, orgId, orgs, activeOrg, onChange, pr
       {visibility === 'org' && (
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-org`}>{t('sharing.field.org')}</FieldLabel>
-          <Select id={`${idPrefix}-org`} value={orgId ?? ''} disabled={!orgAvailable} onChange={(e) => onChange({ visibility, orgId: e.target.value || null })} data-testid="sharing-org">
+          <Select id={`${idPrefix}-org`} value={selectedOrg?.id ?? orgId ?? ''} disabled={!orgAvailable} onChange={(e) => onChange({ visibility, orgId: e.target.value || null })} data-testid="sharing-org">
             {!orgId && <option value="">{t('sharing.field.org_pick')}</option>}
             {(orgs ?? []).map((o) => <option key={o.id} value={o.id}>{o.name || o.slug || o.id}</option>)}
             {/* An org this session is not in (a spec stored by somebody else, an org left since) stays selectable so the form can show it. */}
-            {orgId && !(orgs ?? []).some((o) => o.id === orgId) && <option value={orgId}>{orgId}</option>}
+            {orgId && !selectedOrg && <option value={orgId}>{orgId}</option>}
           </Select>
           <HelperText $error={!!problemKey}>
             {problemKey ? t(problemKey) : !orgAvailable ? t(orgs && orgs.length === 0 ? 'sharing.org_none' : 'sharing.org_needs_sso') : t('sharing.field.org_help')}
