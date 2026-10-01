@@ -29,11 +29,7 @@ else
   SHA="$(git -C "$WORK/src" rev-parse HEAD)"
 fi
 cd "$WORK/src"
-npm ci --no-audit --no-fund
-npm run gen:check
-npm run typecheck
-npm test
-npm run build
+AINIZE_CI_STATE_DIR="$ROOT/ci" bash "$WORK/src/deploy/ci.sh" "$WORK/src" "$SHA" "$DIRTY"
 
 DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-${SHA:0:12}"
 [ "$DIRTY" = false ] || DEST="$DEST-dirty"
