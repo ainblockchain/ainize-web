@@ -9,7 +9,7 @@ summary: The reusable request and response shapes of the node HTTP API
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-The 28 named shapes the [HTTP API](./http-api.md) refers to.
+The 33 named shapes the [HTTP API](./http-api.md) refers to.
 
 ## How to read this page
 
@@ -18,6 +18,11 @@ Fields are listed with their full path, so a nested field appears as its own row
 
 | Schema | What it is |
 |---|---|
+| [`OwnerRef`](#ownerref) | Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in. |
+| [`AgentRef`](#agentref) | One agent in the cross-product registry shape (ain-integration contract 1.0). Identity is `registryIssuer + agentId`; a change to the definition is a new `releaseId`. |
+| [`AgentListResponse`](#agentlistresponse) |   |
+| [`AgentEventPage`](#agenteventpage) | A page of agent changes after `cursor`. `gap: true` means this node no longer holds events that old (or was restarted): re-list. |
+| [`ContractError`](#contracterror) | Error body of the shared registry routes (ain-integration contract 1.0): auth_required 401, forbidden 403, agent_stopped 409, rate_limited 429, temporary_failure 503. |
 | [`Anchor`](#anchor) | Public description of a knowledge item (patch). Immutable once recorded on the ledger. |
 | [`CanonicalRow`](#canonicalrow) | One question and answer as stored in a training set (`rows.jsonl`, canonical bytes — the sha256 of the file is the set’s identity). |
 | [`Contributor`](#contributor) | A data provider credited on an anchor. `author` stays the publishing node; the contributor is a signed claim inside the anchor. |
@@ -46,6 +51,89 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`TeachDatasetRow`](#teachdatasetrow) | One SOURCE row, accepted or not. `line` is the 1-based logical row in the uploaded file (a quoted CSV newline is one row, not two); `index` is the position in the dataset, null when the row was not accepted. |
 | [`TeachDatasetRef`](#teachdatasetref) | What a lesson was trained from. A lesson taught before datasets existed renders `{id: null, source: "derived"}` and still publishes and pays out. |
 | [`TeachPolicy`](#teachpolicy) |   |
+
+## `OwnerRef`
+
+Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in.
+
+| Field | Type | Required |
+|---|---|---|
+| `kind` | `"account"` \| `"org"` \| `"wallet"` \| `"principal"` | yes |
+| `issuer` | `string (uri)` | yes |
+| `subject` | `string` | yes |
+| `displayName` | `string` |   |
+
+## `AgentRef`
+
+One agent in the cross-product registry shape (ain-integration contract 1.0). Identity is `registryIssuer + agentId`; a change to the definition is a new `releaseId`.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `contract` | `string` | yes |   |
+| `registryIssuer` | `string (uri)` | yes | this node's public URL |
+| `agentId` | `string` | yes |   |
+| `releaseId` | `string` | yes | `v<version>` for an agent this node runs; `upstream` for one it proxies |
+| `ownerRef` | [`OwnerRef`](#ownerref) | yes |   |
+| `visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` | yes |   |
+| `orgRef` | [`OwnerRef`](#ownerref) |   |   |
+| `agentCardUrl` | `string (uri)` | yes |   |
+| `endpoint` | `string (uri)` | yes | A2A JSON-RPC endpoint |
+| `supportedProtocolVersions` | `string`[] | yes |   |
+| `skills` | `object`[] | yes |   |
+| `skills[].id` | `string` | yes |   |
+| `skills[].name` | `string` | yes |   |
+| `skills[].description` | `string` |   |   |
+| `skills[].examples` | `string`[] |   |   |
+| `inputModes` | `string`[] | yes |   |
+| `outputModes` | `string`[] | yes |   |
+| `uiCapabilities` | `"streaming"` \| `"cancel"` \| `"image_in"` \| `"image_out"` \| `"audio_in"` \| `"audio_out"` \| `"ainui"` \| `"a2ui_basic"` \| `"file_refs_out"`[] | yes |   |
+| `status` | `"active"` \| `"disabled"` \| `"stopped"` \| `"deleted"` | yes | `active` = ready to call; `disabled` = building; `stopped` = failed or unreachable |
+| `displayName` | `string` | yes |   |
+| `description` | `string` |   |   |
+| `updatedAt` | `string (date-time)` | yes |   |
+
+## `AgentListResponse`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `contract` | `string` | yes |   |
+| `asOf` | `string (date-time)` | yes | when permissions were evaluated for this page |
+| `nextCursor` | `string` \| `null` | yes |   |
+| `items` | `object`[] | yes |   |
+| `items[].ref` | [`AgentRef`](#agentref) | yes |   |
+| `items[].canInvoke` | `boolean` | yes |   |
+
+## `AgentEventPage`
+
+A page of agent changes after `cursor`. `gap: true` means this node no longer holds events that old (or was restarted): re-list.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `contract` | `string` | yes |   |
+| `nextCursor` | `string` | yes |   |
+| `gap` | `boolean` | yes |   |
+| `events` | `object`[] | yes |   |
+| `events[].kind` | `string` | yes |   |
+| `events[].type` | `"agent.published"` \| `"agent.updated"` \| `"agent.unpublished"` \| `"agent.disabled"` \| `"agent.moved"` \| `"agent.deleted"` \| `"agent.revoked"` | yes |   |
+| `events[].eventId` | `string` | yes |   |
+| `events[].resourceId` | `string` | yes | `<registryIssuer>#<agentId>` |
+| `events[].version` | `integer` | yes | strictly increasing per agent |
+| `events[].occurredAt` | `string (date-time)` | yes |   |
+| `events[].releaseId` | `string` |   |   |
+
+## `ContractError`
+
+Error body of the shared registry routes (ain-integration contract 1.0): auth_required 401, forbidden 403, agent_stopped 409, rate_limited 429, temporary_failure 503.
+
+| Field | Type | Required |
+|---|---|---|
+| `error` | `object` | yes |
+| `error.code` | `string` | yes |
+| `error.message` | `string` | yes |
+| `error.retryable` | `boolean` | yes |
+| `error.retryAfterSeconds` | `integer` |   |
+| `error.actionUrl` | `string` |   |
+| `error.detail` | `string` |   |
 
 ## `Anchor`
 

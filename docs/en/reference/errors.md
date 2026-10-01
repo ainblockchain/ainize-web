@@ -165,17 +165,35 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 68 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 86 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 26 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 48 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
 | `null` | … (retrying for … more min before hash-only fallback) | `src/verifier.ts` |
+| `null` | … did not answer: … | `src/peer-models.ts` |
+| `null` | … refused: … | `src/peer-models.ts` |
+| `null` | \<d> already belongs to the organization "\<holder.id>" | `src/organization-store.ts` |
+| `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
+| `null` | an organization keeps at least one admin | `src/organization-store.ts` |
+| `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
+| `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
+| `null` | one account may create \<this.limits.perCreator> organizations on this node | `src/organization-store.ts` |
+| `null` | one account may link \<this.limits.perOwner> agents on this node | `src/linked-agent-store.ts` |
+| `null` | only a signed-in member of the AIN organization \<id> can link it | `src/organization-store.ts` |
+| `null` | only someone signed in with an @\<d> address can claim \<d> | `src/organization-store.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
-| `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts` |
+| `null` | the id "\<id>" is taken | `src/organization-store.ts` |
+| `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
+| `null` | the image backend answered \<up.status> | `src/peer-models.ts` |
+| `null` | the transcription backend answered \<up.status> | `src/peer-models.ts` |
+| `null` | this node holds its maximum of \<this.limits.total> organizations | `src/organization-store.ts` |
+| `null` | this node lists its maximum of \<this.limits.total> linked agents | `src/linked-agent-store.ts` |
 | `null` | this node runs its maximum of \<this.limits.total> agents | `src/hosted-agent-store.ts` |
+| `null` | this organization has too many open invites | `src/organization-store.ts` |
+| `null` | this organization has too many pending requests | `src/organization-store.ts` |
 | `400` | \<address> is listed in operatorAddresses in this node's config file — remove it there, on the machine this node runs on (`ainize operators remove <address>`), and restart | `src/api.ts` |
 | `400` | \<label> must be a non-negative number (e.g. "0", "0.1", "25") | `../ainize-core/src/catalog.ts` |
 | `400` | a dispute has to say what did not work — at least \<DISPUTE_MIN_REASON> characters (this is a permanent public record, and the seller answers it on the same record) | `src/market.ts` |
