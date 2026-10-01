@@ -146,6 +146,9 @@ test('one list, one item — the item page is not a second list', () => {
 test('the browser calls an agent at its published address, never at a peer-qualified mesh path', () => {
   const offenders = walk(join(root, 'src'))
     .filter((f) => /\.tsx?$/.test(f))
+    // Generated markdown describes API fields such as call_url; it does not
+    // call them. gen:check separately verifies this file is literal docs data.
+    .filter((f) => f !== join(root, 'src/screens/docs/generated.ts'))
     .filter((f) => /['"`]\/api\/sam\/|\bcall_url\b/.test(readFileSync(f, 'utf8')))
     .map((f) => f.slice(root.length + 1));
   assert.deepEqual(offenders, [], 'call the agent at agent.a2a_url');

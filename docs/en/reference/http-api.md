@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-149 operations on 132 paths, grouped into the 9 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+190 operations on 158 paths, grouped into the 11 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -150,6 +150,57 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/healthz`](#get-healthz) | none | Liveness: 200 while the process is up |
 | `GET` | [`/readyz`](#get-readyz) | none | Readiness: 200 when the ledger is reachable and, for a serving/verifier node, the runtime is available; 503 with the failing check otherwise |
 
+**Organizations** — a team's page on this node — README, members and roles (read \< contributor \< write \< admin), invites and join requests, resource groups, audit log. Membership by explicit row, the sign-in's email domain, or a linked AIN SSO organization; the role decides what a member may do with the agents shared with it (`visibility: org`, `orgId`)
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | [`/api/orgs`](#get-apiorgs) | operator | The organizations the caller is in |
+| `POST` | [`/api/orgs`](#post-apiorgs) | none | Create an organization |
+| `GET` | [`/api/orgs/{id}`](#get-apiorgsid) | none | The organization page — members only |
+| `PUT` | [`/api/orgs/{id}`](#put-apiorgsid) | none | Change settings — admin |
+| `DELETE` | [`/api/orgs/{id}`](#delete-apiorgsid) | none | Delete — admin; refused while agents are shared with it (`has_agents`) |
+| `GET` | [`/api/orgs/{id}/members`](#get-apiorgsidmembers) | none | Members and roles |
+| `POST` | [`/api/orgs/{id}/members`](#post-apiorgsidmembers) | none | Add a member by principal — admin |
+| `PUT` | [`/api/orgs/{id}/members/{principal}`](#put-apiorgsidmembersprincipal) | none | Change a member's role — admin; the last admin stays (`last_admin`) |
+| `DELETE` | [`/api/orgs/{id}/members/{principal}`](#delete-apiorgsidmembersprincipal) | none | Remove a member (admin) or leave (anyone) |
+| `POST` | [`/api/orgs/{id}/join`](#post-apiorgsidjoin) | none | Ask to join |
+| `GET` | [`/api/orgs/{id}/requests`](#get-apiorgsidrequests) | none | Pending join requests — admin |
+| `POST` | [`/api/orgs/{id}/requests/{principal}/approve`](#post-apiorgsidrequestsprincipalapprove) | none | Approve a request — admin |
+| `DELETE` | [`/api/orgs/{id}/requests/{principal}`](#delete-apiorgsidrequestsprincipal) | none | Reject a request — admin |
+| `GET` | [`/api/orgs/{id}/invites`](#get-apiorgsidinvites) | none | Open invites (token prefixes only) — admin |
+| `POST` | [`/api/orgs/{id}/invites`](#post-apiorgsidinvites) | none | Make an invite link — admin |
+| `DELETE` | [`/api/orgs/{id}/invites/{token}`](#delete-apiorgsidinvitestoken) | none | Revoke an invite — admin |
+| `GET` | [`/api/orgs/join/{token}`](#get-apiorgsjointoken) | operator | What an invite leads to |
+| `POST` | [`/api/orgs/join/{token}`](#post-apiorgsjointoken) | none | Accept an invite |
+| `GET` | [`/api/orgs/{id}/groups`](#get-apiorgsidgroups) | none | Resource groups (all for write+, else the ones you are in) |
+| `POST` | [`/api/orgs/{id}/groups`](#post-apiorgsidgroups) | none | Make a resource group — write |
+| `PUT` | [`/api/orgs/{id}/groups/{groupId}`](#put-apiorgsidgroupsgroupid) | none | Change a resource group — write |
+| `DELETE` | [`/api/orgs/{id}/groups/{groupId}`](#delete-apiorgsidgroupsgroupid) | none | Delete a resource group — write |
+| `GET` | [`/api/orgs/{id}/audit`](#get-apiorgsidaudit) | none | Audit log — admin |
+| `GET` | [`/api/orgs/{id}/billing`](#get-apiorgsidbilling) | none | Billing — admin |
+| `GET` | [`/api/orgs/{id}/security`](#get-apiorgsidsecurity) | none | Security & SSO — admin |
+
+**Agents** — the A2A agents this node lists and serves at `/agents/{id}`: the operator's config agents, agents the node runs, agents people linked by URL, and peers' agents — one catalogue, which AIN Teams imports from; `/api/shared-agents` is the same catalogue in the ain-integration contract 1.0 shape
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | [`/api/shared-agents`](#get-apishared-agents) | operator | Agents this node runs or proxies, in the cross-product registry shape (contract 1.0) |
+| `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
+| `GET` | [`/api/shared-agents/events`](#get-apishared-agentsevents) | operator | Changes to the shared agent registry since a cursor (contract 1.0) |
+| `GET` | [`/api/agents`](#get-apiagents) | operator | The agent catalogue |
+| `GET` | [`/api/linked-agents`](#get-apilinked-agents) | operator | Linked agents — external A2A agents people registered by URL |
+| `POST` | [`/api/linked-agents`](#post-apilinked-agents) | none | Register an external A2A agent |
+| `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise |
+| `PUT` | [`/api/linked-agents/{id}`](#put-apilinked-agentsid) | none | Change a linked agent — owner only; the id cannot change |
+| `DELETE` | [`/api/linked-agents/{id}`](#delete-apilinked-agentsid) | none | Remove a linked agent — its registrant, or an admin of the organization it is shared with |
+| `GET` | [`/api/hosted-agents`](#get-apihosted-agents) | operator | Hosted agents — agents this node runs |
+| `POST` | [`/api/hosted-agents`](#post-apihosted-agents) | none | Create a hosted agent |
+| `GET` | [`/api/hosted-agents/{id}`](#get-apihosted-agentsid) | none | One hosted agent — its owner and `write` members of the organization it is shared with see the whole spec (prompt, files, secret names); anyone else it is visible to sees the listing view; 404 otherwise |
+| `PUT` | [`/api/hosted-agents/{id}`](#put-apihosted-agentsid) | none | Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change |
+| `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove a hosted agent — its owner, or an `admin` of the organization it is shared with |
+| `PUT` | [`/api/hosted-agents/{id}/secrets/{name}`](#put-apihosted-agentsidsecretsname) | none | Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only |
+| `GET` | [`/api/hosted-agents/{id}/logs`](#get-apihosted-agentsidlogs) | none | Recent log lines — owner or `write` member of its organization |
+
 **Operator** — wallet, settings, purchases, branches, peers, chain, drive
 
 | Method | Path | Auth | What it does |
@@ -189,7 +240,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/chain`](#get-apichain) | none | Ledger / chain state and balance |
 | `GET` | [`/api/drive`](#get-apidrive) | none | aindrive state and file list |
 | `POST` | [`/api/drive`](#post-apidrive) | operator | aindrive start / stop / sync |
-| `GET` | [`/api/auth/me`](#get-apiauthme) | none | Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits |
+| `GET` | [`/api/auth/me`](#get-apiauthme) | none | Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits; `sso` is an AIN SSO session, `site` a Google account the site vouches for (x-ainize-site-subject) |
 | `POST` | [`/api/auth/challenge`](#post-apiauthchallenge) | none | A single-use nonce to sign for sign-in — `scheme` picks the signing rules and is fixed from here on |
 | `POST` | [`/api/auth/wallet`](#post-apiauthwallet) | none | Sign in by signature, under the scheme the challenge was issued for — open to any address; owning the node is a separate question |
 | `POST` | [`/api/auth/enroll`](#post-apiauthenroll) | none | Become an owner of this node and sign in — needs the machine itself (loopback or x-setup-token) and a signature from the address |
@@ -2321,6 +2372,957 @@ Readiness: 200 when the ledger is reachable and, for a serving/verifier node, th
 | `200` | ready — checks.ledger / checks.runtime / checks.peers | `object` |
 | `503` | not ready — the same body, with the failing check |   |
 
+## Organizations
+
+a team's page on this node — README, members and roles (read \< contributor \< write \< admin), invites and join requests, resource groups, audit log. Membership by explicit row, the sign-in's email domain, or a linked AIN SSO organization; the role decides what a member may do with the agents shared with it (`visibility: org`, `orgId`)
+
+### `GET /api/orgs`
+
+The organizations the caller is in
+
+Explicit membership, the sign-in's email domain (an AIN SSO session on `@comcom.ai` is in the organization that holds `comcom.ai`), or a linked AIN SSO organization the session is active in. A row written down for a domain or SSO member lasts only while that still holds. Anonymous callers get an empty list. `email_domain` / `domain_org` say whether the caller could create the organization for their own domain.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | list | `object` |
+
+### `POST /api/orgs`
+
+Create an organization
+
+Anyone signed in. A domain can only be claimed by someone whose own verified email is on it, and belongs to one organization. The creator is the first admin.
+
+**Auth** — none
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes |   |
+| `name` | `string` | yes | (at most 80 characters) |
+| `description` | `string` |   | (at most 500 characters) |
+| `readme` | `string` |   | markdown shown at the top of the organization page (at most 20000 characters) |
+| `domains` | `string`[] |   |   |
+| `domainRole` | `"read"` \| `"contributor"` \| `"write"` \| `"admin"` |   | (default `"write"`) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | the organization |
+| `400` | `invalid_request` |
+| `401` | `not_signed_in` |
+| `403` | `domain_not_yours` |
+| `409` | `id_taken` · `domain_taken` |
+| `429` | `limit_reached` |
+
+### `GET /api/orgs/{id}`
+
+The organization page — members only
+
+README, members (emails to admins only), the resource groups you are in, and the agents shared with it — hosted and linked agents whose `visibility` is `org` and whose `orgId` is this organization's id or one of its `ssoOrgIds` (`kind` says which; `groups` labels them, `hidden_agents` is always 0). Roles over those agents: `read` sees them \< `contributor` shares agents into it \< `write` changes any hosted one (spec, secrets, logs) \< `admin` also removes any of them and changes who sees them; and over the organization: `write` manages resource groups, `admin` members, invites, requests, settings, billing, security. A non-member gets 403 `not_member` with `can_request`.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | organization | `object` |
+| `403` | `not_member` |   |
+| `404` | `not_found` |   |
+
+### `PUT /api/orgs/{id}`
+
+Change settings — admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `string` |   |
+| `description` | `string` |   |
+| `readme` | `string` |   |
+| `domains` | `string`[] |   |
+| `domainRole` | `"read"` \| `"contributor"` \| `"write"` \| `"admin"` |   |
+| `ssoOrgIds` | `string`[] | AIN SSO organization ids (`org_…`) whose members are members here (at `domainRole`), whose API keys are the organization's (`write`), and whose shared agents fall under this organization's roles. Linking a new one needs a session that is an active member of it, and each AIN organization is linked to one organization only. |
+| `spendCapCredits` | `integer` \| `null` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | organization | `object` |
+| `403` | `insufficient_role` · `domain_not_yours` · `sso_org_not_yours` |   |
+| `409` | `domain_taken` · `sso_org_taken` |   |
+
+### `DELETE /api/orgs/{id}`
+
+Delete — admin; refused while agents are shared with it (`has_agents`)
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deleted | `object` |
+| `409` | `has_agents` |   |
+
+### `GET /api/orgs/{id}/members`
+
+Members and roles
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | members | `object` |
+
+### `POST /api/orgs/{id}/members`
+
+Add a member by principal — admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `principal` | `string` | yes | a wallet address or `sso:<sub>` |
+| `role` | `"read"` \| `"contributor"` \| `"write"` \| `"admin"` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | the member |
+
+### `PUT /api/orgs/{id}/members/{principal}`
+
+Change a member's role — admin; the last admin stays (`last_admin`)
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `principal` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `role` | `"read"` \| `"contributor"` \| `"write"` \| `"admin"` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | member | `object` |
+
+### `DELETE /api/orgs/{id}/members/{principal}`
+
+Remove a member (admin) or leave (anyone)
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `principal` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | removed | `object` |
+
+### `POST /api/orgs/{id}/join`
+
+Ask to join
+
+Signed in, not a member. Admins see requests at `/requests` and approve with a role or reject.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `message` | `string` | (at most 500 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | request recorded |
+| `409` | `already_member` |
+
+### `GET /api/orgs/{id}/requests`
+
+Pending join requests — admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | requests | `object` |
+
+### `POST /api/orgs/{id}/requests/{principal}/approve`
+
+Approve a request — admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `principal` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `role` | `"read"` \| `"contributor"` \| `"write"` \| `"admin"` | (default `"read"`) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | member | `object` |
+
+### `DELETE /api/orgs/{id}/requests/{principal}`
+
+Reject a request — admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `principal` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | rejected | `object` |
+
+### `GET /api/orgs/{id}/invites`
+
+Open invites (token prefixes only) — admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | invites | `object` |
+
+### `POST /api/orgs/{id}/invites`
+
+Make an invite link — admin
+
+The link (`/org/join/{token}` on the site) is returned once; the list shows a prefix. Optional `email` pins it to one sign-in. One use.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `role` | `"read"` \| `"contributor"` \| `"write"` \| `"admin"` | (default `"read"`) |
+| `email` | `string` \| `null` |   |
+| `ttlHours` | `integer` | (default `168`; at most 720) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | the invite, with `url` |
+
+### `DELETE /api/orgs/{id}/invites/{token}`
+
+Revoke an invite — admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `token` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | revoked | `object` |
+
+### `GET /api/orgs/join/{token}`
+
+What an invite leads to
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `token` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | organization name and role | `object` |
+| `404` | unknown, used or expired |   |
+
+### `POST /api/orgs/join/{token}`
+
+Accept an invite
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `token` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the organization | `object` |
+| `403` | `invite_for_someone_else` |   |
+| `404` | unknown, used or expired |   |
+
+### `GET /api/orgs/{id}/groups`
+
+Resource groups (all for write+, else the ones you are in)
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | groups | `object` |
+
+### `POST /api/orgs/{id}/groups`
+
+Make a resource group — write
+
+A label over members and agents (agent ids) for the organization page. It does not narrow who sees an agent: every member sees every agent shared with the organization.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `name` | `string` | yes |
+| `members` | `string`[] |   |
+| `agents` | `string`[] |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | the group |
+
+### `PUT /api/orgs/{id}/groups/{groupId}`
+
+Change a resource group — write
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `groupId` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | group | `object` |
+
+### `DELETE /api/orgs/{id}/groups/{groupId}`
+
+Delete a resource group — write
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `groupId` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deleted | `object` |
+
+### `GET /api/orgs/{id}/audit`
+
+Audit log — admin
+
+Who changed what: members, roles, invites, requests, groups, settings, and the agents shared with it (`agent.create`, `agent.update`, `agent.sharing`, `agent.secret` — names only, `agent.delete`). Newest first; the last 2000 entries are kept.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required | Default |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `limit` | `query` | `integer` |   | `200` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | audit | `object` |
+
+### `GET /api/orgs/{id}/billing`
+
+Billing — admin
+
+The API keys members made for the organization's AIN SSO organizations (`ssoOrgIds`), calls to each of the organization's agents, and the recorded spend cap. `spend_metered: false` — this node does not meter per-key inference spend yet; the page says so rather than drawing zeros.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | billing | `object` |
+
+### `GET /api/orgs/{id}/security`
+
+Security & SSO — admin
+
+The AIN SSO issuer this node signs people in with and the AIN organizations linked, the domains that admit people, how each member got in, the admins, how many agents are shared with it (`private_agents` — listed to members only), and the newest audit entries.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | security | `object` |
+
+## Agents
+
+the A2A agents this node lists and serves at `/agents/{id}`: the operator's config agents, agents the node runs, agents people linked by URL, and peers' agents — one catalogue, which AIN Teams imports from; `/api/shared-agents` is the same catalogue in the ain-integration contract 1.0 shape
+
+### `GET /api/shared-agents`
+
+Agents this node runs or proxies, in the cross-product registry shape (contract 1.0)
+
+The same list every product reads from every origin — hosted agents, linked agents and the operator's config agents alike. `public` needs no sign-in; `mine` and `shared_with_me` need a wallet or AIN SSO session; `shared_with_org` needs an AIN SSO session or an ORGANIZATION API KEY (`POST /api/keys {org_id}`, sent as `Authorization: Bearer ainize-sk-…`) and lists what is shared with that organization — the way a product with no browser session (AIN Teams) reads its organization's list. Sorted by `updatedAt` descending, then id.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default | Description |
+|---|---|---|---|---|---|
+| `scope` | `query` | `"mine"` \| `"shared_with_me"` \| `"shared_with_org"` \| `"public"` | yes |   |   |
+| `q` | `query` | `string` |   |   | case-insensitive substring over name and description |
+| `org` | `query` | `string` |   |   | restrict to this organization; the caller must be a member |
+| `cursor` | `query` | `string` |   |   | the `nextCursor` of the previous page |
+| `limit` | `query` | `integer` |   | `50` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | a page of agents | [`AgentListResponse`](./schemas.md#agentlistresponse) |
+| `400` | malformed query |   |
+| `401` | auth_required | [`ContractError`](./schemas.md#contracterror) |
+| `403` | forbidden (not a member, or no SSO session for an organization listing) | [`ContractError`](./schemas.md#contracterror) |
+| `429` | rate_limited |   |
+| `503` | temporary_failure |   |
+
+### `PUT /api/shared-agents/{id}/visibility`
+
+Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere)
+
+Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without touching what it runs or where it points. The owner may share with an organization they belong to (an AIN SSO session's memberships, or the organization an API key was issued for); the operator may share ANY agent with ANY organization — that is how the agents already on a node become an organization's list. A config agent's sharing lives in config.json (`agents[].visibility`, `agents[].orgId`) and is refused here with that field named. An agent the caller may not see is `resource_deleted` (410), never 403. The change is a new release (`v<n>` / `linked-v<n>`) and appears in the events feed.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` | yes |   |
+| `orgId` | `string,null` |   | required with `org`; must be absent otherwise |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the agent as the registry now lists it | `object` |
+| `400` | invalid_request — malformed, or a config agent (edit config.json) |   |
+| `401` | auth_required |   |
+| `403` | forbidden — not the owner or the operator, or not a member of `orgId` |   |
+| `410` | resource_deleted — no such agent, or one the caller may not see |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `agent` | [`AgentRef`](./schemas.md#agentref) |
+
+### `GET /api/shared-agents/events`
+
+Changes to the shared agent registry since a cursor (contract 1.0)
+
+An in-memory feed of the last 1000 changes: `agent.published` on create, `agent.updated` on change, `agent.unpublished` when visibility leaves public/org, `agent.deleted` on delete. Apply an event only when its `version` is newer than what you hold; on `gap: true`, re-list.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Description |
+|---|---|---|---|
+| `cursor` | `query` | `string` | the `nextCursor` of the previous page; absent = everything held |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | a page of events | [`AgentEventPage`](./schemas.md#agenteventpage) |
+| `400` | malformed cursor |   |
+| `429` | rate_limited |   |
+
+### `GET /api/agents`
+
+The agent catalogue
+
+Every agent this node lists, whoever runs it: config agents (health-probed), agents the node runs, agents people linked by URL, and agents on peers (from gossip; `node` names the peer, `call_url` is the mesh path through this node). `?model=` narrows to the agents built on one model. Without `?org=` it lists public agents only; `?org=<id>` lists one organization's agents — those shared with it (`visibility: org`), by an ainize organization id or an AIN SSO org id it links — to its members, and nothing to anyone else (peers' agents are left out). This is the list AIN Teams imports from — a workspace never receives an agent that is not a row here.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type |
+|---|---|---|
+| `model` | `query` | `string` |
+| `org` | `query` | `string` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | catalogue | `object` |
+
+**`200` response body**
+
+| Field | Type | Description |
+|---|---|---|
+| `agents` | `object`[] |   |
+| `agents[].id` | `string` |   |
+| `agents[].name` | `string` |   |
+| `agents[].description` | `string,null` |   |
+| `agents[].skills` | `object`[] |   |
+| `agents[].protocols` | `string`[] |   |
+| `agents[].a2a_url` | `string` | the address to hand to an A2A client — this node's, never the upstream |
+| `agents[].card_url` | `string` |   |
+| `agents[].call_url` | `string` |   |
+| `agents[].reachable` | `boolean,null` |   |
+| `agents[].kind` | `"upstream"` \| `"prompt"` \| `"tools"` \| `"handler"` |   |
+| `agents[].owner` | `string,null` | the principal that registered or built it (a lower-case wallet address, or `sso:<sub>`); null for the operator's config agents and unknown for peers' that do not say |
+| `agents[].model` | `string,null` |   |
+| `agents[].visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` |   |
+| `agents[].org_id` | `string,null` |   |
+| `agents[].node` | `object,null` | set for a peer's agent: who runs it, never where |
+
+### `GET /api/linked-agents`
+
+Linked agents — external A2A agents people registered by URL
+
+What the caller may see: everyone the `public` ones; a signed-in caller also their own and the `org` ones of organizations they belong to. Rows carry `visibility` and `org_id`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Description |
+|---|---|---|---|
+| `mine` | `query` | `boolean` | only the caller's own (needs a session) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | list | `object` |
+
+### `POST /api/linked-agents`
+
+Register an external A2A agent
+
+Anyone signed in — a wallet session, an AIN SSO session, or an Ainize API key as `Authorization: Bearer` (an organization key may share with its organization: how AIN Teams registers the agents built in it). The node fetches the card once (`reachable` and `card` in the answer say what it found; an agent that is not up yet may still be registered), then lists the agent at `/agents/{id}` and proxies JSON-RPC to `upstream`. Only the registering account may change or remove it.
+
+**Auth** — none
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes | becomes the public address `/agents/{id}`; cannot change |
+| `name` | `string` |   | omitted → the card's name (at most 80 characters) |
+| `description` | `string` |   | (at most 500 characters) |
+| `upstream` | `string (uri)` | yes | where the agent listens; must resolve to a public address; never published |
+| `visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` |   | who sees it listed — the same four values a hosted agent has (default `"public"`) |
+| `orgId` | `string,null` |   | with `org`: the AIN SSO organization to share with; the caller must belong to it (an SSO session, or an organization API key) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | registered |
+| `400` | `invalid_request` · `upstream_not_public` · `name_required` |
+| `401` | `not_signed_in` |
+| `409` | `id_taken` — a config, hosted or linked agent already has the id |
+| `429` | `limit_reached` |
+
+### `GET /api/linked-agents/{id}`
+
+One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | agent | `object` |
+| `403` | `not_owner` |   |
+| `404` | `not_found` |   |
+
+### `PUT /api/linked-agents/{id}`
+
+Change a linked agent — owner only; the id cannot change
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes | becomes the public address `/agents/{id}`; cannot change |
+| `name` | `string` |   | omitted → the card's name (at most 80 characters) |
+| `description` | `string` |   | (at most 500 characters) |
+| `upstream` | `string (uri)` | yes | where the agent listens; must resolve to a public address; never published |
+| `visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` |   | who sees it listed — the same four values a hosted agent has (default `"public"`) |
+| `orgId` | `string,null` |   | with `org`: the AIN SSO organization to share with; the caller must belong to it (an SSO session, or an organization API key) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | agent | `object` |
+| `400` | invalid, or the id differs |   |
+| `403` | `not_owner` |   |
+
+### `DELETE /api/linked-agents/{id}`
+
+Remove a linked agent — its registrant, or an admin of the organization it is shared with
+
+The address stops answering. A workspace that imported it keeps its member row and sees the agent go offline; it is that workspace's to remove.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deleted | `object` |
+| `403` | `not_owner` |   |
+
+### `GET /api/hosted-agents`
+
+Hosted agents — agents this node runs
+
+What the caller may see: everyone the `public` ones; a signed-in caller also their own and the `org` ones of organizations they belong to. Rows carry `visibility`, `org_id` and `updated_by`; with `mine` or `manageable` also `can_manage` and `can_delete`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Description |
+|---|---|---|---|
+| `mine` | `query` | `boolean` | only the caller's own (needs a session) |
+| `manageable` | `query` | `boolean` | the caller's own plus those shared (`org`) with an organization where they are `write` or above — what a sync client such as AinCode works on (needs a session) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | list | `object` |
+| `401` | `not_signed_in` (with `mine` or `manageable`) |   |
+
+### `POST /api/hosted-agents`
+
+Create a hosted agent
+
+Anyone signed in — a wallet session, an AIN SSO session, or an Ainize API key. The body is the agent spec (`id`, `name`, `description`, `model`, `systemPrompt`, `mode` prompt|tools|handler, `files`, `a2ui`, `allowedHosts`, `secretNames`, `media`, `skills`, `visibility`, `orgId`). `org` visibility needs a caller who belongs to `orgId`.
+
+**Auth** — none
+
+**Request body** — `application/json`, required
+
+`{"type":"object","required":["id","name","model"]}`
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | created |
+| `400` | `invalid_request` · `model_not_served` |
+| `401` | `not_signed_in` |
+| `409` | `id_taken` |
+| `429` | `limit_reached` |
+| `501` | `docker_unavailable` (code modes) |
+
+### `GET /api/hosted-agents/{id}`
+
+One hosted agent — its owner and `write` members of the organization it is shared with see the whole spec (prompt, files, secret names); anyone else it is visible to sees the listing view; 404 otherwise
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | agent | `object` |
+| `404` | `not_found` |   |
+
+### `PUT /api/hosted-agents/{id}`
+
+Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+`{"type":"object","required":["id","name","model"]}`
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | agent (records `updated_by`) | `object` |
+| `400` | invalid, or the id differs |   |
+| `403` | `not_owner` |   |
+| `404` | `not_found` — not visible to the caller |   |
+
+### `DELETE /api/hosted-agents/{id}`
+
+Remove a hosted agent — its owner, or an `admin` of the organization it is shared with
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deleted | `object` |
+| `403` | `not_owner` |   |
+| `404` | `not_found` |   |
+
+### `PUT /api/hosted-agents/{id}/secrets/{name}`
+
+Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | name, set | `object` |
+| `403` | `not_owner` |   |
+| `404` | `not_found` |   |
+
+### `GET /api/hosted-agents/{id}/logs`
+
+Recent log lines — owner or `write` member of its organization
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | lines | `object` |
+| `403` | `not_owner` |   |
+| `404` | `not_found` |   |
+
 ## Operator
 
 wallet, settings, purchases, branches, peers, chain, drive
@@ -3024,7 +4026,7 @@ aindrive start / stop / sync
 
 ### `GET /api/auth/me`
 
-Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits
+Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits; `sso` is an AIN SSO session, `site` a Google account the site vouches for (x-ainize-site-subject)
 
 **Auth** — none
 

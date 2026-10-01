@@ -239,7 +239,6 @@ What `ainize init` writes, with the identity removed — it is minted per node.
     "publicKey": "0x…"
   },
   "runtime": {
-    "repo": "/mnt/newdata/qwen3.8",
     "api": "http://localhost:8000",
     "hookApi": "http://localhost:8001",
     "python": "python3"
