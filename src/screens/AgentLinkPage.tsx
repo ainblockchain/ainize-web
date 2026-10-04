@@ -15,7 +15,7 @@ import { useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useUpdateLinkedAgentMutation } from '@/api/api';
 import {
-  linkedAgentApiErrorOf, linkedAgentDraftFromView, linkedAgentFormProblems, linkedAgentIdFromName, linkedAgentInputFromDraft,
+  linkedAgentApiErrorOf, linkedAgentFormProblems, linkedAgentIdFromName, linkedAgentInputFromDraft,
   parseLinkedAgentResponse, type LinkedAgentFormDraft, type LinkedAgentFormField,
 } from '@/api/linkedAgents';
 import { useAuth } from '@/auth/AuthContext';
@@ -26,6 +26,7 @@ import { CenterProgress, Description, Empty, PageWrapper, StyledLink, Title, Tit
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { useShareableOrgs } from '@/hooks/useShareableOrgs';
+import { EMPTY_LINKED_AGENT_DRAFT, initializeLinkedAgentDraft } from './agentLinkDraft';
 
 const AgentLinkForm = styled.form`display: flex; flex-direction: column; gap: 24px; margin-top: 8px; max-width: 760px;`;
 const AgentLinkSection = styled.section`
@@ -36,15 +37,18 @@ const AgentLinkSection = styled.section`
 const AgentLinkTwoCol = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;`;
 const AgentLinkActions = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap;`;
 
-const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '', visibility: 'public', orgId: null };
-
 export default function AgentLinkPage() {
+  const { id: editId } = useParams<{ id: string }>();
+  // A different route starts a new editing session, including validation and manual-id state.
+  return <AgentLinkEditor key={editId ?? ''} editId={editId} />;
+}
+
+function AgentLinkEditor({ editId }: { editId: string | undefined }) {
   const { t } = useT();
   const auth = useAuth();
   const shareable = useShareableOrgs();
   const navigate = useNavigate();
   const location = useLocation();
-  const { id: editId } = useParams<{ id: string }>();
   const editing = !!editId;
   useTitle(t(editing ? 'agentLink.title_edit' : 'agentLink.title'));
 
@@ -53,7 +57,10 @@ export default function AgentLinkPage() {
 
   // `?org=<id>` (the organization page's "share an agent" door): start shared with that organization.
   const presetOrg = new URLSearchParams(location.search).get('org');
-  const [draft, setDraft] = useState<LinkedAgentFormDraft>(() => (presetOrg && !editing ? { ...EMPTY, visibility: 'org', orgId: presetOrg } : EMPTY));
+  const [initializedDraft, setInitializedDraft] = useState(() => initializeLinkedAgentDraft(null, editId, storedView, presetOrg));
+  const draft = initializedDraft ?? EMPTY_LINKED_AGENT_DRAFT;
+  const setDraft = (change: (current: LinkedAgentFormDraft) => LinkedAgentFormDraft) =>
+    setInitializedDraft((current) => current ? change(current) : current);
   const [idTouched, setIdTouched] = useState(false);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,7 +68,9 @@ export default function AgentLinkPage() {
   const [create] = useCreateLinkedAgentMutation();
   const [update] = useUpdateLinkedAgentMutation();
 
-  useEffect(() => { if (storedView) setDraft(linkedAgentDraftFromView(storedView)); }, [storedView]);
+  useEffect(() => {
+    setInitializedDraft((current) => initializeLinkedAgentDraft(current, editId, storedView, presetOrg));
+  }, [editId, storedView, presetOrg]);
 
   const set = <K extends keyof LinkedAgentFormDraft>(k: K, v: LinkedAgentFormDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
   // The id follows the name until the person types an id of their own — the same courtesy the hosted form does.
@@ -108,7 +117,7 @@ export default function AgentLinkPage() {
   }
 
   if (editing && stored.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (editing && (stored.error || !storedView)) {
+  if (editing && (stored.error || !storedView || storedView.id !== editId)) {
     const e = stored.error ? linkedAgentApiErrorOf(stored.error) : null;
     return (
       <PageWrapper>
@@ -120,6 +129,9 @@ export default function AgentLinkPage() {
       </PageWrapper>
     );
   }
+
+  // Do not expose a blank editable form while the first response is being adopted.
+  if (!initializedDraft) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   return (
     <PageWrapper>
