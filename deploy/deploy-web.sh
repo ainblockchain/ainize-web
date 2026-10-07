@@ -11,6 +11,17 @@ NODE_BIN="${NODE_BIN:-$HOME/.local/node/bin}"
 PORT="${AINIZE_WEB_PORT:-3900}"
 VERIFY_URL="${AINIZE_WEB_VERIFY_URL-https://ainize.ai/}"
 export PATH="$NODE_BIN:$PATH"
+# Build where the releases live, not wherever /tmp happens to be.
+#
+# A build clones the repository, installs dev dependencies and runs Next — gigabytes, written and deleted every
+# run. `mktemp` puts that on /tmp, which is often the system volume; on the host serving ainize.ai that volume
+# filled, and a full disk does not announce itself as one. It shows up as tests hanging and "database or disk
+# is full", which reads as a broken change.
+#
+# TMPDIR is EXPORTED so ci.sh, which calls `mktemp` itself, follows without having to know. An operator whose
+# release root is on a small volume points `AINIZE_BUILD_TMP` at a bigger one.
+export TMPDIR="${AINIZE_BUILD_TMP:-$ROOT/tmp}"
+mkdir -p "$TMPDIR"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
