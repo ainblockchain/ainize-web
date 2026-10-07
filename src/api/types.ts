@@ -1034,3 +1034,92 @@ export interface AgentSummary {
   org_id?: string | null;
 }
 export interface AgentsResponse { agents: AgentSummary[] }
+
+/**
+ * An agent's git history.
+ *
+ * An agent on ainize is a repository the node hosts and runs: `git push` is the deploy, and these are what a
+ * page shows instead of a version number. A commit answers what changed and who changed it; a version only
+ * ever answered "a seventh time".
+ */
+export interface AgentCommit {
+  sha: string;
+  /** The short sha a person reads, compares and types. */
+  short: string;
+  author: string;
+  email: string;
+  at: number;
+  subject: string;
+  body: string;
+}
+
+export interface AgentCommitsResponse {
+  commits: AgentCommit[];
+  /** Where to clone from — the one piece of this page a person copies. */
+  clone_url: string;
+}
+
+export interface AgentBranch {
+  name: string;
+  sha: string;
+  /** Commits this branch has that the deployed branch does not, and the other way round. Absent on main itself. */
+  ahead?: number;
+  behind?: number;
+}
+
+export interface AgentRefsResponse {
+  branches: AgentBranch[];
+  /** The branch the node deploys from: a push to it is live, a push to any other is a proposal. */
+  head: string;
+  clone_url: string;
+}
+
+export interface AgentDiffResponse {
+  base: string;
+  head: string;
+  diff: string;
+  /** A diff is capped: a page that renders a megabyte of patch helps nobody, and says so rather than lying. */
+  truncated: boolean;
+}
+
+/** A proposal: a branch offered for the branch the node deploys from. */
+export interface AgentPull {
+  number: number;
+  agent: string;
+  title: string;
+  body: string;
+  base: string;
+  head: string;
+  author: string;
+  state: 'open' | 'merged' | 'closed';
+  createdAt: number;
+  updatedAt: number;
+  mergedAt?: number;
+  mergedBy?: string;
+  mergeCommit?: string;
+}
+
+export interface AgentPullsResponse { pulls: AgentPull[] }
+
+/**
+ * An agent that follows a repository somewhere else.
+ *
+ * `error` is the field that matters: a mirror which quietly stopped following is worse than no mirror, because
+ * the page says "synced" while the agent runs something older than what its team is editing.
+ */
+export interface AgentMirror {
+  agent: string;
+  url: string;
+  branch: string;
+  path: string;
+  lastFetchAt?: number;
+  lastCommit?: string;
+  error?: string | null;
+}
+
+/** What every agent row now carries: where to clone it, what commit is live, and whose repository it follows. */
+export interface AgentGitInfo {
+  clone_url: string;
+  commit: string | null;
+  mirror: { url: string; branch: string; path: string; error: string | null } | null;
+}

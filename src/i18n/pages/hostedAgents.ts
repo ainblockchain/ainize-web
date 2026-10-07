@@ -176,6 +176,24 @@ export const hostedAgents: Dict = {
   'agentCreate.api.unknown': { ko: '저장하지 못했습니다', en: 'That did not save' },
 
   // ── the owner's panel on /agent/:id
+  // The agent's git history. An agent is a repository the node hosts and runs, so these words are about
+  // commits and branches rather than about a version number going up.
+  'agentGit.title': { ko: '변경 이력', en: 'History' },
+  'agentGit.lede': { ko: '이 에이전트는 ainize가 호스팅하는 git 저장소입니다. main에 push하면 그 순간 배포됩니다 — 따로 배포 단계가 없습니다.', en: 'This agent is a git repository ainize hosts. A push to main is the deploy — there is no separate deploy step.' },
+  'agentGit.copy': { ko: '복사', en: 'Copy' },
+  'agentGit.copied': { ko: '복사됨', en: 'Copied' },
+  'agentGit.live': { ko: '· 운영 중', en: '· live' },
+  'agentGit.ahead': { ko: '· {n}커밋 앞', en: '· {n} ahead' },
+  'agentGit.proposal': { ko: '{branch}는 아직 배포되지 않은 제안입니다. 아래는 {head}와의 차이입니다.', en: '{branch} is a proposal, not deployed. Below is what it changes against {head}.' },
+  'agentGit.empty': { ko: '아직 커밋이 없습니다.', en: 'No commits yet.' },
+  'agentGit.no_changes': { ko: '이 브랜치는 운영 중인 것과 동일합니다.', en: 'This branch is identical to what is live.' },
+  'agentGit.diff_truncated': { ko: '차이가 너무 커서 일부만 표시했습니다. 전체는 클론해서 보세요.', en: 'The diff was too long to show in full — clone the repository to read the rest.' },
+  'agentGit.mirror_ok': { ko: '{url} 의 {branch} 를 따라갑니다. 거기에 push하면 여기도 같이 바뀝니다.', en: 'Following {branch} on {url}. Push there and this updates with it.' },
+  'agentGit.mirror_failed': { ko: '{url} 를 따라가지 못하고 있습니다 — 아래 이유를 고치기 전까지 이 에이전트는 마지막으로 성공한 버전을 계속 실행합니다.', en: 'Not following {url} right now — until this is fixed the agent keeps running the last version that worked.' },
+  'agentGit.sync_now': { ko: '지금 동기화', en: 'Sync now' },
+  'agentGit.pull_from': { ko: '{who} 가 {head} → {base} 로 제안', en: '{who} proposed {head} into {base}' },
+  'agentGit.pull_review': { ko: '변경 보기', en: 'Review' },
+  'agentGit.pull_merge': { ko: '머지하고 배포', en: 'Merge and deploy' },
   'agentOwner.title': { ko: '내 에이전트', en: 'Your agent' },
   'agentOwner.lede': { ko: '만든 사람에게만 보입니다.', en: 'Only you, its owner, see this.' },
   'agentOwner.edit': { ko: '수정 →', en: 'Edit →' },

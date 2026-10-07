@@ -32,7 +32,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
-import type { AgentSummary } from '@/api/types';
+import type { AgentGitInfo, AgentSummary } from '@/api/types';
 import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
 import { readFrame, takeFrames } from '@/lib/a2a-stream';
 import { A2A_INLINE_AUDIO_MAX_BYTES, a2aAudioPart, a2aCardTakesAudio, a2aImagesOf, type A2aImage } from '@/lib/a2aFileParts';
@@ -42,6 +42,7 @@ import { agentSummaryHostedFieldsOf, isHostedAgentOwnedBy } from '@/api/hostedAg
 import { HostedAgentBadges } from '@/components/public/HostedAgentBadges';
 import { useT } from '@/i18n';
 import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
+import { AgentHistoryPanel } from './agent/AgentHistoryPanel';
 import { LinkedAgentOwnerPanel } from './agent/LinkedAgentOwnerPanel';
 import { isAgentOwnedBy, isLinkedAgentRow, viewerPrincipals } from '@/api/linkedAgents';
 
@@ -450,6 +451,10 @@ export function AgentPage() {
       {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
 
       {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} />}
+      {/* The history is shown to anyone who can see the agent, not only to whoever owns it: how an agent
+          reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
+          node answers 404 to a caller who may not see the agent, and the panel draws nothing in that case. */}
+      {hosted && <AgentHistoryPanel agentId={agent.id} git={(hosted as { git?: AgentGitInfo | null }).git ?? null} canMerge={ownsIt || managesIt} />}
       {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} />}
 
       {skills.length > 0 && (

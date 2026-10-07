@@ -4,6 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
+  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentPullsResponse, AgentMirror,
   AuthMe, NodeOwner, Binding, MyNode, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
@@ -276,6 +277,38 @@ export const api = createApi({
     linkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
     hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
+    /**
+     * The agent's history. An agent on ainize is a git repository the node hosts and runs, so these answer the
+     * questions a version number could not: what changed, who changed it, and what it looked like before.
+     *
+     * Tagged `HostedAgent`, so a push or an edit that invalidates the agent invalidates its history with it —
+     * a commit list still showing the version before the one on screen is worse than no commit list.
+     */
+    agentCommits: b.query<AgentCommitsResponse, { id: string; ref?: string; limit?: number }>({
+      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/commits${toQuery(q)}`,
+      providesTags: ['HostedAgent'],
+    }),
+    agentRefs: b.query<AgentRefsResponse, string>({
+      query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/refs`,
+      providesTags: ['HostedAgent'],
+    }),
+    /** Proposals on an agent, and merging one — which is the deploy, so it invalidates the agent with it. */
+    agentPulls: b.query<AgentPullsResponse, { id: string; state?: 'open' | 'merged' | 'closed' }>({
+      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
+      providesTags: ['HostedAgent'],
+    }),
+    mergeAgentPull: b.mutation<{ commit?: string }, { id: string; number: number }>({
+      query: ({ id, number }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/pulls/${number}/merge`, method: 'POST', body: {} }),
+      invalidatesTags: ['HostedAgent', 'Agents'],
+    }),
+    syncAgentMirror: b.mutation<{ mirror: AgentMirror }, string>({
+      query: (id) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/mirror/sync`, method: 'POST', body: {} }),
+      invalidatesTags: ['HostedAgent', 'Agents'],
+    }),
+    agentDiff: b.query<AgentDiffResponse, { id: string; base: string; head: string }>({
+      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/diff${toQuery(q)}`,
+      providesTags: ['HostedAgent'],
+    }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
     runtime: b.query<RuntimeResponse, void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
@@ -539,6 +572,7 @@ export const {
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
+  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
