@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-190 operations on 158 paths, grouped into the 11 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+191 operations on 159 paths, grouped into the 11 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -71,6 +71,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/models`](#get-apimodels) | operator | Configured models and current backend availability |
 | `POST` | [`/api/transcribe`](#post-apitranscribe) | operator | Free transcription trial on a configured audio backend |
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
+| `POST` | [`/api/decide`](#post-apidecide) | operator | Free decision trial on a configured decision backend (Jev/SystemOne) |
 
 **Teach** — one pipeline, two doors: a dataset file (uploaded here, or with `ainize teach dataset`) and corrections collected in Live test are both frozen into the same canonical dataset → validated → trained → checked on the live model → a lesson its teacher can keep private or publish as a credited data provider (no sign-in — every request is signed with a teaching key held by the browser or the CLI)
 
@@ -796,7 +797,7 @@ Configured models and current backend availability
 | `object` | `object` |
 | `data` | `object`[] |
 | `data[].id` | `string` |
-| `data[].modality` | `"chat"` \| `"transcription"` \| `"image"` |
+| `data[].modality` | `"chat"` \| `"transcription"` \| `"image"` \| `"decision"` |
 | `data[].available` | `boolean` |
 
 ### `POST /api/transcribe`
@@ -845,6 +846,33 @@ No request count applies; unpaid work is queued behind paying callers on the sam
 | Code | Description | Body |
 |---|---|---|
 | `200` | image data | `object` |
+| `400` | invalid request |   |
+| `404` | model not configured |   |
+| `503` | backend unavailable |   |
+
+### `POST /api/decide`
+
+Free decision trial on a configured decision backend (Jev/SystemOne)
+
+No request count applies; unpaid work is queued behind paying callers on the same backend. The body is passed to the sidecar's /v1/systemone unchanged except for the model id; requires a configured decision backend.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `model` | `string` | yes |
+| `state` | `object` | yes |
+| `questions` | `object` | yes |
+| `images` | `object` |   |
+| `videos` | `object` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | decision | `object` |
 | `400` | invalid request |   |
 | `404` | model not configured |   |
 | `503` | backend unavailable |   |

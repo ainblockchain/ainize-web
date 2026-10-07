@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 90 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 91 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 54 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -188,6 +188,7 @@ A further 54 throw sites build their message at the time (a validator's own word
 | `null` | only a signed-in member of the AIN organization \<id> can link it | `src/organization-store.ts` |
 | `null` | only someone signed in with an @\<d> address can claim \<d> | `src/organization-store.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
+| `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
 | `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
 | `null` | the image backend answered \<up.status> | `src/peer-models.ts` |
