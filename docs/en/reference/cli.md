@@ -46,7 +46,7 @@ These are accepted by every command.
 | [`ainize nodes`](#ainize-nodes) | List the peers this node talks to and the nodes it knows of |
 | [`ainize blobs`](#ainize-blobs) | Knowledge files this node holds on disk, and what they cost |
 | [`ainize gc`](#ainize-gc) | Delete knowledge files this node neither published nor bought (verification copies) |
-| [`ainize login`](#ainize-login) | Sign in — on the node's own machine with its key, anywhere else by approving this machine in a browser |
+| [`ainize login`](#ainize-login) | Connect this node to any wallet through the website |
 | [`ainize whoami`](#ainize-whoami) | Which address this session acts as, and which key is doing the acting |
 | [`ainize bindings`](#ainize-bindings) | Machines you have authorised to act as you on this node |
 | [`ainize operators`](#ainize-operators) | Who owns this node (its own key, always, plus operatorAddresses) |
@@ -427,12 +427,14 @@ ainize gc --older-than 30d
 ainize login [options]
 ```
 
-Sign in — on the node's own machine with its key, anywhere else by approving this machine in a browser
+Connect this node to any wallet through the website
 
 **Options**
 
+- **`--open`** (`boolean`, default `true`) — open the browser; --no-open prints the approval link only
+- **`--hub`** (`string`) — website used to connect this node (default https://ainize.ai)
 - **`--device`** (`boolean`) — print a URL and wait for someone to approve this machine's key in a browser — the default anywhere the node's config.json is not
-- **`--node-key`** (`boolean`) — sign with the node's own key from config.json (the default on its own machine)
+- **`--node-key`** (`boolean`) — sign with the node's own key from config.json (explicit local operator login)
 - **`--label`** (`string`) — what to call this machine in the approval prompt and in the list of what acts as you
 - **`--as`** (`string`) — sign with this private key instead — for an address that already owns this node
 - **`--enroll`** (`boolean`) — also make the signing address an owner of this node (needs its own machine, or the one-time token)
@@ -441,7 +443,7 @@ Sign in — on the node's own machine with its key, anywhere else by approving t
 **Examples**
 
 ```bash
-# on the node's machine: signs with its own key; anywhere else: prints a link to approve
+# open the website and connect this node to your wallet
 ainize login
 # sign in to somebody else's node as yourself
 ainize login --node https://ainize.ai
