@@ -43,11 +43,14 @@ test('the browser is given relative URLs only — an absolute node address would
 });
 
 test('every prefix the browser can reach the node through has a route handler', () => {
-  for (const prefix of ['api', 'agents', 'x402', 'p2p']) {
+  // `git` is here for the reason the others are, and one more: a repository address is pasted into
+  // `git clone`, and a missing route makes git say "is this a git repository?" — which reads as the agent
+  // not existing rather than as this app not forwarding.
+  for (const prefix of ['api', 'agents', 'x402', 'p2p', 'git']) {
     const route = join(root, 'app', prefix, '[...path]', 'route.ts');
     assert.ok(existsSync(route), `app/${prefix}/[...path]/route.ts is what serves /${prefix}/*`);
     const src = readFileSync(route, 'utf8');
-    assert.match(src, /nodeRoutes\('\/(api|agents|x402|p2p)'\)/, `${prefix} relays to the node`);
+    assert.match(src, /nodeRoutes\('\/(api|agents|x402|p2p|git)'\)/, `${prefix} relays to the node`);
     assert.match(src, /export const \{ GET, POST/, 'a card is a GET and a call is a POST');
     // Without this Next answers the preflight itself, with `allow:` and no `access-control-allow-origin`,
     // and a browser on any other origin — including `www.` of this same site — reads that as a refusal.
