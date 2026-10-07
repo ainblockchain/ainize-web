@@ -12,7 +12,7 @@
  *     render when we cannot understand what came back.
  */
 
-export type ModelModality = 'chat' | 'transcription' | 'image';
+export type ModelModality = 'chat' | 'transcription' | 'image' | 'decision';
 
 export interface PublicModelCard {
   id: string;
@@ -21,7 +21,7 @@ export interface PublicModelCard {
 }
 
 /** The order the page shows them in — and the only modalities it knows how to drive. */
-export const MODEL_MODALITIES: readonly ModelModality[] = ['chat', 'transcription', 'image'];
+export const MODEL_MODALITIES: readonly ModelModality[] = ['chat', 'transcription', 'image', 'decision'];
 
 const isModality = (value: unknown): value is ModelModality =>
   typeof value === 'string' && (MODEL_MODALITIES as readonly string[]).includes(value);

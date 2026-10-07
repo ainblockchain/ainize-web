@@ -14,6 +14,7 @@ export const models: Dict = {
   'models.modality.chat': { ko: '대화', en: 'Chat' },
   'models.modality.transcription': { ko: '음성 인식', en: 'Speech to text' },
   'models.modality.image': { ko: '이미지 생성', en: 'Images' },
+  'models.modality.decision': { ko: '의사결정', en: 'Decisions' },
   'models.available': { ko: '응답 중', en: 'answering' },
   'models.unavailable': { ko: '응답 없음', en: 'not answering' },
   'models.select': { ko: '선택', en: 'Select' },
@@ -44,6 +45,10 @@ export const models: Dict = {
   'models.try.answer': { ko: '답변', en: 'Answer' },
   'models.try.failed': { ko: '실행하지 못했습니다: {why}', en: 'That did not run: {why}' },
   'models.try.unavailable': { ko: '이 모델의 백엔드가 지금 응답하지 않습니다.', en: 'This model’s backend is not answering right now.' },
+  'models.try.decisionPrompt': { ko: '의사결정 요청 (JSON)', en: 'Decision request (JSON)' },
+  'models.try.decisionInvalid': { ko: '의사결정 요청은 올바른 JSON이어야 합니다.', en: 'The decision request must be valid JSON.' },
+  'models.try.decisionConfidence': { ko: '확신도 {pct}%', en: 'confidence {pct}%' },
+  'models.try.decisionNoul': { ko: '참 p={p}', en: 'true p={p}' },
 
   'models.key.title': { ko: 'API 키', en: 'API key' },
   'models.key.none': {
