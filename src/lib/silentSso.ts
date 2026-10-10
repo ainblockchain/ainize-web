@@ -32,7 +32,7 @@ export const SSO_CHECKED_PARAM = 'ain_sso_checked';
 const PRESENT = ['ainize_session', 'ainize_google_session', 'ainize_sso_flow', 'ainize_sso_pending', SSO_CHECKED_COOKIE];
 
 /** Machine-readable paths and assets: never a page a person navigates to. */
-const NOT_PAGES = /^\/(?:api|agents|x402|p2p|v1|_next|static|\.well-known|__nextjs[^/]*)(?:\/|$)/;
+const NOT_PAGES = /^\/(?:api|agents|svc|x402|p2p|v1|_next|static|\.well-known|__nextjs[^/]*)(?:\/|$)/;
 /** The sign-in page: the person is about to choose; a round trip first would only slow the choice down. */
 const LEFT_ALONE = /^\/signing(?:\/|$)/;
 /** A path that names a file. Model ids contain dots (`Qwen3.8-…`), so only extensions a page never ends in. */
