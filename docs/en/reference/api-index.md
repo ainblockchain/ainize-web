@@ -6,6 +6,42 @@ Refreshed with `node scripts/sync-api-docs.mjs <OpenAPI URL or file>`.
 
 Use JSON unless an endpoint specifies multipart upload or streaming. Operator sessions and teaching keys are separate credentials. For model SDK authentication and `/v1`, see [Call the model](../how-to/call-the-model.md).
 
+## `GET /api/shared-agents`
+
+Agents this node runs or proxies, in the cross-product registry shape (contract 1.0)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `429`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `scope` | query | yes | mine, shared_with_me, shared_with_org, public |
+| `q` | query | no | string |
+| `org` | query | no | string |
+| `cursor` | query | no | string |
+| `limit` | query | no | integer |
+
+## `PUT /api/shared-agents/{id}/visibility`
+
+Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `410`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/shared-agents/events`
+
+Changes to the shared agent registry since a cursor (contract 1.0)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `429`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `cursor` | query | no | string |
+
 ## `GET /api/models`
 
 Configured models and current backend availability
@@ -16,7 +52,7 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 Free transcription trial on a configured audio backend
 
-Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `429`, `503`.
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `503`.
 
 Body: multipart/form-data (required). See OpenAPI for fields.
 
@@ -24,7 +60,15 @@ Body: multipart/form-data (required). See OpenAPI for fields.
 
 Free image-generation trial on a configured image backend
 
-Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `429`, `503`.
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `503`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/decide`
+
+Free decision trial on a configured decision backend (Jev/SystemOne)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `503`.
 
 Body: application/json (required). See OpenAPI for fields.
 
@@ -1012,6 +1056,405 @@ Known nodes and peers
 
 Auth: No security scheme declared; check required headers below. Responses: `200`.
 
+## `GET /api/agents`
+
+The agent catalogue
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `model` | query | no | string |
+| `org` | query | no | string |
+
+## `GET /api/linked-agents`
+
+Linked agents — external A2A agents people registered by URL
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `mine` | query | no | boolean |
+
+## `POST /api/linked-agents`
+
+Register an external A2A agent
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `409`, `429`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/linked-agents/{id}`
+
+One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/linked-agents/{id}`
+
+Change a linked agent — owner only; the id cannot change
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `403`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/linked-agents/{id}`
+
+Remove a linked agent — its registrant, or an admin of the organization it is shared with
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/hosted-agents`
+
+Hosted agents — agents this node runs
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `mine` | query | no | boolean |
+| `manageable` | query | no | boolean |
+
+## `POST /api/hosted-agents`
+
+Create a hosted agent
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `409`, `429`, `501`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/hosted-agents/{id}`
+
+One hosted agent — its owner and `write` members of the organization it is shared with see the whole spec (prompt, files, secret names); anyone else it is visible to sees the listing view; 404 otherwise
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/hosted-agents/{id}`
+
+Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/hosted-agents/{id}`
+
+Remove a hosted agent — its owner, or an `admin` of the organization it is shared with
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/hosted-agents/{id}/secrets/{name}`
+
+Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+
+## `GET /api/hosted-agents/{id}/logs`
+
+Recent log lines — owner or `write` member of its organization
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/orgs`
+
+The organizations the caller is in
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+## `POST /api/orgs`
+
+Create an organization
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `403`, `409`, `429`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/orgs/{id}`
+
+The organization page — members only
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/orgs/{id}`
+
+Change settings — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/orgs/{id}`
+
+Delete — admin; refused while agents are shared with it (`has_agents`)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/orgs/{id}/members`
+
+Members and roles
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/orgs/{id}/members`
+
+Add a member by principal — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `201`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `PUT /api/orgs/{id}/members/{principal}`
+
+Change a member's role — admin; the last admin stays (`last_admin`)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `principal` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/orgs/{id}/members/{principal}`
+
+Remove a member (admin) or leave (anyone)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `principal` | path | yes | string |
+
+## `POST /api/orgs/{id}/join`
+
+Ask to join
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json. See OpenAPI for fields.
+
+## `GET /api/orgs/{id}/requests`
+
+Pending join requests — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/orgs/{id}/requests/{principal}/approve`
+
+Approve a request — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `principal` | path | yes | string |
+
+Body: application/json. See OpenAPI for fields.
+
+## `DELETE /api/orgs/{id}/requests/{principal}`
+
+Reject a request — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `principal` | path | yes | string |
+
+## `GET /api/orgs/{id}/invites`
+
+Open invites (token prefixes only) — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/orgs/{id}/invites`
+
+Make an invite link — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `201`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json. See OpenAPI for fields.
+
+## `DELETE /api/orgs/{id}/invites/{token}`
+
+Revoke an invite — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `token` | path | yes | string |
+
+## `GET /api/orgs/join/{token}`
+
+What an invite leads to
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `token` | path | yes | string |
+
+## `POST /api/orgs/join/{token}`
+
+Accept an invite
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `token` | path | yes | string |
+
+## `GET /api/orgs/{id}/groups`
+
+Resource groups (all for write+, else the ones you are in)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/orgs/{id}/groups`
+
+Make a resource group — write
+
+Auth: No security scheme declared; check required headers below. Responses: `201`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `PUT /api/orgs/{id}/groups/{groupId}`
+
+Change a resource group — write
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `groupId` | path | yes | string |
+
+## `DELETE /api/orgs/{id}/groups/{groupId}`
+
+Delete a resource group — write
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `groupId` | path | yes | string |
+
+## `GET /api/orgs/{id}/audit`
+
+Audit log — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `limit` | query | no | integer |
+
+## `GET /api/orgs/{id}/billing`
+
+Billing — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/orgs/{id}/security`
+
+Security & SSO — admin
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
 ## `GET /api/events`
 
 Node event log
@@ -1099,7 +1542,7 @@ Body: application/json. See OpenAPI for fields.
 
 ## `GET /api/auth/me`
 
-Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits
+Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits; `sso` is an AIN SSO session, `site` a Google account the site vouches for (x-ainize-site-subject)
 
 Auth: No security scheme declared; check required headers below. Responses: `200`.
 

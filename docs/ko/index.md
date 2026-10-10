@@ -1,6 +1,6 @@
 ---
 source: en/index.md
-source_sha256: d5f68703490ba98e01de002c3dbf549a138a95a4b0a3655a8e8585b3356e842f
+source_sha256: 639049dd9d668528b1dd36ef98bf75ba7956e3304661a24c05deadeb2c2709cd
 ---
 
 # Ainize
@@ -14,6 +14,7 @@ Ainize는 질문·정답으로 모델을 가르치고, 결과를 시험하고, �
 | 웹사이트 | [ainize.ai](https://ainize.ai)에서 탐색·대화·학습·공개 기록 조회 |
 | CLI | `ainize`로 노드 운영과 작업 자동화 |
 | 모델 API | [Python SDK](./how-to/call-the-model.md)로 설정된 모델 호출 |
+| 배포 | `ainize.json`이 있는 git 리포는 push마다 배포 — Next.js, 스크립트, 서비스, A2A 에이전트. [리포 배포하기](./how-to/deploy-with-ainize-json.md) 참고 |
 | 에이전트 | 기존 에이전트를 노드에 등록하여 제공. [에이전트 호스팅](./how-to/host-an-agent.md) 참고 |
 
 웹사이트와 노드 API는 별도로 배포합니다. CLI 설치만으로 웹사이트나 모델 서버가 준비되지는 않습니다.

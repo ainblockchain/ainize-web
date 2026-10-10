@@ -106,6 +106,10 @@
         "title": "Put an agent on a node"
       },
       {
+        "page": "how-to/deploy-with-ainize-json",
+        "title": "Deploy a repo with ainize.json"
+      },
+      {
         "page": "how-to/create-an-agent-from-a-model",
         "title": "Create an agent from a model"
       },
