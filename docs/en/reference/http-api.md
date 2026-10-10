@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-246 operations on 205 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+251 operations on 209 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -227,6 +227,11 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise |
 | `PUT` | [`/api/linked-agents/{id}`](#put-apilinked-agentsid) | none | Change a linked agent — owner only; the id cannot change |
 | `DELETE` | [`/api/linked-agents/{id}`](#delete-apilinked-agentsid) | none | Remove a linked agent — its registrant, or an admin of the organization it is shared with |
+| `GET` | [`/api/agent-archives`](#get-apiagent-archives) | none | List your privately retained deleted agents |
+| `GET` | [`/api/agent-archives/{id}`](#get-apiagent-archivesid) | none | Read your archived spec, reviews and execution evidence |
+| `DELETE` | [`/api/agent-archives/{id}`](#delete-apiagent-archivesid) | none | Permanently remove an exported archive |
+| `POST` | [`/api/agent-archives/{id}/restore`](#post-apiagent-archivesidrestore) | none | Restore your deleted agent at the same address |
+| `POST` | [`/api/agent-archives/{id}/export`](#post-apiagent-archivesidexport) | none | Download your complete deleted-agent archive |
 | `GET` | [`/api/hosted-agents`](#get-apihosted-agents) | operator | Hosted agents — agents this node runs |
 | `POST` | [`/api/hosted-agents`](#post-apihosted-agents) | none | Create a hosted agent |
 | `GET` | [`/api/hosted-agents/{id}`](#get-apihosted-agentsid) | none | One hosted agent — its owner and `write` members of the organization it is shared with see the whole spec (prompt, files, secret names); anyone else it is visible to sees the listing view; 404 otherwise |
@@ -3065,7 +3070,7 @@ Visibility is the same as reading the agent. Owner/organization writers may push
 
 Clone or fetch an agent repository
 
-Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Packs are binary. A rejected pre-receive validation leaves refs unchanged. Main application finishes before receive-pack responds. Proposal branches do not deploy.
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Packs are binary. Incoming packs are limited to 64 MiB; repository objects are limited to 256 MiB by default (operator AINIZE_AGENT_GIT_MAX_BYTES override). All proposed refs are checked before they move, including non-deploying branches. A rejected pre-receive validation leaves refs unchanged. Main application finishes before receive-pack responds. Proposal branches do not deploy.
 
 **Auth** — operator
 
@@ -3091,7 +3096,7 @@ Visibility is the same as reading the agent. Owner/organization writers may push
 
 Push an agent repository and apply main
 
-Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Packs are binary. A rejected pre-receive validation leaves refs unchanged. Main application finishes before receive-pack responds. Proposal branches do not deploy.
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Packs are binary. Incoming packs are limited to 64 MiB; repository objects are limited to 256 MiB by default (operator AINIZE_AGENT_GIT_MAX_BYTES override). All proposed refs are checked before they move, including non-deploying branches. A rejected pre-receive validation leaves refs unchanged. Main application finishes before receive-pack responds. Proposal branches do not deploy.
 
 **Auth** — operator
 
@@ -4149,6 +4154,125 @@ The address stops answering. A workspace that imported it keeps its member row a
 | `200` | deleted | `object` |
 | `403` | `not_owner` |   |
 
+### `GET /api/agent-archives`
+
+List your privately retained deleted agents
+
+Owner only; private/no-store. Lists summaries with total, limit and offset; another owner sees no records. Runtime secret values are never archived.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Default |
+|---|---|---|---|
+| `limit` | `query` | `integer` | `10` |
+| `offset` | `query` | `integer` | `0` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | archives, total, limit, offset | `object` |
+| `400` | Invalid pagination |   |
+| `401` | Sign-in required |   |
+
+### `GET /api/agent-archives/{id}`
+
+Read your archived spec, reviews and execution evidence
+
+Owner only; private/no-store. Includes mirror/source metadata and whether a Git bundle exists. Other owners receive 404.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | archive | `object` |
+| `401` | Sign-in required |   |
+| `404` | Archive not found |   |
+
+### `DELETE /api/agent-archives/{id}`
+
+Permanently remove an exported archive
+
+Owner only. Requires successful complete export first; serialized with export and repository mutations. Does not delete an independently restored repository.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deleted | `object` |
+| `401` | Sign-in required |   |
+| `404` | Archive not found |   |
+| `409` | export_required |   |
+
+### `POST /api/agent-archives/{id}/restore`
+
+Restore your deleted agent at the same address
+
+Owner only. No body overrides. Restores the last successful active version when recorded, preserving newer failed history under an archive branch. Retains review/execution history and original source identity; project source SHAs remain distinct from projection SHAs. Reinstalls Git validation hooks, issues a fresh PoP key and waits for the runtime to be ready. Runtime secret values are not restored; secretsRequired names what the owner must set again. Current model/media/Docker availability and organization contributor permission are revalidated. A collision never overwrites an existing agent. Failed application removes the attempted restored state while retaining the archive for retry.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | agentId, version, commit, sourceCommit, status=ready, secretsRequired |
+| `400` | invalid_request or model_not_served |
+| `401` | Sign-in required |
+| `403` | Current organization sharing permission required |
+| `404` | Archive not found |
+| `409` | id_taken, state_exists or active_version_missing |
+| `429` | Hosted agent quota reached |
+| `501` | docker_unavailable |
+| `502` | restore_failed or restore_cleanup_failed |
+
+### `POST /api/agent-archives/{id}/export`
+
+Download your complete deleted-agent archive
+
+Owner only; private/no-store. A gzip tar containing metadata.json (format ainize.agent-archive, version 1) and repository.bundle for complete Git repositories, or repository.tar.gz for shallow mirrors. Bundles are independently cloneable; shallow archives preserve objects, refs and shallow boundaries for extraction into an initialized bare repository. Repository configuration and hooks are excluded. Metadata-only legacy agents omit the repository artifact. Runtime secret values and PoP private keys are excluded. A completed export permits permanent archive removal; an interrupted or failed export does not.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Download attachment | `object` |
+| `401` | Sign-in required |   |
+| `404` | Archive not found |   |
+| `502` | export_failed |   |
+
 ### `GET /api/hosted-agents`
 
 Hosted agents — agents this node runs
@@ -4191,6 +4315,7 @@ Anyone signed in — a wallet session, an AIN SSO session, or an Ainize API key.
 | `400` | `invalid_request` · `model_not_served` |
 | `401` | `not_signed_in` |
 | `409` | `id_taken` |
+| `413` | `repository_storage_limit`; attempted creation is removed before publication |
 | `429` | `limit_reached` |
 | `501` | `docker_unavailable` (code modes) |
 
@@ -4237,6 +4362,7 @@ Change a hosted agent — its owner, or a `write` member of the organization it 
 | `400` | invalid, or the id differs |   |
 | `403` | `not_owner` |   |
 | `404` | `not_found` — not visible to the caller |   |
+| `413` | `repository_storage_limit`; stored release and live runtime remain unchanged |   |
 
 ### `DELETE /api/hosted-agents/{id}`
 
