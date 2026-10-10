@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: b6e4d016612e92a2a0920cc882ca8e806fab4d0e9eb893ef7ccfc8b396f4fe10
+source_sha256: 94a95d7e7a19f150f7a0049a97fd5c90721255587ac6f6d133150035547926d0
 ---
 
 # ainize.json으로 리포 배포하기
@@ -85,6 +85,25 @@ capability 제거, 자원 제한)로 실행한 뒤, `port`의 `healthcheck`를 �
 boolean은 `true`/`false`, number는 십진 문자열). aindrive에서는 리포의 Run 패널이 입력마다 필드 하나 — 텍스트, 선택,
 체크박스, 숫자 — 를 `default`로 채워 보여 주고, 그 리포에서 마지막으로 쓴 값을 브라우저에 기억하며, 실행할 때 함께
 보냅니다. push 배포는 기본값으로 실행됩니다. 입력은 최대 16개, 이름은 환경변수 이름 규칙, 값은 2 KiB까지입니다.
+
+## 리포가 드라이브 어디에 있고, URL은 어떻게 되나
+
+드라이브는 모든 리포를 `repositories/` 폴더 아래에 두 가지로 보관합니다. **bare 원격** `repositories/<repo>.git` —
+`git clone` / `git push`가 닿는 유일한 것 — 과, 편집 가능한 **작업 사본** `repositories/<repo>/` — 드라이브가 보여 주고,
+여러분이 편집·실행하고, git 패널이 커밋하는 곳. push가 오면 작업 사본은 깨끗할 때만 fast-forward되고, 저장하지 않았거나
+커밋하지 않은 편집은 절대 덮어쓰지 않습니다(패널에 "origin보다 N커밋 뒤"로 표시). 패널의 **Push**가 커밋을 bare 원격으로
+보내고, 커밋이 아니라 그 push가 배포를 일으킵니다.
+
+URL은 GitHub 규약을 따르고 주소창에 그대로 남습니다:
+
+| URL | 보이는 것 |
+|---|---|
+| `/<org>/git/<repo>` | 리포(기본 브랜치) |
+| `/<org>/git/<repo>/tree/<ref>/<dir>` · `/blob/<ref>/<file>` · `/raw/<ref>/<file>` | 폴더 · 파일(실행 가능 파일은 Save 옆 ▶ Run) · 원문 바이트 |
+| `/<org>/git/<repo>/commits/<ref>` · `/commit/<sha>` · `/deployments` | 이력 · 커밋 하나 · ainize 배포 |
+
+같은 `/<org>/git/<repo>`가 git 리모트입니다(`git clone https://aindrive.ainetwork.ai/<org>/git/<repo>`, 또는 AIN SSO
+계정에 등록한 SSH 키로 `ssh://git@aindrive.ainetwork.ai:2222/<org>/<repo>`).
 
 ## push에서 배포까지
 

@@ -87,6 +87,26 @@ field per input — text, select, checkbox or number — prefilled with `default
 repo in the browser, and sends them with the run. A push-deploy runs with the defaults. At most 16 inputs, names
 like environment variable names, values up to 2 KiB.
 
+## Where the repo lives in the drive, and its URLs
+
+A drive keeps every repo under its `repositories/` folder as two things: the **bare remote**
+`repositories/<repo>.git` — the only thing `git clone` / `git push` touch — and an editable **working copy**
+`repositories/<repo>/`, which is what the drive shows, what you edit and run, and what the git panel commits.
+After a push, the working copy fast-forwards only if it is clean; your unsaved or uncommitted edits are never
+overwritten (the panel shows "behind origin by N" instead). The panel's **Push** sends your commits to the bare
+remote and that — not the commit itself — triggers the deployment.
+
+URLs follow GitHub's convention and stay in the address bar:
+
+| URL | Shows |
+|---|---|
+| `/<org>/git/<repo>` | the repo (default branch) |
+| `/<org>/git/<repo>/tree/<ref>/<dir>` · `/blob/<ref>/<file>` · `/raw/<ref>/<file>` | folder · file (with ▶ Run next to Save for runnable files) · raw bytes |
+| `/<org>/git/<repo>/commits/<ref>` · `/commit/<sha>` · `/deployments` | history · one commit · ainize deployments |
+
+The same `/<org>/git/<repo>` is the git remote (`git clone https://aindrive.ainetwork.ai/<org>/git/<repo>`, or
+`ssh://git@aindrive.ainetwork.ai:2222/<org>/<repo>` with an SSH key registered in your AIN SSO account).
+
 ## From push to deployment
 
 1. Push to the project's branch (default `main`). If the repo is in an aindrive drive, the drive binds the repo on
