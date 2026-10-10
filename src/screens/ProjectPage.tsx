@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import {
-  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery,
+  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectSourceQuery,
   useRedeployMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
@@ -163,7 +163,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
 // ------------------------------------------------------------------------------------------------ the Run panel
 
 interface RunDraft { target: 'head' | 'commit' | 'deployed'; sha: string; entry: string; answers: Record<string, string>; env: string; timeoutMs: string }
-const emptyDraft = (p: Project): RunDraft => ({ target: 'head', sha: '', entry: p.manifest?.entry ?? p.entry ?? p.runnable?.[0] ?? '', answers: {}, env: '', timeoutMs: '' });
+const emptyDraft = (p: Project): RunDraft => ({ target: 'head', sha: '', entry: '', answers: {}, env: '', timeoutMs: '' });
 
 function InputField({ name, spec, value, onChange, models }: { name: string; spec: ManifestInput; value: string; onChange: (v: string) => void; models: string[] }) {
   const type = spec.type ?? 'string';
@@ -196,9 +196,15 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   const [err, setErr] = useState<string | null>(null);
   const modelsQuery = useModelsQuery();
   const models = useMemo(() => parseModelsResponse(modelsQuery.data).filter((m) => m.available !== false).map((m) => m.id), [modelsQuery.data]);
-  const manifest = project.manifest;
+  const sourceQuery = useProjectSourceQuery({ id: project.id, target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}) }, {
+    skip: !isSignedIn || !project.canOperate || (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)),
+    refetchOnMountOrArgChange: true,
+  });
+  const source = sourceQuery.currentData;
+  const manifest = source?.manifest;
+  const entry = draft.entry || manifest?.entry || '';
   const inputs = manifest?.inputs ?? {};
-  const runnable = project.runnable?.length ? project.runnable : draft.entry ? [draft.entry] : [];
+  const runnable = manifest?.entry ? [manifest.entry] : [];
   const missing = missingInputs(inputs, draft.answers);
   const setAnswer = (name: string, v: string) => setDraft({ ...draft, answers: { ...draft.answers, [name]: v } });
   const preset = (ex: { inputs: Record<string, string | number | boolean> }) => {
@@ -209,9 +215,10 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   const start = async () => {
     setErr(null);
     if (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)) { setErr(t('projects.runs.sha_required')); return; }
+    if (!source || sourceQuery.isFetching) return;
     const body: RunInput = {
-      target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}),
-      ...(draft.entry && draft.entry !== manifest?.entry ? { entry: draft.entry } : {}),
+      target: 'commit', sha: source.sha,
+      ...(entry && entry !== manifest?.entry ? { entry } : {}),
       inputs: inputAnswers(inputs, draft.answers),
       env: parseEnvLines(draft.env),
       ...(draft.timeoutMs ? { timeoutMs: Number(draft.timeoutMs) * 1000 } : {}),
@@ -233,17 +240,17 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
       ) : null}
       <Grid>
         <Field><FieldLabel htmlFor="run-target">{t('projects.runs.target')}</FieldLabel>
-          <Select id="run-target" value={draft.target} onChange={(e) => setDraft({ ...draft, target: e.target.value as RunDraft['target'] })}>
+          <Select id="run-target" value={draft.target} onChange={(e) => setDraft({ ...draft, target: e.target.value as RunDraft['target'], entry: '', answers: {} })}>
             <option value="head">{t('projects.runs.head')}</option>
             <option value="commit">{t('projects.runs.commit')}</option>
             <option value="deployed" disabled={!project.activeCommit}>{t('projects.runs.deployed')}{project.activeCommit ? ` · ${shortSha(project.activeCommit)}` : ''}</option>
           </Select>
         </Field>
-        {draft.target === 'commit' && <Field><FieldLabel htmlFor="run-sha">{t('projects.runs.sha')}</FieldLabel><Input id="run-sha" value={draft.sha} onChange={(e) => setDraft({ ...draft, sha: e.target.value.trim() })} placeholder={project.sourceCommit ?? ''} /></Field>}
+        {draft.target === 'commit' && <Field><FieldLabel htmlFor="run-sha">{t('projects.runs.sha')}</FieldLabel><Input id="run-sha" value={draft.sha} onChange={(e) => setDraft({ ...draft, sha: e.target.value.trim(), entry: '', answers: {} })} placeholder={project.sourceCommit ?? ''} /></Field>}
         <Field><FieldLabel htmlFor="run-entry">{t('projects.runs.entry')}</FieldLabel>
           {runnable.length > 1
-            ? <Select id="run-entry" value={draft.entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })}>{runnable.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
-            : <Input id="run-entry" value={draft.entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })} placeholder="main.py" />}
+            ? <Select id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })}>{runnable.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
+            : <Input id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })} placeholder="main.py" />}
         </Field>
         {Object.entries(inputs).map(([name, spec]) => <InputField key={name} name={name} spec={spec} value={draft.answers[name] ?? ''} onChange={(v) => setAnswer(name, v)} models={models} />)}
         <Field><FieldLabel htmlFor="run-timeout">{t('projects.runs.timeout')}</FieldLabel>
@@ -255,9 +262,11 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
         <Help>{t('projects.runs.env_help')}</Help>
       </Field>
       {missing.length > 0 && <Help>{t('projects.runs.missing', { names: missing.join(', ') })}</Help>}
+      {source && <Meta><Mono>{shortSha(source.sha)}</Mono></Meta>}
+      {sourceQuery.error && <Alert $tone="error">{projectApiErrorOf(sourceQuery.error).message ?? t('projects.api.unknown')}</Alert>}
       {err && <Alert $tone="error">{err}</Alert>}
       <Actions>
-        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !draft.entry} onClick={start}>▶ {t('projects.runs.run')}</Button>
+        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !entry || !source || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
         <Help>{t('projects.runs.key_hint')}</Help>
       </Actions>
     </Panel>
@@ -305,7 +314,6 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
   // Runs
   const [draft, setDraft] = useState<RunDraft>(() => emptyDraft(p));
-  useEffect(() => { if (!draft.entry && (p.manifest?.entry || p.runnable?.length)) setDraft(emptyDraft(p)); }, [p, draft.entry]);
   const runAgain = (d: Deployment) => { setDraft({ target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry, answers: { ...(d.inputs ?? {}) }, env: Object.entries(d.env ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'), timeoutMs: '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);

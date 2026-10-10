@@ -27,6 +27,8 @@ export interface ProjectManifest {
   detected: 'ainize.json' | 'package.json';
 }
 
+export interface ProjectSource { repoId: string; target: 'head' | 'commit' | 'deployed'; sha: string; sourcePath: string; manifest: ProjectManifest }
+
 /**
  * A project as the node answers it. Reading is public (ainize-node docs/PROJECTS.md "Who sees what"): `owner` and
  * `hookUrl` arrive for the owner only; `canManage` (delete, rotate) and `canOperate` (run, redeploy) say what the

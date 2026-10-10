@@ -18,7 +18,7 @@ import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
-import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
+import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
@@ -185,6 +185,10 @@ export const api = createApi({
     /** `/<org>` — the slug's projects, and the drive's repositories as aindrive lists them (through the node). */
     orgProjects: b.query<OrgProjectsResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/projects`, providesTags: ['Project'] }),
     orgRepositories: b.query<OrgRepositoriesResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/repositories` }),
+    projectSource: b.query<ProjectSource, { id: string; target: 'head' | 'commit' | 'deployed'; sha?: string }>({
+      query: ({ id, target, sha }) => ({ url: `api/projects/${encodeURIComponent(id)}/source`, params: { target, ...(sha ? { sha } : {}) } }),
+      providesTags: (_r, _e, { id }) => [{ type: 'Project', id }],
+    }),
     projectRuns: b.query<RunsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/runs` }] }),
     runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
     redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
@@ -595,7 +599,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
-  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
+  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
   useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
