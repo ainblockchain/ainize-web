@@ -2,7 +2,7 @@
 title: 에이전트를 노드에 올리기
 summary: 이미 돌고 있는 A2A 에이전트에 공개 주소와 에이전트 카드를 주고 마켓플레이스에 올립니다. 내 포트를 열 필요는 없습니다.
 source: en/how-to/host-an-agent.md
-source_sha256: c7aa3f24f37e2d090055873d68a28d2cb7db6a9a193b671b6409b909a634472d
+source_sha256: 923be45b30d919d5232629e9d4c22250daa3bab7548b7c9c5c08cedca64c156f
 ---
 
 # 에이전트를 노드에 올리기
@@ -52,7 +52,7 @@ donga-desk   answering   5 skills   https://ainize.ai/agents/donga-desk
 curl -s https://ainize.ai/agents/donga-desk/.well-known/agent-card.json | jq '{name, url}'
 ```
 
-```json
+```json output
 { "name": "동아사이언스 운영 데스크", "url": "https://ainize.ai/agents/donga-desk" }
 ```
 

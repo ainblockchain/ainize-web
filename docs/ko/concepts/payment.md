@@ -2,7 +2,7 @@
 title: 계정 없이 결제하기
 summary: HTTP 402는 오류가 아니라 견적입니다 — 요청 두 번으로 끝나는 거래, 실제로 존재하는 두 가지 결제 방식, 그리고 판매 기록이 증명하는 것과 증명하지 않는 것.
 source: en/concepts/payment.md
-source_sha256: 463d7c26073c9c403d04a47e579f01a0c4c27b4210b492f3905c88604da73b57
+source_sha256: 69180175a68ded25c556bad6e3dbbccffc09daf3f17fbbc229306fd4f3c0dc8c
 ---
 
 # 계정 없이 결제하기
@@ -29,7 +29,7 @@ content-type: application/json; charset=utf-8
 인코딩한 것이고, 같은 배열이 응답 본문에도 `requirements`와 `accepts` 두 이름으로 실려 있습니다. 클라이언트가 이미 보고
 있는 자리에서 조건을 읽을 수 있게 하려는 것입니다. 디코딩하면 조건 하나는 이렇게 생겼습니다.
 
-```json
+```json output
 {
   "scheme": "local-credit",
   "network": "local",

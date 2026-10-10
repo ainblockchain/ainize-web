@@ -32,6 +32,27 @@ test('HTTP response examples stay reference data while requests remain executabl
   assert.equal(plan.steps[0].code, 'HTTP/1.1 402 Payment Required\nx-payment-required: sample');
 });
 
+test('explicit output samples preserve their code and language without becoming executable files', () => {
+  for (const lang of ['en', 'ko']) {
+    for (const slug of ['concepts/payment', 'reference/x402', 'how-to/host-an-agent']) {
+      const source = SOURCES[`${lang}/${slug}.md`];
+      const outputs = parseDoc(source).blocks.filter(b => b.t === 'code' && b.output);
+      assert.equal(outputs.length, slug === 'reference/x402' ? 2 : 1);
+      const plan = practicePlan(source, lang, slug);
+      for (const output of outputs) {
+        assert.equal(output.t, 'code');
+        if (output.t !== 'code') continue;
+        const step = plan.steps.find(s => s.code === output.code);
+        assert.equal(step?.language, 'json');
+        assert.equal(step?.kind, 'reference');
+      }
+    }
+  }
+  const plan = practicePlan('# Input\n\n```json\n{"name":"input"}\n```\n\n```bash output\nainize status\n```', 'en', 'input');
+  assert.equal(plan.steps[0].kind, 'file', 'unmarked JSON remains an executable input');
+  assert.equal(plan.steps[1].kind, 'reference', 'explicit shell output is never run as a command');
+});
+
 test('CLI usage templates remain ordered steps and distinguish optional syntax from missing required inputs', () => {
   const source = '# CLI\n\n```bash\nainize teach jobs [options]\n```\n\n```bash\nainize patch get <id>\n```\n\n```bash\nainize agent call coffee-bot "hello"\n```\n\n```js\nconst value = "<id>"; const list = [options];\n```';
   const plan = practicePlan(source, 'en', 'reference/cli');

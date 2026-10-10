@@ -51,7 +51,7 @@ The card, at the path every A2A client tries:
 curl -s https://ainize.ai/agents/donga-desk/.well-known/agent-card.json | jq '{name, url}'
 ```
 
-```json
+```json output
 { "name": "동아사이언스 운영 데스크", "url": "https://ainize.ai/agents/donga-desk" }
 ```
 

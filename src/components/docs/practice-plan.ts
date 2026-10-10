@@ -19,7 +19,7 @@ export function practicePlan(source: string, lang: string, slug: string) {
       if (block.t === 'tabs') for (const panel of block.panels) walk(panel.c);
       if (block.t !== 'code') continue;
       const language = block.lang || 'text';
-      const kind = ['bash', 'sh', 'shell', 'console'].includes(language) ? 'command'
+      const kind = block.output ? 'reference' : ['bash', 'sh', 'shell', 'console'].includes(language) ? 'command'
         : language === 'http' ? (/^\s*HTTP\/\d(?:\.\d)?\s+\d{3}\b/.test(block.code) ? 'reference' : 'request')
         : ['js', 'javascript', 'ts', 'typescript', 'python', 'json', 'jsonl', 'yaml', 'toml'].includes(language) ? 'file' : 'reference';
       const requirements = [
