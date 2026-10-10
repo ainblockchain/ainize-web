@@ -215,7 +215,7 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   const start = async () => {
     setErr(null);
     if (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)) { setErr(t('projects.runs.sha_required')); return; }
-    if (!source || sourceQuery.isFetching) return;
+    if (!source || sourceQuery.isFetching || manifest?.kind !== 'script') return;
     const body: RunInput = {
       target: 'commit', sha: source.sha,
       ...(entry && entry !== manifest?.entry ? { entry } : {}),
@@ -263,10 +263,11 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
       </Field>
       {missing.length > 0 && <Help>{t('projects.runs.missing', { names: missing.join(', ') })}</Help>}
       {source && <Meta><Mono>{shortSha(source.sha)}</Mono></Meta>}
+      {source && manifest?.kind !== 'script' && <Help>{t('projects.runs.script_commit_required')}</Help>}
       {sourceQuery.error && <Alert $tone="error">{projectApiErrorOf(sourceQuery.error).message ?? t('projects.api.unknown')}</Alert>}
       {err && <Alert $tone="error">{err}</Alert>}
       <Actions>
-        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !entry || !source || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
+        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !entry || !source || manifest?.kind !== 'script' || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
         <Help>{t('projects.runs.key_hint')}</Help>
       </Actions>
     </Panel>
@@ -348,7 +349,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
   const tabs = [
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
-    ...(isScript ? [{ id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` }] : []),
+    { id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` },
     { id: 'logs', label: t('projects.tabs.logs') },
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
@@ -369,7 +370,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         {p.name !== p.repoName && <Meta>{p.name}</Meta>}
         <Spacer />
         <Actions>
-          {isScript && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
+          <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>
           {!isScript && lastReady?.outputUrl && <Button variant="contained" size="small" onClick={() => window.open(lastReady.outputUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
         </Actions>
@@ -400,7 +401,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         </TabBody>
       )}
 
-      {tab === 'runs' && isScript && (
+      {tab === 'runs' && (
         <TabBody>
           <RunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
           <SubTitle>{t('projects.runs.history')}</SubTitle>
