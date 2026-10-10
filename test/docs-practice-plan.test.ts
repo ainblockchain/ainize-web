@@ -23,3 +23,11 @@ test('operator commands, credentials and JSON fragments are identified without e
   assert.equal(plan.steps[1].kind, 'file');
   assert.ok(plan.steps[2].requirements.includes('credential-handling'));
 });
+
+test('HTTP response examples stay reference data while requests remain executable requests', () => {
+  const source = '# Payment\n\n```http\nHTTP/1.1 402 Payment Required\nx-payment-required: sample\n```\n\n```http\nPOST /v1/systemone\nContent-Type: application/json\n\n{}\n```';
+  const plan = practicePlan(source, 'en', 'payment');
+  assert.equal(plan.steps[0].kind, 'reference');
+  assert.equal(plan.steps[1].kind, 'request');
+  assert.equal(plan.steps[0].code, 'HTTP/1.1 402 Payment Required\nx-payment-required: sample');
+});

@@ -20,7 +20,7 @@ export function practicePlan(source: string, lang: string, slug: string) {
       if (block.t !== 'code') continue;
       const language = block.lang || 'text';
       const kind = ['bash', 'sh', 'shell', 'console'].includes(language) ? 'command'
-        : language === 'http' ? 'request'
+        : language === 'http' ? (/^\s*HTTP\/\d(?:\.\d)?\s+\d{3}\b/.test(block.code) ? 'reference' : 'request')
         : ['js', 'javascript', 'ts', 'typescript', 'python', 'json', 'jsonl', 'yaml', 'toml'].includes(language) ? 'file' : 'reference';
       const requirements = [
         ...(/\bainize(?:-agent)?\b/.test(block.code) ? ['ainize-cli'] : []),
