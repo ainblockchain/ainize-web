@@ -2,7 +2,7 @@
 title: 결정 모델 쓰기 (Cloudflare Clef)
 summary: 결정 모델은 글을 쓰지 않습니다. 상황과 그에 대한 유형이 정해진 질문을 받아 각 질문에 확률로 답합니다 — ainize SDK의 client.decide()로, 내 API 키로.
 source: en/how-to/decision-models-clef.md
-source_sha256: b2f0a0f6c31e1fe42dad2bc956d2a5dc0c642eda0dc4758a4c555b939e96770c
+source_sha256: d326452f25ba73e41e1ca9ece20e38c58ae2b5371542a06d16f646fed92a3036
 ---
 
 # 결정 모델 쓰기 (Cloudflare Clef)
@@ -106,14 +106,49 @@ Content-Type: application/json
 {
   "model": "clef-flash",
   "answers": {
-    "outage":   { "type": "noul",   "noul": 0.93 },
-    "severity": { "type": "score",  "score": 2, "distribution": [0.02, 0.11, 0.87] },
-    "team":     { "type": "choice", "choice": "technical", "distribution": { "billing": 0.08, "technical": 0.92 } }
+    "outage": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "severity": {
+      "type": "score",
+      "score": 1.85,
+      "confidence": 0.87,
+      "legend": {
+        "0": "low",
+        "1": "medium",
+        "2": "high"
+      },
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.11,
+        "2": 0.87
+      }
+    },
+    "team": {
+      "type": "choice",
+      "choice": "technical",
+      "confidence": 0.92,
+      "probabilities": {
+        "billing": 0.08,
+        "technical": 0.92
+      }
+    }
   },
-  "usage": { "questions": 3, "input_tokens": 212 },
-  "debug": { "prompt": "…모델이 실제로 받은 프롬프트…", "input_tokens": 212, "questions": 3 }
+  "usage": {
+    "input_tokens": 212,
+    "output_tokens": 80,
+    "latency_ms": 200
+  },
+  "debug": {
+    "prompt": "...the exact prompt the model received...",
+    "input_tokens": 212,
+    "questions": 3
+  }
 }
 ```
+
+점수·선택 질문의 확률은 `probabilities`에 담깁니다. 점수 확률의 키는 등급 인덱스이고, `legend`는 인덱스와 등급 이름을 연결합니다. 선택 확률의 키는 후보 ID입니다. `confidence`는 선택된 등급 또는 후보의 확률입니다. 토큰 수와 지연 시간은 `usage`에 있고, 디버그를 켜면 질문 수는 `debug.questions`에서 확인합니다. 위 숫자는 예시이며 호출마다 달라질 수 있습니다.
 
 `/v1/chat/completions`는 결정 모델을 서빙하지 않습니다. `model="clef"`로 채팅을 호출하면 404입니다.
 

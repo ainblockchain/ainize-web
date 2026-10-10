@@ -105,14 +105,49 @@ Content-Type: application/json
 {
   "model": "clef-flash",
   "answers": {
-    "outage":   { "type": "noul",   "noul": 0.93 },
-    "severity": { "type": "score",  "score": 2, "distribution": [0.02, 0.11, 0.87] },
-    "team":     { "type": "choice", "choice": "technical", "distribution": { "billing": 0.08, "technical": 0.92 } }
+    "outage": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "severity": {
+      "type": "score",
+      "score": 1.85,
+      "confidence": 0.87,
+      "legend": {
+        "0": "low",
+        "1": "medium",
+        "2": "high"
+      },
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.11,
+        "2": 0.87
+      }
+    },
+    "team": {
+      "type": "choice",
+      "choice": "technical",
+      "confidence": 0.92,
+      "probabilities": {
+        "billing": 0.08,
+        "technical": 0.92
+      }
+    }
   },
-  "usage": { "questions": 3, "input_tokens": 212 },
-  "debug": { "prompt": "…the exact prompt the model received…", "input_tokens": 212, "questions": 3 }
+  "usage": {
+    "input_tokens": 212,
+    "output_tokens": 80,
+    "latency_ms": 200
+  },
+  "debug": {
+    "prompt": "...the exact prompt the model received...",
+    "input_tokens": 212,
+    "questions": 3
+  }
 }
 ```
+
+The response uses `probabilities` for score and choice questions. Score probabilities are keyed by grade index, with `legend` mapping each index to its label; choice probabilities are keyed by candidate id. `confidence` is the selected grade or choice probability. Token counts and latency are in `usage`; with debug enabled, the question count is in `debug.questions`. The numbers above are illustrative and can change between calls.
 
 `/v1/chat/completions` does not serve decision models; a chat call with `model="clef"` is a 404.
 
