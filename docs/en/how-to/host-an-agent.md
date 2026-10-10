@@ -79,10 +79,12 @@ ainize agent on  donga-desk     # publish it again
 ainize stop
 ainize start --detach
 
-ainize agent rm  donga-desk     # forget it entirely
+ainize agent rm donga-desk --yes     # forget it entirely
 ainize stop
 ainize start --detach
 ```
+
+`--yes` confirms removal without an interactive prompt. Use it only for the practice registration you created above; keep a copy of its id and upstream URL if you want to add it again.
 
 Each change is saved to the node configuration and takes effect after restarting your own practice node. After `off` or `rm`, its agent-card path returns 404; after `on`, the card and calls work again. The upstream agent process stays running throughout.
 

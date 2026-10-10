@@ -2,7 +2,7 @@
 title: 에이전트를 노드에 올리기
 summary: 이미 돌고 있는 A2A 에이전트에 공개 주소와 에이전트 카드를 주고 마켓플레이스에 올립니다. 내 포트를 열 필요는 없습니다.
 source: en/how-to/host-an-agent.md
-source_sha256: a70251a639db1c3917f3093dd108d2d35b761f0e69b5d8cb31184d5955645e1c
+source_sha256: c7aa3f24f37e2d090055873d68a28d2cb7db6a9a193b671b6409b909a634472d
 ---
 
 # 에이전트를 노드에 올리기
@@ -80,10 +80,12 @@ ainize agent on  donga-desk     # 다시 공개
 ainize stop
 ainize start --detach
 
-ainize agent rm  donga-desk     # 등록 자체를 지움
+ainize agent rm donga-desk --yes     # 등록 자체를 지움
 ainize stop
 ainize start --detach
 ```
+
+`--yes`는 대화형 입력 없이 삭제를 확인합니다. 위에서 직접 만든 실습 등록에만 사용하고, 다시 등록하려면 id와 upstream URL을 보관하세요.
 
 각 변경은 노드 설정에 저장되며 본인의 실습 노드를 재시작한 뒤 적용됩니다. `off`나 `rm` 뒤에는 에이전트 카드 경로가 404를 반환하고, `on` 뒤에는 카드 조회와 호출이 다시 동작합니다. 이 과정에서 upstream 에이전트 프로세스는 계속 실행해 둡니다.
 
