@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
+import { useAgentExecutionsQuery, useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import type { AgentPull } from '@/api/types';
 import type { AgentGitInfo } from '@/api/types';
@@ -181,6 +181,9 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
   const [forkBranch, setForkBranch] = useState('main');
   const forkRefs = useAgentRefsQuery(forkId, { skip: !forkId });
 
+  const [executionOffset, setExecutionOffset] = useState(0);
+  useEffect(() => setExecutionOffset(0), [agentId]);
+  const executions = useAgentExecutionsQuery({ id: agentId, offset: executionOffset, limit: 10 }, { pollingInterval: 10_000 });
   const [branch, setBranch] = useState<string | null>(null);
   const refs = useAgentRefsQuery(agentId);
   const head = refs.data?.head ?? 'main';
@@ -299,6 +302,24 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
         </Pulls>
       )}
       {failed && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="agent-git-error">{failed}</Alert>}
+
+      {executions.data && <section aria-label={t('agentGit.executions')} style={{ marginTop: 20 }}>
+        <h3>{t('agentGit.executions')}</h3>
+        <Commits data-testid="agent-executions">
+          {executions.data.executions.map((execution) => <Commit key={execution.id}>
+            <strong>{t(`agentGit.execution.${execution.status}`)}</strong>
+            <code title={execution.sourceCommit ?? undefined}>{execution.sourceCommit?.slice(0, 8) ?? '—'}</code>
+            <span>{execution.actor ? who(execution.actor) : '—'}</span>
+            <span>{when(execution.createdAt, locale)}</span>
+            {execution.error && <Why role="status">{execution.error}</Why>}
+          </Commit>)}
+        </Commits>
+        {executions.data.total === 0 && <Description>{t('agentGit.executions_empty')}</Description>}
+        <Branches>
+          <Button variant="outlined" disabled={executionOffset === 0} onClick={() => setExecutionOffset((offset) => Math.max(0, offset - 10))}>{t('agentGit.newer')}</Button>
+          <Button variant="outlined" disabled={executionOffset + 10 >= executions.data.total} onClick={() => setExecutionOffset((offset) => offset + 10)}>{t('agentGit.older')}</Button>
+        </Branches>
+      </section>}
 
       <Commits data-testid="agent-commits">
         {(commits.data?.commits ?? []).map((c) => (

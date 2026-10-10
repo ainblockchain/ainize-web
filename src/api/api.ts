@@ -4,7 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
-  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentPreview, AgentFork, AgentPull, AgentReviewComment, AgentPullsResponse, AgentMirror,
+  AgentExecutionsResponse, AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentPreview, AgentFork, AgentPull, AgentReviewComment, AgentPullsResponse, AgentMirror,
   AuthMe, NodeOwner, Binding, MyNode, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
@@ -310,6 +310,10 @@ export const api = createApi({
      * Tagged `HostedAgent`, so a push or an edit that invalidates the agent invalidates its history with it —
      * a commit list still showing the version before the one on screen is worse than no commit list.
      */
+    agentExecutions: b.query<AgentExecutionsResponse, { id: string; offset?: number; limit?: number }>({
+      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/executions${toQuery(q)}`,
+      providesTags: ['HostedAgent'],
+    }),
     agentCommits: b.query<AgentCommitsResponse, { id: string; ref?: string; limit?: number }>({
       query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/commits${toQuery(q)}`,
       providesTags: ['HostedAgent'],
@@ -621,7 +625,7 @@ export const {
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
-  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
+  useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,

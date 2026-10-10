@@ -1132,3 +1132,11 @@ export interface AgentGitInfo {
   commit: string | null;
   mirror: { url: string; branch: string; path: string; error: string | null } | null;
 }
+
+export interface AgentExecution {
+  id: string; repoId: string; projectId: string | null; agentId: string | null;
+  sourceCommit: string | null; projectionCommit: string | null; ref: string;
+  trigger: string; actor: string | null; status: 'queued' | 'building' | 'ready' | 'error';
+  version: number | null; error: string | null; createdAt: number; finishedAt: number | null;
+}
+export interface AgentExecutionsResponse { executions: AgentExecution[]; total: number; limit: number; offset: number }
