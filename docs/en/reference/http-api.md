@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-191 operations on 159 paths, grouped into the 11 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+192 operations on 160 paths, grouped into the 11 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -71,6 +71,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/models`](#get-apimodels) | operator | Configured models and current backend availability |
 | `POST` | [`/api/transcribe`](#post-apitranscribe) | operator | Free transcription trial on a configured audio backend |
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
+| `POST` | [`/api/run`](#post-apirun) | operator | Run one script in the hosted-agent sandbox and stream its output |
 | `POST` | [`/api/decide`](#post-apidecide) | operator | Free decision trial on a configured decision backend (Jev/SystemOne) |
 
 **Teach** — one pipeline, two doors: a dataset file (uploaded here, or with `ainize teach dataset`) and corrections collected in Live test are both frozen into the same canonical dataset → validated → trained → checked on the live model → a lesson its teacher can keep private or publish as a credited data provider (no sign-in — every request is signed with a teaching key held by the browser or the CLI)
@@ -849,6 +850,34 @@ No request count applies; unpaid work is queued behind paying callers on the sam
 | `400` | invalid request |   |
 | `404` | model not configured |   |
 | `503` | backend unavailable |   |
+
+### `POST /api/run`
+
+Run one script in the hosted-agent sandbox and stream its output
+
+For a ▶ button beside a .py or .js file (deploy/run-runtime/README.md). The files land in a 64 MiB tmpfs /work of a read-only, non-root container with 512 MiB, one CPU and 128 pids, on an internal network whose only exit is this node's gateway: AINIZE_DECIDE_URL / AINIZE_CHAT_URL / AINIZE_API_URL reach this node's /api/decide, /api/chat and /v1; HTTPS_PROXY tunnels TLS to ainize.ai and this node's public host; anything else fails. Limits: 32 files, 2 MiB in total, relative names without "..", ".git" or empty segments; timeoutMs 1000–300000 (default 120000); 2 running runs per anonymous caller (4 with an API key), 8 per node. The answer is text/event-stream (events stdout, stderr, error, exit — every data a JSON value; exit data {"code","ms"}, code 124 after a timeout) or, with Accept: application/json, one object {stdout, stderr, code, ms, error?} with each stream capped at 1 MiB. Free tier: no key needed; a key only names the caller.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `language` | `"python"` \| `"node"` | yes |   |
+| `entry` | `string` | yes |   |
+| `files` | `object` | `object`[] | yes |   |
+| `env` | `object` |   |   |
+| `timeoutMs` | `integer` |   | (default `120000`; 1000–300000) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the run's output | `object` |
+| `400` | invalid_request — a bad file name, entry, env or timeout |   |
+| `413` | files_too_large — more than 2 MiB of files |   |
+| `429` | too_many_runs — the caller or the node is at its concurrent-run limit |   |
+| `503` | runner_unavailable — this node has no Docker for runs |   |
 
 ### `POST /api/decide`
 
