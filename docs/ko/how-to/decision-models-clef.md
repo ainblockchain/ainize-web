@@ -2,7 +2,7 @@
 title: 결정 모델 쓰기 (Cloudflare Clef)
 summary: 결정 모델은 글을 쓰지 않습니다. 상황과 그에 대한 유형이 정해진 질문을 받아 각 질문에 확률로 답합니다 — ainize SDK의 client.decide()로, 내 API 키로.
 source: en/how-to/decision-models-clef.md
-source_sha256: a82e229ddddc4025f94941e3c889c9443587e64b7092d6ec109ce4b575cb809d
+source_sha256: b2f0a0f6c31e1fe42dad2bc956d2a5dc0c642eda0dc4758a4c555b939e96770c
 ---
 
 # 결정 모델 쓰기 (Cloudflare Clef)
@@ -44,6 +44,8 @@ source_sha256: a82e229ddddc4025f94941e3c889c9443587e64b7092d6ec109ce4b575cb809d
 
 SDK를 설치하고 사이트에서 API 키를 받습니다 — 지갑으로 로그인한 뒤 [모델 페이지](/models)에서 발급하면, 그 페이지가
 보여주는 코드에 바로 채워집니다.
+
+[AinCode](/code)에서는 실습 공간의 오프라인 패키지 캐시로 SDK를 설치합니다. `AINIZE_URL`은 실습 공간에 설정되어 있고, 호출은 로그인한 계정으로 연결됩니다. 각 Python 코드 블록을 `.py` 파일로 저장하고 `python 파일명.py`로 실행하세요. 아래 예제에는 연결 코드와 실습 입력값이 포함되어 있습니다. 파일과 진행 기록은 선택한 AinDrive Git 저장소에 저장하세요.
 
 ```bash
 pip install ainize
@@ -122,7 +124,15 @@ Content-Type: application/json
 잃은 `state`, 의도하지 않은 순서의 criteria. 운영에서는 끄세요. 모델 시간이 아니라 응답 크기가 비용입니다.
 
 ```python
-out = client.decide("clef-flash", state=..., questions=..., debug={"prompt": True})
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+state = "The payment webhook is failing and customers cannot check out."
+questions = {"outage": {"type": "noul", "instructions": "Is a service down?"}}
+
+out = client.decide("clef-flash", state=state, questions=questions, debug={"prompt": True})
 print(out.debug["prompt"])
 ```
 
@@ -134,8 +144,20 @@ print(out.debug["prompt"])
 비용은 후보당 호출 한 번입니다.
 
 ```python
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+query = "a small boat at sunset"
+artworks = {
+    "sunset": {"title": "Sunset boat", "description": "A small boat on the sea at sunset"},
+    "city": {"title": "City street", "description": "Cars and buildings at midday"},
+}
+
 scores = {name: client.decide("clef-flash", state=artwork, questions={"match": {"type": "noul", "instructions": f"Does this artwork match: {query}?"}}).answers["match"]["noul"]
           for name, artwork in artworks.items()}
+print(scores)
 ```
 
 **`state`에 리스트, 후보마다 질문 하나.** 후보들을 `state` 하나에 넣고 후보별로 질문 하나씩, 후보 이름을 키로 합니다.
@@ -143,12 +165,24 @@ scores = {name: client.decide("clef-flash", state=artwork, questions={"match": {
 `choice`는 답 하나로 끝나는 랭킹이 됩니다.
 
 ```python
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+query = "a small boat at sunset"
+artworks = {
+    "sunset": {"title": "Sunset boat", "description": "A small boat on the sea at sunset"},
+    "city": {"title": "City street", "description": "Cars and buildings at midday"},
+}
+
 out = client.decide(
     "clef",
     state={"query": query, "candidates": artworks},
     questions={name: {"type": "noul", "instructions": f"Does candidate {name} match the query?"} for name in artworks}
               | {"best": {"type": "choice", "instructions": "Which candidate matches best?", "criteria": {n: a["title"] for n, a in artworks.items()}}},
 )
+print(out.answers)
 ```
 
 `state` 하나는 모델이 편히 읽는 범위 — 짧은 후보 수십 개 — 안에 두고, 그 이상은 나누세요.

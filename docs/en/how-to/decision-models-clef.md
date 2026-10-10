@@ -44,6 +44,8 @@ request are answered against the same `state` in one call.
 Install the SDK and get an API key from the site — sign in with your wallet and create one on the
 [Models page](/models); the page writes it into the snippet it shows you.
 
+In [AinCode](/code), the SDK is provided through the workspace’s offline package cache. The workspace sets `AINIZE_URL` and routes calls through your signed-in account. Open each Python block as a `.py` file and run it with `python your-file.py`; the examples below include their own connection and sample inputs. Save the files and progress in your selected AinDrive Git repository.
+
 ```bash
 pip install ainize
 ```
@@ -122,7 +124,15 @@ read differently in context, a `state` that lost a field in serialization, crite
 intend. Leave it off in production; it costs response size, not model time.
 
 ```python
-out = client.decide("clef-flash", state=..., questions=..., debug={"prompt": True})
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+state = "The payment webhook is failing and customers cannot check out."
+questions = {"outage": {"type": "noul", "instructions": "Is a service down?"}}
+
+out = client.decide("clef-flash", state=state, questions=questions, debug={"prompt": True})
 print(out.debug["prompt"])
 ```
 
@@ -134,8 +144,20 @@ Two shapes, depending on what the model should compare.
 every answer is independent; the cost is one call per candidate.
 
 ```python
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+query = "a small boat at sunset"
+artworks = {
+    "sunset": {"title": "Sunset boat", "description": "A small boat on the sea at sunset"},
+    "city": {"title": "City street", "description": "Cars and buildings at midday"},
+}
+
 scores = {name: client.decide("clef-flash", state=artwork, questions={"match": {"type": "noul", "instructions": f"Does this artwork match: {query}?"}}).answers["match"]["noul"]
           for name, artwork in artworks.items()}
+print(scores)
 ```
 
 **A list in `state`, one question per candidate.** Put the candidates into one `state` and ask one question
@@ -143,12 +165,24 @@ about each, keyed by candidate. One call; the model sees the whole set, so relat
 is most…") become possible, and `choice` with the candidates as options is a ranking in a single answer.
 
 ```python
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+query = "a small boat at sunset"
+artworks = {
+    "sunset": {"title": "Sunset boat", "description": "A small boat on the sea at sunset"},
+    "city": {"title": "City street", "description": "Cars and buildings at midday"},
+}
+
 out = client.decide(
     "clef",
     state={"query": query, "candidates": artworks},
     questions={name: {"type": "noul", "instructions": f"Does candidate {name} match the query?"} for name in artworks}
               | {"best": {"type": "choice", "instructions": "Which candidate matches best?", "criteria": {n: a["title"] for n, a in artworks.items()}}},
 )
+print(out.answers)
 ```
 
 Keep one `state` within what the model reads comfortably — a few dozen short candidates — and chunk beyond that.
