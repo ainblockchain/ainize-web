@@ -226,10 +226,10 @@ function DocsShell({ lang, slug, explicit }: { lang: Lang; slug: string; explici
             <Banner>
               <strong>{t('docs.practice.title')}</strong>
               <p>{t('docs.practice.body')}</p>
-              <a href={practiceHref({ lang: entry.lang, slug: entry.slug })}>{t('docs.practice.start')}</a>
+              <a href={practiceHref({ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang })}>{t('docs.practice.start')}</a>
             </Banner>
             <Prose>
-              <Blocks blocks={entry.doc.blocks} ctx={{ lang: entry.lang, slug: entry.slug }} />
+              <Blocks blocks={entry.doc.blocks} ctx={{ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang }} />
             </Prose>
             <Source>{t('docs.source')} <code>docs/{entry.untranslated ? 'en' : entry.lang}/{entry.slug}.md</code></Source>
             <FooterNav prev={prev} next={next} />
