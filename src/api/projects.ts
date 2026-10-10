@@ -38,6 +38,11 @@ export interface Project {
   repoName: string;
   repo: string;
   branch: string;
+  repoId?: string;
+  sourcePath?: string;
+  sourceCommit?: string | null;
+  activeCommit?: string | null;
+  activeDeploymentId?: string | null;
   kind: ProjectKind | null;
   entry: string | null;
   name: string;
@@ -76,6 +81,7 @@ export interface Deployment {
   subject?: string;
   /** `run` only: what it was started with. */
   entry?: string | null;
+  target?: 'head' | 'commit' | 'deployed';
   inputs?: Record<string, string>;
   env?: Record<string, string>;
   pusher: { subject: string; email?: string } | null;
@@ -97,7 +103,7 @@ export interface OrgProjectsResponse { org: string; projects: Project[] }
 export interface OrgRepository { name: string; cloneUrl: string; headSha: string | null; headSubject: string | null; updatedAt: number; hasManifest: boolean }
 export interface OrgRepositoriesResponse { org: string; known: boolean; driveId: string | null; driveUrl: string | null; repositories: OrgRepository[] }
 /** `POST /api/projects/:id/runs`. */
-export interface RunInput { entry?: string; inputs?: Record<string, string | number | boolean>; env?: Record<string, string>; timeoutMs?: number }
+export interface RunInput { target?: 'head' | 'commit' | 'deployed'; sha?: string; entry?: string; inputs?: Record<string, string | number | boolean>; env?: Record<string, string>; timeoutMs?: number }
 export interface Queued { deploymentId: string; status: DeploymentStatus; runId?: string }
 export interface RotatedSecret { id: string; webhookSecret: string; hookUrl: string }
 
