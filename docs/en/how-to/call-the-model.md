@@ -46,7 +46,7 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-For streaming, pass `stream=True` and read nonempty choices:
+For streaming, pass `stream=True` and read nonempty choices. This short greeting disables reasoning so the token budget goes to the answer:
 
 ```python
 stream = client.chat.completions.create(
@@ -54,6 +54,7 @@ stream = client.chat.completions.create(
     messages=[{"role": "user", "content": "Say hello."}],
     max_tokens=32,
     stream=True,
+    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
 )
 for chunk in stream:
     if chunk.choices:
