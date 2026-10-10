@@ -2,7 +2,7 @@
 title: 에이전트를 노드에 올리기
 summary: 이미 돌고 있는 A2A 에이전트에 공개 주소와 에이전트 카드를 주고 마켓플레이스에 올립니다. 내 포트를 열 필요는 없습니다.
 source: en/how-to/host-an-agent.md
-source_sha256: 5d92927bbf79bfba5be55320dbb3d6db79334a977485c0e35bdd4598342cae51
+source_sha256: a70251a639db1c3917f3093dd108d2d35b761f0e69b5d8cb31184d5955645e1c
 ---
 
 # 에이전트를 노드에 올리기
@@ -73,9 +73,19 @@ ainize agent call donga-desk "오늘 파이프라인 상태 어때?"
 
 ```bash
 ainize agent off donga-desk     # 등록은 두고 공개 주소만 내림
+ainize stop
+ainize start --detach
+
 ainize agent on  donga-desk     # 다시 공개
+ainize stop
+ainize start --detach
+
 ainize agent rm  donga-desk     # 등록 자체를 지움
+ainize stop
+ainize start --detach
 ```
+
+각 변경은 노드 설정에 저장되며 본인의 실습 노드를 재시작한 뒤 적용됩니다. `off`나 `rm` 뒤에는 에이전트 카드 경로가 404를 반환하고, `on` 뒤에는 카드 조회와 호출이 다시 동작합니다. 이 과정에서 upstream 에이전트 프로세스는 계속 실행해 둡니다.
 
 작업 중일 때는 `off`입니다. 반쯤 만든 에이전트에 살아 있는 주소가 붙어 있는 건 주소가 없는 것보다 나쁩니다 —
 카드는 응답하니까 호출자가 실패를 **자기 잘못으로** 읽습니다.

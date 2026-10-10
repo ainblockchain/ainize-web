@@ -72,9 +72,19 @@ purpose: what they exercise is what a stranger gets.
 
 ```bash
 ainize agent off donga-desk     # keep the registration, stop publishing the address
+ainize stop
+ainize start --detach
+
 ainize agent on  donga-desk     # publish it again
+ainize stop
+ainize start --detach
+
 ainize agent rm  donga-desk     # forget it entirely
+ainize stop
+ainize start --detach
 ```
+
+Each change is saved to the node configuration and takes effect after restarting your own practice node. After `off` or `rm`, its agent-card path returns 404; after `on`, the card and calls work again. The upstream agent process stays running throughout.
 
 `off` is the one to use while you are working on an agent. A half-built agent with a live address is worse than no
 address: the card still resolves, so a caller reads the failure as their own.
