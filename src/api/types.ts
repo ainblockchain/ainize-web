@@ -1140,3 +1140,6 @@ export interface AgentExecution {
   version: number | null; error: string | null; createdAt: number; finishedAt: number | null;
 }
 export interface AgentExecutionsResponse { executions: AgentExecution[]; total: number; limit: number; offset: number }
+
+export interface AgentPreviewRun { id: string; previewId: string; agent: string; owner: string; commit: string; model: string; request: unknown; output: string; outputBytes: number; outputTruncated: boolean; status: 'running' | 'ready' | 'error' | 'cancelled'; error: string | null; createdAt: number; finishedAt: number | null; exportedAt?: number }
+export interface AgentPreviewRunsResponse { runs: AgentPreviewRun[]; total: number; limit: number; offset: number }

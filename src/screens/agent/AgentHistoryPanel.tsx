@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Input, Select, Field, FieldLabel } from '@/components/ui/Form';
 import { Description } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { AgentPreviewHistory } from './AgentPreviewHistory';
 import { A2UISurface, readSurface } from '@/components/a2ui/A2UISurface';
 
 const Box = styled.div`
@@ -321,6 +322,7 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
         </Branches>
       </section>}
 
+      {isSignedIn && <AgentPreviewHistory agentId={agentId} />}
       <Commits data-testid="agent-commits">
         {(commits.data?.commits ?? []).map((c) => (
           <Commit key={c.sha}>
