@@ -60,6 +60,13 @@ for chunk in stream:
         print(chunk.choices[0].delta.content or "", end="", flush=True)
 ```
 
+## Decision models (Clef)
+
+`clef-flash` and `clef` are not chat models: they take a `state` and typed questions and answer with
+probabilities, through one extra method on the same client — `client.decide(model, state=..., questions=...)`,
+with `debug={"prompt": True}` to see the exact prompt the model received. The question types, batching and the
+wire format are on their own page: [Use a decision model (Cloudflare Clef)](./decision-models-clef.md).
+
 ## Availability and limits
 
 Models and modalities are configured per node. Audio transcription and image generation require

@@ -24,7 +24,7 @@ shows each commit's deployment next to it.
   "kind": "script",
   "runtime": "python3.11",
   "entry": "art_search.py",
-  "env": { "AINIZE_DECIDE_URL": "https://ainize.ai/api/decide" },
+  "env": { "TOP_K": "5" },
   "timeoutMs": 120000
 }
 ```
@@ -35,7 +35,7 @@ shows each commit's deployment next to it.
 | `kind` | all | `nextjs` (default when `package.json` depends on `next`), `script`, `service`, `agent`. |
 | `runtime` | `script` | `python3.11` or `node20`. Defaults from the entry's extension. |
 | `entry` | `script` | The file to run, relative to the repo root. |
-| `env` | all | Environment variables for the build and the run. **Not for secrets** — the file is in the repo. |
+| `env` | all | Environment variables for the build and the run. **Not for secrets** — the file is in the repo. The sandbox adds `AINIZE_URL` and `AINIZE_API_KEY` (the pusher's own key) itself, so a script reaches the models with `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])` and no key is ever committed. |
 | `inputs` | all (used by `script` runs) | Parameters a person fills in before a run — the same shape as GitHub Actions `workflow_dispatch` inputs, delivered as `INPUT_<NAME>` environment variables. See [Inputs](#inputs). |
 | `timeoutMs` | `script` | Wall-clock limit for one run. Default 120 000, maximum 300 000. |
 | `build.dockerfile`, `build.context` | `service` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
@@ -53,10 +53,10 @@ exposes it under the node's public URL once `healthcheck` answers. The previous 
 one is healthy, then is swapped out. This is the Vercel-shaped case.
 
 **`script`** — the Ainize-only case. On every push the node runs `entry` once in a read-only sandbox with a 64 MiB
-`/work`, 512 MB of memory, one CPU and **no network except Ainize itself** (`/api/decide`, `/api/chat`, `/v1/*`
-through the node's gateway). Standard output, standard error and the exit code become the deployment log; exit 0 is
+`/work`, 512 MB of memory, one CPU and **no network except Ainize itself** (`/v1/*` through the node's gateway,
+reached as `AINIZE_URL` with your `AINIZE_API_KEY`). Standard output, standard error and the exit code become the deployment log; exit 0 is
 `ready`, anything else is `error`. Use it for examples, evaluations and anything that should re-run and leave a record
-whenever the code changes. The sandbox image has the standard library plus `requests`; declare nothing else.
+whenever the code changes. The sandbox image has the standard library, `requests` and the `ainize` SDK; declare nothing else.
 
 **`service`** — builds your `Dockerfile`, runs the image with the same isolation as a hosted agent (internal network,
 egress only through the gateway, dropped capabilities, limits), waits for `healthcheck` on `port`, then exposes it

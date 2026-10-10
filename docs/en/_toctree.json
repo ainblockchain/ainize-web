@@ -66,6 +66,10 @@
         "title": "Call the model from your own code"
       },
       {
+        "page": "how-to/decision-models-clef",
+        "title": "Use a decision model (Cloudflare Clef)"
+      },
+      {
         "page": "how-to/join-from-your-own-node",
         "title": "Join the network from your own node"
       },

@@ -1,6 +1,6 @@
 ---
 source: en/index.md
-source_sha256: 639049dd9d668528b1dd36ef98bf75ba7956e3304661a24c05deadeb2c2709cd
+source_sha256: 5d37968de5c8c230a582b8ae2c823b89d2823c6a31e88509cdca000e31e6c6db
 ---
 
 # Ainize
@@ -14,6 +14,7 @@ Ainize는 질문·정답으로 모델을 가르치고, 결과를 시험하고, �
 | 웹사이트 | [ainize.ai](https://ainize.ai)에서 탐색·대화·학습·공개 기록 조회 |
 | CLI | `ainize`로 노드 운영과 작업 자동화 |
 | 모델 API | [Python SDK](./how-to/call-the-model.md)로 설정된 모델 호출 |
+| 결정 모델 | Cloudflare Clef에 상황에 대한 유형별 질문을 던지고 확률을 받기: [결정 모델 쓰기](./how-to/decision-models-clef.md) |
 | 배포 | `ainize.json`이 있는 git 리포는 push마다 배포 — Next.js, 스크립트, 서비스, A2A 에이전트. [리포 배포하기](./how-to/deploy-with-ainize-json.md) 참고 |
 | 에이전트 | 기존 에이전트를 노드에 등록하여 제공. [에이전트 호스팅](./how-to/host-an-agent.md) 참고 |
 

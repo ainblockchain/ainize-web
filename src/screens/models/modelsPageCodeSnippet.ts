@@ -32,6 +32,71 @@ export interface SnippetOptions {
 const KEY_PLACEHOLDER = 'ainize-sk-...';
 
 /**
+ * What the decision playground's box holds before anyone types, and what its snippet asks when the box does not
+ * parse. One situation, one question of each of the three types — the whole shape of a decision request in a
+ * dozen lines. The playground imports it from here so the code on screen and the code copied are the same request.
+ */
+export const DECISION_EXAMPLE = `{
+  "state": "The payment webhook is failing and customers cannot check out.",
+  "questions": {
+    "team":    { "type": "choice", "instructions": "Who should handle this?", "criteria": { "billing": "Payments or invoices", "technical": "Bugs or outages" } },
+    "severity":{ "type": "score",  "instructions": "How severe is it?",       "criteria": ["low", "medium", "high"] },
+    "outage":  { "type": "noul",   "instructions": "Is a service down?" }
+  }
+}`;
+
+/**
+ * The decision request the snippet should carry: the JSON in the box when it parses to a state and questions, the
+ * example otherwise. A half-typed body must not become a half-typed snippet.
+ */
+function decisionRequestOf(o: SnippetOptions): { state: unknown; questions: Record<string, unknown> } {
+  for (const text of [o.prompt, DECISION_EXAMPLE]) {
+    try {
+      const parsed = JSON.parse(text ?? '') as { state?: unknown; questions?: unknown };
+      if (parsed && typeof parsed === 'object' && parsed.state !== undefined && parsed.questions && typeof parsed.questions === 'object' && !Array.isArray(parsed.questions) && Object.keys(parsed.questions).length) {
+        return { state: parsed.state, questions: parsed.questions as Record<string, unknown> };
+      }
+    } catch { /* not this one */ }
+  }
+  throw new Error('DECISION_EXAMPLE is not a decision request');
+}
+
+/**
+ * A JSON value as a Python literal. JSON strings, numbers, arrays and objects already are Python; `true`, `false`
+ * and `null` are not, and a state that carries one would otherwise ship a NameError. Indented like the JSON the
+ * visitor typed, so the copied code reads as the request it is.
+ */
+export function pythonLiteral(value: unknown, indent = 0): string {
+  const pad = '    '.repeat(indent + 1);
+  const close = '    '.repeat(indent);
+  if (value === null || value === undefined) return 'None';
+  if (value === true) return 'True';
+  if (value === false) return 'False';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'None';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (Array.isArray(value)) return value.length ? `[${value.map((v) => pythonLiteral(v, indent)).join(', ')}]` : '[]';
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (!entries.length) return '{}';
+  return `{\n${entries.map(([k, v]) => `${pad}${JSON.stringify(k)}: ${pythonLiteral(v, indent + 1)}`).join(',\n')},\n${close}}`;
+}
+
+/** A JSON value as a JavaScript literal, laid out the same way (JSON is JavaScript, so only the layout is ours). */
+function jsLiteral(value: unknown, indent = 0): string {
+  const pad = '  '.repeat(indent + 1);
+  const close = '  '.repeat(indent);
+  if (Array.isArray(value)) return value.length ? `[${value.map((v) => jsLiteral(v, indent)).join(', ')}]` : '[]';
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (!entries.length) return '{}';
+    return `{\n${entries.map(([k, v]) => `${pad}${/^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${jsLiteral(v, indent + 1)}`).join(',\n')},\n${close}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+/** A JSON body inside single quotes for a shell: the one character that cannot be in there is escaped. */
+const shellJson = (value: unknown): string => JSON.stringify(value).replace(/'/g, `'\\''`);
+
+/**
  * What the snippet asks when the playground's box is still empty.
  *
  * An empty prompt is not a harmless default: `"content": ""` sends a message with nothing in it, the model has
@@ -54,6 +119,10 @@ function python(o: SnippetOptions): string {
   const prompt = lit(promptOf(o));
   const key = lit(o.apiKey || KEY_PLACEHOLDER);
   const head = `# pip install ainize\nimport ainize\n\nclient = ainize.connect(${url}, api_key=${key})\n\n`;
+  if (o.modality === 'decision') {
+    const { state, questions } = decisionRequestOf(o);
+    return `${head}out = client.decide(\n    ${model},\n    state=${pythonLiteral(state, 1)},\n    questions=${pythonLiteral(questions, 1)},\n)\nprint(out.answers)\n`;
+  }
   if (o.modality === 'transcription') {
     return `${head}with open("audio.flac", "rb") as f:\n    print(client.audio.transcriptions.create(model=${model}, file=f).text)\n`;
   }
@@ -69,6 +138,10 @@ function typescript(o: SnippetOptions): string {
   const prompt = lit(promptOf(o));
   const key = lit(o.apiKey || KEY_PLACEHOLDER);
   const head = `// npm install @ainize/sdk\nimport { connectAinize } from '@ainize/sdk';\n\nconst client = await connectAinize(${url}, { apiKey: ${key} });\n\n`;
+  if (o.modality === 'decision') {
+    const { state, questions } = decisionRequestOf(o);
+    return `${head}const out = await client.decide({\n  model: ${model},\n  state: ${jsLiteral(state, 1)},\n  questions: ${jsLiteral(questions, 1)},\n});\nconsole.log(out.answers);\n`;
+  }
   if (o.modality === 'transcription') {
     return `${head}const text = await client.audio.transcriptions.create({\n  model: ${model},\n  file: await fetch('audio.flac').then((r) => r.blob()),\n});\nconsole.log(text.text);\n`;
   }
@@ -83,6 +156,11 @@ function curl(o: SnippetOptions): string {
   const prompt = lit(promptOf(o));
   const bearer = o.apiKey || KEY_PLACEHOLDER;
   const key = '';
+  if (o.modality === 'decision') {
+    // Not an OpenAI endpoint: a decision model answers only at /v1/systemone.
+    const { state, questions } = decisionRequestOf(o);
+    return `${key}curl ${v1(o.nodeUrl, 'systemone')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d '${shellJson({ model: o.model, state, questions })}'\n`;
+  }
   if (o.modality === 'transcription') {
     // Multipart, not JSON: an audio upload has a file in it, and a JSON content type would be rejected.
     return `${key}curl ${v1(o.nodeUrl, 'audio/transcriptions')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -F model=${model} \\\n  -F file=@audio.flac\n`;

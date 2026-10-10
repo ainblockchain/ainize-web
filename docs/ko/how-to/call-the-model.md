@@ -1,6 +1,6 @@
 ---
 source: en/how-to/call-the-model.md
-source_sha256: 4734cb2ed2e784cc98edeaaea272871efbbc33c8b495e75f91a2b6d9d22cf82d
+source_sha256: 0651fd0fb8023a09513b92a73f186d72c59cbf4bb30dafc5f28d6bdebe4df318
 ---
 
 # 내 코드에서 모델 호출하기
@@ -61,6 +61,13 @@ for chunk in stream:
     if chunk.choices:
         print(chunk.choices[0].delta.content or "", end="", flush=True)
 ```
+
+## 결정 모델 (Clef)
+
+`clef-flash`와 `clef`는 채팅 모델이 아닙니다. `state`와 유형이 정해진 질문을 받아 확률로 답하며, 같은 클라이언트의
+메서드 하나로 호출합니다 — `client.decide(model, state=..., questions=...)`, 모델이 받은 정확한 프롬프트를 보려면
+`debug={"prompt": True}`. 질문 유형, 배치, 와이어 형식은 별도 페이지에 있습니다:
+[결정 모델 쓰기 (Cloudflare Clef)](./decision-models-clef.md).
 
 ## 지원 범위와 한도
 
