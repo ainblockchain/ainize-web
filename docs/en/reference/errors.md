@@ -167,7 +167,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 Not every error carries a code. 110 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 56 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 62 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
