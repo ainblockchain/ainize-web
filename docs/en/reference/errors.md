@@ -165,9 +165,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 110 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 112 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 62 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 64 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -234,6 +234,7 @@ A further 62 throw sites build their message at the time (a validator's own word
 | `400` | contributor.signer must be an AIN address | `../ainize-core/src/catalog.ts` |
 | `400` | contributors must be an array | `../ainize-core/src/catalog.ts` |
 | `400` | duplicate contributor address: \<c.address> | `../ainize-core/src/catalog.ts` |
+| `400` | invalid_actor | `src/run-actor.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
 | `400` | this is the node's own key: it owns what this node published, and revoking it would only stop the node acting for itself | `src/api.ts` |
 | `400` | unsupported contributor proof: … | `../ainize-core/src/catalog.ts` |
@@ -253,6 +254,7 @@ A further 62 throw sites build their message at the time (a validator's own word
 | `401` | the sign-in challenge has expired — ask for a new one | `src/api.ts` |
 | `402` | payment required: buy the patch via /x402/patch/:id (its author, a buyer holding a download token, and a verifier while it is being verified can fetch it) | `src/api.ts` |
 | `403` | … does not own this node — this is for whoever runs it | `src/api.ts` |
+| `403` | account_suspended | `src/run-actor.ts` |
 | `403` | only the author of \<entry.anchor.id> may place its body here | `src/api.ts` |
 | `403` | only the branch owner can add patches | `src/market.ts` |
 | `403` | only the owner of \<name> (\<b.owner>) can archive it | `src/market.ts` |
