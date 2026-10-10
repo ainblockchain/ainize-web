@@ -37,7 +37,7 @@ shows each commit's deployment next to it.
 | `entry` | `script` | The file to run, relative to the repo root. |
 | `env` | all | Environment variables for the build and the run. **Not for secrets** — the file is in the repo. |
 | `timeoutMs` | `script` | Wall-clock limit for one run. Default 120 000, maximum 300 000. |
-| `build.dockerfile`, `build.context` | `service`, `agent` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
+| `build.dockerfile`, `build.context` | `service` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | The port the container listens on. Default 3000 for Next.js. |
 | `healthcheck` | `nextjs`, `service` | Path polled until it answers 200; the deployment is `ready` when it does. Default `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — fields of the published agent card. |
@@ -63,8 +63,8 @@ under the node's public URL with a zero-downtime swap.
 
 **`agent`** — builds the repo as a [hosted agent](./host-an-agent.md) and publishes it at the node's A2A address,
 `https://<node>/agents/<id>`, with an agent card assembled from `agent` in the file. Anything that speaks A2A can call
-it from that URL; the marketplace lists it like any other agent. A `Dockerfile` in the repo replaces the default
-runtime image.
+it from that URL; the marketplace lists it like any other agent. The agent runs on the node's hosted-agent runtime image (that image is the A2A contract); a
+`Dockerfile` in the repo is ignored for this kind.
 
 ## From push to deployment
 

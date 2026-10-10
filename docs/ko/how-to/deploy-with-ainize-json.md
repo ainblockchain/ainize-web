@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: dcf999801c685978753d9bb648e8a1c1e66a0b86b0af0031a4b7b862eb9ea192
+source_sha256: aee273e211e4288e719e56809e0ff46c6062766386748f1741446d8a5535b197
 ---
 
 # ainize.json으로 리포 배포하기
@@ -38,7 +38,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `entry` | `script` | 실행할 파일, 리포 루트 기준. |
 | `env` | 전체 | 빌드와 실행에 들어가는 환경변수. **비밀값 금지** — 파일이 리포에 있습니다. |
 | `timeoutMs` | `script` | 실행 1회의 제한 시간. 기본 120 000, 최대 300 000. |
-| `build.dockerfile`, `build.context` | `service`, `agent` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
+| `build.dockerfile`, `build.context` | `service` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | 컨테이너가 듣는 포트. Next.js 기본 3000. |
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — 공개될 에이전트 카드의 항목. |
@@ -64,7 +64,7 @@ capability 제거, 자원 제한)로 실행한 뒤, `port`의 `healthcheck`를 �
 
 **`agent`** — 리포를 [hosted agent](./host-an-agent.md)로 빌드해 노드의 A2A 주소 `https://<node>/agents/<id>`에
 공개합니다. 에이전트 카드는 파일의 `agent` 항목으로 만들어집니다. A2A를 말하는 무엇이든 그 URL로 호출할 수 있고,
-마켓플레이스에도 다른 에이전트처럼 올라갑니다. 리포에 `Dockerfile`이 있으면 기본 런타임 이미지를 대체합니다.
+마켓플레이스에도 다른 에이전트처럼 올라갑니다. 에이전트는 노드의 hosted-agent 런타임 이미지로 실행되며(그 이미지가 A2A 계약), 이 kind에서는 리포의 `Dockerfile`을 무시합니다.
 
 ## push에서 배포까지
 
