@@ -31,3 +31,17 @@ test('HTTP response examples stay reference data while requests remain executabl
   assert.equal(plan.steps[1].kind, 'request');
   assert.equal(plan.steps[0].code, 'HTTP/1.1 402 Payment Required\nx-payment-required: sample');
 });
+
+test('CLI usage templates remain ordered steps and distinguish optional syntax from missing required inputs', () => {
+  const source = '# CLI\n\n```bash\nainize teach jobs [options]\n```\n\n```bash\nainize patch get <id>\n```\n\n```bash\nainize agent call coffee-bot "hello"\n```\n\n```js\nconst value = "<id>"; const list = [options];\n```';
+  const plan = practicePlan(source, 'en', 'reference/cli');
+  assert.equal(plan.steps.length, 4);
+  assert.equal(plan.steps[0].kind, 'command');
+  assert.ok(plan.steps[0].requirements.includes('command-template'));
+  assert.ok(!plan.steps[0].requirements.includes('user-input'), 'optional options do not require a user answer');
+  assert.ok(plan.steps[1].requirements.includes('command-template'));
+  assert.ok(plan.steps[1].requirements.includes('user-input'));
+  assert.ok(!plan.steps[2].requirements.includes('command-template'));
+  assert.ok(!plan.steps[3].requirements.includes('command-template'));
+  assert.equal(plan.steps[0].code, 'ainize teach jobs [options]');
+});

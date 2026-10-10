@@ -23,6 +23,7 @@ export function practicePlan(source: string, lang: string, slug: string) {
         : language === 'http' ? (/^\s*HTTP\/\d(?:\.\d)?\s+\d{3}\b/.test(block.code) ? 'reference' : 'request')
         : ['js', 'javascript', 'ts', 'typescript', 'python', 'json', 'jsonl', 'yaml', 'toml'].includes(language) ? 'file' : 'reference';
       const requirements = [
+        ...(kind === 'command' && /(?:^|\n)\s*ainize(?:-agent)?\s/.test(block.code) && /\[(?:options|[A-Za-z][\w.-]*(?:…|\.\.\.)?)\]|<[^>]+>/.test(block.code) ? ['command-template'] : []),
         ...(/\bainize(?:-agent)?\b/.test(block.code) ? ['ainize-cli'] : []),
         ...(/\b(?:docker|nvidia-smi|systemctl)\b|\bainize\s+(?:init|start|stop|config|verify|agent\s+add)\b/.test(block.code) ? ['node-operator'] : []),
         ...(/\b(?:pip|npm|git clone)\b/.test(block.code) ? ['package-or-git-access'] : []),
