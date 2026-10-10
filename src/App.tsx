@@ -19,6 +19,9 @@ const LedgerPage = lazy(() => import('./screens/LedgerPage'));
 const NetworkPage = lazy(() => import('./screens/NetworkPage'));
 const ModelsPage = lazy(() => import('./screens/ModelsPage'));
 const MyPage = lazy(() => import('./screens/MyPage'));
+const ProjectNewPage = lazy(() => import('./screens/ProjectNewPage'));
+const ProjectPage = lazy(() => import('./screens/ProjectPage'));
+const MyProjectsPage = lazy(() => import('./screens/MyProjectsPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
 // Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
 const ModelDetailPage = lazy(() => import('./screens/ModelDetailPage'));
@@ -132,6 +135,12 @@ export default function App() {
                 {/* The caller's own agents — built here or linked by address. Signed in is enough: an AIN account with
                     no wallet owns linked agents, and this is the one place that lists what AIN Teams can import. */}
                 <Route path="/me/agents" element={<SignedInLayout><MyAgentsPage /></SignedInLayout>} />
+                {/* Projects: a repo in an aindrive drive, deployed on every push. `/projects/new` keeps its own sign-in
+                    gate because aindrive opens it with a query string (repo, driveId, returnTo) that the shared
+                    gate would drop on the way to /signing. */}
+                <Route path="/projects/new" element={<Layout><ProjectNewPage /></Layout>} />
+                <Route path="/projects/:id" element={<SignedInLayout><ProjectPage /></SignedInLayout>} />
+                <Route path="/me/projects" element={<SignedInLayout><MyProjectsPage /></SignedInLayout>} />
                 {/* Organizations (ainize-node organizations design). `/org/new` and `/org/join/…` are declared before
                     `/org/:id` so an organization called "new" cannot shadow them (and the id rule reserves the words). */}
                 <Route path="/org" element={<Layout><OrgsPage /></Layout>} />
