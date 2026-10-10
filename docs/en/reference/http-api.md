@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-210 operations on 175 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+213 operations on 178 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -222,6 +222,9 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
 | `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — public |
 | `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (public) |
+| `POST` | [`/api/projects/{id}/run`](#post-apiprojectsidrun) | operator | Run the deployed commit of a `script` project again, for the viewer, with answers to its inputs (link snippets) |
+| `POST` | [`/api/projects/{id}/redeploy`](#post-apiprojectsidredeploy) | operator | Deploy the project's newest commit again (owner only) |
+| `GET` | [`/api/ainui/snippet`](#get-apiainuisnippet) | operator | The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted) |
 | `GET` | [`/api/deployments/{id}/log`](#get-apideploymentsidlog) | operator | The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building |
 | `GET` | [`/api/deployments/{id}/output`](#get-apideploymentsidoutput) | operator | The script's stdout alone, for a ready deployment |
 | `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
@@ -3727,6 +3730,73 @@ One deployment or run (public)
 | Code | Description | Body |
 |---|---|---|
 | `200` | deployment | `object` |
+
+### `POST /api/projects/{id}/run`
+
+Run the deployed commit of a `script` project again, for the viewer, with answers to its inputs (link snippets)
+
+Viewer+ (owner, or an active member of the project's organization) — a session, or a trusted application's machine token + `X-AIN-Actor`. Body `{ env?: { INPUT_<NAME>: value } }` (≤ 16, ≤ 2 KiB each) over the manifest's defaults. Answers `text/event-stream` with `stdout` / `stderr` / `error` / `exit` events, the shape of `/api/run`; the script holds the viewer's own `aindrive run` key. 404 unknown or not visible, 409 `no_deployment` / `not_a_script`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type |
+|---|---|
+| `env` | `object` |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | text/event-stream |
+
+### `POST /api/projects/{id}/redeploy`
+
+Deploy the project's newest commit again (owner only)
+
+The owner — a session, or a trusted application naming the owner in `X-AIN-Actor`. 202 `{ deploymentId, status: "queued" }`; 403 for a member, 404 for anyone else, 409 `no_deployment` before the first push.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | {deploymentId, status} |
+
+### `GET /api/ainui/snippet`
+
+The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted)
+
+`url=<pasted ainize URL>` (`/projects/<id>` or `/<org>/<repo>`) or `path=`. The viewer is a session, or a trusted application's machine token + `X-AIN-Actor`. 200 `application/vnd.ain.ui+json` `{ ainui: 1, kind, title, subtitle, url, surface: <A2UI v0.9 messages>, actions, refresh }`; 403 the same envelope with `kind: "denied"`; 404 unknown. Contract: aindrive docs/AINUI-LINK-SNIPPETS.md.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type |
+|---|---|---|
+| `url` | `query` | `string` |
+| `path` | `query` | `string` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | snippet | `object` |
 
 ### `GET /api/deployments/{id}/log`
 
