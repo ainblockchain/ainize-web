@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-213 operations on 178 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+246 operations on 205 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -186,6 +186,38 @@ See [Error codes](./errors.md) for the full list.
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
+| `GET` | [`/git/{id}.git/info/refs`](#get-gitidgitinforefs) | operator | Discover Git refs (smart HTTP) |
+| `POST` | [`/git/{id}.git/git-upload-pack`](#post-gitidgitgit-upload-pack) | operator | Clone or fetch an agent repository |
+| `POST` | [`/git/{id}.git/git-receive-pack`](#post-gitidgitgit-receive-pack) | operator | Push an agent repository and apply main |
+| `GET` | [`/api/hosted-agents/{id}/executions`](#get-apihosted-agentsidexecutions) | operator | Read persisted runtime execution history |
+| `GET` | [`/api/hosted-agents/{id}/commits`](#get-apihosted-agentsidcommits) | operator | Read commit history |
+| `GET` | [`/api/hosted-agents/{id}/refs`](#get-apihosted-agentsidrefs) | operator | Read branches and clone URL |
+| `GET` | [`/api/hosted-agents/{id}/tree`](#get-apihosted-agentsidtree) | operator | Read a file or paths at a ref |
+| `GET` | [`/api/hosted-agents/{id}/diff`](#get-apihosted-agentsiddiff) | operator | Review a proposal diff |
+| `POST` | [`/api/hosted-agents/{id}/forks`](#post-apihosted-agentsidforks) | operator | Create a private source fork |
+| `GET` | [`/api/agent-forks`](#get-apiagent-forks) | operator | List your private repository forks |
+| `DELETE` | [`/api/agent-forks/{id}`](#delete-apiagent-forksid) | operator | Delete your private source fork |
+| `GET` | [`/api/hosted-agents/{id}/pulls`](#get-apihosted-agentsidpulls) | operator | List repository proposals |
+| `POST` | [`/api/hosted-agents/{id}/pulls`](#post-apihosted-agentsidpulls) | operator | Open a branch or cross-repository proposal |
+| `GET` | [`/api/hosted-agents/{id}/pulls/{number}`](#get-apihosted-agentsidpullsnumber) | operator | Read a proposal |
+| `POST` | [`/api/hosted-agents/{id}/pulls/{number}/merge`](#post-apihosted-agentsidpullsnumbermerge) | operator | Validate and merge a proposal |
+| `POST` | [`/api/hosted-agents/{id}/pulls/{number}/close`](#post-apihosted-agentsidpullsnumberclose) | operator | Close a proposal |
+| `GET` | [`/api/hosted-agents/{id}/pulls/{number}/comments`](#get-apihosted-agentsidpullsnumbercomments) | operator | Read proposal review comments |
+| `POST` | [`/api/hosted-agents/{id}/pulls/{number}/comments`](#post-apihosted-agentsidpullsnumbercomments) | operator | Add a general or source-anchored review comment |
+| `PATCH` | [`/api/hosted-agents/{id}/pulls/{number}/comments/{comment}`](#patch-apihosted-agentsidpullsnumbercommentscomment) | operator | Edit your review comment |
+| `DELETE` | [`/api/hosted-agents/{id}/pulls/{number}/comments/{comment}`](#delete-apihosted-agentsidpullsnumbercommentscomment) | operator | Remove a review comment |
+| `GET` | [`/api/hosted-agents/{id}/mirror`](#get-apihosted-agentsidmirror) | operator | Read GitHub mirror state |
+| `PUT` | [`/api/hosted-agents/{id}/mirror`](#put-apihosted-agentsidmirror) | operator | Attach an agent to a GitHub source |
+| `DELETE` | [`/api/hosted-agents/{id}/mirror`](#delete-apihosted-agentsidmirror) | operator | Detach a GitHub mirror |
+| `POST` | [`/api/hosted-agents/{id}/mirror/sync`](#post-apihosted-agentsidmirrorsync) | operator | Reconcile a GitHub mirror now |
+| `POST` | [`/api/agent-mirrors/webhook`](#post-apiagent-mirrorswebhook) | operator | Reconcile mirrors after a signed GitHub push |
+| `POST` | [`/api/hosted-agents/{id}/preview-runs/{run}/export`](#post-apihosted-agentsidpreview-runsrunexport) | operator | Export your proposal conversation |
+| `DELETE` | [`/api/hosted-agents/{id}/preview-runs/{run}`](#delete-apihosted-agentsidpreview-runsrun) | operator | Delete your exported proposal conversation |
+| `GET` | [`/api/hosted-agents/{id}/preview-runs`](#get-apihosted-agentsidpreview-runs) | operator | Read your persisted proposal conversations |
+| `POST` | [`/api/hosted-agents/{id}/previews`](#post-apihosted-agentsidpreviews) | operator | Start an isolated proposal runtime at a fixed SHA |
+| `GET` | [`/api/agent-previews/{preview}`](#get-apiagent-previewspreview) | operator | Read your temporary proposal runtime |
+| `DELETE` | [`/api/agent-previews/{preview}`](#delete-apiagent-previewspreview) | operator | Stop your temporary proposal runtime |
+| `POST` | [`/api/agent-previews/{preview}/rpc`](#post-apiagent-previewspreviewrpc) | operator | Talk to your proposal before merging |
 | `GET` | [`/api/shared-agents`](#get-apishared-agents) | operator | Agents this node runs or proxies, in the cross-product registry shape (contract 1.0) |
 | `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
 | `GET` | [`/api/shared-agents/events`](#get-apishared-agentsevents) | operator | Changes to the shared agent registry since a cursor (contract 1.0) |
@@ -207,6 +239,7 @@ See [Error codes](./errors.md) for the full list.
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
+| `GET` | [`/api/projects/{id}/source`](#get-apiprojectsidsource) | operator | Read the manifest from an immutable execution source |
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
 | `GET` | [`/api/projects/by-repo`](#get-apiprojectsby-repo) | operator | The project bound to a repository (what aindrive's UI shows next to a repo) |
@@ -222,7 +255,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
 | `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — public |
 | `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (public) |
-| `POST` | [`/api/projects/{id}/run`](#post-apiprojectsidrun) | operator | Run the deployed commit of a `script` project again, for the viewer, with answers to its inputs (link snippets) |
+| `POST` | [`/api/projects/{id}/run`](#post-apiprojectsidrun) | operator | Stream a selected repository version for the viewer |
 | `POST` | [`/api/projects/{id}/redeploy`](#post-apiprojectsidredeploy) | operator | Deploy the project's newest commit again (owner only) |
 | `GET` | [`/api/ainui/snippet`](#get-apiainuisnippet) | operator | The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted) |
 | `GET` | [`/api/deployments/{id}/log`](#get-apideploymentsidlog) | operator | The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building |
@@ -3005,6 +3038,866 @@ The AIN SSO issuer this node signs people in with and the AIN organizations link
 
 the A2A agents this node lists and serves at `/agents/{id}`: the operator's config agents, agents the node runs, agents people linked by URL, and peers' agents — one catalogue, which AIN Teams imports from; `/api/shared-agents` is the same catalogue in the ain-integration contract 1.0 shape
 
+### `GET /git/{id}.git/info/refs`
+
+Discover Git refs (smart HTTP)
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Git clients use HTTP Basic with an ainize API key as the password. Workspace sessions and bearer credentials also work.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `service` | `query` | `"git-upload-pack"` \| `"git-receive-pack"` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Git service advertisement; application/x-git-*-advertisement |
+| `401` | Git credential challenge |
+| `404` | Unknown or unreadable repository |
+
+### `POST /git/{id}.git/git-upload-pack`
+
+Clone or fetch an agent repository
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Packs are binary. A rejected pre-receive validation leaves refs unchanged. Main application finishes before receive-pack responds. Proposal branches do not deploy.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/x-git-upload-pack-request`, required
+
+`{"type":"string","format":"binary"}`
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | application/x-git-upload-pack-result (Git protocol reports accepted/rejected refs) |
+| `401` | Git credential challenge |
+| `404` | Unknown or unreadable repository |
+
+### `POST /git/{id}.git/git-receive-pack`
+
+Push an agent repository and apply main
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Packs are binary. A rejected pre-receive validation leaves refs unchanged. Main application finishes before receive-pack responds. Proposal branches do not deploy.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/x-git-receive-pack-request`, required
+
+`{"type":"string","format":"binary"}`
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | application/x-git-receive-pack-result (Git protocol reports accepted/rejected refs) |
+| `401` | Git credential challenge |
+| `404` | Unknown or unreadable repository |
+
+### `GET /api/hosted-agents/{id}/executions`
+
+Read persisted runtime execution history
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Newest first; previous successful and failed executions survive restart. Private/no-store.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `limit` | `query` | `integer` |   | `50` |
+| `offset` | `query` | `integer` |   | `0` |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/commits`
+
+Read commit history
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `ref` | `query` | `string` |   |   |
+| `limit` | `query` | `integer` |   | `50` |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/refs`
+
+Read branches and clone URL
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/tree`
+
+Read a file or paths at a ref
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `ref` | `query` | `string` |   |
+| `path` | `query` | `string` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/diff`
+
+Review a proposal diff
+
+Three-dot diff from base to head. Cross-repository proposals expose their imported, pinned headCommit in the original repository.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `base` | `query` | `string` |   |
+| `head` | `query` | `string` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/hosted-agents/{id}/forks`
+
+Create a private source fork
+
+Any authenticated reader may fork. The resulting fork is owner-only and creates no runtime or secrets. Ten forks per owner, one thousand total.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Description |
+|---|---|---|
+| `ref` | `string` | (default `"main"`) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | { fork, clonePath } |
+| `400` | Invalid source or fork quota reached |
+| `401` | Sign in |
+| `404` | No readable repository |
+
+### `GET /api/agent-forks`
+
+List your private repository forks
+
+Authenticated owner only.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `DELETE /api/agent-forks/{id}`
+
+Delete your private source fork
+
+Owner only; an imported proposal SHA remains available for review and merge.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/pulls`
+
+List repository proposals
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `state` | `query` | `"open"` \| `"merged"` \| `"closed"` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/hosted-agents/{id}/pulls`
+
+Open a branch or cross-repository proposal
+
+An authenticated reader may propose an existing branch or their private fork via headAgent. Fork ownership and parent must match. The imported cross-repository head SHA is pinned when the proposal opens.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `head` | `string` | yes |   |
+| `headAgent` | `string` |   |   |
+| `base` | `string` |   | (default `"main"`) |
+| `title` | `string` | yes | (1–120 characters) |
+| `body` | `string` |   | (at most 4000 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | { pull } |
+| `400` | Invalid branch or proposal |
+| `401` | Sign in |
+| `403` | Not your fork of this repository |
+| `409` | Source is read-only |
+
+### `GET /api/hosted-agents/{id}/pulls/{number}`
+
+Read a proposal
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `number` | `path` | `integer` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/hosted-agents/{id}/pulls/{number}/merge`
+
+Validate and merge a proposal
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Validates the merged result before refs move. Conflicts and invalid resulting specs are refused. Cross-repository merges use the reviewed SHA even after the fork changes or is deleted.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `number` | `path` | `integer` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/hosted-agents/{id}/pulls/{number}/close`
+
+Close a proposal
+
+Proposal author or someone who may merge only.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `number` | `path` | `integer` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/pulls/{number}/comments`
+
+Read proposal review comments
+
+Same proposal visibility. Deleted comments retain author, anchor and deletion timestamp but their body is removed.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `number` | `path` | `integer` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/hosted-agents/{id}/pulls/{number}/comments`
+
+Add a general or source-anchored review comment
+
+Authenticated proposal reader. An anchor requires an existing full commit SHA, path and line; comments are stored durably.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `number` | `path` | `integer` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `body` | `string` | yes | (1–8000 characters) |
+| `commit` | `string` |   |   |
+| `path` | `string` |   |   |
+| `line` | `integer` |   | (at least 1) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `PATCH /api/hosted-agents/{id}/pulls/{number}/comments/{comment}`
+
+Edit your review comment
+
+Comment author only.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `number` | `path` | `integer` | yes |
+| `comment` | `path` | `integer` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `body` | `string` | yes | (1–8000 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `DELETE /api/hosted-agents/{id}/pulls/{number}/comments/{comment}`
+
+Remove a review comment
+
+Author or someone who may merge; retains a tombstone.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `number` | `path` | `integer` | yes |
+| `comment` | `path` | `integer` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/mirror`
+
+Read GitHub mirror state
+
+Same agent visibility; includes last sync commit and error.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `PUT /api/hosted-agents/{id}/mirror`
+
+Attach an agent to a GitHub source
+
+Visibility is the same as reading the agent. Owner/organization writers may push and merge. A project-bound or mirrored source refuses local writes with read_only_source; edit and push its original repository instead. Fetches once, then periodically reconciles. Repository path selects the agent folder.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `url` | `string` | yes |   |
+| `branch` | `string` |   | (default `"main"`) |
+| `path` | `string` |   | (default `""`) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `DELETE /api/hosted-agents/{id}/mirror`
+
+Detach a GitHub mirror
+
+Writers only. Stops following without reverting the current agent.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/hosted-agents/{id}/mirror/sync`
+
+Reconcile a GitHub mirror now
+
+Writers only; sync shares the same serialized pipeline as automatic reconciliation.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/agent-mirrors/webhook`
+
+Reconcile mirrors after a signed GitHub push
+
+AINIZE_AGENT_MIRROR_WEBHOOK_SECRET must be configured. X-Hub-Signature-256 is HMAC-SHA256 over the original request bytes. Only matching source/branch mirrors sync; the periodic timer recovers missed events.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `X-Hub-Signature-256` | `header` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | { synced } |
+| `401` | Invalid signature |
+| `404` | Webhook secret not configured |
+
+### `POST /api/hosted-agents/{id}/preview-runs/{run}/export`
+
+Export your proposal conversation
+
+Current source visibility and record ownership required. Returns {run} and records the export receipt.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `run` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `DELETE /api/hosted-agents/{id}/preview-runs/{run}`
+
+Delete your exported proposal conversation
+
+Record owner only. A finished request and a prior export are required; otherwise 409.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `run` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/hosted-agents/{id}/preview-runs`
+
+Read your persisted proposal conversations
+
+Authenticated reader and record owner only. Fixed source commit, model, request and bounded response survive preview expiry. Private/no-store.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/hosted-agents/{id}/previews`
+
+Start an isolated proposal runtime at a fixed SHA
+
+Authenticated repository readers. The preview is owner-only, expires after fifteen minutes, inherits no production secrets/allowlist/media permissions, and never updates the source runtime. Two per person, eight total.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `ref` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | { preview: { id, agent, commit, owner, createdAt, expiresAt, status, error } } |
+| `401` | Sign in |
+| `404` | No readable repository |
+| `409` | Invalid source or preview quota/build failure |
+
+### `GET /api/agent-previews/{preview}`
+
+Read your temporary proposal runtime
+
+Owner must still be able to read the source. Private/no-store; expired previews return 404.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `preview` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `DELETE /api/agent-previews/{preview}`
+
+Stop your temporary proposal runtime
+
+Owner only. Aborts active requests, revokes gateway authority and removes the temporary runtime and images.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `preview` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/agent-previews/{preview}/rpc`
+
+Talk to your proposal before merging
+
+Owner/source-reader only, ready preview required. A2A JSON-RPC message/send, message/stream, tasks/get and tasks/cancel; maximum 64 KiB. JSON or SSE response. Expiry and client cancellation abort the upstream request.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `preview` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `jsonrpc` | `string` |   |
+| `id` | `object` |   |
+| `method` | `"message/send"` \| `"message/stream"` \| `"tasks/get"` \| `"tasks/cancel"` | yes |
+| `params` | `object` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
 ### `GET /api/shared-agents`
 
 Agents this node runs or proxies, in the cross-product registry shape (contract 1.0)
@@ -3410,6 +4303,33 @@ Recent log lines — owner or `write` member of its organization
 
 a deployment bound to a git repository that lives in an aindrive drive (`https://aindrive.ainetwork.ai/<org>/git/<repo>`) — ainize keeps no repository; aindrive calls the push hook, the node clones that commit and runs it (docs/PROJECTS.md)
 
+### `GET /api/projects/{id}/source`
+
+Read the manifest from an immutable execution source
+
+Same project viewer/actor permission as Run. Deployed means last successful active deployment; a newer failure does not replace it. Returns {repoId,target,sha,sourcePath,manifest}, private/no-store. Use the returned SHA with target=commit to keep form and execution together.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `target` | `query` | `"head"` \| `"commit"` \| `"deployed"` |   | `"head"` |
+| `sha` | `query` | `string` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Result; read responses use application/json unless described otherwise |
+| `400` | Invalid request or ref |
+| `401` | Authentication required |
+| `403` | Operation not permitted |
+| `404` | Unknown or unreadable resource |
+| `409` | Read-only source, conflict or runtime not ready |
+
 ### `GET /api/projects`
 
 The caller's projects
@@ -3733,9 +4653,9 @@ One deployment or run (public)
 
 ### `POST /api/projects/{id}/run`
 
-Run the deployed commit of a `script` project again, for the viewer, with answers to its inputs (link snippets)
+Stream a selected repository version for the viewer
 
-Viewer+ (owner, or an active member of the project's organization) — a session, or a trusted application's machine token + `X-AIN-Actor`. Body `{ env?: { INPUT_<NAME>: value } }` (≤ 16, ≤ 2 KiB each) over the manifest's defaults. Answers `text/event-stream` with `stdout` / `stderr` / `error` / `exit` events, the shape of `/api/run`; the script holds the viewer's own `aindrive run` key. 404 unknown or not visible, 409 `no_deployment` / `not_a_script`.
+Viewer access through a session or trusted application token + X-AIN-Actor. target is head, commit or deployed (default deployed); sha is required only with commit. Read /api/projects/{id}/source first and pin its SHA to run exactly the displayed form. entry, inputs, env and timeoutMs override the selected commit manifest. The viewer’s own run key is injected. Runs share deployment FIFO and node concurrency limits, retain actor/source/input/log evidence, and never activate a deployment. Closing the stream cancels queued or active work. Events: stdout, stderr, error, exit. X-Ainize-Execution identifies the persisted run. Restart marks interrupted streamed runs failed; it does not replay their code.
 
 **Auth** — operator
 
@@ -3747,15 +4667,24 @@ Viewer+ (owner, or an active member of the project's organization) — a session
 
 **Request body** — `application/json`, optional
 
-| Field | Type |
-|---|---|
-| `env` | `object` |
+| Field | Type | Description |
+|---|---|---|
+| `target` | `"head"` \| `"commit"` \| `"deployed"` | (default `"deployed"`) |
+| `sha` | `string` | Required only with target=commit. |
+| `entry` | `string` | Repository-relative script file. (at most 200 characters) |
+| `inputs` | `object` | Manifest input names; delivered as INPUT_\<NAME>. |
+| `env` | `object` |   |
+| `timeoutMs` | `integer` | (1000–300000) |
 
 **Responses**
 
 | Code | Description |
 |---|---|
-| `200` | text/event-stream |
+| `200` | text/event-stream with X-Ainize-Execution |
+| `400` | Invalid target, commit, entry or inputs |
+| `404` | Unknown or inaccessible project |
+| `409` | No successful deployed version |
+| `502` | Source checkout, manifest or runner failed before streaming |
 
 ### `POST /api/projects/{id}/redeploy`
 
