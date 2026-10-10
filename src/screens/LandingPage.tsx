@@ -1,18 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
-import { useCatalogQuery, useInfoQuery } from '@/api/api';
-import { ApplyArt, LiveTestArt, VerifiedArt } from '@/components/public/HowArt';
-import { HeroGraph, HeroGraphCompact } from '@/components/public/HeroGraph';
-import Lifecycle from '@/components/public/Lifecycle';
+import { useInfoQuery } from '@/api/api';
 import { Footer } from '@/components/ui/Footer';
-import { executedAccuracy, usePriceLabel, useVerificationLabel } from '@/components/public/PatchListItem';
-import { ScoreBar, Shimmer } from '@/components/ui/Misc';
-import { Offline } from '@/components/ui/Offline';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { useAuth } from '@/auth/AuthContext';
-import { num, shortAddr } from '@/utils/format';
+import { shortAddr } from '@/utils/format';
+
+/**
+ * The landing — four capabilities, then the two things only Ainize does.
+ *
+ * Owner review 2026-10: "the main page says nothing about model, agent, run, deploy". The page that was here
+ * explained the knowledge marketplace (hero count, four audience doors, three how-it-works steps, trending
+ * knowledge, a 2019→2026 timeline) and the four capabilities most visitors now come for were not on it at all. This
+ * one is built around them, in the order the owner named them, each with one promise, one concrete example and one
+ * primary link into the product; teaching and the shared AIN identity follow as the differentiators. The nav, the
+ * sign-in affordance and the shared footer are unchanged — `test/nav-parity.test.ts` and
+ * `test/account-reachability.test.ts` hold them, and `test/landing.test.ts` holds the sections and their links.
+ *
+ * Every code sample below is lifted from the how-to it links to (`docs/en/how-to/*.md`), so what a visitor copies off
+ * this page is what the docs say runs. The terminal trace in the hero is one push of a real `script` project,
+ * `comcom/clef-artwork-search` drawn in the deploy pipeline's own status words.
+ */
 
 /* ---------------------------------------------------------------- hero (dark, original Ainize white logo) */
 const IntroSection = styled.section`
@@ -73,77 +83,56 @@ const LocaleButton = styled.button`
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { order: 1; margin-left: auto; }
 `;
 const IntroContent = styled.div`
-  width: calc(100% - 80px); max-width: ${(p) => p.theme.layout.maxWidthLanding}; padding: 96px 40px 110px; position: relative;
-  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: calc(100% - 32px); padding: 56px 16px 72px; }
+  width: calc(100% - 80px); max-width: ${(p) => p.theme.layout.maxWidthLanding}; padding: 80px 40px 96px; position: relative;
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: calc(100% - 32px); padding: 48px 16px 64px; }
 `;
-/**
- * The hero art has a COLUMN, not a corner. The old raster was `position:absolute; right:-80px; max-width:60vw`,
- * which is why it had to be cropped by the section and why it was `display:none` below 960px — an element
- * behind the card cannot be laid out beside it. A grid gives the diagram real width at every size, and the
- * copy a measure that does not depend on where the picture happens to fall.
- */
+/** Copy on the left, the terminal on the right; one column below md, where the terminal follows the buttons. */
 const HeroGrid = styled.div`
-  display: grid; gap: 48px; grid-template-columns: minmax(0, 1fr); align-items: center;
-  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 40px; }
-`;
-/** The one line that keeps the dashed half of the diagram honest. Cutting it makes the art overstate. */
-const ArtLegend = styled.p`
-  margin: 16px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 13px; line-height: 1.5; color: #b6b6c0;
-  max-width: 52ch; word-break: keep-all; white-space: pre-wrap;
-`;
-/** The wide column. Below md it collapses and the compact art inside `Hero` takes over, legend and all. */
-const HeroArtCol = styled.div`
-  @media (max-width: ${(p) => p.theme.breakpoint.md}px) { display: none; }
-`;
-/** …so the copy column's own copy of the legend is hidden exactly where the wide one is showing. */
-const HeroMobileOnly = styled.div`
-  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { display: none; }
+  display: grid; gap: 40px; grid-template-columns: minmax(0, 1fr); align-items: center;
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: 56px; }
 `;
 const Hero = styled.div`display: flex; flex-direction: column; align-items: flex-start; justify-content: center;`;
 const HeroLogo = styled.img`height: 44px; width: auto; margin-bottom: 28px; z-index: 2; @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { height: 32px; }`;
 const IntroTitle = styled.h1`
-  z-index: 2; margin: 0; font-family: ${(p) => p.theme.font.display}; font-weight: 800; line-height: 1.21; color: #ffffff; white-space: pre-wrap; max-width: 18ch; word-break: keep-all;
+  z-index: 2; margin: 0; font-family: ${(p) => p.theme.font.display}; font-weight: 800; line-height: 1.18; color: #ffffff; white-space: pre-wrap; max-width: 20ch; word-break: keep-all;
   font-size: 30px;
   @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 40px; }
-  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { font-size: 52px; }
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { font-size: 48px; }
 `;
 const IntroSub = styled.p`
-  z-index: 2; margin: 20px 0 0; font-family: ${(p) => p.theme.font.display}; font-weight: 500; line-height: 1.6; color: #e6e6e6; white-space: pre-wrap; max-width: 52ch; word-break: keep-all;
+  z-index: 2; margin: 20px 0 0; font-family: ${(p) => p.theme.font.display}; font-weight: 500; line-height: 1.65; color: #e6e6e6; max-width: 56ch; word-break: keep-all;
   font-size: 15px;
   @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 17px; }
-  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { font-size: 20px; }
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { font-size: 18px; }
 `;
-const CountCard = styled.div`
-  z-index: 2; margin-top: 56px; padding: 48px 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  /* Finding 13: the headline is a sentence now, not a number — the card keeps a measure so a long one wraps
-     inside it instead of stretching the card across the hero image. */
-  max-width: 640px;
-  border-radius: 24px; box-shadow: 0 4px 30px 0 rgba(0, 0, 0, 0.5); background-color: #ffffff;
-  @media (max-width: ${(p) => p.theme.breakpoint.md}px) { margin-top: 40px; padding: 40px 24px; width: 100%; }
-`;
-const CountTitle = styled.div`
-  font-family: ${(p) => p.theme.font.display}; font-weight: 800; line-height: 1.33; color: #8c6cff; text-align: center; cursor: help;
-  /* A knowledge name is user-supplied: keep-all so Korean breaks between words, anywhere so a 60-character id
-     with no spaces in it wraps instead of stretching the card past the hero. */
-  word-break: keep-all; overflow-wrap: anywhere;
-  font-size: 22px;
-  @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 28px; }
-`;
-const CountSub = styled.div`font-family: ${(p) => p.theme.font.display}; font-size: 14px; color: #828282;`;
-/** The sentence under the hero headline: a full sentence, so it needs a measure and Korean line breaking. */
-const CountExplain = styled(CountSub)`max-width: 46ch; line-height: 1.5; text-align: center; word-break: keep-all;`;
-const PillRow = styled.div`margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;`;
+const PillRow = styled.div`margin-top: 32px; display: flex; gap: 12px; flex-wrap: wrap;`;
 const PrimaryPill = styled(Link)`
-  padding: 18px 34px; border-radius: 32px; background-color: #8c6cff; font-family: ${(p) => p.theme.font.display}; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none;
+  padding: 16px 30px; border-radius: 32px; background-color: ${(p) => p.theme.color.LANDING_ACCENT}; font-family: ${(p) => p.theme.font.display}; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none;
   transition: background-color 0.2s ease-in-out;
-  &:hover { background-color: #7754f6; } &:active { background-color: #6b42ff; }
+  &:hover { background-color: ${(p) => p.theme.color.LANDING_ACCENT_HOVER}; } &:active { background-color: ${(p) => p.theme.color.LANDING_ACCENT_ACTIVE}; }
 `;
 const SecondaryPill = styled(Link)`
-  padding: 17px 30px; border-radius: 32px; border: 1px solid #cdbfff; background-color: #ffffff; font-family: ${(p) => p.theme.font.display}; font-size: 16px; font-weight: 700; color: #8c6cff; text-decoration: none;
+  padding: 15px 26px; border-radius: 32px; border: 1px solid ${(p) => p.theme.color.LANDING_BORDER}; background-color: transparent; font-family: ${(p) => p.theme.font.display}; font-size: 16px; font-weight: 700; color: #e4ddff; text-decoration: none;
   transition: background-color 0.2s ease-in-out;
-  &:hover { background-color: #e4ddff; } &:active { background-color: #d1c6ff; }
+  &:hover { background-color: rgba(140, 108, 255, 0.18); }
 `;
-const NoSignUp = styled.div`margin-top: 20px; font-family: ${(p) => p.theme.font.display}; font-size: 13px; color: #828282; text-align: center; max-width: 46ch; line-height: 1.5; word-break: keep-all;`;
+const HeroNote = styled.p`margin: 20px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 13px; line-height: 1.5; color: #b6b6c0; max-width: 56ch; word-break: keep-all;`;
+
+/* ---------------------------------------------------------------- the terminal: push → deployed */
+const Terminal = styled.figure`
+  margin: 0; border-radius: 16px; background: #1d1d20; border: 1px solid #45454c; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); overflow: hidden; min-width: 0;
+`;
+const TerminalBar = styled.div`
+  display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #2a2a2f; border-bottom: 1px solid #3a3a40;
+  span { width: 10px; height: 10px; border-radius: 50%; background: #5a5a62; }
+  em { margin-left: 8px; font-family: ${(p) => p.theme.font.mono}; font-style: normal; font-size: 12px; color: #9b9ba3; }
+`;
+const TerminalBody = styled.pre`
+  margin: 0; padding: 18px 20px 20px; font-family: ${(p) => p.theme.font.mono}; font-size: 13px; line-height: 1.6; color: #d9d9e0; overflow-x: auto; white-space: pre;
+  .p { color: #8c6cff; } .c { color: #7f7f88; } .ok { color: #7ed89a; } .k { color: #78d9e9; } .d { color: #f6c177; }
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 12px; padding: 14px 16px 16px; }
+`;
+const TerminalCaption = styled.figcaption`margin: 14px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 13px; line-height: 1.5; color: #b6b6c0; word-break: keep-all;`;
 
 /* ---------------------------------------------------------------- shared section bits */
 const Section = styled.section<{ $bg?: string }>`
@@ -158,124 +147,114 @@ const SectionTitle = styled.h2`
   @media (min-width: ${(p) => p.theme.breakpoint.md}px) { font-size: 40px; }
 `;
 const SectionSub = styled.p`
-  margin: 16px auto 0; font-family: ${(p) => p.theme.font.display}; color: #5c5c5c; text-align: center; white-space: pre-wrap; max-width: 60ch; line-height: 1.6; word-break: keep-all;
+  margin: 16px auto 0; font-family: ${(p) => p.theme.font.display}; color: #5c5c5c; text-align: center; max-width: 64ch; line-height: 1.6; word-break: keep-all;
   font-size: 15px;
   @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { font-size: 17px; }
 `;
+/** Inline `code` in copy. Dictionary strings carry backticks; `rich()` turns them into this. */
+const Code = styled.code`font-family: ${(p) => p.theme.font.mono}; font-size: 0.92em; padding: 1px 5px; border-radius: 5px; background: rgba(139, 62, 235, 0.08); color: #5b1ca8;`;
+/** A backtick span inside a dictionary sentence becomes <code>; everything else is left as text. */
+function rich(s: string): ReactNode[] {
+  return s.split(/(`[^`]+`)/g).map((part, i) => (part.startsWith('`') && part.endsWith('`') ? <Code key={i}>{part.slice(1, -1)}</Code> : part));
+}
 
-/* ---------------------------------------------------------------- audience */
-const AudienceGrid = styled.div`
-  margin-top: 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;
+/* ---------------------------------------------------------------- capability grid */
+const CapGrid = styled.div`
+  margin-top: 56px; display: grid; grid-template-columns: 1fr; gap: 24px;
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 `;
-const AudienceCard = styled.div<{ $dev?: boolean }>`
-  display: flex; flex-direction: column; padding: 32px; border-radius: 20px; background: ${(p) => (p.$dev ? '#2b2b2b' : '#ffffff')}; color: ${(p) => (p.$dev ? '#f2f2f2' : '#333333')};
-  border: 1px solid ${(p) => (p.$dev ? '#444444' : '#e6e6e6')}; box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+const CapCard = styled.article`
+  display: flex; flex-direction: column; min-width: 0; padding: 32px; border-radius: 20px; background: #ffffff; border: 1px solid #e6e6e6; box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 24px 20px; }
 `;
-const AudienceTitle = styled.h3`margin: 0; font-family: ${(p) => p.theme.font.display}; font-size: 22px; font-weight: 800; line-height: 1.3; word-break: keep-all;`;
-const AudienceHelp = styled.p`margin: 10px 0 0; font-size: 14px; line-height: 1.6; opacity: 0.8; word-break: keep-all;`;
-const Steps = styled.ol`
-  margin: 20px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; flex: 1;
-  li { display: flex; gap: 12px; font-size: 14px; line-height: 1.55; word-break: keep-all; }
-  li b { flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; background: #f5eefc; color: #5b1ca8; }
+const CapKicker = styled.div`
+  display: flex; align-items: center; gap: 10px; font-family: ${(p) => p.theme.font.display}; font-size: 13px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: ${(p) => p.theme.color.PRIMARY};
+  b { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: ${(p) => p.theme.color.PALE_GREY}; color: ${(p) => p.theme.color.HOVER}; font-size: 13px; letter-spacing: 0; }
 `;
-const AudienceCta = styled(Link)<{ $dev?: boolean }>`
-  margin-top: 24px; align-self: flex-start; padding: 12px 22px; border-radius: 28px; font-size: 14px; font-weight: 700; text-decoration: none;
-  background: ${(p) => (p.$dev ? '#ffffff' : '#8c6cff')}; color: ${(p) => (p.$dev ? '#333333' : '#ffffff')};
-  &:hover { opacity: 0.9; }
+const CapTitle = styled.h3`margin: 14px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 22px; font-weight: 800; line-height: 1.3; color: #333333; word-break: keep-all;`;
+const CapDesc = styled.p`margin: 12px 0 0; font-size: 15px; line-height: 1.65; color: #4a4a4a; word-break: keep-all;`;
+const CapCode = styled.pre`
+  margin: 20px 0 0; padding: 16px 18px; border-radius: 12px; background: #1d1d20; color: #d9d9e0; font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; line-height: 1.6; overflow-x: auto; white-space: pre; flex: 1;
+  .c { color: #7f7f88; } .k { color: #78d9e9; } .s { color: #f6c177; } .p { color: #8c6cff; }
 `;
-/** Secondary route on the creator card: node operators who already have a knowledge file go to the (sign-in walled) register form. */
-const AudienceAlt = styled(Link)`
-  margin-top: 14px; font-size: 13px; line-height: 1.5; color: #5b1ca8; text-decoration: none; word-break: keep-all;
-  &:hover { text-decoration: underline; }
+const CapLinks = styled.div`margin-top: 22px; display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap;`;
+const CapCta = styled(Link)`
+  padding: 12px 22px; border-radius: 28px; font-size: 14px; font-weight: 700; text-decoration: none; background: ${(p) => p.theme.color.LANDING_ACCENT}; color: #ffffff;
+  &:hover { background: ${(p) => p.theme.color.LANDING_ACCENT_HOVER}; }
 `;
-const AudienceOff = styled.p`margin: 14px 0 0; font-size: 13px; line-height: 1.5; color: #8d8d8f; word-break: keep-all;`;
+const CapCtaExt = styled.a`
+  padding: 12px 22px; border-radius: 28px; font-size: 14px; font-weight: 700; text-decoration: none; background: ${(p) => p.theme.color.LANDING_ACCENT}; color: #ffffff;
+  &:hover { background: ${(p) => p.theme.color.LANDING_ACCENT_HOVER}; }
+`;
+const docLinkCss = `font-size: 14px; font-weight: 600; line-height: 1.5; color: #5b1ca8; text-decoration: none; word-break: keep-all; display: inline-flex; align-items: center; min-height: 24px;
+  &:hover { text-decoration: underline; }`;
+const CapDoc = styled(Link)`${docLinkCss}`;
+const CapDocExt = styled.a`${docLinkCss}`;
 
-/* ---------------------------------------------------------------- how it works */
-const HowGrid = styled.div`
-  margin-top: 64px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 40px;
+/* ---------------------------------------------------------------- example in 60 seconds */
+const ExampleGrid = styled.ol`
+  margin: 56px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr; gap: 24px; counter-reset: step;
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 `;
-const HowStep = styled.div`display: flex; flex-direction: column; align-items: center; text-align: center;`;
-/** Finding 98: the step art is inline SVG of the mechanism now (components/public/HowArt.tsx), not 2019 product art. */
-const HowArt = styled.div`width: 200px; height: 150px; display: flex; align-items: center; justify-content: center;`;
-const HowNum = styled.div`margin-top: 20px; font-family: ${(p) => p.theme.font.display}; font-size: 13px; font-weight: 800; letter-spacing: 0.1em; color: #8c6cff;`;
-const HowTitle = styled.h3`margin: 6px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 24px; font-weight: 800; line-height: 1.33; color: #000000; cursor: help;`;
-const HowDesc = styled.p`margin: 16px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 15px; line-height: 1.6; color: #333333; max-width: 38ch; word-break: keep-all;`;
-
-/* ---------------------------------------------------------------- trending */
-const TrendLegend = styled.p`
-  margin: 14px auto 0; max-width: 68ch; font-family: ${(p) => p.theme.font.display}; font-size: 12px; line-height: 1.7;
-  color: #6f6f6f; text-align: center; word-break: keep-all;
-  b { font-weight: 700; color: #4a4a4a; }
+const ExampleStep = styled.li`
+  position: relative; padding: 28px 28px 28px 28px; border-radius: 20px; background: #ffffff; border: 1px solid #e6e6e6; min-width: 0;
+  counter-increment: step;
+  &::before { content: counter(step, decimal-leading-zero); font-family: ${(p) => p.theme.font.display}; font-size: 13px; font-weight: 800; letter-spacing: 0.1em; color: ${(p) => p.theme.color.LANDING_ACCENT}; }
 `;
-const CardGrid = styled.div`
-  min-height: 200px; margin: 56px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 400px)); gap: 32px; justify-content: center;
+const ExampleTitle = styled.h3`margin: 6px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 22px; font-weight: 800; color: #333333; word-break: keep-all;`;
+const ExampleDesc = styled.p`margin: 10px 0 0; font-size: 15px; line-height: 1.65; color: #4a4a4a; word-break: keep-all;`;
+const ExampleLog = styled.pre`
+  margin: 16px 0 0; padding: 12px 14px; border-radius: 10px; background: #1d1d20; color: #d9d9e0; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; line-height: 1.55; overflow-x: auto; white-space: pre;
+  .ok { color: #7ed89a; } .c { color: #7f7f88; } .d { color: #f6c177; }
 `;
-const TrendCard = styled(Link)`
-  display: flex; flex-direction: column; max-width: 400px; width: 100%; border-radius: 24px; background-color: #ffffff; text-decoration: none; color: inherit; overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  &:hover { transform: translateY(-8px); box-shadow: 0 1px 20px 8px rgba(0, 0, 0, 0.1); }
-`;
-const TrendHead = styled.div`
-  position: relative; min-height: 150px; padding: 24px; display: flex; flex-direction: column; justify-content: flex-end;
-  background: linear-gradient(135deg, #452a67 0%, #8b3eeb 60%, #78d9e9 130%);
-`;
-const TrendName = styled.div`
-  font-family: ${(p) => p.theme.font.display}; font-size: 22px; font-weight: 800; color: #ffffff; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5); line-height: 1.25; word-break: keep-all;
-  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-`;
-const TrendMeta = styled.div`margin-top: 8px; font-size: 12px; color: rgba(255, 255, 255, 0.9);`;
-const TrendBody = styled.div`padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 10px;`;
-const TrendLine = styled.div`
-  display: flex; justify-content: space-between; align-items: center; gap: 12px; font-family: ${(p) => p.theme.font.display}; font-size: 14px; font-weight: 700; color: #5c5c5c;
-  span.v { color: #333333; font-weight: 500; text-align: right; }
-  span.ok { color: #44a45f; }
-  span.muted { color: #9b9b9b; font-weight: 500; }
-`;
-const TrendPrice = styled.div`font-family: ${(p) => p.theme.font.display}; font-size: 18px; font-weight: 800; color: #8b3eeb; text-align: right;`;
-const TrendNote = styled.div`font-size: 11px; color: #9b9b9b; text-align: right; line-height: 1.4;`;
-const EmptyBox = styled.div`
-  grid-column: 1 / -1; padding: 40px 24px; border-radius: 20px; border: 1px dashed #cfcfcf; background: #ffffff; text-align: center; font-size: 15px; line-height: 1.6; color: #5c5c5c; word-break: keep-all;
-  b { display: block; margin-top: 8px; color: #8b3eeb; }
-`;
-const FindMore = styled.div`text-align: center; margin-top: 56px;`;
-const OutlinePill = styled(Link)`
-  display: inline-block; padding: 16px 56px; border-radius: 56px; border: 1px solid #cdbfff; background-color: #ffffff;
-  font-family: ${(p) => p.theme.font.body}; font-size: 16px; font-weight: 700; color: #8c6cff; text-decoration: none; transition: background-color 0.2s ease-in-out;
+const ExampleLinks = styled.div`margin-top: 40px; display: flex; justify-content: center; align-items: center; gap: 12px 28px; flex-wrap: wrap;`;
+const OutlinePillExt = styled.a`
+  display: inline-block; padding: 16px 44px; border-radius: 56px; border: 1px solid ${(p) => p.theme.color.LANDING_BORDER}; background-color: #ffffff;
+  font-family: ${(p) => p.theme.font.body}; font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.LANDING_ACCENT}; text-decoration: none; transition: background-color 0.2s ease-in-out;
   &:hover { background-color: #e4ddff; } &:active { background-color: #d1c6ff; }
 `;
 
-/* ---------------------------------------------------------------- why ainize */
-const WhyWrap = styled.div`
-  margin-top: 56px; display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start;
-  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: 3fr 2fr; gap: 56px; }
+/* ---------------------------------------------------------------- what only ainize does */
+const OnlyGrid = styled.div`
+  margin-top: 56px; display: grid; grid-template-columns: 1fr; gap: 24px; align-items: stretch;
+  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { grid-template-columns: 3fr 2fr; }
 `;
-const Timeline = styled.ol`
-  margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0;
+const OnlyCard = styled.article<{ $dark?: boolean }>`
+  display: flex; flex-direction: column; min-width: 0; padding: 36px; border-radius: 24px;
+  background: ${(p) => (p.$dark ? '#333333' : '#ffffff')}; color: ${(p) => (p.$dark ? '#f2f2f2' : '#333333')};
+  border: 1px solid ${(p) => (p.$dark ? '#444444' : '#e6e6e6')};
+  @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 24px 20px; }
 `;
-const TimelineItem = styled.li`
-  position: relative; padding: 0 0 32px 32px; border-left: 2px solid #e4ddff;
-  &:last-child { border-left-color: transparent; padding-bottom: 0; }
-  &::before { content: ''; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: #8c6cff; box-shadow: 0 0 0 4px #f5eefc; }
+const OnlyKicker = styled.div<{ $dark?: boolean }>`font-family: ${(p) => p.theme.font.display}; font-size: 13px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: ${(p) => (p.$dark ? '#c9b8ff' : p.theme.color.PRIMARY)};`;
+const OnlyTitle = styled.h3`margin: 12px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 26px; font-weight: 800; line-height: 1.3; word-break: keep-all;`;
+const OnlyDesc = styled.p`margin: 12px 0 0; font-size: 15px; line-height: 1.7; opacity: 0.88; word-break: keep-all; flex: 1;`;
+const OnlyLinks = styled.div`margin-top: 24px; display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap;`;
+const OnlyCta = styled(Link)<{ $dark?: boolean }>`
+  padding: 12px 22px; border-radius: 28px; font-size: 14px; font-weight: 700; text-decoration: none;
+  background: ${(p) => (p.$dark ? '#ffffff' : p.theme.color.LANDING_ACCENT)}; color: ${(p) => (p.$dark ? '#333333' : '#ffffff')};
+  &:hover { opacity: 0.9; }
 `;
-const Year = styled.div`font-family: ${(p) => p.theme.font.display}; font-size: 13px; font-weight: 800; letter-spacing: 0.08em; color: #8c6cff;`;
-const WhyTitle = styled.h3`margin: 4px 0 0; font-family: ${(p) => p.theme.font.display}; font-size: 22px; font-weight: 800; color: #333333; word-break: keep-all;`;
-const WhyDesc = styled.p`margin: 8px 0 0; font-size: 15px; line-height: 1.65; color: #4a4a4a; max-width: 56ch; word-break: keep-all;`;
-const WhyAside = styled.div`
-  display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 32px; border-radius: 24px; background: #333333; color: #ffffff; text-align: center;
+const OnlyDoc = styled(Link)<{ $dark?: boolean }>`
+  font-size: 14px; font-weight: 600; line-height: 1.5; text-decoration: none; word-break: keep-all; display: inline-flex; align-items: center; min-height: 24px;
+  color: ${(p) => (p.$dark ? '#c9b8ff' : '#5b1ca8')};
+  &:hover { text-decoration: underline; }
 `;
-const AsideLogo = styled.img`height: 40px; width: auto;`;
-const AsideBox = styled.img`width: 220px; object-fit: contain; @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: 160px; }`;
-const AsideText = styled.p`margin: 0; font-family: ${(p) => p.theme.font.display}; font-size: 16px; line-height: 1.6; font-weight: 700; word-break: keep-all; max-width: 30ch;`;
-const AsideSub = styled.p`margin: 0; font-size: 13px; line-height: 1.6; color: #bdbdbd; word-break: keep-all; max-width: 40ch;`;
+/** Product names in the identity card: static, so they are not dictionary strings. */
+const Products = styled.div`
+  margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap;
+  span { padding: 6px 12px; border-radius: 14px; border: 1px solid #5a5a62; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; color: #e6e6e6; }
+`;
 
 const LOGO = { src: '/static/images/logo-white.png', srcSet: '/static/images/logo-white@2x.png 2x, /static/images/logo-white@3x.png 3x' };
+/** The example project — a real `script` repo; both URLs are the ones the deploy how-to names. */
+const EXAMPLE_PROJECT = 'https://ainize.ai/comcom/clef-artwork-search';
+const EXAMPLE_REPO = 'https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search';
+const AINDRIVE = 'https://aindrive.ainetwork.ai';
 
 export default function LandingPage() {
-  const { t, term, help, tech, audience } = useT();
-  useTitle(t('landing.hero.title'));
+  const { t, audience } = useT();
+  useTitle(t('landing.hero.title').replace('\n', ' '));
   const { locale, setLocale } = useLocale();
-  const priceLabel = usePriceLabel();
-  const verification = useVerificationLabel();
   const [solid, setSolid] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
   /**
@@ -290,7 +269,9 @@ export default function LandingPage() {
     window.addEventListener('resize', onScroll);
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
   }, []);
+  /** Only for the nav: the Teach entry is gated on the node accepting contributions, as in Header.tsx. */
   const infoQ = useInfoQuery();
+  const info = infoQ.data;
   /**
    * Who is signed in, for the nav. The landing drew "Sign in" whatever the session said — and "/" is where a
    * Google sign-in lands by default — so a person who had just signed in arrived on a page telling them to sign
@@ -298,54 +279,7 @@ export default function LandingPage() {
    */
   const auth = useAuth();
   const signedInAs = auth.subject ? shortAddr(auth.subject, 6) : auth.sso ? (auth.sso.email ?? auth.sso.name ?? 'AIN') : auth.google?.email ?? null;
-  const info = infoQ.data;
-  const { data: trending, isLoading, error: trendError, isFetching: trendFetching, refetch: refetchTrending } = useCatalogQuery({ status: 'VERIFIED', sort: 'popular', limit: 6 });
-  /**
-   * Finding 77 — with `/api/**` unreachable this page rendered a grey Shimmer where "1 verified knowledge" belongs,
-   * for ever, the Teach link silently vanished (it is gated on `info.accepts_contributions`), and the trending grid
-   * went blank: a visitor could not tell a node that is down from a marketplace that is empty. Both queries now have
-   * the error branch the other public pages got, in the same words and with the same retry.
-   */
-  const infoDown = !info && !infoQ.isLoading && !!infoQ.error;
-  // `counts.verified` is the current name; `counts.listed` is the same number from a node that has not been
-  // updated yet. Reading only the new one would show a public landing page a zero it cannot justify.
-  const listed = info?.counts.verified ?? info?.counts.listed;
-  const verifying = info ? (info.counts.verifying ?? Math.max(0, info.counts.patches - (info.counts.verified ?? info.counts.listed ?? 0) - (info.counts.superseded ?? 0) - (info.counts.rejected ?? 0))) : undefined;
-
-  /**
-   * Finding 13 — the loudest element on the page used to be `{n} verified knowledge`, which read "1 verified
-   * knowledge" on the demo node and "0 verified knowledge" on the teach node, directly above "Explore knowledge".
-   * A number only sells a marketplace once the number is impressive, so below the threshold the card leads with
-   * the thing itself: the knowledge that IS here and the model it was verified on. With nothing listed it leads
-   * with what the node is doing — verification in progress, which /explore does show — instead of a zero.
-   * `trending` is the same VERIFIED/popular query the section below uses, so this costs no extra request.
-   *
-   * Only ever ONE name: a knowledge name runs to 80 characters, so two of them side by side filled the whole hero
-   * card on a phone. The count of the others comes from `listed`, not from the page of six the query returned.
-   */
-  const NAME_LISTED_BELOW = 5;
-  const heroItems = trending?.items ?? [];
-  const heroNames = heroItems.map((e) => e.anchor.name || e.anchor.id);
-  const namesLead = listed !== undefined && listed > 0 && listed < NAME_LISTED_BELOW && heroNames.length > 0;
-  const heroLead = listed === undefined || (listed > 0 && listed < NAME_LISTED_BELOW && isLoading) ? null
-    : namesLead ? (
-      listed === 1 ? t('landing.hero.lead_one', { name: heroNames[0], model: heroItems[0].anchor.model.id_M })
-        : t('landing.hero.lead_more', { name: heroNames[0], n: listed - 1 }))
-    : listed > 0 ? t('landing.hero.count', { n: num(listed) }, listed)
-      : verifying ? t('landing.hero.lead_verifying', { n: num(verifying) }, verifying)
-        : t('landing.hero.lead_empty');
-  /**
-   * Finding 80 — "verified" is the word the whole product rests on and its only definition on this page was a hover
-   * `title` on the headline, which no phone and no keyboard can reach. The clause under the headline is now always
-   * there when there IS something listed, not only in the two-or-three-knowledges case.
-   */
-  const heroExplain = listed === undefined ? null
-    : namesLead || listed > 0 ? t('landing.hero.lead_sub')
-      : verifying ? t('landing.hero.lead_verifying_sub') : t('landing.hero.lead_empty_sub');
-
-  const user = audience('user');
-  const creator = audience('creator');
-  const operator = audience('operator');
+  /** The glossary's agent-builder entry — the one sentence on this site written for somebody who already has an agent. */
   const agentBuilder = audience('agent');
 
   return (
@@ -375,234 +309,209 @@ export default function LandingPage() {
           <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
         </NavContent>
       </NavBar>
+
+      {/* -------- hero: the four capabilities in one sentence, and the trace of a push that used all of them */}
       <IntroSection ref={heroRef}>
         <IntroContent>
           <HeroGrid>
-          <Hero>
-            <HeroLogo {...LOGO} alt="Ainize" />
-            <IntroTitle>{t('landing.hero.title')}</IntroTitle>
-            <IntroSub title={help('brand')}>{t('landing.hero.sub')}</IntroSub>
-            <CountCard>
-              <CountTitle
-                data-testid="hero-lead"
-                title={listed === 0 && verifying ? `${help('verifying')} (${tech('verifying')})` : `${t('landing.hero.count_help')} (${tech('verified')})`}
-              >
-                {infoDown ? t('landing.hero.offline') : heroLead ?? <Shimmer $w="220px" $h="28px" />}
-              </CountTitle>
-              {infoDown && (
-                <Offline error={infoQ.error} what={t('offline.what.landing')} retrying={infoQ.isFetching} onRetry={() => { void infoQ.refetch(); }} />
-              )}
-              {!infoDown && heroExplain && <CountExplain data-testid="hero-explain">{heroExplain}</CountExplain>}
-              {listed !== undefined && listed > 0 && verifying !== undefined && verifying > 0 && <CountSub title={help('verifying')}>{t('landing.hero.count_verifying', { n: num(verifying) })}</CountSub>}
+            <Hero>
+              <HeroLogo {...LOGO} alt="Ainize" />
+              <IntroTitle data-testid="hero-title">{t('landing.hero.title')}</IntroTitle>
+              <IntroSub>{t('landing.hero.sub')}</IntroSub>
               <PillRow>
-                <PrimaryPill to="/explore">{t('landing.hero.primary')}</PrimaryPill>
-                <SecondaryPill to="/chat" title={help('liveTest')}>{t('landing.hero.secondary')}</SecondaryPill>
+                <PrimaryPill to="/models" data-testid="hero-primary">{t('landing.hero.primary')}</PrimaryPill>
+                {/* The live test stays reachable from the hero: it left the menu because this button leads there
+                    (test/account-reachability.test.ts). With `?teach=1` it opens with the teach banner up. */}
+                <SecondaryPill to="/chat" data-testid="hero-secondary">{t('landing.hero.secondary')}</SecondaryPill>
               </PillRow>
-              <NoSignUp title={`${help('autoPay')} (${tech('autoPay')})`}>{t('landing.hero.note')}</NoSignUp>
-            </CountCard>
-            {/* The phone gets the diagram too, cropped to the half that carries the sentence. The old raster
-                answered this by vanishing below 960px, so the picture the page leads with did not exist there. */}
-            <HeroMobileOnly>
-              <HeroGraphCompact />
-              <ArtLegend>{t('landing.hero.art_legend')}</ArtLegend>
-            </HeroMobileOnly>
-          </Hero>
-          <HeroArtCol>
-            <HeroGraph />
-            <ArtLegend>{t('landing.hero.art_legend')}</ArtLegend>
-          </HeroArtCol>
+              <HeroNote>{t('landing.hero.note')}</HeroNote>
+            </Hero>
+            {/* A sketch of one push in the deploy pipeline's own words: the statuses are its (`queued → building →
+                ready`, docs/en/how-to/deploy-with-ainize-json.md), the file, the kind, the entry and the env names are
+                the example project's, and the three ranked lines stand for what `art_search.py` prints. The titles
+                are placeholders — the real ranking is in the project's deployment log, which the caption links. */}
+            <Terminal aria-label={t('landing.hero.trace_aria')} data-testid="hero-trace">
+              <TerminalBar aria-hidden="true"><span /><span /><span /><em>comcom/clef-artwork-search</em></TerminalBar>
+              <TerminalBody>
+                <span className="p">$</span> git push origin main{'\n'}
+                <span className="c">remote: ainize: ainize.json found · kind=script · entry=art_search.py</span>{'\n'}
+                <span className="c">remote: ainize: deployment d_8f21 </span><span className="d">queued</span>{'\n'}
+                <span className="c">remote: ainize: deployment d_8f21 </span><span className="d">building</span>{'\n'}
+                <span className="c">remote:   sandbox  python3.11 · AINIZE_URL · AINIZE_API_KEY (yours)</span>{'\n'}
+                <span className="c">remote:   run      client.decide(</span><span className="k">"clef-flash"</span><span className="c">, state=…, questions=…)</span>{'\n'}
+                <span className="c">remote:   #1 0.91  </span>Fishing Boats at Sunset{'\n'}
+                <span className="c">remote:   #2 0.74  </span>Evening on the Bay{'\n'}
+                <span className="c">remote:   #3 0.33  </span>Still Life with Pears{'\n'}
+                <span className="c">remote: ainize: deployment d_8f21 </span><span className="ok">ready</span><span className="c"> · log at /comcom/clef-artwork-search</span>{'\n'}
+              </TerminalBody>
+            </Terminal>
           </HeroGrid>
+          <TerminalCaption>{t('landing.hero.trace_caption')}</TerminalCaption>
         </IntroContent>
       </IntroSection>
 
-      {/* -------- the ecosystem, in time order (replaces the role-grouped "one line is enough" menu) */}
-      <Lifecycle />
-
-      {/* -------- audience switch */}
-      <Section $bg="#f7f5fc">
+      {/* -------- the four capabilities, in the order the owner named them */}
+      <Section $bg="#f7f5fc" data-testid="landing-capabilities">
         <Inner>
-          <SectionTitle>{t('landing.audience.title')}</SectionTitle>
-          <SectionSub>{t('landing.audience.sub')}</SectionSub>
-          <AudienceGrid>
-            <AudienceCard>
-              <AudienceTitle>{user.title}</AudienceTitle>
-              <AudienceHelp>{user.help}</AudienceHelp>
-              <Steps>
-                <li><b>1</b><span>{t('landing.audience.user.s1')}</span></li>
-                <li><b>2</b><span>{t('landing.audience.user.s2')}</span></li>
-                <li><b>3</b><span>{t('landing.audience.user.s3')}</span></li>
-              </Steps>
-              <AudienceCta to="/explore">{t('landing.audience.user.cta')}</AudienceCta>
-            </AudienceCard>
+          <SectionTitle>{t('landing.cap.title')}</SectionTitle>
+          <SectionSub>{t('landing.cap.sub')}</SectionSub>
+          <CapGrid>
+            {/* 1 · Models — docs/en/how-to/call-the-model.md and decision-models-clef.md */}
+            <CapCard data-testid="cap-models">
+              <CapKicker><b>1</b>{t('landing.cap.models.kicker')}</CapKicker>
+              <CapTitle>{t('landing.cap.models.title')}</CapTitle>
+              <CapDesc>{rich(t('landing.cap.models.desc'))}</CapDesc>
+              <CapCode aria-label="Python">
+                <span className="c"># pip install ainize</span>{'\n'}
+                <span className="k">import</span> os, ainize{'\n'}
+                client = ainize.connect(<span className="s">"https://ainize.ai"</span>, api_key=os.environ[<span className="s">"AINIZE_API_KEY"</span>]){'\n'}
+                {'\n'}
+                <span className="c"># chat — the client you already use</span>{'\n'}
+                client.chat.completions.create(model=<span className="s">"Qwen3.8-Flash-Next"</span>, messages=[…]){'\n'}
+                {'\n'}
+                <span className="c"># decision (Cloudflare Clef) — a probability, not prose</span>{'\n'}
+                out = client.decide(<span className="s">"clef-flash"</span>, state=situation, questions={'{'}{'\n'}
+                {'  '}<span className="s">"outage"</span>: {'{'}<span className="s">"type"</span>: <span className="s">"noul"</span>, <span className="s">"instructions"</span>: <span className="s">"Is a service down?"</span>{'}'},{'\n'}
+                {'}'}){'\n'}
+                out.answers[<span className="s">"outage"</span>][<span className="s">"noul"</span>]  <span className="c"># 0.93</span>
+              </CapCode>
+              <CapLinks>
+                <CapCta to="/models" data-testid="cap-models-cta">{t('landing.cap.models.cta')}</CapCta>
+                <CapDoc to="/docs/how-to/call-the-model">{t('landing.cap.models.docs')}</CapDoc>
+                <CapDoc to="/docs/how-to/decision-models-clef">{t('landing.cap.models.docs2')}</CapDoc>
+              </CapLinks>
+            </CapCard>
 
-            {/* creator card = teach mode (spec §5.1 / §11): CTA → Live test with the teach banner; the register form stays an operator route */}
-            <AudienceCard data-testid="landing-creator-card">
-              <AudienceTitle>{t('landing.audience.creator.title')}</AudienceTitle>
-              <AudienceHelp>{creator.help}</AudienceHelp>
-              <Steps>
-                <li><b>1</b><span title={help('liveTest')}>{t('landing.audience.creator.s1')}</span></li>
-                <li><b>2</b><span>{t('landing.audience.creator.s2')}</span></li>
-                <li><b>3</b><span title={`${term('lineage')}: ${help('lineage')} (${tech('lineage')})`}>{t('landing.audience.creator.s3')}</span></li>
-                {/* Finding 200: the creator path started from a blank page — nothing on the landing said you could
-                    start from someone else's knowledge, which is the whole of step 8 of the lifecycle above. */}
-                <li data-testid="landing-creator-s4"><b>4</b><span>{t('landing.audience.creator.s4')}</span></li>
-              </Steps>
-              <AudienceCta to="/chat?teach=1" data-testid="landing-teach-cta">{t('landing.audience.creator.cta')}</AudienceCta>
-              {info && !info.accepts_contributions && <AudienceOff>{t('landing.audience.creator.off')}</AudienceOff>}
-              <AudienceAlt to="/signing?next=%2Fnew-patch" data-testid="landing-register-link">{t('landing.audience.creator.operator_link')}</AudienceAlt>
-            </AudienceCard>
+            {/* 2 · Agents — docs/en/how-to/host-an-agent.md and create-an-agent-from-a-model.md */}
+            <CapCard data-testid="cap-agents" title={agentBuilder.help}>
+              <CapKicker><b>2</b>{t('landing.cap.agents.kicker')}</CapKicker>
+              <CapTitle>{t('landing.cap.agents.title')}</CapTitle>
+              <CapDesc>{rich(t('landing.cap.agents.desc'))}</CapDesc>
+              <CapCode aria-label="Shell">
+                <span className="c"># an agent you already run, on 127.0.0.1:9200</span>{'\n'}
+                <span className="p">$</span> ainize agent add my-desk --upstream http://127.0.0.1:9200{'\n'}
+                <span className="p">$</span> ainize agent ls{'\n'}
+                my-desk   answering   5 skills   <span className="k">https://ainize.ai/agents/my-desk</span>{'\n'}
+                {'\n'}
+                <span className="c"># the card every A2A client fetches first — the url is the node's</span>{'\n'}
+                <span className="p">$</span> curl -s https://ainize.ai/agents/my-desk/.well-known/agent-card.json{'\n'}
+                {'\n'}
+                <span className="c"># no agent yet? build one on a chat model: prompt, tools or handler</span>{'\n'}
+                <span className="c">→ /agent/new</span>
+              </CapCode>
+              <CapLinks>
+                {/* `landing-agent-cta` + the host-an-agent how-to: the way in for somebody holding an agent (test/backend.test.ts). */}
+                <CapCta to="/explore?kind=agent" data-testid="landing-agent-cta">{t('landing.cap.agents.cta')}</CapCta>
+                <CapDoc to="/docs/how-to/host-an-agent">{t('landing.cap.agents.docs')}</CapDoc>
+                <CapDoc to="/docs/how-to/create-an-agent-from-a-model">{t('landing.cap.agents.docs2')}</CapDoc>
+              </CapLinks>
+            </CapCard>
 
-            <AudienceCard $dev>
-              <AudienceTitle>{operator.title}</AudienceTitle>
-              <AudienceHelp>{operator.help}</AudienceHelp>
-              <Steps>
-                <li><b>1</b><span title={help('node')}>{t('landing.audience.operator.s1')}</span></li>
-                <li><b>2</b><span title={`${help('signedResult')} (${tech('signedResult')})`}>{t('landing.audience.operator.s2')}</span></li>
-                <li><b>3</b><span title={`${help('autoPay')} (${tech('autoPay')})`}>{t('landing.audience.operator.s3')}</span></li>
-              </Steps>
-              <AudienceCta $dev to="/signing">{t('landing.audience.operator.cta')}</AudienceCta>
-            </AudienceCard>
+            {/* 3 · Run — docs/en/how-to/deploy-with-ainize-json.md (`script`, Inputs) and decision-models-clef.md ("Inside an Ainize run") */}
+            <CapCard data-testid="cap-run">
+              <CapKicker><b>3</b>{t('landing.cap.run.kicker')}</CapKicker>
+              <CapTitle>{t('landing.cap.run.title')}</CapTitle>
+              <CapDesc>{rich(t('landing.cap.run.desc'))}</CapDesc>
+              <CapCode aria-label="Python">
+                <span className="c"># art_search.py — pressed ▶ Run in aindrive, or run from the project's Runs tab</span>{'\n'}
+                <span className="k">import</span> os, ainize{'\n'}
+                client = ainize.connect(os.environ[<span className="s">"AINIZE_URL"</span>], api_key=os.environ[<span className="s">"AINIZE_API_KEY"</span>]){'\n'}
+                desc = os.environ.get(<span className="s">"INPUT_DESC"</span>)  <span className="c"># a field the Run panel showed, from ainize.json "inputs"</span>{'\n'}
+                {'\n'}
+                <span className="c"># read-only sandbox · 512 MB · one CPU · no network except this node</span>{'\n'}
+                <span className="c"># stdout + exit code → the run's record</span>
+              </CapCode>
+              <CapLinks>
+                <CapCta to="/docs/how-to/deploy-with-ainize-json" data-testid="cap-run-cta">{t('landing.cap.run.cta')}</CapCta>
+                <CapDocExt href={AINDRIVE} target="_blank" rel="noopener noreferrer">{t('landing.cap.run.docs')}</CapDocExt>
+              </CapLinks>
+            </CapCard>
 
-            {/* The fourth door. Everything it describes already shipped — `ainize agent add`, the public
-                address, the card, the listing — and this page offered three answers to "which one are you?",
-                none of which was "I built an agent". */}
-            <AudienceCard data-testid="landing-agent-card">
-              <AudienceTitle>{agentBuilder.title}</AudienceTitle>
-              <AudienceHelp>{agentBuilder.help}</AudienceHelp>
-              <Steps>
-                <li><b>1</b><span>{t('landing.audience.agent.s1')}</span></li>
-                <li><b>2</b><span>{t('landing.audience.agent.s2')}</span></li>
-                <li><b>3</b><span>{t('landing.audience.agent.s3')}</span></li>
-              </Steps>
-              <AudienceCta to="/explore?kind=agent" data-testid="landing-agent-cta">{t('landing.audience.agent.cta')}</AudienceCta>
-              <AudienceAlt to="/docs/how-to/host-an-agent">{t('landing.audience.agent.docs_link')}</AudienceAlt>
-            </AudienceCard>
-          </AudienceGrid>
+            {/* 4 · Deploy — docs/en/how-to/deploy-with-ainize-json.md; the file is the example project's own */}
+            <CapCard data-testid="cap-deploy">
+              <CapKicker><b>4</b>{t('landing.cap.deploy.kicker')}</CapKicker>
+              <CapTitle>{rich(t('landing.cap.deploy.title'))}</CapTitle>
+              <CapDesc>{rich(t('landing.cap.deploy.desc'))}</CapDesc>
+              <CapCode aria-label="ainize.json">
+                <span className="c">// ainize.json — at the repo root; kind: script | service | nextjs | agent</span>{'\n'}
+                {'{'}{'\n'}
+                {'  '}<span className="k">"name"</span>: <span className="s">"clef-artwork-search"</span>,{'\n'}
+                {'  '}<span className="k">"kind"</span>: <span className="s">"script"</span>,{'\n'}
+                {'  '}<span className="k">"runtime"</span>: <span className="s">"python3.11"</span>,{'\n'}
+                {'  '}<span className="k">"entry"</span>: <span className="s">"art_search.py"</span>,{'\n'}
+                {'  '}<span className="k">"inputs"</span>: {'{'} <span className="k">"DESC"</span>: {'{'} <span className="k">"type"</span>: <span className="s">"string"</span>, <span className="k">"required"</span>: true {'}'} {'}'},{'\n'}
+                {'  '}<span className="k">"timeoutMs"</span>: 120000{'\n'}
+                {'}'}{'\n'}
+                {'\n'}
+                <span className="c">// push → queued → building → ready · deployments, logs, previous kept</span>{'\n'}
+                <span className="c">// https://ainize.ai/&lt;org&gt;/&lt;repo&gt;</span>
+              </CapCode>
+              <CapLinks>
+                <CapCta to="/docs/how-to/deploy-with-ainize-json" data-testid="cap-deploy-cta">{t('landing.cap.deploy.cta')}</CapCta>
+                <CapDocExt href={EXAMPLE_PROJECT} data-testid="cap-deploy-example">{t('landing.cap.deploy.docs')}</CapDocExt>
+              </CapLinks>
+            </CapCard>
+          </CapGrid>
         </Inner>
       </Section>
 
-      {/* -------- how it works */}
-      <Section>
+      {/* -------- example in 60 seconds: one repo, all four capabilities */}
+      <Section data-testid="landing-example">
         <Inner>
-          <SectionTitle>{t('landing.how.title')}</SectionTitle>
-          <SectionSub>{t('landing.how.sub')}</SectionSub>
-          <HowGrid>
-            <HowStep>
-              <HowArt><VerifiedArt /></HowArt>
-              <HowNum>01</HowNum>
-              <HowTitle title={`${help('verified')} (${tech('verified')})`}>{t('landing.how.step1.title')}</HowTitle>
-              <HowDesc>{t('landing.how.step1.desc')}</HowDesc>
-            </HowStep>
-            <HowStep>
-              <HowArt><LiveTestArt /></HowArt>
-              <HowNum>02</HowNum>
-              <HowTitle title={`${help('liveTest')} (${tech('liveTest')})`}>{t('landing.how.step2.title')}</HowTitle>
-              <HowDesc>{t('landing.how.step2.desc')}</HowDesc>
-            </HowStep>
-            <HowStep>
-              <HowArt><ApplyArt /></HowArt>
-              <HowNum>03</HowNum>
-              <HowTitle title={`${help('apply')} (${tech('apply')}) · ${help('conflict')} (${tech('conflict')})`}>{t('landing.how.step3.title')}</HowTitle>
-              <HowDesc>{t('landing.how.step3.desc')}</HowDesc>
-            </HowStep>
-          </HowGrid>
+          <SectionTitle>{t('landing.example.title')}</SectionTitle>
+          <SectionSub>{t('landing.example.sub')}</SectionSub>
+          <ExampleGrid>
+            <ExampleStep>
+              <ExampleTitle>{t('landing.example.s1.title')}</ExampleTitle>
+              <ExampleDesc>{rich(t('landing.example.s1.desc'))}</ExampleDesc>
+              <ExampleLog><span className="c">$</span> git push origin main{'\n'}<span className="c">remote: ainize: deployment </span><span className="d">queued</span></ExampleLog>
+            </ExampleStep>
+            <ExampleStep>
+              <ExampleTitle>{t('landing.example.s2.title')}</ExampleTitle>
+              <ExampleDesc>{rich(t('landing.example.s2.desc'))}</ExampleDesc>
+              <ExampleLog><span className="c">building</span>  python3.11 art_search.py{'\n'}<span className="c">decide  </span> clef-flash · 3 questions · 212 tokens</ExampleLog>
+            </ExampleStep>
+            <ExampleStep>
+              <ExampleTitle>{t('landing.example.s3.title')}</ExampleTitle>
+              <ExampleDesc>{rich(t('landing.example.s3.desc'))}</ExampleDesc>
+              <ExampleLog><span className="ok">ready</span>    #1 0.91  Fishing Boats at Sunset{'\n'}         #2 0.74  Evening on the Bay</ExampleLog>
+            </ExampleStep>
+          </ExampleGrid>
+          <ExampleLinks>
+            <OutlinePillExt href={EXAMPLE_PROJECT} data-testid="example-project">{t('landing.example.cta')}</OutlinePillExt>
+            <CapDocExt href={EXAMPLE_REPO} target="_blank" rel="noopener noreferrer">{t('landing.example.repo')}</CapDocExt>
+          </ExampleLinks>
         </Inner>
       </Section>
 
-      {/* -------- trending verified knowledge */}
-      <Section $bg="#eeeeee">
+      {/* -------- what only ainize does: teach, and one identity */}
+      <Section $bg="#eeeeee" data-testid="landing-only">
         <Inner>
-          <SectionTitle>{t('landing.trending.title')}</SectionTitle>
-          <SectionSub>{t('landing.trending.sub')}</SectionSub>
-          {/* Finding 80: the two numbers on every card below were named only in hover tooltips. */}
-          <TrendLegend data-testid="trending-legend">
-            <b>{term('facts')}</b> — {t('explore.legend.facts')} · <b>{term('accuracy')}</b> — {t('explore.legend.accuracy')}
-          </TrendLegend>
-          {!!trendError && !trending && (
-            <Offline error={trendError} what={t('offline.what.landing')} retrying={trendFetching} onRetry={() => { void refetchTrending(); }} />
-          )}
-          <CardGrid>
-            {isLoading && Array.from({ length: 3 }).map((_, i) => <Shimmer key={i} $w="100%" $h="320px" style={{ borderRadius: 24 }} />)}
-            {trending?.items.map((e) => {
-              const a = e.anchor;
-              const acc = executedAccuracy(e);
-              const p = priceLabel(a.price, a.currency ?? info?.currency);
-              return (
-                <TrendCard key={a.id} to={`/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}`}>
-                  <TrendHead>
-                    <TrendName>{a.name || a.id}</TrendName>
-                    <TrendMeta>{t('common.author')}: {a.author_name ?? shortAddr(a.author)} · {a.model.id_M}</TrendMeta>
-                  </TrendHead>
-                  <TrendBody>
-                    <TrendLine title={help('facts')}>{term('facts')} <span className="v">{t('units.facts', { n: num(a.benchmark.queries) })}</span></TrendLine>
-                    <TrendLine title={help('accuracy')}>
-                      {term('accuracy')}
-                      {/* The sample line names BOTH numbers: what the verifiers scored and what the knowledge covers.
-                          "100%" stacked directly under "facts covered 2,761" read as 2,761 questions audited. */}
-                      {acc ? <span className="v ok">{acc.tested !== null && acc.tested < a.benchmark.queries
-                        ? t('landing.trending.accuracy_sample', { pct: acc.pct, tested: num(acc.tested), facts: num(a.benchmark.queries) })
-                        : t('landing.trending.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</span> : <span className="muted">{t('landing.trending.accuracy_pending')}</span>}
-                    </TrendLine>
-                    {acc && <ScoreBar pct={acc.pct} />}
-                    <TrendLine title={`${help('verified')} (${tech('verified')})`}>{term('verified')} <span className="v">{verification(e)}</span></TrendLine>
-                    <TrendLine>
-                      {t('common.price')}
-                      <div><TrendPrice>{p.text}</TrendPrice>{p.note && <TrendNote>{p.note}</TrendNote>}</div>
-                    </TrendLine>
-                    {/* The graph in the hero, on a card: where a knowledge names another as its source, or
-                        something names it, the shelf says so. `parents[]` is credit and royalty — it does NOT
-                        mean this was trained on top of that one, which is why the line says "names as its
-                        source" and never "built on". */}
-                    {a.parents?.length ? (
-                      <TrendLine>{t('landing.trending.built_on', { name: a.parents[0] })}</TrendLine>
-                    ) : null}
-                    {e.children?.length ? (
-                      <TrendLine>{t('landing.trending.built_on_count', { n: num(e.children.length) })}</TrendLine>
-                    ) : null}
-                  </TrendBody>
-                </TrendCard>
-              );
-            })}
-            {!isLoading && trending && trending.items.length === 0 && (
-              <EmptyBox>
-                {t('landing.trending.empty')}
-                {verifying !== undefined && verifying > 0 && <b>{t('landing.trending.empty_count', { n: num(verifying) })}</b>}
-              </EmptyBox>
-            )}
-          </CardGrid>
-          <FindMore><OutlinePill to="/explore">{t('landing.trending.more')}</OutlinePill></FindMore>
-        </Inner>
-      </Section>
-
-      {/* -------- why ainize */}
-      <Section>
-        <Inner>
-          <SectionTitle>{t('landing.why.title')}</SectionTitle>
-          <WhyWrap>
-            <Timeline>
-              <TimelineItem>
-                <Year>{t('landing.why.2019.year')}</Year>
-                <WhyTitle>{t('landing.why.2019.title')}</WhyTitle>
-                <WhyDesc>{t('landing.why.2019.desc')}</WhyDesc>
-              </TimelineItem>
-              <TimelineItem>
-                <Year>{t('landing.why.2026.year')}</Year>
-                <WhyTitle>{t('landing.why.2026.title')}</WhyTitle>
-                <WhyDesc>{t('landing.why.2026.desc')}</WhyDesc>
-              </TimelineItem>
-              <TimelineItem>
-                <Year>{t('landing.why.ain.year')}</Year>
-                <WhyTitle title={`${help('ledger')} (${tech('ledger')})`}>{t('landing.why.ain.title')}</WhyTitle>
-                <WhyDesc>{t('landing.why.ain.desc')}</WhyDesc>
-              </TimelineItem>
-            </Timeline>
-            <WhyAside>
-              <AsideLogo {...LOGO} alt="Ainize" />
-              <AsideBox src="/static/images/github-ainize-box.png" srcSet="/static/images/github-ainize-box@2x.png 2x" alt="" />
-              <AsideText>{t('landing.why.tagline')}</AsideText>
-              <AsideSub title={tech('brand')}>{help('brand')}</AsideSub>
-            </WhyAside>
-          </WhyWrap>
+          <SectionTitle>{t('landing.only.title')}</SectionTitle>
+          <OnlyGrid>
+            <OnlyCard data-testid="only-teach">
+              <OnlyKicker>{t('landing.only.teach.kicker')}</OnlyKicker>
+              <OnlyTitle>{t('landing.only.teach.title')}</OnlyTitle>
+              <OnlyDesc>{t('landing.only.teach.desc')}</OnlyDesc>
+              <OnlyLinks>
+                <OnlyCta to="/teach" data-testid="only-teach-cta">{t('landing.only.teach.cta')}</OnlyCta>
+                <OnlyDoc to="/docs/concepts/knowledge-patch">{t('landing.only.teach.l1')}</OnlyDoc>
+                <OnlyDoc to="/docs/concepts/lineage-and-royalties">{t('landing.only.teach.l2')}</OnlyDoc>
+                <OnlyDoc to="/docs/how-to/run-a-verifier">{t('landing.only.teach.l3')}</OnlyDoc>
+              </OnlyLinks>
+            </OnlyCard>
+            <OnlyCard $dark data-testid="only-identity">
+              <OnlyKicker $dark>{t('landing.only.identity.kicker')}</OnlyKicker>
+              <OnlyTitle>{t('landing.only.identity.title')}</OnlyTitle>
+              <OnlyDesc>{rich(t('landing.only.identity.desc'))}</OnlyDesc>
+              <Products aria-hidden="true"><span>ainize</span><span>aindrive</span><span>ainteams</span><span>ainmem</span></Products>
+              <OnlyLinks>
+                <OnlyCta $dark to="/signing" data-testid="only-identity-cta">{t('landing.only.identity.cta')}</OnlyCta>
+                <OnlyDoc $dark to="/docs/how-to/organizations">{t('landing.only.identity.l1')}</OnlyDoc>
+                <OnlyDoc $dark to="/docs/how-to/build-for-ainteams">{t('landing.only.identity.l2')}</OnlyDoc>
+              </OnlyLinks>
+            </OnlyCard>
+          </OnlyGrid>
         </Inner>
       </Section>
 

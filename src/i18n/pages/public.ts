@@ -3,80 +3,87 @@ import type { Dict } from '../index';
 /**
  * Public-facing pages: landing, explore, benchmark (same-topic list), list item, terms, 404.
  * Plain language only — the technical name of every concept lives in the glossary `tech` field and is surfaced via tooltips.
+ *
+ * The landing is organised around the four things a node does — serve models, host agents, run scripts, deploy
+ * repos — followed by the two things only Ainize does (teaching a model, and one AIN identity across the products).
+ * Owner review 2026-10: the old page explained the knowledge marketplace and said nothing about models, agents, run
+ * or deploy, which by then were the capabilities most visitors came for. Every promise below is checked against the
+ * docs it links to; `test/landing.test.ts` holds the sections, their order and their links.
  */
 export const landing: Dict = {
   // nav
   'landing.nav.explore': { ko: '지식', en: 'Knowledge' },
-  'landing.nav.chat': { ko: '라이브 테스트', en: 'Live test' },
   'landing.nav.teach': { ko: '가르치기', en: 'Teach' },
   'landing.nav.signin': { ko: '로그인', en: 'Sign in' },
   'landing.nav.aria': { ko: '주요 메뉴', en: 'Main' },
-  'landing.nav.signin_help': { ko: '노드 운영자·개발자용 콘솔입니다. 지식을 사서 쓰는 데는 로그인이 필요 없습니다.', en: 'Console for node operators and developers. You do not need to sign in to use knowledge.' },
+  'landing.nav.signin_help': { ko: '노드 운영자·개발자용 콘솔입니다. 모델을 써 보는 데는 로그인이 필요 없습니다.', en: 'Console for node operators and developers. You do not need to sign in to try the models.' },
 
-  // hero
-  'landing.hero.title': { ko: '기억을 굽는다', en: 'Bake your own memory' },
-  'landing.hero.sub': { ko: '찾아본 것을 아는 것으로 바꾸세요. 지식은 문서가 아니라 내 노드에서 도는 모델의 메모리에 직접 써 넣은 것이고,\n재시작 없이 올렸다 내렸다 하며, 다른 노드가 채점해야 올라오고, 팔릴 때마다 출처로 밝힌 지식과 나눌 몫이 기록에 남습니다.', en: 'Turn what you look up into what you know. A knowledge here is written straight into the memory rows of the model running on your own node, not retrieved —\nloaded and removed with no restart, on sale only after other model servers score it, and every sale is recorded as a split with the knowledge it names.' },
-  // Finding 77: the hero's headline is a fact from this node, and an unreachable node rendered it as a grey bar for
-  // ever. When there is no answer the card says so instead of pretending to be loading.
-  'landing.hero.offline': { ko: '이 노드에 연결하지 못했습니다', en: 'This node is not answering' },
-  'offline.what.landing': { ko: '이 노드가 가진 지식 목록', en: 'The knowledge this node lists' },
-  'landing.hero.count': { ko: '검증 완료 지식 {n}개', en: '{n} verified knowledge' },
-  // `knowledge` is a mass noun, so the count form has to carry the noun itself at n=1 — "1 verified knowledge"
-  // was the reviewer's second complaint about this line (finding 13).
-  'landing.hero.count_one': { ko: '검증 완료 지식 1개', en: 'One verified knowledge' },
-  'landing.hero.count_verifying': { ko: '검증 중 {n}개', en: '{n} being verified' },
-  'landing.hero.count_help': { ko: '다른 모델 서버 두 곳이 실제 모델에 넣어 정답률과 부작용까지 확인한 지식의 수입니다. 주소나 회사가 아니라 서로 다른 모델 서버를 셉니다.', en: 'Knowledge that two other model servers loaded into the real model and checked for accuracy and side effects. The count is over distinct model servers, not over addresses or companies.' },
-  // Finding 13 — a count is only a headline once there is a market to count. Under `NAME_LISTED_BELOW` the hero
-  // names the knowledge that is actually here instead of shouting "1 verified knowledge", and with nothing listed
-  // it says what the node is doing (verifying) rather than advertising an empty shelf.
-  'landing.hero.lead_one': { ko: '‘{name}’ — {model}에서 검증 완료', en: '“{name}” — verified on {model}' },
-  // Never two names side by side: a knowledge name runs to 80 characters, and two of them at 28 px bold filled the
-  // whole card on a phone (measured: 150 characters, 8 wrapped lines). One name carries the concreteness; the rest
-  // are a count.
-  'landing.hero.lead_more': { ko: '‘{name}’ 외 {n}개 — 실제 모델에서 검증 완료', en: '“{name}” and {n} more — verified on the real model' },
-  'landing.hero.lead_sub': { ko: '다른 모델 서버 두 곳이 실제 모델에 넣어 채점한 뒤에 판매가 열린 지식입니다.', en: 'Two other model servers loaded each one into the real model and scored it before it went on sale.' },
-  'landing.hero.lead_verifying': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge in verification right now' },
-  'landing.hero.lead_verifying_one': { ko: '지금 지식 1개가 검증 중입니다', en: 'One knowledge is in verification right now' },
-  'landing.hero.lead_verifying_sub': { ko: '다른 모델 서버가 하나씩 실제 모델에 넣어 채점하고 있습니다. 통과한 지식만 판매가 열립니다.', en: 'Other model servers are loading each one into the real model and scoring it. Whatever passes goes on sale here.' },
-  'landing.hero.lead_empty': { ko: '이 노드에는 아직 올라온 지식이 없습니다', en: 'No knowledge is listed on this node yet' },
-  'landing.hero.lead_empty_sub': { ko: '지식은 다른 모델 서버가 실제 모델에 넣어 채점한 뒤에만 판매가 열립니다.', en: 'Knowledge goes on sale here only after other model servers load it into the real model and score it.' },
-  'landing.hero.primary': { ko: '지식 둘러보기', en: 'Explore knowledge' },
-  'landing.hero.secondary': { ko: '라이브 테스트 해보기', en: 'Try a live test' },
-  /** Keeps the dashed half of the hero diagram honest: combining is built and off by default. */
-  'landing.hero.art_legend': { ko: '질문 하나가 지나갈 때, 세 사람이 각자 써 넣은 메모리 행이 차례로 켜집니다. 답 하나가 여러 사람의 기여로 만들어지는 자리입니다.\n실선은 노드가 오늘 실제로 하는 일이고, 점선은 지식 두 개를 합치는 기능인데 만들어져 있고 노드마다 켜야 씁니다.', en: 'One question crosses the table and three people’s memory rows light in turn: one answer being made out of several contributions.\nSolid lines are what a node does today; dotted is combining two knowledges, which is built and switched on per node.' },
-  'landing.hero.note': { ko: '회원가입 없음 · 결제는 지갑(AIN) 또는 노드 크레딧으로 자동 처리 · 언제든 뺄 수 있음', en: 'No sign-up · pays automatically with a wallet (AIN) or node credit · removable any time' },
+  // hero — one headline that names all four capabilities, and a terminal trace of the one path that uses all of them
+  'landing.hero.title': { ko: '모델을 부르고, 에이전트를 올리고,\n코드를 돌리고, 배포하세요', en: 'Call models, host agents,\nrun code, deploy repos' },
+  'landing.hero.sub': { ko: 'API 키 하나로 채팅·판단(Clef)·이미지·음성 모델을 부르고, A2A 에이전트에 공개 주소를 주고, git 저장소를 push할 때마다 샌드박스에서 실행·배포합니다. 그리고 모델을 직접 가르칠 수 있는 곳은 여기뿐입니다.', en: 'One API key calls chat, decision (Clef), image and speech models, gives an A2A agent a public address, and runs or deploys a git repo in a sandbox on every push. And it is the one place you can teach the model itself.' },
+  'landing.hero.primary': { ko: '모델 써 보기', en: 'Try the models' },
+  'landing.hero.secondary': { ko: '라이브 테스트로 가르치기', en: 'Teach it in Live test' },
+  'landing.hero.note': { ko: '모델 체험은 키 없이 브라우저에서 · 키는 지갑 또는 Google 계정으로 발급 · 예금 없음', en: 'Model trials run in the browser with no key · keys are issued to a wallet or a Google account · no deposit' },
+  'landing.hero.trace_caption': { ko: 'push 하나가 실행되고 배포되기까지 — 예시 프로젝트 clef-artwork-search가 거치는 단계입니다. 실제 순위는 프로젝트의 배포 로그에 있습니다.', en: 'One push, run and deployed — the steps the example project clef-artwork-search goes through. The real ranking is in the project’s deployment log.' },
+  'landing.hero.trace_aria': { ko: 'push에서 배포까지의 터미널 기록', en: 'Terminal record from push to deployment' },
 
-  // audience
-  'landing.audience.title': { ko: '어떤 분이신가요?', en: 'Which one are you?' },
-  // Four, not three: the agent door was added and this line went on saying three, which is the kind of
-  // detail a reader checks against the cards in front of them.
-  'landing.audience.sub': { ko: '위 그림의 선에는 저마다 주인이 있습니다. 그 세 사람과, 이 노드에 에이전트를 올리는 네 번째 사람입니다.', en: 'Every line in the picture above belongs to somebody — those three, and a fourth who puts an agent on a node.' },
-  'landing.audience.user.s1': { ko: '돈을 내는 쪽입니다. 내 주제와 내 모델에 맞으면서 다른 모델 서버 두 곳이 이미 채점한 지식을 찾습니다.', en: 'You are the one paying: find knowledge two other model servers already scored, for your topic and your model.' },
-  'landing.audience.user.s2': { ko: '같은 질문을 넣기 전/후 모델에 물어 답이 달라지는지 직접 봅니다.', en: 'Ask the same question before and after loading it and see the answer change.' },
-  'landing.audience.user.s3': { ko: '마음에 들면 결제 후 몇 초 만에 모델에 넣고, 언제든 뺍니다.', en: 'If you like it, pay and load it in seconds — unload any time.' },
-  'landing.audience.user.cta': { ko: '지식 둘러보기', en: 'Explore knowledge' },
-  // creator card = teach mode (spec §5.1): the visitor teaches the model in Live test; registering a file is the operator's route
-  'landing.audience.creator.title': { ko: '모델에게 가르치고 싶어요', en: 'I want to teach the model something' },
-  'landing.audience.creator.s1': { ko: '라이브 테스트에서 물어보고, 틀리면 바로잡습니다.', en: 'Ask the model in Live test and correct it when it is wrong.' },
-  'landing.audience.creator.s2': { ko: '이 노드가 내 바로잡기를 지식으로 학습합니다. 로그인도 내 서버도 필요 없습니다.', en: 'This node trains your corrections into knowledge — no sign-in, no server of your own.' },
-  'landing.audience.creator.s3': { ko: '나만 쓰거나, 공개해서 팔릴 때마다 정산받습니다.', en: 'Keep it private, or publish it and get paid on every sale.' },
-  'landing.audience.creator.s4': { ko: '노드가 켜 둔 곳에서는 남이 만든 지식 위에 얹어 만들고 그 지식을 출처로 밝힐 수 있습니다. 그러면 내 지식이 팔릴 때마다 그 사람 몫도 함께 기록됩니다.', en: 'Where a node switches it on, you can build on someone else’s knowledge instead of starting over and name it as your source — then they get a share of every sale of yours.' },
-  'landing.audience.creator.cta': { ko: '모델 가르치기', en: 'Teach the model' },
-  'landing.audience.creator.operator_link': { ko: '이미 지식 파일(.npz)이 있고 노드를 운영하나요? 파일 등록 →', en: 'Already have a knowledge file (.npz) and run a node? Register a file →' },
-  'landing.audience.creator.off': { ko: '이 노드는 지금 수업을 받지 않습니다. 라이브 테스트는 그대로 쓸 수 있습니다.', en: 'This node is not accepting lessons right now. Live test still works.' },
-  'landing.audience.operator.s1': { ko: '노드를 띄워 지식을 팔고 검증에 참여합니다.', en: 'Run a node to sell knowledge and take part in verification.' },
-  'landing.audience.operator.s2': { ko: '검증 결과는 노드 키로 서명되어 공개 기록에 남습니다. 잘못된 검증에는 누구나 이의를 제기할 수 있고, 그때 판매가 멈춥니다.', en: 'Every verification you publish is signed with your node key and stays on the public record. Any node can challenge a wrong one, and a challenge stops the sale.' },
-  'landing.audience.operator.s3': { ko: 'HTTP API로 AI 에이전트가 지식을 직접 사고 넣도록 자동화합니다.', en: 'Automate with the HTTP API so AI agents buy and load knowledge themselves.' },
-  'landing.audience.operator.cta': { ko: '운영자 콘솔 열기', en: 'Open the operator console' },
+  // capabilities — four cards, in the order the owner named them: models, agents, run, deploy
+  'landing.cap.title': { ko: '노드 하나가 하는 네 가지 일', en: 'Four things one node does' },
+  'landing.cap.sub': { ko: '아래 네 카드는 모두 같은 API 키와 같은 노드로 이어집니다. 각 카드의 코드는 문서에서 그대로 가져온 것이며, 링크를 누르면 바로 그 화면이 열립니다.', en: 'All four run on the same node with the same API key. The code on each card is lifted from the docs, and each link opens the screen it names.' },
 
-  // The agent door. Written for somebody who ALREADY has an agent running and is looking for somewhere to put
-  // it — the question they arrive with is "where does it live and who can call it", so that is what these say.
-  'landing.audience.agent.s1': { ko: '이미 돌고 있는 에이전트를 노드에 등록합니다: `ainize agent add <id> --upstream http://127.0.0.1:9200`', en: 'Register an agent you already run: `ainize agent add <id> --upstream http://127.0.0.1:9200`' },
-  'landing.audience.agent.s2': { ko: '노드가 공개 주소와 에이전트 카드를 만들어 줍니다. 에이전트 프로세스는 로컬에 그대로 있어도 됩니다.', en: 'The node gives it a public address and serves its agent card. The process itself stays where it is — it never needs an address of its own.' },
-  'landing.audience.agent.s3': { ko: '연결된 노드들이 그 에이전트를 알게 되고, 각자의 마켓플레이스에 띄웁니다. 호출은 그 노드를 거쳐 들어옵니다.', en: 'The nodes yours is connected to learn about it and list it on their own marketplace; calls arrive through them.' },
-  'landing.audience.agent.cta': { ko: '에이전트 둘러보기', en: 'See the agents' },
-  'landing.audience.agent.docs_link': { ko: '내 에이전트 올리는 법 →', en: 'Put your agent on a node →' },
+  'landing.cap.models.kicker': { ko: '모델', en: 'Models' },
+  'landing.cap.models.title': { ko: 'API 키 하나로 채팅·판단·이미지·음성 모델을 부릅니다', en: 'Call chat, decision, image and speech models with one API key' },
+  'landing.cap.models.desc': { ko: '`ainize.connect()`는 이미 쓰고 있는 LLM 클라이언트를 그대로 돌려줍니다. 여기에 `client.decide()` 하나가 더 있어, Cloudflare Clef 판단 모델에 상황과 질문을 주면 문장 대신 확률을 받습니다.', en: '`ainize.connect()` returns the LLM client you already use, plus one extra method: `client.decide()` asks the Cloudflare Clef decision model typed questions about a situation and gets probabilities back, not prose.' },
+  'landing.cap.models.cta': { ko: '모델 보기', en: 'Open Models' },
+  'landing.cap.models.docs': { ko: '내 코드에서 모델 부르기', en: 'Call the model from your code' },
+  'landing.cap.models.docs2': { ko: '판단 모델(Clef) 쓰기', en: 'Use a decision model (Clef)' },
 
+  'landing.cap.agents.kicker': { ko: '에이전트', en: 'Agents' },
+  'landing.cap.agents.title': { ko: 'A2A 에이전트에 공개 주소와 카드를 줍니다', en: 'Give an A2A agent a public address and a card' },
+  'landing.cap.agents.desc': { ko: '이미 돌고 있는 에이전트는 한 줄로 노드에 등록하고, 없다면 노드가 서빙하는 모델 위에 프롬프트·툴·핸들러 중 하나로 새로 만듭니다. 어느 쪽이든 `/agents/<id>`에서 카드를 서빙하고 마켓플레이스에 올라가며, 연결된 다른 노드에서도 보입니다.', en: 'Register an agent you already run in one line, or create one on a model the node serves — a prompt, tools or a handler. Either way it serves a card at `/agents/<id>`, is listed on the marketplace, and appears on connected nodes too.' },
+  'landing.cap.agents.cta': { ko: '에이전트 마켓플레이스', en: 'Agent marketplace' },
+  'landing.cap.agents.docs': { ko: '에이전트를 노드에 올리기', en: 'Put an agent on a node' },
+  'landing.cap.agents.docs2': { ko: '모델로 에이전트 만들기', en: 'Create an agent from a model' },
+
+  'landing.cap.run.kicker': { ko: '실행', en: 'Run' },
+  'landing.cap.run.title': { ko: 'git 저장소의 스크립트를 샌드박스에서 돌립니다 — 키는 자동으로 들어갑니다', en: 'Run a script from a git repo in a sandbox — your key is injected for you' },
+  'landing.cap.run.desc': { ko: 'aindrive에서 .py·.js 파일 옆의 ▶ Run을 누르거나 프로젝트의 Runs 탭에서 실행하면, 읽기 전용 컨테이너에 `AINIZE_URL`과 로그인한 사람의 `AINIZE_API_KEY`가 환경 변수로 들어갑니다. 저장소에는 비밀이 들어가지 않고, 표준 출력이 그대로 기록이 됩니다.', en: 'Press ▶ Run beside a .py or .js file in aindrive, or use a project’s Runs tab: the script runs in a read-only container with `AINIZE_URL` and the signed-in person’s `AINIZE_API_KEY` in its environment. No secret goes in the repo, and standard output becomes the record.' },
+  'landing.cap.run.cta': { ko: '실행과 입력값 문서', en: 'Runs and inputs in the docs' },
+  'landing.cap.run.docs': { ko: 'aindrive 열기', en: 'Open aindrive' },
+
+  'landing.cap.deploy.kicker': { ko: '배포', en: 'Deploy' },
+  'landing.cap.deploy.title': { ko: '`ainize.json` 하나로 push마다 배포됩니다', en: 'One `ainize.json`, and every push deploys' },
+  'landing.cap.deploy.desc': { ko: 'aindrive 드라이브 안의 저장소 루트에 `ainize.json`을 두면 push마다 노드가 그 커밋을 받아 빌드하고 격리된 샌드박스에서 띄웁니다. 스크립트, Dockerfile 서비스, Next.js 앱, A2A 에이전트 네 종류이고, 배포 목록·로그·이전 배포 유지는 `/<org>/<repo>`에서 봅니다.', en: 'Put `ainize.json` at the root of a repo in an aindrive drive and every push makes the node clone that commit, build it and run it in an isolated sandbox. Four kinds — a script, a Dockerfile service, a Next.js app, an A2A agent — with deployments, logs and the previous deployment kept at `/<org>/<repo>`.' },
+  'landing.cap.deploy.cta': { ko: 'ainize.json으로 배포하기', en: 'Deploy a repo with ainize.json' },
+  'landing.cap.deploy.docs': { ko: '예시 프로젝트: comcom/clef-artwork-search', en: 'Example project: comcom/clef-artwork-search' },
+
+  // example in 60 seconds — the clef-artwork-search story, which uses all four
+  'landing.example.title': { ko: '60초짜리 예시', en: 'An example in 60 seconds' },
+  'landing.example.sub': { ko: 'clef-artwork-search는 작품 묘사 한 줄을 받아 Clef 판단 모델로 그림을 순위 매기는 파이썬 파일 세 개입니다. 저장소에는 키가 없고, 서버 설정도 없습니다.', en: 'clef-artwork-search is three Python files that rank artworks against a one-line description with the Clef decision model. There is no key in the repo and nothing configured on a server.' },
+  'landing.example.s1.title': { ko: 'push 한 번', en: 'Push' },
+  'landing.example.s1.desc': { ko: 'aindrive 드라이브의 저장소에 `ainize.json`과 함께 push합니다. 첫 push가 프로젝트를 만들고, 그 push부터 배포가 시작됩니다.', en: 'Push to the repo in an aindrive drive with `ainize.json` beside the code. The first push creates the project and is itself the first deployment.' },
+  'landing.example.s2.title': { ko: '실행', en: 'It runs' },
+  'landing.example.s2.desc': { ko: '노드가 그 커밋을 받아 `art_search.py`를 샌드박스에서 돌립니다. 스크립트는 환경 변수의 키로 `client.decide("clef-flash", …)`를 호출합니다.', en: 'The node clones that commit and runs `art_search.py` in the sandbox. The script calls `client.decide("clef-flash", …)` with the key from its environment.' },
+  'landing.example.s3.title': { ko: '기록', en: 'The record' },
+  'landing.example.s3.desc': { ko: '순위가 표준 출력으로 나오고, 그대로 배포 로그가 됩니다. 프로젝트 페이지에서 배포마다 로그를 다시 열 수 있습니다.', en: 'The ranking goes to standard output and becomes the deployment log. The project page keeps one per deployment, ready to open again.' },
+  'landing.example.cta': { ko: '프로젝트 보기', en: 'Open the project' },
+  'landing.example.repo': { ko: 'aindrive에서 저장소 보기', en: 'Repo on aindrive' },
+
+  // what only ainize does — teach, and one identity
+  'landing.only.title': { ko: 'Ainize만 하는 두 가지', en: 'Two things only Ainize does' },
+  'landing.only.teach.kicker': { ko: '가르치기', en: 'Teach' },
+  'landing.only.teach.title': { ko: '모델을 고치면, 그 지식이 팔립니다', en: 'Correct the model, and the correction sells' },
+  'landing.only.teach.desc': { ko: '라이브 테스트에서 틀린 답을 바로잡거나 질문 파일을 올리면 노드가 그것을 모델 메모리에 직접 쓰는 지식 패치로 굽습니다. 다른 노드 두 곳이 실제 모델에 넣어 채점해야 판매가 열리고, 출처로 밝힌 지식과 나눌 몫이 팔릴 때마다 기록에 남습니다.', en: 'Correct a wrong answer in Live test or upload a file of questions, and the node bakes it into a knowledge patch written straight into the model’s memory. It goes on sale only after two other nodes load it into the real model and score it, and every sale records the split with the knowledge it names as its source.' },
+  'landing.only.teach.cta': { ko: '가르치기 시작', en: 'Start teaching' },
+  'landing.only.teach.l1': { ko: '지식 패치란', en: 'What a knowledge patch is' },
+  'landing.only.teach.l2': { ko: '계보와 로열티', en: 'Lineage and royalties' },
+  'landing.only.teach.l3': { ko: '검증이 드는 비용', en: 'What verifying costs' },
+  'landing.only.identity.kicker': { ko: '하나의 신원', en: 'One identity' },
+  'landing.only.identity.title': { ko: 'AIN 계정 하나, 네 제품', en: 'One AIN account, four products' },
+  'landing.only.identity.desc': { ko: 'Ainize, aindrive, AIN Teams, ainmem은 같은 AIN SSO를 씁니다. 드라이브에 push할 수 있는 사람이 곧 배포할 수 있는 사람이고, 조직에 공유한 에이전트는 AIN Teams 워크스페이스에 그대로 들어옵니다. 지갑(MetaMask)이나 Google 계정으로도 로그인할 수 있고, CLI는 `ainize login`으로 같은 계정에 묶입니다.', en: 'Ainize, aindrive, AIN Teams and ainmem share one AIN SSO. Whoever can push to the drive can deploy, and an agent shared with your organization appears in the AIN Teams workspace as it is. A wallet (MetaMask) or a Google account signs in too, and `ainize login` binds the CLI to the same account.' },
+  'landing.only.identity.cta': { ko: '로그인', en: 'Sign in' },
+  'landing.only.identity.l1': { ko: '조직으로 운영하기', en: 'Run your team as an organization' },
+  'landing.only.identity.l2': { ko: 'AIN Teams용 에이전트 만들기', en: 'Build an agent for AIN Teams' },
 
   // lifecycle — ONE time-ordered diagram of the ecosystem (owner review 2026-09: the one-line commands were grouped
   // by role and read as a menu, not a sequence). Every note here is a promise the shipped product keeps: where a
@@ -126,40 +133,6 @@ export const landing: Dict = {
   'landing.flow.s8.note': { ko: '부모 지식을 확보한 뒤 허용된 질문 데이터를 받아 새 수업을 만드세요. 파생 기능과 라이선스를 먼저 확인하세요.', en: 'Acquire the parent knowledge and an accessible dataset before training a derivative. Check lineage support and the licence first.' },
   'landing.flow.s8.path': { ko: '/ → 지식 둘러보기 → 지식 상세 → 출처와 파생', en: '/ → Explore knowledge → a knowledge page → Origins & derivatives' },
 
-  // how it works
-  'landing.how.title': { ko: '이렇게 됩니다', en: 'How it works' },
-  'landing.how.sub': { ko: '위 그림에서 지식 하나만 확대한 것입니다. 세 단계면 끝나고, 재학습도 재시작도 없습니다.', en: 'A close-up of one knowledge from the picture above. Three steps. No retraining, no restart.' },
-  'landing.how.step1.title': { ko: '검증', en: 'Verified' },
-  'landing.how.step1.desc': { ko: '등록된 지식은 다른 노드 두 곳이 실제 모델에 넣어 채점합니다. 정답률뿐 아니라 다른 지식이 망가지거나 환각이 늘지 않는지(부작용 검사)까지 보고, 이 둘은 주소가 아니라 서로 다른 모델 서버로 셉니다.', en: 'Two other nodes load each registered knowledge into the real model and score it — accuracy, plus a side-effect check that nothing else breaks and hallucination does not rise. The two are counted as distinct model servers, not as addresses.' },
-  'landing.how.step2.title': { ko: '라이브 테스트', en: 'Live test' },
-  'landing.how.step2.desc': { ko: '사기 전에 직접 물어보세요. 같은 질문을 지식을 넣기 전과 후의 모델에 던져 답이 어떻게 달라지는지 나란히 봅니다.', en: 'Ask before you buy. Put the same question to the model before and after the knowledge is loaded and compare the answers side by side.' },
-  'landing.how.step3.title': { ko: '모델에 넣기', en: 'Load into model' },
-  'landing.how.step3.desc': { ko: '결제는 자동으로 처리되고, 지식은 몇 초 만에 내 노드에서 도는 모델에 들어갑니다. 겹침·충돌 검사가 먼저 돌고, 마음이 바뀌면 언제든 뺄 수 있습니다.', en: 'Payment is automatic and the knowledge is in the model on your own node in seconds. An overlap check runs first, and you can unload whenever you change your mind.' },
-
-  // trending
-  'landing.trending.title': { ko: '지금 많이 찾는 검증 완료 지식', en: 'Popular verified knowledge' },
-  'landing.trending.sub': { ko: '검증을 통과해 바로 모델에 넣을 수 있는 지식입니다. 어떤 지식을 출처로 밝혔거나 이 지식을 출처로 밝힌 지식이 있으면 카드에 함께 적힙니다.', en: 'Passed verification and ready to load. Where a knowledge names another as its source, or something names it, the card says so.' },
-  'landing.trending.built_on': { ko: '‘{name}’을(를) 출처로 밝힘', en: 'Names “{name}” as its source' },
-  'landing.trending.built_on_count': { ko: '이 지식을 출처로 밝힌 지식 {n}개', en: '{n} knowledge names this as its source' },
-  'landing.trending.empty': { ko: '아직 검증 완료된 지식이 없습니다. 검증 노드들이 채점하는 중이니 잠시 후 다시 확인해 주세요.', en: 'No knowledge has completed verification yet. Verifier nodes are scoring — check back in a moment.' },
-  'landing.trending.empty_count': { ko: '지금 검증 중인 지식 {n}개', en: '{n} knowledge currently being verified' },
-  'landing.trending.more': { ko: '더 보기', en: 'See all' },
-  'landing.trending.accuracy_pending': { ko: '정답률 채점 전', en: 'Accuracy not scored yet' },
-  'landing.trending.accuracy_sample': { ko: '{pct}% — {facts}문항 중 {tested}문항 표본', en: '{pct}% on a {tested}-question sample of {facts}' },
-  'landing.trending.accuracy_checked': { ko: '{pct}% ({raw} 채점)', en: '{pct}% ({raw} checked)' },
-
-  // why
-  'landing.why.title': { ko: '왜 Ainize인가', en: 'Why Ainize' },
-  'landing.why.2019.year': { ko: '2019 – 2020', en: '2019 – 2020' },
-  'landing.why.2019.title': { ko: '저장소를 AI 서비스로', en: 'Repo → running AI service' },
-  'landing.why.2019.desc': { ko: '1세대 Ainize는 GitHub 저장소 하나를 몇 분 만에 돌아가는 AI 서비스로 만들었습니다. "ainize your repo".', en: 'The first Ainize turned any GitHub repo into a running AI service in minutes. "Ainize your repo."' },
-  'landing.why.2026.year': { ko: '2026', en: '2026' },
-  'landing.why.2026.title': { ko: '지식을 모델이 아는 상태로', en: 'Knowledge → something the model knows' },
-  'landing.why.2026.desc': { ko: '지금의 Ainize는 지식을 AI 모델이 실제로 아는 상태로 만듭니다. 검증된 지식을 고르고, 라이브로 확인하고, 몇 초 만에 넣습니다. "ainize your knowledge".', en: 'This Ainize turns knowledge into something an AI model actually knows: pick verified knowledge, check it live, load it in seconds. "Ainize your knowledge."' },
-  'landing.why.ain.year': { ko: 'AIN', en: 'AIN' },
-  'landing.why.ain.title': { ko: '앞 세 글자, AI Network', en: 'The first three letters: AI Network' },
-  'landing.why.ain.desc': { ko: '누가 어떤 지식을 등록·검증·구매했는지는 AI Network에 공개 기록으로 남습니다. 판매도 누구에게 얼마가 갈지 적힌 기록으로 남고, 파는 쪽이 그 뒤에 출처로 밝힌 지식들에게 보냅니다.', en: 'Who registered, verified and bought which knowledge is a public record on the AI Network. Every sale is recorded there as a split: the record says who is owed what, and the seller sends it on afterwards.' },
-  'landing.why.tagline': { ko: '팔릴 때마다 출처로 밝힌 지식과 나눌 몫이 기록되고, 쓰는 사람은 다른 노드가 채점한 지식만 봅니다.', en: 'Every sale is recorded as a split with the knowledge it names. Users only ever see knowledge other nodes scored.' },
 
   // footer — finding 99: the landing no longer keeps a link list of its own. `components/ui/Footer.tsx` renders the
   // same destinations under the same names on both chromes (dark skin here, purple bar elsewhere), so the
