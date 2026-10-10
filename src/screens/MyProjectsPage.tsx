@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useMyProjectsQuery } from '@/api/api';
 import { statusToneOf } from '@/api/projects';
+import { projectPath } from '@/lib/reservedRoutes';
 import { Button } from '@/components/ui/Button';
 import { CenterProgress, Empty, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
@@ -37,7 +38,7 @@ export default function MyProjectsPage() {
           {rows.map((p) => (
             <Item key={p.id}>
               <Dot $tone={statusToneOf(p.status)} />
-              <StyledLink to={`/projects/${p.id}`}><strong>{p.org}/{p.repoName}</strong></StyledLink>
+              <StyledLink to={projectPath(p)}><strong>{p.org}/{p.repoName}</strong></StyledLink>
               <Meta><Mono>{p.branch}</Mono></Meta>
               {p.kind && <Meta>{t(`projects.kind.${p.kind}`)}</Meta>}
               <Meta>{t(`projects.status.${p.status}`)}</Meta>

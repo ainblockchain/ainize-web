@@ -21,6 +21,9 @@ const ModelsPage = lazy(() => import('./screens/ModelsPage'));
 const MyPage = lazy(() => import('./screens/MyPage'));
 const ProjectNewPage = lazy(() => import('./screens/ProjectNewPage'));
 const ProjectPage = lazy(() => import('./screens/ProjectPage'));
+// `/<org>/<repo>` and `/<org>` — the GitHub-shaped addresses of a project and of an organization's repositories.
+const ProjectByNamePage = lazy(() => import('./screens/ProjectPage').then((m) => ({ default: m.ProjectByNamePage })));
+const OrgRepositoriesPage = lazy(() => import('./screens/OrgRepositoriesPage'));
 const MyProjectsPage = lazy(() => import('./screens/MyProjectsPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
 // Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
@@ -128,7 +131,6 @@ export default function App() {
                 <Route path="/verifier/:address" element={<Layout><VerifierPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />
-                <Route path="/:author/:patchId" element={<Layout><PatchPage /></Layout>} />
 
                 {/* Signed in is enough: these are the caller's own things, not this node's. */}
                 <Route path="/me" element={<SignedInLayout><MyPage /></SignedInLayout>} />
@@ -139,7 +141,8 @@ export default function App() {
                     gate because aindrive opens it with a query string (repo, driveId, returnTo) that the shared
                     gate would drop on the way to /signing. */}
                 <Route path="/projects/new" element={<Layout><ProjectNewPage /></Layout>} />
-                <Route path="/projects/:id" element={<SignedInLayout><ProjectPage /></SignedInLayout>} />
+                {/* The old address of a project: resolves the id and forwards to `/<org>/<repo>` (reading is public now). */}
+                <Route path="/projects/:id" element={<Layout><ProjectPage /></Layout>} />
                 <Route path="/me/projects" element={<SignedInLayout><MyProjectsPage /></SignedInLayout>} />
                 {/* Organizations (ainize-node organizations design). `/org/new` and `/org/join/…` are declared before
                     `/org/:id` so an organization called "new" cannot shadow them (and the id rule reserves the words). */}
@@ -162,6 +165,12 @@ export default function App() {
                 <Route path="/drive" element={<SigningCheckLayout><DrivePage /></SigningCheckLayout>} />
                 <Route path="/drive/*" element={<SigningCheckLayout><DrivePage /></SigningCheckLayout>} />
 
+                {/* GitHub-shaped addresses, declared last: `/<org>` is an organization's repositories and `/<org>/<repo>`
+                    a project's console — or, when no project of that name is bound here, the knowledge page that has
+                    always lived at `/<author>/<patchId>`. A first segment that is a real page (src/lib/reservedRoutes.ts,
+                    checked against this file by test/reserved-routes.test.ts) is "not found", never "no such project". */}
+                <Route path="/:org" element={<Layout><OrgRepositoriesPage /></Layout>} />
+                <Route path="/:org/:repo" element={<Layout><ProjectByNamePage /></Layout>} />
                 <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
               </Routes>
             </Suspense>

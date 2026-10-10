@@ -1,5 +1,6 @@
 /**
- * Projects — a repo in an aindrive drive deployed on every push (`/projects/new`, `/projects/:id`).
+ * Projects — a repo in an aindrive drive deployed on every push (`/projects/new`, `/<org>/<repo>` the console,
+ * `/<org>` the organization's repositories; `/projects/:id` forwards).
  */
 import type { Dict } from '../index';
 
@@ -37,7 +38,7 @@ export const projects: Dict = {
 
   // ── /projects/:id
   'projects.page.title': { ko: '프로젝트', en: 'Project' },
-  'projects.page.not_found': { ko: '이 노드에 그런 프로젝트가 없거나, 당신의 것이 아닙니다.', en: 'No such project on this node, or it is not yours.' },
+  'projects.page.not_found': { ko: '이 노드에 그런 프로젝트가 없습니다.', en: 'No such project on this node.' },
   'projects.page.repo': { ko: '리포', en: 'Repository' },
   'projects.page.branch': { ko: '브랜치', en: 'Branch' },
   'projects.page.kind': { ko: '종류', en: 'Kind' },
@@ -54,6 +55,70 @@ export const projects: Dict = {
   'projects.page.by': { ko: '{who} 의 push', en: 'pushed by {who}' },
   'projects.page.exit': { ko: '종료 코드 {code}', en: 'exit {code}' },
   'projects.page.pending_hint': { ko: '대기 중 — 같은 프로젝트의 앞선 배포가 끝나면 시작합니다.', en: 'Queued — starts when the project\'s earlier deployment finishes.' },
+  'projects.page.output': { ko: '출력', en: 'Output' },
+  'projects.page.redeploy': { ko: '다시 배포', en: 'Redeploy' },
+  'projects.page.rollback': { ko: '이 배포로 되돌리기', en: 'Roll back to this' },
+  'projects.page.rollback_hint': { ko: '이 커밋을 다시 배포해 서비스가 이 버전을 가리키게 합니다.', en: 'Deploys this commit again so the service points at this version.' },
+
+  // ── the console
+  'projects.tabs.deployments': { ko: '배포', en: 'Deployments' },
+  'projects.tabs.runs': { ko: '실행', en: 'Runs' },
+  'projects.tabs.logs': { ko: '로그', en: 'Logs' },
+  'projects.tabs.settings': { ko: '설정', en: 'Settings' },
+  'projects.trigger.push': { ko: 'push', en: 'push' },
+  'projects.trigger.redeploy': { ko: '재배포', en: 'redeploy' },
+  'projects.trigger.run': { ko: '실행', en: 'run' },
+  'projects.filters.status': { ko: '상태', en: 'Status' },
+  'projects.filters.all_statuses': { ko: '모든 상태', en: 'All statuses' },
+  'projects.filters.branch': { ko: '브랜치', en: 'Branch' },
+  'projects.filters.all_branches': { ko: '모든 브랜치', en: 'All branches' },
+  'projects.filters.count': { ko: '{n}개', en: '{n} deployments' },
+  'projects.filters.none': { ko: '조건에 맞는 배포가 없습니다.', en: 'No deployment matches the filter.' },
+
+  'projects.runs.panel': { ko: '실행 패널', en: 'Run panel' },
+  'projects.runs.run': { ko: '실행', en: 'Run' },
+  'projects.runs.again': { ko: '이 입력으로 다시 실행', en: 'Run again with these inputs' },
+  'projects.runs.entry': { ko: '실행 파일', en: 'Entry file' },
+  'projects.runs.examples': { ko: '예시', en: 'Examples' },
+  'projects.runs.timeout': { ko: '제한 시간 (초)', en: 'Timeout (seconds)' },
+  'projects.runs.env': { ko: '추가 환경 변수', en: 'Extra environment' },
+  'projects.runs.env_help': { ko: '한 줄에 NAME=value 하나. 비밀값은 넣지 마세요 — 실행 기록에 그대로 남습니다.', en: 'One NAME=value per line. No secrets — they stay in the run\'s record as typed.' },
+  'projects.runs.missing': { ko: '필수 입력이 비어 있습니다: {names}', en: 'Required inputs are blank: {names}' },
+  'projects.runs.key_hint': { ko: '당신의 API 키로 실행됩니다 (AINIZE_API_KEY).', en: 'Runs with your own API key (AINIZE_API_KEY).' },
+  'projects.runs.history': { ko: '실행 기록', en: 'Run history' },
+  'projects.runs.none': { ko: '아직 실행한 적이 없습니다.', en: 'No runs yet.' },
+  'projects.runs.with_inputs': { ko: '입력', en: 'Inputs' },
+  'projects.runs.sign_in': { ko: '이 리포를 실행하려면 로그인하세요 — 실행은 당신의 API 키로 이루어집니다.', en: 'Sign in to run this repository — a run uses your own API key.' },
+  'projects.runs.sign_in_button': { ko: '로그인', en: 'Sign in' },
+  'projects.runs.not_member': { ko: '{org} 조직의 구성원이나 프로젝트 소유자만 실행할 수 있습니다.', en: 'Only a member of {org} or the project\'s owner may run it.' },
+
+  'projects.logs.none': { ko: '아직 로그가 없습니다.', en: 'No log yet.' },
+  'projects.logs.download': { ko: '다운로드', en: 'Download' },
+  'projects.logs.raw': { ko: '원본', en: 'Raw' },
+
+  'projects.settings.inputs': { ko: '입력 (ainize.json)', en: 'Inputs (ainize.json)' },
+  'projects.settings.env': { ko: '환경 변수 (ainize.json)', en: 'Environment (ainize.json)' },
+  'projects.settings.webhook': { ko: '웹훅', en: 'Webhook' },
+  'projects.settings.webhook_help': { ko: 'aindrive가 push마다 서명해 호출하는 주소입니다.', en: 'What aindrive calls, signed, on every push.' },
+  'projects.settings.readonly': { ko: '종류·실행 파일·입력은 리포의 ainize.json이 정합니다.', en: 'Kind, entry and inputs are what the repo\'s ainize.json says.' },
+  'projects.settings.edit_in_aindrive': { ko: 'aindrive에서 편집', en: 'Edit in aindrive' },
+  'projects.settings.rotate': { ko: '웹훅 비밀값 교체', en: 'Rotate webhook secret' },
+  'projects.settings.rotate_confirm': { ko: '새 비밀값을 만들까요? 이전 값은 즉시 무효가 되고, 새 값을 드라이브의 리포 설정에 넣어야 push가 다시 배포됩니다.', en: 'Make a new secret? The old one stops working at once; paste the new one into the repo\'s settings in the drive or pushes stop deploying.' },
+  'projects.settings.rotated': { ko: '새 웹훅 비밀값 — 지금 한 번만 보여 줍니다:', en: 'New webhook secret — shown only now:' },
+
+  // ── /<org>
+  'projects.org.not_found': { ko: '그런 조직 주소가 아닙니다.', en: 'Not an organization address.' },
+  'projects.org.members': { ko: '구성원 {n}명', en: '{n} members' },
+  'projects.org.org_page': { ko: '조직 페이지', en: 'Organization page' },
+  'projects.org.drive': { ko: 'aindrive 드라이브', en: 'aindrive drive' },
+  'projects.org.count': { ko: '리포 {n}개', en: '{n} repositories' },
+  'projects.org.none': { ko: '이 조직의 리포가 아직 없습니다. aindrive 드라이브의 repositories/ 폴더에 리포를 만들고 push하면 여기에 나타납니다.', en: 'No repositories yet. Create one in the drive\'s repositories/ folder on aindrive and push; it appears here.' },
+  'projects.org.no_aindrive': { ko: '이 노드는 aindrive의 리포 목록을 읽을 수 없어, 여기에 묶인 프로젝트만 보입니다.', en: 'This node cannot read aindrive\'s repository listing, so only the projects bound here are shown.' },
+  'projects.org.not_deployed': { ko: '아직 배포되지 않음', en: 'not deployed yet' },
+  'projects.org.push_to_deploy': { ko: 'push하면 배포됩니다', en: 'push to deploy' },
+  'projects.org.no_manifest': { ko: 'ainize.json 없음', en: 'no ainize.json' },
+  'projects.org.no_manifest_hint': { ko: '리포 루트에 ainize.json이 있어야 push가 배포됩니다.', en: 'A push deploys once ainize.json sits at the repo root.' },
+  'projects.org.open': { ko: '열기', en: 'Open' },
 
   'projects.status.idle': { ko: '대기', en: 'Idle' },
   'projects.status.queued': { ko: '대기열', en: 'Queued' },
@@ -75,6 +140,9 @@ export const projects: Dict = {
   'projects.api.repo_taken': { ko: '이미 프로젝트인 리포입니다', en: 'already a project' },
   'projects.api.limit': { ko: '프로젝트 한도에 닿았습니다', en: 'project limit reached' },
   'projects.api.not_found': { ko: '찾을 수 없습니다', en: 'not found' },
+  'projects.api.not_member': { ko: '조직 구성원이나 소유자만 할 수 있습니다', en: 'only the owner or an organization member may' },
+  'projects.api.not_a_script': { ko: '스크립트 프로젝트가 아닙니다 — push로 배포됩니다', en: 'not a script project — it deploys on push' },
+  'projects.api.aindrive_off': { ko: '이 노드는 aindrive에 기계 신원이 없습니다', en: 'this node has no machine identity at aindrive' },
   'projects.api.network': { ko: '노드에 닿지 못했습니다', en: 'could not reach the node' },
   'projects.api.unknown': { ko: '알 수 없는 오류', en: 'unknown error' },
 };

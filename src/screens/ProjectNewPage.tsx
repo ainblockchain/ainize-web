@@ -15,6 +15,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useCreateProjectMutation } from '@/api/api';
 import { connectParamsOf, connectRepoOnAindrive, projectApiErrorOf, repoLabelOf, repoUrlLooksRight, type ProjectCreated } from '@/api/projects';
+import { projectPath } from '@/lib/reservedRoutes';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, TextField } from '@/components/ui/Form';
@@ -100,7 +101,7 @@ export default function ProjectNewPage() {
           </SecretBox>
         )}
         <Actions style={{ marginTop: 16 }}>
-          <Button variant="contained" onClick={() => navigate(`/projects/${created.id}`)}>{t('projects.new.open_project')}</Button>
+          <Button variant="contained" onClick={() => navigate(projectPath(created))}>{t('projects.new.open_project')}</Button>
           {params.returnTo && <Button onClick={() => window.location.assign(params.returnTo!)}>{t('projects.new.back_to_drive')}</Button>}
         </Actions>
       </PageWrapper>
