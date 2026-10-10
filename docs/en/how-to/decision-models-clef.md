@@ -52,7 +52,7 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
 
 out = client.decide(
     "clef-flash",

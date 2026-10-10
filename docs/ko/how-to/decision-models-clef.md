@@ -2,7 +2,7 @@
 title: 결정 모델 쓰기 (Cloudflare Clef)
 summary: 결정 모델은 글을 쓰지 않습니다. 상황과 그에 대한 유형이 정해진 질문을 받아 각 질문에 확률로 답합니다 — ainize SDK의 client.decide()로, 내 API 키로.
 source: en/how-to/decision-models-clef.md
-source_sha256: 0bd0084853a4a08cb78009c18bafa0a56ad78103a4cecbe647dd96d16d29882e
+source_sha256: bfc37ca391763bfe2564c45e1eda34fcd9116711fe34d38a830d6d32b86eda83
 ---
 
 # 결정 모델 쓰기 (Cloudflare Clef)
@@ -53,7 +53,7 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
 
 out = client.decide(
     "clef-flash",
