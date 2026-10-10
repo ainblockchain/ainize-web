@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 6b50894f47dee063499380805884d881d0c24d86d03cf48fc6b853f69b0bdb43
+source_sha256: b6e4d016612e92a2a0920cc882ca8e806fab4d0e9eb893ef7ccfc8b396f4fe10
 ---
 
 # ainize.json으로 리포 배포하기
@@ -25,7 +25,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
   "kind": "script",
   "runtime": "python3.11",
   "entry": "art_search.py",
-  "env": { "AINIZE_DECIDE_URL": "https://ainize.ai/api/decide" },
+  "env": { "TOP_K": "5" },
   "timeoutMs": 120000
 }
 ```
@@ -36,7 +36,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `kind` | 전체 | `nextjs`(`package.json`에 `next`가 있으면 기본), `script`, `service`, `agent`. |
 | `runtime` | `script` | `python3.11` 또는 `node20`. 기본은 entry 확장자로 정해짐. |
 | `entry` | `script` | 실행할 파일, 리포 루트 기준. |
-| `env` | 전체 | 빌드와 실행에 들어가는 환경변수. **비밀값 금지** — 파일이 리포에 있습니다. |
+| `env` | 전체 | 빌드와 실행에 들어가는 환경변수. **비밀값 금지** — 파일이 리포에 있습니다. 샌드박스가 `AINIZE_URL`과 `AINIZE_API_KEY`(push한 사람 본인의 키)를 스스로 넣어 주므로, 스크립트는 `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])`로 모델에 닿고 키는 절대 커밋되지 않습니다. |
 | `inputs` | 전체(`script` 실행에서 사용) | 실행 전에 사람이 정하는 매개변수. GitHub Actions `workflow_dispatch` inputs와 같은 모양이며, `INPUT_<NAME>` 환경변수로 전달됩니다. [Inputs](#inputs) 참고. |
 | `timeoutMs` | `script` | 실행 1회의 제한 시간. 기본 120 000, 최대 300 000. |
 | `build.dockerfile`, `build.context` | `service` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
@@ -54,10 +54,10 @@ ainize.json`으로 끝납니다. 파일이 계약입니다 — 그 기본값 하
 다음 교체됩니다. Vercel과 같은 모양의 경우입니다.
 
 **`script`** — Ainize에만 있는 경우입니다. push마다 노드가 `entry`를 읽기 전용 샌드박스에서 한 번 실행합니다. 64 MiB
-`/work`, 메모리 512 MB, CPU 1개, 그리고 **Ainize 자신 외에는 네트워크 없음**(노드 게이트웨이를 통한 `/api/decide`,
-`/api/chat`, `/v1/*`). 표준 출력·표준 에러·종료 코드가 배포 로그가 되고, 종료 코드 0이면 `ready`, 그 외는 `error`입니다.
-예시, 평가, 코드가 바뀔 때마다 다시 돌아 기록을 남겨야 하는 것에 쓰세요. 샌드박스 이미지에는 표준 라이브러리와
-`requests`가 있고, 그 밖의 의존성은 선언할 수 없습니다.
+`/work`, 메모리 512 MB, CPU 1개, 그리고 **Ainize 자신 외에는 네트워크 없음**(노드 게이트웨이를 통한 `/v1/*`,
+`AINIZE_URL`로 내 `AINIZE_API_KEY`와 함께 닿음). 표준 출력·표준 에러·종료 코드가 배포 로그가 되고, 종료 코드 0이면 `ready`, 그 외는 `error`입니다.
+예시, 평가, 코드가 바뀔 때마다 다시 돌아 기록을 남겨야 하는 것에 쓰세요. 샌드박스 이미지에는 표준 라이브러리, `requests`,
+`ainize` SDK가 있고, 그 밖의 의존성은 선언할 수 없습니다.
 
 **`service`** — 리포의 `Dockerfile`을 빌드하고, hosted agent와 같은 격리(내부 네트워크, 게이트웨이를 통한 egress만,
 capability 제거, 자원 제한)로 실행한 뒤, `port`의 `healthcheck`를 기다려 노드의 공개 URL 아래로 노출합니다. 무중단

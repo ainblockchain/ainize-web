@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, SNIPPET_SAMPLE_PROMPT } from '../src/screens/models/modelsPageCodeSnippet';
+import { DECISION_EXAMPLE, modelsPageCodeSnippet, pythonLiteral, SNIPPET_LANGUAGES, SNIPPET_SAMPLE_PROMPT } from '../src/screens/models/modelsPageCodeSnippet';
 
 const base = { model: 'qwen2.5-7b-instruct', nodeUrl: 'https://node.example', prompt: 'hello' } as const;
 
@@ -33,6 +33,7 @@ test('the model and the node URL are the ones on screen, not placeholders', () =
 
 test('each modality calls its own method', () => {
   assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat' }), /chat\.completions\.create/);
+  assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'decision' }), /client\.decide\(/);
   assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'transcription' }), /audio\.transcriptions\.create/);
   assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'image' }), /images\.generate/);
 });
@@ -124,4 +125,72 @@ test('the key reaches the curl snippet too, where it is a header', () => {
 test('a key is escaped like every other interpolated value', () => {
   const s = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat', apiKey: 'ainize-sk-"x"' });
   assert.ok(!s.includes('"ainize-sk-"x""'), 'an unescaped key would be a syntax error in the pasted file');
+});
+
+// ── decision models (Clef): not an OpenAI call, so the snippet must not pretend it is one
+
+const decision = { modality: 'decision', model: 'clef-flash', nodeUrl: 'https://ainize.ai', prompt: DECISION_EXAMPLE } as const;
+
+test('a decision model is called with client.decide, never chat.completions — that call does not exist for it', () => {
+  for (const language of SNIPPET_LANGUAGES) {
+    const s = modelsPageCodeSnippet({ ...decision, language });
+    assert.ok(!s.includes('chat.completions'), `${language} still shows a chat call, which a decision model 404s`);
+    assert.ok(!s.includes('messages'), `${language} still sends messages`);
+  }
+  const py = modelsPageCodeSnippet({ ...decision, language: 'python' });
+  assert.match(py, /^# pip install ainize\nimport ainize\n\nclient = ainize\.connect\("https:\/\/ainize\.ai", api_key="ainize-sk-\.\.\."\)\n\nout = client\.decide\(\n    "clef-flash",\n    state=/);
+  assert.match(py, /print\(out\.answers\)\n$/);
+  const ts = modelsPageCodeSnippet({ ...decision, language: 'typescript' });
+  assert.match(ts, /await client\.decide\(\{\n  model: "clef-flash",\n  state: /);
+  assert.match(ts, /console\.log\(out\.answers\)/);
+  const sh = modelsPageCodeSnippet({ ...decision, language: 'curl' });
+  assert.match(sh, /https:\/\/ainize\.ai\/v1\/systemone/, 'the one endpoint a decision model answers at');
+  assert.match(sh, /Authorization: Bearer/);
+  assert.ok(!sh.includes('chat/completions'));
+});
+
+test('the decision snippet carries the same example the playground shows, state and all three question types', () => {
+  const example = JSON.parse(DECISION_EXAMPLE) as { state: string; questions: Record<string, { type: string }> };
+  assert.deepEqual(Object.values(example.questions).map((q) => q.type).sort(), ['choice', 'noul', 'score']);
+  for (const language of SNIPPET_LANGUAGES) {
+    const s = modelsPageCodeSnippet({ ...decision, language });
+    assert.ok(s.includes(example.state), `${language} lost the state`);
+    for (const id of Object.keys(example.questions)) assert.ok(s.includes(id), `${language} lost question ${id}`);
+    for (const type of ['noul', 'score', 'choice']) assert.ok(s.includes(`"${type}"`), `${language} lost the ${type} question`);
+  }
+  // the curl body is the request itself, parseable, with the model inside it
+  const body = /-d '([^']*(?:'\\''[^']*)*)'/.exec(modelsPageCodeSnippet({ ...decision, language: 'curl' }))?.[1] ?? '';
+  assert.deepEqual(JSON.parse(body), { model: 'clef-flash', state: example.state, questions: example.questions });
+});
+
+test('what the visitor typed in the decision box is what the snippet sends; a half-typed box falls back to the example', () => {
+  const typed = '{"state": {"ticket": "refund", "vip": true, "note": null}, "questions": {"q": {"type": "noul", "instructions": "Escalate?"}}}';
+  const py = modelsPageCodeSnippet({ ...decision, language: 'python', prompt: typed });
+  assert.ok(py.includes('"ticket": "refund"') && py.includes('"Escalate?"'));
+  assert.ok(py.includes('"vip": True') && py.includes('"note": None'), 'JSON true/null are not Python; the snippet must translate them');
+  assert.ok(!py.includes('true') && !py.includes('null'), py);
+  assert.ok(!py.includes('payment webhook'), 'the example is not sent when the visitor wrote their own');
+  const ts = modelsPageCodeSnippet({ ...decision, language: 'typescript', prompt: typed });
+  assert.ok(ts.includes('vip: true') && ts.includes('note: null'));
+  for (const language of SNIPPET_LANGUAGES) {
+    for (const prompt of ['', '{"state": 1', '{"state": 1}', '{"state": 1, "questions": {}}', undefined]) {
+      const s = modelsPageCodeSnippet({ ...decision, language, prompt });
+      assert.ok(s.includes('payment webhook'), `${language} with ${JSON.stringify(prompt)} did not fall back to the example`);
+      assert.ok(!s.includes('undefined'));
+    }
+  }
+});
+
+test('a quote in the decision state stays inside the literal in every language', () => {
+  const prompt = JSON.stringify({ state: `she said "hi" and it's fine`, questions: { q: { type: 'noul' } } });
+  assert.ok(modelsPageCodeSnippet({ ...decision, language: 'python', prompt }).includes('"she said \\"hi\\" and it\'s fine"'));
+  const sh = modelsPageCodeSnippet({ ...decision, language: 'curl', prompt });
+  assert.ok(sh.includes(`it'\\''s fine`), 'a single quote inside a single-quoted shell word must be escaped');
+});
+
+test('pythonLiteral renders JSON as Python', () => {
+  assert.equal(pythonLiteral(null), 'None');
+  assert.equal(pythonLiteral([true, false, 1.5, 'x']), '[True, False, 1.5, "x"]');
+  assert.equal(pythonLiteral({}), '{}');
+  assert.equal(pythonLiteral({ a: [] }), '{\n    "a": [],\n}');
 });

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Input, Textarea } from '@/components/ui/Form';
 import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
+import { DECISION_EXAMPLE, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
 import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './issuedKeyMemory';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
 
@@ -44,14 +44,6 @@ const BarPct = styled.span`text-align: right; color: #6b7280;`;
  * A worked example that already runs: a state, and one question of each kind. The playground prefills the box with
  * it so the first press proves the route, the model and the answer shapes at once — an empty box would post nothing.
  */
-const DECISION_EXAMPLE = `{
-  "state": "The payment webhook is failing and customers cannot check out.",
-  "questions": {
-    "team":    { "type": "choice", "instructions": "Who should handle this?", "criteria": { "billing": "Payments or invoices", "technical": "Bugs or outages" } },
-    "severity":{ "type": "score",  "instructions": "How severe is it?",       "criteria": ["low", "medium", "high"] },
-    "outage":  { "type": "noul",   "instructions": "Is a service down?" }
-  }
-}`;
 
 /** The decision box is JSON the visitor types; a bad body is a message, not a thrown stack. This marks that case. */
 const DECISION_BAD_JSON = 'decision:bad-json';
