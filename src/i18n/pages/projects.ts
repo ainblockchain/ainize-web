@@ -84,6 +84,7 @@ export const projects: Dict = {
   'projects.runs.deployed': { ko: '운영 버전', en: 'Deployed version' },
   'projects.runs.sha': { ko: '커밋 SHA', en: 'Commit SHA' },
   'projects.runs.sha_required': { ko: '실행할 커밋의 전체 SHA를 입력하세요.', en: 'Enter the full SHA of the commit to run.' },
+  'projects.runs.script_commit_required': { ko: '선택한 버전은 스크립트가 아닙니다. 실행할 스크립트 커밋을 선택하세요.', en: 'This version is not a script. Select a script commit to run.' },
   'projects.page.source': { ko: '최신 소스', en: 'Latest source' },
   'projects.page.active': { ko: '운영 커밋', en: 'Active commit' },
   'projects.runs.entry': { ko: '실행 파일', en: 'Entry file' },
