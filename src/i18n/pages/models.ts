@@ -64,6 +64,8 @@ export const models: Dict = {
     ko: 'AIN 계정 {who}(으)로 발급됩니다. 로그인한 조직의 키가 되며, 예치는 지갑으로만 할 수 있어 예치 없는 기본 몫으로 호출됩니다.',
     en: 'Issued to your AIN account {who}, for the organization you signed in with. Deposits come from a wallet, so it calls at the base share a caller with no deposit gets.',
   },
+  'models.key.existing': { ko: '이미 발급한 키 {n}개가 있습니다 — 비밀값은 발급 때 한 번만 보입니다:', en: 'You already hold {n} key(s) — the secret was shown once, at creation:' },
+  'models.key.createAnother': { ko: '키 하나 더 발급', en: 'Create another key' },
   'models.key.create': { ko: '키 발급', en: 'Create a key' },
   'models.key.creating': { ko: '발급 중…', en: 'Creating…' },
   'models.key.manage': { ko: '내 키 관리 →', en: 'Manage your keys →' },
