@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseDoc, slugify, inlineText, type Block } from '../src/components/docs/markdown.ts';
+import { parseDoc, slugify, inlineText, type Block } from '../src/components/docs/markdown-parser.ts';
 import { buildSite, docHref, neighbours, parseDocsPath, resolveDocHref, searchDocs, type Toctree } from '../src/components/docs/docsTree.ts';
 import { highlight } from '../src/components/docs/highlight.ts';
 
