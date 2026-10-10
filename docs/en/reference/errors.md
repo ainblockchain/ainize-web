@@ -165,9 +165,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 91 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 104 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 54 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 56 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -175,9 +175,19 @@ A further 54 throw sites build their message at the time (a validator's own word
 | `null` | … did not answer: … | `src/peer-models.ts` |
 | `null` | … refused: … | `src/peer-models.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> is missing — an agent's repository has one at its root | `src/agent-git.ts` |
-| `null` | \<AGENT_GIT_SPEC_FILE> is not valid JSON: … | `src/agent-git.ts` |
+| `null` | \<AGENT_GIT_SPEC_FILE> is not valid JSON: … | `src/agent-git.ts`, `src/project-agents.ts` |
+| `null` | \<AGENT_GIT_SPEC_FILE> sets …, which the node owns — remove … | `src/project-agents.ts` |
 | `null` | \<d> already belongs to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
+| `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON: … | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
+| `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
+| `null` | agent \<id> v\<spec.version> was not ready in time | `src/project-agents.ts` |
+| `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | an organization keeps at least one admin | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
@@ -189,15 +199,18 @@ A further 54 throw sites build their message at the time (a validator's own word
 | `null` | only someone signed in with an @\<d> address can claim \<d> | `src/organization-store.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
+| `null` | the host does not know agent "\<id>" | `src/project-agents.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
 | `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
 | `null` | the image backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the transcription backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | this node holds its maximum of \<this.limits.total> organizations | `src/organization-store.ts` |
+| `null` | this node holds its maximum of \<this.limits.total> projects | `src/projects.ts` |
 | `null` | this node lists its maximum of \<this.limits.total> linked agents | `src/linked-agent-store.ts` |
 | `null` | this node runs its maximum of \<this.limits.total> agents | `src/hosted-agent-store.ts` |
 | `null` | this organization has too many open invites | `src/organization-store.ts` |
 | `null` | this organization has too many pending requests | `src/organization-store.ts` |
+| `null` | this repository is not a valid agent: … | `src/project-agents.ts` |
 | `null` | this tree is not a valid agent: … | `src/agent-git.ts` |
 | `400` | \<address> is listed in operatorAddresses in this node's config file — remove it there, on the machine this node runs on (`ainize operators remove <address>`), and restart | `src/api.ts` |
 | `400` | \<label> must be a non-negative number (e.g. "0", "0.1", "25") | `../ainize-core/src/catalog.ts` |

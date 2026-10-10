@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-192 operations on 160 paths, grouped into the 11 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+203 operations on 169 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -202,6 +202,22 @@ See [Error codes](./errors.md) for the full list.
 | `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove a hosted agent — its owner, or an `admin` of the organization it is shared with |
 | `PUT` | [`/api/hosted-agents/{id}/secrets/{name}`](#put-apihosted-agentsidsecretsname) | none | Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only |
 | `GET` | [`/api/hosted-agents/{id}/logs`](#get-apihosted-agentsidlogs) | none | Recent log lines — owner or `write` member of its organization |
+
+**Projects** — a deployment bound to a git repository that lives in an aindrive drive (`https://aindrive.ainetwork.ai/<org>/git/<repo>`) — ainize keeps no repository; aindrive calls the push hook, the node clones that commit and runs it (docs/PROJECTS.md)
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
+| `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
+| `GET` | [`/api/projects/by-repo`](#get-apiprojectsby-repo) | operator | The project bound to a repository (what aindrive's UI shows next to a repo) |
+| `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project (owner only; others see 404) |
+| `DELETE` | [`/api/projects/{id}`](#delete-apiprojectsid) | operator | Remove a project with its deployments, logs and secrets (owner only) |
+| `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
+| `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments, newest first (owner only) |
+| `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment |
+| `GET` | [`/api/deployments/{id}/log`](#get-apideploymentsidlog) | operator | The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building |
+| `GET` | [`/api/deployments/{id}/output`](#get-apideploymentsidoutput) | operator | The script's stdout alone, for a ready deployment |
+| `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
 
 **Operator** — wallet, settings, purchases, branches, peers, chain, drive
 
@@ -3379,6 +3395,229 @@ Recent log lines — owner or `write` member of its organization
 | `200` | lines | `object` |
 | `403` | `not_owner` |   |
 | `404` | `not_found` |   |
+
+## Projects
+
+a deployment bound to a git repository that lives in an aindrive drive (`https://aindrive.ainetwork.ai/<org>/git/<repo>`) — ainize keeps no repository; aindrive calls the push hook, the node clones that commit and runs it (docs/PROJECTS.md)
+
+### `GET /api/projects`
+
+The caller's projects
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | projects | `object` |
+
+### `POST /api/projects`
+
+Bind an aindrive git repository as a project
+
+Anyone signed in (AIN SSO, wallet session or API key). Body `{ repo, branch?: "main", kind?, entry?, name?, deployToken? }`; `repo` is the aindrive URL (`https://aindrive.ainetwork.ai/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`). `kind` and `entry` are hints for the row only — what deploys is always the commit's `ainize.json` (nextjs | service | script | agent; nextjs is the default when package.json depends on next). `deployToken` is an aindrive token (session JWT or `aind_aat_…` with `drives:read`) the clone presents — sealed at rest, never read back. The answer carries `webhookSecret` ONCE: aindrive signs the push hook with it. 409 `repo_taken` when the repo+branch is already a project here.
+
+**Auth** — operator
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `repo` | `string` | yes |   |
+| `branch` | `string` |   | (default `"main"`) |
+| `kind` | `"nextjs"` \| `"service"` \| `"script"` \| `"agent"` |   |   |
+| `entry` | `string` |   |   |
+| `name` | `string` |   |   |
+| `deployToken` | `string` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | project + webhookSecret |
+
+### `GET /api/projects/by-repo`
+
+The project bound to a repository (what aindrive's UI shows next to a repo)
+
+No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (what aindrive's Inspect links to) and the newest deployment; no owner and no hook address. 404 when no project is bound to the URL.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `repo` | `query` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | project status | `object` |
+
+### `GET /api/projects/{id}`
+
+One project (owner only; others see 404)
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | project | `object` |
+
+### `DELETE /api/projects/{id}`
+
+Remove a project with its deployments, logs and secrets (owner only)
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | ok | `object` |
+
+### `POST /api/projects/{id}/hook`
+
+The push webhook aindrive calls after a successful git-receive-pack
+
+Header `X-Ainize-Signature: sha256=<hex HMAC-SHA256 of the raw body with the project's webhookSecret>`. Body `{ ref, before?, after, pusher?: { subject, email? } }`. A push to the project's branch queues a deployment (202 `{deploymentId}`); any other ref, or a deleted branch, is 202 `{ignored: true}`. 401 `bad_signature`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `ref` | `string` | yes |
+| `before` | `string` |   |
+| `after` | `string` | yes |
+| `pusher` | `object` |   |
+| `pusher.subject` | `string` |   |
+| `pusher.email` | `string` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | {deploymentId, status} or {ignored, reason} |
+
+### `GET /api/projects/{id}/deployments`
+
+A project's deployments, newest first (owner only)
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deployments | `object` |
+
+### `GET /api/deployments/{id}`
+
+One deployment
+
+`{ id, projectId, sha, ref, kind, status: queued|building|ready|error, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }` — owner only. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deployment | `object` |
+
+### `GET /api/deployments/{id}/log`
+
+The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | text/plain or text/event-stream |
+
+### `GET /api/deployments/{id}/output`
+
+The script's stdout alone, for a ready deployment
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | text/plain |
+
+### `GET /svc/{projectId}/{path}`
+
+A project's running service or Next.js container (any method)
+
+The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. 404 when no container runs for the project, 502 when it does not answer.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `projectId` | `path` | `string` | yes |
+| `path` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | whatever the service answers |
 
 ## Operator
 
