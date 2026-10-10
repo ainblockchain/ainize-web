@@ -20,7 +20,12 @@ you do not have one yet, [join the network from your own node](./join-from-your-
 
 ```bash
 ainize agent add donga-desk --upstream http://127.0.0.1:9200
+ainize stop
+ainize start --detach
 ```
+
+The CLI saves the registration in your node configuration. The running node reads it at startup, so restart **only your own practice node** before listing or calling the agent. Keep the agent process running. These commands use the node selected by `AINIZE_HOME`; do not run them against the shared ainize.ai node.
+
 
 `donga-desk` is the id, and it is the URL segment: the agent is now at `<your node>/agents/donga-desk`. `--upstream`
 is where your process listens, and it is **never published** — it is how the node reaches the agent, and on most

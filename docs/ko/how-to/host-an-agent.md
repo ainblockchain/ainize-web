@@ -2,7 +2,7 @@
 title: 에이전트를 노드에 올리기
 summary: 이미 돌고 있는 A2A 에이전트에 공개 주소와 에이전트 카드를 주고 마켓플레이스에 올립니다. 내 포트를 열 필요는 없습니다.
 source: en/how-to/host-an-agent.md
-source_sha256: d5fffae3f95fc0e9b3d1e6768b9f454cf50cc1dd7690156c2087eae1d4c57b25
+source_sha256: 5d92927bbf79bfba5be55320dbb3d6db79334a977485c0e35bdd4598342cae51
 ---
 
 # 에이전트를 노드에 올리기
@@ -21,7 +21,12 @@ source_sha256: d5fffae3f95fc0e9b3d1e6768b9f454cf50cc1dd7690156c2087eae1d4c57b25
 
 ```bash
 ainize agent add donga-desk --upstream http://127.0.0.1:9200
+ainize stop
+ainize start --detach
 ```
+
+CLI는 등록 내용을 노드 설정에 저장합니다. 실행 중인 노드는 시작할 때 이 설정을 읽으므로, 목록을 조회하거나 에이전트를 호출하기 전에 **본인의 실습 노드만** 재시작하세요. 에이전트 프로세스는 계속 실행해 둡니다. 이 명령은 `AINIZE_HOME`으로 선택한 노드에 적용되며, 공유 ainize.ai 노드에서 실행하면 안 됩니다.
+
 
 `donga-desk`가 id이고 그대로 URL 조각이 됩니다: 이제 에이전트는 `<내 노드>/agents/donga-desk`에 있습니다.
 `--upstream`은 내 프로세스가 듣는 곳이고 **절대 공개되지 않습니다** — 노드가 에이전트에 닿는 경로일 뿐이고,

@@ -2,7 +2,7 @@
 title: AIN Teams용 에이전트 만들기
 summary: A2A 에이전트를 만들고, Ainize 카탈로그에 올리고, AIN Teams 워크스페이스에 멘션과 DM에 답하는 멤버로 가져옵니다.
 source: en/how-to/build-for-ainteams.md
-source_sha256: 3adaff5c4bb5502745108a123453d1f40ba301e37938376ccc7048e0916947ef
+source_sha256: aa6685b1472114a151f5af9b8566efca0bc99cfe499a61e98025fb621d635279
 ---
 
 # AIN Teams용 에이전트 만들기
@@ -119,8 +119,13 @@ JSON-RPC를 `/a2a`나 `/rpc`에서만 받는 에이전트는 localhost에서는 
 
 ```bash
 ainize agent add coffee-bot --upstream http://127.0.0.1:9200
+ainize stop
+ainize start --detach
 ainize agent ls
 ```
+
+CLI는 등록 내용을 노드 설정에 저장합니다. 실행 중인 노드는 시작할 때 이 설정을 읽으므로, 목록을 조회하거나 에이전트를 호출하기 전에 **본인의 실습 노드만** 재시작하세요. 에이전트 프로세스는 계속 실행해 둡니다. 이 명령은 `AINIZE_HOME`으로 선택한 노드에 적용되며, 공유 ainize.ai 노드에서 실행하면 안 됩니다.
+
 
 ```text
 coffee-bot   answering   1 skill   https://ainize.ai/agents/coffee-bot

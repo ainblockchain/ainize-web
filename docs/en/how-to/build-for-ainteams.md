@@ -117,8 +117,13 @@ make it call into the operator's own network. Only your account can change or un
 
 ```bash
 ainize agent add coffee-bot --upstream http://127.0.0.1:9200
+ainize stop
+ainize start --detach
 ainize agent ls
 ```
+
+The CLI saves the registration in your node configuration. The running node reads it at startup, so restart **only your own practice node** before listing or calling the agent. Keep the agent process running. These commands use the node selected by `AINIZE_HOME`; do not run them against the shared ainize.ai node.
+
 
 ```text
 coffee-bot   answering   1 skill   https://ainize.ai/agents/coffee-bot
