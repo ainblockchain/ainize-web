@@ -2,7 +2,7 @@
 title: 결정 모델 쓰기 (Cloudflare Clef)
 summary: 결정 모델은 글을 쓰지 않습니다. 상황과 그에 대한 유형이 정해진 질문을 받아 각 질문에 확률로 답합니다 — ainize SDK의 client.decide()로, 내 API 키로.
 source: en/how-to/decision-models-clef.md
-source_sha256: bfc37ca391763bfe2564c45e1eda34fcd9116711fe34d38a830d6d32b86eda83
+source_sha256: a82e229ddddc4025f94941e3c889c9443587e64b7092d6ec109ce4b575cb809d
 ---
 
 # 결정 모델 쓰기 (Cloudflare Clef)
@@ -23,7 +23,7 @@ source_sha256: bfc37ca391763bfe2564c45e1eda34fcd9116711fe34d38a830d6d32b86eda83
 | 유형 | 묻는 것 | 답 |
 |---|---|---|
 | `noul` | 예/아니오 질문 | `noul`: P(참), 0과 1 사이 |
-| `score` | 등급 척도 위의 어디쯤인지 | `score`: `criteria` 안에서 고른 등급의 인덱스, 그리고 등급들 위의 분포 |
+| `score` | 등급 척도 위의 어디쯤인지 | `score`: `criteria` 척도의 수치 점수(소수일 수 있음), 그리고 등급들 위의 분포 |
 | `choice` | 이름 붙은 여러 선택지 중 무엇인지 | `choice`: 선택지 id, 그리고 id들 위의 분포 |
 
 각 유형의 작은 예 하나씩, 요청 안의 질문 모양으로:
@@ -66,7 +66,7 @@ out = client.decide(
     },
 )
 print(out.answers["outage"]["noul"])      # 예: 0.93
-print(out.answers["severity"]["score"])   # 예: 2  → "high"
+print(out.answers["severity"]["score"])   # 예: 1.96, "high"에 가까운 점수
 print(out.answers["team"]["choice"])      # 예: "technical"
 print(out.usage)
 ```

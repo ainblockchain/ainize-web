@@ -21,7 +21,7 @@ Three question types cover what a program usually needs to decide:
 | Type | Asks | Answers with |
 |---|---|---|
 | `noul` | a yes/no question | `noul`: P(true), between 0 and 1 |
-| `score` | how far along a graded scale | `score`: the index of the chosen grade in `criteria`, plus the distribution over the grades |
+| `score` | how far along a graded scale | `score`: a numeric score on the `criteria` scale (it may be fractional), plus the distribution over the grades |
 | `choice` | which of several named options | `choice`: the option's id, plus the distribution over the ids |
 
 One tiny example of each, as questions in a request:
@@ -65,7 +65,7 @@ out = client.decide(
     },
 )
 print(out.answers["outage"]["noul"])      # e.g. 0.93
-print(out.answers["severity"]["score"])   # e.g. 2  → "high"
+print(out.answers["severity"]["score"])   # e.g. 1.96, near the "high" end
 print(out.answers["team"]["choice"])      # e.g. "technical"
 print(out.usage)
 ```
