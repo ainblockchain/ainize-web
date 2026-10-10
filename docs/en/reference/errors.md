@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 104 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 110 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 56 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -187,6 +187,12 @@ A further 56 throw sites build their message at the time (a validator's own word
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
 | `null` | agent \<id> v\<spec.version> was not ready in time | `src/project-agents.ts` |
+| `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
+| `null` | AIN SSO discovery: bad token_endpoint | `src/sso-service-token.ts` |
+| `null` | AIN SSO discovery: issuer mismatch | `src/sso-service-token.ts` |
+| `null` | AIN SSO issued a \<json.token_type> token; only Bearer is usable | `src/sso-service-token.ts` |
+| `null` | AIN SSO refused a machine token for \<resource> (\<what>) | `src/sso-service-token.ts` |
+| `null` | AIN SSO token endpoint unreachable: … | `src/sso-service-token.ts` |
 | `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | an organization keeps at least one admin | `src/organization-store.ts` |
