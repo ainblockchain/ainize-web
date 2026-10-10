@@ -8,7 +8,7 @@
  *
  * Pure — no React, no Vite — so `packages/web/test/docs-shell.test.ts` runs it under plain node with hand-made input.
  */
-import { parseDoc, type Heading, type ParsedDoc } from './markdown';
+import { parseDoc, type Heading, type ParsedDoc } from './markdown-parser';
 
 export type Lang = 'en' | 'ko';
 export const LANGS: Lang[] = ['en', 'ko'];

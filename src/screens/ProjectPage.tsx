@@ -20,13 +20,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import {
-  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery,
+  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectSourceQuery,
   useRedeployMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
 import {
   durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, shortSha, statusToneOf,
-  type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus,
+  type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -57,7 +57,7 @@ const Crumbs = styled.nav`font-size: 22px; font-weight: 700; display: flex; alig
   span.sep { color: ${(p) => p.theme.color.GREY}; font-weight: 400; }
 `;
 const HeaderRow = styled.div`display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 14px;`;
-const Meta = styled.span`color: #666; font-size: 13px;`;
+const Meta = styled.span`min-width: 0; overflow-wrap: anywhere; color: #666; font-size: 13px;`;
 const Spacer = styled.span`flex: 1;`;
 const Actions = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap;`;
 const Rows = styled.ul`list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px;`;
@@ -65,14 +65,16 @@ const Row = styled.li<{ $open?: boolean }>`
   border: 1px solid ${(p) => (p.$open ? p.theme.color.PRIMARY : p.theme.color.LIGHT_GREY)}; border-radius: 10px; background: #fff; padding: 12px 16px;
   display: flex; flex-direction: column; gap: 10px;
 `;
-const Head = styled.div`display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; cursor: pointer; min-height: 28px;`;
+const Head = styled.div`overflow-wrap: anywhere; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; cursor: pointer; min-height: 44px;`;
 const Subject = styled.span`font-weight: 600; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Log = styled.pre`
   margin: 0; padding: 12px 14px; border-radius: 8px; background: #0f1419; color: #d7dde3; font-size: 12.5px; line-height: 1.5;
   max-height: 520px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: ${(p) => p.theme.font.mono};
 `;
-const Panel = styled.section`border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 10px; background: #fff; padding: 16px; display: flex; flex-direction: column; gap: 12px; margin: 12px 0 20px;`;
-const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;`;
+const Panel = styled.section`min-width: 0;
+  @media (max-width: 640px) { input, select, textarea { font-size: 16px; min-height: 44px; } button { min-height: 44px; } }
+border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 10px; background: #fff; padding: 16px; display: flex; flex-direction: column; gap: 12px; margin: 12px 0 20px;`;
+const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 12px;`;
 const Presets = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
 const FilterRow = styled.div`display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0;`;
 const TabBody = styled.div`margin-top: 12px;`;
@@ -118,7 +120,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
   };
   return (
     <Row $open={open}>
-      <Head onClick={onToggle} role="button" aria-expanded={open}>
+      <Head onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }} tabIndex={0} role="button" aria-expanded={open}>
         <StatusDot status={d.status} />
         <Chip $tone={tone}>{t(`projects.status.${d.status}`)}</Chip>
         <Mono title={d.sha}>{d.sha ? shortSha(d.sha) : '…'}</Mono>
@@ -160,8 +162,8 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
 
 // ------------------------------------------------------------------------------------------------ the Run panel
 
-interface RunDraft { entry: string; answers: Record<string, string>; env: string; timeoutMs: string }
-const emptyDraft = (p: Project): RunDraft => ({ entry: p.manifest?.entry ?? p.entry ?? p.runnable?.[0] ?? '', answers: {}, env: '', timeoutMs: '' });
+interface RunDraft { target: 'head' | 'commit' | 'deployed'; sha: string; entry: string; answers: Record<string, string>; env: string; timeoutMs: string }
+const emptyDraft = (p: Project): RunDraft => ({ target: 'head', sha: '', entry: '', answers: {}, env: '', timeoutMs: '' });
 
 function InputField({ name, spec, value, onChange, models }: { name: string; spec: ManifestInput; value: string; onChange: (v: string) => void; models: string[] }) {
   const type = spec.type ?? 'string';
@@ -194,9 +196,15 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   const [err, setErr] = useState<string | null>(null);
   const modelsQuery = useModelsQuery();
   const models = useMemo(() => parseModelsResponse(modelsQuery.data).filter((m) => m.available !== false).map((m) => m.id), [modelsQuery.data]);
-  const manifest = project.manifest;
+  const sourceQuery = useProjectSourceQuery({ id: project.id, target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}) }, {
+    skip: !isSignedIn || !project.canOperate || (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)),
+    refetchOnMountOrArgChange: true,
+  });
+  const source = sourceQuery.currentData;
+  const manifest = source?.manifest;
+  const entry = draft.entry || manifest?.entry || '';
   const inputs = manifest?.inputs ?? {};
-  const runnable = project.runnable?.length ? project.runnable : draft.entry ? [draft.entry] : [];
+  const runnable = manifest?.entry ? [manifest.entry] : [];
   const missing = missingInputs(inputs, draft.answers);
   const setAnswer = (name: string, v: string) => setDraft({ ...draft, answers: { ...draft.answers, [name]: v } });
   const preset = (ex: { inputs: Record<string, string | number | boolean> }) => {
@@ -206,8 +214,11 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   };
   const start = async () => {
     setErr(null);
-    const body = {
-      ...(draft.entry && draft.entry !== manifest?.entry ? { entry: draft.entry } : {}),
+    if (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)) { setErr(t('projects.runs.sha_required')); return; }
+    if (!source || sourceQuery.isFetching) return;
+    const body: RunInput = {
+      target: 'commit', sha: source.sha,
+      ...(entry && entry !== manifest?.entry ? { entry } : {}),
       inputs: inputAnswers(inputs, draft.answers),
       env: parseEnvLines(draft.env),
       ...(draft.timeoutMs ? { timeoutMs: Number(draft.timeoutMs) * 1000 } : {}),
@@ -228,10 +239,18 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
         </div>
       ) : null}
       <Grid>
+        <Field><FieldLabel htmlFor="run-target">{t('projects.runs.target')}</FieldLabel>
+          <Select id="run-target" value={draft.target} onChange={(e) => setDraft({ ...draft, target: e.target.value as RunDraft['target'], entry: '', answers: {} })}>
+            <option value="head">{t('projects.runs.head')}</option>
+            <option value="commit">{t('projects.runs.commit')}</option>
+            <option value="deployed" disabled={!project.activeCommit}>{t('projects.runs.deployed')}{project.activeCommit ? ` · ${shortSha(project.activeCommit)}` : ''}</option>
+          </Select>
+        </Field>
+        {draft.target === 'commit' && <Field><FieldLabel htmlFor="run-sha">{t('projects.runs.sha')}</FieldLabel><Input id="run-sha" value={draft.sha} onChange={(e) => setDraft({ ...draft, sha: e.target.value.trim(), entry: '', answers: {} })} placeholder={project.sourceCommit ?? ''} /></Field>}
         <Field><FieldLabel htmlFor="run-entry">{t('projects.runs.entry')}</FieldLabel>
           {runnable.length > 1
-            ? <Select id="run-entry" value={draft.entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })}>{runnable.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
-            : <Input id="run-entry" value={draft.entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })} placeholder="main.py" />}
+            ? <Select id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })}>{runnable.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
+            : <Input id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })} placeholder="main.py" />}
         </Field>
         {Object.entries(inputs).map(([name, spec]) => <InputField key={name} name={name} spec={spec} value={draft.answers[name] ?? ''} onChange={(v) => setAnswer(name, v)} models={models} />)}
         <Field><FieldLabel htmlFor="run-timeout">{t('projects.runs.timeout')}</FieldLabel>
@@ -243,9 +262,11 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
         <Help>{t('projects.runs.env_help')}</Help>
       </Field>
       {missing.length > 0 && <Help>{t('projects.runs.missing', { names: missing.join(', ') })}</Help>}
+      {source && <Meta><Mono>{shortSha(source.sha)}</Mono></Meta>}
+      {sourceQuery.error && <Alert $tone="error">{projectApiErrorOf(sourceQuery.error).message ?? t('projects.api.unknown')}</Alert>}
       {err && <Alert $tone="error">{err}</Alert>}
       <Actions>
-        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !draft.entry} onClick={start}>▶ {t('projects.runs.run')}</Button>
+        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !entry || !source || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
         <Help>{t('projects.runs.key_hint')}</Help>
       </Actions>
     </Panel>
@@ -293,8 +314,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
   // Runs
   const [draft, setDraft] = useState<RunDraft>(() => emptyDraft(p));
-  useEffect(() => { if (!draft.entry && (p.manifest?.entry || p.runnable?.length)) setDraft(emptyDraft(p)); }, [p, draft.entry]);
-  const runAgain = (d: Deployment) => { setDraft({ entry: d.entry ?? draft.entry, answers: { ...(d.inputs ?? {}) }, env: Object.entries(d.env ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'), timeoutMs: '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const runAgain = (d: Deployment) => { setDraft({ target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry, answers: { ...(d.inputs ?? {}) }, env: Object.entries(d.env ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'), timeoutMs: '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
   const redeployLatest = async () => {
@@ -340,6 +360,8 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         <StatusDot status={p.status} />
       </Crumbs>
       <HeaderRow>
+        {p.sourceCommit && <Meta>{t('projects.page.source')}: <Mono title={p.sourceCommit}>{shortSha(p.sourceCommit)}</Mono></Meta>}
+        {p.activeCommit && <Meta>{t('projects.page.active')}: <Mono title={p.activeCommit}>{shortSha(p.activeCommit)}</Mono></Meta>}
         {kind ? <Chip $tone="muted">{t(`projects.kind.${kind}`)}</Chip> : <Meta>{t('projects.page.kind_pending')}</Meta>}
         <Meta>{t('projects.page.branch')}: <Mono>{p.branch}</Mono></Meta>
         <ExternalLink href={p.repo} target="_blank" rel="noreferrer">{t('projects.page.repo')} ↗</ExternalLink>

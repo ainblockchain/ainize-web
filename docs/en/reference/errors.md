@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 113 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 126 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 64 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -186,8 +186,8 @@ A further 64 throw sites build their message at the time (a validator's own word
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: examples."\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
+| `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
-| `null` | agent \<id> v\<spec.version> was not ready in time | `src/project-agents.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: bad token_endpoint | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: issuer mismatch | `src/sso-service-token.ts` |
@@ -200,13 +200,19 @@ A further 64 throw sites build their message at the time (a validator's own word
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
+| `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
+| `null` | invalid agent source path | `src/agent-git.ts` |
+| `null` | invalid repository storage limit | `src/agent-git.ts` |
+| `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
 | `null` | one account may create \<this.limits.perCreator> organizations on this node | `src/organization-store.ts` |
 | `null` | one account may link \<this.limits.perOwner> agents on this node | `src/linked-agent-store.ts` |
 | `null` | only a signed-in member of the AIN organization \<id> can link it | `src/organization-store.ts` |
 | `null` | only someone signed in with an @\<d> address can claim \<d> | `src/organization-store.ts` |
+| `null` | repository id already exists | `src/agent-git.ts` |
+| `null` | repository objects must not be symlinks | `src/agent-git.ts` |
+| `null` | repository storage limit exceeded (\<bytes> > \<this.storageLimitBytes> bytes); export history or ask the operator to raise the limit | `src/agent-git.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
-| `null` | the host does not know agent "\<id>" | `src/project-agents.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
 | `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
 | `null` | the image backend answered \<up.status> | `src/peer-models.ts` |
@@ -236,6 +242,8 @@ A further 64 throw sites build their message at the time (a validator's own word
 | `400` | contributors must be an array | `../ainize-core/src/catalog.ts` |
 | `400` | duplicate contributor address: \<c.address> | `../ainize-core/src/catalog.ts` |
 | `400` | invalid_actor | `src/run-actor.ts` |
+| `400` | invalid_request | `src/server.ts` |
+| `400` | model_not_served | `src/server.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
 | `400` | this is the node's own key: it owns what this node published, and revoking it would only stop the node acting for itself | `src/api.ts` |
 | `400` | unsupported contributor proof: … | `../ainize-core/src/catalog.ts` |
@@ -268,16 +276,21 @@ A further 64 throw sites build their message at the time (a validator's own word
 | `404` | payout \<id> not found | `src/payouts.ts` |
 | `409` | \<name> is curated by \<b.owner>, not by this node | `src/api.ts` |
 | `409` | \<name> is free to follow: it has no curation fee | `src/api.ts` |
+| `409` | active_version_missing | `src/agent-archive-restore.ts` |
+| `409` | id_taken | `src/agent-archive-restore.ts` |
 | `409` | node link was revoked or replaced | `src/api.ts` |
 | `409` | not sold here; gateway is … | `src/api.ts` |
 | `409` | patch body not present on this node | `src/api.ts` |
 | `409` | payout \<id> is already paid (\<row.tx_hash>) | `src/payouts.ts` |
+| `409` | state_exists | `src/agent-archive-restore.ts` |
 | `409` | this payout was already sent (\<row.tx_hash>) | `src/payouts.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
 | `423` | patch not listed yet (verification \<e.passed>/\<e.quorum>) | `src/api.ts` |
 | `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
+| `501` | docker_unavailable | `src/server.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
+| `502` | restore_cleanup_failed | `src/agent-archive-restore.ts` |
 | `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
 | `503` | seller file unavailable; no payment accepted | `src/api.ts` |

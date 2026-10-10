@@ -14,7 +14,7 @@ import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useDocsT } from './i18n';
 import { CodeBlock } from './CodeBlock';
-import type { AlertKind, Block, Inline, ListItem } from './markdown';
+import type { AlertKind, Block, Inline, ListItem } from './markdown-parser';
 import { resolveDocHref, type LinkCtx } from './docsTree';
 export type { LinkCtx } from './docsTree';
 export { resolveDocHref } from './docsTree';

@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useDocsT } from './i18n';
-import type { Heading } from './markdown';
+import type { Heading } from './markdown-parser';
 
 const Wrap = styled.nav`
   font-size: 13px; line-height: 1.5;
