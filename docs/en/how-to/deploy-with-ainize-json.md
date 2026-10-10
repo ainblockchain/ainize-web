@@ -36,6 +36,7 @@ shows each commit's deployment next to it.
 | `runtime` | `script` | `python3.11` or `node20`. Defaults from the entry's extension. |
 | `entry` | `script` | The file to run, relative to the repo root. |
 | `env` | all | Environment variables for the build and the run. **Not for secrets** — the file is in the repo. |
+| `inputs` | all (used by `script` runs) | Parameters a person fills in before a run — the same shape as GitHub Actions `workflow_dispatch` inputs, delivered as `INPUT_<NAME>` environment variables. See [Inputs](#inputs). |
 | `timeoutMs` | `script` | Wall-clock limit for one run. Default 120 000, maximum 300 000. |
 | `build.dockerfile`, `build.context` | `service` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | The port the container listens on. Default 3000 for Next.js. |
@@ -66,17 +67,46 @@ under the node's public URL with a zero-downtime swap.
 it from that URL; the marketplace lists it like any other agent. The agent runs on the node's hosted-agent runtime image (that image is the A2A contract); a
 `Dockerfile` in the repo is ignored for this kind.
 
+## Inputs
+
+`inputs` declares what a person may set before a run, in **the same shape as GitHub Actions
+`workflow_dispatch` inputs** — a name keyed to `description`, `type` (`string`, `choice`, `boolean`, `number`;
+default `string`), `required`, `default`, and `options` for a `choice`:
+
+```json
+"inputs": {
+  "DESC":  { "description": "작품 묘사 (description)", "type": "string", "required": true,
+             "default": "해질녘 바다 위 작은 배 한 척, 주황빛 노을, 고요하고 쓸쓸한 분위기의 유화" },
+  "MODEL": { "description": "모델", "type": "choice", "options": ["clef-flash", "clef"], "default": "clef-flash" }
+}
+```
+
+Each input reaches the program as the environment variable **`INPUT_<NAME>`** (name upper-cased: `INPUT_DESC`,
+`INPUT_MODEL`; booleans as `true`/`false`, numbers as decimal text). In aindrive the repo's Run panel shows one
+field per input — text, select, checkbox or number — prefilled with `default`, remembers your last values for that
+repo in the browser, and sends them with the run. A push-deploy runs with the defaults. At most 16 inputs, names
+like environment variable names, values up to 2 KiB.
+
 ## From push to deployment
 
-1. Push to the bound branch (default `main`). If the repo is in an aindrive drive, the drive calls the project's
-   webhook as soon as `git-receive-pack` succeeds; any other host can call `POST /api/projects/{id}/hook` with the
-   same signed body.
+1. Push to the project's branch (default `main`). If the repo is in an aindrive drive, the drive binds the repo on
+   its first push (see below) and calls the project's webhook as soon as `git-receive-pack` succeeds; any other host
+   can call `POST /api/projects/{id}/hook` with the same signed body.
 2. The node clones **that commit**, reads `ainize.json`, and queues one deployment per push, in order per project.
 3. Watch it: `GET /api/projects/{id}/deployments` lists them; `GET /api/deployments/{id}/log` streams the log while it
    runs and returns it afterwards. In aindrive, the repo folder shows the same rows — a grey pulsing dot while
    building, green when ready, red on error — with *Inspect* (the log) and *Visit* (the URL) links on each commit.
 
-## Binding a repo to a project
+## Binding happens on push
+
+A repo inside an aindrive drive needs no binding step. The first push of a repo whose root has `ainize.json`
+creates the project: aindrive, as itself, tells Ainize about the push (`POST /api/projects/auto`, with an AIN SSO
+machine token), stores the project's one-time webhook secret beside the repo, and fires the hook for that very push —
+so **`ainize.json` in the repo means it deploys**. The repo's folder in aindrive shows "deploys on the next push"
+until then, and the deployment rows afterwards. The project belongs to the person who pushed (their AIN account), and
+the drive must be shared with an AIN organization the Ainize app is assigned in.
+
+For a repo hosted anywhere else, create the project yourself and call the hook from your host:
 
 ```bash
 curl -X POST https://ainize.ai/api/projects \
@@ -84,10 +114,9 @@ curl -X POST https://ainize.ai/api/projects \
   -d '{"repo":"https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search","branch":"main"}'
 ```
 
-The answer carries the project id and a `webhookSecret` **shown once**; aindrive stores it when you connect the repo
-from the drive view ("Connect to ainize"), so a push from anyone with editor access to the drive deploys. The kind,
-entry and runtime are not part of this call — they come from `ainize.json` at each push, so changing how a repo
-deploys is a commit, not a settings change.
+The answer carries the project id and a `webhookSecret` **shown once**. The kind, entry and runtime are not part of
+either path — they come from `ainize.json` at each push, so changing how a repo deploys is a commit, not a settings
+change.
 
 ## A complete example
 
