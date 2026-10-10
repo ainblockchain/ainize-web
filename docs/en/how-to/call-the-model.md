@@ -20,7 +20,7 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
 models = client.models.list().data
 print([model.id for model in models])
 ```

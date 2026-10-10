@@ -14,7 +14,7 @@ import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useDocsT } from './i18n';
 import { CodeBlock } from './CodeBlock';
-import type { AlertKind, Block, Inline, ListItem } from './markdown';
+import type { AlertKind, Block, Inline, ListItem } from './markdown-parser';
 import { resolveDocHref, type LinkCtx } from './docsTree';
 export type { LinkCtx } from './docsTree';
 export { resolveDocHref } from './docsTree';
@@ -139,7 +139,7 @@ function Items({ items, ctx }: { items: ListItem[]; ctx: LinkCtx }) {
 
 const TAB_KEY = 'ainize.docs.tab';
 
-function OptionTabs({ panels, ctx }: { panels: { label: string; c: Block[] }[]; ctx: LinkCtx }) {
+function OptionTabs({ panels, ctx, stepIds }: { panels: { label: string; c: Block[] }[]; ctx: LinkCtx; stepIds: Map<Block, string> }) {
   const id = useId();
   const [active, setActive] = useState(() => {
     try {
@@ -172,7 +172,7 @@ function OptionTabs({ panels, ctx }: { panels: { label: string; c: Block[] }[]; 
       </TabRow>
       {panels.map((p, i) => (
         <TabPanel key={p.label} role="tabpanel" id={`${id}-p${i}`} aria-labelledby={`${id}-t${i}`} hidden={i !== active}>
-          <Blocks blocks={p.c} ctx={ctx} />
+          <Blocks blocks={p.c} ctx={ctx} stepIds={stepIds} />
         </TabPanel>
       ))}
     </div>
@@ -181,7 +181,12 @@ function OptionTabs({ panels, ctx }: { panels: { label: string; c: Block[] }[]; 
 
 /* ------------------------------------------------------------------ blocks */
 
-export function Blocks({ blocks, ctx }: { blocks: Block[]; ctx: LinkCtx }) {
+function codeBlocks(blocks: Block[]): Block[] {
+  return blocks.flatMap(b => b.t === 'code' ? [b] : b.t === 'quote' ? codeBlocks(b.c) : b.t === 'tabs' ? b.panels.flatMap(p => codeBlocks(p.c)) : []);
+}
+
+export function Blocks({ blocks, ctx, stepIds }: { blocks: Block[]; ctx: LinkCtx; stepIds?: Map<Block, string> }) {
+  const ids = stepIds ?? new Map(codeBlocks(blocks).map((b, i) => [b, `step-${i + 1}`]));
   const { t } = useDocsT();
   return (
     <>
@@ -195,7 +200,7 @@ export function Blocks({ blocks, ctx }: { blocks: Block[]; ctx: LinkCtx }) {
               </H>
             );
           case 'para': return <p key={i}><Inlines nodes={b.c} ctx={ctx} /></p>;
-          case 'code': return <CodeBlock key={i} code={b.code} lang={b.lang} />;
+          case 'code': return <CodeBlock key={i} code={b.code} lang={b.lang} ctx={ctx} stepId={ids.get(b)} />;
           case 'hr': return <hr key={i} />;
           case 'list': return b.ordered
             ? <ol key={i}><Items items={b.items} ctx={ctx} /></ol>
@@ -213,11 +218,11 @@ export function Blocks({ blocks, ctx }: { blocks: Block[]; ctx: LinkCtx }) {
             return (
               <Quote key={i} $tone={tone}>
                 {b.alert && <QuoteLabel style={{ color: tone }}>{t(`docs.alert.${b.alert}`)}</QuoteLabel>}
-                <Blocks blocks={b.c} ctx={ctx} />
+                <Blocks blocks={b.c} ctx={ctx} stepIds={ids} />
               </Quote>
             );
           }
-          case 'tabs': return <OptionTabs key={i} panels={b.panels} ctx={ctx} />;
+          case 'tabs': return <OptionTabs key={i} panels={b.panels} ctx={ctx} stepIds={ids} />;
         }
       })}
     </>

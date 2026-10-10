@@ -9,6 +9,10 @@ import type { Dict } from '../index';
  * Group names and page titles come from `docs/<lang>/_toctree.json`, which is why they are absent from this file.
  */
 export const docs: Dict = {
+  'docs.practice.title': { ko: '내 AinCode에서 단계별 실습', en: 'Practice step by step in your AinCode' },
+  'docs.practice.body': { ko: 'AinDrive 연결과 Git·workspace 저장 위치를 확인하고, 파일 작성 → 실행 → 결과 확인 순서로 진행합니다. 진행 기록을 저장해 이어서 실습할 수 있습니다. AinCode에서 안내 초안을 전송하면 시작합니다.', en: 'Check your AinDrive connection and Git/workspace location, then create files, run each step and verify its result. Save progress to resume later. Send the guide draft in AinCode to begin.' },
+  'docs.practice.start': { ko: 'AinCode에서 이 문서 실습하기', en: 'Practice this document in AinCode' },
+  'docs.practice.block': { ko: 'AinCode에서 이 코드부터 실습하기 →', en: 'Practice from this code in AinCode →' },
   'docs.title': { ko: '문서', en: 'Documentation' },
 
   'docs.nav.label': { ko: '문서 목차', en: 'Documentation' },

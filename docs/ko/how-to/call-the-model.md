@@ -1,6 +1,6 @@
 ---
 source: en/how-to/call-the-model.md
-source_sha256: 0651fd0fb8023a09513b92a73f186d72c59cbf4bb30dafc5f28d6bdebe4df318
+source_sha256: c53cef0b6aff42b6dd5fa2032ac8e275382a104f2002025bc191fc6e8b6c8467
 ---
 
 # 내 코드에서 모델 호출하기
@@ -30,7 +30,7 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
 models = client.models.list().data
 print([model.id for model in models])
 ```

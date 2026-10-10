@@ -13,7 +13,7 @@ import { useOrgQuery, useRequestJoinOrgMutation } from '@/api/api';
 import { orgApiErrorOf, parseOrgProfile, roleAtLeast } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Blocks, Prose } from '@/components/docs/Markdown';
-import { parseDoc } from '@/components/docs/markdown';
+import { parseDoc } from '@/components/docs/markdown-parser';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, Empty, ExternalLink, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';

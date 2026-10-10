@@ -1,3 +1,4 @@
+import { practiceHref } from '@/components/docs/practice';
 /**
  * `/docs` — the frame every documentation page renders into.
  *
@@ -222,6 +223,11 @@ function DocsShell({ lang, slug, explicit }: { lang: Lang; slug: string; explici
                 <Toc headings={entry.doc.headings} title={entry.title} slug={entry.slug} />
               </TocFold>
             )}
+            <Banner>
+              <strong>{t('docs.practice.title')}</strong>
+              <p>{t('docs.practice.body')}</p>
+              <a href={practiceHref({ lang: entry.lang, slug: entry.slug })}>{t('docs.practice.start')}</a>
+            </Banner>
             <Prose>
               <Blocks blocks={entry.doc.blocks} ctx={{ lang: entry.lang, slug: entry.slug }} />
             </Prose>
