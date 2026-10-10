@@ -87,7 +87,7 @@ test('a browser opening a page with no session is handed to the start route with
 
 test('APIs, assets, the sign-in page and every other method are left alone', () => {
   for (const path of ['/api/auth/me', '/api/auth/sso/callback?code=x', '/api/auth/sso/backchannel-logout', '/api/sso/adapter/v1/health', '/agents/abc/.well-known/agent.json',
-    '/x402/pay', '/p2p/peers', '/v1/chat/completions', '/_next/static/chunks/main.js', '/static/favicon.png', '/favicon.ico', '/robots.txt', '/sitemap.xml',
+    '/svc/prj_test/health', '/svc/prj_test/search', '/x402/pay', '/p2p/peers', '/v1/chat/completions', '/_next/static/chunks/main.js', '/static/favicon.png', '/favicon.ico', '/robots.txt', '/sitemap.xml',
     '/.well-known/openid-configuration', '/signing', '/signing?sso=connect', '/docs/cover.png']) {
     assert.equal(silentSsoStart(page(path)), null, path);
   }
