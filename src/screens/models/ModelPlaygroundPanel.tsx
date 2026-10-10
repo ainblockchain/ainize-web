@@ -235,6 +235,18 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
         {!signedIn && !sso && google && !issuedKey && (
           <Description data-testid="models-key-google">{t('models.key.google', { email: google.email })}</Description>
         )}
+        {/* Keys the account already holds. The node keeps only hashes, so the secret itself can't be shown again —
+            but the page must not pretend there is nothing: list what exists and point at the account page, and
+            make "create" the secondary action ("another"), not a reset to square one. */}
+        {canHoldKeys && !issuedKey && (keyList?.keys.length ?? 0) > 0 && (
+          <Description data-testid="models-existing-keys">
+            {t('models.key.existing', { n: String(keyList!.keys.filter((k) => !k.disabled).length) })}{' '}
+            {keyList!.keys.filter((k) => !k.disabled).slice(0, 3).map((k) => (
+              <Mono key={k.prefix} as="span" style={{ marginRight: 8 }}>{k.prefix}…{k.label ? ` (${k.label})` : ''}</Mono>
+            ))}
+            <StyledLink to="/account">{t('models.key.manage')}</StyledLink>
+          </Description>
+        )}
         {canHoldKeys && !issuedKey && (
           <Row>
             <Button
@@ -248,9 +260,8 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
                   .catch((e: unknown) => setKeyError(errorMessage(e)));
               }}
             >
-              {createState.isLoading ? t('models.key.creating') : t('models.key.create')}
+              {createState.isLoading ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
             </Button>
-            {signedIn && (keyList?.keys.length ?? 0) > 0 && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
           </Row>
         )}
         {issuedKey && (
