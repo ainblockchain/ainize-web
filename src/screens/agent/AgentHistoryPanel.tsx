@@ -13,12 +13,12 @@
  */
 import { useState } from 'react';
 import styled from 'styled-components';
-import { useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
+import { useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import type { AgentPull } from '@/api/types';
 import type { AgentGitInfo } from '@/api/types';
 import { Button } from '@/components/ui/Button';
-import { Alert, Input, Field, FieldLabel } from '@/components/ui/Form';
+import { Alert, Input, Select, Field, FieldLabel } from '@/components/ui/Form';
 import { Description } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 
@@ -121,6 +121,13 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [openPull, opening] = useOpenAgentPullMutation();
+  const forks = useMyAgentForksQuery(undefined, { skip: !isSignedIn });
+  const [createFork, creatingFork] = useCreateAgentForkMutation();
+  const [deleteFork, deletingFork] = useDeleteAgentForkMutation();
+  const [forkId, setForkId] = useState('');
+  const [forkBranch, setForkBranch] = useState('main');
+  const forkRefs = useAgentRefsQuery(forkId, { skip: !forkId });
+
   const [branch, setBranch] = useState<string | null>(null);
   const refs = useAgentRefsQuery(agentId);
   const head = refs.data?.head ?? 'main';
@@ -196,10 +203,23 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
         </Alert>
       )}
 
-      {isSignedIn && comparing && !mirror && <section style={{ marginTop: 16 }}>
+      {isSignedIn && !mirror && <section style={{ marginTop: 16 }}>
+        <Button loading={creatingFork.isLoading} onClick={() => { setFailed(null); void createFork({ id: agentId, ref }).unwrap().then(({ fork }) => { setForkId(fork.id); setForkBranch('main'); }).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.fork_create')}</Button>
+        <Field><FieldLabel htmlFor="proposal-source">{t('agentGit.fork_source')}</FieldLabel><Select id="proposal-source" value={forkId} onChange={(e) => { setForkId(e.target.value); setForkBranch('main'); }}>
+          <option value="">{t('agentGit.fork_current')}</option>
+          {(forks.data?.forks ?? []).filter((fork) => fork.parent === agentId).map((fork) => <option key={fork.id} value={fork.id}>{fork.id}</option>)}
+        </Select></Field>
+        {forkId && <>
+          <Description>{t('agentGit.fork_help')}</Description>
+          {forkRefs.data?.clone_url && <Clone><code>git clone {forkRefs.data.clone_url}</code></Clone>}
+          <Field><FieldLabel htmlFor="fork-branch">{t('agentGit.fork_branch')}</FieldLabel><Input id="fork-branch" value={forkBranch} onChange={(e) => setForkBranch(e.target.value)} /></Field>
+          <Button loading={deletingFork.isLoading} onClick={() => { setFailed(null); void deleteFork(forkId).unwrap().then(() => setForkId('')).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.fork_delete')}</Button>
+        </>}
+      </section>}
+      {isSignedIn && (comparing || forkId) && !mirror && <section style={{ marginTop: 16 }}>
         <Field><FieldLabel htmlFor="proposal-title">{t('agentGit.pull_title')}</FieldLabel><Input id="proposal-title" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="proposal-body">{t('agentGit.pull_body')}</FieldLabel><Input id="proposal-body" as="textarea" value={body} maxLength={4000} onChange={(e) => setBody(e.target.value)} /></Field>
-        <Button disabled={!title.trim()} loading={opening.isLoading} onClick={() => { setFailed(null); void openPull({ id: agentId, title, body, head: ref, base: head }).unwrap().then(() => { setTitle(''); setBody(''); }).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.pull_create')}</Button>
+        <Button disabled={!title.trim() || (!!forkId && !forkBranch.trim())} loading={opening.isLoading} onClick={() => { setFailed(null); void openPull({ id: agentId, title, body, head: forkId ? forkBranch : ref, base: head, ...(forkId ? { headAgent: forkId } : {}) }).unwrap().then(() => { setTitle(''); setBody(''); }).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.pull_create')}</Button>
       </section>}
       {(pulls.data?.pulls.length ?? 0) > 0 && (
         <Pulls data-testid="agent-pulls">
@@ -207,10 +227,10 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
             <Pull key={p.number}>
               <div>
                 <strong>#{p.number} {p.title}</strong><span>{t(`agentGit.state_${p.state}`)}</span>
-                <span>{t('agentGit.pull_from', { head: p.head, base: p.base, who: who(p.author) })}</span>
+                <span>{t('agentGit.pull_from', { head: p.headAgent ? `${p.headAgent}/${p.head}` : p.head, base: p.base, who: who(p.author) })}</span>
               </div>
               <div>
-                <Button size="small" variant="text" onClick={() => setBranch(p.head)}>{t('agentGit.pull_review')}</Button>
+                <Button size="small" variant="text" onClick={() => setBranch(p.headCommit ?? p.head)}>{t('agentGit.pull_review')}</Button>
                 {/* Merging is the deploy, so it is offered only to the people who could have pushed it. */}
                 {canMerge && p.state === 'open' && (
                   <Button size="small" loading={mergeState.isLoading}

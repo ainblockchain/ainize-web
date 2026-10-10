@@ -4,7 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
-  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentPull, AgentReviewComment, AgentPullsResponse, AgentMirror,
+  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentFork, AgentPull, AgentReviewComment, AgentPullsResponse, AgentMirror,
   AuthMe, NodeOwner, Binding, MyNode, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
@@ -323,7 +323,12 @@ export const api = createApi({
       query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    openAgentPull: b.mutation<{ pull: AgentPull }, { id: string; title: string; body: string; head: string; base: string }>({
+    myAgentForks: b.query<{ forks: AgentFork[] }, void>({ query: () => 'api/agent-forks', providesTags: ['HostedAgent'] }),
+    createAgentFork: b.mutation<{ fork: AgentFork; clonePath: string }, { id: string; ref: string }>({
+      query: ({ id, ref }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/forks`, method: 'POST', body: { ref } }), invalidatesTags: ['HostedAgent'],
+    }),
+    deleteAgentFork: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/agent-forks/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['HostedAgent'] }),
+    openAgentPull: b.mutation<{ pull: AgentPull }, { id: string; title: string; body: string; head: string; base: string; headAgent?: string }>({
       query: ({ id, ...body }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/pulls`, method: 'POST', body }), invalidatesTags: ['HostedAgent'],
     }),
     addAgentReviewComment: b.mutation<{ comment: AgentReviewComment }, { id: string; number: number; body: string }>({
@@ -612,7 +617,7 @@ export const {
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
-  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
+  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,

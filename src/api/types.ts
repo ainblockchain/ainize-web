@@ -1092,6 +1092,8 @@ export interface AgentPull {
   body: string;
   base: string;
   head: string;
+  headAgent?: string;
+  headCommit?: string;
   author: string;
   state: 'open' | 'merged' | 'closed';
   createdAt: number;
@@ -1101,6 +1103,8 @@ export interface AgentPull {
   mergeCommit?: string;
   comments?: AgentReviewComment[];
 }
+
+export interface AgentFork { id: string; parent: string; owner: string; baseCommit: string; createdAt: number }
 
 export interface AgentPullsResponse { pulls: AgentPull[] }
 
