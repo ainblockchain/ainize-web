@@ -126,7 +126,7 @@ export function resolve(value: unknown, model: unknown, item: unknown): string {
 
 /** True when the tree asks the reader for something, so a caller can tell a form from a result. */
 export const isInteractive = (surface: A2UISurfaceData): boolean =>
-  [...surface.components.values()].some((c) => c.component === 'TextField' || c.component === 'Button');
+  [...surface.components.values()].some((c) => (c.component === 'TextField' || c.component === 'ChoicePicker') || c.component === 'Button');
 
 /** Read one JSON Pointer out of the model. Returns undefined rather than throwing on a path that is not there. */
 export function readPath(model: unknown, path: string): unknown {

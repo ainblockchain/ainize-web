@@ -29,8 +29,8 @@ const Unknown = styled.div`
 const Field = styled.label`
   display: flex; flex-direction: column; gap: 6px; width: 100%;
   span { font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
-  textarea, input {
-    width: 100%; padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.6;
+  textarea, input, select {
+    width: 100%; padding: 10px 12px; font: inherit; font-size: 16px; min-height: 44px; line-height: 1.6;
     border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fff;
     &:focus-visible { outline: 2px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 1px; }
   }
@@ -91,6 +91,17 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
      * The input half. An agent that sends these is describing what it wants from the reader, which is the
      * thing the marketplace used to guess: one form, written into a page shared by every agent.
      */
+    case 'ChoicePicker': {
+      const path = (c.value as { path?: string } | undefined)?.path;
+      const options = Array.isArray(c.options) ? c.options.slice(0, 100).filter((option): option is { label: unknown; value: string } => !!option && typeof option === 'object' && typeof option.value === 'string') : [];
+      if (c.variant === 'multipleSelection') return <Unknown>unsupported ChoicePicker multipleSelection</Unknown>;
+      return <Field><span>{resolve(c.label, ctx.model, item)}</span>
+        <select value={resolve(c.value, ctx.model, item)} disabled={!ctx.act || ctx.busy || !path}
+          onChange={(e) => path && ctx.set(path, e.target.value ? [e.target.value] : [])}>
+          <option value="" />{options.map((option) => <option key={option.value} value={option.value}>{resolve(option.label, ctx.model, item)}</option>)}
+        </select>
+      </Field>;
+    }
     case 'TextField': {
       const path = (c.value as { path?: string } | undefined)?.path;
       const value = resolve(c.value, ctx.model, item);
