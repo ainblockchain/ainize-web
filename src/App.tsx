@@ -5,7 +5,7 @@ import { ThemeProvider } from 'styled-components';
 import { store } from './store';
 import { theme } from './theme/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
-import { AuthProvider } from './auth/AuthContext';
+import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LocaleProvider } from './i18n';
 import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SignedInLayout, SigningCheckLayout } from './components/base/Layout';
 import { CenterProgress } from './components/ui/Misc';
@@ -66,6 +66,11 @@ const TeachMinePage = lazy(() => import('./screens/TeachMinePage'));
 const MergePage = lazy(() => import('./screens/MergePage'));
 
 const fallback = <CenterProgress />;
+
+function AccountEntry() {
+  const { isOwner } = useAuth();
+  return isOwner ? <AccountPage /> : <MyPage />;
+}
 
 export default function App() {
   return (
@@ -161,7 +166,7 @@ export default function App() {
                 <Route path="/logs" element={<SigningCheckLayout><NodeLogsPage /></SigningCheckLayout>} />
                 <Route path="/project/:author/:patchId/logs" element={<SigningCheckLayout><LogsPage /></SigningCheckLayout>} />
                 <Route path="/project/:author/:patchId" element={<SigningCheckLayout><ManagePage /></SigningCheckLayout>} />
-                <Route path="/account" element={<SigningCheckLayout><AccountPage /></SigningCheckLayout>} />
+                <Route path="/account" element={<SignedInLayout><AccountEntry /></SignedInLayout>} />
                 <Route path="/drive" element={<SigningCheckLayout><DrivePage /></SigningCheckLayout>} />
                 <Route path="/drive/*" element={<SigningCheckLayout><DrivePage /></SigningCheckLayout>} />
 

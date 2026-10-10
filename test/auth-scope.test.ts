@@ -171,3 +171,13 @@ test('the authorisation page speaks about a node when a node is what asked', () 
   const nodeLead = strings.match(/'op\.authorize\.node\.lead':[^\n]*/)![0];
   assert.ok(nodeLead.includes('no wallet spending'), 'node linking must not promise account delegation');
 });
+
+
+test('account entry shows personal keys to visitors while node settings remain owner-only', () => {
+  const app = code('App.tsx').join('\n');
+  assert.ok(app.includes('<Route path="/account" element={<SignedInLayout><AccountEntry /></SignedInLayout>} />'));
+  assert.ok(app.includes('return isOwner ? <AccountPage /> : <MyPage />;'));
+  const mine = code('screens/MyPage.tsx').join('\n');
+  assert.ok(mine.includes('useApiKeysQuery()'));
+  assert.ok(mine.includes('useCreateApiKeyMutation()'));
+});
