@@ -41,10 +41,11 @@ test('/me is routed behind sign-in, not behind ownership', () => {
   assert.ok(/SignedInLayout|RequireSignIn/.test(route), '/me must still require a session');
 });
 
-test('the operator screens stay where they are', () => {
-  // This is not a loosening of /account. It runs the node: operators, settings, runtime, the node's wallet.
+test('account entry preserves owner-only node settings and opens personal keys to visitors', () => {
   const account = app.split('\n').find((l) => l.includes('path="/account"'))!;
-  assert.ok(account.includes('SigningCheckLayout'), '/account is the node runner\'s screen and stays owner-gated');
+  assert.ok(account.includes('SignedInLayout'), 'the account entry still requires sign-in');
+  assert.ok(app.includes('return isOwner ? <AccountPage /> : <MyPage />;'),
+    'only the owner sees node settings; visitors see their own keys');
 });
 
 test('/me leads to what left the menu', () => {
