@@ -15,13 +15,14 @@ import * as m10 from './merge';
 import * as m11 from './models';
 import * as m12 from './operator';
 import * as m13 from './organizations';
-import * as m14 from './public';
-import * as m15 from './retire';
-import * as m16 from './sharedAgents';
-import * as m17 from './table';
-import * as m18 from './teach';
-import * as m19 from './tracks';
-import * as m20 from './verifier';
+import * as m14 from './projects';
+import * as m15 from './public';
+import * as m16 from './retire';
+import * as m17 from './sharedAgents';
+import * as m18 from './table';
+import * as m19 from './teach';
+import * as m20 from './tracks';
+import * as m21 from './verifier';
 
 /** Every dictionary module, in filename order. The index merges them. */
-export const MODULES: Record<string, Dict>[] = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20] as unknown as Record<string, Dict>[];
+export const MODULES: Record<string, Dict>[] = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, m21] as unknown as Record<string, Dict>[];
