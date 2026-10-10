@@ -2,6 +2,72 @@
 
 Reusable shapes as a **running** node declares them, from its [OpenAPI document](/api/openapi.json). For the full definitions, with nested constraints and unions, see [Schemas](./schemas.md).
 
+## `OwnerRef`
+
+Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in.
+
+| Field | Type | Required |
+|---|---|---|
+| `kind` | account, org, wallet, principal | yes |
+| `issuer` | string | yes |
+| `subject` | string | yes |
+| `displayName` | string | no |
+
+## `AgentRef`
+
+One agent in the cross-product registry shape (ain-integration contract 1.0).
+
+| Field | Type | Required |
+|---|---|---|
+| `contract` | string | yes |
+| `registryIssuer` | string | yes |
+| `agentId` | string | yes |
+| `releaseId` | string | yes |
+| `ownerRef` | OwnerRef | yes |
+| `visibility` | public, org, private, unlisted | yes |
+| `orgRef` | OwnerRef | no |
+| `agentCardUrl` | string | yes |
+| `endpoint` | string | yes |
+| `supportedProtocolVersions` | array of string | yes |
+| `skills` | array of object | yes |
+| `inputModes` | array of string | yes |
+| `outputModes` | array of string | yes |
+| `uiCapabilities` | array of streaming, cancel, image_in, image_out, audio_in, audio_out, ainui, a2ui_basic, file_refs_out | yes |
+| `status` | active, disabled, stopped, deleted | yes |
+| `displayName` | string | yes |
+| `description` | string | no |
+| `updatedAt` | string | yes |
+
+## `AgentListResponse`
+
+
+
+| Field | Type | Required |
+|---|---|---|
+| `contract` | string | yes |
+| `asOf` | string | yes |
+| `nextCursor` | string | yes |
+| `items` | array of object | yes |
+
+## `AgentEventPage`
+
+A page of agent changes after `cursor`.
+
+| Field | Type | Required |
+|---|---|---|
+| `contract` | string | yes |
+| `nextCursor` | string | yes |
+| `gap` | boolean | yes |
+| `events` | array of object | yes |
+
+## `ContractError`
+
+Error body of the shared registry routes (ain-integration contract 1.0): auth_required 401, forbidden 403, agent_stopped 409, rate_limited 429, temporary_failure 503.
+
+| Field | Type | Required |
+|---|---|---|
+| `error` | object | yes |
+
 ## `Anchor`
 
 Public description of a knowledge item (patch).

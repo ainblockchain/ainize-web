@@ -9,6 +9,7 @@ Ainize lets you teach a model from question–answer pairs, test the resulting k
 | Website | Explore, chat, teach, and inspect the public record at [ainize.ai](https://ainize.ai). |
 | CLI | Run a node and automate operations with `ainize`. |
 | Model API | Call configured models through the [Python SDK](./how-to/call-the-model.md). |
+| Deploy | A git repo with `ainize.json` deploys on every push — Next.js, a script, a service or an A2A agent. [Deploy a repo](./how-to/deploy-with-ainize-json.md) |
 | Agents | Register an existing agent and expose its interface through a node. See [hosting an agent](./how-to/host-an-agent.md). |
 
 The website and node API are separate deployments. A CLI installation does not include a ready-to-use website or a model server.
