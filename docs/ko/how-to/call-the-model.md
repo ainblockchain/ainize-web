@@ -1,6 +1,6 @@
 ---
 source: en/how-to/call-the-model.md
-source_sha256: c53cef0b6aff42b6dd5fa2032ac8e275382a104f2002025bc191fc6e8b6c8467
+source_sha256: 83a0d013f88b9d96202e3fa5cddfb63da430720280d7308b60cd926a59c99eee
 ---
 
 # 내 코드에서 모델 호출하기
