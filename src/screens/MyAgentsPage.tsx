@@ -1,3 +1,4 @@
+import { AgentArchivePanel } from './agent/AgentArchivePanel';
 /**
  * The agents that belong to the person — built on a model here, or linked by address — with the doors to make more.
  *
@@ -121,6 +122,7 @@ export default function MyAgentsPage() {
         })}
       </MyAgentsList>
 
+      <AgentArchivePanel />
       <Description style={{ marginTop: 24 }}>{t('myAgents.teams_hint')}</Description>
     </PageWrapper>
   );
