@@ -18,7 +18,7 @@ import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
-import type { Deployment, DeploymentsResponse, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse } from './projects';
+import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
@@ -180,6 +180,15 @@ export const api = createApi({
     createProject: b.mutation<ProjectCreated, ProjectCreateInput>({ query: (body) => ({ url: 'api/projects', method: 'POST', body }), invalidatesTags: ['Project'] }),
     deleteProject: b.mutation<{ ok: true; id: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Project'] }),
     projectDeployments: b.query<DeploymentsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/deployments`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
+    /** `/<org>/<repo>` → the project (public). */
+    projectByName: b.query<Project, { org: string; repo: string }>({ query: ({ org, repo }) => `api/projects/by-name${toQuery({ org, repo })}`, providesTags: (r) => (r ? [{ type: 'Project', id: r.id }] : ['Project']) }),
+    /** `/<org>` — the slug's projects, and the drive's repositories as aindrive lists them (through the node). */
+    orgProjects: b.query<OrgProjectsResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/projects`, providesTags: ['Project'] }),
+    orgRepositories: b.query<OrgRepositoriesResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/repositories` }),
+    projectRuns: b.query<RunsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/runs` }] }),
+    runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
+    redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
+    rotateProjectSecret: b.mutation<RotatedSecret, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/rotate-secret`, method: 'PATCH' }) }),
     deployment: b.query<Deployment, string>({ query: (id) => `api/deployments/${encodeURIComponent(id)}` }),
     deploymentLog: b.query<string, string>({ query: (id) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
     myHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
@@ -586,6 +595,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
+  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
   useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,

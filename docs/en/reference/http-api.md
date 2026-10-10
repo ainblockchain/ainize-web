@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-203 operations on 169 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+210 operations on 175 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -210,11 +210,18 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
 | `GET` | [`/api/projects/by-repo`](#get-apiprojectsby-repo) | operator | The project bound to a repository (what aindrive's UI shows next to a repo) |
-| `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project (owner only; others see 404) |
+| `GET` | [`/api/projects/by-name`](#get-apiprojectsby-name) | operator | The project at `/<org>/<repo>` — the page's own lookup |
+| `GET` | [`/api/orgs/{org}/projects`](#get-apiorgsorgprojects) | operator | Every project of an organization slug — the `/<org>` page |
+| `GET` | [`/api/orgs/{org}/repositories`](#get-apiorgsorgrepositories) | operator | The organization's drive `repositories/` folder as aindrive lists it (so `/<org>` shows a repo before its first push) |
+| `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project — public view for everyone, `owner` and `hookUrl` for its owner |
 | `DELETE` | [`/api/projects/{id}`](#delete-apiprojectsid) | operator | Remove a project with its deployments, logs and secrets (owner only) |
+| `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
+| `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (public, like deployments) |
+| `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
+| `POST` | [`/api/deployments/{id}/redeploy`](#post-apideploymentsidredeploy) | operator | Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member |
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
-| `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments, newest first (owner only) |
-| `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment |
+| `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — public |
+| `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (public) |
 | `GET` | [`/api/deployments/{id}/log`](#get-apideploymentsidlog) | operator | The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building |
 | `GET` | [`/api/deployments/{id}/output`](#get-apideploymentsidoutput) | operator | The script's stdout alone, for a ready deployment |
 | `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
@@ -3441,7 +3448,7 @@ Anyone signed in (AIN SSO, wallet session or API key). Body `{ repo, branch?: "m
 
 The project bound to a repository (what aindrive's UI shows next to a repo)
 
-No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (what aindrive's Inspect links to) and the newest deployment; no owner and no hook address. 404 when no project is bound to the URL.
+No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (`https://ainize.ai/<org>/<repo>` — what aindrive's Inspect links to), the newest deployment and the manifest the last deploy read; no owner and no hook address. 404 when no project is bound to the URL.
 
 **Auth** — operator
 
@@ -3457,9 +3464,76 @@ No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (what ai
 |---|---|---|
 | `200` | project status | `object` |
 
+### `GET /api/projects/by-name`
+
+The project at `/<org>/<repo>` — the page's own lookup
+
+No sign-in; CORS for `https://aindrive.ainetwork.ai`. `org` and `repo` are matched case-insensitively against the repository's aindrive URL (`/<org>/git/<repo>`). The same view as `GET /api/projects/{id}`: public fields for everyone, plus `owner` and `hookUrl` for the owner; `canManage` / `canOperate` say what the caller may do. 404 `not_found` when no project of that name is bound here.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `org` | `query` | `string` | yes |
+| `repo` | `query` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | project | `object` |
+| `404` | `not_found` |   |
+
+### `GET /api/orgs/{org}/projects`
+
+Every project of an organization slug — the `/<org>` page
+
+No sign-in; CORS for `https://aindrive.ainetwork.ai`. Case-insensitive on the slug. `{ org, projects: [...] }` in the public view; an organization with no project here is an empty list — only a slug that is not even well-formed is 404.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `org` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | projects | `object` |
+| `404` | `not_found` — malformed slug |   |
+
+### `GET /api/orgs/{org}/repositories`
+
+The organization's drive `repositories/` folder as aindrive lists it (so `/<org>` shows a repo before its first push)
+
+No sign-in. The node asks aindrive `GET /api/orgs/<org>/repositories` with its own AIN SSO machine token (the same identity that clones a project's repository) and relays `{ org, known, driveId, driveUrl, repositories: [{ name, cloneUrl, headSha, headSubject, updatedAt, hasManifest }] }`; an organization aindrive does not resolve is `known: false` with an empty list. Cached 30 s per organization. 503 `aindrive_off` when the node has no machine identity, 502 when aindrive does not answer.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `org` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | repositories | `object` |
+| `502` | `aindrive_unreachable` · `aindrive_error` |   |
+| `503` | `aindrive_off` |   |
+
 ### `GET /api/projects/{id}`
 
-One project (owner only; others see 404)
+One project — public view for everyone, `owner` and `hookUrl` for its owner
+
+A project is an organization's repository, so it reads like one: anyone sees `{ id, org, repoName, repo, branch, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`. `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, env — never a secret: the file is in the repository), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
 
 **Auth** — operator
 
@@ -3492,6 +3566,98 @@ Remove a project with its deployments, logs and secrets (owner only)
 | Code | Description | Body |
 |---|---|---|
 | `200` | ok | `object` |
+
+### `PATCH /api/projects/{id}/rotate-secret`
+
+A new webhook secret, shown once (owner only)
+
+The old secret stops verifying at once; paste the new one into the repo's settings in aindrive. `{ id, webhookSecret, hookUrl }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | secret | `object` |
+
+### `GET /api/projects/{id}/runs`
+
+Ad-hoc runs of a script project, newest first (public, like deployments)
+
+Each run is a deployment-shaped record with `trigger: "run"`, the `entry`, `inputs` and `env` it was started with, and `logUrl`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | runs | `object` |
+
+### `POST /api/projects/{id}/runs`
+
+Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization
+
+Body `{ entry?, inputs?: { <name>: value }, env?: { <NAME>: value }, timeoutMs? }`. `entry` defaults to the manifest's; `inputs` are the `ainize.json` inputs (`INPUT_<NAME>`), `env` plain variables (never secrets). The run clones HEAD like a deploy, runs with the caller's own `aindrive run` key in `AINIZE_API_KEY`, and streams its log at `GET /api/deployments/{runId}/log`. 202 `{ runId, deploymentId, status }`. 401 `not_signed_in`, 403 `not_member`, 409 `not_a_script`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type |
+|---|---|
+| `entry` | `string` |
+| `inputs` | `object` |
+| `env` | `object` |
+| `timeoutMs` | `integer` |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | { runId, deploymentId, status } |
+| `403` | `not_member` |
+| `409` | `not_a_script` |
+
+### `POST /api/deployments/{id}/redeploy`
+
+Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member
+
+A new deployment of the same sha and ref, `trigger: "redeploy"`, started by the caller. 202 `{ deploymentId, status }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | { deploymentId, status } |
+| `403` | `not_member` |
 
 ### `POST /api/projects/{id}/hook`
 
@@ -3526,7 +3692,7 @@ Header `X-Ainize-Signature: sha256=<hex HMAC-SHA256 of the raw body with the pro
 
 ### `GET /api/projects/{id}/deployments`
 
-A project's deployments, newest first (owner only)
+A project's deployments (pushes and redeploys), newest first — public
 
 **Auth** — operator
 
@@ -3544,9 +3710,9 @@ A project's deployments, newest first (owner only)
 
 ### `GET /api/deployments/{id}`
 
-One deployment
+One deployment or run (public)
 
-`{ id, projectId, sha, ref, kind, status: queued|building|ready|error, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }` — owner only. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
+`{ id, projectId, sha, ref, kind, status: queued|building|ready|error, trigger: push|redeploy|run, subject?, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }` — readable by anyone, as the project is. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
 
 **Auth** — operator
 
