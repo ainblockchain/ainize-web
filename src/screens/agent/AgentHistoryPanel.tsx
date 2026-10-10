@@ -11,9 +11,9 @@
  * prompt's diff is shown as a diff rather than as two versions side by side: a prompt is prose, and what a
  * reviewer needs to see is the sentence that changed.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
+import { useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import type { AgentPull } from '@/api/types';
 import type { AgentGitInfo } from '@/api/types';
@@ -21,12 +21,13 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Input, Select, Field, FieldLabel } from '@/components/ui/Form';
 import { Description } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { A2UISurface, readSurface } from '@/components/a2ui/A2UISurface';
 
 const Box = styled.div`
   min-width: 0; overflow-wrap: anywhere;
-  @media (max-width: 640px) { padding: 16px; input, textarea { font-size: 16px; } button { min-height: 44px; } }
   margin-top: 24px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
   h3 { margin: 0; font-size: 15px; }
+  @media (max-width: 640px) { padding: 16px; input, textarea, select { font-size: 16px; min-height: 44px; } button { min-height: 44px; } }
 `;
 const Clone = styled.div`
   display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap;
@@ -77,6 +78,58 @@ const Diff = styled.pre`
 const when = (at: number, locale: string) => new Date(at).toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 /** An author is an address or an email; neither is readable at full length in a list. */
 const who = (name: string) => (/^0x[0-9a-fA-F]{40}$/.test(name) ? `${name.slice(0, 6)}…${name.slice(-4)}` : name);
+
+function PreviewPanel({ agentId, refName }: { agentId: string; refName: string }) {
+  const { t } = useT();
+  const [create, creating] = useCreateAgentPreviewMutation();
+  const [remove] = useDeleteAgentPreviewMutation();
+  const [chat, chatting] = useChatAgentPreviewMutation();
+  const [id, setId] = useState('');
+  const [message, setMessage] = useState('');
+  const [context, setContext] = useState<string | undefined>();
+  const [reply, setReply] = useState<{ parts?: Parameters<typeof readSurface>[0]; contextId?: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef<ReturnType<typeof chat> | null>(null);
+  const query = useAgentPreviewQuery(id, { skip: !id, pollingInterval: 2000 });
+  const preview = query.currentData?.preview;
+  const surface = readSurface(reply?.parts ?? []);
+  useEffect(() => () => { pending.current?.abort(); if (id) void remove(id); }, [id, remove]);
+  const report = (e: unknown) => setError(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e));
+  const start = async () => {
+    setError(null);
+    try {
+      if (id) await remove(id).unwrap().catch(() => {});
+      const created = await create({ id: agentId, ref: refName }).unwrap();
+      setId(created.preview.id); setReply(null); setContext(undefined);
+    } catch (e) { report(e); }
+  };
+  const send = async () => {
+    setError(null);
+    const request = chat({ id, body: { jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send', params: { message: { kind: 'message', role: 'user', messageId: crypto.randomUUID(), ...(context ? { contextId: context } : {}), parts: [{ kind: 'text', text: message }] }, configuration: { blocking: true } } } });
+    pending.current = request;
+    try {
+      const body = await request.unwrap() as { result?: { parts?: Parameters<typeof readSurface>[0]; contextId?: string }; error?: { message?: string } };
+      if (body.error) throw new Error(body.error.message ?? 'RPC error');
+      setReply(body.result ?? null); setContext(body.result?.contextId); setMessage('');
+    } catch (e) { if ((e as { name?: string }).name === 'AbortError') setError(t('agentGit.preview_stopped')); else report(e); }
+    finally { if (pending.current === request) pending.current = null; }
+  };
+  return <section style={{ marginTop: 16, minWidth: 0 }}>
+    <Button loading={creating.isLoading} disabled={!!id && !query.isError && preview?.status !== 'error'} onClick={() => void start()}>{t('agentGit.preview_create')}</Button>
+    <Description>{t('agentGit.preview_help')}</Description>
+    {id && <>
+      {query.isError ? <Alert $tone="error">{t('agentGit.preview_expired')}</Alert> : preview?.status === 'error' ? <Alert $tone="error">{preview.error}</Alert> : preview?.status !== 'ready' ? <Description>{t('agentGit.preview_building')}</Description> : <>
+        <code>{preview.commit.slice(0, 12)} · {new Date(preview.expiresAt).toLocaleTimeString()}</code>
+        <Field><FieldLabel htmlFor="preview-message">{t('agentGit.preview_message')}</FieldLabel><Input id="preview-message" as="textarea" value={message} maxLength={20000} disabled={chatting.isLoading} onChange={(e) => setMessage(e.target.value)} /></Field>
+        <Button loading={chatting.isLoading} disabled={!message.trim()} onClick={() => void send()}>{t('agentGit.preview_send')}</Button>
+        {chatting.isLoading && <Button onClick={() => pending.current?.abort()}>{t('agentGit.preview_cancel')}</Button>}
+        {reply && <div aria-live="polite">{(reply.parts ?? []).map((part, index) => { const text = (part as { text?: string }).text; return text ? <Description key={index} style={{ whiteSpace: 'pre-wrap' }}>{text}</Description> : null; })}{surface && <A2UISurface surface={surface} />}</div>}
+      </>}
+      <Button onClick={() => { pending.current?.abort(); setId(''); }}>{t('agentGit.preview_stop')}</Button>
+    </>}
+    {error && <Alert $tone="error">{error}</Alert>}
+  </section>;
+}
 
 function ReviewThread({ id, pull, canMerge }: { id: string; pull: AgentPull; canMerge: boolean }) {
   const { t } = useT();
@@ -203,6 +256,7 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
         </Alert>
       )}
 
+      {isSignedIn && <PreviewPanel key={`${agentId}:${ref}`} agentId={agentId} refName={ref} />}
       {isSignedIn && !mirror && <section style={{ marginTop: 16 }}>
         <Button loading={creatingFork.isLoading} onClick={() => { setFailed(null); void createFork({ id: agentId, ref }).unwrap().then(({ fork }) => { setForkId(fork.id); setForkBranch('main'); }).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.fork_create')}</Button>
         <Field><FieldLabel htmlFor="proposal-source">{t('agentGit.fork_source')}</FieldLabel><Select id="proposal-source" value={forkId} onChange={(e) => { setForkId(e.target.value); setForkBranch('main'); }}>

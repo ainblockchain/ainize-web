@@ -1104,6 +1104,8 @@ export interface AgentPull {
   comments?: AgentReviewComment[];
 }
 
+export interface AgentPreview { id: string; agent: string; commit: string; owner: string; createdAt: number; expiresAt: number; status: 'building' | 'ready' | 'error'; error: string | null }
+
 export interface AgentFork { id: string; parent: string; owner: string; baseCommit: string; createdAt: number }
 
 export interface AgentPullsResponse { pulls: AgentPull[] }

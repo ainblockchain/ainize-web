@@ -4,7 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
-  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentFork, AgentPull, AgentReviewComment, AgentPullsResponse, AgentMirror,
+  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentPreview, AgentFork, AgentPull, AgentReviewComment, AgentPullsResponse, AgentMirror,
   AuthMe, NodeOwner, Binding, MyNode, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
@@ -323,6 +323,10 @@ export const api = createApi({
       query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
+    createAgentPreview: b.mutation<{ preview: AgentPreview }, { id: string; ref: string }>({ query: ({ id, ref }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/previews`, method: 'POST', body: { ref } }) }),
+    agentPreview: b.query<{ preview: AgentPreview }, string>({ query: (id) => `api/agent-previews/${encodeURIComponent(id)}`, keepUnusedDataFor: 0 }),
+    deleteAgentPreview: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/agent-previews/${encodeURIComponent(id)}`, method: 'DELETE' }) }),
+    chatAgentPreview: b.mutation<unknown, { id: string; body: Record<string, unknown> }>({ query: ({ id, body }) => ({ url: `api/agent-previews/${encodeURIComponent(id)}/rpc`, method: 'POST', body }) }),
     myAgentForks: b.query<{ forks: AgentFork[] }, void>({ query: () => 'api/agent-forks', providesTags: ['HostedAgent'] }),
     createAgentFork: b.mutation<{ fork: AgentFork; clonePath: string }, { id: string; ref: string }>({
       query: ({ id, ref }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/forks`, method: 'POST', body: { ref } }), invalidatesTags: ['HostedAgent'],
@@ -617,7 +621,7 @@ export const {
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
-  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
+  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
