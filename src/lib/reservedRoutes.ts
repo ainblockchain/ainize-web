@@ -11,7 +11,7 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   'chat', 'teach', 'teacher', 'verifier', 'benchmarks', 'patch', 'me', 'projects', 'org', 'dashboard', 'new-patch', 'my-nodes',
   'logs', 'project', 'account', 'drive',
   // Next.js routes (app/*) — served before the SPA ever renders
-  'api', 'git', 'p2p', 'v1', 'x402', '_next',
+  'api', 'git', 'p2p', 'v1', 'svc', 'x402', '_next',
   // never a slug
   'static', 'assets', 'favicon.ico', 'robots.txt', 'sitemap.xml',
 ];
