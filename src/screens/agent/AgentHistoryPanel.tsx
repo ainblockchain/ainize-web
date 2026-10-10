@@ -13,14 +13,18 @@
  */
 import { useState } from 'react';
 import styled from 'styled-components';
-import { useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
+import { useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
+import { useAuth } from '@/auth/AuthContext';
+import type { AgentPull } from '@/api/types';
 import type { AgentGitInfo } from '@/api/types';
 import { Button } from '@/components/ui/Button';
-import { Alert } from '@/components/ui/Form';
+import { Alert, Input, Field, FieldLabel } from '@/components/ui/Form';
 import { Description } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 
 const Box = styled.div`
+  min-width: 0; overflow-wrap: anywhere;
+  @media (max-width: 640px) { padding: 16px; input, textarea { font-size: 16px; } button { min-height: 44px; } }
   margin-top: 24px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
   h3 { margin: 0; font-size: 15px; }
 `;
@@ -74,8 +78,49 @@ const when = (at: number, locale: string) => new Date(at).toLocaleString(locale 
 /** An author is an address or an email; neither is readable at full length in a list. */
 const who = (name: string) => (/^0x[0-9a-fA-F]{40}$/.test(name) ? `${name.slice(0, 6)}…${name.slice(-4)}` : name);
 
+function ReviewThread({ id, pull, canMerge }: { id: string; pull: AgentPull; canMerge: boolean }) {
+  const { t } = useT();
+  const { isSignedIn, principal } = useAuth();
+  const [body, setBody] = useState('');
+  const [editing, setEditing] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [add, adding] = useAddAgentReviewCommentMutation();
+  const [edit, editingState] = useEditAgentReviewCommentMutation();
+  const [remove, removing] = useDeleteAgentReviewCommentMutation();
+  const report = (e: unknown) => setError(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e));
+  const submit = async () => {
+    setError(null);
+    try {
+      if (editing !== null) await edit({ id, number: pull.number, comment: editing, body }).unwrap();
+      else await add({ id, number: pull.number, body }).unwrap();
+      setBody(''); setEditing(null);
+    } catch (e) { report(e); }
+  };
+  return <section style={{ flexBasis: '100%', minWidth: 0 }} aria-label={t('agentGit.comments')}>
+    {pull.body && <Description style={{ whiteSpace: 'pre-wrap' }}>{pull.body}</Description>}
+    {(pull.comments ?? []).map((comment) => <div key={comment.id} style={{ marginTop: 12, whiteSpace: 'pre-wrap' }}>
+      <strong>{who(comment.author)}</strong>
+      {comment.path && <code>{comment.commit?.slice(0, 7)} · {comment.path}:{comment.line}</code>}
+      <Description>{comment.deletedAt ? t('agentGit.comment_deleted') : comment.body}</Description>
+      {!comment.deletedAt && isSignedIn && <div>
+        {principal === comment.author && <Button size="small" onClick={() => { setEditing(comment.id); setBody(comment.body); }}>{t('agentGit.comment_edit')}</Button>}
+        {(principal === comment.author || canMerge) && <Button size="small" loading={removing.isLoading} onClick={() => { setError(null); void remove({ id, number: pull.number, comment: comment.id }).unwrap().catch(report); }}>{t('agentGit.comment_delete')}</Button>}
+      </div>}
+    </div>)}
+    {isSignedIn && <Field style={{ marginTop: 12 }}><FieldLabel htmlFor={`review-${pull.number}`}>{t('agentGit.comments')}</FieldLabel><Input id={`review-${pull.number}`} as="textarea" value={body} maxLength={8000} onChange={(e) => setBody(e.target.value)} />
+      <div><Button size="small" disabled={!body.trim()} loading={adding.isLoading || editingState.isLoading} onClick={() => void submit()}>{t(editing === null ? 'agentGit.comment_add' : 'agentGit.comment_save')}</Button>
+      {editing !== null && <Button size="small" onClick={() => { setEditing(null); setBody(''); }}>{t('agentGit.comment_cancel')}</Button>}</div>
+    </Field>}
+    {error && <Alert $tone="error">{error}</Alert>}
+  </section>;
+}
+
 export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId: string; git?: AgentGitInfo | null; canMerge?: boolean }) {
   const { t, locale } = useT();
+  const { isSignedIn } = useAuth();
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [openPull, opening] = useOpenAgentPullMutation();
   const [branch, setBranch] = useState<string | null>(null);
   const refs = useAgentRefsQuery(agentId);
   const head = refs.data?.head ?? 'main';
@@ -85,7 +130,7 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
   const comparing = ref !== head;
   const diff = useAgentDiffQuery({ id: agentId, base: head, head: ref }, { skip: !comparing });
   const [copied, setCopied] = useState(false);
-  const pulls = useAgentPullsQuery({ id: agentId, state: 'open' });
+  const pulls = useAgentPullsQuery({ id: agentId });
   const [merge, mergeState] = useMergeAgentPullMutation();
   const [sync, syncState] = useSyncAgentMirrorMutation();
   const [failed, setFailed] = useState<string | null>(null);
@@ -151,24 +196,30 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
         </Alert>
       )}
 
+      {isSignedIn && comparing && !mirror && <section style={{ marginTop: 16 }}>
+        <Field><FieldLabel htmlFor="proposal-title">{t('agentGit.pull_title')}</FieldLabel><Input id="proposal-title" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="proposal-body">{t('agentGit.pull_body')}</FieldLabel><Input id="proposal-body" as="textarea" value={body} maxLength={4000} onChange={(e) => setBody(e.target.value)} /></Field>
+        <Button disabled={!title.trim()} loading={opening.isLoading} onClick={() => { setFailed(null); void openPull({ id: agentId, title, body, head: ref, base: head }).unwrap().then(() => { setTitle(''); setBody(''); }).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.pull_create')}</Button>
+      </section>}
       {(pulls.data?.pulls.length ?? 0) > 0 && (
         <Pulls data-testid="agent-pulls">
           {pulls.data!.pulls.map((p) => (
             <Pull key={p.number}>
               <div>
-                <strong>#{p.number} {p.title}</strong>
+                <strong>#{p.number} {p.title}</strong><span>{t(`agentGit.state_${p.state}`)}</span>
                 <span>{t('agentGit.pull_from', { head: p.head, base: p.base, who: who(p.author) })}</span>
               </div>
               <div>
                 <Button size="small" variant="text" onClick={() => setBranch(p.head)}>{t('agentGit.pull_review')}</Button>
                 {/* Merging is the deploy, so it is offered only to the people who could have pushed it. */}
-                {canMerge && (
+                {canMerge && p.state === 'open' && (
                   <Button size="small" loading={mergeState.isLoading}
                     onClick={() => { setFailed(null); merge({ id: agentId, number: p.number }).unwrap().catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>
                     {t('agentGit.pull_merge')}
                   </Button>
                 )}
               </div>
+              <ReviewThread id={agentId} pull={p} canMerge={canMerge} />
             </Pull>
           ))}
         </Pulls>

@@ -4,7 +4,7 @@
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type {
-  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentPullsResponse, AgentMirror,
+  AgentCommitsResponse, AgentRefsResponse, AgentDiffResponse, AgentPull, AgentReviewComment, AgentPullsResponse, AgentMirror,
   AuthMe, NodeOwner, Binding, MyNode, DeviceRequest, BranchesResponse, CatalogEntry, CatalogResponse, ChainResponse, DriveChangesResponse, DriveResponse, EventRow, GraphResponse, InfoResponse,
   LedgerRecord, LedgerResponse, NodesResponse, PatchAnchor, PatchDetail, PurchaseResult, PurchaseRow, RouteResponse, RuntimeResponse, VerifyResponse, WalletResponse,
   ChatPatchesResponse, ChatRequest, ChatResponse, ChatStatusResponse, ChatCancelResponse, Settings, DocsResponse,
@@ -323,6 +323,18 @@ export const api = createApi({
       query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
+    openAgentPull: b.mutation<{ pull: AgentPull }, { id: string; title: string; body: string; head: string; base: string }>({
+      query: ({ id, ...body }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/pulls`, method: 'POST', body }), invalidatesTags: ['HostedAgent'],
+    }),
+    addAgentReviewComment: b.mutation<{ comment: AgentReviewComment }, { id: string; number: number; body: string }>({
+      query: ({ id, number, ...body }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/pulls/${number}/comments`, method: 'POST', body }), invalidatesTags: ['HostedAgent'],
+    }),
+    editAgentReviewComment: b.mutation<{ comment: AgentReviewComment }, { id: string; number: number; comment: number; body: string }>({
+      query: ({ id, number, comment, ...body }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/pulls/${number}/comments/${comment}`, method: 'PATCH', body }), invalidatesTags: ['HostedAgent'],
+    }),
+    deleteAgentReviewComment: b.mutation<{ comment: AgentReviewComment }, { id: string; number: number; comment: number }>({
+      query: ({ id, number, comment }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/pulls/${number}/comments/${comment}`, method: 'DELETE' }), invalidatesTags: ['HostedAgent'],
+    }),
     mergeAgentPull: b.mutation<{ commit?: string }, { id: string; number: number }>({
       query: ({ id, number }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/pulls/${number}/merge`, method: 'POST', body: {} }),
       invalidatesTags: ['HostedAgent', 'Agents'],
@@ -600,7 +612,7 @@ export const {
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
-  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
+  useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,

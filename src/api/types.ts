@@ -1083,6 +1083,8 @@ export interface AgentDiffResponse {
 }
 
 /** A proposal: a branch offered for the branch the node deploys from. */
+export interface AgentReviewComment { id: number; author: string; body: string; createdAt: number; updatedAt: number; commit?: string; path?: string; line?: number; deletedAt?: number }
+
 export interface AgentPull {
   number: number;
   agent: string;
@@ -1097,6 +1099,7 @@ export interface AgentPull {
   mergedAt?: number;
   mergedBy?: string;
   mergeCommit?: string;
+  comments?: AgentReviewComment[];
 }
 
 export interface AgentPullsResponse { pulls: AgentPull[] }
