@@ -2,7 +2,7 @@
 title: 결정 모델 쓰기 (Cloudflare Clef)
 summary: 결정 모델은 글을 쓰지 않습니다. 상황과 그에 대한 유형이 정해진 질문을 받아 각 질문에 확률로 답합니다 — ainize SDK의 client.decide()로, 내 API 키로.
 source: en/how-to/decision-models-clef.md
-source_sha256: d326452f25ba73e41e1ca9ece20e38c58ae2b5371542a06d16f646fed92a3036
+source_sha256: 54b50208eaa71a025bddbac51a7f531fd25c72124bec6a035907d2e2211f0a93
 ---
 
 # 결정 모델 쓰기 (Cloudflare Clef)
@@ -100,6 +100,30 @@ Authorization: Bearer ainize-sk-…
 Content-Type: application/json
 
 { "model": "clef-flash", "state": …, "questions": { … }, "debug": { "prompt": true } }
+```
+
+같은 요청을 AinCode 터미널에서 바로 실행하세요. 실습 공간이 연결 정보를 제공합니다. 아래 명령은 답과 사용량을 보여 주고 전체 디버그 프롬프트는 출력하지 않습니다:
+
+```bash
+set -euo pipefail
+: "${AINIZE_URL:?Open this example in your AinCode workspace}"
+: "${AINIZE_API_KEY:?Your workspace supplies the model connection}"
+
+curl -fsS "$AINIZE_URL/v1/systemone" \
+  -H "Authorization: Bearer $AINIZE_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data-binary @- <<'JSON' | jq '{model, answers, usage, debug: {questions: .debug.questions}}'
+{
+  "model": "clef-flash",
+  "state": "The payment webhook is failing and customers cannot check out.",
+  "questions": {
+    "outage": {"type": "noul", "instructions": "Is a service down?"},
+    "severity": {"type": "score", "instructions": "How severe is it?", "criteria": ["low", "medium", "high"]},
+    "team": {"type": "choice", "instructions": "Who should handle this?", "criteria": {"billing": "Payments or invoices", "technical": "Bugs or outages"}}
+  },
+  "debug": {"prompt": true}
+}
+JSON
 ```
 
 ```json

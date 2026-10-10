@@ -101,6 +101,30 @@ Content-Type: application/json
 { "model": "clef-flash", "state": …, "questions": { … }, "debug": { "prompt": true } }
 ```
 
+Run the same request in your AinCode terminal. The workspace supplies the connection; the command prints answers and usage while leaving the full debug prompt out of the output:
+
+```bash
+set -euo pipefail
+: "${AINIZE_URL:?Open this example in your AinCode workspace}"
+: "${AINIZE_API_KEY:?Your workspace supplies the model connection}"
+
+curl -fsS "$AINIZE_URL/v1/systemone" \
+  -H "Authorization: Bearer $AINIZE_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data-binary @- <<'JSON' | jq '{model, answers, usage, debug: {questions: .debug.questions}}'
+{
+  "model": "clef-flash",
+  "state": "The payment webhook is failing and customers cannot check out.",
+  "questions": {
+    "outage": {"type": "noul", "instructions": "Is a service down?"},
+    "severity": {"type": "score", "instructions": "How severe is it?", "criteria": ["low", "medium", "high"]},
+    "team": {"type": "choice", "instructions": "Who should handle this?", "criteria": {"billing": "Payments or invoices", "technical": "Bugs or outages"}}
+  },
+  "debug": {"prompt": true}
+}
+JSON
+```
+
 ```json
 {
   "model": "clef-flash",
