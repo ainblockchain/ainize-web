@@ -1,5 +1,19 @@
 # Installation
 
+## In AinCode on the web
+
+Open [AinCode](/code) with your Ainize account and select your AinDrive practice repository. Node.js and the CLI are already installed in the workspace. Check the provided tools, then continue to [Quickstart](./quickstart.md):
+
+```bash
+node --version
+ainize --version
+ainize --help
+```
+
+AinCode workspaces reach Ainize through their gateway. Package downloads and public Git clones require a separate preparation path; the local installation and CLI development commands below do not run unchanged in this workspace. Keep your practice files and progress in the selected AinDrive Git repository.
+
+## On your own machine
+
 Use Node.js 24 or newer. Install the published CLI:
 
 ```bash
