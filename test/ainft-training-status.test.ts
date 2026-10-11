@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ainftTrainingLabel, ainftTrainingPending } from '../src/lib/ainft-training-status.js';
+import { ainftTrainingFailure, ainftTrainingLabel, ainftTrainingPending } from '../src/lib/ainft-training-status.js';
 
 test('training progress distinguishes model load, baseline, real steps and serving restoration', () => {
   const job = { status: 'TRAINING', progress: { step: 20, maxSteps: 20, phase: 'restore-serving' } };
@@ -21,4 +21,11 @@ test('submitted and active jobs keep polling, terminal and uncertain submissions
   assert.equal(ainftTrainingPending({ status: 'CHECKING' }, 'submitted'), true);
   assert.equal(ainftTrainingPending({ status: 'READY' }, 'submitted'), false);
   assert.equal(ainftTrainingPending(null, 'unknown'), false);
+});
+
+test('failure messages explain the outcome without exposing process IDs or stack traces', () => {
+  const label = ainftTrainingFailure('OutOfMemoryError: CUDA out of memory. Process 12345 /private/path', 'en');
+  assert.match(label, /ran out of memory/); assert.ok(!label.includes('12345')); assert.ok(!label.includes('/private/path'));
+  assert.match(ainftTrainingFailure('trainer timed out', 'en'), /time limit/);
+  assert.equal(ainftTrainingFailure('unknown stack trace', 'ko'), '학습을 완료하지 못했습니다. 운영자가 작업 기록을 확인해야 합니다.');
 });

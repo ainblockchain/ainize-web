@@ -1,4 +1,4 @@
-import { ainftTrainingLabel, ainftTrainingPending } from '@/lib/ainft-training-status';
+import { ainftTrainingFailure, ainftTrainingLabel, ainftTrainingPending } from '@/lib/ainft-training-status';
 import { AinftRewardsPanel } from './AinftRewardsPanel';
 import { AinftBenefitsPanel } from './AinftBenefitsPanel';
 import { publishCompanionLesson, type CompanionPublicationInput } from '@/lib/ainftPublication';
@@ -188,7 +188,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
             </>}
             {training.runs.map((run) => <div key={run.id} style={{ marginTop: 12 }}><small aria-live="polite">{ainftTrainingLabel(run.job, run.state, locale)}</small>
               {run.state === 'unknown' && <Alert $tone="error">{text('제출 결과를 확인할 수 없습니다. 중복 실행을 막기 위해 같은 요청을 다시 제출하지 않습니다. 노드 운영자의 확인이 필요합니다.', 'The submission outcome is unknown. This request will not be submitted again. Ask the node operator to reconcile the job.')}</Alert>}
-              {run.job?.error && <Alert $tone="error">{run.job.error}</Alert>}
+              {run.job?.error && <Alert $tone="error">{ainftTrainingFailure(run.job.error, locale)}</Alert>}
               {run.job?.draftId && run.job.applicationVerified !== true && <p>{text('실제 모델 평가와 원상복구 검증이 필요합니다. 검증을 통과한 후 선택할 수 있습니다.', 'Live model evaluation and restoration must be verified before this lesson can be selected.')}</p>}
               {run.job?.draftId && run.job.applicationVerified === true && <p>{run.job.status === 'READY' ? (training.selectedRunId === run.id ? (training.capability.available ? text('다음 보유자 대화에 사용할 학습', 'Selected for subsequent holder conversations') : text('선택은 저장됐지만 현재 적용이 중지됨', 'Selection saved; application is currently paused')) : run.eligible ? (training.capability.available ? text('평가 통과 · 선택 가능', 'Evaluation passed · available to select') : text('평가 통과 · 현재 학습 실행 환경을 사용할 수 없음', 'Evaluation passed; the learning runtime is currently unavailable')) : text('평가 통과 · 현재 예제 또는 릴리스로 사용할 수 없음', 'Evaluation passed · examples or release no longer eligible')) : text('학습 초안 생성됨 · 평가 상태 확인 필요', 'Training draft created · check evaluation status')}</p>}
               {run.job?.status === 'READY' && run.eligible && !(training.publications ?? []).some((item) => item.runId === run.id) && <Button size="small" disabled={busy} onClick={() => setPublicationIntent({ identity, key: crypto.randomUUID(), runId: run.id, name: '', description: '', permanent: false, rights: false })}>{text('공유 공개 검토', 'Review shared publication')}</Button>}

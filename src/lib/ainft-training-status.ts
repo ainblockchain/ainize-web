@@ -36,3 +36,12 @@ export function ainftTrainingLabel(job: AinftTrainingStatus | null, state: strin
     : text('학습 완료 · 검증 확인 필요', 'Training finished; verification needs review');
   const label = labels[job.status]; return label ? text(...label) : text('학습 상태 확인 필요', 'Training status needs review');
 }
+
+export function ainftTrainingFailure(error: string, locale: string): string {
+  const text = (ko: string, en: string) => locale === 'ko' ? ko : en;
+  if (/out.?of.?memory|memory.*insufficient|not enough.*memory/i.test(error))
+    return text('학습 모델을 실행할 메모리가 부족했습니다. 다음 요청 전에 실행 자원을 확인해야 합니다.', 'The training model ran out of memory. Its resources need checking before another request.');
+  if (/timeout|timed out/i.test(error))
+    return text('학습이 제한 시간 안에 끝나지 않았습니다. 작업 상태를 확인한 뒤 다시 요청하세요.', 'Training did not finish within its time limit. Check the job state before another request.');
+  return text('학습을 완료하지 못했습니다. 운영자가 작업 기록을 확인해야 합니다.', 'Training could not be completed. The node operator needs to review its job record.');
+}
