@@ -126,7 +126,7 @@ so **`ainize.json` in the repo means it deploys**. The repo's folder in aindrive
 until then, and the deployment rows afterwards. The project belongs to the person who pushed (their AIN account), and
 the drive must be shared with an AIN organization the Ainize app is assigned in.
 
-For a repo hosted anywhere else, create the project yourself and call the hook from your host:
+To register an AinDrive repository manually, use the request below. Repositories in your drive normally use the automatic binding above. The project API accepts AinDrive Git URLs:
 
 ```bash
 curl -X POST https://ainize.ai/api/projects \
@@ -137,6 +137,12 @@ curl -X POST https://ainize.ai/api/projects \
 The answer carries the project id and a `webhookSecret` **shown once**. The kind, entry and runtime are not part of
 either path — they come from `ainize.json` at each push, so changing how a repo deploys is a commit, not a settings
 change.
+
+If the repository already has a project, the request returns `409` with code `repo_taken`.
+Continue with the existing project: query `GET /api/projects/by-repo` with the same `repo` and
+`branch`, then read `GET /api/projects/{id}` and confirm `canManage` is `true` before changing it.
+Use its deployment history and Run control to resume the exercise. A repeated creation request does
+not create another project or return its webhook secret again.
 
 ## A complete example
 

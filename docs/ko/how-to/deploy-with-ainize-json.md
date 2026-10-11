@@ -124,7 +124,7 @@ aindrive 드라이브 안의 리포에는 바인딩 단계가 없습니다. 루�
 그 뒤로는 배포 행을 보여 줍니다. 프로젝트는 push한 사람(AIN 계정)의 것이고, 드라이브는 Ainize 앱이 할당된 AIN 조직에
 공유되어 있어야 합니다.
 
-다른 곳에 호스팅된 리포라면 프로젝트를 직접 만들고 그 호스트에서 훅을 호출하세요:
+AinDrive 저장소를 수동으로 등록할 때는 아래 요청을 사용합니다. 개인 드라이브의 저장소는 보통 위의 자동 바인딩을 사용합니다. 프로젝트 API는 AinDrive Git URL을 받습니다:
 
 ```bash
 curl -X POST https://ainize.ai/api/projects \
@@ -134,6 +134,11 @@ curl -X POST https://ainize.ai/api/projects \
 
 응답에 프로젝트 id와 **한 번만 보여 주는** `webhookSecret`이 담깁니다. kind·entry·runtime은 어느 경로에도 들어가지
 않습니다 — push마다 `ainize.json`에서 읽으므로, 리포가 배포되는 방식을 바꾸는 일은 설정 변경이 아니라 커밋입니다.
+
+이미 프로젝트가 연결된 저장소라면 요청은 `409`, 오류 코드 `repo_taken`을 반환합니다.
+같은 `repo`와 `branch`로 `GET /api/projects/by-repo`를 조회하고, `GET /api/projects/{id}`에서
+`canManage`가 `true`인지 확인한 뒤 기존 프로젝트를 사용하세요. 배포 이력과 Run 기능에서 실습을
+이어갈 수 있습니다. 생성 요청을 반복해도 프로젝트가 중복 생성되거나 웹훅 시크릿이 다시 표시되지 않습니다.
 
 ## 완전한 예
 
