@@ -41,11 +41,13 @@ const Dot = styled.span<{ $up: boolean }>`
 export default function ModelsPage() {
   const { t } = useT();
   useTitle(t('models.title'));
-  const { data, isLoading, error } = useModelsQuery();
+  const { data, isLoading, isFetching, error, refetch } = useModelsQuery(undefined, {
+    pollingInterval: 30_000, skipPollingIfUnfocused: true, refetchOnFocus: true, refetchOnReconnect: true,
+  });
   const fetchState = modelsFetchState(error as { status?: number | string; originalStatus?: number } | undefined);
   const cards = useMemo(() => parseModelsResponse(data), [data]);
   // The network's models, not only this node's: every node that joined brings its own (api/networkModels.ts).
-  const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000 });
+  const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000, skipPollingIfUnfocused: true, refetchOnFocus: true, refetchOnReconnect: true });
   const catalogue = useMemo(() => networkModelCatalogue(cards, parseNetworkModelsResponse(network.data)), [cards, network.data]);
   const groups = useMemo(() => MODEL_MODALITIES
     .map((modality) => ({ modality, models: catalogue.filter((m) => m.modality === modality) }))
@@ -63,6 +65,7 @@ export default function ModelsPage() {
         <Empty>
           <SubTitle>{t('models.offline.title')}</SubTitle>
           <Description>{t('models.offline.body')}</Description>
+          <button type="button" disabled={isFetching} onClick={() => { void refetch(); void network.refetch(); }}>{t('offline.retry')}</button>
         </Empty>
       )}
       {fetchState === 'outdated' && (
