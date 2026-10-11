@@ -1,6 +1,6 @@
 ---
 source: en/get-started/install.md
-source_sha256: 1a675eb5547c515877ba04dba0413c07e7cc7db3c775828933ba9348f4806f34
+source_sha256: 889fd440e2af16cf009084f27c3a63fde1b50c5f95c7d8e16bb76ff841e64a11
 ---
 
 # 설치
@@ -15,7 +15,7 @@ ainize --version
 ainize --help
 ```
 
-AinCode 작업 공간은 게이트웨이를 통해 Ainize에 연결됩니다. 패키지 다운로드와 공개 Git 저장소 복제에는 별도의 준비 경로가 필요하므로, 아래 로컬 설치·CLI 개발 명령은 이 작업 공간에서 그대로 실행되지 않습니다. 실습 파일과 진행 기록은 선택한 AinDrive Git 저장소에 보관하세요.
+준비된 AinCode 실습 환경은 게이트웨이를 통해 패키지 다운로드와 공식 CLI 소스 저장소에 연결됩니다. 아래 소스 빌드에 필요한 도구와 SQLite 바이너리도 기본 환경에 포함되어 있습니다. 실습 파일과 진행 기록은 선택한 AinDrive Git 저장소에 보관하고, 백업으로 사용하기 전에 저장과 복원이 성공하는지 확인하세요.
 
 ## 내 컴퓨터에서
 
