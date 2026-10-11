@@ -39,6 +39,8 @@ stage install
 npm ci --include=dev --ignore-scripts --no-audit --no-fund
 stage gen:check
 npm run gen:check
+stage deploy-contract
+node --test deploy/verify-release.test.mjs
 stage typecheck
 npm run typecheck
 stage test

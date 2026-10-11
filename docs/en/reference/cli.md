@@ -9,7 +9,7 @@ summary: Every `ainize` command, argument and option, generated from the CLI's o
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-cli/src/main.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-Every command the `ainize` CLI accepts — 32 top-level commands, 101 of them runnable — with the arguments, options, defaults and examples each one declares.
+Every command the `ainize` CLI accepts — 32 top-level commands, 104 of them runnable — with the arguments, options, defaults and examples each one declares.
 
 ## How to read this page
 
@@ -593,6 +593,9 @@ A2A agents this node serves: register one, see whether it answers, and call it
 - `ainize agent off` — Keep the registration but take the public address down
 - `ainize agent card` — The agent card as this node serves it to a workspace
 - `ainize agent call` — Send a message the way a workspace would, through the public path
+- `ainize agent clone` — Clone a hosted agent as a Git repository
+- `ainize agent pulls` — Read, propose, merge or close repository changes
+- `ainize agent mirror` — Read, attach, sync or detach a GitHub source
 
 ### `ainize agent ls`
 
@@ -699,6 +702,63 @@ Send a message the way a workspace would, through the public path
 # one JSON-RPC message/send, as a stranger would
 ainize agent call donga-desk "오늘 파이프라인 상태 알려줘"
 ```
+
+### `ainize agent clone`
+
+```bash
+ainize agent clone <id> [directory]
+```
+
+Clone a hosted agent as a Git repository
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+- **`[directory]`** (`string`)
+
+### `ainize agent pulls`
+
+```bash
+ainize agent pulls <id> [options]
+```
+
+Read, propose, merge or close repository changes
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+
+**Options**
+
+- **`--state`** (`"open" | "merged" | "closed"`)
+- **`--number`** (`number`)
+- **`--head`** (`string`)
+- **`--head-agent`** (`string`)
+- **`--base`** (`string`)
+- **`--title`** (`string`)
+- **`--body`** (`string`)
+- **`--merge`** (`boolean`)
+- **`--close`** (`boolean`)
+
+### `ainize agent mirror`
+
+```bash
+ainize agent mirror <id> [options]
+```
+
+Read, attach, sync or detach a GitHub source
+
+**Arguments**
+
+- **`<id>`** (`string`, required)
+
+**Options**
+
+- **`--repo`** (`string`)
+- **`--branch`** (`string`)
+- **`--folder`** (`string`)
+- **`--sync`** (`boolean`)
+- **`--detach`** (`boolean`)
 
 ## `ainize patch`
 

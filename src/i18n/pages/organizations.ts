@@ -7,6 +7,8 @@ import type { Dict } from '../index';
 
 export const organizations: Dict = {
   // ── shared
+  'orgs.mine': { ko: '내 조직', en: 'My organizations' },
+  'orgs.retry': { ko: '다시 불러오기', en: 'Try again' },
   'org.nav': { ko: '조직', en: 'Organizations' },
   'org.role.read': { ko: '읽기', en: 'Read' },
   'org.role.contributor': { ko: '기여자', en: 'Contributor' },
@@ -27,7 +29,7 @@ export const organizations: Dict = {
   'org.private_help': { ko: '조직 멤버에게만 보입니다. 주소는 여전히 답합니다 — 보안은 에이전트가 스스로 겁니다.', en: 'Listed to the organization’s members only. The address still answers — the agent enforces its own security.' },
 
   // ── /org
-  'orgs.title': { ko: '조직', en: 'Organizations' },
+  'orgs.title': { ko: '내 조직', en: 'My organizations' },
   'orgs.lede': {
     ko: '팀이 에이전트를 한곳에서 등록하고 관리하는 자리입니다. 회사 이메일로 로그인하면 그 도메인의 조직에 자동으로 들어갑니다 — AIN Teams 와 ainmem 은 조직의 에이전트를 여기서 가져옵니다.',
     en: 'Where a team registers and manages its agents in one place. Signing in with a company email puts you in that domain’s organization — AIN Teams and ainmem import the organization’s agents from here.',
@@ -68,6 +70,7 @@ export const organizations: Dict = {
   'org.tab.readme': { ko: 'README', en: 'README' },
   'org.settings': { ko: '설정', en: 'Settings' },
   'org.register_agent': { ko: '이 조직에 에이전트 등록', en: 'Register an agent here' },
+  'org.create_agent': { ko: '새 에이전트 만들기', en: 'Create a new agent' },
   'org.agents.empty': { ko: '아직 이 조직에 등록된 에이전트가 없습니다.', en: 'No agents are registered under this organization yet.' },
   'org.agents.hidden': { ko: '그리고 당신에게 보이지 않는 에이전트 {n}개가 더 있습니다 (리소스 그룹).', en: 'And {n} more you cannot see (resource groups).' },
   'org.agents.calls': { ko: '호출 {n}', en: '{n} calls' },

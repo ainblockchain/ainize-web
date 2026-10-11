@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
-import { useInfoQuery } from '@/api/api';
+import { useMyOrgsQuery, useInfoQuery } from '@/api/api';
 import { useLocale, useT } from '@/i18n';
+import { parseOrgList } from '@/api/organizations';
 import { shortAddr } from '@/utils/format';
 
 /** Ported from ainize-web components/ui/Header.js — white bar, 81px, subtle shadow, purple hover; original Ainize logo. */
@@ -63,7 +64,7 @@ const UserMenuButton = styled.button`
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
 const Menu = styled.div<{ $open: boolean }>`
-  position: absolute; right: 0; top: 100%; min-width: 220px; padding: 4px; background: #fff; border-radius: 4px;
+  position: absolute; right: 0; top: 100%; min-width: 220px; max-width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto; padding: 4px; background: #fff; border-radius: 4px;
   box-shadow: 0 5px 5px -3px rgba(0,0,0,.2), 0 8px 10px 1px rgba(0,0,0,.14), 0 3px 14px 2px rgba(0,0,0,.12);
   display: ${(p) => (p.$open ? 'block' : 'none')}; z-index: 10;
 `;
@@ -97,6 +98,8 @@ export function Header() {
   // A Google-only or AIN-only session has no address to show, so it shows the account instead.
   const who = subject ? shortAddr(subject, 6) : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
+  const { data: orgData } = useMyOrgsQuery(undefined, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
+  const myOrgs = isSignedIn ? parseOrgList(orgData).orgs : [];
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -128,8 +131,10 @@ export function Header() {
           {/* What the network's nodes serve over the LLM API, and a place to press it. It was documentation three levels
               down, which is not where somebody arriving to see what this can do will find it. */}
           <NavItem to="/models" data-testid="nav-models">{t('nav.models')}</NavItem>
+          <NavItem to="/apps" data-testid="nav-apps">{t('nav.apps')}</NavItem>
           {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}
           {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach" $active={teaching} className={teaching ? 'active' : undefined}>{t('nav.teach')}</NavPlain>}
+          {isSignedIn && <NavItem to="/org" data-testid="nav-my-orgs">{t('orgs.mine')}</NavItem>}
           <NavItem to="/docs">{t('nav.docs')}</NavItem>
           {/* The dashboard is the node runner's screen and the node refuses it to anyone else, so offering it to
               every signed-in visitor would be a link that lands on "this node is not yours". */}
@@ -155,7 +160,8 @@ export function Header() {
                 {/* Also gated on nothing but a session: the agents a person built or linked here are theirs, not the node's. */}
                 <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/me/agents'); }}>{t('myAgents.title')}</MenuItem>
                 {/* The team's place: also gated on nothing but a session — the node decides which organizations you are in. */}
-                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/org'); }} data-testid="menu-orgs">{t('org.nav')}</MenuItem>
+                <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/org'); }} data-testid="menu-orgs">{t('orgs.mine')}</MenuItem>
+                {myOrgs.map((org) => <MenuItem key={org.id} role="menuitem" data-testid={`menu-org-${org.id}`} onClick={() => { setOpen(false); navigate(`/org/${encodeURIComponent(org.id)}`); }}>{org.name} · {t('orgs.agents', { n: org.agent_count })}</MenuItem>)}
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/new-patch'); }}>{t('nav.register')}</MenuItem>}
                 {/* /account and /drive are the node runner's screens too — they read this node's wallet, its
                     payout settings and its files. Every menu item that is not offered here is a route that would

@@ -295,12 +295,14 @@ export default function LandingPage() {
                 one without it — which is the nav a first-time visitor actually sees. */}
             <NavLink to="/explore?kind=agent" data-testid="landing-nav-agents">{t('nav.agents')}</NavLink>
             <NavLink to="/models" data-testid="landing-nav-models">{t('nav.models')}</NavLink>
+            <NavLink to="/apps" data-testid="landing-nav-apps">{t('nav.apps')}</NavLink>
             {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
             {/* The network and the public record were in every page's header and in neither of the landing's
                 chromes — the third time an entry was added to Header.tsx and not to this one. The two are now
                 held to the same list by test/nav-parity.test.ts, so a fourth is a failing test rather than a
                 visitor who never finds the page. */}
             {/* Finding 69: /docs was in every other page's header and in neither of the landing's chromes. */}
+            {auth.isSignedIn && <NavLink to="/org" data-testid="landing-nav-my-orgs">{t('orgs.mine')}</NavLink>}
             <NavLink to="/docs" data-testid="landing-nav-docs">{t('nav.docs')}</NavLink>
             {auth.isSignedIn && signedInAs
               ? <NavMuted to={auth.subject ? '/my-nodes' : '/models'} data-testid="landing-nav-account" title={auth.subject ?? auth.sso?.email ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>

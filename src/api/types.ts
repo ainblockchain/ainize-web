@@ -1083,6 +1083,8 @@ export interface AgentDiffResponse {
 }
 
 /** A proposal: a branch offered for the branch the node deploys from. */
+export interface AgentReviewComment { id: number; author: string; body: string; createdAt: number; updatedAt: number; commit?: string; path?: string; line?: number; deletedAt?: number }
+
 export interface AgentPull {
   number: number;
   agent: string;
@@ -1090,6 +1092,8 @@ export interface AgentPull {
   body: string;
   base: string;
   head: string;
+  headAgent?: string;
+  headCommit?: string;
   author: string;
   state: 'open' | 'merged' | 'closed';
   createdAt: number;
@@ -1097,7 +1101,12 @@ export interface AgentPull {
   mergedAt?: number;
   mergedBy?: string;
   mergeCommit?: string;
+  comments?: AgentReviewComment[];
 }
+
+export interface AgentPreview { id: string; agent: string; commit: string; owner: string; createdAt: number; expiresAt: number; status: 'building' | 'ready' | 'error'; error: string | null }
+
+export interface AgentFork { id: string; parent: string; owner: string; baseCommit: string; createdAt: number }
 
 export interface AgentPullsResponse { pulls: AgentPull[] }
 
@@ -1123,3 +1132,14 @@ export interface AgentGitInfo {
   commit: string | null;
   mirror: { url: string; branch: string; path: string; error: string | null } | null;
 }
+
+export interface AgentExecution {
+  id: string; repoId: string; projectId: string | null; agentId: string | null;
+  sourceCommit: string | null; projectionCommit: string | null; ref: string;
+  trigger: string; actor: string | null; status: 'queued' | 'building' | 'ready' | 'error';
+  version: number | null; error: string | null; createdAt: number; finishedAt: number | null;
+}
+export interface AgentExecutionsResponse { executions: AgentExecution[]; total: number; limit: number; offset: number }
+
+export interface AgentPreviewRun { id: string; previewId: string; agent: string; owner: string; commit: string; model: string; request: unknown; output: string; outputBytes: number; outputTruncated: boolean; status: 'running' | 'ready' | 'error' | 'cancelled'; error: string | null; createdAt: number; finishedAt: number | null; exportedAt?: number }
+export interface AgentPreviewRunsResponse { runs: AgentPreviewRun[]; total: number; limit: number; offset: number }

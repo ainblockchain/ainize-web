@@ -7,17 +7,19 @@
 import type { Metadata, Viewport } from 'next';
 import StyledRegistry from './registry';
 
-const TITLE = 'Ainize | Plug knowledge into your AI';
-const DESCRIPTION = 'Ainize: pick verified knowledge, test it live, and load it into your AI model in seconds. Publish knowledge and the network verifies it and pays you per sale.';
+const TITLE = 'Ainize | Test AI models, build and deploy agents';
+const DESCRIPTION = 'Try AI models live, build agents from Git repositories, and deploy them with a shared runtime. Connect your projects across Ainize, AIN Drive and AIN Teams.';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://ainize.ai'),
   title: TITLE,
   description: DESCRIPTION,
   icons: { shortcut: '/static/favicon.png' },
+  twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION, images: ['/static/images/cover_image.png'] },
   openGraph: {
     type: 'website',
     title: TITLE,
-    description: 'AI + -ize: make knowledge something a model actually knows. Verified, live-testable, paid automatically.',
+    description: DESCRIPTION,
     images: ['/static/images/cover_image.png'],
   },
 };

@@ -40,6 +40,8 @@ else
   SHA="$(git -C "$WORK/src" rev-parse HEAD)"
 fi
 cd "$WORK/src"
+# The public origin must identify the same release, not merely return HTTP 200.
+node -e 'require("fs").writeFileSync("public/web-build.json", JSON.stringify({sha:process.argv[1]}))' "$SHA"
 AINIZE_CI_STATE_DIR="$ROOT/ci" bash "$WORK/src/deploy/ci.sh" "$WORK/src" "$SHA" "$DIRTY"
 
 DEST="$RELEASES/$(date -u +%Y%m%dT%H%M%SZ)-${SHA:0:12}"
@@ -113,6 +115,7 @@ if [ -n "$VERIFY_URL" ]; then
   VERIFY_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$VERIFY_URL")"
   printf '  %s -> %s\n' "$VERIFY_URL" "$VERIFY_CODE"
   [ "$VERIFY_CODE" = 200 ]
+  curl -fsS --max-time 15 "${VERIFY_URL%/}/web-build.json?release=$SHA" | node "$WORK/src/deploy/verify-release.mjs" "$SHA"
 fi
 trap - ERR
 
