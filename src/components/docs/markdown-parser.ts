@@ -36,7 +36,7 @@ export type Align = 'left' | 'center' | 'right';
 export type Block =
   | { t: 'heading'; depth: number; id: string; text: string; c: Inline[] }
   | { t: 'para'; c: Inline[] }
-  | { t: 'code'; lang: string; code: string }
+  | { t: 'code'; lang: string; code: string; output?: true }
   | { t: 'list'; ordered: boolean; items: ListItem[] }
   | { t: 'table'; align: Align[]; head: Inline[][]; rows: Inline[][][] }
   | { t: 'quote'; alert?: AlertKind; c: Block[] }
@@ -165,13 +165,13 @@ function parseBlocks(lines: string[], ctx: Ctx): Block[] {
 
     // fenced code
     if (isFence(line)) {
-      const lang = line.trim().slice(3).trim().split(/\s+/)[0] ?? '';
+      const [lang = '', ...attributes] = line.trim().slice(3).trim().split(/\s+/);
       const body: string[] = [];
       i++;
       while (i < lines.length && !isFence(lines[i])) { body.push(lines[i]); i++; }
       if (i >= lines.length) ctx.errors.push({ line: lineNo(i - 1), message: 'code fence is never closed' });
       i++;
-      out.push({ t: 'code', lang: lang.toLowerCase(), code: body.join('\n') });
+      out.push({ t: 'code', lang: lang.toLowerCase(), code: body.join('\n'), ...(attributes.includes('output') ? { output: true as const } : {}) });
       continue;
     }
 

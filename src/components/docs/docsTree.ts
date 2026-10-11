@@ -175,7 +175,7 @@ export function searchDocs(site: DocSite, query: string, limit = 8): SearchHit[]
 
 // ------------------------------------------------------------------ links inside a page
 
-export interface LinkCtx { lang: Lang; slug: string }
+export interface LinkCtx { lang: Lang; slug: string; sourceLang?: Lang }
 
 /**
  * Resolve a link written inside a page. `./install.md`, `../reference/cli.md#options` and `install` all resolve to a

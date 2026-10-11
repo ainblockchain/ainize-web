@@ -13,6 +13,9 @@ deploy/deploy-web.sh <ref>
 The script installs from the lockfile, checks generated docs, runs type checks and tests,
 then builds. Any failure stops deployment. It writes the source commit to `build-info.json`,
 flips `~/ainize-web-releases/current`, restarts the server, and checks loopback and the domain.
+The public origin must return the same commit from `/web-build.json`; HTTP 200 alone is insufficient.
+Nginx's `location /` must target the standard `ainize-web` service on port 3900. Temporary
+preview services use separate URLs and must never replace the production upstream.
 If activation fails, it restores and restarts the previous release. It keeps five recent
 releases plus the active and previous releases.
 

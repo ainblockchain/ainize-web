@@ -10,6 +10,8 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { useDocsT } from './i18n';
 import { highlight, type TokenKind } from './highlight';
+import { practiceHref } from './practice';
+import type { LinkCtx } from './docsTree';
 
 /** Light-on-dark, on the same code surface the rest of the app already uses (#1f1f23). */
 const TOKEN: Record<TokenKind, string> = {
@@ -67,7 +69,7 @@ async function copyText(text: string): Promise<boolean> {
   } catch { return false; }
 }
 
-export function CodeBlock({ code, lang }: { code: string; lang: string }) {
+export function CodeBlock({ code, lang, ctx, stepId }: { code: string; lang: string; ctx?: LinkCtx; stepId?: string }) {
   const { t } = useDocsT();
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const tokens = highlight(code, lang);
@@ -86,6 +88,7 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
       <Pre><code>{tokens.map((tok, i) => (
         tok.k === 'plain' ? <span key={i}>{tok.v}</span> : <span key={i} style={{ color: TOKEN[tok.k], fontWeight: tok.k === 'command' ? 600 : undefined }}>{tok.v}</span>
       ))}</code></Pre>
+      {ctx && <a href={practiceHref(ctx, stepId)}>{t('docs.practice.block')}</a>}
     </Wrap>
   );
 }
