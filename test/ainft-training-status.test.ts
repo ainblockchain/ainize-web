@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ainftTrainingFailure, ainftTrainingLabel, ainftTrainingPending } from '../src/lib/ainft-training-status.js';
+import { ainftTrainingFailure, ainftTrainingLabel, ainftTrainingPending, ainftTrainingVerificationIssue } from '../src/lib/ainft-training-status.js';
 
 test('training progress distinguishes model load, baseline, real steps and serving restoration', () => {
   const job = { status: 'TRAINING', progress: { step: 20, maxSteps: 20, phase: 'restore-serving' } };
@@ -28,4 +28,13 @@ test('failure messages explain the outcome without exposing process IDs or stack
   assert.match(label, /ran out of memory/); assert.ok(!label.includes('12345')); assert.ok(!label.includes('/private/path'));
   assert.match(ainftTrainingFailure('trainer timed out', 'en'), /time limit/);
   assert.equal(ainftTrainingFailure('unknown stack trace', 'ko'), '학습을 완료하지 못했습니다. 운영자가 작업 기록을 확인해야 합니다.');
+});
+
+test('failed lesson checks explain why selection is refused without leaking internal error text', () => {
+  assert.match(ainftTrainingVerificationIssue('other-answers-changed', 'en'), /Other answers changed.*cannot be selected/);
+  assert.match(ainftTrainingVerificationIssue('unseen-question-missing', 'ko'), /학습에 쓰지 않은 확인 질문/);
+  assert.match(ainftTrainingVerificationIssue('restoration-incomplete', 'en'), /restoration verification has not passed/);
+  const unknown = ainftTrainingVerificationIssue('/private/server/path CUDA error', 'en');
+  assert.match(unknown, /Verification is incomplete/);
+  assert.doesNotMatch(unknown, /private|CUDA/);
 });

@@ -45,3 +45,17 @@ export function ainftTrainingFailure(error: string, locale: string): string {
     return text('학습이 제한 시간 안에 끝나지 않았습니다. 작업 상태를 확인한 뒤 다시 요청하세요.', 'Training did not finish within its time limit. Check the job state before another request.');
   return text('학습을 완료하지 못했습니다. 운영자가 작업 기록을 확인해야 합니다.', 'Training could not be completed. The node operator needs to review its job record.');
 }
+
+export function ainftTrainingVerificationIssue(issue: string, locale: string): string {
+  const labels: Record<string, [string, string]> = {
+    'unmeasured': ['실제 모델에서 검증하지 않은 결과는 선택할 수 없습니다.', 'Results without live model verification cannot be selected.'],
+    'lesson-not-learned': ['검토한 답변을 충분히 학습하지 못했습니다.', 'The reviewed answers have not been learned sufficiently.'],
+    'unseen-question-missing': ['학습에 쓰지 않은 확인 질문의 평가가 필요합니다.', 'An evaluation question kept out of training must be checked.'],
+    'unseen-question-failed': ['다른 표현의 확인 질문에 올바르게 답하지 못했습니다.', 'The lesson failed its differently phrased evaluation question.'],
+    'other-answers-changed': ['다른 질문의 답변이 달라져 이 결과를 선택할 수 없습니다.', 'Other answers changed, so this lesson cannot be selected.'],
+    'parent-regression': ['이전에 배운 내용의 유지 검사에 실패했습니다.', 'Previously learned answers did not pass their preservation check.'],
+    'restoration-incomplete': ['적용과 원상복구의 최종 검증을 통과하지 못했습니다.', 'Final application and restoration verification has not passed.'],
+    'verification-incomplete': ['검증이 완료되지 않아 이 결과를 선택할 수 없습니다.', 'Verification is incomplete, so this lesson cannot be selected.'],
+  };
+  const label = labels[issue] ?? labels['verification-incomplete']; return label[locale === 'ko' ? 0 : 1];
+}

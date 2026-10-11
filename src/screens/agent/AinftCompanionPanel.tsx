@@ -1,4 +1,4 @@
-import { ainftTrainingFailure, ainftTrainingLabel, ainftTrainingPending } from '@/lib/ainft-training-status';
+import { ainftTrainingFailure, ainftTrainingLabel, ainftTrainingPending, ainftTrainingVerificationIssue } from '@/lib/ainft-training-status';
 import { AinftRewardsPanel } from './AinftRewardsPanel';
 import { AinftBenefitsPanel } from './AinftBenefitsPanel';
 import { publishCompanionLesson, type CompanionPublicationInput } from '@/lib/ainftPublication';
@@ -13,9 +13,9 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 interface Task { id: string; input: string; state: string; result: string | null; error: string | null; allowance?: { state: string; canRestore: boolean; canSettle: boolean } }
 interface Memory { id: string; text: string; state: string; sourceTask: string }
-interface LearningExample { id: string; prompt: string; answer: string; state: string }
+interface LearningExample { id: string; prompt: string; answer: string; altPrompt?: string; state: string }
 interface Companion { tasks: Task[]; memories: Memory[]; learningExamples: LearningExample[]; experience: number; growthEvidence?: { id: string; kind: string; sourceId: string; experience: number; active: boolean }[]; growthPolicy?: { version: string } }
-interface Training { publications?: { id: string; runId: string; state: string; result: { status?: string } | null }[]; selectedRunId: string | null; capability: { available: boolean; model: string | null; reason: string | null }; runs: { id: string; model: string; eligible: boolean; state: string; jobId: string | null; job: { status: string; error: string | null; draftId: string | null; applicationVerified?: boolean; progress?: { step: number; maxSteps: number; phase: string | null } | null } | null }[] }
+interface Training { publications?: { id: string; runId: string; state: string; result: { status?: string } | null }[]; selectedRunId: string | null; capability: { available: boolean; model: string | null; reason: string | null }; runs: { id: string; model: string; eligible: boolean; state: string; jobId: string | null; job: { status: string; error: string | null; draftId: string | null; applicationVerified?: boolean; verificationIssues?: string[]; progress?: { step: number; maxSteps: number; phase: string | null } | null } | null }[] }
 export function AinftCompanionPanel({ agentId }: { agentId: string }) {
   const auth = useAuth(), { locale } = useT();
   const text = (ko: string, en: string) => locale === 'ko' ? ko : en;
@@ -24,7 +24,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
   const [creditUser, setCreditUser] = useState('');
   const [creditSnapshot, setCreditSnapshot] = useState<{ identity: string; userId: string; balance: number; symbol: string; appId: string } | null>(null);
   const [source, setSource] = useState<string | null>(null);
-  const [learning, setLearning] = useState<{ identity: string; key: string; memoryId: string; prompt: string; answer: string; consent: boolean } | null>(null);
+  const [learning, setLearning] = useState<{ identity: string; key: string; memoryId: string; prompt: string; answer: string; altPrompt: string; consent: boolean } | null>(null);
   const [trainingSnapshot, setTrainingSnapshot] = useState<{ identity: string; data: Training } | null>(null);
   const [trainingSelection, setTrainingSelection] = useState<string[]>([]), [trainingConsent, setTrainingConsent] = useState(false);
   const trainingKey = useRef<string | null>(null);
@@ -150,7 +150,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
         {state.memories.length > 0 && <p>{text('요청과 관련된 승인 기억을 최대 8개 사용합니다. 승인 철회는 이후 기억 목록에서 제외하며, 과거 대화 기록은 유지됩니다.', 'Up to eight approved memories are selected for each request. Revoking approval excludes a memory from future memory context. Existing conversation records remain.')}</p>}
         {state.memories.map((item) => <div key={item.id} id={`companion-memory-${item.id}`} style={{ marginTop: 12 }}>
           <p>{item.text}</p><small>{item.state}</small>
-          {item.state === 'approved' && <Button size="small" variant="text" disabled={busy} onClick={() => setLearning({ identity, key: crypto.randomUUID(), memoryId: item.id, prompt: state.tasks.find((task) => task.id === item.sourceTask)?.input ?? '', answer: item.text, consent: false })}>{text('학습 예제 검토', 'Review learning example')}</Button>}
+          {item.state === 'approved' && <Button size="small" variant="text" disabled={busy} onClick={() => setLearning({ identity, key: crypto.randomUUID(), memoryId: item.id, prompt: state.tasks.find((task) => task.id === item.sourceTask)?.input ?? '', answer: item.text, altPrompt: '', consent: false })}>{text('학습 예제 검토', 'Review learning example')}</Button>}
           {item.state === 'approved' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/memories/${item.id}/revoke`, {}))}>{text('기억 승인 철회', 'Revoke memory approval')}</Button>}
           {item.state === 'proposed'  && <div style={{ display: 'flex', gap: 12 }}>
             <Button size="small" disabled={busy} onClick={() => void action(() => request(`/memories/${item.id}/decision`, { approve: true }))}>{text('개인 기억 승인', 'Approve private memory')}</Button>
@@ -160,14 +160,17 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
         {draft && <div style={{ marginTop: 16 }}>
           <h4>{text('학습 질문·답변 검토', 'Review learning question and answer')}</h4>
           <p>{text('검토한 예제를 내 공간에 저장합니다. 모델 학습이나 공개 공유는 실행되지 않습니다.', 'Save a reviewed example in your private workspace. This does not start model training or publish the example.')}</p>
-          <textarea aria-label={text('학습 질문', 'Learning question')} value={draft.prompt} maxLength={12000} onChange={(event) => setLearning({ ...draft, prompt: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
-          <textarea aria-label={text('학습 답변', 'Learning answer')} value={draft.answer} maxLength={12000} onChange={(event) => setLearning({ ...draft, answer: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
-          <label><input type="checkbox" checked={draft.consent} onChange={(event) => setLearning({ ...draft, consent: event.target.checked })} />{text('질문·답변을 확인했고 개인 학습 예제로 저장하는 데 동의합니다.', 'I reviewed the question and answer and agree to save this private learning example.')}</label>
-          <div><Button size="small" disabled={busy || !draft.consent || !draft.prompt.trim() || !draft.answer.trim()} onClick={() => void action(async () => { await request('/learning/examples', { key: draft.key, memoryId: draft.memoryId, prompt: draft.prompt, answer: draft.answer, consent: true }); if (isCurrent()) setLearning(null); })}>{text('검토한 예제 저장', 'Save reviewed example')}</Button>
+          <textarea aria-label={text('학습 질문', 'Learning question')} value={draft.prompt} maxLength={400} onChange={(event) => setLearning({ ...draft, prompt: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
+          <textarea aria-label={text('학습 답변', 'Learning answer')} value={draft.answer} maxLength={200} onChange={(event) => setLearning({ ...draft, answer: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
+          <textarea aria-label={text('다른 표현의 확인 질문', 'Unseen evaluation question')} value={draft.altPrompt} maxLength={400} onChange={(event) => setLearning({ ...draft, altPrompt: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
+          <p>{text('같은 답변을 기대하는 다른 표현의 질문을 입력하세요. 이 질문은 학습에 사용하지 않고, 배운 내용을 이해했는지 평가할 때만 사용합니다.', 'Write a different question that should have the same answer. It is kept out of training and used only to check whether the lesson generalizes.')}</p>
+          <label><input type="checkbox" checked={draft.consent} onChange={(event) => setLearning({ ...draft, consent: event.target.checked })} />{text('학습 질문·답변과 확인 질문을 검토했고 개인 예제로 저장하는 데 동의합니다.', 'I reviewed the training question, answer and evaluation question and agree to save this private example.')}</label>
+          <div><Button size="small" disabled={busy || !draft.consent || !draft.prompt.trim() || !draft.answer.trim() || !draft.altPrompt.trim() || draft.altPrompt.trim() === draft.prompt.trim() || draft.prompt.length > 400 || draft.answer.length > 200} onClick={() => void action(async () => { await request('/learning/examples', { key: draft.key, memoryId: draft.memoryId, prompt: draft.prompt, answer: draft.answer, altPrompt: draft.altPrompt, consent: true }); if (isCurrent()) setLearning(null); })}>{text('검토한 예제 저장', 'Save reviewed example')}</Button>
           <Button size="small" variant="text" disabled={busy} onClick={() => setLearning(null)}>{text('취소', 'Cancel')}</Button></div>
         </div>}
         {(state.learningExamples ?? []).map((example) => <article key={example.id} style={{ padding: 12, marginTop: 12, border: '1px solid #ddd' }}>
           <p style={{ whiteSpace: 'pre-wrap' }}>{example.prompt}</p><p style={{ whiteSpace: 'pre-wrap' }}>{example.answer}</p>
+          {example.altPrompt ? <p style={{ whiteSpace: 'pre-wrap' }}>{text('확인 질문', 'Evaluation question')}: {example.altPrompt}</p> : <p>{text('학습하려면 승인한 기억에서 예제를 다시 검토하고 다른 표현의 확인 질문을 추가하세요.', 'To train this memory, review a new example and add a different evaluation question.')}</p>}
           <small>{example.state === 'reviewed' ? text('검토한 예제 · 저장됨', 'Reviewed example · saved') : text('사용 철회', 'Withdrawn')}</small>
           {example.state === 'reviewed' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/learning/examples/${example.id}/withdraw`, {}))}>{text('예제 사용 철회', 'Withdraw example')}</Button>}
         </article>)}
@@ -178,7 +181,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
             {!training.capability.available && <Alert $tone="error">{training.capability.reason}</Alert>}
             {training.capability.available && <>
               <p>{text('학습할 예제를 선택하세요. 작업은 노드의 학습 자원을 사용하며, 평가된 초안을 만들지만 자동으로 에이전트에 적용하거나 자료를 공개하지 않습니다. 연결된 블록체인에는 지갑 주소·작업 상태·자료 해시가 기록될 수 있습니다.', 'Select examples to train. The job uses node training resources and creates an evaluated draft; it does not automatically apply it to the agent or publish its contents. A connected blockchain may record your wallet address, job status and dataset hash.')}</p>
-              {(state.learningExamples ?? []).filter((example) => example.state === 'reviewed').map((example) => <label key={example.id} style={{ display: 'block' }}><input type="checkbox" disabled={busy} checked={trainingSelection.includes(example.id)} onChange={(event) => { setTrainingSelection(event.target.checked ? [...trainingSelection, example.id] : trainingSelection.filter((id) => id !== example.id)); setTrainingConsent(false); trainingKey.current = null; }} />{example.prompt}</label>)}
+              {(state.learningExamples ?? []).filter((example) => example.state === 'reviewed' && example.altPrompt?.trim()).map((example) => <label key={example.id} style={{ display: 'block' }}><input type="checkbox" disabled={busy} checked={trainingSelection.includes(example.id)} onChange={(event) => { setTrainingSelection(event.target.checked ? [...trainingSelection, example.id] : trainingSelection.filter((id) => id !== example.id)); setTrainingConsent(false); trainingKey.current = null; }} />{example.prompt}</label>)}
               <label style={{ display: 'block' }}><input type="checkbox" disabled={busy} checked={trainingConsent} onChange={(event) => setTrainingConsent(event.target.checked)} />{text('선택한 예제와 모델을 확인했고 학습 실행에 동의합니다.', 'I reviewed the selected examples and model and agree to run training.')}</label>
               <Button size="small" disabled={busy || !trainingConsent || !trainingSelection.length} onClick={() => void action(async () => {
                 trainingKey.current ??= crypto.randomUUID();
@@ -189,6 +192,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
             {training.runs.map((run) => <div key={run.id} style={{ marginTop: 12 }}><small aria-live="polite">{ainftTrainingLabel(run.job, run.state, locale)}</small>
               {run.state === 'unknown' && <Alert $tone="error">{text('제출 결과를 확인할 수 없습니다. 중복 실행을 막기 위해 같은 요청을 다시 제출하지 않습니다. 노드 운영자의 확인이 필요합니다.', 'The submission outcome is unknown. This request will not be submitted again. Ask the node operator to reconcile the job.')}</Alert>}
               {run.job?.error && <Alert $tone="error">{ainftTrainingFailure(run.job.error, locale)}</Alert>}
+              {run.job?.draftId && run.job.applicationVerified !== true && run.job.verificationIssues?.map((issue) => <p key={issue}>{ainftTrainingVerificationIssue(issue, locale)}</p>)}
               {run.job?.draftId && run.job.applicationVerified !== true && <p>{text('실제 모델 평가와 원상복구 검증이 필요합니다. 검증을 통과한 후 선택할 수 있습니다.', 'Live model evaluation and restoration must be verified before this lesson can be selected.')}</p>}
               {run.job?.draftId && run.job.applicationVerified === true && <p>{run.job.status === 'READY' ? (training.selectedRunId === run.id ? (training.capability.available ? text('다음 보유자 대화에 사용할 학습', 'Selected for subsequent holder conversations') : text('선택은 저장됐지만 현재 적용이 중지됨', 'Selection saved; application is currently paused')) : run.eligible ? (training.capability.available ? text('평가 통과 · 선택 가능', 'Evaluation passed · available to select') : text('평가 통과 · 현재 학습 실행 환경을 사용할 수 없음', 'Evaluation passed; the learning runtime is currently unavailable')) : text('평가 통과 · 현재 예제 또는 릴리스로 사용할 수 없음', 'Evaluation passed · examples or release no longer eligible')) : text('학습 초안 생성됨 · 평가 상태 확인 필요', 'Training draft created · check evaluation status')}</p>}
               {run.job?.status === 'READY' && run.eligible && !(training.publications ?? []).some((item) => item.runId === run.id) && <Button size="small" disabled={busy} onClick={() => setPublicationIntent({ identity, key: crypto.randomUUID(), runId: run.id, name: '', description: '', permanent: false, rights: false })}>{text('공유 공개 검토', 'Review shared publication')}</Button>}
