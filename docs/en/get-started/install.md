@@ -10,7 +10,7 @@ ainize --version
 ainize --help
 ```
 
-AinCode workspaces reach Ainize through their gateway. Package downloads and public Git clones require a separate preparation path; the local installation and CLI development commands below do not run unchanged in this workspace. Keep your practice files and progress in the selected AinDrive Git repository.
+The workspace agent uses Qwen3.8-Flash-Next by default; to use GLM-5.3-Flash instead, pick it in the model selector (`/models` in the terminal UI). AinCode workspaces reach Ainize through their gateway. Package downloads and public Git clones require a separate preparation path; the local installation and CLI development commands below do not run unchanged in this workspace. Keep your practice files and progress in the selected AinDrive Git repository.
 
 ## On your own machine
 
