@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 export function verifyRelease(body, expectedSha) {
@@ -8,7 +8,7 @@ export function verifyRelease(body, expectedSha) {
   if (release?.sha !== expectedSha) throw new Error('Public origin is serving a different release');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   try {
     verifyRelease(readFileSync(0, 'utf8'), process.argv[2]);
     console.log('  public origin matches the deployed release');
