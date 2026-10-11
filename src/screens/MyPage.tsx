@@ -12,7 +12,8 @@
  */
 import { useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useMyNodesQuery, useRevokeApiKeyMutation } from '@/api/api';
+import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useMyOrgsQuery, useMyNodesQuery, useRevokeApiKeyMutation } from '@/api/api';
+import { parseOrgList } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -29,7 +30,9 @@ const Links = styled.div`display: flex; gap: 18px; flex-wrap: wrap; margin-top: 
 export default function MyPage() {
   const { t } = useT();
   useTitle(t('me.title'));
-  const { isOwner, sso } = useAuth();
+  const { isOwner, sso, isSignedIn } = useAuth();
+  const organizationQuery = useMyOrgsQuery(undefined, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
+  const memberships = isSignedIn ? parseOrgList(organizationQuery.data).orgs : [];
   const { data: me, isLoading } = useMeQuery();
   /**
    * An AIN account makes keys for one of its organizations, or personal ones (ainize-node src/sso.ts). The default
@@ -65,6 +68,19 @@ export default function MyPage() {
             {orgs.length > 0 && <> · {t('me.identity.orgs', { orgs: orgs.map((o) => o.name).join(', ') })}</>}
           </Description>
         )}
+      </Panel>
+
+      <SubTitle>{t('orgs.mine')}</SubTitle>
+      <Panel data-testid="me-organizations">
+        {organizationQuery.isLoading && <CenterProgress />}
+        {organizationQuery.error && <Alert $tone="error">{t('common.error', { message: errorMessage(organizationQuery.error) })} <Button size="small" onClick={() => void organizationQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
+        {!organizationQuery.isLoading && !organizationQuery.error && memberships.length === 0 && <Description>{t('orgs.empty')}</Description>}
+        {memberships.map((org) => <Row key={org.id}>
+          <StyledLink to={`/org/${encodeURIComponent(org.id)}`}>{org.name}</StyledLink>
+          {org.my_role && <span>{t(`org.role.${org.my_role}`)}</span>}
+          <span>{t('orgs.agents', { n: org.agent_count })}</span>
+        </Row>)}
+        <Links><StyledLink to="/org">{t('orgs.mine')} →</StyledLink></Links>
       </Panel>
 
       <SubTitle>{t('myAgents.title')}</SubTitle>
