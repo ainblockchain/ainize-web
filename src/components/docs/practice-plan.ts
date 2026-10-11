@@ -25,7 +25,7 @@ export function practicePlan(source: string, lang: string, slug: string) {
       const requirements = [
         ...(kind === 'command' && /(?:^|\n)\s*ainize(?:-agent)?\s/.test(block.code) && /\[(?:options|[A-Za-z][\w.-]*(?:…|\.\.\.)?)\]|<[^>]+>/.test(block.code) ? ['command-template'] : []),
         ...(/\bainize(?:-agent)?\b/.test(block.code) ? ['ainize-cli'] : []),
-        ...(/\b(?:docker|nvidia-smi|systemctl)\b|\bainize\s+(?:init|start|stop|config|verify|agent\s+add)\b/.test(block.code) ? ['node-operator'] : []),
+        ...(/\b(?:docker|nvidia-smi|systemctl)\b|\bainize\s+(?:init|start|stop|config|verify|agent\s+add|wallet|ledger\s+inference)\b/.test(block.code) ? ['node-operator'] : []),
         ...(/\b(?:pip|npm|git clone)\b/.test(block.code) ? ['package-or-git-access'] : []),
         ...(/\b(?:python|import ainize)\b/.test(block.code) || language === 'python' ? ['python-runtime'] : []),
         ...(/<[^>]+>|\/path\/to\/|YOUR_|REPLACE_/.test(block.code) ? ['user-input'] : []),

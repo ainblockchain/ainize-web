@@ -66,3 +66,11 @@ test('CLI usage templates remain ordered steps and distinguish optional syntax f
   assert.ok(!plan.steps[3].requirements.includes('command-template'));
   assert.equal(plan.steps[0].code, 'ainize teach jobs [options]');
 });
+
+
+test('wallet and inference ledger examples use a personal operator node', () => {
+  const plan = practicePlan('# Operator\n\n```bash\nainize wallet show\n```\n\n```bash\nainize ledger inference [id] [options]\n```\n\n```bash\nainize patch get known-id\n```', 'en', 'reference/cli');
+  assert.ok(plan.steps[0].requirements.includes('node-operator'));
+  assert.ok(plan.steps[1].requirements.includes('node-operator'));
+  assert.ok(!plan.steps[2].requirements.includes('node-operator'));
+});
