@@ -1,6 +1,6 @@
-# Connect nodes to your wallet
+# Connect nodes to your AIN account
 
-Sign in at [Ainize](/signing) with any MetaMask or compatible wallet. No particular address is required.
+Sign in at [Ainize](/signing) with your AIN account (SSO) or a compatible wallet. In your personal AinCode workspace, the existing AIN session connects the node to your account automatically.
 
 ## Connect a node
 
@@ -16,13 +16,13 @@ ainize login --home ~/.ainize-a
 ainize start --home ~/.ainize-a -d
 ```
 
-`login` opens the website. If you are already signed in, approve the node with that wallet. Otherwise sign in first; you will return to the approval page. On SSH or a machine without a browser, open the printed link yourself. `--no-open` prints the link without opening it.
+In personal AinCode, run `login --no-open`: the workspace uses your existing AIN session, so no separate Drive or wallet approval is needed. Outside AinCode, `login` opens the website; sign in and approve the node there. On SSH or a machine without a browser, open the printed link yourself. `--no-open` prevents opening a browser.
 
 The node appears in [My nodes](/my-nodes). A running CLI node reports its status every minute. Linking lets it report status; it does not authorize wallet spending or account operations.
 
 ## Connect another node
 
-Use a different home and port, then approve with the same wallet:
+Use a different home and port with the same account:
 
 ```bash
 ainize init --home ~/.ainize-b --name node-b --port 3403
