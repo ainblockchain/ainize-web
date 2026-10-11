@@ -4,5 +4,7 @@ export function serviceRootRedirect(url: string, method: string): string | null 
   const parsed = new URL(url);
   if (!/^\/svc\/[^/]+$/.test(parsed.pathname)) return null;
   parsed.pathname += '/';
+  // Older Next releases cached the opposite 308. A distinct URI escapes that cache.
+  parsed.searchParams.set('_ain_mount', '1');
   return parsed.pathname + parsed.search;
 }

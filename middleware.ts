@@ -32,10 +32,8 @@ export async function middleware(req: NextRequest) {
   // Keep the existing slash-free URLs for the rest of this site.
   const pathname = req.nextUrl.pathname;
   if (!pathname.startsWith('/svc/') && pathname !== '/' && pathname.endsWith('/')) {
-    const canonical = new URL(req.url);
-    if (host) canonical.host = host;
-    canonical.protocol = (req.headers.get('x-forwarded-proto') ?? canonical.protocol.replace(':', '')) + ':';
-    canonical.pathname = pathname.replace(/\/+$/, '');
+    const protocol = req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '');
+    const canonical = new URL(`${protocol}://${host ?? req.nextUrl.host}${pathname.replace(/\/+$/, '')}${req.nextUrl.search}`);
     return NextResponse.redirect(canonical, 308);
   }
   const snippet = ainuiSnippetTarget(req);
