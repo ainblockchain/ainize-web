@@ -32,6 +32,10 @@ export const me: Dict = {
   'me.keys.create': { ko: '키 발급', en: 'Create a key' },
   'me.keys.creating': { ko: '발급 중…', en: 'Creating…' },
   'me.keys.created': { ko: '발급됨', en: 'Created' },
+  'me.keys.name': { ko: '키 이름', en: 'Key name' },
+  'me.keys.name_placeholder': { ko: '예: 고객지원 봇 운영용', en: 'e.g. Support bot production' },
+  'me.keys.name_hint': { ko: '어디에 사용할 키인지 이름을 붙이세요. 최대 60자입니다.', en: 'Name the app or purpose this key is for. Up to 60 characters.' },
+  'me.keys.name_duplicate': { ko: '같은 이름의 키가 있습니다. 용도를 구분할 수 있는 다른 이름을 입력하세요.', en: 'A key already has this name. Choose another name to distinguish its purpose.' },
   'me.keys.label': { ko: '이름', en: 'Label' },
   'me.keys.revoke': { ko: '폐기', en: 'Revoke' },
   'me.keys.once': {

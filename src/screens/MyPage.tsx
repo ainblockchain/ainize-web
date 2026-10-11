@@ -16,7 +16,7 @@ import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, use
 import { parseOrgList } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { Alert } from '@/components/ui/Form';
+import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
@@ -47,6 +47,9 @@ export default function MyPage() {
   const { data: myNodes } = useMyNodesQuery(undefined, { skip: !me?.subject });
   const [createKey, createState] = useCreateApiKeyMutation();
   const [revokeKey] = useRevokeApiKeyMutation();
+  const [keyName, setKeyName] = useState('');
+  const label = keyName.trim();
+  const duplicateName = !!label && !!keys?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === label.toLocaleLowerCase());
   const [issued, setIssued] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,22 +144,25 @@ export default function MyPage() {
             <Description style={{ margin: 0 }}>{t('me.keys.org_hint')}</Description>
           </Row>
         )}
-        <Row>
-          <Button
-            type="button"
-            data-testid="me-create-key"
-            disabled={createState.isLoading}
-            onClick={() => {
-              setError(null);
-              void createKey(scope !== undefined ? { org_id: scope } : {}).unwrap()
-                .then((r) => setIssued(r.api_key))
-                .catch((e: unknown) => setError(errorMessage(e)));
-            }}
-          >
-            {createState.isLoading ? t('me.keys.creating') : t('me.keys.create')}
-          </Button>
-          <StyledLink to="/models">{t('me.keys.models')}</StyledLink>
-        </Row>
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          if (!label || duplicateName || createState.isLoading) return;
+          setError(null);
+          void createKey({ label, ...(scope !== undefined ? { org_id: scope } : {}) }).unwrap()
+            .then((r) => { setIssued(r.api_key); setKeyName(''); })
+            .catch((e: unknown) => setError(errorMessage(e)));
+        }}>
+          <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
+            helper={duplicateName ? t('me.keys.name_duplicate') : t('me.keys.name_hint')} error={duplicateName}
+            data-testid="me-key-name" value={keyName} onChange={(event) => setKeyName(event.target.value)}
+            maxLength={60} required disabled={createState.isLoading} />
+          <Row>
+            <Button type="submit" data-testid="me-create-key" disabled={createState.isLoading || !label || duplicateName}>
+              {createState.isLoading ? t('me.keys.creating') : t('me.keys.create')}
+            </Button>
+            <StyledLink to="/models">{t('me.keys.models')}</StyledLink>
+          </Row>
+        </form>
         {error && <Alert>{t('me.keys.failed', { why: error })}</Alert>}
       </Panel>
 
