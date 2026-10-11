@@ -18,6 +18,8 @@ import { Alert } from '@/components/ui/Form';
 import { Description, StyledLink } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import type { AgentVisibility } from '@/api/sharedAgents';
+import { AinftRegistrationPanel } from './AinftRegistrationPanel';
+import { AinftCommunityPanel } from './AinftCommunityPanel';
 import { AgentVisibilityControl } from '@/components/agent/AgentVisibilityControl';
 
 const HostedAgentOwnerBox = styled.div`
@@ -76,6 +78,8 @@ export function HostedAgentOwnerPanel({ agentId, agentName, visibility = null, o
         )}
       </HostedAgentOwnerRow>
       {deleteError && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: deleteError })}</Alert>}
+      <AinftRegistrationPanel agentId={agentId} />
+      <AinftCommunityPanel agentId={agentId} />
       {canAdminister && <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />}
       {logsOpen && (
         logs.error

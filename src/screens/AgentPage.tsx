@@ -41,6 +41,8 @@ import { OrganizationName } from '@/components/agent/OrganizationName';
 import { agentSummaryHostedFieldsOf, isHostedAgentOwnedBy } from '@/api/hostedAgents';
 import { HostedAgentBadges } from '@/components/public/HostedAgentBadges';
 import { useT } from '@/i18n';
+import { AinftCompanionPanel } from './agent/AinftCompanionPanel';
+import { AinftBindingPanel } from './agent/AinftBindingPanel';
 import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
 import { AgentHistoryPanel } from './agent/AgentHistoryPanel';
 import { LinkedAgentOwnerPanel } from './agent/LinkedAgentOwnerPanel';
@@ -443,13 +445,15 @@ export function AgentPage() {
       </UrlRow>
       <Small>
         Give this to a workspace to invite the agent ·{' '}
-        <ExternalLink href={samePath(agent.card_url)}>open the card</ExternalLink> · A2A sends no
-        authentication, so whoever can reach the endpoint can call it
+        <ExternalLink href={samePath(agent.card_url)}>open the card</ExternalLink> · Check the card's
+        sign-in requirements before calling this agent.
       </Small>
 
       {hosted.status === 'building' && <Alert $tone="info" style={{ marginTop: 16 }}>{t('hostedAgent.status.building_help')}</Alert>}
       {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
 
+      {hosted && <AinftBindingPanel agentId={agent.id} />}
+      {hosted && <AinftCompanionPanel agentId={agent.id} />}
       {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} />}
       {/* The history is shown to anyone who can see the agent, not only to whoever owns it: how an agent
           reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
