@@ -6,7 +6,7 @@
  * same `data-testid`s — rather than being rewritten beside the list. The rule it was built on still holds: the
  * snippet is built from the state the playground just used, so the code copied is the call made.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useThroughputQuoteQuery } from '@/api/api';
 import { parseBillingThroughputResponse } from '@/api/billingThroughput';
@@ -70,6 +70,7 @@ type RunState =
   | { kind: 'text'; text: string; remaining: number | null }
   | { kind: 'image'; dataUrl: string; remaining: number | null }
   | { kind: 'decision'; answers: Record<string, unknown>; remaining: number | null }
+  | { kind: 'audio'; url: string }
   | { kind: 'failed'; why: string };
 
 /**
@@ -87,6 +88,9 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
   const [prompt, setPrompt] = useState(() => (model.modality === 'decision' ? DECISION_EXAMPLE : ''));
   const [audio, setAudio] = useState<File | null>(null);
   const [run, setRun] = useState<RunState>({ kind: 'idle' });
+  useEffect(() => {
+    if (run.kind === 'audio') return () => URL.revokeObjectURL(run.url);
+  }, [run]);
   const [language, setLanguage] = useState<SnippetLanguage>('python');
   const [copied, setCopied] = useState(false);
 
@@ -128,10 +132,14 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
   async function press() {
     setRun({ kind: 'running' });
     try {
-      const res = await callFreeTier(model, modelRef, peer, prompt, audio);
+      const res = await callFreeTier(model, modelRef, peer, prompt, audio, issuedKey);
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
         setRun({ kind: 'failed', why: body?.error?.code === 'backend_unavailable' ? t('models.try.unavailable') : (body?.error?.message ?? String(res.status)) });
+        return;
+      }
+      if (model.modality === 'speech') {
+        setRun({ kind: 'audio', url: URL.createObjectURL(await res.blob()) });
         return;
       }
       const body = await res.json() as Record<string, unknown>;
@@ -216,6 +224,7 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
                 ))}
               </Decisions>
             )}
+            {run.kind === 'audio' && <audio controls src={run.url} aria-label="Generated speech" />}
             {run.kind === 'failed' && <Alert>{t('models.try.failed', { why: run.why })}</Alert>}
             {(run.kind === 'text' || run.kind === 'image' || run.kind === 'decision') && run.remaining !== null && (
               <Description>{t('models.try.free', { n: String(run.remaining) })}</Description>
@@ -326,7 +335,12 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
 }
 
 /** The free-tier route for this modality. Not `/v1`: that needs a key, and this page has no visitor to sign in. */
-function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, prompt: string, audio: File | null): Promise<Response> {
+function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, prompt: string, audio: File | null, apiKey: string | null): Promise<Response> {
+  if (model.modality === 'embedding' || model.modality === 'speech') {
+    if (!apiKey) throw new Error('Create an API key below to try this model.');
+    const path = model.modality === 'embedding' ? 'embeddings' : 'audio/speech';
+    return fetch(`/v1/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: modelRef, input: prompt, ...(model.modality === 'speech' ? { voice: 'default' } : {}) }) });
+  }
   if (model.modality === 'transcription') {
     const form = new FormData();
     form.set('model', modelRef);
