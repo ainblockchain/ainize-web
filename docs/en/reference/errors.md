@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 127 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 129 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 69 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -199,11 +199,13 @@ A further 69 throw sites build their message at the time (a validator's own word
 | `null` | an organization keeps at least one admin | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
+| `null` | Audio response is too large | `src/peer-models.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
 | `null` | invalid agent source path | `src/agent-git.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
+| `null` | Model backend failed | `src/peer-models.ts` |
 | `null` | one account may create \<this.limits.perCreator> organizations on this node | `src/organization-store.ts` |
 | `null` | one account may link \<this.limits.perOwner> agents on this node | `src/linked-agent-store.ts` |
 | `null` | only a signed-in member of the AIN organization \<id> can link it | `src/organization-store.ts` |

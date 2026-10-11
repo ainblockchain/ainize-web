@@ -13,6 +13,19 @@ import { DECISION_EXAMPLE, modelsPageCodeSnippet, pythonLiteral, SNIPPET_LANGUAG
 
 const base = { model: 'qwen2.5-7b-instruct', nodeUrl: 'https://node.example', prompt: 'hello' } as const;
 
+test('embedding and speech snippets call the appropriate SDK methods', () => {
+  for (const language of ['python', 'typescript'] as const) {
+    const embedding = modelsPageCodeSnippet({ ...base, language, modality: 'embedding' });
+    const speech = modelsPageCodeSnippet({ ...base, language, modality: 'speech' });
+    assert.match(embedding, /client\.embeddings\.create/);
+    assert.match(speech, /client\.audio\.speech/);
+    assert.match(speech, /out\.mp3/);
+    assert.doesNotMatch(embedding + speech, /chat\.completions/);
+  }
+  assert.match(modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'embedding' }), /\/v1\/embeddings/);
+  assert.match(modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'speech' }), /\/v1\/audio\/speech/);
+});
+
 test('the python snippet installs, connects and calls', () => {
   const s = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat' });
   assert.match(s, /pip install ainize/);

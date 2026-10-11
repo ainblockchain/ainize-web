@@ -15,6 +15,8 @@ export const models: Dict = {
   'models.modality.transcription': { ko: '음성 인식', en: 'Speech to text' },
   'models.modality.image': { ko: '이미지 생성', en: 'Images' },
   'models.modality.decision': { ko: '의사결정', en: 'Decisions' },
+  'models.modality.embedding': { ko: '임베딩', en: 'Embeddings' },
+  'models.modality.speech': { ko: '음성 합성', en: 'Text to speech' },
   'models.available': { ko: '응답 중', en: 'answering' },
   'models.unavailable': { ko: '응답 없음', en: 'not answering' },
   'models.select': { ko: '선택', en: 'Select' },
