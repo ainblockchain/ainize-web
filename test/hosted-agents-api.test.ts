@@ -223,3 +223,22 @@ test('the model page tells not-served, older-node and offline apart', () => {
   assert.equal(modelDetailViewState({ ...base, detailError: { status: 404 }, listError: { status: 'PARSING_ERROR', originalStatus: 404 } }).kind, 'outdated');
   assert.equal(modelDetailViewState({ ...base, detailError: { status: 'FETCH_ERROR' }, listError: { status: 'FETCH_ERROR' } }).kind, 'offline');
 });
+
+test('the builder accepts original long prompts within the node limit and rejects overflow', () => {
+  assert.deepEqual(hostedAgentFormProblems(draft({ systemPrompt: 'x'.repeat(19592) })), []);
+  assert.ok(hostedAgentFormProblems(draft({ systemPrompt: 'x'.repeat(131073) })).some(problem => problem.field === 'systemPrompt'));
+});
+
+test('capabilities and examples survive creation while invalid card fields are refused', () => {
+  const skills = [{ id: 'artwork', name: 'Artwork guide', description: 'Explain the artist’s work', examples: ['Tell me about this artwork'] }];
+  const input = draft({ skills });
+  assert.deepEqual(hostedAgentFormProblems(input), []);
+  assert.deepEqual(hostedAgentSpecInputFromDraft(input).skills, skills);
+  for (const bad of [
+    [{ ...skills[0], name: '' }],
+    [skills[0], skills[0]],
+    [{ ...skills[0], examples: Array(5).fill('question') }],
+    [{ ...skills[0], examples: ['x'.repeat(301)] }],
+    Array.from({ length: 9 }, (_, i) => ({ ...skills[0], id: String(i) })),
+  ]) assert.ok(hostedAgentFormProblems(draft({ skills: bad })).some(problem => problem.field === 'skills'));
+});
