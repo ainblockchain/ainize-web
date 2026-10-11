@@ -23,6 +23,7 @@ import { silentSsoStart } from './src/lib/silentSso';
 import { silentSignIn } from './src/lib/silentSignIn';
 import { ainuiSnippetTarget } from './src/lib/ainuiSnippet';
 import { relayToNode } from './src/lib/proxy';
+import { needsServiceCacheMigration, SERVICE_CACHE_REVISION } from './src/lib/serviceCacheMigration';
 
 export async function middleware(req: NextRequest) {
   const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
@@ -44,7 +45,18 @@ export async function middleware(req: NextRequest) {
     return relayToNode(bare, snippet);
   }
   if (silentSsoStart(req)) return silentSignIn(req, req.nextUrl.pathname + req.nextUrl.search);
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (needsServiceCacheMigration({
+    method: req.method, pathname, accept: req.headers.get('accept') ?? '',
+    prefetch: req.headers.has('next-router-prefetch') || req.headers.get('purpose') === 'prefetch',
+    revision: req.cookies.get('ainize-service-cache')?.value,
+  })) {
+    response.headers.set('Clear-Site-Data', '"cache"');
+    response.cookies.set('ainize-service-cache', SERVICE_CACHE_REVISION, {
+      path: '/', secure: true, httpOnly: true, sameSite: 'lax', maxAge: 31536000,
+    });
+  }
+  return response;
 }
 
 export const config = {
