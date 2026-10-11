@@ -98,7 +98,7 @@ export const HOSTED_AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/;
 /** Secret names are environment variables inside the container — hence upper-case with underscores. */
 export const HOSTED_AGENT_SECRET_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
 /** The node's caps (spec §Concepts). Mirrored for the form, which is not the authority — the node still checks. */
-export const HOSTED_AGENT_LIMITS = { name: 80, description: 500, systemPrompt: 8000, filesBytes: 1024 * 1024 } as const;
+export const HOSTED_AGENT_LIMITS = { name: 80, description: 500, systemPrompt: 131072, skills: 8, filesBytes: 1024 * 1024 } as const;
 /** The entry file of a code agent. */
 export const HOSTED_AGENT_ENTRY_FILE = 'index.mjs';
 
@@ -238,6 +238,11 @@ export function hostedAgentFormProblems(draft: HostedAgentFormDraft, orgs?: read
   if (!draft.model) problems.push({ field: 'model', key: 'agentCreate.err.model_required' });
   if (draft.systemPrompt.length > HOSTED_AGENT_LIMITS.systemPrompt) problems.push({ field: 'systemPrompt', key: 'agentCreate.err.prompt_long' });
   if (draft.mode === 'prompt' && !draft.systemPrompt.trim()) problems.push({ field: 'systemPrompt', key: 'agentCreate.err.prompt_required' });
+  if (draft.skills && (draft.skills.length > HOSTED_AGENT_LIMITS.skills
+    || new Set(draft.skills.map(skill => skill.id.trim())).size !== draft.skills.length
+    || draft.skills.some(skill => !skill.id.trim() || skill.id.trim().length > 64 || !skill.name.trim() || skill.name.trim().length > 80
+      || (skill.description?.trim().length ?? 0) > 300 || (skill.examples?.length ?? 0) > 4
+      || skill.examples?.some(example => example.length > 300)))) problems.push({ field: 'skills', key: 'agentCreate.err.skills' });
   if (isHostedAgentCodeMode(draft.mode)) {
     if (!draft.code.trim()) problems.push({ field: 'code', key: 'agentCreate.err.code_required' });
     if (draft.packageJson.trim()) {

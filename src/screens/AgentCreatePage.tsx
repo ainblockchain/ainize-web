@@ -26,7 +26,7 @@ import {
   useCreateHostedAgentMutation, useHostedAgentQuery, useModelsQuery, useNetworkModelsQuery, useSetHostedAgentSecretMutation, useUpdateHostedAgentMutation,
 } from '@/api/api';
 import {
-  chatModelsForHostedAgent, hostedAgentMediaServed, HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
+  chatModelsForHostedAgent, hostedAgentMediaServed, HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_LIMITS, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
   hostedAgentFormProblems, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
   isHostedAgentCodeMode, parseHostedAgentSpecResponse,
   type HostedAgentApiError, type HostedAgentFormDraft, type HostedAgentFormProblem, type HostedAgentMode,
@@ -268,11 +268,44 @@ export default function AgentCreatePage() {
           <h2>{t('agentCreate.section.behaviour')}</h2>
           <Field>
             <FieldLabel htmlFor="agent-create-prompt">{t('agentCreate.field.system_prompt')}</FieldLabel>
-            <Textarea id="agent-create-prompt" value={draft.systemPrompt} maxLength={8000} style={{ minHeight: 140 }} data-testid="agent-create-prompt"
+            <Textarea id="agent-create-prompt" value={draft.systemPrompt} maxLength={HOSTED_AGENT_LIMITS.systemPrompt} style={{ minHeight: 140 }} data-testid="agent-create-prompt"
               placeholder={t('agentCreate.field.system_prompt_placeholder')} onChange={(e) => set('systemPrompt', e.target.value)} />
             <HelperText $error={!!problemFor('systemPrompt')}>
               {problemFor('systemPrompt') ? t(problemFor('systemPrompt')!.key) : t(`agentCreate.mode.${draft.mode}.prompt_help`)}
             </HelperText>
+          </Field>
+
+          <Field>
+            <FieldLabel as="div">{t('agentCreate.skills.title')}</FieldLabel>
+            <HelperText>{t('agentCreate.skills.help')}</HelperText>
+            {(draft.skills ?? []).map((skill, index) => (
+              <AgentCreateSection key={skill.id} data-testid="agent-create-skill">
+                <Field>
+                  <FieldLabel htmlFor={`agent-skill-name-${index}`}>{t('agentCreate.skills.name')}</FieldLabel>
+                  <Input id={`agent-skill-name-${index}`} value={skill.name} maxLength={80}
+                    onChange={(e) => set('skills', draft.skills!.map((item, i) => i === index ? { ...item, name: e.target.value } : item))} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`agent-skill-description-${index}`}>{t('agentCreate.skills.description')}</FieldLabel>
+                  <Textarea id={`agent-skill-description-${index}`} value={skill.description ?? ''} maxLength={300}
+                    onChange={(e) => set('skills', draft.skills!.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`agent-skill-examples-${index}`}>{t('agentCreate.skills.examples')}</FieldLabel>
+                  <Textarea id={`agent-skill-examples-${index}`} value={(skill.examples ?? []).join('\n')}
+                    onChange={(e) => set('skills', draft.skills!.map((item, i) => i === index ? { ...item, examples: e.target.value.split('\n') } : item))} />
+                  <HelperText>{t('agentCreate.skills.examples_help')}</HelperText>
+                </Field>
+                <Button type="button" size="small" variant="text" onClick={() => set('skills', draft.skills!.filter((_, i) => i !== index))}>
+                  {t('agentCreate.skills.remove')}
+                </Button>
+              </AgentCreateSection>
+            ))}
+            <Button type="button" size="small" variant="text" disabled={(draft.skills?.length ?? 0) >= HOSTED_AGENT_LIMITS.skills}
+              data-testid="agent-create-add-skill" onClick={() => set('skills', [...(draft.skills ?? []), { id: `skill-${crypto.randomUUID()}`, name: '', description: '', examples: [] }])}>
+              {t('agentCreate.skills.add')}
+            </Button>
+            {problemFor('skills') && <HelperText $error>{t(problemFor('skills')!.key)}</HelperText>}
           </Field>
 
           <Field>
