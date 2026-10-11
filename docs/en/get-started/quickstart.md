@@ -8,11 +8,14 @@ Start a local node, inspect it, then connect it to a compatible model. Install t
 ```bash
 export AINIZE_HOME="$HOME/ainize-quickstart"
 ainize init --name quickstart --port 3694 --roles seller
+ainize login --no-open
 ainize start -d
 ainize status
 ainize login --node-key
 ainize wallet
 ```
+
+Connect the node to your AIN account before starting it. In personal AinCode, `login --no-open` uses your existing AIN SSO session automatically. Outside AinCode, open the printed website link and approve the connection. The later `login --node-key` signs in as the local operator.
 
 A local ledger starts with test CREDIT. It is not an AIN mainnet balance.
 `ainize login --node-key` on the node's machine signs with that node's key.

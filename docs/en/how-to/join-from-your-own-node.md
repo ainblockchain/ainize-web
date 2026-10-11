@@ -8,11 +8,14 @@ Install Node 24+ and use a new home directory:
 npm install -g ainize
 export AINIZE_HOME="$HOME/ainize-joiner"
 ainize init --name joiner --port 3455 --peer https://ainize.ai --roles seller
+ainize login --no-open
 ainize start -d
 ainize status
 ainize login --node-key
 ainize nodes
 ```
+
+Connect the node to your AIN account before starting it. In personal AinCode, `login --no-open` uses your existing AIN SSO session automatically. Outside AinCode, open the printed website link and approve the connection. The later `login --node-key` signs in as the local operator.
 
 The default local ledger uses CREDIT. It does not share balances with AIN mainnet.
 Check ledger compatibility before connecting other peers.
