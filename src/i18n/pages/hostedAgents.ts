@@ -54,6 +54,9 @@ export const hostedAgents: Dict = {
   'agentCreate.field.model_pick': { ko: '모델 선택', en: 'Choose a model' },
   'agentCreate.field.model_help': { ko: '에이전트는 대화 모델로만 만들 수 있습니다.', en: 'Agents are built on chat models.' },
   'agentCreate.field.model_link': { ko: '모델 보기 →', en: 'See the model →' },
+  'agentCreate.field.model_loading': { ko: '모델 목록을 불러오는 중입니다.', en: 'Loading available models.' },
+  'agentCreate.field.model_failed': { ko: '모델 목록을 불러오지 못했습니다. 다시 시도해 주세요.', en: 'Could not load models. Please retry.' },
+  'agentCreate.field.model_retry': { ko: '모델 목록 다시 불러오기', en: 'Reload models' },
   'agentCreate.field.model_none': { ko: '이 노드는 대화 모델을 서빙하지 않아 에이전트를 만들 수 없습니다.', en: 'This node serves no chat model, so no agent can be built on it.' },
   'agentCreate.field.model_down': {
     ko: '이 모델은 지금 응답하지 않습니다. 만들 수는 있지만, 모델이 돌아올 때까지 에이전트도 답하지 못합니다.',
