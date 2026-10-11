@@ -114,6 +114,10 @@
         "title": "Deploy a repo with ainize.json"
       },
       {
+        "page": "how-to/deploy-nextjs",
+        "title": "Deploy a Next.js app and share it in Teams"
+      },
+      {
         "page": "how-to/create-an-agent-from-a-model",
         "title": "Create an agent from a model"
       },
