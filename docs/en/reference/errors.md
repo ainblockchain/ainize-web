@@ -165,9 +165,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 129 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 130 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 69 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 86 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -247,6 +247,7 @@ A further 69 throw sites build their message at the time (a validator's own word
 | `400` | invalid_actor | `src/run-actor.ts` |
 | `400` | invalid_request | `src/server.ts` |
 | `400` | model_not_served | `src/server.ts` |
+| `400` | node address required | `src/api.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
 | `400` | this is the node's own key: it owns what this node published, and revoking it would only stop the node acting for itself | `src/api.ts` |
 | `400` | unsupported contributor proof: … | `../ainize-core/src/catalog.ts` |
