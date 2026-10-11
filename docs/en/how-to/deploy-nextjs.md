@@ -39,6 +39,8 @@ The example's Dockerfile installs locked dependencies, builds the app, and start
 
 The deployed app is served under `/svc/<projectId>/`. The example uses `assetPrefix: './'` and relative links so its JavaScript and health link resolve inside that path. For a larger app, check nested routes, asset URLs, and API calls under the deployment path as well; a successful homepage response alone does not prove those work.
 
+The example also adds a per-request CSP nonce through Next.js middleware and renders the page dynamically. This lets Next.js initialize its client components without allowing arbitrary inline scripts. Preserve this middleware when copying the example.
+
 ## Push and verify
 
 Commit and push your app to your organization's AIN Drive Git repository. A repository with a root `ainize.json` is connected automatically on an authorized push. Committing in the browser saves a local commit; use **Push** to send it and trigger deployment.

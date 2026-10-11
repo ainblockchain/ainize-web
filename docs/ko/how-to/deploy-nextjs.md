@@ -2,7 +2,7 @@
 title: Next.js 앱 배포하고 Teams에서 공유하기
 summary: Next.js 저장소를 AIN Drive에 push하고 Ainize 배포를 확인한 뒤 AIN Teams에서 AIN-UI 카드로 공유합니다.
 source: en/how-to/deploy-nextjs.md
-source_sha256: 75f015e7b5a53d9af2091a59e26144d6d59f7de2f8afb52783109c156c3acba3
+source_sha256: 8630e43116f8d7ea6d35986412423795ecb976eb0874caccb891ea05d444e5fb
 ---
 
 # Next.js 앱 배포하고 Teams에서 공유하기
@@ -40,6 +40,8 @@ npm run dev
 예제의 Dockerfile은 잠금 파일의 의존성을 설치하고 앱을 빌드한 뒤 `0.0.0.0:3000`에서 시작합니다. 직접 작성한 Dockerfile이 기본 Next.js 빌드보다 우선합니다. 다른 프로젝트 유형은 [배포 설정](./deploy-with-ainize-json.md)을 참고하세요.
 
 배포된 앱은 `/svc/<projectId>/` 아래에서 제공됩니다. 예제는 `assetPrefix: './'`와 상대 링크를 사용해 JavaScript와 상태 확인 링크가 이 경로 안에서 열리게 합니다. 규모가 큰 앱에서는 하위 페이지, 리소스 URL, API 호출도 배포 경로에서 확인하세요. 첫 페이지가 응답하는 것만으로 모든 기능이 동작한다고 볼 수는 없습니다.
+
+예제는 Next.js middleware에서 요청마다 CSP nonce를 추가하고 페이지를 동적으로 렌더링합니다. 임의의 인라인 스크립트를 허용하지 않으면서 Next.js 클라이언트 컴포넌트를 초기화하기 위한 설정입니다. 예제를 복사할 때 이 middleware도 유지하세요.
 
 ## Push하고 확인하기
 
