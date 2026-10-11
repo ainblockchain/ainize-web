@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-251 operations on 209 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+256 operations on 213 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -247,6 +247,11 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/source`](#get-apiprojectsidsource) | operator | Read the manifest from an immutable execution source |
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
+| `GET` | [`/api/projects/{id}/domains`](#get-apiprojectsiddomains) | none | List app domains and required DNS records (project owner only) |
+| `POST` | [`/api/projects/{id}/domains`](#post-apiprojectsiddomains) | none | Claim a custom domain for a web app (project owner only) |
+| `PATCH` | [`/api/projects/{id}/domains/default`](#patch-apiprojectsiddomainsdefault) | none | Change the automatically assigned app address (project owner only) |
+| `POST` | [`/api/projects/{id}/domains/{hostname}/check`](#post-apiprojectsiddomainshostnamecheck) | none | Recheck app domain DNS (project owner only) |
+| `DELETE` | [`/api/projects/{id}/domains/{hostname}`](#delete-apiprojectsiddomainshostname) | none | Remove a custom domain (project owner only) |
 | `GET` | [`/api/projects/by-repo`](#get-apiprojectsby-repo) | operator | The project bound to a repository (what aindrive's UI shows next to a repo) |
 | `GET` | [`/api/projects/by-name`](#get-apiprojectsby-name) | operator | The project at `/<org>/<repo>` — the page's own lookup |
 | `GET` | [`/api/orgs/{org}/projects`](#get-apiorgsorgprojects) | operator | Every project of an organization slug — the `/<org>` page |
@@ -4492,6 +4497,119 @@ Anyone signed in (AIN SSO, wallet session or API key). Body `{ repo, branch?: "m
 | Code | Description |
 |---|---|
 | `201` | project + webhookSecret |
+
+### `GET /api/projects/{id}/domains`
+
+List app domains and required DNS records (project owner only)
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | domains, addresses, cname and managedBase | `object` |
+
+### `POST /api/projects/{id}/domains`
+
+Claim a custom domain for a web app (project owner only)
+
+Only nextjs/service projects. DNS ownership TXT and ingress A/AAAA verification precede HTTPS provisioning. Platform domains are reserved.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `hostname` | `string` | yes | (at most 253 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | domain with ownership verification token |
+| `409` | domain unavailable |
+
+### `PATCH /api/projects/{id}/domains/default`
+
+Change the automatically assigned app address (project owner only)
+
+The managed platform domain needs no user DNS setup. Names are unique and reserved service names cannot be claimed.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `label` | `string` | yes | (at most 63 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | managed domain | `object` |
+
+### `POST /api/projects/{id}/domains/{hostname}/check`
+
+Recheck app domain DNS (project owner only)
+
+Custom domains require the exact TXT ownership token. Every resolved A/AAAA must point to configured ingress addresses. A verified domain is provisioned by the TLS worker.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `hostname` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | configuration status | `object` |
+
+### `DELETE /api/projects/{id}/domains/{hostname}`
+
+Remove a custom domain (project owner only)
+
+Automatic addresses must be renamed instead. The TLS adapter removes the virtual host on its next reconciliation.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `hostname` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `204` | removed |
 
 ### `GET /api/projects/by-repo`
 

@@ -1,3 +1,4 @@
+import type { AppDomain, AppDomainsResponse } from './projects';
 /**
  * RTK Query API slice — the modern replacement for ainize-web's redux-saga + fetch managers.
  * One endpoint per node API route; tags give cache invalidation after operator actions.
@@ -193,6 +194,11 @@ export const api = createApi({
     runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
     redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     rotateProjectSecret: b.mutation<RotatedSecret, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/rotate-secret`, method: 'PATCH' }) }),
+    projectDomains: b.query<AppDomainsResponse, string>({ query: id => `api/projects/${encodeURIComponent(id)}/domains`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/domains` }] }),
+    addProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains`, method: 'POST', body: { hostname } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
+    renameAppDomain: b.mutation<AppDomain, { id: string; label: string }>({ query: ({ id, label }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/default`, method: 'PATCH', body: { label } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }, { type: 'Project', id: a.id }] }),
+    checkProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}/check`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
+    removeProjectDomain: b.mutation<void, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
     deployment: b.query<Deployment, string>({ query: (id) => `api/deployments/${encodeURIComponent(id)}` }),
     deploymentLog: b.query<string, string>({ query: (id) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
     myHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
@@ -626,6 +632,7 @@ export const {
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
+  useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,

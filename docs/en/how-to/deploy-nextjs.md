@@ -47,6 +47,14 @@ Commit and push your app to your organization's AIN Drive Git repository. A repo
 
 Open the repository's **Deployments** view or its Ainize project page. Wait for **ready**, open the deployed app, and check that the counter increments and `/api/health` returns `ok: true`. If deployment fails, read the build log, fix the source or manifest, and push another commit.
 
+## Set your app address
+
+On the hosted Ainize service, web apps automatically receive an address under `ainetwork.xyz`. The example uses `https://nextjs-hello.ainetwork.xyz`. A short suffix distinguishes names already used by another app.
+
+Open the project's **Settings → Domains** to change the default address. You can also add your own domain. Copy the displayed A or CNAME record and ownership TXT record into your DNS provider, then select **Check configuration**. Once DNS is verified, Ainize provisions HTTPS automatically. Keep DNS-only mode enabled when using Cloudflare for this configuration.
+
+Changing the default address retires the old address, so update bookmarks and links you have shared. The repository and project console URLs stay available.
+
 ## Share the repository in AIN Teams
 
 Paste the repository URL into an AIN Teams message, for example:
