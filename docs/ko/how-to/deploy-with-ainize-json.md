@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 94a95d7e7a19f150f7a0049a97fd5c90721255587ac6f6d133150035547926d0
+source_sha256: 082ff774da44043e2121108f5a224fdecd65857412e56a2122801209d615df67
 ---
 
 # ainize.json으로 리포 배포하기
