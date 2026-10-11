@@ -10,7 +10,7 @@ ainize --version
 ainize --help
 ```
 
-AinCode workspaces reach Ainize through their gateway. Package downloads and public Git clones require a separate preparation path; the local installation and CLI development commands below do not run unchanged in this workspace. Keep your practice files and progress in the selected AinDrive Git repository.
+The prepared AinCode practice environment routes package downloads and the official CLI source repository through the workspace gateway. It includes the native build tools and SQLite binary needed by the source build below. Keep your practice files and progress in your selected AinDrive Git repository; verify that saving and restoring the repository succeeds before relying on it as a backup.
 
 ## On your own machine
 

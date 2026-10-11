@@ -59,12 +59,14 @@ ainize-agent ask "what is the contract address of USDC?" \
 The first time, memory holds nothing, no knowledge on that market covers it, and a **plan** matches the wording — so
 the agent calls the upstream server once and answers from the rows it got back. Those rows are now in memory.
 
-Ask the same question again and it costs nothing at all: no query, no completion.
+Ask the same question again and the stored retrieval can answer without another upstream query. With a serving
+model, checking the remembered answer can use one completion; a fresh answer cache needs none. Read `.cost`
+for the actual counts. `via: "memory"` alone does not mean that no model call occurred.
 
 ```bash
 ainize-agent ask "what is the contract address of USDC?" --json | jq '.via, .cost'
 # "memory"
-# { "completions": 0, "queries": 0, "money": null, "lessons": 0, "gpu_s": null, "ms": 82 }
+# Inspect the actual counts; completions can be 0 or 1, and elapsed time varies.
 ```
 
 ### How it decides, without asking the model twice
@@ -153,7 +155,7 @@ Below three measurements on either side, N\* is undefined and the agent does not
 break-even.
 
 ```bash
-ainize-agent memory --why ef393190fa86
+ainize-agent memory --why graph/erc20-address-by-symbol
 # would it be compiled? no
 #   no  economic   {"lookups":10,"n_star":null,"binding_unit":null,"declared_floor":null,"computable":"no"}
 #   ok  material   {"distinct_rows":10,"floor":8}
