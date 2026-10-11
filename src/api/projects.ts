@@ -270,3 +270,6 @@ export function durationLabel(ms: number | null | undefined): string {
   if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`;
   return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
 }
+
+export interface AppDomain { hostname: string; projectId: string; token: string; status: 'pending' | 'invalid' | 'verified' | 'ready' | 'error'; message: string; createdAt: number; checkedAt: number | null; managed?: boolean }
+export interface AppDomainsResponse { domains: AppDomain[]; addresses: string[]; cname: string; managedBase?: string }

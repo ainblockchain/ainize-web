@@ -2,7 +2,7 @@
 title: Next.js 앱 배포하고 Teams에서 공유하기
 summary: Next.js 저장소를 AIN Drive에 push하고 Ainize 배포를 확인한 뒤 AIN Teams에서 AIN-UI 카드로 공유합니다.
 source: en/how-to/deploy-nextjs.md
-source_sha256: 8630e43116f8d7ea6d35986412423795ecb976eb0874caccb891ea05d444e5fb
+source_sha256: a2de2890dcaa60281fd9a64b8403677356ed29023091b7c8d7d6bf47eff9e373
 ---
 
 # Next.js 앱 배포하고 Teams에서 공유하기
@@ -48,6 +48,14 @@ npm run dev
 앱을 커밋하고 조직의 AIN Drive Git 저장소에 push하세요. 루트에 `ainize.json`이 있는 저장소는 권한 있는 push가 들어오면 자동으로 연결됩니다. 브라우저에서 커밋하면 작업 사본에 저장됩니다. **Push**를 눌러 원격에 보내야 배포가 시작됩니다.
 
 저장소의 **Deployments** 화면이나 Ainize 프로젝트 페이지를 여세요. **ready**가 되면 배포된 앱에서 카운터가 증가하는지, `/api/health`가 `ok: true`를 반환하는지 확인합니다. 실패하면 빌드 로그를 읽고 소스나 설정을 수정해 다시 push하세요.
+
+## 앱 주소 설정
+
+공개 Ainize에서 웹 앱을 배포하면 `ainetwork.xyz` 아래의 주소가 자동 할당됩니다. 예제의 주소는 `https://nextjs-hello.ainetwork.xyz`입니다. 다른 앱이 이미 사용하는 이름에는 짧은 구분자가 붙습니다.
+
+프로젝트의 **설정 → 도메인**에서 기본 주소를 변경할 수 있습니다. 자신의 도메인을 추가하려면 화면에 표시되는 A 또는 CNAME 레코드와 소유권 확인용 TXT 레코드를 DNS 관리 서비스에 등록한 뒤 **설정 확인**을 누르세요. DNS가 확인되면 Ainize가 HTTPS 인증서를 자동으로 발급합니다. Cloudflare에서는 이 설정에 DNS 전용 모드를 사용하세요.
+
+기본 주소를 변경하면 기존 주소가 해제되므로 공유한 링크와 즐겨찾기도 새 주소로 바꾸세요. 저장소와 프로젝트 관리 페이지 주소는 계속 사용할 수 있습니다.
 
 ## AIN Teams에서 저장소 공유하기
 

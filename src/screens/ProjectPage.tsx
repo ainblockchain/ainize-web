@@ -37,6 +37,7 @@ import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRout
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
+import ProjectDomains from '@/components/ProjectDomains';
 
 // ------------------------------------------------------------------------------------------------ pieces
 
@@ -429,6 +430,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
       {tab === 'settings' && (
         <TabBody>
+          {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
           <KeyValue>
             <dt>{t('projects.page.repo')}</dt><dd><ExternalLink href={p.repo} target="_blank" rel="noreferrer">{p.repo}</ExternalLink></dd>
             <dt>{t('projects.page.branch')}</dt><dd><Mono>{p.branch}</Mono></dd>
