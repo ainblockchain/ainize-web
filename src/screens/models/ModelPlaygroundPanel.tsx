@@ -13,7 +13,7 @@ import { parseBillingThroughputResponse } from '@/api/billingThroughput';
 import { useAuth } from '@/auth/AuthContext';
 import type { ModelModality, PublicModelCard } from '@/api/models';
 import { Button } from '@/components/ui/Button';
-import { Alert, Input, Textarea } from '@/components/ui/Form';
+import { Alert, Input, Textarea, TextField } from '@/components/ui/Form';
 import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { DECISION_EXAMPLE, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
@@ -103,6 +103,9 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
   const { data: keyList } = useApiKeysQuery(undefined, { skip: !canHoldKeys });
   const [createKey, createState] = useCreateApiKeyMutation();
   const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
+  const [keyName, setKeyName] = useState('');
+  const keyLabel = keyName.trim();
+  const duplicateKeyName = !!keyLabel && !!keyList?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === keyLabel.toLocaleLowerCase());
   const [keyError, setKeyError] = useState<string | null>(null);
 
   // The model's speed and whether it is busy — read faster while a request of ours is waiting, since that is when
@@ -248,21 +251,24 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
           </Description>
         )}
         {canHoldKeys && !issuedKey && (
-          <Row>
-            <Button
-              type="button"
-              data-testid="models-create-key"
-              disabled={createState.isLoading}
-              onClick={() => {
-                setKeyError(null);
-                void createKey({ label: 'ainize.ai' }).unwrap()
-                  .then((r) => { rememberIssuedKey(r.api_key); setIssuedKey(r.api_key); })
-                  .catch((e: unknown) => setKeyError(errorMessage(e)));
-              }}
-            >
-              {createState.isLoading ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
-            </Button>
-          </Row>
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            if (!keyLabel || duplicateKeyName || createState.isLoading) return;
+            setKeyError(null);
+            void createKey({ label: keyLabel }).unwrap()
+              .then((r) => { rememberIssuedKey(r.api_key); setIssuedKey(r.api_key); setKeyName(''); })
+              .catch((e: unknown) => setKeyError(errorMessage(e)));
+          }}>
+            <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
+              helper={duplicateKeyName ? t('me.keys.name_duplicate') : t('me.keys.name_hint')} error={duplicateKeyName}
+              data-testid="models-key-name" value={keyName} onChange={(event) => setKeyName(event.target.value)}
+              maxLength={60} required disabled={createState.isLoading} />
+            <Row>
+              <Button type="submit" data-testid="models-create-key" disabled={createState.isLoading || !keyLabel || duplicateKeyName}>
+                {createState.isLoading ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
+              </Button>
+            </Row>
+          </form>
         )}
         {issuedKey && (
           <>
