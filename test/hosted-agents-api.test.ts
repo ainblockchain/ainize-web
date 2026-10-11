@@ -151,6 +151,23 @@ test('a stored spec round-trips into the form and back', () => {
   assert.deepEqual(back.media, { transcription: false, image: false }, 'a spec from a node without media reads as all off');
 });
 
+test('editing a migrated handler preserves its executor, memory bridge, image declarations and skills', () => {
+  const files = {
+    'index.mjs': 'original entry', 'package.json': '{}', 'executor.mjs': 'original executor',
+    'bridge.mjs': 'Drive memory bridge', 'source.json': '{"id":"source"}',
+    'card-modes.json': '{"output":["image/png"]}',
+  };
+  const skills = [{ id: 'art', name: 'Art', description: 'Discuss the artwork', examples: ['Show the artwork'] }];
+  const spec = parseHostedAgentSpecResponse({ id: 'artist', name: 'Artist', model: 'qwen', mode: 'handler', files, skills })!;
+  const form = hostedAgentDraftFromSpec(spec);
+  const saved = hostedAgentSpecInputFromDraft({ ...form, name: 'Renamed artist', code: 'edited entry' });
+  assert.deepEqual(saved.files, { ...files, 'index.mjs': 'edited entry' });
+  assert.deepEqual(saved.skills, skills);
+  assert.deepEqual(hostedAgentSpecInputFromDraft({ ...form, mode: 'prompt' }).files, {});
+  const tooLarge = { ...form, additionalFiles: { 'executor.mjs': 'x'.repeat(1024 * 1024) } };
+  assert.ok(hostedAgentFormProblems(tooLarge).some(problem => problem.field === 'files'));
+});
+
 test('media round-trips, and is always sent so a save never quietly turns it off', () => {
   const spec = parseHostedAgentSpecResponse({ id: 'aindrive-cloud', mode: 'prompt', model: 'qwen', media: { transcription: true, image: 'yes' } })!;
   assert.deepEqual(spec.media, { transcription: true, image: false }, 'only a real true is on');

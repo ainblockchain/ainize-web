@@ -108,7 +108,11 @@ export default function AgentCreatePage() {
   const stored = useHostedAgentQuery(editId ?? '', { skip: !editing || !auth.principal });
   const storedSpec = useMemo(() => parseHostedAgentSpecResponse(stored.data), [stored.data]);
 
-  const [draft, setDraft] = useState<HostedAgentFormDraft>(() => emptyHostedAgentDraft(prefilledModel));
+  const [draft, setDraft] = useState<HostedAgentFormDraft>(() => {
+    const initial = emptyHostedAgentDraft(prefilledModel);
+    const orgId = params.get('org');
+    return !editing && orgId ? { ...initial, visibility: 'org', orgId } : initial;
+  });
   const [loadedFrom, setLoadedFrom] = useState<string | null>(null);
   const [idTouched, setIdTouched] = useState(false);
   const [showProblems, setShowProblems] = useState(false);

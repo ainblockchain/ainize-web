@@ -70,6 +70,7 @@ export const organizations: Dict = {
   'org.tab.readme': { ko: 'README', en: 'README' },
   'org.settings': { ko: '설정', en: 'Settings' },
   'org.register_agent': { ko: '이 조직에 에이전트 등록', en: 'Register an agent here' },
+  'org.create_agent': { ko: '새 에이전트 만들기', en: 'Create a new agent' },
   'org.agents.empty': { ko: '아직 이 조직에 등록된 에이전트가 없습니다.', en: 'No agents are registered under this organization yet.' },
   'org.agents.hidden': { ko: '그리고 당신에게 보이지 않는 에이전트 {n}개가 더 있습니다 (리소스 그룹).', en: 'And {n} more you cannot see (resource groups).' },
   'org.agents.calls': { ko: '호출 {n}', en: '{n} calls' },
