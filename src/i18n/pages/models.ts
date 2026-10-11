@@ -44,6 +44,7 @@ export const models: Dict = {
   'models.try.audio': { ko: '오디오 파일', en: 'Audio file' },
   'models.try.run': { ko: '실행', en: 'Run' },
   'models.try.running': { ko: '실행 중…', en: 'Running…' },
+  'models.try.reasoning': { ko: '모델의 생각', en: 'Model reasoning' },
   'models.try.answer': { ko: '답변', en: 'Answer' },
   'models.try.failed': { ko: '실행하지 못했습니다: {why}', en: 'That did not run: {why}' },
   'models.try.unavailable': { ko: '이 모델의 백엔드가 지금 응답하지 않습니다.', en: 'This model’s backend is not answering right now.' },
