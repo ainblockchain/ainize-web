@@ -27,7 +27,7 @@ The `x-payment-required` header is base64 of a JSON array of [requirements](../r
 and the same array is repeated in the response body under both `requirements` and `accepts`, so a client can read the
 terms from wherever it already looks. Decoded, one requirement is:
 
-```json
+```json output
 {
   "scheme": "local-credit",
   "network": "local",

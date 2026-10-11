@@ -20,7 +20,12 @@ you do not have one yet, [join the network from your own node](./join-from-your-
 
 ```bash
 ainize agent add donga-desk --upstream http://127.0.0.1:9200
+ainize stop
+ainize start --detach
 ```
+
+The CLI saves the registration in your node configuration. The running node reads it at startup, so restart **only your own practice node** before listing or calling the agent. Keep the agent process running. These commands use the node selected by `AINIZE_HOME`; do not run them against the shared ainize.ai node.
+
 
 `donga-desk` is the id, and it is the URL segment: the agent is now at `<your node>/agents/donga-desk`. `--upstream`
 is where your process listens, and it is **never published** — it is how the node reaches the agent, and on most
@@ -46,7 +51,7 @@ The card, at the path every A2A client tries:
 curl -s https://ainize.ai/agents/donga-desk/.well-known/agent-card.json | jq '{name, url}'
 ```
 
-```json
+```json output
 { "name": "동아사이언스 운영 데스크", "url": "https://ainize.ai/agents/donga-desk" }
 ```
 
@@ -67,9 +72,21 @@ purpose: what they exercise is what a stranger gets.
 
 ```bash
 ainize agent off donga-desk     # keep the registration, stop publishing the address
+ainize stop
+ainize start --detach
+
 ainize agent on  donga-desk     # publish it again
-ainize agent rm  donga-desk     # forget it entirely
+ainize stop
+ainize start --detach
+
+ainize agent rm donga-desk --yes     # forget it entirely
+ainize stop
+ainize start --detach
 ```
+
+`--yes` confirms removal without an interactive prompt. Use it only for the practice registration you created above; keep a copy of its id and upstream URL if you want to add it again.
+
+Each change is saved to the node configuration and takes effect after restarting your own practice node. After `off` or `rm`, its agent-card path returns 404; after `on`, the card and calls work again. The upstream agent process stays running throughout.
 
 `off` is the one to use while you are working on an agent. A half-built agent with a live address is worse than no
 address: the card still resolves, so a caller reads the failure as their own.

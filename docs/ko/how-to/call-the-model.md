@@ -1,6 +1,6 @@
 ---
 source: en/how-to/call-the-model.md
-source_sha256: 0651fd0fb8023a09513b92a73f186d72c59cbf4bb30dafc5f28d6bdebe4df318
+source_sha256: 83a0d013f88b9d96202e3fa5cddfb63da430720280d7308b60cd926a59c99eee
 ---
 
 # 내 코드에서 모델 호출하기
@@ -12,7 +12,7 @@ source_sha256: 0651fd0fb8023a09513b92a73f186d72c59cbf4bb30dafc5f28d6bdebe4df318
 > 가르치는 쪽은 [모델을 고쳐 가르치기](../tutorials/teach-in-chat.md), 남의 지식을 사는 쪽은
 > [남이 공개한 지식 쓰기](../tutorials/buy-and-apply.md)입니다.
 
-Python SDK를 설치하고 환경 변수에 보관한 지갑 키로 인증합니다.
+Python SDK를 설치하고 환경 변수에 보관한 모델 API 키로 인증합니다.
 **키는 사이트에서 받습니다.** 지갑으로 로그인한 뒤 [모델 페이지](/models)에서 발급하면, 그 페이지가 보여주는
 코드에 바로 채워집니다. 개인키는 브라우저를 떠나지 않습니다 — 전송에 서명할 수 있는 키는 소스 파일에도, CI 변수에도,
 스크린샷에도 있을 이유가 없고, 다른 어떤 LLM API도 그런 걸 요구하지 않습니다.
@@ -30,7 +30,7 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
 models = client.models.list().data
 print([model.id for model in models])
 ```
@@ -48,7 +48,7 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-스트리밍은 `stream=True`를 지정하고 응답의 choices가 있을 때 읽습니다.
+스트리밍은 `stream=True`를 지정하고 응답의 choices가 있을 때 읽습니다. 짧은 인사 예제에서는 추론을 꺼서 토큰을 실제 답변에 사용합니다.
 
 ```python
 stream = client.chat.completions.create(
@@ -56,6 +56,7 @@ stream = client.chat.completions.create(
     messages=[{"role": "user", "content": "안녕하세요라고 말하세요."}],
     max_tokens=32,
     stream=True,
+    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
 )
 for chunk in stream:
     if chunk.choices:

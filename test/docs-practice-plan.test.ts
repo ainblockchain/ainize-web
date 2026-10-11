@@ -1,0 +1,68 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { SOURCES } from '../src/screens/docs/generated.ts';
+import { practicePlan } from '../src/components/docs/practice-plan.ts';
+import { parseDoc, type Block } from '../src/components/docs/markdown-parser.ts';
+
+function codes(blocks: Block[]): string[] {
+  return blocks.flatMap(b => b.t === 'code' ? [b.code] : b.t === 'quote' ? codes(b.c) : b.t === 'tabs' ? b.panels.flatMap(p => codes(p.c)) : []);
+}
+test('every published English and Korean code example has an exact ordered practice step', () => {
+  for (const [key, source] of Object.entries(SOURCES)) {
+    const [lang, ...parts] = key.replace(/\.md$/, '').split('/');
+    const plan = practicePlan(source, lang, parts.join('/'));
+    assert.deepEqual(plan.steps.map(s => s.code), codes(parseDoc(source).blocks), key);
+    assert.equal(new Set(plan.steps.map(s => s.id)).size, plan.steps.length, key);
+    assert.equal(plan.execution.verified, false, 'a generated plan cannot claim runtime verification');
+  }
+});
+test('operator commands, credentials and JSON fragments are identified without executing them', () => {
+  const source = '# Guide\n\n```bash\nainize start -d\n```\n\n```json\n"inputs": {}\n```\n\n```python\nclient = ainize.connect(url, api_key=os.environ["AINIZE_API_KEY"])\n```';
+  const plan = practicePlan(source, 'en', 'guide');
+  assert.ok(plan.steps[0].requirements.includes('node-operator'));
+  assert.equal(plan.steps[1].kind, 'file');
+  assert.ok(plan.steps[2].requirements.includes('credential-handling'));
+});
+
+test('HTTP response examples stay reference data while requests remain executable requests', () => {
+  const source = '# Payment\n\n```http\nHTTP/1.1 402 Payment Required\nx-payment-required: sample\n```\n\n```http\nPOST /v1/systemone\nContent-Type: application/json\n\n{}\n```';
+  const plan = practicePlan(source, 'en', 'payment');
+  assert.equal(plan.steps[0].kind, 'reference');
+  assert.equal(plan.steps[1].kind, 'request');
+  assert.equal(plan.steps[0].code, 'HTTP/1.1 402 Payment Required\nx-payment-required: sample');
+});
+
+test('explicit output samples preserve their code and language without becoming executable files', () => {
+  for (const lang of ['en', 'ko']) {
+    for (const slug of ['concepts/payment', 'reference/x402', 'how-to/host-an-agent']) {
+      const source = SOURCES[`${lang}/${slug}.md`];
+      const outputs = parseDoc(source).blocks.filter(b => b.t === 'code' && b.output);
+      assert.equal(outputs.length, slug === 'reference/x402' ? 2 : 1);
+      const plan = practicePlan(source, lang, slug);
+      for (const output of outputs) {
+        assert.equal(output.t, 'code');
+        if (output.t !== 'code') continue;
+        const step = plan.steps.find(s => s.code === output.code);
+        assert.equal(step?.language, 'json');
+        assert.equal(step?.kind, 'reference');
+      }
+    }
+  }
+  const plan = practicePlan('# Input\n\n```json\n{"name":"input"}\n```\n\n```bash output\nainize status\n```', 'en', 'input');
+  assert.equal(plan.steps[0].kind, 'file', 'unmarked JSON remains an executable input');
+  assert.equal(plan.steps[1].kind, 'reference', 'explicit shell output is never run as a command');
+});
+
+test('CLI usage templates remain ordered steps and distinguish optional syntax from missing required inputs', () => {
+  const source = '# CLI\n\n```bash\nainize teach jobs [options]\n```\n\n```bash\nainize patch get <id>\n```\n\n```bash\nainize agent call coffee-bot "hello"\n```\n\n```js\nconst value = "<id>"; const list = [options];\n```';
+  const plan = practicePlan(source, 'en', 'reference/cli');
+  assert.equal(plan.steps.length, 4);
+  assert.equal(plan.steps[0].kind, 'command');
+  assert.ok(plan.steps[0].requirements.includes('command-template'));
+  assert.ok(!plan.steps[0].requirements.includes('user-input'), 'optional options do not require a user answer');
+  assert.ok(plan.steps[1].requirements.includes('command-template'));
+  assert.ok(plan.steps[1].requirements.includes('user-input'));
+  assert.ok(!plan.steps[2].requirements.includes('command-template'));
+  assert.ok(!plan.steps[3].requirements.includes('command-template'));
+  assert.equal(plan.steps[0].code, 'ainize teach jobs [options]');
+});

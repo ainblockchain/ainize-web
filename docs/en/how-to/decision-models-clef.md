@@ -21,7 +21,7 @@ Three question types cover what a program usually needs to decide:
 | Type | Asks | Answers with |
 |---|---|---|
 | `noul` | a yes/no question | `noul`: P(true), between 0 and 1 |
-| `score` | how far along a graded scale | `score`: the index of the chosen grade in `criteria`, plus the distribution over the grades |
+| `score` | how far along a graded scale | `score`: a numeric score on the `criteria` scale (it may be fractional), plus the distribution over the grades |
 | `choice` | which of several named options | `choice`: the option's id, plus the distribution over the ids |
 
 One tiny example of each, as questions in a request:
@@ -44,6 +44,8 @@ request are answered against the same `state` in one call.
 Install the SDK and get an API key from the site — sign in with your wallet and create one on the
 [Models page](/models); the page writes it into the snippet it shows you.
 
+In [AinCode](/code), the SDK is provided through the workspace’s offline package cache. The workspace sets `AINIZE_URL` and routes calls through your signed-in account. Open each Python block as a `.py` file and run it with `python your-file.py`; the examples below include their own connection and sample inputs. Save the files and progress in your selected AinDrive Git repository.
+
 ```bash
 pip install ainize
 ```
@@ -52,7 +54,7 @@ pip install ainize
 import os
 import ainize
 
-client = ainize.connect("https://ainize.ai", api_key=os.environ["AINIZE_API_KEY"])
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
 
 out = client.decide(
     "clef-flash",
@@ -65,7 +67,7 @@ out = client.decide(
     },
 )
 print(out.answers["outage"]["noul"])      # e.g. 0.93
-print(out.answers["severity"]["score"])   # e.g. 2  → "high"
+print(out.answers["severity"]["score"])   # e.g. 1.96, near the "high" end
 print(out.answers["team"]["choice"])      # e.g. "technical"
 print(out.usage)
 ```
@@ -99,18 +101,77 @@ Content-Type: application/json
 { "model": "clef-flash", "state": …, "questions": { … }, "debug": { "prompt": true } }
 ```
 
+Run the same request in your AinCode terminal. The workspace supplies the connection; the command prints answers and usage while leaving the full debug prompt out of the output:
+
+```bash
+set -euo pipefail
+: "${AINIZE_URL:?Open this example in your AinCode workspace}"
+: "${AINIZE_API_KEY:?Your workspace supplies the model connection}"
+
+curl -fsS "$AINIZE_URL/v1/systemone" \
+  -H "Authorization: Bearer $AINIZE_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data-binary @- <<'JSON' | jq '{model, answers, usage, debug: {questions: .debug.questions}}'
+{
+  "model": "clef-flash",
+  "state": "The payment webhook is failing and customers cannot check out.",
+  "questions": {
+    "outage": {"type": "noul", "instructions": "Is a service down?"},
+    "severity": {"type": "score", "instructions": "How severe is it?", "criteria": ["low", "medium", "high"]},
+    "team": {"type": "choice", "instructions": "Who should handle this?", "criteria": {"billing": "Payments or invoices", "technical": "Bugs or outages"}}
+  },
+  "debug": {"prompt": true}
+}
+JSON
+```
+
 ```json
 {
   "model": "clef-flash",
   "answers": {
-    "outage":   { "type": "noul",   "noul": 0.93 },
-    "severity": { "type": "score",  "score": 2, "distribution": [0.02, 0.11, 0.87] },
-    "team":     { "type": "choice", "choice": "technical", "distribution": { "billing": 0.08, "technical": 0.92 } }
+    "outage": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "severity": {
+      "type": "score",
+      "score": 1.85,
+      "confidence": 0.87,
+      "legend": {
+        "0": "low",
+        "1": "medium",
+        "2": "high"
+      },
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.11,
+        "2": 0.87
+      }
+    },
+    "team": {
+      "type": "choice",
+      "choice": "technical",
+      "confidence": 0.92,
+      "probabilities": {
+        "billing": 0.08,
+        "technical": 0.92
+      }
+    }
   },
-  "usage": { "questions": 3, "input_tokens": 212 },
-  "debug": { "prompt": "…the exact prompt the model received…", "input_tokens": 212, "questions": 3 }
+  "usage": {
+    "input_tokens": 212,
+    "output_tokens": 80,
+    "latency_ms": 200
+  },
+  "debug": {
+    "prompt": "...the exact prompt the model received...",
+    "input_tokens": 212,
+    "questions": 3
+  }
 }
 ```
+
+The response uses `probabilities` for score and choice questions. Score probabilities are keyed by grade index, with `legend` mapping each index to its label; choice probabilities are keyed by candidate id. `confidence` is the selected grade or choice probability. Token counts and latency are in `usage`; with debug enabled, the question count is in `debug.questions`. The numbers above are illustrative and can change between calls.
 
 `/v1/chat/completions` does not serve decision models; a chat call with `model="clef"` is a 404.
 
@@ -122,7 +183,15 @@ read differently in context, a `state` that lost a field in serialization, crite
 intend. Leave it off in production; it costs response size, not model time.
 
 ```python
-out = client.decide("clef-flash", state=..., questions=..., debug={"prompt": True})
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+state = "The payment webhook is failing and customers cannot check out."
+questions = {"outage": {"type": "noul", "instructions": "Is a service down?"}}
+
+out = client.decide("clef-flash", state=state, questions=questions, debug={"prompt": True})
 print(out.debug["prompt"])
 ```
 
@@ -134,8 +203,20 @@ Two shapes, depending on what the model should compare.
 every answer is independent; the cost is one call per candidate.
 
 ```python
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+query = "a small boat at sunset"
+artworks = {
+    "sunset": {"title": "Sunset boat", "description": "A small boat on the sea at sunset"},
+    "city": {"title": "City street", "description": "Cars and buildings at midday"},
+}
+
 scores = {name: client.decide("clef-flash", state=artwork, questions={"match": {"type": "noul", "instructions": f"Does this artwork match: {query}?"}}).answers["match"]["noul"]
           for name, artwork in artworks.items()}
+print(scores)
 ```
 
 **A list in `state`, one question per candidate.** Put the candidates into one `state` and ask one question
@@ -143,12 +224,24 @@ about each, keyed by candidate. One call; the model sees the whole set, so relat
 is most…") become possible, and `choice` with the candidates as options is a ranking in a single answer.
 
 ```python
+import os
+import ainize
+
+client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_key=os.environ["AINIZE_API_KEY"])
+
+query = "a small boat at sunset"
+artworks = {
+    "sunset": {"title": "Sunset boat", "description": "A small boat on the sea at sunset"},
+    "city": {"title": "City street", "description": "Cars and buildings at midday"},
+}
+
 out = client.decide(
     "clef",
     state={"query": query, "candidates": artworks},
     questions={name: {"type": "noul", "instructions": f"Does candidate {name} match the query?"} for name in artworks}
               | {"best": {"type": "choice", "instructions": "Which candidate matches best?", "criteria": {n: a["title"] for n, a in artworks.items()}}},
 )
+print(out.answers)
 ```
 
 Keep one `state` within what the model reads comfortably — a few dozen short candidates — and chunk beyond that.

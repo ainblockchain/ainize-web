@@ -1,9 +1,23 @@
 ---
 source: en/get-started/install.md
-source_sha256: 47f44c01f237b8f6c0cbb643e3efff6603d400e57917387bd32ea003fab68eba
+source_sha256: 1a675eb5547c515877ba04dba0413c07e7cc7db3c775828933ba9348f4806f34
 ---
 
 # 설치
+
+## 웹의 AinCode에서
+
+Ainize 계정으로 [AinCode](/code)를 열고 본인의 AinDrive 실습 저장소를 선택하세요. 작업 공간에는 Node.js와 CLI가 이미 설치되어 있습니다. 제공된 도구를 확인한 뒤 [빠른 시작](./quickstart.md)으로 이어갑니다.
+
+```bash
+node --version
+ainize --version
+ainize --help
+```
+
+AinCode 작업 공간은 게이트웨이를 통해 Ainize에 연결됩니다. 패키지 다운로드와 공개 Git 저장소 복제에는 별도의 준비 경로가 필요하므로, 아래 로컬 설치·CLI 개발 명령은 이 작업 공간에서 그대로 실행되지 않습니다. 실습 파일과 진행 기록은 선택한 AinDrive Git 저장소에 보관하세요.
+
+## 내 컴퓨터에서
 
 Node.js 24 이상에서 공개 CLI 패키지를 설치합니다.
 
