@@ -28,6 +28,12 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
   const target = canonicalHostRedirect(host, req.nextUrl.pathname + req.nextUrl.search);
   if (target) return NextResponse.redirect(target, 308);
+  // Next's automatic normalization is disabled to preserve service mount roots.
+  // Keep the existing slash-free URLs for the rest of this site.
+  const pathname = req.nextUrl.pathname;
+  if (!pathname.startsWith('/svc/') && pathname !== '/' && pathname.endsWith('/')) {
+    return new NextResponse(null, { status: 308, headers: { location: pathname.replace(/\/+$/, '') + req.nextUrl.search } });
+  }
   const snippet = ainuiSnippetTarget(req);
   if (snippet) {
     // relayToNode appends the request's own query; the snippet path carries the pasted URL in its own, so hand it a

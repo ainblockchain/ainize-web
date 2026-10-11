@@ -12,6 +12,8 @@ import type { NextConfig } from 'next';
  * `displayName` that makes a styled component readable in the React tree.
  */
 const config: NextConfig = {
+  // Service apps need the mount root slash so relative assets resolve inside /svc/<id>/.
+  skipTrailingSlashRedirect: true,
   compiler: { styledComponents: true },
   /**
    * A release is a server, and a server has to be copied somewhere.

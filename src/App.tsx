@@ -24,6 +24,7 @@ const ProjectPage = lazy(() => import('./screens/ProjectPage'));
 // `/<org>/<repo>` and `/<org>` — the GitHub-shaped addresses of a project and of an organization's repositories.
 const ProjectByNamePage = lazy(() => import('./screens/ProjectPage').then((m) => ({ default: m.ProjectByNamePage })));
 const OrgRepositoriesPage = lazy(() => import('./screens/OrgRepositoriesPage'));
+const AppsPage = lazy(() => import('./screens/AppsPage'));
 const MyProjectsPage = lazy(() => import('./screens/MyProjectsPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
 // Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
@@ -87,6 +88,7 @@ export default function App() {
 
                 {/* Public pages (Layout) */}
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
+                <Route path="/apps" element={<Layout><AppsPage /></Layout>} />
                 <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
                 <Route path="/models/:id" element={<Layout><ModelDetailPage /></Layout>} />
                 {/* `?model=` preselects; linked from the model page and from the free tier's "tries used up" */}
