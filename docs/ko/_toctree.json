@@ -114,6 +114,10 @@
         "title": "ainize.json으로 리포 배포하기"
       },
       {
+        "page": "how-to/deploy-nextjs",
+        "title": "Next.js 앱 배포하고 Teams에서 공유하기"
+      },
+      {
         "page": "how-to/create-an-agent-from-a-model",
         "title": "모델로 에이전트 만들기"
       },
