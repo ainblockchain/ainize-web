@@ -1,3 +1,4 @@
+import { ainftTrainingLabel, ainftTrainingPending } from '@/lib/ainft-training-status';
 import { AinftRewardsPanel } from './AinftRewardsPanel';
 import { AinftBenefitsPanel } from './AinftBenefitsPanel';
 import { publishCompanionLesson, type CompanionPublicationInput } from '@/lib/ainftPublication';
@@ -14,7 +15,7 @@ interface Task { id: string; input: string; state: string; result: string | null
 interface Memory { id: string; text: string; state: string; sourceTask: string }
 interface LearningExample { id: string; prompt: string; answer: string; state: string }
 interface Companion { tasks: Task[]; memories: Memory[]; learningExamples: LearningExample[]; experience: number; growthEvidence?: { id: string; kind: string; sourceId: string; experience: number; active: boolean }[]; growthPolicy?: { version: string } }
-interface Training { publications?: { id: string; runId: string; state: string; result: { status?: string } | null }[]; selectedRunId: string | null; capability: { available: boolean; model: string | null; reason: string | null }; runs: { id: string; model: string; eligible: boolean; state: string; jobId: string | null; job: { status: string; error: string | null; draftId: string | null; applicationVerified?: boolean } | null }[] }
+interface Training { publications?: { id: string; runId: string; state: string; result: { status?: string } | null }[]; selectedRunId: string | null; capability: { available: boolean; model: string | null; reason: string | null }; runs: { id: string; model: string; eligible: boolean; state: string; jobId: string | null; job: { status: string; error: string | null; draftId: string | null; applicationVerified?: boolean; progress?: { step: number; maxSteps: number; phase: string | null } | null } | null }[] }
 export function AinftCompanionPanel({ agentId }: { agentId: string }) {
   const auth = useAuth(), { locale } = useT();
   const text = (ko: string, en: string) => locale === 'ko' ? ko : en;
@@ -59,6 +60,22 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
     finally { if (isCurrent()) setBusy(false); }
   };
   useEffect(() => { setState(null); setSource(null); setMemory(''); setInput(''); setCreditUser(''); setCreditSnapshot(null); setSelectedBenefit(null); setLearning(null); setTrainingSnapshot(null); setTrainingSelection([]); setTrainingConsent(false); setSelectionIntent(null); setPublicationIntent(null); trainingKey.current = null; setError(null); setBusy(false); }, [agentId, auth.subject]);
+  const trainingRunning = training?.runs.some(run => ainftTrainingPending(run.job, run.state)) ?? false;
+  useEffect(() => {
+    if (!trainingRunning) return;
+    let cancelled = false, pending = false;
+    const timer = setInterval(async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const data = await request('/learning') as Training;
+        if (!cancelled && isCurrent()) setTrainingSnapshot({ identity, data });
+      } catch (failure) {
+        if (!cancelled && isCurrent()) setError(failure instanceof Error ? failure.message : String(failure));
+      } finally { pending = false; }
+    }, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [agentId, auth.subject, trainingRunning]);
   const running = state?.tasks.some((t) => t.state === 'queued' || t.state === 'running') ?? false;
   useEffect(() => {
     if (!running) return;
@@ -169,7 +186,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
                 finally { await loadTraining(); }
               })}>{text('선택한 예제 학습', 'Train selected examples')}</Button>
             </>}
-            {training.runs.map((run) => <div key={run.id} style={{ marginTop: 12 }}><small>{run.job?.status ?? run.state}</small>
+            {training.runs.map((run) => <div key={run.id} style={{ marginTop: 12 }}><small aria-live="polite">{ainftTrainingLabel(run.job, run.state, locale)}</small>
               {run.state === 'unknown' && <Alert $tone="error">{text('제출 결과를 확인할 수 없습니다. 중복 실행을 막기 위해 같은 요청을 다시 제출하지 않습니다. 노드 운영자의 확인이 필요합니다.', 'The submission outcome is unknown. This request will not be submitted again. Ask the node operator to reconcile the job.')}</Alert>}
               {run.job?.error && <Alert $tone="error">{run.job.error}</Alert>}
               {run.job?.draftId && run.job.applicationVerified !== true && <p>{text('실제 모델 평가와 원상복구 검증이 필요합니다. 검증을 통과한 후 선택할 수 있습니다.', 'Live model evaluation and restoration must be verified before this lesson can be selected.')}</p>}
