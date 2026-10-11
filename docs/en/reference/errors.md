@@ -167,7 +167,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 Not every error carries a code. 127 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 64 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 69 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -253,7 +253,7 @@ A further 64 throw sites build their message at the time (a validator's own word
 | `400` | you cannot revoke your own ownership — ask another owner, or remove the address from the config file on the machine this node runs on | `src/api.ts` |
 | `401` | node link expired or disconnected; run ainize login again | `src/api.ts` |
 | `401` | sign in to disconnect your node | `src/api.ts` |
-| `401` | sign in with any wallet to see your nodes | `src/api.ts` |
+| `401` | sign in with AIN SSO or a wallet to see your nodes | `src/api.ts` |
 | `401` | sign in with your wallet before authorising anything to act as you | `src/api.ts` |
 | `401` | sign in with your wallet to do this | `src/api.ts` |
 | `401` | sign in with your wallet to end what acts as you | `src/api.ts` |
