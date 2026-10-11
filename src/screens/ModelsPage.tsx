@@ -16,6 +16,7 @@ import styled from 'styled-components';
 import { useModelsQuery, useNetworkModelsQuery } from '@/api/api';
 import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse } from '@/api/networkModels';
 import { MODEL_MODALITIES, modelsFetchState, parseModelsResponse } from '@/api/models';
+import { Button } from '@/components/ui/Button';
 import { CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, Title } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -41,7 +42,7 @@ const Dot = styled.span<{ $up: boolean }>`
 export default function ModelsPage() {
   const { t } = useT();
   useTitle(t('models.title'));
-  const { data, isLoading, error } = useModelsQuery();
+  const { data, isLoading, isFetching, error, refetch } = useModelsQuery(undefined, { pollingInterval: 15_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   const fetchState = modelsFetchState(error as { status?: number | string; originalStatus?: number } | undefined);
   const cards = useMemo(() => parseModelsResponse(data), [data]);
   // The network's models, not only this node's: every node that joined brings its own (api/networkModels.ts).
@@ -63,6 +64,7 @@ export default function ModelsPage() {
         <Empty>
           <SubTitle>{t('models.offline.title')}</SubTitle>
           <Description>{t('models.offline.body')}</Description>
+          <Button type="button" disabled={isFetching} onClick={() => { void refetch(); }}>{t('models.offline.retry')}</Button>
         </Empty>
       )}
       {fetchState === 'outdated' && (

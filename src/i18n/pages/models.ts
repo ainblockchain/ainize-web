@@ -30,12 +30,12 @@ export const models: Dict = {
     ko: '노드는 정상 응답 중이지만, 이 목록을 제공하는 라우트가 없는 버전입니다. 운영자가 노드를 올리면 여기에 나타납니다 — 모델을 서빙하지 않는다는 뜻은 아닙니다.',
     en: 'The node is answering, but it is running a build from before this list existed. It appears here once the operator updates — which is not the same as serving no models.',
   },
-  'models.offline.title': { ko: '이 노드가 응답하지 않습니다', en: 'This node is not answering' },
+  'models.offline.title': { ko: '모델 목록을 불러올 수 없습니다', en: 'The model list is temporarily unavailable' },
   'models.offline.body': {
-    ko: '모델 목록을 가져오지 못했습니다. 노드가 내려갔거나 이 사이트에서 닿지 못하는 상태입니다 — 서빙하는 모델이 없다는 뜻은 아닙니다.',
-    en: 'The model list could not be fetched. The node is down or unreachable from this site — which is not the same as serving nothing.',
+    ko: '서버 재시작 또는 연결 문제로 요청에 실패했습니다. 15초마다 자동으로 다시 확인합니다. 모델이 없다는 뜻은 아닙니다.',
+    en: 'The request failed during a server restart or connection problem. We retry automatically every 15 seconds. This does not mean there are no models.',
   },
-
+  'models.offline.retry': { ko: '지금 다시 불러오기', en: 'Retry now' },
   'models.try.title': { ko: '눌러보기', en: 'Try it' },
   'models.try.free': { ko: '무료로 시도할 수 있습니다. 남은 횟수 {n}회.', en: 'Free to try. {n} tries left this hour.' },
   'models.try.prompt': { ko: '프롬프트', en: 'Prompt' },

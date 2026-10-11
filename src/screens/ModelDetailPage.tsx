@@ -76,11 +76,11 @@ export default function ModelDetailPage() {
   const auth = useAuth();
   useTitle(id || t('models.title'));
 
-  const detail = useModelDetailQuery(id, { skip: !id });
+  const detail = useModelDetailQuery(id, { skip: !id, pollingInterval: 15_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   // Same arguments as the playground's, so the two share one request (and one poll). Busy/idle changes by the
   // second, so it is re-read; 15 s is often enough to see a queue form without polling a page nobody watches.
   const throughputQuery = useThroughputQuoteQuery({ model: id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN }, { skip: !id, pollingInterval: 15_000 });
-  const list = useModelsQuery();
+  const list = useModelsQuery(undefined, { pollingInterval: 15_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   const ownView = modelDetailViewState({
     id,
     detail: detail.data, detailError: detail.error as never, detailLoading: detail.isLoading,
