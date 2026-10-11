@@ -204,6 +204,9 @@ export interface HostedAgentFormDraft {
   mode: HostedAgentMode;
   code: string;
   packageJson: string;
+  /** Files outside the two editors must survive an existing agent's save. */
+  additionalFiles?: Record<string, string>;
+  skills?: HostedAgentSpecInput['skills'];
   a2ui: boolean;
   mediaTranscription: boolean;
   mediaImage: boolean;
@@ -240,7 +243,8 @@ export function hostedAgentFormProblems(draft: HostedAgentFormDraft, orgs?: read
     if (draft.packageJson.trim()) {
       try { JSON.parse(draft.packageJson); } catch { problems.push({ field: 'packageJson', key: 'agentCreate.err.package_json' }); }
     }
-    if (utf8Bytes(draft.code) + utf8Bytes(draft.packageJson) > HOSTED_AGENT_LIMITS.filesBytes) problems.push({ field: 'files', key: 'agentCreate.err.files_large' });
+    const files = hostedAgentSpecInputFromDraft(draft).files;
+    if (Object.entries(files).reduce((bytes, [name, content]) => bytes + utf8Bytes(name) + utf8Bytes(content), 0) > HOSTED_AGENT_LIMITS.filesBytes) problems.push({ field: 'files', key: 'agentCreate.err.files_large' });
   }
   const names = draft.secrets.map((s) => s.name.trim()).filter(Boolean);
   if (names.some((n) => !isHostedAgentSecretNameValid(n))) problems.push({ field: 'secrets', key: 'agentCreate.err.secret_name' });
@@ -257,6 +261,9 @@ export function hostedAgentFormProblems(draft: HostedAgentFormDraft, orgs?: read
 export function hostedAgentSpecInputFromDraft(draft: HostedAgentFormDraft): HostedAgentSpecInput {
   const files: Record<string, string> = {};
   if (isHostedAgentCodeMode(draft.mode)) {
+    Object.assign(files, draft.additionalFiles);
+    delete files[HOSTED_AGENT_ENTRY_FILE];
+    delete files['package.json'];
     files[HOSTED_AGENT_ENTRY_FILE] = draft.code;
     if (draft.packageJson.trim()) files['package.json'] = draft.packageJson;
   }
@@ -271,6 +278,7 @@ export function hostedAgentSpecInputFromDraft(draft: HostedAgentFormDraft): Host
     a2ui: draft.a2ui,
     allowedHosts: hostedAgentAllowedHostsFromText(draft.allowedHostsText),
     secretNames: draft.secrets.map((s) => s.name.trim()).filter(Boolean),
+    ...(draft.skills !== undefined ? { skills: draft.skills } : {}),
     // Always sent: the node replaces the whole spec on PUT, so leaving it out would turn both off on every save.
     media: { transcription: draft.mediaTranscription, image: draft.mediaImage },
     // Likewise: PUT replaces the spec, and a save that dropped `visibility` would make an org agent public again.
@@ -339,6 +347,15 @@ export function parseHostedAgentSpecResponse(raw: unknown): HostedAgentSpecView 
     },
     allowedHosts: strList(inner.allowedHosts),
     secretNames: strList(inner.secretNames),
+    ...(Array.isArray(inner.skills) ? { skills: inner.skills.flatMap((value: unknown) => {
+      if (!value || typeof value !== 'object') return [];
+      const skill = value as Record<string, unknown>;
+      if (typeof skill.id !== 'string' || typeof skill.name !== 'string') return [];
+      return [{ id: skill.id, name: skill.name,
+        ...(typeof skill.description === 'string' ? { description: skill.description } : {}),
+        ...(Array.isArray(skill.examples) ? { examples: strList(skill.examples) } : {}),
+      }];
+    }) } : {}),
     // An address is case-folded; an SSO principal (`sso:<sub>`) is kept as written — an OIDC `sub` is case-sensitive.
     owner: typeof inner.owner === 'string' ? foldOwner(inner.owner) : null,
     version: typeof inner.version === 'number' ? inner.version : null,
@@ -361,6 +378,8 @@ export function hostedAgentDraftFromSpec(spec: HostedAgentSpecView): HostedAgent
     mode: spec.mode,
     code: spec.files[HOSTED_AGENT_ENTRY_FILE] ?? '',
     packageJson: spec.files['package.json'] ?? '',
+    additionalFiles: Object.fromEntries(Object.entries(spec.files).filter(([name]) => name !== HOSTED_AGENT_ENTRY_FILE && name !== 'package.json')),
+    ...(spec.skills !== undefined ? { skills: spec.skills } : {}),
     a2ui: spec.a2ui,
     mediaTranscription: spec.media?.transcription === true,
     mediaImage: spec.media?.image === true,

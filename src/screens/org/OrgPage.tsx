@@ -141,6 +141,7 @@ export default function OrgPage() {
       {tab === 'agents' && (
         <>
           <Actions>
+            {contributor && <StyledLink to={`/agent/new?org=${encodeURIComponent(org.id)}`} data-testid="org-create-agent">{t('org.create_agent')} →</StyledLink>}
             {contributor && <StyledLink to={`/agent/link?org=${encodeURIComponent(org.id)}`} data-testid="org-register-agent">{t('org.register_agent')} →</StyledLink>}
           </Actions>
           {org.agents.length === 0 && <Empty data-testid="org-agents-empty">{t('org.agents.empty')}</Empty>}
