@@ -11,6 +11,7 @@ const TITLE = 'Ainize | Test AI models, build and deploy agents';
 const DESCRIPTION = 'Try AI models live, build agents from Git repositories, and deploy them with a shared runtime. Connect your projects across Ainize, AIN Drive and AIN Teams.';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://ainize.ai'),
   title: TITLE,
   description: DESCRIPTION,
   icons: { shortcut: '/static/favicon.png' },
