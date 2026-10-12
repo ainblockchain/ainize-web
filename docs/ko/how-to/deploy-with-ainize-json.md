@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 94a95d7e7a19f150f7a0049a97fd5c90721255587ac6f6d133150035547926d0
+source_sha256: bc0fb5aa0a670801c775de338fa6fef9130defb895248676baeb4fc9c2fc92fe
 ---
 
 # ainize.json으로 리포 배포하기
@@ -42,6 +42,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `build.dockerfile`, `build.context` | `service` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | 컨테이너가 듣는 포트. Next.js 기본 3000. |
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
+| `allowedHosts` | `nextjs`, `service`, `script` | Ainize 밖에서 코드가 닿을 수 있는 공개 호스트. 도메인 이름 또는 `*.domain`, 최대 32개. 포트를 붙인 정확한 이름(`"my-cache.upstash.io:6379"`)은 `nextjs`/`service` 컨테이너의 데이터베이스 드라이버가 직접 접속하는 것도 허용합니다. [데이터베이스에 접속하기](#데이터베이스에-접속하기) 참고. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — 공개될 에이전트 카드의 항목. |
 
 **`ainize.json`이 없는** 리포는 Next.js 앱(`package.json`의 `next` 의존성)일 때만 배포되고, 그 외는 `error: no
@@ -66,6 +67,35 @@ capability 제거, 자원 제한)로 실행한 뒤, `port`의 `healthcheck`를 �
 **`agent`** — 리포를 [hosted agent](./host-an-agent.md)로 빌드해 노드의 A2A 주소 `https://<node>/agents/<id>`에
 공개합니다. 에이전트 카드는 파일의 `agent` 항목으로 만들어집니다. A2A를 말하는 무엇이든 그 URL로 호출할 수 있고,
 마켓플레이스에도 다른 에이전트처럼 올라갑니다. 에이전트는 노드의 hosted-agent 런타임 이미지로 실행되며(그 이미지가 A2A 계약), 이 kind에서는 리포의 `Dockerfile`을 무시합니다.
+
+## 데이터베이스에 접속하기
+
+컨테이너가 밖으로 나가는 길은 노드의 egress 프록시(`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`) 하나뿐이고, 프록시는
+`allowedHosts`에 적힌 호스트로만 갑니다. HTTP 클라이언트는 프록시를 알아서 따릅니다. 데이터베이스 드라이버는 그렇지
+않습니다. `redis`/`ioredis`, `pg`, `mysql2`, MongoDB 드라이버는 연결 문자열의 호스트로 직접 소켓을 엽니다. 이런
+경우에는 호스트를 **포트와 함께** 적습니다.
+
+```json
+{
+  "allowedHosts": [
+    "my-cache.upstash.io:6379",
+    "db.abcdefghijkl.supabase.co:5432",
+    "cluster0-shard-00-00.ab1cd.mongodb.net:27017",
+    "redis-12345.c1.us-east-1-2.ec2.redns.redis-cloud.com:12345"
+  ]
+}
+```
+
+연결 문자열은 제공자가 준 그대로 두고(`rediss://default:<password>@my-cache.upstash.io:6379`) `env`가 아니라
+프로젝트 시크릿으로 설정하세요. 컨테이너 안에서는 그 이름이 노드를 가리키고, 노드가 실제 호스트로 연결을 넘겨 줍니다.
+바이트는 손대지 않고 그대로 전달되므로 TLS(`rediss://`, `sslmode=verify-full`)는 제공자의 실제 인증서를 검증합니다.
+이름이 사설망이나 LAN 주소로 풀리면 노드는 연결을 거부합니다.
+
+- **포트 하나에 호스트 하나.** `["a.example.com:5432", "b.example.com:5432"]`는 거부됩니다. 노드는 한 프로젝트의
+  연결을 포트로만 구분합니다.
+- **정확한 이름만.** `*.example.com:6379`는 거부됩니다. MongoDB Atlas는 `mongodb+srv://`가 아닌 표준 연결 문자열을
+  쓰고, 샤드 호스트마다 포트와 함께 적으세요.
+- `script` 실행은 프록시로만 호스트에 닿습니다. 거기서는 포트가 무시됩니다.
 
 ## Inputs
 
@@ -145,7 +175,7 @@ Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 �
 
 - `script` 실행 1회는 최대 32개 파일, 2 MiB 소스. `.git`, `node_modules`, 바이너리는 보내지 않습니다.
 - 동시 실행은 호출자당 2개, 노드당 8개. 나머지는 대기하거나 `429`를 받습니다.
-- 샌드박스는 Ainize에만 닿습니다. `https://example.com`을 가져오는 스크립트는 실패합니다 — 데이터는 리포에 넣거나
-  Ainize 에이전트 뒤에 두세요.
+- 샌드박스는 `allowedHosts`에 적힌 호스트가 아니면 Ainize에만 닿습니다. 적히지 않은 `https://example.com`을
+  가져오는 스크립트는 실패합니다.
 - `env`는 리포와 함께 커밋됩니다. 키와 토큰은 노드의 비밀 저장소([hosted agents](./host-an-agent.md) 참고)에, 절대
   `ainize.json`에 넣지 마세요.
