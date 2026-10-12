@@ -45,6 +45,22 @@ export const sharedAgents: Dict = {
   'sharing.owner.failed': { ko: '바꾸지 못했습니다: {why}', en: 'It could not be changed: {why}' },
   'sharing.owner.unsupported': { ko: '이 노드는 공개 범위를 지원하지 않습니다 — 모든 에이전트가 공개입니다.', en: 'This node does not support visibility — every agent on it is public.' },
 
+  // ── the owner's "Address name" (agent alias) control on the agent page
+  'agentAlias.title': { ko: '주소 이름', en: 'Address name' },
+  'agentAlias.none': { ko: '없음 — 식별자로만 열립니다', en: 'None — opened by its id only' },
+  'agentAlias.set': { ko: '정하기', en: 'Set' },
+  'agentAlias.change': { ko: '바꾸기', en: 'Change' },
+  'agentAlias.clear': { ko: '지우기', en: 'Remove' },
+  'agentAlias.save': { ko: '저장', en: 'Save' },
+  'agentAlias.cancel': { ko: '취소', en: 'Cancel' },
+  'agentAlias.help': {
+    ko: '영문 소문자·숫자·하이픈, 40자까지. 식별자 {id}는 그대로이고, 이 이름으로도 열리고 호출됩니다.',
+    en: 'Lower-case letters, digits and hyphens, up to 40. The id {id} stays; this name opens and calls the same agent.',
+  },
+  'agentAlias.taken': { ko: '다른 에이전트가 쓰는 이름입니다.', en: 'Another agent already uses that name.' },
+  'agentAlias.unsupported': { ko: '이 노드는 주소 이름을 지원하지 않습니다.', en: 'This node does not support address names.' },
+  'agentAlias.failed': { ko: '저장하지 못했습니다: {why}', en: 'It could not be saved: {why}' },
+
   // ── the marketplace chips
   'explore.agents.filter.all': { ko: '공개', en: 'Public' },
   'explore.agents.filter.mine': { ko: '내 것', en: 'Mine' },

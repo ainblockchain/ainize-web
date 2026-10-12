@@ -16,6 +16,7 @@ import { Description, StyledLink } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import type { AgentVisibility } from '@/api/sharedAgents';
 import { AgentVisibilityControl } from '@/components/agent/AgentVisibilityControl';
+import { AgentAliasControl } from '@/components/agent/AgentAliasControl';
 
 const LinkedAgentOwnerBox = styled.div`
   margin-top: 24px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
@@ -23,7 +24,7 @@ const LinkedAgentOwnerBox = styled.div`
 `;
 const LinkedAgentOwnerRow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;`;
 
-export function LinkedAgentOwnerPanel({ agentId, agentName, visibility = null, orgId = null }: { agentId: string; agentName: string; visibility?: AgentVisibility | null; orgId?: string | null }) {
+export function LinkedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null }) {
   const { t } = useT();
   const navigate = useNavigate();
   const [unlink, state] = useDeleteLinkedAgentMutation();
@@ -52,6 +53,7 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, visibility = null, o
         </Button>
       </LinkedAgentOwnerRow>
       {error && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: error })}</Alert>}
+      <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
       <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />
     </LinkedAgentOwnerBox>
   );

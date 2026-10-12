@@ -319,6 +319,20 @@ export const api = createApi({
       query: ({ id, ...body }) => ({ url: `api/shared-agents/${encodeURIComponent(id)}/visibility`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }],
     }),
+    /**
+     * Agent aliases (ainize-node agent-aliases.ts). `agentAlias` resolves an alias OR an id to `{ id, alias }` — 404 for
+     * an agent the caller may not see, and on a node without aliases. Setting and clearing: owner, write member
+     * (hosted) or the node operator.
+     */
+    agentAlias: b.query<unknown, string>({ query: (name) => `api/agent-aliases/${encodeURIComponent(name)}`, providesTags: ['Agents'] }),
+    setAgentAlias: b.mutation<unknown, { id: string; alias: string }>({
+      query: ({ id, alias }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'PUT', body: { alias } }),
+      invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }, 'HostedAgent', 'LinkedAgent'],
+    }),
+    clearAgentAlias: b.mutation<unknown, string>({
+      query: (id) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'DELETE' }),
+      invalidatesTags: (_r, _e, id) => ['Agents', 'Org', { type: 'HostedAgent', id }, { type: 'LinkedAgent', id }, 'HostedAgent', 'LinkedAgent'],
+    }),
     /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
     linkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
@@ -651,7 +665,7 @@ export const {
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
   usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,

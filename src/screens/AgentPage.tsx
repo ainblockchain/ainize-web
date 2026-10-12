@@ -24,9 +24,9 @@
  * signed-in address the owner's panel (`agent/HostedAgentOwnerPanel.tsx`) offers edit, delete and the logs.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useAgentsQuery, useHostedAgentQuery, useLinkedAgentsQuery, useManageableHostedAgentsQuery } from '@/api/api';
+import { errorMessage, useAgentAliasQuery, useAgentsQuery, useHostedAgentQuery, useLinkedAgentsQuery, useManageableHostedAgentsQuery } from '@/api/api';
 import { agentOrgIdOf, agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList, agentVisibilityOf, parseManageableHostedAgents } from '@/api/sharedAgents';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -45,6 +45,7 @@ import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
 import { AgentHistoryPanel } from './agent/AgentHistoryPanel';
 import { LinkedAgentOwnerPanel } from './agent/LinkedAgentOwnerPanel';
 import { isAgentOwnedBy, isLinkedAgentRow, viewerPrincipals } from '@/api/linkedAgents';
+import { agentAliasOf, agentMatchesParam, agentPageRedirect } from '@/api/agentIds';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
 const Card = styled.div<{ $selected?: boolean }>`
@@ -156,26 +157,40 @@ export function samePath(url: string): string {
 const ago = (t: number | null) => (t ? `${Math.max(0, Math.round((Date.now() - t) / 1000))}s ago` : 'never');
 
 export function AgentPage() {
-  const { id = '' } = useParams();
+  // `/agent/:idOrAlias` — the segment is the agent's id or its readable alias (ainize-node agent-aliases.ts).
+  const { id: param = '' } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   // polled: "is it answering" goes stale the moment it is rendered
   const { data, isLoading, error, refetch } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
   const agents = useMemo(() => data?.agents ?? [], [data]);
-  const listed = agents.find((a) => a.id === id) ?? null;
+  const listed = agents.find((a) => a.id === param) ?? agents.find((a) => agentMatchesParam(a, param)) ?? null;
   /**
    * Not on the public list is not the same as not here. An `org`, `private` or `unlisted` agent (shared-agent
    * registry) is left off `/api/agents` on purpose, so when the list misses, the two stores that know non-public
    * agents are asked: the hosted spec — which the node answers to its owner and, as a listing view, to anyone it is
    * visible to, and with 404 to everyone else — and the linked-agents list. Only asked once the public list has said no.
    */
-  const missed = !isLoading && !listed && !!id;
-  const hostedSpec = useHostedAgentQuery(id, { skip: !missed });
-  const linkedList = useLinkedAgentsQuery(undefined, { skip: !missed || hostedSpec.isLoading || !!hostedSpec.data });
+  const missed = !isLoading && !listed && !!param;
+  // Off the public list the segment may still be an alias: the node names its id (404 for an agent the caller may
+  // not see, and on a node without aliases — the segment is then taken as the id, as it always was).
+  const resolved = useAgentAliasQuery(param, { skip: !missed });
+  const resolvedRow = resolved.data as { id?: unknown; alias?: unknown } | undefined;
+  const id = typeof resolvedRow?.id === 'string' && resolvedRow.id ? resolvedRow.id : param;
+  const hostedSpec = useHostedAgentQuery(id, { skip: !missed || resolved.isLoading });
+  const linkedList = useLinkedAgentsQuery(undefined, { skip: !missed || resolved.isLoading || hostedSpec.isLoading || !!hostedSpec.data });
   const agent = useMemo(() => {
     if (listed) return listed;
     if (!missed) return null;
-    return agentSummaryFromHostedSpecResponse(hostedSpec.data, window.location.origin) ?? agentSummaryFromLinkedList(linkedList.data, id);
-  }, [listed, missed, hostedSpec.data, linkedList.data, id]);
-  const lookingFurther = missed && (hostedSpec.isLoading || linkedList.isLoading);
+    const found = agentSummaryFromHostedSpecResponse(hostedSpec.data, window.location.origin) ?? agentSummaryFromLinkedList(linkedList.data, id);
+    // the node's answer for THIS segment is fresher than a cached row (an alias just set or changed)
+    return found && agentAliasOf(resolvedRow) && agentAliasOf(resolvedRow) !== agentAliasOf(found) ? { ...found, alias: agentAliasOf(resolvedRow) } : found;
+  }, [listed, missed, hostedSpec.data, linkedList.data, id, resolvedRow]);
+  const lookingFurther = missed && (resolved.isLoading || hostedSpec.isLoading || linkedList.isLoading);
+  // Opened by id (or an old alias): show the readable address in the URL bar, without a history entry.
+  // `keepUrl`: the owner just removed the alias and was sent to the id — a cached row must not send them back.
+  const redirect = (location.state as { keepUrl?: boolean } | null)?.keepUrl ? null : agentPageRedirect(param, agent);
+  useEffect(() => { if (redirect) navigate(redirect, { replace: true }); }, [redirect, navigate]);
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
   const { subject, sso, sitePrincipal, isSignedIn } = useAuth();
@@ -387,7 +402,7 @@ export function AgentPage() {
         <Empty>
           {/* An id that resolves nowhere is not the same as a node with no agents, and used to silently
               become "whichever one is listed first" — a page about an agent the reader never asked for. */}
-          No agent called <Mono>{id}</Mono> is listed here. It may have been taken down, or it may be on a node
+          No agent called <Mono>{param}</Mono> is listed here. It may have been taken down, or it may be on a node
           this one is not connected to. <Link to="/explore?kind=agent">See the agents →</Link>
         </Empty>
       </PageWrapper>
@@ -465,12 +480,12 @@ export function AgentPage() {
       {hosted.status === 'building' && <Alert $tone="info" style={{ marginTop: 16 }}>{t('hostedAgent.status.building_help')}</Alert>}
       {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
 
-      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} />}
+      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} />}
       {/* The history is shown to anyone who can see the agent, not only to whoever owns it: how an agent
           reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
           node answers 404 to a caller who may not see the agent, and the panel draws nothing in that case. */}
       {hosted && <AgentHistoryPanel agentId={agent.id} git={(hosted as { git?: AgentGitInfo | null }).git ?? null} canMerge={ownsIt || managesIt} />}
-      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} visibility={visibility} orgId={orgId} />}
+      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} />}
 
       {skills.length > 0 && (
         <>
