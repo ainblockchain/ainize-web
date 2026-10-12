@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-259 operations on 215 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+260 operations on 216 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -249,6 +249,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
 | `GET` | [`/api/projects/{id}/domains`](#get-apiprojectsiddomains) | none | List app domains and required DNS records (project owner only) |
 | `POST` | [`/api/projects/{id}/domains`](#post-apiprojectsiddomains) | none | Claim a custom domain for a web app (project owner only) |
+| `GET` | [`/api/projects/{id}/app-login`](#get-apiprojectsidapp-login) | none | Sign in to an org-private app on its own domain (the member gate) |
 | `PATCH` | [`/api/projects/{id}/domains/default`](#patch-apiprojectsiddomainsdefault) | none | Change the automatically assigned app address (project owner only) |
 | `POST` | [`/api/projects/{id}/domains/{hostname}/check`](#post-apiprojectsiddomainshostnamecheck) | none | Recheck app domain DNS (project owner only) |
 | `DELETE` | [`/api/projects/{id}/domains/{hostname}`](#delete-apiprojectsiddomainshostname) | none | Remove a custom domain (project owner only) |
@@ -4524,7 +4525,7 @@ List app domains and required DNS records (project owner only)
 
 Claim a custom domain for a web app (project owner only)
 
-Only nextjs/service projects, and not an org-private one (409 `org_private`: an app domain has no ainize session to tell its members by). DNS ownership TXT and ingress A/AAAA verification precede HTTPS provisioning. Platform domains are reserved.
+Only nextjs/service projects. An org-private project's domain answers only active members of its organization (the member gate: `GET /api/projects/{id}/app-login`); a node without the gate answers 409 `org_private`. DNS ownership TXT and ingress A/AAAA verification precede HTTPS provisioning. Platform domains are reserved.
 
 **Auth** — none
 
@@ -4546,6 +4547,29 @@ Only nextjs/service projects, and not an org-private one (409 `org_private`: an 
 |---|---|
 | `201` | domain with ownership verification token |
 | `409` | `domain_unavailable` · `org_private` |
+
+### `GET /api/projects/{id}/app-login`
+
+Sign in to an org-private app on its own domain (the member gate)
+
+Browser navigation on ainize's origin, reached by a 302 from the app domain. `return` must be an https URL on one of this project's own verified domains (400 `invalid_return`). No session: 302 to AIN SSO's silent sign-in, then to `/signing`, each coming back here. Signed in but not an active member of the project's organization (or no such project): 404. A member: 302 to `https://<domain>/__ainize_app_login?token=…&return=<path>` with a single-use login token (HMAC, ≤ 2 min, bound to the project, the hostname and the person); that path sets the host-only `__Host-ainize_app` cookie (≤ 12 h, HttpOnly, Secure, SameSite=Lax) and 302s to the path. The cookie is re-checked on every request (membership at most once a minute) and never reaches the container. A public project: 302 straight to `return`.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `return` | `query` | `string (uri)` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `302` | to sign-in, or to the app domain's login hop |
+| `400` | `invalid_return` |
+| `404` | not a member, or no such project |
 
 ### `PATCH /api/projects/{id}/domains/default`
 
