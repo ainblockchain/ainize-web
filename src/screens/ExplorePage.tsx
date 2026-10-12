@@ -164,10 +164,19 @@ export default function ExplorePage() {
   const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { pollingInterval: 60_000 });
   const allAgents = useMemo(() => agentData?.agents ?? [], [agentData]);
   // The registry, asked only for a narrower view than "everyone's" — the public list is `/api/agents`, which every node has.
-  const shared = useSharedAgentsQuery({ scope: scopeForFilter(agentFilter), limit: 200 }, { skip: kind !== 'agent' || agentFilter === 'all', pollingInterval: 60_000 });
+  // The node lists an organization's agents only to an AIN SSO session, for the organization that session selected.
+  // A wallet or Google sign-in is refused with 403, and an SSO session with no active organization with 400 — neither
+  // is a failure to show; the first gets the sign-in note, the second asks for the organization the account is in.
+  const ssoOrg = auth.sso?.activeOrg ?? auth.sso?.orgs[0]?.id ?? null;
+  const orgNeedsSso = agentFilter === 'org' && !auth.sso;
+  const shared = useSharedAgentsQuery(
+    { scope: scopeForFilter(agentFilter), org: agentFilter === 'org' ? ssoOrg ?? undefined : undefined, limit: 200 },
+    { skip: kind !== 'agent' || agentFilter === 'all' || orgNeedsSso || (agentFilter === 'org' && !ssoOrg), pollingInterval: 60_000 },
+  );
   const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.data), [shared.data]);
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
   const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
+  const orgNote = agentFilter === 'org' && (orgNeedsSso || registryRefused === 'auth_required' || registryRefused === 'forbidden');
   const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal), [auth.subject, auth.sso?.principal, auth.sitePrincipal]);
   /** The rows for the chip in force: the registry's when it answered, the public list (filtered where it can be) otherwise. */
   const scopedAgents = useMemo(() => {
@@ -336,12 +345,12 @@ export default function ExplorePage() {
           )}
           {/* Why the org chip shows what it shows, when the answer is not simply "your organization's agents". */}
           {agentFilter === 'org' && registryMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
-          {agentFilter === 'org' && registryRefused === 'auth_required' && <ScopeNote data-testid="agents-org-needs-sso">{t('explore.agents.org_needs_sso')}</ScopeNote>}
+          {orgNote && <ScopeNote data-testid="agents-org-needs-sso">{t('explore.agents.org_needs_sso')}</ScopeNote>}
           {agentError && <Failure $tone="error" data-testid="agents-error">
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(agentError)}</code></details>
           </Failure>}
-          {scopedError && registryRefused !== 'auth_required' && <Failure $tone="error" data-testid="agents-scope-error">
+          {scopedError && !orgNote && registryRefused !== 'auth_required' && <Failure $tone="error" data-testid="agents-scope-error">
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(scopedError)}</code></details>
           </Failure>}
@@ -351,7 +360,7 @@ export default function ExplorePage() {
               <Count data-testid="agents-count">{t('explore.agents.count', { n: num(agents.length) }, agents.length)}</Count>
               {/* Keyed by node and id: two nodes may each run a `donga-desk`, and one key for both re-used one row's state for the other. */}
               <div>{agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}</div>
-              {agents.length === 0 && (
+              {agents.length === 0 && !orgNote && (
                 <Empty>
                   {q.trim() ? t('explore.agents.empty_search')
                     : agentFilter === 'mine' ? t('explore.agents.empty_mine')
