@@ -1,0 +1,6 @@
+{
+  "name": "ainize-web",
+  "kind": "nextjs",
+  "port": 3000,
+  "healthcheck": "/api/health"
+}
