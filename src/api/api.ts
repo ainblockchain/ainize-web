@@ -660,8 +660,12 @@ export const {
 /** Extract a human message from an RTK Query error. */
 export function errorMessage(err: unknown): string {
   if (!err) return '';
-  const e = err as { data?: { error?: string; issues?: { message: string }[] }; error?: string; status?: number | string };
-  if (e.data?.error) return e.data.issues?.length ? `${e.data.error}: ${e.data.issues.map((i) => i.message).join(', ')}` : e.data.error;
+  const e = err as { data?: { error?: string | { code?: unknown; message?: unknown }; issues?: { message: string }[] }; error?: string; status?: number | string };
+  // The shared-agent registry answers in the integration contract's shape, `{error: {code, message}}` — an object, which
+  // React refuses to render, so it took the whole page down instead of showing the reason.
+  const body = e.data?.error;
+  if (body && typeof body === 'object') return typeof body.message === 'string' ? body.message : typeof body.code === 'string' ? body.code : `request failed${e.status ? ` (${e.status})` : ''}`;
+  if (body) return e.data!.issues?.length ? `${body}: ${e.data!.issues.map((i) => i.message).join(', ')}` : body;
   if (typeof e.error === 'string') return e.error;
   return `request failed${e.status ? ` (${e.status})` : ''}`;
 }
