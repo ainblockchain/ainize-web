@@ -270,8 +270,8 @@ export default function ExplorePage() {
   const mineMore = !!sharedPage?.nextCursor;
   const scopeName = agentFilter === 'org' ? orgProfile?.name ?? orgList.orgs.find((o) => o.id === orgId)?.name ?? '' : '';
   /** One line that says what the list is: how many, and whose. It is also where the skip link lands. */
-  const headline = listLoading ? t('explore.agents.title')
-    : agentFilter === 'org' && scopeName ? t('explore.agents.count_in', { n: num(agents.length), name: scopeName }, agents.length)
+  const headline = listLoading || (agentFilter === 'org' && !scopeName) ? t('explore.agents.title')
+    : agentFilter === 'org' ? t('explore.agents.count_in', { n: num(agents.length), name: scopeName }, agents.length)
       : agentFilter === 'mine' ? t('explore.agents.count_mine', { n: num(agents.length) }, agents.length)
         : t('explore.agents.count_public', { n: num(agents.length) }, agents.length);
   const noOrg = orgView && !myOrgs.isLoading && !myOrgs.error && orgList.orgs.length === 0;
