@@ -10,13 +10,14 @@ import { useMemo, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 import styled from 'styled-components';
 import { useOrgQuery, useRequestJoinOrgMutation } from '@/api/api';
-import { orgApiErrorOf, parseOrgProfile, roleAtLeast } from '@/api/organizations';
+import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgProfile, roleAtLeast } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Blocks, Prose } from '@/components/docs/Markdown';
+import { AgentListItem } from '@/components/public/AgentListItem';
 import { parseDoc } from '@/components/docs/markdown-parser';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
-import { CenterProgress, CopyButton, Description, Empty, ExternalLink, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
+import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { viewerPrincipals } from '@/api/linkedAgents';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -142,30 +143,22 @@ export default function OrgPage() {
             {contributor && <StyledLink to={`/agent/link?org=${encodeURIComponent(org.id)}`} data-testid="org-register-agent">{t('org.register_agent')} →</StyledLink>}
           </Actions>
           {org.agents.length === 0 && <Empty data-testid="org-agents-empty">{t('org.agents.empty')}</Empty>}
-          <List data-testid="org-agents">
+          <div data-testid="org-agents">
             {org.agents.map((a) => {
               const groups = org.groups.filter((g) => a.groups.includes(g.id));
               const mine = principals.includes(a.owner);
               // The node's rules: a hosted agent is edited by its owner or a write member; a linked agent's upstream by its owner alone.
               const editTo = a.kind === 'linked' ? (mine ? `/agent/${encodeURIComponent(a.id)}/link` : null) : (mine || write ? `/agent/${encodeURIComponent(a.id)}/edit` : null);
-              return (
-                <Item key={a.id} data-testid={`org-agent-${a.id}`}>
-                  <Head>
-                    <Name>{a.name}</Name>
-                    {groups.map((g) => <OrgChip key={g.id}>{t('org.agents.group', { name: g.name })}</OrgChip>)}
-                    <OrgChip>{t('org.agents.calls', { n: a.calls })}</OrgChip>
-                  </Head>
-                  {a.description && <Description style={{ margin: 0 }}>{a.description}</Description>}
-                  <Row><Mono>{a.a2a_url}</Mono><CopyButton text={a.a2a_url} label={t('myAgents.copy')} /></Row>
-                  <Row>
-                    <StyledLink to={`/agent/${encodeURIComponent(a.id)}`}>{t('org.agents.open')}</StyledLink>
-                    {editTo && <StyledLink to={editTo}>{t('org.agents.edit')}</StyledLink>}
-                    <ExternalLink href={a.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
-                  </Row>
-                </Item>
-              );
+              // The same row /explore draws, so an agent looks the same on both pages; only what an organization adds sits under it.
+              const extra = groups.length || editTo ? (
+                <Row>
+                  {groups.map((g) => <OrgChip key={g.id}>{t('org.agents.group', { name: g.name })}</OrgChip>)}
+                  {editTo && <StyledLink to={editTo}>{t('org.agents.edit')}</StyledLink>}
+                </Row>
+              ) : null;
+              return <AgentListItem key={a.id} agent={agentSummaryFromOrgAgent(a)} extra={extra} />;
             })}
-          </List>
+          </div>
           {org.hidden_agents > 0 && <Description style={{ marginTop: 12 }} data-testid="org-agents-hidden">{t('org.agents.hidden', { n: org.hidden_agents })}</Description>}
         </>
       )}
