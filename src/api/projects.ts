@@ -24,6 +24,8 @@ export interface ProjectManifest {
   /** The NAMES of `ainize.json`'s env — the node never reads the values back through a page (`env` is an older node's). */
   envKeys?: string[];
   env?: Record<string, string>;
+  /** The NAMES of the project's environment variables the code expects (`secrets`); values are set in the console. */
+  secrets?: string[];
   inputs: Record<string, ManifestInput>;
   examples: ManifestExample[];
   detected: 'ainize.json' | 'package.json';
