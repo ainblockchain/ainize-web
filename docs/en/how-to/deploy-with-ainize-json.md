@@ -41,6 +41,7 @@ shows each commit's deployment next to it.
 | `build.dockerfile`, `build.context` | `service` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | The port the container listens on. Default 3000 for Next.js. |
 | `healthcheck` | `nextjs`, `service` | Path polled until it answers 200; the deployment is `ready` when it does. Default `/`. |
+| `allowedHosts` | `nextjs`, `service`, `script` | Public hosts the code may reach beyond Ainize: domain names or `*.domain`, at most 32. An exact name with a port — `"my-cache.upstash.io:6379"` — also lets a `nextjs`/`service` container's database driver connect to it directly. See [Reaching a database](#reaching-a-database). |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — fields of the published agent card. |
 
 A repo with **no `ainize.json`** deploys only if it is a Next.js app (a `next` dependency in `package.json`);
@@ -66,6 +67,36 @@ under the node's public URL with a zero-downtime swap.
 `https://<node>/agents/<id>`, with an agent card assembled from `agent` in the file. Anything that speaks A2A can call
 it from that URL; the marketplace lists it like any other agent. The agent runs on the node's hosted-agent runtime image (that image is the A2A contract); a
 `Dockerfile` in the repo is ignored for this kind.
+
+## Reaching a database
+
+A container's only way out is the node's egress proxy, set as `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`, and it goes only
+to the hosts `allowedHosts` lists. HTTP clients follow the proxy on their own. Database drivers do not: `redis`/
+`ioredis`, `pg`, `mysql2` and the MongoDB driver open their own socket to the host in the connection string. For
+those, list the host **with its port**:
+
+```json
+{
+  "allowedHosts": [
+    "my-cache.upstash.io:6379",
+    "db.abcdefghijkl.supabase.co:5432",
+    "cluster0-shard-00-00.ab1cd.mongodb.net:27017",
+    "redis-12345.c1.us-east-1-2.ec2.redns.redis-cloud.com:12345"
+  ]
+}
+```
+
+Keep the connection string exactly as the provider gives it (`rediss://default:<password>@my-cache.upstash.io:6379`)
+and set it as a project secret, not in `env`. Inside the container that name points at the node, which forwards the
+connection to the real host. The bytes are passed through untouched, so TLS (`rediss://`, `sslmode=verify-full`)
+checks the provider's real certificate. The node refuses to connect when the name resolves to a private or LAN
+address.
+
+- **One host per port.** `["a.example.com:5432", "b.example.com:5432"]` is refused: the node tells a project's
+  connections apart by port alone.
+- **Exact names only.** `*.example.com:6379` is refused. For MongoDB Atlas, use the standard connection string (not
+  `mongodb+srv://`) and list each shard host with its port.
+- A `script` run gets the host through the proxy only; the port is ignored there.
 
 ## Inputs
 
@@ -149,7 +180,7 @@ leaves the ranking in the deployment log.
 
 - A `script` run gets at most 32 files and 2 MiB of source; `.git`, `node_modules` and binaries are not sent.
 - Two runs per caller and eight per node at a time; the rest wait or get `429`.
-- The sandbox reaches only Ainize. A script that fetches `https://example.com` fails — put data in the repo or behind
-  an Ainize agent instead.
+- The sandbox reaches only Ainize unless `allowedHosts` lists the host. A script that fetches an unlisted
+  `https://example.com` fails.
 - `env` is committed with the repo. Keys and tokens belong in the node's secret store (see
   [hosted agents](./host-an-agent.md)), never in `ainize.json`.
