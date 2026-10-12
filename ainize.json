@@ -2,5 +2,11 @@
   "name": "ainize-web",
   "kind": "nextjs",
   "port": 3000,
-  "healthcheck": "/api/health"
+  "healthcheck": "/api/health",
+  "secrets": [
+    "AINIZE_WEB_SESSION_SECRET",
+    "AINIZE_SITE_ASSERTION_SECRET",
+    "GOOGLE_CLIENT_SECRET",
+    "AIN_SSO_CLIENT_SECRET"
+  ]
 }
