@@ -4728,7 +4728,7 @@ Only an active member of an organization known under the slug (a session, or a m
 
 One project — the view for whoever may see it, `owner` and `hookUrl` for its owner
 
-A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`. `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
+A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, appAccess, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`; `appAccess` is who reaches the running app — `members` (an org-private project's default) or `public` (a public project, or an org-private one whose `ainize.json` says `"access": "public"`). `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
 
 **Auth** — operator
 
@@ -5121,7 +5121,7 @@ The script's stdout alone, for a ready deployment
 
 A project's running service or Next.js container (any method)
 
-The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. On ainize's origin the visitor's `Cookie`, `Authorization`, `X-Ainize-*` and `X-AIN-Actor` are never forwarded and the app's `Set-Cookie` is dropped; through the app's own domain its cookies and `Authorization` pass both ways. An org-private project answers only an active member of its organization, and never through an app domain. 404 when no container runs for the project (or the viewer may not see it), 502 when it does not answer.
+The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. On ainize's origin the visitor's `Cookie`, `Authorization`, `X-Ainize-*` and `X-AIN-Actor` are never forwarded and the app's `Set-Cookie` is dropped; through the app's own domain its cookies and `Authorization` pass both ways. An org-private project answers only an active member of its organization (on its own app domain, behind the member gate) — unless its running `ainize.json` says `"access": "public"`: then anyone, with no gate, while the project, its deployments and logs stay members-only. 404 when no container runs for the project (or the viewer may not see it), 502 when it does not answer.
 
 **Auth** — operator
 
