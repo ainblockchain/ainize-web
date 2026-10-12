@@ -46,8 +46,7 @@ export const sharedAgents: Dict = {
   'sharing.owner.unsupported': { ko: '이 노드는 공개 범위를 지원하지 않습니다 — 모든 에이전트가 공개입니다.', en: 'This node does not support visibility — every agent on it is public.' },
 
   // ── the marketplace chips
-  'explore.agents.filter.label': { ko: '범위', en: 'Scope' },
-  'explore.agents.filter.all': { ko: '전체', en: 'All' },
+  'explore.agents.filter.all': { ko: '공개', en: 'Public' },
   'explore.agents.filter.mine': { ko: '내 것', en: 'Mine' },
   'explore.agents.filter.org': { ko: '내 조직', en: 'My organization' },
   'explore.agents.filter.org_pick': { ko: '조직: {org}', en: 'Organization: {org}' },
@@ -56,14 +55,19 @@ export const sharedAgents: Dict = {
     en: 'This node does not support organization sharing yet, so this is the public list.',
   },
   'explore.agents.org_label': { ko: '조직', en: 'Organization' },
-  'explore.agents.org_open': { ko: '{name} 조직 페이지에서 관리', en: 'Manage on the {name} page' },
+  'explore.agents.org_manage': { ko: '조직 관리', en: 'Manage organization' },
+  'explore.agents.count_in': { ko: '{name} 에이전트 {n}개', en: '{n} agents in {name}' },
+  'explore.agents.count_in_one': { ko: '{name} 에이전트 1개', en: '1 agent in {name}' },
+  'explore.agents.count_mine': { ko: '내 에이전트 {n}개', en: '{n} of your agents' },
+  'explore.agents.count_mine_one': { ko: '내 에이전트 1개', en: '1 of your agents' },
+  'explore.agents.count_public': { ko: '공개 에이전트 {n}개', en: '{n} public agents' },
+  'explore.agents.count_public_one': { ko: '공개 에이전트 1개', en: '1 public agent' },
   'explore.agents.org_none': { ko: '아직 속한 조직이 없습니다.', en: 'You are not in an organization yet.' },
   'explore.agents.signin_for_scope': { ko: '로그인하면 내 에이전트와 조직의 에이전트를 볼 수 있습니다.', en: 'Sign in to see your own and your organization’s agents.' },
   'explore.agents.empty_mine': { ko: '내 에이전트가 아직 없습니다.', en: 'You have no agents here yet.' },
   'explore.agents.empty_org': { ko: '조직에 공유된 에이전트가 아직 없습니다.', en: 'No agent is shared with your organization yet.' },
   'explore.agents.make.create': { ko: '모델로 에이전트 만들기', en: 'Create an agent on a model' },
   'explore.agents.make.link': { ko: 'URL로 에이전트 연결', en: 'Link an agent by URL' },
-  'explore.agents.make.mine': { ko: '내 에이전트', en: 'My agents' },
 
   // ── the agent page
   'agentPage.fact.visibility': { ko: '공개 범위', en: 'Visibility' },
