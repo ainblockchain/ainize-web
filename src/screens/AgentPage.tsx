@@ -34,7 +34,7 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import type { AgentGitInfo, AgentSummary } from '@/api/types';
 import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
-import { readFrame, takeFrames } from '@/lib/a2a-stream';
+import { cardStreams, isStreamingRefusal, readFrame, sendMethod, takeFrames } from '@/lib/a2a-stream';
 import { A2A_INLINE_AUDIO_MAX_BYTES, a2aAudioPart, a2aCardTakesAudio, a2aImagesOf, type A2aImage } from '@/lib/a2aFileParts';
 import { useTitle } from '@/utils/useTitle';
 import { OrganizationName } from '@/components/agent/OrganizationName';
@@ -206,6 +206,8 @@ export function AgentPage() {
   const [takesAudio, setTakesAudio] = useState(false);
   const [audio, setAudio] = useState<{ name: string; mimeType: string; bytesBase64: string } | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+  /** Whether the card says the agent streams; `null` until a card has been read. */
+  const [streams, setStreams] = useState<boolean | null>(null);
   /** What the agent said it was doing, in order, with the second it said it. */
   const [progress, setProgress] = useState<{ at: number; text: string }[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
@@ -223,12 +225,14 @@ export function AgentPage() {
     let live = true;
     setSkills([]);
     setTakesAudio(false);
+    setStreams(null);
     fetch(samePath(agent.card_url), { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
       .then((card: { skills?: CardSkill[] } | null) => {
         if (!live) return;
         if (Array.isArray(card?.skills)) setSkills(card.skills);
         setTakesAudio(a2aCardTakesAudio(card));
+        setStreams(cardStreams(card));
       })
       .catch(() => {/* no examples is a fine outcome; the box still works */});
     return () => { live = false; };
@@ -280,6 +284,10 @@ export function AgentPage() {
    * The fallback is not decoration. An agent whose card says it does not stream, one whose SDK answers
    * `message/stream` with a plain JSON body, and one behind a proxy that buffers all arrive here the same
    * way: the response is not an event stream, so it is read as the single answer it is.
+   *
+   * An agent whose card says `streaming: false` is not asked to stream at all — the A2A SDK answers that with
+   * an error ("Streaming is not supported by the agent", -32603), not with a plain body. And when the card has
+   * not been read yet, a refusal to stream is retried once as `message/send` rather than shown as a failure.
    */
   const run = async (message = article) => {
     if (!agent) return;
@@ -301,26 +309,33 @@ export function AgentPage() {
       // (`https://ainize.ai`) and a visitor may be on another name for the same site (`www.`) — posting to
       // the node's spelling from that page is a cross-origin request the browser blocks before any of this
       // runs. Every address on this list is this app's own, so the path is the part that matters.
-      const res = await fetch(samePath(agent.a2a_url), {
+      const parts = [...(message.trim() ? [{ kind: 'text', text: message }] : []), ...(audio ? [a2aAudioPart(audio.bytesBase64, audio.name, audio.mimeType)] : [])];
+      const call = (method: 'message/stream' | 'message/send') => fetch(samePath(agent.a2a_url), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: method === 'message/stream' ? 'text/event-stream, application/json' : 'application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: crypto.randomUUID(),
-          method: 'message/stream',
+          method,
           params: {
-            message: {
-              kind: 'message', messageId: crypto.randomUUID(), role: 'user',
-              parts: [...(message.trim() ? [{ kind: 'text', text: message }] : []), ...(audio ? [a2aAudioPart(audio.bytesBase64, audio.name, audio.mimeType)] : [])],
+            message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts },
+            configuration: {
+              acceptedOutputModes: ['text/plain', 'image/png', 'image/jpeg'],
+              ...(method === 'message/send' ? { blocking: true } : {}),
             },
-            configuration: { acceptedOutputModes: ['text/plain', 'image/png', 'image/jpeg'] },
           },
         }),
       });
+      const method = sendMethod(streams);
+      let res = await call(method);
 
       const streamed = (res.headers.get('content-type') ?? '').includes('text/event-stream');
       if (!streamed || !res.body) {
-        const body = await res.json().catch(() => null);
+        let body = await res.json().catch(() => null);
+        if (method === 'message/stream' && isStreamingRefusal(body?.error)) {
+          res = await call('message/send');
+          body = await res.json().catch(() => null);
+        }
         if (body?.error) { setFailed(`${body.error.message} (code ${body.error.code})`); return; }
         finish(body?.result?.parts ?? body?.result?.status?.message?.parts ?? []);
         return;
