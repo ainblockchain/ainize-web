@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-256 operations on 213 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+259 operations on 215 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -258,6 +258,9 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/orgs/{org}/repositories`](#get-apiorgsorgrepositories) | operator | The organization's drive `repositories/` folder as aindrive lists it (so `/<org>` shows a repo before its first push) |
 | `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project — the view for whoever may see it, `owner` and `hookUrl` for its owner |
 | `DELETE` | [`/api/projects/{id}`](#delete-apiprojectsid) | operator | Remove a project with its deployments, logs and secrets (owner only) |
+| `GET` | [`/api/projects/{id}/secrets`](#get-apiprojectsidsecrets) | operator | A project's secrets — names and when each was set, never values (owner or org writer) |
+| `PUT` | [`/api/projects/{id}/secrets/{name}`](#put-apiprojectsidsecretsname) | operator | Set or replace one project secret (owner or org writer) |
+| `DELETE` | [`/api/projects/{id}/secrets/{name}`](#delete-apiprojectsidsecretsname) | operator | Remove one project secret (owner or org writer) |
 | `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
 | `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
 | `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
@@ -4733,6 +4736,86 @@ Remove a project with its deployments, logs and secrets (owner only)
 | Code | Description | Body |
 |---|---|---|
 | `200` | ok | `object` |
+
+### `GET /api/projects/{id}/secrets`
+
+A project's secrets — names and when each was set, never values (owner or org writer)
+
+The owner (of an org-private project, while still a member), or an active member with role `write`/`admin` of the organization that owns the project or that its slug names. A `read`/`contributor` member gets 403 `not_writer`; anyone else 404 `not_found`. `{ secrets: [{ name, updatedAt }], declared, missing }` — `declared` is the newest deployment's ainize.json `secrets` (names), `missing` the declared names with no value. 503 `secrets_off` on a node without the store.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | secret names | `object` |
+| `403` | `not_writer` |   |
+| `404` | `not_found` |   |
+
+### `PUT /api/projects/{id}/secrets/{name}`
+
+Set or replace one project secret (owner or org writer)
+
+Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable to the project's container on its next deploy and to its script runs, over ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. No redeploy unless `?redeploy=1`, which queues one of the newest commit. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status } | null }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `name` | `path` | `string` | yes |
+| `redeploy` | `query` | `"1"` \| `"true"` |   |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `value` | `string` | yes | (at most 32768 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | replaced |
+| `201` | created |
+| `400` | `invalid_name` · `reserved_name` · `invalid_value` · `invalid_request` |
+| `403` | `not_writer` |
+| `404` | `not_found` |
+| `409` | `too_many_secrets` |
+| `413` | `value_too_large` |
+
+### `DELETE /api/projects/{id}/secrets/{name}`
+
+Remove one project secret (owner or org writer)
+
+Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, redeploy }`; 404 when the secret is not set.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `name` | `path` | `string` | yes |
+| `redeploy` | `query` | `"1"` \| `"true"` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | removed | `object` |
+| `403` | `not_writer` |   |
+| `404` | `not_found` |   |
 
 ### `PATCH /api/projects/{id}/rotate-secret`
 
