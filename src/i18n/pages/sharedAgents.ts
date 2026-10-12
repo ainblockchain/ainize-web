@@ -46,7 +46,7 @@ export const sharedAgents: Dict = {
   'sharing.owner.unsupported': { ko: '이 노드는 공개 범위를 지원하지 않습니다 — 모든 에이전트가 공개입니다.', en: 'This node does not support visibility — every agent on it is public.' },
 
   // ── the marketplace chips
-  'explore.agents.filter.label': { ko: '보기', en: 'Show' },
+  'explore.agents.filter.label': { ko: '범위', en: 'Scope' },
   'explore.agents.filter.all': { ko: '전체', en: 'All' },
   'explore.agents.filter.mine': { ko: '내 것', en: 'Mine' },
   'explore.agents.filter.org': { ko: '내 조직', en: 'My organization' },

@@ -259,6 +259,8 @@ export default function ExplorePage() {
   const fromPublic = agentFilter === 'all' || (agentFilter === 'mine' && registryMissing) || (agentFilter === 'org' && orgsMissing);
   const listLoading = fromPublic ? agentsLoading : scopedLoading;
   const listError = fromPublic && !!agentError;
+  // The chip counts the list it opens: with "Mine" or an organization in force, that list, not the public one.
+  const agentChipCount = kind === 'agent' && agentFilter !== 'all' ? (listLoading ? 0 : scopedAgents.length) : allAgents.length;
   const noOrg = orgView && !myOrgs.isLoading && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
@@ -289,7 +291,7 @@ export default function ExplorePage() {
               {t('explore.kind.knowledge')}{data ? ` (${num(data.total)})` : ''}
             </Chip>
             <Chip $active={kind === 'agent'} onClick={() => { setKind('agent'); reset(); }} data-testid="kind-agent">
-              {t('explore.kind.agent')}{allAgents.length ? ` (${num(allAgents.length)})` : ''}
+              {t('explore.kind.agent')}{agentChipCount ? ` (${num(agentChipCount)})` : ''}
             </Chip>
           </FilterGroup>
         )}

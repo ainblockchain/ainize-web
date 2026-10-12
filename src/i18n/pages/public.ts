@@ -232,6 +232,7 @@ export const listing: Dict = {
   // The endpoint itself is POST-only and answers a browser with 404, which reads as a broken link.
   'agent.card_label': { ko: '에이전트 카드', en: 'Agent card' },
   'agent.free': { ko: '무료', en: 'Free' },
+  'agent.listed_not_locked': { ko: '목록 공개 범위만 {who}입니다 — A2A는 인증을 보내지 않아, 이 주소를 아는 사람은 누구나 호출할 수 있습니다', en: '{who} limits who sees it listed, not who can call it — A2A sends no authentication, so anyone with this address can call it' },
   'agent.public_note': { ko: 'A2A는 인증을 보내지 않습니다 — 이 주소에 닿을 수 있으면 누구나 호출합니다', en: 'A2A sends no authentication — whoever can reach this address can call it' },
   'agent.try': { ko: '라이브 테스트', en: 'Live test' },
 
