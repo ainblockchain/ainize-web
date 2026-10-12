@@ -50,7 +50,7 @@ export default function OrgPage() {
   const org = useMemo(() => parseOrgProfile(data), [data]);
   const err = error ? orgApiErrorOf(error) : null;
   useTitle(org?.name ?? err?.org?.name ?? t('orgs.title'));
-  const [tab, setTab] = useState<'agents' | 'members' | 'readme'>('agents');
+  const [tab, setTab] = useState<'agents' | 'members'>('agents');
   const [message, setMessage] = useState('');
   const [requestJoin, requestState] = useRequestJoinOrgMutation();
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -120,12 +120,10 @@ export default function OrgPage() {
         {(admin || write) && <StyledLink to={`/org/${encodeURIComponent(org.id)}/settings`} data-testid="org-settings-link" style={{ marginLeft: 'auto' }}>{t('org.settings')} →</StyledLink>}
       </OrgHeader>
       {org.description && <Description style={{ marginTop: 4 }}>{org.description}</Description>}
-      <OrgMeta>
-        <span>{t('org.members.count', { n: org.member_count })}</span>
-        <span>{t('orgs.agents', { n: org.agent_count })}</span>
-        {org.domains.map((d) => <span key={d}>@{d}</span>)}
-      </OrgMeta>
+      {/* The counts are on the tabs below; this line keeps only what the tabs do not say. */}
+      {org.domains.length > 0 && <OrgMeta>{org.domains.map((d) => <span key={d}>@{d}</span>)}</OrgMeta>}
 
+      {readme.length === 0 && admin && <Description data-testid="org-readme-empty">{t('org.readme.empty')}</Description>}
       {readme.length > 0 && (
         <ReadmeCard data-testid="org-readme">
           <Prose><Blocks blocks={readme} ctx={{ lang: locale === 'ko' ? 'ko' : 'en', slug: `org/${org.id}` }} /></Prose>
@@ -135,7 +133,6 @@ export default function OrgPage() {
       <Tabs value={tab} onChange={(v) => setTab(v as typeof tab)} tabs={[
         { id: 'agents', label: `${t('org.tab.agents')} · ${org.agent_count}` },
         { id: 'members', label: `${t('org.tab.members')} · ${org.member_count}` },
-        { id: 'readme', label: t('org.tab.readme') },
       ]} />
 
       {tab === 'agents' && (
@@ -191,11 +188,6 @@ export default function OrgPage() {
         </>
       )}
 
-      {tab === 'readme' && (
-        readme.length > 0
-          ? <ReadmeCard><Prose><Blocks blocks={readme} ctx={{ lang: locale === 'ko' ? 'ko' : 'en', slug: `org/${org.id}` }} /></Prose></ReadmeCard>
-          : <Empty>{t('org.readme.empty')}</Empty>
-      )}
     </PageWrapper>
   );
 }

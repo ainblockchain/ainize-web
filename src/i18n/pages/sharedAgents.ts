@@ -55,10 +55,9 @@ export const sharedAgents: Dict = {
     ko: '이 노드는 조직 공유를 아직 지원하지 않아 공개 목록을 보여 줍니다.',
     en: 'This node does not support organization sharing yet, so this is the public list.',
   },
-  'explore.agents.org_needs_sso': {
-    ko: '내 조직의 에이전트는 AIN 계정으로 로그인했을 때 보입니다.',
-    en: 'Your organization’s agents show when you sign in with an AIN account.',
-  },
+  'explore.agents.org_label': { ko: '조직', en: 'Organization' },
+  'explore.agents.org_open': { ko: '{name} 조직 페이지에서 관리', en: 'Manage on the {name} page' },
+  'explore.agents.org_none': { ko: '아직 속한 조직이 없습니다.', en: 'You are not in an organization yet.' },
   'explore.agents.signin_for_scope': { ko: '로그인하면 내 에이전트와 조직의 에이전트를 볼 수 있습니다.', en: 'Sign in to see your own and your organization’s agents.' },
   'explore.agents.empty_mine': { ko: '내 에이전트가 아직 없습니다.', en: 'You have no agents here yet.' },
   'explore.agents.empty_org': { ko: '조직에 공유된 에이전트가 아직 없습니다.', en: 'No agent is shared with your organization yet.' },
