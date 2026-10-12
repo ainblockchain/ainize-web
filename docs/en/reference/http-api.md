@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-260 operations on 216 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+263 operations on 218 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -220,6 +220,9 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/agent-previews/{preview}/rpc`](#post-apiagent-previewspreviewrpc) | operator | Talk to your proposal before merging |
 | `GET` | [`/api/shared-agents`](#get-apishared-agents) | operator | Agents this node runs or proxies, in the cross-product registry shape (contract 1.0) |
 | `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
+| `GET` | [`/api/agent-aliases/{name}`](#get-apiagent-aliasesname) | none | Resolve an agent alias (or id) to the agent's canonical id |
+| `PUT` | [`/api/agents/{id}/alias`](#put-apiagentsidalias) | none | Give an agent a readable alias (replaces its current one) |
+| `DELETE` | [`/api/agents/{id}/alias`](#delete-apiagentsidalias) | none | Remove an agent's alias |
 | `GET` | [`/api/shared-agents/events`](#get-apishared-agentsevents) | operator | Changes to the shared agent registry since a cursor (contract 1.0) |
 | `GET` | [`/api/agents`](#get-apiagents) | operator | The agent catalogue |
 | `GET` | [`/api/linked-agents`](#get-apilinked-agents) | operator | Linked agents — external A2A agents people registered by URL |
@@ -3979,6 +3982,102 @@ Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without to
 |---|---|
 | `agent` | [`AgentRef`](./schemas.md#agentref) |
 
+### `GET /api/agent-aliases/{name}`
+
+Resolve an agent alias (or id) to the agent's canonical id
+
+An alias is a readable second address for an agent whose id is not one (`external-e20458854c448acf7809` → `agent-m`). `name` may be an alias or an id; the answer is the canonical `id` and its `alias` (null when it has none). An agent the caller may not see is 404, the same as by id — an alias never confirms an agent its id would not. `/agents/{alias}` (card and JSON-RPC) reaches the same agent; its card `url` stays the canonical id.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the agent behind the name | `object` |
+| `404` | not_found — no such alias or id, or one the caller may not see |   |
+
+**`200` response body**
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | `string` | yes |
+| `alias` | `string,null` | yes |
+
+### `PUT /api/agents/{id}/alias`
+
+Give an agent a readable alias (replaces its current one)
+
+The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`).
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `alias` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the alias now set | `object` |
+| `400` | invalid_request — breaks the id rule, or is the agent's own id |   |
+| `401` | not_signed_in |   |
+| `403` | not_owner |   |
+| `404` | not_found — no such agent, or one the caller may not see |   |
+| `409` | alias_taken — another agent's id or alias |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `alias` | `string` |
+
+### `DELETE /api/agents/{id}/alias`
+
+Remove an agent's alias
+
+Same permissions as setting one. The agent keeps its id; `/agents/{alias}` stops reaching it and the name is free again.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the alias removed | `object` |
+| `401` | not_signed_in |   |
+| `403` | not_owner |   |
+| `404` | not_found |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `alias` | `null` |
+
 ### `GET /api/shared-agents/events`
 
 Changes to the shared agent registry since a cursor (contract 1.0)
@@ -4728,7 +4827,7 @@ Only an active member of an organization known under the slug (a session, or a m
 
 One project — the view for whoever may see it, `owner` and `hookUrl` for its owner
 
-A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`. `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
+A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, appAccess, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`; `appAccess` is who reaches the running app — `members` (an org-private project's default) or `public` (a public project, or an org-private one whose `ainize.json` says `"access": "public"`). `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
 
 **Auth** — operator
 
@@ -5121,7 +5220,7 @@ The script's stdout alone, for a ready deployment
 
 A project's running service or Next.js container (any method)
 
-The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. On ainize's origin the visitor's `Cookie`, `Authorization`, `X-Ainize-*` and `X-AIN-Actor` are never forwarded and the app's `Set-Cookie` is dropped; through the app's own domain its cookies and `Authorization` pass both ways. An org-private project answers only an active member of its organization, and never through an app domain. 404 when no container runs for the project (or the viewer may not see it), 502 when it does not answer.
+The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. On ainize's origin the visitor's `Cookie`, `Authorization`, `X-Ainize-*` and `X-AIN-Actor` are never forwarded and the app's `Set-Cookie` is dropped; through the app's own domain its cookies and `Authorization` pass both ways. An org-private project answers only an active member of its organization (on its own app domain, behind the member gate) — unless its running `ainize.json` says `"access": "public"`: then anyone, with no gate, while the project, its deployments and logs stay members-only. 404 when no container runs for the project (or the viewer may not see it), 502 when it does not answer.
 
 **Auth** — operator
 
