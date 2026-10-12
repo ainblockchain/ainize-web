@@ -256,15 +256,15 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/by-name`](#get-apiprojectsby-name) | operator | The project at `/<org>/<repo>` — the page's own lookup |
 | `GET` | [`/api/orgs/{org}/projects`](#get-apiorgsorgprojects) | operator | Every project of an organization slug — the `/<org>` page |
 | `GET` | [`/api/orgs/{org}/repositories`](#get-apiorgsorgrepositories) | operator | The organization's drive `repositories/` folder as aindrive lists it (so `/<org>` shows a repo before its first push) |
-| `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project — public view for everyone, `owner` and `hookUrl` for its owner |
+| `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project — the view for whoever may see it, `owner` and `hookUrl` for its owner |
 | `DELETE` | [`/api/projects/{id}`](#delete-apiprojectsid) | operator | Remove a project with its deployments, logs and secrets (owner only) |
 | `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
-| `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (public, like deployments) |
+| `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
 | `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
 | `POST` | [`/api/deployments/{id}/redeploy`](#post-apideploymentsidredeploy) | operator | Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member |
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
-| `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — public |
-| `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (public) |
+| `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — readable as the project is |
+| `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (readable as its project is) |
 | `POST` | [`/api/projects/{id}/run`](#post-apiprojectsidrun) | operator | Stream a selected repository version for the viewer |
 | `POST` | [`/api/projects/{id}/redeploy`](#post-apiprojectsidredeploy) | operator | Deploy the project's newest commit again (owner only) |
 | `GET` | [`/api/ainui/snippet`](#get-apiainuisnippet) | operator | The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted) |
@@ -4477,7 +4477,7 @@ The caller's projects
 
 Bind an aindrive git repository as a project
 
-Anyone signed in (AIN SSO, wallet session or API key). Body `{ repo, branch?: "main", kind?, entry?, name?, deployToken? }`; `repo` is the aindrive URL (`https://aindrive.ainetwork.ai/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`). `kind` and `entry` are hints for the row only — what deploys is always the commit's `ainize.json` (nextjs | service | script | agent; nextjs is the default when package.json depends on next). `deployToken` is an aindrive token (session JWT or `aind_aat_…` with `drives:read`) the clone presents — sealed at rest, never read back. The answer carries `webhookSecret` ONCE: aindrive signs the push hook with it. 409 `repo_taken` when the repo+branch is already a project here.
+Anyone signed in (AIN SSO, wallet session or API key) — but a repository whose `<org>` slug maps to an organization this node knows only by an active member of it (403 `not_member`); such a project is org-private. A repository the node cannot tie to an organization (another slug, the drive-id form) is public and cloned with `deployToken` or anonymously, never with the node's machine identity. Body `{ repo, branch?: "main", kind?, entry?, name?, deployToken? }`; `repo` is the aindrive URL (`https://aindrive.ainetwork.ai/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`). `kind` and `entry` are hints for the row only — what deploys is always the commit's `ainize.json` (nextjs | service | script | agent; nextjs is the default when package.json depends on next). `deployToken` is an aindrive token (session JWT or `aind_aat_…` with `drives:read`) the clone presents — sealed at rest, never read back. The answer carries `webhookSecret` ONCE: aindrive signs the push hook with it. 409 `repo_taken` when the repo+branch is already a project here.
 
 **Auth** — operator
 
@@ -4520,7 +4520,7 @@ List app domains and required DNS records (project owner only)
 
 Claim a custom domain for a web app (project owner only)
 
-Only nextjs/service projects. DNS ownership TXT and ingress A/AAAA verification precede HTTPS provisioning. Platform domains are reserved.
+Only nextjs/service projects, and not an org-private one (409 `org_private`: an app domain has no ainize session to tell its members by). DNS ownership TXT and ingress A/AAAA verification precede HTTPS provisioning. Platform domains are reserved.
 
 **Auth** — none
 
@@ -4541,7 +4541,7 @@ Only nextjs/service projects. DNS ownership TXT and ingress A/AAAA verification 
 | Code | Description |
 |---|---|
 | `201` | domain with ownership verification token |
-| `409` | domain unavailable |
+| `409` | `domain_unavailable` · `org_private` |
 
 ### `PATCH /api/projects/{id}/domains/default`
 
@@ -4615,7 +4615,7 @@ Automatic addresses must be renamed instead. The TLS adapter removes the virtual
 
 The project bound to a repository (what aindrive's UI shows next to a repo)
 
-No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (`https://ainize.ai/<org>/<repo>` — what aindrive's Inspect links to), the newest deployment and the manifest the last deploy read; no owner and no hook address. 404 when no project is bound to the URL.
+No sign-in for a public project; CORS for `https://aindrive.ainetwork.ai`. A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. aindrive asks for an org-private project from its server, with its machine token and the viewer in `X-AIN-Actor`. Status, `pageUrl` (`https://ainize.ai/<org>/<repo>` — what aindrive's Inspect links to), the newest deployment and the manifest the last deploy read; no owner and no hook address. 404 when no project is bound to the URL.
 
 **Auth** — operator
 
@@ -4635,7 +4635,7 @@ No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (`https:
 
 The project at `/<org>/<repo>` — the page's own lookup
 
-No sign-in; CORS for `https://aindrive.ainetwork.ai`. `org` and `repo` are matched case-insensitively against the repository's aindrive URL (`/<org>/git/<repo>`). The same view as `GET /api/projects/{id}`: public fields for everyone, plus `owner` and `hookUrl` for the owner; `canManage` / `canOperate` say what the caller may do. 404 `not_found` when no project of that name is bound here.
+A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. No sign-in for a public project; CORS for `https://aindrive.ainetwork.ai`. `org` and `repo` are matched case-insensitively against the repository's aindrive URL (`/<org>/git/<repo>`). The same view as `GET /api/projects/{id}`: public fields for everyone, plus `owner` and `hookUrl` for the owner; `canManage` / `canOperate` say what the caller may do. 404 `not_found` when no project of that name is bound here.
 
 **Auth** — operator
 
@@ -4657,7 +4657,7 @@ No sign-in; CORS for `https://aindrive.ainetwork.ai`. `org` and `repo` are match
 
 Every project of an organization slug — the `/<org>` page
 
-No sign-in; CORS for `https://aindrive.ainetwork.ai`. Case-insensitive on the slug. `{ org, projects: [...] }` in the public view; an organization with no project here is an empty list — only a slug that is not even well-formed is 404.
+No sign-in; CORS for `https://aindrive.ainetwork.ai`. Case-insensitive on the slug. `{ org, projects: [...] }`: the public projects, plus the org-private ones when the viewer is an active member of the organization; an organization with no project here is an empty list — only a slug that is not even well-formed is 404.
 
 **Auth** — operator
 
@@ -4678,7 +4678,7 @@ No sign-in; CORS for `https://aindrive.ainetwork.ai`. Case-insensitive on the sl
 
 The organization's drive `repositories/` folder as aindrive lists it (so `/<org>` shows a repo before its first push)
 
-No sign-in. The node asks aindrive `GET /api/orgs/<org>/repositories` with its own AIN SSO machine token (the same identity that clones a project's repository) and relays `{ org, known, driveId, driveUrl, repositories: [{ name, cloneUrl, headSha, headSubject, updatedAt, hasManifest }] }`; an organization aindrive does not resolve is `known: false` with an empty list. Cached 30 s per organization. 503 `aindrive_off` when the node has no machine identity, 502 when aindrive does not answer.
+Only an active member of an organization known under the slug (a session, or a machine token + `X-AIN-Actor`); anyone else — and any slug that maps to no organization here — is 404 `not_found`. The node asks aindrive `GET /api/orgs/<org>/repositories` with its own AIN SSO machine token (the same identity that clones a project's repository) and relays `{ org, known, driveId, driveUrl, repositories: [{ name, cloneUrl, headSha, headSubject, updatedAt, hasManifest }] }`; an organization aindrive does not resolve is `known: false` with an empty list. Cached 30 s per organization. 503 `aindrive_off` when the node has no machine identity, 502 when aindrive does not answer.
 
 **Auth** — operator
 
@@ -4698,9 +4698,9 @@ No sign-in. The node asks aindrive `GET /api/orgs/<org>/repositories` with its o
 
 ### `GET /api/projects/{id}`
 
-One project — public view for everyone, `owner` and `hookUrl` for its owner
+One project — the view for whoever may see it, `owner` and `hookUrl` for its owner
 
-A project is an organization's repository, so it reads like one: anyone sees `{ id, org, repoName, repo, branch, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`. `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, env — never a secret: the file is in the repository), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
+A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`. `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
 
 **Auth** — operator
 
@@ -4756,9 +4756,9 @@ The old secret stops verifying at once; paste the new one into the repo's settin
 
 ### `GET /api/projects/{id}/runs`
 
-Ad-hoc runs of a script project, newest first (public, like deployments)
+Ad-hoc runs of a script project, newest first (readable as the project is)
 
-Each run is a deployment-shaped record with `trigger: "run"`, the `entry`, `inputs` and `env` it was started with, and `logUrl`.
+Each run is a deployment-shaped record with `trigger: "run"`, the `entry`, the NAMES of the inputs and env it was started with (`inputKeys`, `envKeys` — values are never read back, by members either), and `logUrl`. 404 for an org-private project the viewer may not see.
 
 **Auth** — operator
 
@@ -4859,7 +4859,9 @@ Header `X-Ainize-Signature: sha256=<hex HMAC-SHA256 of the raw body with the pro
 
 ### `GET /api/projects/{id}/deployments`
 
-A project's deployments (pushes and redeploys), newest first — public
+A project's deployments (pushes and redeploys), newest first — readable as the project is
+
+Anyone for a public project; an active member for an org-private one (404 otherwise). `pusher` is `{ subject }` — never an email.
 
 **Auth** — operator
 
@@ -4877,9 +4879,9 @@ A project's deployments (pushes and redeploys), newest first — public
 
 ### `GET /api/deployments/{id}`
 
-One deployment or run (public)
+One deployment or run (readable as its project is)
 
-`{ id, projectId, sha, ref, kind, status: queued|building|ready|error, trigger: push|redeploy|run, subject?, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }` — readable by anyone, as the project is. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
+Anyone for a public project; an active member for an org-private one (404 otherwise; also for `/log` and `/output`). `{ id, projectId, sha, ref, kind, status: queued|building|ready|error, trigger: push|redeploy|run, subject?, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }`. `pusher` is `{ subject }`; a run carries `inputKeys` / `envKeys`, never their values. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
 
 **Auth** — operator
 
@@ -5011,7 +5013,7 @@ The script's stdout alone, for a ready deployment
 
 A project's running service or Next.js container (any method)
 
-The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. 404 when no container runs for the project, 502 when it does not answer.
+The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. On ainize's origin the visitor's `Cookie`, `Authorization`, `X-Ainize-*` and `X-AIN-Actor` are never forwarded and the app's `Set-Cookie` is dropped; through the app's own domain its cookies and `Authorization` pass both ways. An org-private project answers only an active member of its organization, and never through an app domain. 404 when no container runs for the project (or the viewer may not see it), 502 when it does not answer.
 
 **Auth** — operator
 

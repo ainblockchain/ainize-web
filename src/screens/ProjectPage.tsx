@@ -105,8 +105,10 @@ function download(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Who: the pusher's email, or the subject; a run names the person who pressed Run. */
-const who = (d: Deployment) => d.pusher?.email ?? d.pusher?.subject ?? null;
+/** Who: the pusher's subject; a run names the person who pressed Run. */
+const who = (d: Deployment) => d.pusher?.subject ?? null;
+/** The names a run was started with: the node sends names only (values may be secrets). */
+const runInputNames = (d: Deployment) => d.inputKeys ?? Object.keys(d.inputs ?? {});
 
 function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployment; project: Project; open: boolean; onToggle: () => void; onRunAgain?: (d: Deployment) => void }) {
   const { t } = useT();
@@ -139,8 +141,8 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
         <>
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
-          {d.trigger === 'run' && d.inputs && Object.keys(d.inputs).length > 0 && (
-            <Meta>{t('projects.runs.with_inputs')}: {Object.entries(d.inputs).map(([k, v]) => `${k}=${v}`).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
+          {d.trigger === 'run' && runInputNames(d).length > 0 && (
+            <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
           )}
           <Actions>
             {d.status === 'ready' && d.outputUrl && <ExternalLink href={d.outputUrl} target="_blank" rel="noreferrer">{d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
@@ -316,7 +318,9 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
   // Runs
   const [draft, setDraft] = useState<RunDraft>(() => emptyDraft(p));
-  const runAgain = (d: Deployment) => { setDraft({ target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry, answers: { ...(d.inputs ?? {}) }, env: Object.entries(d.env ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'), timeoutMs: '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  // The values a run was started with are not read back (they may be secrets): Run again keeps the commit and entry,
+  // and leaves the answers to be given again.
+  const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
   const redeployLatest = async () => {
@@ -439,8 +443,8 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
             {p.manifest && Object.keys(p.manifest.inputs).length > 0 && (
               <><dt>{t('projects.settings.inputs')}</dt><dd>{Object.entries(p.manifest.inputs).map(([n, s]) => <div key={n}><Mono>{n}</Mono> <Meta>{s.type ?? 'string'}{s.required ? ' · required' : ''}{s.default !== undefined ? ` · default ${String(s.default)}` : ''}{s.description ? ` — ${s.description}` : ''}</Meta></div>)}</dd></>
             )}
-            {p.manifest && Object.keys(p.manifest.env).length > 0 && (
-              <><dt>{t('projects.settings.env')}</dt><dd>{Object.entries(p.manifest.env).map(([k, v]) => <div key={k}><Mono>{k}={v}</Mono></div>)}</dd></>
+            {p.manifest && (p.manifest.envKeys ?? Object.keys(p.manifest.env ?? {})).length > 0 && (
+              <><dt>{t('projects.settings.env')}</dt><dd>{(p.manifest.envKeys ?? Object.keys(p.manifest.env ?? {})).map((k) => <div key={k}><Mono>{k}</Mono></div>)}</dd></>
             )}
             <dt>URL</dt><dd><Mono>{p.url}</Mono> <CopyButton text={p.url} /></dd>
             {p.canManage && p.hookUrl && <><dt>{t('projects.settings.webhook')}</dt><dd><Mono>{p.hookUrl}</Mono> <CopyButton text={p.hookUrl} /><Help>{t('projects.settings.webhook_help')}</Help></dd></>}
