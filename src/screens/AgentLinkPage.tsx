@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useUpdateLinkedAgentMutation } from '@/api/api';
+import { createWithFreeAgentId } from '@/api/agentIds';
 import {
   linkedAgentApiErrorOf, linkedAgentDraftFromView, linkedAgentFormProblems, linkedAgentIdFromName, linkedAgentInputFromDraft,
   parseLinkedAgentResponse, type LinkedAgentFormDraft, type LinkedAgentFormField,
@@ -76,8 +77,16 @@ export default function AgentLinkPage() {
     if (problems.length) return;
     setSaving(true);
     try {
-      const body = linkedAgentInputFromDraft(draft);
-      const answer = editing ? await update(body).unwrap() : await create(body).unwrap();
+      let body = linkedAgentInputFromDraft(draft);
+      let answer: unknown;
+      if (editing) answer = await update(body).unwrap();
+      else if (idTouched) answer = await create(body).unwrap();
+      else {
+        // A suggested id that is taken becomes `-2`, `-3`… — never a hash. A typed one goes back to the person.
+        body = await createWithFreeAgentId(body, async (b) => { answer = await create(b).unwrap(); }, (e) => linkedAgentApiErrorOf(e).code === 'id_taken');
+        const accepted = body.id;
+        setDraft((d) => ({ ...d, id: accepted }));
+      }
       const view = parseLinkedAgentResponse(answer);
       const name = view?.name ?? body.name ?? body.id;
       const note = view?.reachable === false
