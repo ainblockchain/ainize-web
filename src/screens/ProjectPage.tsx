@@ -11,7 +11,10 @@
  *                workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input, timeout, example
  *                presets (`examples` in ainize.json) — and the history of runs, each re-runnable with its inputs.
  *   Logs         the newest deployment's or run's log, downloadable.
- *   Settings     branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
+ *   Settings     environment variables (write-only values, .env paste, redeploy after saving — ProjectEnvVars),
+ *                branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
+ *
+ * A banner over the tabs names the environment variables ainize.json declares and nobody has set yet.
  *
  * Reading is public (ainize-node docs/PROJECTS.md "Who sees what"); the node says with `canManage` / `canOperate`
  * which buttons this caller gets. `/projects/:id` still resolves and forwards here.
@@ -38,6 +41,7 @@ import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
 import ProjectDomains from '@/components/ProjectDomains';
+import ProjectEnvVars, { ENV_SECTION_ID, MissingEnvBanner } from '@/components/ProjectEnvVars';
 
 // ------------------------------------------------------------------------------------------------ pieces
 
@@ -352,6 +356,13 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
     catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
   };
 
+  const goToEnv = () => {
+    setTab('settings');
+    // after the Settings tab has rendered
+    setTimeout(() => document.getElementById(ENV_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+  const openDeployment = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; }, { replace: true });
+
   const tabs = [
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
     { id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` },
@@ -381,6 +392,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         </Actions>
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}
+      <MissingEnvBanner project={p} onGo={goToEnv} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
       {tab === 'deployments' && (
@@ -434,6 +446,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
       {tab === 'settings' && (
         <TabBody>
+          <ProjectEnvVars project={p} onOpenDeployment={openDeployment} />
           {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
           <KeyValue>
             <dt>{t('projects.page.repo')}</dt><dd><ExternalLink href={p.repo} target="_blank" rel="noreferrer">{p.repo}</ExternalLink></dd>
