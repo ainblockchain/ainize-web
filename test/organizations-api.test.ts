@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ORG_RESERVED_IDS, emailDomain, isOrgIdValid, myMembership, orgApiErrorOf, orgCreateInputFromDraft, orgFormProblems, orgIdFromName, parseOrgBilling,
+  ORG_RESERVED_IDS, agentSummaryFromOrgAgent, emailDomain, isOrgIdValid, myMembership, orgApiErrorOf, orgCreateInputFromDraft, orgFormProblems, orgIdFromName, parseOrgBilling,
   parseOrgInvite, parseOrgList, parseOrgProfile, parseOrgSecurity, roleAtLeast, type OrgFormDraft,
 } from '../src/api/organizations';
 
@@ -133,4 +133,20 @@ test('linked SSO ids use one readable organization and cannot bypass a read role
   const summaries = [{ id: 'comcom', name: 'ComCom', sso_org_ids: ['org_long_id'] }];
   for (const id of ['comcom', 'org_long_id']) assert.deepEqual(organizationDisplay(id, summaries, sso), { name: 'ComCom', href: '/org/comcom' });
   assert.equal(organizationDisplay('org_unknown', summaries, sso), null);
+});
+
+test('an organization agent becomes the same row /explore renders, carrying only what the organization view knows', () => {
+  const org = parseOrgProfile({ org: { id: 'comcom', name: 'ComCom', agents: [{
+    id: 'aina-qa', name: 'AINA QA', description: '', owner: 'google:1', kind: 'hosted', visibility: 'org', org_id: 'org_9jrn', groups: [],
+    a2a_url: 'https://ainize.ai/agents/aina-qa', card_url: 'https://ainize.ai/agents/aina-qa/.well-known/agent-card.json', calls: 3, last_call_at: 5,
+  }] } })!;
+  const row = agentSummaryFromOrgAgent(org.agents[0]);
+  assert.equal(row.id, 'aina-qa');
+  assert.equal(row.description, null, 'an empty description is no description');
+  assert.equal(row.reachable, null, 'nothing probed the card for this list');
+  assert.equal(row.calls, 3);
+  assert.equal(row.node, null);
+  assert.equal(row.visibility, 'org');
+  assert.equal(row.org_id, 'org_9jrn');
+  assert.deepEqual(row.skills, []);
 });

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
+import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useMyOrgsQuery, useOrgQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
+import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgList, parseOrgProfile } from '@/api/organizations';
 import {
   AGENT_LIST_FILTERS, agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsErrorCode, sharedAgentsUnsupported,
   type AgentListFilter,
@@ -156,6 +157,7 @@ export default function ExplorePage() {
   const setAgentFilter = (f: AgentListFilter) => {
     const next = new URLSearchParams(params);
     if (f === 'all') next.delete('agents'); else next.set('agents', f);
+    if (f !== 'org') next.delete('org');
     setParams(next, { replace: true });
   };
   const { data: info } = useInfoQuery();
@@ -163,28 +165,38 @@ export default function ExplorePage() {
   // "is it answering" goes stale as it is rendered, so the list re-checks; the node caches the probe for 30 s.
   const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { pollingInterval: 60_000 });
   const allAgents = useMemo(() => agentData?.agents ?? [], [agentData]);
-  // The registry, asked only for a narrower view than "everyone's" — the public list is `/api/agents`, which every node has.
-  // The node lists an organization's agents only to an AIN SSO session, for the organization that session selected.
-  // A wallet or Google sign-in is refused with 403, and an SSO session with no active organization with 400 — neither
-  // is a failure to show; the first gets the sign-in note, the second asks for the organization the account is in.
-  const ssoOrg = auth.sso?.activeOrg ?? auth.sso?.orgs[0]?.id ?? null;
-  const orgNeedsSso = agentFilter === 'org' && !auth.sso;
-  const shared = useSharedAgentsQuery(
-    { scope: scopeForFilter(agentFilter), org: agentFilter === 'org' ? ssoOrg ?? undefined : undefined, limit: 200 },
-    { skip: kind !== 'agent' || agentFilter === 'all' || orgNeedsSso || (agentFilter === 'org' && !ssoOrg), pollingInterval: 60_000 },
-  );
+  // "Mine" asks the shared-agent registry. "My organization" asks the organization API — the one `/org` and
+  // `/org/:id` read — so the organizations, their agents and their counts here are the same ones those pages show,
+  // for every kind of sign-in (the registry's org scope answers only an AIN SSO session, for one organization).
+  const shared = useSharedAgentsQuery({ scope: scopeForFilter(agentFilter), limit: 200 }, { skip: kind !== 'agent' || agentFilter !== 'mine', pollingInterval: 60_000 });
   const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.data), [shared.data]);
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
   const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
-  const orgNote = agentFilter === 'org' && (orgNeedsSso || registryRefused === 'auth_required' || registryRefused === 'forbidden');
+  const orgView = kind === 'agent' && agentFilter === 'org';
+  const myOrgs = useMyOrgsQuery(undefined, { skip: !orgView });
+  const orgList = useMemo(() => parseOrgList(myOrgs.data), [myOrgs.data]);
+  const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
+  const orgParam = params.get('org');
+  const orgId = orgList.orgs.find((o) => o.id === orgParam)?.id ?? orgList.orgs[0]?.id ?? null;
+  const orgQuery = useOrgQuery(orgId ?? '', { skip: !orgView || !orgId, pollingInterval: 60_000 });
+  const orgProfile = useMemo(() => parseOrgProfile(orgQuery.data), [orgQuery.data]);
+  const setOrg = (id: string) => {
+    const next = new URLSearchParams(params);
+    next.set('org', id);
+    setParams(next, { replace: true });
+  };
   const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal), [auth.subject, auth.sso?.principal, auth.sitePrincipal]);
-  /** The rows for the chip in force: the registry's when it answered, the public list (filtered where it can be) otherwise. */
+  /** The rows for the chip in force: the registry's or the organization's when they answered, the public list (filtered where it can be) otherwise. */
   const scopedAgents = useMemo(() => {
     if (agentFilter === 'all') return allAgents;
+    if (agentFilter === 'org') {
+      if (orgsMissing) return fallbackRows('org', allAgents, principals);
+      return orgProfile?.agents.map(agentSummaryFromOrgAgent) ?? [];
+    }
     if (sharedPage) return sharedPage.items.map((it) => agentSummaryFromRef(it.ref, info?.node?.endpoint ?? null));
     if (registryMissing) return fallbackRows(agentFilter, allAgents, principals);
     return [];
-  }, [agentFilter, allAgents, sharedPage, registryMissing, principals, info?.node?.endpoint]);
+  }, [agentFilter, allAgents, sharedPage, registryMissing, orgsMissing, orgProfile, principals, info?.node?.endpoint]);
   const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
   const { data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
@@ -240,8 +252,14 @@ export default function ExplorePage() {
     return scopedAgents.filter((a) => [a.name, a.description ?? '', a.id, ...a.skills.flatMap((s2) => [s2.name, s2.description ?? '', ...s2.tags])]
       .join(' ').toLowerCase().includes(needle));
   }, [scopedAgents, q]);
-  const scopedLoading = agentFilter !== 'all' && shared.isLoading;
-  const scopedError = agentFilter !== 'all' && shared.error && !registryMissing ? shared.error : null;
+  const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? myOrgs.isLoading || orgQuery.isLoading : false;
+  const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
+    : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
+  // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
+  const fromPublic = agentFilter === 'all' || (agentFilter === 'mine' && registryMissing) || (agentFilter === 'org' && orgsMissing);
+  const listLoading = fromPublic ? agentsLoading : scopedLoading;
+  const listError = fromPublic && !!agentError;
+  const noOrg = orgView && !myOrgs.isLoading && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
   const reset = () => setPage(1);
@@ -281,6 +299,17 @@ export default function ExplorePage() {
             {AGENT_LIST_FILTERS.map((f) => (
               <Chip key={f} $active={agentFilter === f} onClick={() => { setAgentFilter(f); reset(); }} data-testid={`agents-filter-${f}`}>
                 {t(`explore.agents.filter.${f}`)}
+              </Chip>
+            ))}
+          </FilterGroup>
+        )}
+        {/* One chip per organization, named and counted as `/org` names and counts them. Only when there is a choice. */}
+        {orgView && orgList.orgs.length > 1 && (
+          <FilterGroup data-testid="agents-org-picker">
+            <span className="label">{t('explore.agents.org_label')}</span>
+            {orgList.orgs.map((o) => (
+              <Chip key={o.id} $active={o.id === orgId} onClick={() => { setOrg(o.id); reset(); }} data-testid={`agents-org-${o.id}`}>
+                {o.name} · {num(o.agent_count)}
               </Chip>
             ))}
           </FilterGroup>
@@ -344,25 +373,30 @@ export default function ExplorePage() {
             <ScopeNote data-testid="agents-signin-note">{t('explore.agents.signin_for_scope')}</ScopeNote>
           )}
           {/* Why the org chip shows what it shows, when the answer is not simply "your organization's agents". */}
-          {agentFilter === 'org' && registryMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
-          {orgNote && <ScopeNote data-testid="agents-org-needs-sso">{t('explore.agents.org_needs_sso')}</ScopeNote>}
-          {agentError && <Failure $tone="error" data-testid="agents-error">
+          {orgView && orgsMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
+          {orgView && orgProfile && (
+            <ScopeNote data-testid="agents-org-page">
+              <StyledLink to={`/org/${encodeURIComponent(orgProfile.id)}`}>{t('explore.agents.org_open', { name: orgProfile.name })} →</StyledLink>
+            </ScopeNote>
+          )}
+          {listError && <Failure $tone="error" data-testid="agents-error">
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(agentError)}</code></details>
           </Failure>}
-          {scopedError && !orgNote && registryRefused !== 'auth_required' && <Failure $tone="error" data-testid="agents-scope-error">
+          {scopedError && registryRefused !== 'auth_required' && <Failure $tone="error" data-testid="agents-scope-error">
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(scopedError)}</code></details>
           </Failure>}
-          {(agentsLoading || scopedLoading) && <ListSkeleton />}
-          {!agentsLoading && !scopedLoading && !agentError && (
+          {listLoading && <ListSkeleton />}
+          {!listLoading && !listError && (
             <>
               <Count data-testid="agents-count">{t('explore.agents.count', { n: num(agents.length) }, agents.length)}</Count>
               {/* Keyed by node and id: two nodes may each run a `donga-desk`, and one key for both re-used one row's state for the other. */}
               <div>{agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}</div>
-              {agents.length === 0 && !orgNote && (
-                <Empty>
+              {agents.length === 0 && (
+                <Empty data-testid={noOrg ? 'agents-org-none' : undefined}>
                   {q.trim() ? t('explore.agents.empty_search')
+                    : noOrg ? <>{t('explore.agents.org_none')} <StyledLink to="/org">{t('orgs.title')} →</StyledLink></>
                     : agentFilter === 'mine' ? t('explore.agents.empty_mine')
                       : agentFilter === 'org' ? t('explore.agents.empty_org')
                         : t('explore.agents.empty')}
