@@ -31,6 +31,7 @@ import {
   isHostedAgentCodeMode, parseHostedAgentSpecResponse,
   type HostedAgentApiError, type HostedAgentFormDraft, type HostedAgentFormProblem, type HostedAgentMode,
 } from '@/api/hostedAgents';
+import { createWithFreeAgentId } from '@/api/agentIds';
 import { orgApiErrorOf } from '@/api/organizations';
 import { parseModelsResponse } from '@/api/models';
 import { parseNetworkModelsResponse } from '@/api/networkModels';
@@ -175,9 +176,16 @@ export default function AgentCreatePage() {
     }
     setSaving(true);
     try {
-      const body = hostedAgentSpecInputFromDraft(draft);
+      let body = hostedAgentSpecInputFromDraft(draft);
       try {
-        await (editing ? updateAgent(body) : createAgent(body)).unwrap();
+        if (editing) await updateAgent(body).unwrap();
+        else if (idTouched) await createAgent(body).unwrap();
+        else {
+          // A suggested id that is taken becomes `-2`, `-3`… — never a timestamp. A typed one goes back to the person.
+          body = await createWithFreeAgentId(body, (b) => createAgent(b).unwrap(), (e) => hostedAgentApiErrorOf(e).code === 'id_taken');
+          const accepted = body.id;
+          setDraft((d) => ({ ...d, id: accepted }));
+        }
       } catch (err) {
         const e = hostedAgentApiErrorOf(err);
         if (e.code === 'docker_unavailable') setDockerUnavailable(true);

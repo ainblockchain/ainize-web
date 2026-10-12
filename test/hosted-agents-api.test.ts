@@ -70,7 +70,8 @@ test('an id is derived from the name', () => {
   assert.equal(hostedAgentIdFromName('My Score Bot!'), 'my-score-bot');
   assert.equal(hostedAgentIdFromName('  Café  Critic '), 'cafe-critic');
   assert.equal(hostedAgentIdFromName('--x--'), 'x');
-  assert.equal(hostedAgentIdFromName('뉴스 리뷰'), '', 'a name with nothing Latin gives an empty id, not a guess');
+  assert.equal(hostedAgentIdFromName('뉴스 리뷰'), 'nyuseu-ribyu', 'a Korean name is romanized, not dropped');
+  assert.equal(hostedAgentIdFromName('新闻'), '', 'a name with nothing that maps gives an empty id, not a guess');
   const long = hostedAgentIdFromName('a'.repeat(39) + ' b c d');
   assert.ok(long.length <= 40 && !long.endsWith('-'));
   assert.ok(isHostedAgentIdValid(long));
