@@ -198,14 +198,11 @@ export const listing: Dict = {
   // one because nothing a knowledge is sorted or filtered by (model, topic, rows, price) applies to an agent.
   'explore.kind.knowledge': { ko: '지식', en: 'Knowledge' },
   'explore.kind.agent': { ko: '에이전트', en: 'Agents' },
-  'explore.kind.label': { ko: '무엇을', en: 'Show' },
   'explore.agents.title': { ko: '에이전트', en: 'Agents' },
   // The heading has to follow the view: a page headed "Explore knowledge" that is listing agents tells the
   // reader they are in the wrong place, which is exactly the doubt the two-way chip exists to remove.
   'explore.title_agent': { ko: '에이전트 둘러보기', en: 'Explore agents' },
   'explore.agents.sub': { ko: '이 노드와, 이 노드가 아는 노드들이 운영하는 A2A 에이전트입니다. 지식은 모델 안에 넣는 기억이고, 에이전트는 일을 대신 해 주는 프로세스입니다. 각 주소는 그 에이전트를 실제로 돌리는 노드의 주소라, 호출은 그 노드로 바로 갑니다.', en: 'A2A agents operated by this node and by the nodes it knows. Knowledge is memory you load into a model; an agent is a process that does the work for you. Every address belongs to the node that actually runs the agent, so a call goes straight there.' },
-  'explore.agents.count': { ko: '에이전트 {n}개', en: '{n} agents' },
-  'explore.agents.count_one': { ko: '에이전트 1개', en: '1 agent' },
   'explore.agents.empty': { ko: '이 노드도, 이 노드가 아는 노드들도 아직 에이전트를 운영하지 않습니다. 이미 돌고 있는 에이전트가 있다면 `ainize agent add <id> --upstream http://127.0.0.1:9200` 한 줄로 공개 주소가 생깁니다 — 재시작 없이.', en: 'Neither this node nor the nodes it knows operates an agent yet. If you already run one, `ainize agent add <id> --upstream http://127.0.0.1:9200` gives it a public address — no restart.' },
   'explore.agents.empty_search': { ko: '검색어에 맞는 에이전트가 없습니다.', en: 'No agent matches that search.' },
   'explore.agents.unreachable': { ko: '에이전트 목록을 불러오지 못했습니다.', en: 'Could not load the agent list.' },
