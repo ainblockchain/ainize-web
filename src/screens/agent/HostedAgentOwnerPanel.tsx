@@ -19,6 +19,7 @@ import { Description, StyledLink } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import type { AgentVisibility } from '@/api/sharedAgents';
 import { AgentVisibilityControl } from '@/components/agent/AgentVisibilityControl';
+import { AgentAliasControl } from '@/components/agent/AgentAliasControl';
 
 const HostedAgentOwnerBox = styled.div`
   margin-top: 24px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
@@ -34,7 +35,7 @@ const HostedAgentOwnerLogs = styled.pre`
  * `canAdminister` is false for an organization member who may edit the agent but not delete it or change who sees
  * it (ainize-node: those stay with the owner and the organization's admins); the panel then offers edit and logs only.
  */
-export function HostedAgentOwnerPanel({ agentId, agentName, visibility = null, orgId = null, canAdminister = true }: { agentId: string; agentName: string; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean }) {
+export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null, canAdminister = true }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean }) {
   const { t } = useT();
   const navigate = useNavigate();
   const [logsOpen, setLogsOpen] = useState(false);
@@ -76,6 +77,7 @@ export function HostedAgentOwnerPanel({ agentId, agentName, visibility = null, o
         )}
       </HostedAgentOwnerRow>
       {deleteError && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: deleteError })}</Alert>}
+      <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
       {canAdminister && <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />}
       {logsOpen && (
         logs.error

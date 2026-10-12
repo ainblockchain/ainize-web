@@ -92,3 +92,45 @@ export async function createWithFreeAgentId<T extends { id: string }>(
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────── aliases
+
+/**
+ * An agent's alias — a readable second address the node keeps for an agent whose id is not one (ainize-node
+ * agent-aliases.ts): `external-e20458854c448acf7809` stays the id, `agent-m` is what a link and the URL bar show.
+ * `null` for anything that is not a valid id-shaped string (an older node sends no `alias` at all).
+ */
+const AGENT_ID_RULE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+export function agentAliasOf(row: unknown): string | null {
+  const v = (row as { alias?: unknown } | null | undefined)?.alias;
+  return typeof v === 'string' && AGENT_ID_RULE.test(v) ? v : null;
+}
+
+/** `/agent/<alias>` when the agent has one, `/agent/<id>` otherwise — the address every link to an agent's page uses. */
+export function agentPagePath(agent: { id: string; alias?: string | null }, suffix = ''): string {
+  return `/agent/${encodeURIComponent(agentAliasOf(agent) ?? agent.id)}${suffix}`;
+}
+
+/** Does the `/agent/:idOrAlias` segment name this agent — by its id or by its alias? */
+export function agentMatchesParam(agent: { id: string; alias?: string | null }, param: string): boolean {
+  return agent.id === param || (!!param && agentAliasOf(agent) === param);
+}
+
+/**
+ * Where the agent page should move the URL bar: to `/agent/<alias>` when the page was opened by id (or an old
+ * alias) and the agent has an alias, so the readable address is the one people copy. `null` when it is already there.
+ */
+export function agentPageRedirect(param: string, agent: { id: string; alias?: string | null } | null): string | null {
+  const alias = agent ? agentAliasOf(agent) : null;
+  return alias && alias !== param ? agentPagePath(agent!) : null;
+}
+
+/** The node's alias rule — the id rule (ainize-node `LINKED_AGENT_ID`). */
+export const AGENT_ALIAS_PATTERN = AGENT_ID_RULE;
+
+/** What the "Address name" field starts with: the current alias, else the name's suggestion when it is not the id itself. */
+export function aliasSuggestion(agentId: string, agentName: string, alias: string | null): string {
+  if (alias) return alias;
+  const fromName = agentIdFromName(agentName);
+  return fromName && fromName !== agentId ? fromName : '';
+}

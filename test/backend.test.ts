@@ -131,7 +131,9 @@ test('one list, one item — the item page is not a second list', () => {
   const item = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8');
   assert.equal(/agents\.map\(/.test(item), false, 'the item page must not render the list');
   const row = readFileSync(join(root, 'src/components/public/AgentListItem.tsx'), 'utf8');
-  assert.match(row, /to=\{`\/agent\//, 'a row links to the item');
+  assert.match(row, /to=\{(`\/agent\/|agentPagePath\()/, 'a row links to the item');
+  // the link helper (by alias when the agent has one) builds the same singular path
+  assert.match(readFileSync(join(root, 'src/api/agentIds.ts'), 'utf8'), /return `\/agent\/\$\{encodeURIComponent\(/);
   // singular, because /agents/<id> is the A2A endpoint served by app/agents/[...path]/route.ts
   assert.equal(/to=\{`\/agents\//.test(row), false, 'a page under /agents/ would shadow the agent address');
 });

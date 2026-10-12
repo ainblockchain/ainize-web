@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
 import { HostedAgentBadges } from './HostedAgentBadges';
 import { visibilityBadgeOf } from '@/api/sharedAgents';
+import { agentPagePath } from '@/api/agentIds';
 
 /** The A2UI extension, by URI prefix — the version moves (v0.8 → v0.9) and the badge should not. */
 const A2UI = 'a2ui.org';
@@ -113,7 +114,7 @@ export function AgentListItem({ agent, extra }: { agent: AgentSummary; extra?: R
       <Glyph $state={state} aria-hidden="true">{initials(agent.name)}</Glyph>
       <Info>
         <NameRow>
-          <Name><NameLink to={`/agent/${encodeURIComponent(agent.id)}`}>{agent.name}</NameLink></Name>
+          <Name><NameLink to={agentPagePath(agent)}>{agent.name}</NameLink></Name>
           <State $state={state}>
             {state === 'up' ? t('agent.state.up') : state === 'down' ? t('agent.state.down') : t('agent.state.unknown')}
           </State>

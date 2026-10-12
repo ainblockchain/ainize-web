@@ -20,6 +20,7 @@
  */
 import type { AgentSkill, AgentSummary } from './types';
 import { foldOwner, type HostedAgentKind } from './hostedAgents';
+import { agentAliasOf } from './agentIds';
 
 // ─────────────────────────────────────────────────────────────── visibility
 
@@ -383,15 +384,18 @@ export function agentSummaryFromHostedSpecResponse(raw: unknown, origin: string)
     status: oneOf(['building', 'ready', 'failed'] as const, inner.status),
     visibility: agentVisibilityOf(inner),
     org_id: agentOrgIdOf(inner),
+    alias: agentAliasOf(inner),
   };
 }
 
-/** `GET /api/linked-agents` → the one row with this id, as a marketplace row, or `null`. */
-export function agentSummaryFromLinkedList(raw: unknown, id: string): AgentSummary | null {
+/** `GET /api/linked-agents` → the one row with this id (or alias), as a marketplace row, or `null`. */
+export function agentSummaryFromLinkedList(raw: unknown, idOrAlias: string): AgentSummary | null {
   const agents = (raw as { agents?: unknown } | null | undefined)?.agents;
   if (!Array.isArray(agents)) return null;
-  const hit = agents.find((a) => a && typeof a === 'object' && (a as { id?: unknown }).id === id) as Record<string, unknown> | undefined;
+  const rows = agents.filter((a): a is Record<string, unknown> => !!a && typeof a === 'object' && typeof (a as { id?: unknown }).id === 'string');
+  const hit = rows.find((a) => a.id === idOrAlias) ?? rows.find((a) => agentAliasOf(a) === idOrAlias);
   if (!hit) return null;
+  const id = hit.id as string;
   const a2a = str(hit.a2a_url); const card = str(hit.card_url);
   if (!a2a || !card) return null;
   return {
@@ -415,5 +419,6 @@ export function agentSummaryFromLinkedList(raw: unknown, id: string): AgentSumma
     owner: typeof hit.owner === 'string' ? foldOwner(hit.owner) : null,
     visibility: agentVisibilityOf(hit),
     org_id: agentOrgIdOf(hit),
+    alias: agentAliasOf(hit),
   };
 }
