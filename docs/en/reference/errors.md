@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 130 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 131 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 91 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -197,6 +197,7 @@ A further 91 throw sites build their message at the time (a validator's own word
 | `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | an organization keeps at least one admin | `src/organization-store.ts` |
+| `null` | an organization may have \<perOrg> projects on this node | `src/projects.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
 | `null` | Audio response is too large | `src/peer-models.ts` |
