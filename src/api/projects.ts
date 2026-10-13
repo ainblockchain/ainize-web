@@ -21,7 +21,11 @@ export interface ProjectManifest {
   entry?: string;
   runtime?: string;
   timeoutMs?: number;
-  env: Record<string, string>;
+  /** The NAMES of `ainize.json`'s env — the node never reads the values back through a page (`env` is an older node's). */
+  envKeys?: string[];
+  env?: Record<string, string>;
+  /** The NAMES of the project's environment variables the code expects (`secrets`); values are set in the console. */
+  secrets?: string[];
   inputs: Record<string, ManifestInput>;
   examples: ManifestExample[];
   detected: 'ainize.json' | 'package.json';
@@ -30,9 +34,10 @@ export interface ProjectManifest {
 export interface ProjectSource { repoId: string; target: 'head' | 'commit' | 'deployed'; sha: string; sourcePath: string; manifest: ProjectManifest }
 
 /**
- * A project as the node answers it. Reading is public (ainize-node docs/PROJECTS.md "Who sees what"): `owner` and
- * `hookUrl` arrive for the owner only; `canManage` (delete, rotate) and `canOperate` (run, redeploy) say what the
- * signed-in caller may do here.
+ * A project as the node answers it (ainize-node docs/PROJECTS.md "Who sees what"): a public project reads to anyone; an
+ * org-private one (`visibility: 'org'` — its repository's org slug is an organization's) only to that organization's
+ * active members, and is 404 to anyone else. `owner` and `hookUrl` arrive for the owner only; `canManage` (delete,
+ * rotate) and `canOperate` (run, redeploy) say what the signed-in caller may do here.
  */
 export interface Project {
   id: string;
@@ -49,7 +54,10 @@ export interface Project {
   entry: string | null;
   name: string;
   status: ProjectStatus;
+  visibility?: 'org' | 'public';
   owner?: string;
+  /** Who pushed it, when aindrive bound it for an organization (`owner: 'org:<id>'`). */
+  createdBy?: string;
   url: string;
   pageUrl: string;
   hookUrl?: string;
@@ -81,11 +89,17 @@ export interface Deployment {
   trigger: DeploymentTrigger;
   /** The commit's subject line. */
   subject?: string;
-  /** `run` only: what it was started with. */
+  /**
+   * `run` only: what it was started with — the entry, and the NAMES of its inputs and env. The values may be a person's
+   * secrets and are never read back (`inputs` / `env` are an older node's answer).
+   */
   entry?: string | null;
   target?: 'head' | 'commit' | 'deployed';
+  inputKeys?: string[];
+  envKeys?: string[];
   inputs?: Record<string, string>;
   env?: Record<string, string>;
+  /** Who pushed or pressed Run — a subject; the node no longer sends an email (`email` is an older node's). */
   pusher: { subject: string; email?: string } | null;
   createdAt: number;
   startedAt: number | null;

@@ -18,6 +18,7 @@ import styled from 'styled-components';
 import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery } from '@/api/api';
 import { agentsOwnedBy, isAgentOwnedBy, isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
 import { agentListKey, parseManageableHostedAgents, visibilityBadgeOf } from '@/api/sharedAgents';
+import { agentPagePath } from '@/api/agentIds';
 import type { AgentSummary } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -112,7 +113,7 @@ export default function MyAgentsPage() {
                 <CopyButton text={agent.a2a_url} label={t('myAgents.copy')} />
               </MyAgentsRow>
               <MyAgentsRow>
-                <StyledLink to={`/agent/${encodeURIComponent(agent.id)}`}>{t('myAgents.open')}</StyledLink>
+                <StyledLink to={agentPagePath(agent)}>{t('myAgents.open')}</StyledLink>
                 {canEdit && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
                 <ExternalLink href={agent.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
                 {canDelete && <Button size="small" variant="text" color="secondary" onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t('myAgents.delete')}</Button>}

@@ -1032,6 +1032,11 @@ export interface AgentSummary {
    */
   visibility?: 'public' | 'org' | 'private' | 'unlisted' | null;
   org_id?: string | null;
+  /**
+   * A readable second address (ainize-node agent-aliases.ts): `/agent/<alias>` and `/agents/<alias>` reach this
+   * agent; the id never changes. OPTIONAL — an older node sends none. Read through `agentAliasOf` (src/api/agentIds.ts).
+   */
+  alias?: string | null;
 }
 export interface AgentsResponse { agents: AgentSummary[] }
 

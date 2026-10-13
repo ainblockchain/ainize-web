@@ -9,6 +9,8 @@
  */
 import { HOSTED_AGENT_ID_PATTERN } from './hostedAgents';
 import { agentOrgIdOf, agentVisibilityOf, type AgentVisibility } from './sharedAgents';
+import type { AgentSummary } from './types';
+import { agentAliasOf } from './agentIds';
 
 export const ORG_ROLES = ['read', 'contributor', 'write', 'admin'] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
@@ -87,7 +89,7 @@ export interface OrgGroupView { id: string; name: string; members: string[]; age
  */
 export interface OrgAgentView {
   id: string; name: string; description: string; owner: string; kind: 'hosted' | 'linked' | null; visibility: AgentVisibility | null; org_id: string | null; groups: string[];
-  a2a_url: string; card_url: string; calls: number; last_call_at: number | null; created_at: number | null; updated_at: number | null;
+  alias: string | null; a2a_url: string; card_url: string; calls: number; last_call_at: number | null; created_at: number | null; updated_at: number | null;
 }
 
 export interface OrgProfile extends OrgSummary {
@@ -134,7 +136,7 @@ export function parseOrgAgent(raw: unknown): OrgAgentView | null {
   return {
     id, name: str(r.name) ?? id, description: str(r.description) ?? '', owner: str(r.owner) ?? '',
     kind: r.kind === 'hosted' || r.kind === 'linked' ? r.kind : null, visibility: agentVisibilityOf(r), org_id: agentOrgIdOf(r), groups: strs(r.groups), a2a_url: a2a, card_url: str(r.card_url) ?? `${a2a}/.well-known/agent-card.json`,
-    calls: num(r.calls) ?? 0, last_call_at: num(r.last_call_at), created_at: num(r.created_at), updated_at: num(r.updated_at),
+    calls: num(r.calls) ?? 0, last_call_at: num(r.last_call_at), created_at: num(r.created_at), updated_at: num(r.updated_at), alias: agentAliasOf(r),
   };
 }
 
@@ -255,4 +257,17 @@ export function orgApiErrorOf(err: unknown): OrgApiError {
 /** Which member row is the viewer, by any of their principals. */
 export function myMembership(profile: Pick<OrgProfile, 'members'>, principals: readonly string[]): OrgMemberView | null {
   return profile.members.find((m) => principals.includes(m.principal)) ?? null;
+}
+
+/**
+ * An organization's agent as a marketplace row, so `/explore?agents=org` lists exactly what `/org/:id` lists — the
+ * same endpoint, the same rows, the same count. What the organization view does not carry stays honest: no skills,
+ * and `reachable` is `null` (nothing probed the card for this list).
+ */
+export function agentSummaryFromOrgAgent(a: OrgAgentView): AgentSummary {
+  return {
+    id: a.id, name: a.name, description: a.description || null, skills: [], protocols: [], extensions: [], provider: null, documentation_url: null,
+    a2a_url: a.a2a_url, card_url: a.card_url, reachable: null, last_checked: null, error: null, calls: a.calls, last_call_at: a.last_call_at,
+    node: null, owner: a.owner, visibility: a.visibility, org_id: a.org_id, alias: a.alias,
+  };
 }

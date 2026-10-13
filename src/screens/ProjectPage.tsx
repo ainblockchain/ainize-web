@@ -11,7 +11,10 @@
  *                workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input, timeout, example
  *                presets (`examples` in ainize.json) — and the history of runs, each re-runnable with its inputs.
  *   Logs         the newest deployment's or run's log, downloadable.
- *   Settings     branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
+ *   Settings     environment variables (write-only values, .env paste, redeploy after saving — ProjectEnvVars),
+ *                branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
+ *
+ * A banner over the tabs names the environment variables ainize.json declares and nobody has set yet.
  *
  * Reading is public (ainize-node docs/PROJECTS.md "Who sees what"); the node says with `canManage` / `canOperate`
  * which buttons this caller gets. `/projects/:id` still resolves and forwards here.
@@ -38,6 +41,7 @@ import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
 import ProjectDomains from '@/components/ProjectDomains';
+import ProjectEnvVars, { ENV_SECTION_ID, MissingEnvBanner } from '@/components/ProjectEnvVars';
 
 // ------------------------------------------------------------------------------------------------ pieces
 
@@ -105,8 +109,10 @@ function download(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Who: the pusher's email, or the subject; a run names the person who pressed Run. */
-const who = (d: Deployment) => d.pusher?.email ?? d.pusher?.subject ?? null;
+/** Who: the pusher's subject; a run names the person who pressed Run. */
+const who = (d: Deployment) => d.pusher?.subject ?? null;
+/** The names a run was started with: the node sends names only (values may be secrets). */
+const runInputNames = (d: Deployment) => d.inputKeys ?? Object.keys(d.inputs ?? {});
 
 function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployment; project: Project; open: boolean; onToggle: () => void; onRunAgain?: (d: Deployment) => void }) {
   const { t } = useT();
@@ -139,8 +145,8 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
         <>
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
-          {d.trigger === 'run' && d.inputs && Object.keys(d.inputs).length > 0 && (
-            <Meta>{t('projects.runs.with_inputs')}: {Object.entries(d.inputs).map(([k, v]) => `${k}=${v}`).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
+          {d.trigger === 'run' && runInputNames(d).length > 0 && (
+            <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
           )}
           <Actions>
             {d.status === 'ready' && d.outputUrl && <ExternalLink href={d.outputUrl} target="_blank" rel="noreferrer">{d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
@@ -316,7 +322,9 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
   // Runs
   const [draft, setDraft] = useState<RunDraft>(() => emptyDraft(p));
-  const runAgain = (d: Deployment) => { setDraft({ target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry, answers: { ...(d.inputs ?? {}) }, env: Object.entries(d.env ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'), timeoutMs: '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  // The values a run was started with are not read back (they may be secrets): Run again keeps the commit and entry,
+  // and leaves the answers to be given again.
+  const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
   const redeployLatest = async () => {
@@ -348,6 +356,13 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
     catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
   };
 
+  const goToEnv = () => {
+    setTab('settings');
+    // after the Settings tab has rendered
+    setTimeout(() => document.getElementById(ENV_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+  const openDeployment = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; }, { replace: true });
+
   const tabs = [
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
     { id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` },
@@ -377,6 +392,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         </Actions>
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}
+      <MissingEnvBanner project={p} onGo={goToEnv} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
       {tab === 'deployments' && (
@@ -430,6 +446,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
       {tab === 'settings' && (
         <TabBody>
+          <ProjectEnvVars project={p} onOpenDeployment={openDeployment} />
           {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
           <KeyValue>
             <dt>{t('projects.page.repo')}</dt><dd><ExternalLink href={p.repo} target="_blank" rel="noreferrer">{p.repo}</ExternalLink></dd>
@@ -439,8 +456,8 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
             {p.manifest && Object.keys(p.manifest.inputs).length > 0 && (
               <><dt>{t('projects.settings.inputs')}</dt><dd>{Object.entries(p.manifest.inputs).map(([n, s]) => <div key={n}><Mono>{n}</Mono> <Meta>{s.type ?? 'string'}{s.required ? ' · required' : ''}{s.default !== undefined ? ` · default ${String(s.default)}` : ''}{s.description ? ` — ${s.description}` : ''}</Meta></div>)}</dd></>
             )}
-            {p.manifest && Object.keys(p.manifest.env).length > 0 && (
-              <><dt>{t('projects.settings.env')}</dt><dd>{Object.entries(p.manifest.env).map(([k, v]) => <div key={k}><Mono>{k}={v}</Mono></div>)}</dd></>
+            {p.manifest && (p.manifest.envKeys ?? Object.keys(p.manifest.env ?? {})).length > 0 && (
+              <><dt>{t('projects.settings.env')}</dt><dd>{(p.manifest.envKeys ?? Object.keys(p.manifest.env ?? {})).map((k) => <div key={k}><Mono>{k}</Mono></div>)}</dd></>
             )}
             <dt>URL</dt><dd><Mono>{p.url}</Mono> <CopyButton text={p.url} /></dd>
             {p.canManage && p.hookUrl && <><dt>{t('projects.settings.webhook')}</dt><dd><Mono>{p.hookUrl}</Mono> <CopyButton text={p.hookUrl} /><Help>{t('projects.settings.webhook_help')}</Help></dd></>}

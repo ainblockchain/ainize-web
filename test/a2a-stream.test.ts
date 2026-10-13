@@ -8,7 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { progressText, readFrame, takeFrames } from '../src/lib/a2a-stream';
+import { cardStreams, isStreamingRefusal, progressText, readFrame, sendMethod, takeFrames } from '../src/lib/a2a-stream';
 
 const frame = (result: unknown) => ({ jsonrpc: '2.0', id: '1', result });
 const update = (state: string, text: string, final = false) => frame({
@@ -66,4 +66,27 @@ test('an artifact update is a piece of the answer, appended unless it starts one
   const chunk = (text: string, append: boolean) => ({ jsonrpc: '2.0', id: 1, result: { kind: 'artifact-update', taskId: 't', contextId: 'c', append, lastChunk: false, artifact: { artifactId: 'answer', parts: [{ kind: 'text', text }] } } });
   assert.deepEqual(readFrame(chunk('Hello', false)), { kind: 'chunk', text: 'Hello', append: false });
   assert.deepEqual(readFrame(chunk(' there', true)), { kind: 'chunk', text: ' there', append: true });
+});
+
+test('an agent whose card says it does not stream is sent message/send, not message/stream', () => {
+  // the card of external-e20458854c448acf7809, which answered message/stream with -32603
+  const card = { capabilities: { streaming: false }, name: 'Agent M', protocolVersion: '0.3.0' };
+  assert.equal(cardStreams(card), false);
+  assert.equal(sendMethod(cardStreams(card)), 'message/send');
+  // leaving the capability out is not claiming it
+  assert.equal(sendMethod(cardStreams({ capabilities: {} })), 'message/send');
+  assert.equal(sendMethod(cardStreams({})), 'message/send');
+  assert.equal(sendMethod(cardStreams({ capabilities: { streaming: true } })), 'message/stream');
+  // no card yet (or it failed to load) is not a refusal: try the stream and let the agent answer
+  assert.equal(cardStreams(null), null);
+  assert.equal(sendMethod(cardStreams(null)), 'message/stream');
+});
+
+test('a refusal to stream is told apart from a refusal of the message', () => {
+  assert.equal(isStreamingRefusal({ code: -32603, message: 'Streaming is not supported by the agent' }), true);
+  assert.equal(isStreamingRefusal({ code: -32004, message: 'Unsupported operation' }), true);
+  assert.equal(isStreamingRefusal({ code: -32603, message: 'message/stream is unsupported' }), true);
+  assert.equal(isStreamingRefusal({ code: -32603, message: 'agent did not answer: timeout' }), false);
+  assert.equal(isStreamingRefusal({ code: -32602, message: 'Invalid params' }), false);
+  assert.equal(isStreamingRefusal(null), false);
 });
