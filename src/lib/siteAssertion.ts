@@ -32,7 +32,7 @@ export function signSiteSubject(secret: string, subject: string, issuedAtS: numb
 export { siteAssertionSecret };
 
 /** The path prefixes a Google account may act on through this app (each matches itself and `<prefix>/…`). */
-const VOUCHED_PREFIXES = ['/api/keys', '/api/hosted-agents', '/api/linked-agents', '/api/shared-agents'] as const;
+const VOUCHED_PREFIXES = ['/api/keys', '/api/hosted-agents', '/api/linked-agents', '/api/shared-agents', '/agents'] as const;
 
 /** The paths a Google account may act on through this app. */
 export function vouchesFor(path: string): boolean {
