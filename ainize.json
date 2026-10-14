@@ -1,0 +1,8 @@
+{
+  "name": "ainize-web",
+  "kind": "nextjs",
+  "port": 3000,
+  "healthcheck": { "path": "/api/health", "status": [200], "timeoutSeconds": 180 },
+  "resources": { "memory": "2g", "cpus": 2 },
+  "config": { "AINIZE_NODE_URL": "ainize.node.url" }
+}

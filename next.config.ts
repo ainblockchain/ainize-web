@@ -17,6 +17,8 @@ export function resolveBuildCommit(
   readBuildFile: () => string = () => readFileSync('public/web-build.json', 'utf8'),
   gitHead: () => string = () => execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }),
 ): string {
+  const deploymentCommit = env.AINIZE_DEPLOYMENT_COMMIT?.trim().toLowerCase();
+  if (deploymentCommit && /^[0-9a-f]{40}$/.test(deploymentCommit)) return deploymentCommit;
   const fromEnv = env.GIT_COMMIT?.trim().toLowerCase();
   if (fromEnv && SHA.test(fromEnv)) return fromEnv;
   try {
