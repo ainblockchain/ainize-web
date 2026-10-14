@@ -44,6 +44,8 @@ export interface Project {
   org: string;
   repoName: string;
   repo: string;
+  upstreamRepo?: string | null;
+  publicPreview?: boolean;
   branch: string;
   repoId?: string;
   sourcePath?: string;
@@ -79,6 +81,7 @@ export interface ProjectCreateInput { repo: string; branch?: string; name?: stri
 export type DeploymentTrigger = 'push' | 'redeploy' | 'run';
 
 export interface Deployment {
+  placement?: { address: string; endpoint: string; local: boolean; score: number; gpuUuids: string[]; reason: string } | null;
   id: string;
   projectId: string;
   sha: string;
