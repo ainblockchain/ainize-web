@@ -185,8 +185,8 @@ A further 91 throw sites build their message at the time (a validator's own word
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: … | `src/project-manifest.ts` |
-| `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: \<location>: \<message> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: container requires a service or nextjs runtime | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: examples."\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
