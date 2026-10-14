@@ -183,7 +183,7 @@ A further 91 throw sites build their message at the time (a validator's own word
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
-| `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON: … | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
