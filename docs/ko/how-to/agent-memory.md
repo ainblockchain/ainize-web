@@ -2,7 +2,7 @@
 title: 지식을 사서 기억하는 에이전트
 summary: 이미 아는 것으로 답하고, 질문을 담은 지식이 있으면 사고, 없으면 조회하고 — 같은 조회를 반복하는 비용이 한 번 컴파일하는 비용을 넘어서면 그 조회를 엔그램으로 굽는 에이전트.
 source: en/how-to/agent-memory.md
-source_sha256: 30dbebdb1fd72349feed505a7242e159f879dcbedde8c68ae872c4820d00aa95
+source_sha256: c62fb4d961655d0ee6d0119e5ba927ad54836cba4ee28fa89afacd7050175667
 ---
 
 # 지식을 사서 기억하는 에이전트
@@ -60,12 +60,14 @@ ainize-agent ask "USDC 컨트랙트 주소 알려줘" \
 처음에는 기억에 아무것도 없고, 그 마켓에 이 질문을 담은 지식도 없고, 표현에 맞는 **플랜**이 있으므로 — 에이전트는 업스트림
 서버를 한 번 호출하고, 받아온 행으로 답합니다. 그 행들은 이제 기억에 있습니다.
 
-같은 질문을 다시 하면 비용이 전혀 들지 않습니다. 조회도, 모델 호출도 없습니다.
+같은 질문을 다시 하면 저장된 조회 결과로 답할 수 있어 업스트림 조회를 다시 하지 않습니다. 실행 중인 모델이 있으면
+기억한 답을 확인하는 데 모델 호출이 1회 필요할 수 있고, 답변 캐시가 유효하면 0회입니다. 실제 횟수는 `.cost`에서
+확인하세요. `via: "memory"`만으로 모델 호출이 없었다고 판단할 수는 없습니다.
 
 ```bash
 ainize-agent ask "USDC 컨트랙트 주소 알려줘" --json | jq '.via, .cost'
 # "memory"
-# { "completions": 0, "queries": 0, "money": null, "lessons": 0, "gpu_s": null, "ms": 82 }
+# 실제 횟수를 확인하세요. completions는 0 또는 1일 수 있고 실행 시간도 달라집니다.
 ```
 
 ### 모델을 두 번 묻지 않고 판단하는 방법
@@ -147,7 +149,7 @@ N* = 일회성 비용 / (질문당 조회 비용 − 질문당 회상 비용)
 stub 작업 3건이 추정치가 되어서는 안 되고, 조회 3회가 손익분기점이 되어서도 안 됩니다.
 
 ```bash
-ainize-agent memory --why ef393190fa86
+ainize-agent memory --why graph/erc20-address-by-symbol
 # would it be compiled? no
 #   no  economic   {"lookups":10,"n_star":null,"binding_unit":null,"declared_floor":null,"computable":"no"}
 #   ok  material   {"distinct_rows":10,"floor":8}

@@ -1,6 +1,6 @@
 ---
 source: en/get-started/quickstart.md
-source_sha256: 4eb7ee1ad9858ec01a24f076d46c5ae573b3351a3c8591f66a5ca3d6052e3d73
+source_sha256: c5c0363208de0f26aafa919ffb4a1b97febb38512781448a3540c475a3cf9876
 ---
 
 # 빠른 시작
@@ -13,11 +13,14 @@ source_sha256: 4eb7ee1ad9858ec01a24f076d46c5ae573b3351a3c8591f66a5ca3d6052e3d73
 ```bash
 export AINIZE_HOME="$HOME/ainize-quickstart"
 ainize init --name quickstart --port 3694 --roles seller
+ainize login --no-open
 ainize start -d
 ainize status
 ainize login --node-key
 ainize wallet
 ```
+
+노드를 시작하기 전에 AIN 계정에 연결합니다. 개인 AinCode에서 `login --no-open`은 기존 AIN SSO 로그인을 자동으로 사용합니다. AinCode 밖에서는 출력된 웹사이트 링크를 열고 연결을 승인하세요. 이후의 `login --node-key`는 로컬 운영자로 로그인합니다.
 
 로컬 원장의 초기 CREDIT은 테스트용이며 AIN 메인넷 잔액이 아닙니다.
 노드 머신에서 `ainize login --node-key`을 실행하면 해당 노드 키로 서명합니다.

@@ -1,11 +1,11 @@
 ---
 source: en/how-to/connect-nodes.md
-source_sha256: cade99840a78913fafa6afd1dc3d325c50ad5856283013db74e6de6ea2806844
+source_sha256: 0b576206e004de001875ce9c891033468b2970f044d59a57ce217f630713a1e0
 ---
 
-# 지갑에 노드 연결
+# AIN 계정에 노드 연결
 
-[Ainize](/signing)에 MetaMask 또는 호환 지갑으로 로그인하세요. 특정 주소만 사용할 수 있는 제한은 없습니다.
+[Ainize](/signing)에 AIN 계정(SSO) 또는 호환 지갑으로 로그인하세요. 개인 AinCode 작업 공간에서는 기존 AIN 로그인으로 노드가 계정에 자동 연결됩니다.
 
 ## 노드 연결
 
@@ -21,13 +21,13 @@ ainize login --home ~/.ainize-a
 ainize start --home ~/.ainize-a -d
 ```
 
-`login`이 웹사이트를 엽니다. 이미 로그인했다면 해당 지갑으로 노드 연결을 승인하세요. 로그인 전이라면 로그인 후 승인 화면으로 돌아옵니다. SSH처럼 브라우저를 열 수 없는 환경에서는 출력된 링크를 직접 여세요. `--no-open`은 링크만 출력합니다.
+개인 AinCode에서는 `login --no-open`을 실행하세요. 기존 AIN 로그인을 사용하므로 별도의 Drive 권한이나 지갑 승인이 필요하지 않습니다. AinCode 밖에서는 `login`이 웹사이트를 열며, 로그인 후 노드 연결을 승인합니다. SSH처럼 브라우저를 열 수 없는 환경에서는 출력된 링크를 직접 여세요. `--no-open`은 브라우저를 열지 않습니다.
 
 [내 노드](/my-nodes)에서 연결을 확인할 수 있습니다. CLI로 실행한 노드는 매분 상태를 알립니다. 연결은 상태 보고만 허용하며, 지갑 자산 사용이나 계정 대행 권한을 주지 않습니다.
 
 ## 여러 노드 연결
 
-홈 디렉터리와 포트를 다르게 지정하고 같은 지갑으로 승인하세요.
+홈 디렉터리와 포트를 다르게 지정하고 같은 계정으로 연결하세요.
 
 ```bash
 ainize init --home ~/.ainize-b --name node-b --port 3403

@@ -1,6 +1,6 @@
 ---
 source: en/get-started/install.md
-source_sha256: 44f18c8b9751e7c97bd6510f674f32eb661cb169ee8da2255724e6959975ca44
+source_sha256: 2a39b5c827c0412d68adf9b25e8d4e81cfc11fed21a06c914ad0145f52f10c48
 ---
 
 # 설치
@@ -15,7 +15,9 @@ ainize --version
 ainize --help
 ```
 
-작업 공간의 에이전트는 기본으로 Qwen3.8-Flash-Next를 씁니다. GLM-5.3-Flash를 쓰려면 모델 선택기(터미널 UI에서는 `/models`)에서 고르세요. AinCode 작업 공간은 게이트웨이를 통해 Ainize에 연결됩니다. 패키지 다운로드와 공개 Git 저장소 복제에는 별도의 준비 경로가 필요하므로, 아래 로컬 설치·CLI 개발 명령은 이 작업 공간에서 그대로 실행되지 않습니다. 실습 파일과 진행 기록은 선택한 AinDrive Git 저장소에 보관하세요.
+준비된 AinCode 실습 환경은 게이트웨이를 통해 패키지 다운로드와 공식 CLI 소스 저장소에 연결됩니다. 아래 소스 빌드에 필요한 도구와 SQLite 바이너리도 기본 환경에 포함되어 있습니다. 실습 파일과 진행 기록은 선택한 AinDrive Git 저장소에 보관하고, 백업으로 사용하기 전에 저장과 복원이 성공하는지 확인하세요.
+
+작업 공간의 에이전트는 기본으로 Qwen3.8-Flash-Next를 씁니다. GLM-5.3-Flash를 쓰려면 모델 선택기(터미널 UI에서는 `/models`)에서 고르세요.
 
 ## 내 컴퓨터에서
 

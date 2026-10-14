@@ -1,6 +1,6 @@
 ---
 source: en/how-to/join-from-your-own-node.md
-source_sha256: dbbe78522734b8f34e4116d2cc020b7812c5725ad4b2d45f9a16070ab53bb110
+source_sha256: b9d90b2d6fd8ce8634a0a3fd0520636b9b2ea2fc7b1617b600a823646a77afff
 ---
 
 # 내 노드로 네트워크 참여하기
@@ -13,11 +13,14 @@ Node 24 이상을 설치하고 새 홈 디렉터리를 사용합니다.
 npm install -g ainize
 export AINIZE_HOME="$HOME/ainize-joiner"
 ainize init --name joiner --port 3455 --peer https://ainize.ai --roles seller
+ainize login --no-open
 ainize start -d
 ainize status
 ainize login --node-key
 ainize nodes
 ```
+
+노드를 시작하기 전에 AIN 계정에 연결합니다. 개인 AinCode에서 `login --no-open`은 기존 AIN SSO 로그인을 자동으로 사용합니다. AinCode 밖에서는 출력된 웹사이트 링크를 열고 연결을 승인하세요. 이후의 `login --node-key`는 로컬 운영자로 로그인합니다.
 
 기본 로컬 원장은 CREDIT을 사용하며 AIN 메인넷과 잔액을 공유하지 않습니다.
 다른 피어에 연결하기 전에 원장 호환성을 확인하세요.
