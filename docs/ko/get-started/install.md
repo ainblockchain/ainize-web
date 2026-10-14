@@ -1,6 +1,6 @@
 ---
 source: en/get-started/install.md
-source_sha256: 889fd440e2af16cf009084f27c3a63fde1b50c5f95c7d8e16bb76ff841e64a11
+source_sha256: 2a39b5c827c0412d68adf9b25e8d4e81cfc11fed21a06c914ad0145f52f10c48
 ---
 
 # 설치
