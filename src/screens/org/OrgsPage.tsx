@@ -67,8 +67,8 @@ export default function OrgsPage() {
                 </OrgHead>
                 {o.description && <Description style={{ margin: 0 }}>{o.description}</Description>}
                 <OrgMeta>
-                  <span>{t('orgs.members', { n: o.member_count })}</span>
-                  <span>{t('orgs.agents', { n: o.agent_count })}</span>
+                  <span>{t('orgs.members', { n: o.member_count }, o.member_count)}</span>
+                  <span>{t('orgs.agents', { n: o.agent_count }, o.agent_count)}</span>
                   {o.domains.map((d) => <span key={d}>@{d}</span>)}
                 </OrgMeta>
               </OrgItem>

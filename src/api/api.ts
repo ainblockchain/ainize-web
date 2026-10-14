@@ -1,4 +1,5 @@
 import type { AppDomain, AppDomainsResponse } from './projects';
+import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
 /**
  * RTK Query API slice — the modern replacement for ainize-web's redux-saga + fetch managers.
  * One endpoint per node API route; tags give cache invalidation after operator actions.
@@ -200,6 +201,19 @@ export const api = createApi({
     checkProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}/check`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
     removeProjectDomain: b.mutation<void, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
     deployment: b.query<Deployment, string>({ query: (id) => `api/deployments/${encodeURIComponent(id)}` }),
+    /**
+     * The project's environment variables (src/api/projectSecrets.ts): names only — values are write-only. A write
+     * with `redeploy` asks the node to deploy the newest commit again, so the project's view refreshes too.
+     */
+    projectSecrets: b.query<ProjectSecretsResponse, string>({ query: (id) => secretsListUrl(id), transformResponse: parseProjectSecretsResponse, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/secrets` }] }),
+    setProjectSecret: b.mutation<SecretSaved, { id: string; name: string; value: string; redeploy?: boolean }>({
+      query: ({ id, name, value, redeploy }) => secretPutRequest(id, name, value, redeploy), transformResponse: parseSecretSaved,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
+    }),
+    deleteProjectSecret: b.mutation<SecretRemoved, { id: string; name: string; redeploy?: boolean }>({
+      query: ({ id, name, redeploy }) => secretDeleteRequest(id, name, redeploy), transformResponse: parseSecretRemoved,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
+    }),
     deploymentLog: b.query<string, string>({ query: (id) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
     myHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
     /** Own hosted agents plus the ones shared with an organization where the caller may edit — read through `parseManageableHostedAgents`. */
@@ -304,6 +318,20 @@ export const api = createApi({
     setAgentVisibility: b.mutation<unknown, AgentVisibilityInput>({
       query: ({ id, ...body }) => ({ url: `api/shared-agents/${encodeURIComponent(id)}/visibility`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }],
+    }),
+    /**
+     * Agent aliases (ainize-node agent-aliases.ts). `agentAlias` resolves an alias OR an id to `{ id, alias }` — 404 for
+     * an agent the caller may not see, and on a node without aliases. Setting and clearing: owner, write member
+     * (hosted) or the node operator.
+     */
+    agentAlias: b.query<unknown, string>({ query: (name) => `api/agent-aliases/${encodeURIComponent(name)}`, providesTags: ['Agents'] }),
+    setAgentAlias: b.mutation<unknown, { id: string; alias: string }>({
+      query: ({ id, alias }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'PUT', body: { alias } }),
+      invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }, 'HostedAgent', 'LinkedAgent'],
+    }),
+    clearAgentAlias: b.mutation<unknown, string>({
+      query: (id) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'DELETE' }),
+      invalidatesTags: (_r, _e, id) => ['Agents', 'Org', { type: 'HostedAgent', id }, { type: 'LinkedAgent', id }, 'HostedAgent', 'LinkedAgent'],
     }),
     /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
     linkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
@@ -635,8 +663,9 @@ export const {
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useRotateProjectSecretMutation,
+  useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
   usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
@@ -660,8 +689,12 @@ export const {
 /** Extract a human message from an RTK Query error. */
 export function errorMessage(err: unknown): string {
   if (!err) return '';
-  const e = err as { data?: { error?: string; issues?: { message: string }[] }; error?: string; status?: number | string };
-  if (e.data?.error) return e.data.issues?.length ? `${e.data.error}: ${e.data.issues.map((i) => i.message).join(', ')}` : e.data.error;
+  const e = err as { data?: { error?: string | { code?: unknown; message?: unknown }; issues?: { message: string }[] }; error?: string; status?: number | string };
+  // The shared-agent registry answers in the integration contract's shape, `{error: {code, message}}` — an object, which
+  // React refuses to render, so it took the whole page down instead of showing the reason.
+  const body = e.data?.error;
+  if (body && typeof body === 'object') return typeof body.message === 'string' ? body.message : typeof body.code === 'string' ? body.code : `request failed${e.status ? ` (${e.status})` : ''}`;
+  if (body) return e.data!.issues?.length ? `${body}: ${e.data!.issues.map((i) => i.message).join(', ')}` : body;
   if (typeof e.error === 'string') return e.error;
   return `request failed${e.status ? ` (${e.status})` : ''}`;
 }

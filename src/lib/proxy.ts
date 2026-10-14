@@ -16,16 +16,42 @@ import { SITE_SUBJECT_HEADER, siteSubjectFor, vouchesFor } from './siteAssertion
 /** Body-carrying methods. A GET with a body is not a thing fetch will send. */
 const WITH_BODY = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-export async function relayToNode(req: Request, path: string): Promise<Response> {
+/** The node's session cookie (ainize-node src/site-session.ts) — the one cookie a `/svc` request carries onward. */
+export const NODE_SESSION_COOKIE = 'ainize_session';
+
+/**
+ * What a `/svc/<projectId>/…` request may carry to the node. `/svc` is a user's app served on THIS origin, so the
+ * visitor's ambient credentials for ainize.ai must not travel with it as they do to every other route: no
+ * `Authorization`, no `X-Ainize-*` / `X-AIN-Actor`, and of the cookies only the node's own session. The node needs that
+ * one to decide whether the visitor is an active member of an org-private project's organization — it is the
+ * authority on sessions, and resolving it here would cost a round trip per asset — and it strips it, with every other
+ * credential, before the request reaches the container (ainize-node project-routes.ts `/svc`). Everything else
+ * ainize.ai's cookie jar holds (the Google session, SSO state) stays here.
+ */
+export function serviceHeaders(headers: Headers): Headers {
+  headers.delete('authorization');
+  for (const name of [...headers.keys()]) if (name.startsWith('x-ainize-') || name === 'x-ain-actor') headers.delete(name);
+  const session = (headers.get('cookie') ?? '').split(';').map((c) => c.trim()).find((c) => c.slice(0, c.indexOf('=')) === NODE_SESSION_COOKIE);
+  if (session) headers.set('cookie', session); else headers.delete('cookie');
+  return headers;
+}
+
+/**
+ * `service`: the request is a user's app on this origin (`/svc`, above) — its credentials are trimmed on the way in,
+ * and the app's `Set-Cookie` is dropped on the way out: an app served on ainize.ai must not plant or overwrite a
+ * cookie of ainize.ai's (a session fixation, or a way to shadow `ainize_session`).
+ */
+export async function relayToNode(req: Request, path: string, opts: { service?: boolean } = {}): Promise<Response> {
   const url = new URL(req.url);
   const target = `${NODE_URL}${path}${url.search}`;
   const headers = forwardHeaders(req);
+  if (opts.service) serviceHeaders(headers);
   // Only this app may vouch for a Google account, and only on the paths it vouches for. A visitor's own copy of
   // the header is dropped everywhere: the node would reject a forged one, but it should never even see one.
   headers.delete(SITE_SUBJECT_HEADER);
   // Likewise this app's own signed calls (nodeCall.ts): they are this app speaking, never a visitor.
   headers.delete(SITE_CALL_HEADER);
-  if (vouchesFor(path)) {
+  if (!opts.service && vouchesFor(path)) {
     const subject = await siteSubjectFor(req);
     if (subject) headers.set(SITE_SUBJECT_HEADER, subject);
   }
@@ -50,6 +76,7 @@ export async function relayToNode(req: Request, path: string): Promise<Response>
   // set-cookie is the node's to set: an operator signs in there, and the cookie is scoped to this origin
   out.delete('content-encoding');
   out.delete('content-length');
+  if (opts.service) out.delete('set-cookie');
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
 }
 
@@ -61,10 +88,10 @@ export async function relayToNode(req: Request, path: string): Promise<Response>
  * A2A agent address is exactly the kind of URL a page on another origin calls. The node already answers
  * preflights; this hands the question to it.
  */
-export function nodeRoutes(prefix: string) {
+export function nodeRoutes(prefix: string, opts: { service?: boolean } = {}) {
   const handler = async (req: Request, ctx: { params: Promise<{ path?: string[] }> }) => {
     const { path } = await ctx.params;
-    return relayToNode(req, `${prefix}/${(path ?? []).join('/')}`);
+    return relayToNode(req, `${prefix}/${(path ?? []).join('/')}`, opts);
   };
   return { GET: handler, POST: handler, PUT: handler, PATCH: handler, DELETE: handler, OPTIONS: handler };
 }

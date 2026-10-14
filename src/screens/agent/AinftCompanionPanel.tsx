@@ -174,7 +174,9 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
           <small>{example.state === 'reviewed' ? text('검토한 예제 · 저장됨', 'Reviewed example · saved') : text('사용 철회', 'Withdrawn')}</small>
           {example.state === 'reviewed' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/learning/examples/${example.id}/withdraw`, {}))}>{text('예제 사용 철회', 'Withdraw example')}</Button>}
         </article>)}
-        <div style={{ marginTop: 16 }}>
+        <details style={{ marginTop: 16 }}>
+          <summary>{text('고급: 모델 학습과 공유 (선택사항)', 'Advanced: model training and sharing (optional)')}</summary>
+          <p>{text('승인한 기억과 작업 이력은 모델을 다시 학습하지 않아도 다음 대화와 작업에 활용됩니다.', 'Approved memories and work history are used in subsequent conversations and tasks without retraining the model.')}</p>
           <Button size="small" disabled={busy} onClick={() => void action(loadTraining)}>{text('모델 학습 상태 확인', 'Check model training')}</Button>
           {training && <>
             <p>{text('학습 모델', 'Training model')}: {training.capability.model ?? '—'}</p>
@@ -226,7 +228,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
               })}>{text('변경 적용', 'Apply change')}</Button><Button size="small" variant="text" disabled={busy} onClick={() => setSelectionIntent(null)}>{text('취소', 'Cancel')}</Button></div>
             </div>}
           </>}
-        </div>
+        </details>
       </>}
     {error && <Alert $tone="error" style={{ marginTop: 12 }}>{error}</Alert>}
   </section>;

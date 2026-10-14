@@ -22,7 +22,8 @@ const HOP_BY_HOP = new Set([
  *
  * `x-forwarded-for` is appended rather than set: the node rate-limits per IP, and a proxy that replaces the
  * chain makes every visitor look like one caller. Cookies and `authorization` pass through — the node is what
- * authenticates an operator, and this app is not in that business.
+ * authenticates an operator, and this app is not in that business — except to `/svc`, a user's app on this origin,
+ * which gets only the node's session cookie (proxy.ts `serviceHeaders`).
  */
 export function forwardHeaders(req: Request): Headers {
   const out = new Headers();

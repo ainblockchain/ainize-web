@@ -40,7 +40,9 @@ export const organizations: Dict = {
   'orgs.create': { ko: '조직 만들기', en: 'Create an organization' },
   'orgs.create_for_domain': { ko: '@{domain} 을 위한 조직이 아직 없습니다 — 당신이 만들 수 있습니다. 같은 도메인으로 로그인하는 모든 사람이 자동으로 들어옵니다.', en: 'No organization holds @{domain} yet — you can create it. Everyone who signs in on that domain will be in it.' },
   'orgs.members': { ko: '멤버 {n}', en: '{n} members' },
+  'orgs.members_one': { ko: '멤버 1', en: '1 member' },
   'orgs.agents': { ko: '에이전트 {n}', en: '{n} agents' },
+  'orgs.agents_one': { ko: '에이전트 1', en: '1 agent' },
   'orgs.unsupported': { ko: '이 노드는 아직 조직을 지원하지 않습니다.', en: 'This node does not support organizations yet.' },
 
   // ── /org/new
@@ -67,18 +69,14 @@ export const organizations: Dict = {
   // ── /org/:id
   'org.tab.agents': { ko: '에이전트', en: 'Agents' },
   'org.tab.members': { ko: '멤버', en: 'Members' },
-  'org.tab.readme': { ko: 'README', en: 'README' },
   'org.settings': { ko: '설정', en: 'Settings' },
   'org.register_agent': { ko: '이 조직에 에이전트 등록', en: 'Register an agent here' },
   'org.create_agent': { ko: '새 에이전트 만들기', en: 'Create a new agent' },
   'org.agents.empty': { ko: '아직 이 조직에 등록된 에이전트가 없습니다.', en: 'No agents are registered under this organization yet.' },
   'org.agents.hidden': { ko: '그리고 당신에게 보이지 않는 에이전트 {n}개가 더 있습니다 (리소스 그룹).', en: 'And {n} more you cannot see (resource groups).' },
-  'org.agents.calls': { ko: '호출 {n}', en: '{n} calls' },
   'org.agents.group': { ko: '그룹: {name}', en: 'Group: {name}' },
-  'org.agents.open': { ko: '열기', en: 'Open' },
   'org.agents.edit': { ko: '수정', en: 'Edit' },
   'org.readme.empty': { ko: 'README 가 없습니다. 관리자가 설정에서 쓸 수 있습니다.', en: 'No README yet. An admin can write one in settings.' },
-  'org.members.count': { ko: '멤버 {n}명', en: '{n} members' },
   'org.members.domain_note': { ko: '@{domains} 으로 로그인하는 사람은 자동으로 {role} 멤버입니다.', en: 'Anyone signing in with @{domains} is a {role} member automatically.' },
   'org.my_role': { ko: '내 역할: {role}', en: 'Your role: {role}' },
   'org.not_member.title': { ko: '멤버만 볼 수 있는 조직입니다', en: 'This organization is for its members' },

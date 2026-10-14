@@ -10,13 +10,14 @@ import { useMemo, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 import styled from 'styled-components';
 import { useOrgQuery, useRequestJoinOrgMutation } from '@/api/api';
-import { orgApiErrorOf, parseOrgProfile, roleAtLeast } from '@/api/organizations';
+import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgProfile, roleAtLeast } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Blocks, Prose } from '@/components/docs/Markdown';
+import { AgentListItem } from '@/components/public/AgentListItem';
 import { parseDoc } from '@/components/docs/markdown-parser';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
-import { CenterProgress, CopyButton, Description, Empty, ExternalLink, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
+import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { viewerPrincipals } from '@/api/linkedAgents';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -50,7 +51,7 @@ export default function OrgPage() {
   const org = useMemo(() => parseOrgProfile(data), [data]);
   const err = error ? orgApiErrorOf(error) : null;
   useTitle(org?.name ?? err?.org?.name ?? t('orgs.title'));
-  const [tab, setTab] = useState<'agents' | 'members' | 'readme'>('agents');
+  const [tab, setTab] = useState<'agents' | 'members'>('agents');
   const [message, setMessage] = useState('');
   const [requestJoin, requestState] = useRequestJoinOrgMutation();
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -120,12 +121,10 @@ export default function OrgPage() {
         {(admin || write) && <StyledLink to={`/org/${encodeURIComponent(org.id)}/settings`} data-testid="org-settings-link" style={{ marginLeft: 'auto' }}>{t('org.settings')} →</StyledLink>}
       </OrgHeader>
       {org.description && <Description style={{ marginTop: 4 }}>{org.description}</Description>}
-      <OrgMeta>
-        <span>{t('org.members.count', { n: org.member_count })}</span>
-        <span>{t('orgs.agents', { n: org.agent_count })}</span>
-        {org.domains.map((d) => <span key={d}>@{d}</span>)}
-      </OrgMeta>
+      {/* The counts are on the tabs below; this line keeps only what the tabs do not say. */}
+      {org.domains.length > 0 && <OrgMeta>{org.domains.map((d) => <span key={d}>@{d}</span>)}</OrgMeta>}
 
+      {readme.length === 0 && admin && <Description data-testid="org-readme-empty">{t('org.readme.empty')}</Description>}
       {readme.length > 0 && (
         <ReadmeCard data-testid="org-readme">
           <Prose><Blocks blocks={readme} ctx={{ lang: locale === 'ko' ? 'ko' : 'en', slug: `org/${org.id}` }} /></Prose>
@@ -135,7 +134,6 @@ export default function OrgPage() {
       <Tabs value={tab} onChange={(v) => setTab(v as typeof tab)} tabs={[
         { id: 'agents', label: `${t('org.tab.agents')} · ${org.agent_count}` },
         { id: 'members', label: `${t('org.tab.members')} · ${org.member_count}` },
-        { id: 'readme', label: t('org.tab.readme') },
       ]} />
 
       {tab === 'agents' && (
@@ -145,30 +143,22 @@ export default function OrgPage() {
             {contributor && <StyledLink to={`/agent/link?org=${encodeURIComponent(org.id)}`} data-testid="org-register-agent">{t('org.register_agent')} →</StyledLink>}
           </Actions>
           {org.agents.length === 0 && <Empty data-testid="org-agents-empty">{t('org.agents.empty')}</Empty>}
-          <List data-testid="org-agents">
+          <div data-testid="org-agents">
             {org.agents.map((a) => {
               const groups = org.groups.filter((g) => a.groups.includes(g.id));
               const mine = principals.includes(a.owner);
               // The node's rules: a hosted agent is edited by its owner or a write member; a linked agent's upstream by its owner alone.
               const editTo = a.kind === 'linked' ? (mine ? `/agent/${encodeURIComponent(a.id)}/link` : null) : (mine || write ? `/agent/${encodeURIComponent(a.id)}/edit` : null);
-              return (
-                <Item key={a.id} data-testid={`org-agent-${a.id}`}>
-                  <Head>
-                    <Name>{a.name}</Name>
-                    {groups.map((g) => <OrgChip key={g.id}>{t('org.agents.group', { name: g.name })}</OrgChip>)}
-                    <OrgChip>{t('org.agents.calls', { n: a.calls })}</OrgChip>
-                  </Head>
-                  {a.description && <Description style={{ margin: 0 }}>{a.description}</Description>}
-                  <Row><Mono>{a.a2a_url}</Mono><CopyButton text={a.a2a_url} label={t('myAgents.copy')} /></Row>
-                  <Row>
-                    <StyledLink to={`/agent/${encodeURIComponent(a.id)}`}>{t('org.agents.open')}</StyledLink>
-                    {editTo && <StyledLink to={editTo}>{t('org.agents.edit')}</StyledLink>}
-                    <ExternalLink href={a.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
-                  </Row>
-                </Item>
-              );
+              // The same row /explore draws, so an agent looks the same on both pages; only what an organization adds sits under it.
+              const extra = groups.length || editTo ? (
+                <Row>
+                  {groups.map((g) => <OrgChip key={g.id}>{t('org.agents.group', { name: g.name })}</OrgChip>)}
+                  {editTo && <StyledLink to={editTo}>{t('org.agents.edit')}</StyledLink>}
+                </Row>
+              ) : null;
+              return <AgentListItem key={a.id} agent={agentSummaryFromOrgAgent(a)} extra={extra} />;
             })}
-          </List>
+          </div>
           {org.hidden_agents > 0 && <Description style={{ marginTop: 12 }} data-testid="org-agents-hidden">{t('org.agents.hidden', { n: org.hidden_agents })}</Description>}
         </>
       )}
@@ -191,11 +181,6 @@ export default function OrgPage() {
         </>
       )}
 
-      {tab === 'readme' && (
-        readme.length > 0
-          ? <ReadmeCard><Prose><Blocks blocks={readme} ctx={{ lang: locale === 'ko' ? 'ko' : 'en', slug: `org/${org.id}` }} /></Prose></ReadmeCard>
-          : <Empty>{t('org.readme.empty')}</Empty>
-      )}
     </PageWrapper>
   );
 }

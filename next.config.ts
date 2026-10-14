@@ -1,4 +1,34 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import type { NextConfig } from 'next';
+
+const SHA = /^[0-9a-f]{7,40}$/;
+
+/**
+ * The commit this build was made from, decided while building and embedded in the bundle.
+ *
+ * A running release has neither `.git` nor a CI variable: `deploy/deploy-web.sh` builds in a throwaway clone (or a
+ * `.git`-less copy with `--here`) and starts `server.js` without telling it anything. What the script does do is
+ * write the commit to `public/web-build.json` before building, so that file comes first; an explicit `GIT_COMMIT`
+ * overrides it, and a plain checkout falls back to `git rev-parse HEAD`.
+ */
+export function resolveBuildCommit(
+  env: Record<string, string | undefined> = process.env,
+  readBuildFile: () => string = () => readFileSync('public/web-build.json', 'utf8'),
+  gitHead: () => string = () => execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }),
+): string {
+  const fromEnv = env.GIT_COMMIT?.trim().toLowerCase();
+  if (fromEnv && SHA.test(fromEnv)) return fromEnv;
+  try {
+    const sha = String((JSON.parse(readBuildFile()) as { sha?: unknown }).sha ?? '').trim().toLowerCase();
+    if (SHA.test(sha)) return sha;
+  } catch { /* no deploy marker: not a deployment build */ }
+  try {
+    const sha = gitHead().trim().toLowerCase();
+    if (SHA.test(sha)) return sha;
+  } catch { /* not a git checkout */ }
+  return 'unknown';
+}
 
 /**
  * ainize-web is the frontend AND its backend.
@@ -29,6 +59,8 @@ const config: NextConfig = {
   reactStrictMode: true,
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
+  // Inlined at build time, so `/api/health` reports the commit of the bundle actually running.
+  env: { AINIZE_WEB_COMMIT: resolveBuildCommit() },
 };
 
 export default config;
