@@ -71,12 +71,13 @@ test('the app asks the node whether it is an owner rather than deciding for itse
   assert.ok(ctx.includes('address: data?.address ?? null'), "the node's address keeps its own name");
 });
 
-test('the only signing scheme the browser asks for is the one a wallet can produce', () => {
+test('each wallet login explicitly requests its matching signing scheme', () => {
   const page = code('screens/SigningPage.tsx').join('\n');
   // Stated, never inferred. The node fixes the scheme to the challenge it issues, so asking for the wrong one
   // fails at the signature rather than silently recording "a person approved this" when a key did.
   assert.ok(page.includes("challenge({ scheme: 'eip191' })"), 'the challenge names eip191');
-  assert.ok(!page.includes('ainWallet'), 'the AIN Wallet extension path is gone, not left beside the new one');
+  assert.ok(page.includes("challenge({ scheme: 'ain' })"), 'native AIN Wallet requests an AIN challenge');
+  assert.ok(page.includes('ainWalletLoginProof(wallet,'), 'native signatures use the wallet-specific proof verifier');
   // The wallet's own answer is checked here: left to the node it becomes an opaque 401 on an unrelated route.
   assert.ok(page.includes('personalSign(w.provider, ch.message, address)'));
 });

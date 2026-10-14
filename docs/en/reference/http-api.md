@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-263 operations on 218 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+285 operations on 239 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -241,6 +241,28 @@ See [Error codes](./errors.md) for the full list.
 | `PUT` | [`/api/hosted-agents/{id}`](#put-apihosted-agentsid) | none | Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change |
 | `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove a hosted agent — its owner, or an `admin` of the organization it is shared with |
 | `PUT` | [`/api/hosted-agents/{id}/secrets/{name}`](#put-apihosted-agentsidsecretsname) | none | Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only |
+| `GET` | [`/agents/{id}/.well-known/agent-card.json`](#get-agentsidwell-knownagent-cardjson) | operator | Read the A2A card; bound AINFT agents advertise current-holder authentication |
+| `POST` | [`/agents/{id}`](#post-agentsid) | none | Call an A2A agent; a bound AINFT executes in the current holder’s private workspace |
+| `GET` | [`/api/hosted-agents/{id}/ainft-binding`](#get-apihosted-agentsidainft-binding) | operator | Read the verified AINFT registration snapshot for a visible agent |
+| `POST` | [`/api/hosted-agents/{id}/ainft-binding`](#post-apihosted-agentsidainft-binding) | none | Verify Factory wallet indexing and persist a token binding — agent creator only |
+| `GET` | [`/api/hosted-agents/{id}/holder-access`](#get-apihosted-agentsidholder-access) | none | Check the signed-in native wallet against current on-chain AINFT ownership |
+| `GET` | [`/api/hosted-agents/{id}/companion`](#get-apihosted-agentsidcompanion) | none | Read the current holder’s private persisted tasks, memories and activity experience |
+| `POST` | [`/api/hosted-agents/{id}/companion/tasks`](#post-apihosted-agentsidcompaniontasks) | none | Queue idempotent private chat or work; body: key, kind (chat/task), input |
+| `POST` | [`/api/hosted-agents/{id}/companion/tasks/{taskId}/cancel`](#post-apihosted-agentsidcompaniontaskstaskidcancel) | none | Cancel queued work; already running work cannot claim safe cancellation |
+| `POST` | [`/api/hosted-agents/{id}/companion/memories`](#post-apihosted-agentsidcompanionmemories) | none | Propose private memory from a completed task; body: sourceTask, text |
+| `POST` | [`/api/hosted-agents/{id}/ainft-community`](#post-apihosted-agentsidainft-community) | none | Creator configures the existing Factory community and credit symbol for the current bound release. Body: expectedVersion, community:{appId,symbol} or null to disconnect. Persists a monotonically increasing configuration version; stale saves fail. Does not create balances, award credits or purchase benefits. |
+| `GET` | [`/api/hosted-agents/{id}/companion/credits`](#get-apihosted-agentsidcompanioncredits) | none | Current holder reads the configured Factory credit community, binding chain and configuration version; no-store. Wallet-signed Factory auth/user and credit/balance reads independently verify the user-to-wallet mapping and balance. No purchase or reward is performed. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/examples`](#post-apihosted-agentsidcompanionlearningexamples) | none | Save a holder-reviewed private question and answer sourced from approved memory; body: key, memoryId, prompt (up to 400 characters), answer (up to 200), optional altPrompt (a different reviewed evaluation question, up to 400), consent:true. Training requires altPrompt for every selected example. Does not start training or publish data. Read examples through the companion workspace. |
+| `GET` | [`/api/hosted-agents/{id}/companion/learning`](#get-apihosted-agentsidcompanionlearning) | none | Read exact-model local training capability and this holder’s persisted training jobs; no-store. Job status is read from TeachWorker. |
+| `GET` | [`/api/hosted-agents/{id}/companion/learning/runs/{runId}/publication-challenge`](#get-apihosted-agentsidcompanionlearningrunsrunidpublication-challenge) | none | Get the existing Teach signed publication claim for this holder’s READY lesson. Source examples must still be approved. This companion flow publishes a free knowledge patch, keeps dataset rows private and takes no payout share. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/runs/{runId}/publish`](#post-apihosted-agentsidcompanionlearningrunsrunidpublish) | none | Submit a private lesson for shared publication using TeachWorker’s signature verification and operator review policy. Body: key, name, description?, license, claim_sig, consent:{permanent:true,rights:true}. Publication intent persists before submission; unknown outcomes are never replayed. Free patch, private dataset, no payout share. Submission is not proof of announcement or a credit reward. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/select`](#post-apihosted-agentsidcompanionlearningselect) | none | Choose a READY private lesson for subsequent holder conversations, or runId:null to restore base behavior; body: key, runId, model, consent:true. Each local model call applies the chosen lesson under an exclusive lease and restores all journaled rows afterwards. Missing or failed cleanup blocks shared generation. Revoked examples and changed releases invalidate the selection; prior lessons never become active automatically. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/train`](#post-apihosted-agentsidcompanionlearningtrain) | none | Submit reviewed examples to real compatible TeachWorker; body: key, exampleIds[], model, consent:true. Does not publish or permanently apply the draft. Training may record wallet address, state and dataset hash on the configured chain. Unknown submissions are never replayed. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/examples/{exampleId}/withdraw`](#post-apihosted-agentsidcompanionlearningexamplesexampleidwithdraw) | none | Withdraw a private learning example. Revoking its source memory also withdraws it. Does not claim to undo an already trained model. |
+| `POST` | [`/api/hosted-agents/{id}/companion/memories/{memoryId}/revoke`](#post-apihosted-agentsidcompanionmemoriesmemoryidrevoke) | none | Withdraw approved private memory from future memory context; existing conversation records remain |
+| `POST` | [`/api/hosted-agents/{id}/companion/memories/{memoryId}/decision`](#post-apihosted-agentsidcompanionmemoriesmemoryiddecision) | none | Approve or reject private memory; body: approve boolean |
+| `GET` | [`/api/hosted-agents/{id}/ainft-metadata`](#get-apihosted-agentsidainft-metadata) | operator | Export wallet-compatible native AINFT metadata; does not mint or register a token |
+| `GET` | [`/api/ainft/avatar.svg`](#get-apiainftavatarsvg) | operator | Public default avatar for Ainize AINFT metadata |
 | `GET` | [`/api/hosted-agents/{id}/logs`](#get-apihosted-agentsidlogs) | none | Recent log lines — owner or `write` member of its organization |
 
 **Projects** — a deployment bound to a git repository that lives in an aindrive drive (`https://aindrive.ainetwork.ai/<org>/git/<repo>`) — ainize keeps no repository; aindrive calls the push hook, the node clones that commit and runs it (docs/PROJECTS.md)
@@ -4513,6 +4535,354 @@ Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` mem
 | `200` | name, set | `object` |
 | `403` | `not_owner` |   |
 | `404` | `not_found` |   |
+
+### `GET /agents/{id}/.well-known/agent-card.json`
+
+Read the A2A card; bound AINFT agents advertise current-holder authentication
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | A2A agent card | `object` |
+| `404` | Agent not found |   |
+
+### `POST /agents/{id}`
+
+Call an A2A agent; a bound AINFT executes in the current holder’s private workspace
+
+For bound native AINFT agents: A2A 0.3 JSON-RPC message/send, message/stream, tasks/get and tasks/cancel. Authenticate using the native wallet session or x-ainft-auth: \<address>:\<timestamp>:\<signature>:v2. Sign with purpose ainft, destination node, HTTP method, destination path and exact request body using the request-bound core authentication format. Replay is refused. Streaming sends the task, result artifact and final status. Tasks remain wallet-scoped after transfer. Unbound agents retain their existing protocol.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | JSON-RPC task/result/error or server-sent events | `object` |
+| `401` | Wallet session or native holder proof required |   |
+| `403` | Current ownership cannot be verified |   |
+| `409` | AINFT binding release differs from current agent release |   |
+
+### `GET /api/hosted-agents/{id}/ainft-binding`
+
+Read the verified AINFT registration snapshot for a visible agent
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | binding or null; registration indexing is not current holder authorization | `object` |
+| `404` | `not_found` or not visible |   |
+
+### `POST /api/hosted-agents/{id}/ainft-binding`
+
+Verify Factory wallet indexing and persist a token binding — agent creator only
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `chainId` | `0` \| `1` | yes |
+| `objectId` | `string` | yes |
+| `tokenId` | `string` | yes |
+| `address` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | binding | `object` |
+| `400` | `invalid_request` |   |
+| `401` | `not_signed_in` |   |
+| `403` | `not_owner` |   |
+| `409` | `ainft_not_verified` or `version_conflict` |   |
+| `503` | `ainft_unavailable` |   |
+
+### `GET /api/hosted-agents/{id}/holder-access`
+
+Check the signed-in native wallet against current on-chain AINFT ownership
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | current holder access | `object` |
+| `401` | Native wallet session required |   |
+| `403` | Ownership cannot be verified |   |
+
+### `GET /api/hosted-agents/{id}/companion`
+
+Read the current holder’s private persisted tasks, memories and activity experience
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | wallet-scoped private workspace; no-store | `object` |
+| `401` | Wallet session required |   |
+| `403` | Current holder required |   |
+
+### `POST /api/hosted-agents/{id}/companion/tasks`
+
+Queue idempotent private chat or work; body: key, kind (chat/task), input
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Previously submitted task |
+| `202` | Queued task |
+| `403` | Current holder required |
+| `409` | Conflicting key or outstanding task limit |
+
+### `POST /api/hosted-agents/{id}/companion/tasks/{taskId}/cancel`
+
+Cancel queued work; already running work cannot claim safe cancellation
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | task | `object` |
+| `403` | Current holder required |   |
+| `409` | Task missing or already executing |   |
+
+### `POST /api/hosted-agents/{id}/companion/memories`
+
+Propose private memory from a completed task; body: sourceTask, text
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | Memory proposal; inactive until approved |
+| `403` | Current holder required |
+| `409` | Invalid source task or memory limit |
+
+### `POST /api/hosted-agents/{id}/ainft-community`
+
+Creator configures the existing Factory community and credit symbol for the current bound release. Body: expectedVersion, community:{appId,symbol} or null to disconnect. Persists a monotonically increasing configuration version; stale saves fail. Does not create balances, award credits or purchase benefits.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Binding with community and communityVersion | `object` |
+| `400` | Invalid configuration |   |
+| `403` | Agent creator required |   |
+| `409` | Current binding required or configuration changed |   |
+
+### `GET /api/hosted-agents/{id}/companion/credits`
+
+Current holder reads the configured Factory credit community, binding chain and configuration version; no-store. Wallet-signed Factory auth/user and credit/balance reads independently verify the user-to-wallet mapping and balance. No purchase or reward is performed.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | chainId, version and community or null | `object` |
+| `403` | Current holder required |   |
+| `409` | Bound release changed |   |
+
+### `POST /api/hosted-agents/{id}/companion/learning/examples`
+
+Save a holder-reviewed private question and answer sourced from approved memory; body: key, memoryId, prompt (up to 400 characters), answer (up to 200), optional altPrompt (a different reviewed evaluation question, up to 400), consent:true. Training requires altPrompt for every selected example. Does not start training or publish data. Read examples through the companion workspace.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Idempotent retry |
+| `201` | Reviewed private example |
+| `400` | Review and consent required |
+| `403` | Current holder required |
+| `409` | Memory inactive, conflicting key or example limit |
+
+### `GET /api/hosted-agents/{id}/companion/learning`
+
+Read exact-model local training capability and this holder’s persisted training jobs; no-store. Job status is read from TeachWorker.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | capability and private runs | `object` |
+| `403` | Current holder required |   |
+
+### `GET /api/hosted-agents/{id}/companion/learning/runs/{runId}/publication-challenge`
+
+Get the existing Teach signed publication claim for this holder’s READY lesson. Source examples must still be approved. This companion flow publishes a free knowledge patch, keeps dataset rows private and takes no payout share.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Private publication challenge | `object` |
+| `403` | Current holder required |   |
+| `409` | Lesson not publishable or publication disabled |   |
+
+### `POST /api/hosted-agents/{id}/companion/learning/runs/{runId}/publish`
+
+Submit a private lesson for shared publication using TeachWorker’s signature verification and operator review policy. Body: key, name, description?, license, claim_sig, consent:{permanent:true,rights:true}. Publication intent persists before submission; unknown outcomes are never replayed. Free patch, private dataset, no payout share. Submission is not proof of announcement or a credit reward.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Existing submission; may require reconciliation |
+| `202` | Recorded Teach publication result, possibly pending review |
+| `400` | Signature and both consent declarations required |
+| `403` | Current holder required |
+| `409` | Inactive lesson or conflicting submission key |
+| `503` | Publication outcome unknown; operator reconciliation required |
+
+### `POST /api/hosted-agents/{id}/companion/learning/select`
+
+Choose a READY private lesson for subsequent holder conversations, or runId:null to restore base behavior; body: key, runId, model, consent:true. Each local model call applies the chosen lesson under an exclusive lease and restores all journaled rows afterwards. Missing or failed cleanup blocks shared generation. Revoked examples and changed releases invalidate the selection; prior lessons never become active automatically.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Persisted private selection | `object` |
+| `400` | Selection and consent required |   |
+| `403` | Current holder required |   |
+| `409` | Lesson not ready, incompatible model, inactive examples or conflicting key |   |
+
+### `POST /api/hosted-agents/{id}/companion/learning/train`
+
+Submit reviewed examples to real compatible TeachWorker; body: key, exampleIds[], model, consent:true. Does not publish or permanently apply the draft. Training may record wallet address, state and dataset hash on the configured chain. Unknown submissions are never replayed.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Existing submission; may require outcome reconciliation |
+| `202` | Persisted TeachWorker job id |
+| `400` | Selection, model and consent required |
+| `403` | Current holder required |
+| `409` | Incompatible runtime, inactive examples or conflicting key |
+| `503` | Submission outcome unknown; operator reconciliation required |
+
+### `POST /api/hosted-agents/{id}/companion/learning/examples/{exampleId}/withdraw`
+
+Withdraw a private learning example. Revoking its source memory also withdraws it. Does not claim to undo an already trained model.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | withdrawn example | `object` |
+| `403` | Current holder required |   |
+| `404` | Example not found in this holder workspace |   |
+
+### `POST /api/hosted-agents/{id}/companion/memories/{memoryId}/revoke`
+
+Withdraw approved private memory from future memory context; existing conversation records remain
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | memory | `object` |
+| `403` | Current holder required |   |
+| `404` | Memory not found |   |
+
+### `POST /api/hosted-agents/{id}/companion/memories/{memoryId}/decision`
+
+Approve or reject private memory; body: approve boolean
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | memory | `object` |
+| `403` | Current holder required |   |
+| `404` | Memory not found |   |
+
+### `GET /api/hosted-agents/{id}/ainft-metadata`
+
+Export wallet-compatible native AINFT metadata; does not mint or register a token
+
+Uses the same visibility check as the agent detail. Returns public name, description, avatar, detail URL and versioned ainize extension; never prompt, code or secrets.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | name, description, image, external_url, ainize | `object` |
+| `404` | `not_found` or not visible to the caller |   |
+
+### `GET /api/ainft/avatar.svg`
+
+Public default avatar for Ainize AINFT metadata
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | SVG image | `object` |
 
 ### `GET /api/hosted-agents/{id}/logs`
 

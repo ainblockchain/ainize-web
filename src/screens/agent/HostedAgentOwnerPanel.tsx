@@ -18,6 +18,8 @@ import { Alert } from '@/components/ui/Form';
 import { Description, StyledLink } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import type { AgentVisibility } from '@/api/sharedAgents';
+import { AinftRegistrationPanel } from './AinftRegistrationPanel';
+import { AinftCommunityPanel } from './AinftCommunityPanel';
 import { AgentVisibilityControl } from '@/components/agent/AgentVisibilityControl';
 import { AgentAliasControl } from '@/components/agent/AgentAliasControl';
 
@@ -78,6 +80,8 @@ export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibi
       </HostedAgentOwnerRow>
       {deleteError && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: deleteError })}</Alert>}
       <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
+      <AinftRegistrationPanel agentId={agentId} />
+      <AinftCommunityPanel agentId={agentId} />
       {canAdminister && <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />}
       {logsOpen && (
         logs.error
