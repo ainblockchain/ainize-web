@@ -22,6 +22,11 @@ test('an explicit GIT_COMMIT overrides the marker', () => {
   assert.equal(resolveBuildCommit({ GIT_COMMIT: C }, () => JSON.stringify({ sha: A }), () => B), C);
 });
 
+test('Ainize embeds the exact deployment commit even without Git metadata', () => {
+  assert.equal(resolveBuildCommit({ AINIZE_DEPLOYMENT_COMMIT:C, GIT_COMMIT:A }, missing, missing), C);
+  assert.equal(resolveBuildCommit({ AINIZE_DEPLOYMENT_COMMIT:'main', GIT_COMMIT:A }, missing, missing), A);
+});
+
 test('a plain checkout falls back to git HEAD', () => {
   assert.equal(resolveBuildCommit({}, missing, () => `${B}\n`), B);
 });

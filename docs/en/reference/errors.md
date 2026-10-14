@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 138 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 148 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 91 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -183,14 +183,23 @@ A further 91 throw sites build their message at the time (a validator's own word
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
-| `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON: … | `src/project-manifest.ts` |
-| `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: \<location>: \<message> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: container requires a service or nextjs runtime | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: examples."\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: image and build are mutually exclusive | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: image requires a service runtime | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" example "\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: scratch and storage mounts must not overlap | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: services and ingress require stack kind | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: stack \<field> belongs in a service definition | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: storage requires a service or nextjs runtime | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: TCP health requires a service runtime | `src/project-manifest.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
@@ -222,6 +231,7 @@ A further 91 throw sites build their message at the time (a validator's own word
 | `null` | repository storage limit exceeded (\<bytes> > \<this.storageLimitBytes> bytes); export history or ask the operator to raise the limit | `src/agent-git.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | shared workspace agents must stay in their organization | `src/agent-git-http.ts` |
+| `null` | stack rollout … | `src/project-stack-rollout.ts` |
 | `null` | the alias is the agent's own id | `src/agent-aliases.ts` |
 | `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
