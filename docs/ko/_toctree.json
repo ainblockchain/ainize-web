@@ -24,6 +24,10 @@
     "group": "튜토리얼",
     "pages": [
       {
+        "page": "tutorials/create-ainft",
+        "title": "AINFT 에이전트 만들기"
+      },
+      {
         "page": "tutorials/teach-from-a-file",
         "title": "질문 파일로 가르치기"
       },
