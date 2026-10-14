@@ -111,3 +111,35 @@ export function takeFrames(buffer: string): { frames: unknown[]; rest: string } 
   }
   return { frames, rest };
 }
+
+/**
+ * What a card says about streaming: `true` or `false` when it says so, `null` when there is no card to ask.
+ *
+ * A2A makes `capabilities.streaming` optional and an agent that leaves it out does not stream, so only an
+ * explicit `true` counts. `null` is kept apart from `false`: a card that has not arrived (or failed to) is not
+ * a card that refused, and the caller tries the stream and lets the agent answer for itself.
+ */
+export function cardStreams(card: unknown): boolean | null {
+  if (!card || typeof card !== 'object') return null;
+  return (card as { capabilities?: { streaming?: unknown } }).capabilities?.streaming === true;
+}
+
+/** The method to send a turn with: `message/send` to an agent whose card says it does not stream. */
+export function sendMethod(streams: boolean | null): 'message/stream' | 'message/send' {
+  return streams === false ? 'message/send' : 'message/stream';
+}
+
+/**
+ * Is this JSON-RPC error an agent refusing `message/stream` itself — as opposed to refusing the message?
+ *
+ * The spec's answer is `UnsupportedOperationError` (-32004), but SDKs in the wild wrap it as an internal error
+ * (-32603 "Streaming is not supported by the agent"), so the words count as much as the code. Only this
+ * refusal is worth retrying as `message/send`; any other error is the agent's real answer.
+ */
+export function isStreamingRefusal(error: unknown): boolean {
+  const e = error as { code?: unknown; message?: unknown } | null | undefined;
+  if (!e || typeof e !== 'object') return false;
+  const message = typeof e.message === 'string' ? e.message : '';
+  if (e.code === -32004) return true;
+  return /stream/i.test(message) && /(not|un)\s*-?supported|unsupported/i.test(message);
+}

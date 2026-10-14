@@ -165,15 +165,17 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 129 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 138 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 69 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 91 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
 | `null` | … (retrying for … more min before hash-only fallback) | `src/verifier.ts` |
 | `null` | … did not answer: … | `src/peer-models.ts` |
 | `null` | … refused: … | `src/peer-models.ts` |
+| `null` | "\<alias>" is another agent's alias | `src/agent-aliases.ts` |
+| `null` | "\<alias>" is another agent's id | `src/agent-aliases.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> is missing — an agent's repository has one at its root | `src/agent-git.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> is not valid JSON: … | `src/agent-git.ts`, `src/project-agents.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> sets …, which the node owns — remove … | `src/project-agents.ts` |
@@ -186,6 +188,9 @@ A further 69 throw sites build their message at the time (a validator's own word
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: examples."\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" example "\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
@@ -196,7 +201,9 @@ A further 69 throw sites build their message at the time (a validator's own word
 | `null` | AIN SSO token endpoint unreachable: … | `src/sso-service-token.ts` |
 | `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
+| `null` | an alias is 1–40 lower-case letters, digits and hyphens, starting with a letter or digit | `src/agent-aliases.ts` |
 | `null` | an organization keeps at least one admin | `src/organization-store.ts` |
+| `null` | an organization may have \<perOrg> projects on this node | `src/projects.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
 | `null` | Audio response is too large | `src/peer-models.ts` |
@@ -215,6 +222,7 @@ A further 69 throw sites build their message at the time (a validator's own word
 | `null` | repository storage limit exceeded (\<bytes> > \<this.storageLimitBytes> bytes); export history or ask the operator to raise the limit | `src/agent-git.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | shared workspace agents must stay in their organization | `src/agent-git-http.ts` |
+| `null` | the alias is the agent's own id | `src/agent-aliases.ts` |
 | `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
 | `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
@@ -247,6 +255,7 @@ A further 69 throw sites build their message at the time (a validator's own word
 | `400` | invalid_actor | `src/run-actor.ts` |
 | `400` | invalid_request | `src/server.ts` |
 | `400` | model_not_served | `src/server.ts` |
+| `400` | node address required | `src/api.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
 | `400` | this is the node's own key: it owns what this node published, and revoking it would only stop the node acting for itself | `src/api.ts` |
 | `400` | unsupported contributor proof: … | `../ainize-core/src/catalog.ts` |

@@ -55,6 +55,10 @@
       {
         "page": "concepts/payment",
         "title": "계정 없이 결제하기"
+      },
+      {
+        "page": "concepts/ainft-agents",
+        "title": "AINFT 호환 에이전트"
       }
     ]
   },

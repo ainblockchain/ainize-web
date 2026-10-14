@@ -23,7 +23,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  useCreateHostedAgentMutation, useHostedAgentQuery, useModelsQuery, useNetworkModelsQuery, useSetHostedAgentSecretMutation, useUpdateHostedAgentMutation,
+  useOrgQuery, useRequestJoinOrgMutation, useCreateHostedAgentMutation, useHostedAgentQuery, useModelsQuery, useNetworkModelsQuery, useSetHostedAgentSecretMutation, useUpdateHostedAgentMutation,
 } from '@/api/api';
 import {
   chatModelsForHostedAgent, hostedAgentMediaServed, HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_LIMITS, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
@@ -31,7 +31,10 @@ import {
   isHostedAgentCodeMode, parseHostedAgentSpecResponse,
   type HostedAgentApiError, type HostedAgentFormDraft, type HostedAgentFormProblem, type HostedAgentMode,
 } from '@/api/hostedAgents';
+import { createWithFreeAgentId } from '@/api/agentIds';
+import { orgApiErrorOf } from '@/api/organizations';
 import { parseModelsResponse } from '@/api/models';
+import { parseNetworkModelsResponse } from '@/api/networkModels';
 import { useAuth } from '@/auth/AuthContext';
 import { SharingFields } from '@/components/agent/SharingFields';
 import { Button } from '@/components/ui/Button';
@@ -91,16 +94,22 @@ export default function AgentCreatePage() {
   const shareable = useShareableOrgs();
   useTitle(editing ? t('agentCreate.title_edit') : t('agentCreate.title'));
 
+  const requestedOrg = params.get('org') ?? '';
+  const orgQuery = useOrgQuery(requestedOrg, { skip: !requestedOrg || !auth.principal });
+  const orgError = orgQuery.error ? orgApiErrorOf(orgQuery.error) : null;
+  const [requestJoin, requestState] = useRequestJoinOrgMutation();
+  const [requestMessage, setRequestMessage] = useState('');
+  const [joinError, setJoinError] = useState<string | null>(null);
   const prefilledModel = params.get('model') ?? '';
-  const modelsQuery = useModelsQuery();
+  const modelsQuery = useModelsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const networkModelsQuery = useNetworkModelsQuery(undefined, { refetchOnMountOrArgChange: true });
   const modelOptions = useMemo(
-    () => chatModelsForHostedAgent(parseModelsResponse(modelsQuery.data), prefilledModel || null),
-    [modelsQuery.data, prefilledModel],
+    () => chatModelsForHostedAgent([...parseModelsResponse(modelsQuery.data), ...parseNetworkModelsResponse(networkModelsQuery.data).filter((m) => !m.local).map((m) => ({ id: m.ref, modality: m.modality, available: m.available }))], prefilledModel || null),
+    [modelsQuery.data, networkModelsQuery.data, prefilledModel],
   );
   // Speech and pictures may come from a peer node, so the switches follow the network's models, not only this node's.
-  const networkModelsQuery = useNetworkModelsQuery();
   const mediaServed = useMemo(
-    () => hostedAgentMediaServed([...parseModelsResponse(modelsQuery.data), ...parseModelsResponse(networkModelsQuery.data)]),
+    () => hostedAgentMediaServed([...parseModelsResponse(modelsQuery.data), ...parseNetworkModelsResponse(networkModelsQuery.data)]),
     [modelsQuery.data, networkModelsQuery.data],
   );
 
@@ -158,12 +167,25 @@ export default function AgentCreatePage() {
     setShowProblems(true);
     setApiError(null);
     setSecretFailures([]);
-    if (problems.length) return;
+    if (problems.length) {
+      const field = problems[0].field;
+      const target = document.getElementById(`agent-create-${field === 'systemPrompt' ? 'prompt' : field}`);
+      target?.focus();
+      target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
     setSaving(true);
     try {
-      const body = hostedAgentSpecInputFromDraft(draft);
+      let body = hostedAgentSpecInputFromDraft(draft);
       try {
-        await (editing ? updateAgent(body) : createAgent(body)).unwrap();
+        if (editing) await updateAgent(body).unwrap();
+        else if (idTouched) await createAgent(body).unwrap();
+        else {
+          // A suggested id that is taken becomes `-2`, `-3`… — never a timestamp. A typed one goes back to the person.
+          body = await createWithFreeAgentId(body, (b) => createAgent(b).unwrap(), (e) => hostedAgentApiErrorOf(e).code === 'id_taken');
+          const accepted = body.id;
+          setDraft((d) => ({ ...d, id: accepted }));
+        }
       } catch (err) {
         const e = hostedAgentApiErrorOf(err);
         if (e.code === 'docker_unavailable') setDockerUnavailable(true);
@@ -196,6 +218,27 @@ export default function AgentCreatePage() {
         </Empty>
       </PageWrapper>
     );
+  }
+
+  if (!editing && requestedOrg && orgQuery.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!editing && orgError?.code === 'not_member') {
+    const requested = orgError.requested || requestState.isSuccess;
+    return <PageWrapper>
+      <TitleRow><Title>{orgError.org?.name ?? requestedOrg}</Title></TitleRow>
+      <Empty data-testid="agent-create-request-access">
+        <h3>{t('org.not_member.title')}</h3>
+        <Description>{t('org.not_member.body', { name: orgError.org?.name ?? requestedOrg })}</Description>
+        {requested ? <Description role="status">{t('org.not_member.requested')}</Description> : <>
+          <Input value={requestMessage} maxLength={500} placeholder={t('org.not_member.message')} onChange={(e) => setRequestMessage(e.target.value)} />
+          <Button type="button" loading={requestState.isLoading} onClick={() => {
+            setJoinError(null);
+            void requestJoin({ id: requestedOrg, message: requestMessage }).unwrap().catch((error: unknown) => setJoinError(t(`org.api.${orgApiErrorOf(error).code}`)));
+          }}>{t('org.not_member.request')}</Button>
+        </>}
+        {joinError && <Alert $tone="error">{joinError}</Alert>}
+        <StyledLink to={`/org/${encodeURIComponent(requestedOrg)}`}>{t('orgs.title')}</StyledLink>
+      </Empty>
+    </PageWrapper>;
   }
 
   if (editing && stored.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
@@ -249,6 +292,7 @@ export default function AgentCreatePage() {
           </Field>
           <Field>
             <FieldLabel htmlFor="agent-create-model">{t('agentCreate.field.model')}</FieldLabel>
+            {(modelsQuery.isError || networkModelsQuery.isError) && <Button type="button" size="small" variant="text" onClick={() => { void modelsQuery.refetch(); void networkModelsQuery.refetch(); }}>{t('agentCreate.field.model_retry')}</Button>}
             <Select id="agent-create-model" value={draft.model} onChange={(e) => set('model', e.target.value)} data-testid="agent-create-model">
               {!draft.model && <option value="">{t('agentCreate.field.model_pick')}</option>}
               {modelOptions.map((m) => (
@@ -257,7 +301,9 @@ export default function AgentCreatePage() {
             </Select>
             <HelperText $error={!!problemFor('model')}>
               {problemFor('model') ? t(problemFor('model')!.key)
-                : modelOptions.length === 0 ? t('agentCreate.field.model_none')
+                : modelsQuery.isFetching || networkModelsQuery.isFetching ? t('agentCreate.field.model_loading')
+                  : modelsQuery.isError && networkModelsQuery.isError ? t('agentCreate.field.model_failed')
+                  : modelOptions.length === 0 ? t('agentCreate.field.model_none')
                   : selectedModel && !selectedModel.available ? t('agentCreate.field.model_down')
                     : <>{t('agentCreate.field.model_help')} {draft.model && <StyledLink to={`/models/${encodeURIComponent(draft.model)}`}>{t('agentCreate.field.model_link')}</StyledLink>}</>}
             </HelperText>

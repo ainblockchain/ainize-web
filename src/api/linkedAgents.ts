@@ -8,6 +8,7 @@
  * separately, and a page that trusted a declared type would render an older node's answer as blanks.
  */
 import type { AgentSummary } from './types';
+import { agentIdFromName } from './agentIds';
 import { HOSTED_AGENT_ID_PATTERN, HOSTED_AGENT_RESERVED_IDS } from './hostedAgents';
 import { agentOrgIdOf, agentVisibilityOf, sharingFieldsOf, sharingProblemKey, type AgentVisibility, type OrgOption } from './sharedAgents';
 
@@ -18,9 +19,9 @@ export const LINKED_AGENT_RESERVED_IDS: readonly string[] = HOSTED_AGENT_RESERVE
 
 export const isLinkedAgentIdValid = (id: string): boolean => LINKED_AGENT_ID_PATTERN.test(id) && !LINKED_AGENT_RESERVED_IDS.includes(id);
 
-/** A suggestion for the id from a name: lower-case, hyphens, the id alphabet only. The person may overwrite it. */
+/** A suggestion for the id from a name (`agentIds.ts` — the same rule as a hosted agent's). The person may overwrite it. */
 export function linkedAgentIdFromName(name: string): string {
-  return name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  return agentIdFromName(name);
 }
 
 export interface LinkedAgentFormDraft {

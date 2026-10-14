@@ -17,6 +17,7 @@ import { Alert, Input, Textarea, TextField } from '@/components/ui/Form';
 import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { DECISION_EXAMPLE, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
+import { readChatStream } from './playgroundStream';
 import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './issuedKeyMemory';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
 
@@ -25,6 +26,11 @@ const Row = styled.div`display: flex; gap: 10px; align-items: flex-start; flex-w
 const Answer = styled.pre`
   margin-top: 14px; padding: 14px; border-radius: 8px; background: #f7f8fa; white-space: pre-wrap;
   word-break: break-word; font-size: 13px; max-height: 320px; overflow: auto;
+`;
+// What a thinking model writes before its answer: shown as it comes, quieter than the answer it leads to.
+const Reasoning = styled.pre`
+  margin-top: 14px; padding: 10px 14px; border-left: 3px solid #e2e4ea; color: #6b7280; white-space: pre-wrap;
+  word-break: break-word; font-size: 12px; max-height: 160px; overflow: auto;
 `;
 const AnswerImage = styled.img`margin-top: 14px; max-width: 100%; border-radius: 8px; border: 1px solid #e2e4ea;`;
 
@@ -67,7 +73,8 @@ const nodeUrlFromBrowser = (): string =>
 type RunState =
   | { kind: 'idle' }
   | { kind: 'running' }
-  | { kind: 'text'; text: string; remaining: number | null }
+  /** `streaming` while the answer is still arriving; `reasoning` is what a thinking model wrote first, if anything. */
+  | { kind: 'text'; text: string; remaining: number | null; reasoning?: string; streaming?: boolean }
   | { kind: 'image'; dataUrl: string; remaining: number | null }
   | { kind: 'decision'; answers: Record<string, unknown>; remaining: number | null }
   | { kind: 'audio'; url: string }
@@ -129,6 +136,8 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
     apiKey: issuedKey ?? undefined,
   }), [language, model, prompt, issuedKey]);
 
+  const busy = run.kind === 'running' || (run.kind === 'text' && !!run.streaming);
+
   async function press() {
     setRun({ kind: 'running' });
     try {
@@ -136,6 +145,12 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
         setRun({ kind: 'failed', why: body?.error?.code === 'backend_unavailable' ? t('models.try.unavailable') : (body?.error?.message ?? String(res.status)) });
+        return;
+      }
+      // A chat answer comes as it is written; a node that still answers in one piece is read the old way below.
+      if (model.modality === 'chat' && /text\/event-stream/i.test(res.headers.get('content-type') ?? '')) {
+        const done = await readChatStream(res, ({ text, reasoning }) => setRun({ kind: 'text', text, reasoning, remaining: null, streaming: true }));
+        setRun({ kind: 'text', text: done.text, reasoning: done.reasoning, remaining: null });
         return;
       }
       if (model.modality === 'speech') {
@@ -194,10 +209,10 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
               <Button
                 type="button"
                 data-testid="models-run"
-                disabled={run.kind === 'running' || (model.modality === 'transcription' ? !audio : !prompt.trim())}
+                disabled={busy || (model.modality === 'transcription' ? !audio : !prompt.trim())}
                 onClick={() => { void press(); }}
               >
-                {run.kind === 'running' ? t('models.try.running') : t('models.try.run')}
+                {busy ? t('models.try.running') : t('models.try.run')}
               </Button>
             </Row>
 
@@ -211,9 +226,12 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
                 )}
               </Alert>
             )}
-            {run.kind === 'text' && <Answer data-testid="models-answer">{run.text}</Answer>}
+            {run.kind === 'text' && !!run.reasoning && (
+              <Reasoning data-testid="models-answer-reasoning" aria-label={t('models.try.reasoning')}>{run.reasoning}</Reasoning>
+            )}
+            {run.kind === 'text' && (run.text || !run.streaming) && <Answer data-testid="models-answer" aria-busy={!!run.streaming}>{run.text}</Answer>}
             {/* What the answer ran at, so the reader has a number to compare with when the node is busy. */}
-            {isChat && run.kind === 'text' && speed && (
+            {isChat && run.kind === 'text' && !run.streaming && speed && (
               <Description data-testid="models-answer-speed">{t(speed.busy ? 'billing.try.after_busy' : 'billing.try.after_idle', { tokS: speed.tokS })}</Description>
             )}
             {run.kind === 'image' && <AnswerImage data-testid="models-answer-image" src={run.dataUrl} alt={prompt} />}
@@ -368,12 +386,12 @@ function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, p
   if (peer) {
     return fetch('/api/peer-chat', {
       method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: modelRef, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: modelRef, messages: [{ role: 'user', content: prompt }], stream: true }),
     });
   }
   return fetch('/api/chat', {
     method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ patch_ids: [], mode: 'base', messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({ patch_ids: [], mode: 'base', messages: [{ role: 'user', content: prompt }], stream: true }),
   });
 }
 

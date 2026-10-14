@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
+import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useMyOrgsQuery, useOrgQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
+import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgList, parseOrgProfile } from '@/api/organizations';
 import {
   AGENT_LIST_FILTERS, agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsErrorCode, sharedAgentsUnsupported,
   type AgentListFilter,
@@ -12,7 +13,7 @@ import { AgentListItem } from '@/components/public/AgentListItem';
 import { PatchListItem, PriceUnitNote, TermsLegend } from '@/components/public/PatchListItem';
 import { Shelves } from '@/components/public/Shelves';
 import { Alert, Input } from '@/components/ui/Form';
-import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
+import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { num } from '@/utils/format';
@@ -82,7 +83,11 @@ const Hidden = styled.div`
 `;
 const Intro = styled(Description)`margin: 0 0 24px;`;
 /** The doors to make more agents, beside the list they land in. Signed-in only: each one asks for an owner. */
-const MakeRow = styled.div`display: flex; gap: 16px; flex-wrap: wrap; margin: -8px 0 16px; font-size: 13px;`;
+const MakeRow = styled.div`display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;`;
+/** The list's name on the left, what you can do with it on the right; wraps under on a phone. */
+const ResultBar = styled.div`display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px;`;
+const KindTabs = styled.div`margin-bottom: 16px;`;
+const Divider = styled.span`width: 1px; height: 16px; background: ${(p) => p.theme.color.LIGHT_GREY}; margin: 0 6px;`;
 const ScopeNote = styled.div`margin: -6px 0 12px; font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
 /**
  * Finding 76 — a failing catalogue printed the raw exception ("Something went wrong: TypeError: Failed to fetch")
@@ -156,6 +161,7 @@ export default function ExplorePage() {
   const setAgentFilter = (f: AgentListFilter) => {
     const next = new URLSearchParams(params);
     if (f === 'all') next.delete('agents'); else next.set('agents', f);
+    if (f !== 'org') next.delete('org');
     setParams(next, { replace: true });
   };
   const { data: info } = useInfoQuery();
@@ -163,19 +169,41 @@ export default function ExplorePage() {
   // "is it answering" goes stale as it is rendered, so the list re-checks; the node caches the probe for 30 s.
   const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { pollingInterval: 60_000 });
   const allAgents = useMemo(() => agentData?.agents ?? [], [agentData]);
-  // The registry, asked only for a narrower view than "everyone's" — the public list is `/api/agents`, which every node has.
-  const shared = useSharedAgentsQuery({ scope: scopeForFilter(agentFilter), limit: 200 }, { skip: kind !== 'agent' || agentFilter === 'all', pollingInterval: 60_000 });
+  // "Mine" asks the shared-agent registry. "My organization" asks the organization API — the one `/org` and
+  // `/org/:id` read — so the organizations, their agents and their counts here are the same ones those pages show,
+  // for every kind of sign-in (the registry's org scope answers only an AIN SSO session, for one organization).
+  // Fetched whenever a signed-in person is on the agents tab, not only when the chip is picked: every chip carries its count.
+  const scopesOn = kind === 'agent' && auth.isSignedIn;
+  const shared = useSharedAgentsQuery({ scope: scopeForFilter('mine'), limit: 200 }, { skip: !scopesOn, pollingInterval: 60_000 });
   const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.data), [shared.data]);
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
   const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
+  const orgView = kind === 'agent' && agentFilter === 'org';
+  const myOrgs = useMyOrgsQuery(undefined, { skip: !scopesOn });
+  const orgList = useMemo(() => parseOrgList(myOrgs.data), [myOrgs.data]);
+  const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
+  const orgParam = params.get('org');
+  const orgId = orgList.orgs.find((o) => o.id === orgParam)?.id ?? orgList.orgs[0]?.id ?? null;
+  const orgQuery = useOrgQuery(orgId ?? '', { skip: !orgView || !orgId, pollingInterval: 60_000 });
+  const orgProfile = useMemo(() => parseOrgProfile(orgQuery.data), [orgQuery.data]);
+  const setOrg = (id: string) => {
+    const next = new URLSearchParams(params);
+    next.set('agents', 'org');
+    next.set('org', id);
+    setParams(next, { replace: true });
+  };
   const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal), [auth.subject, auth.sso?.principal, auth.sitePrincipal]);
-  /** The rows for the chip in force: the registry's when it answered, the public list (filtered where it can be) otherwise. */
+  /** The rows for the chip in force: the registry's or the organization's when they answered, the public list (filtered where it can be) otherwise. */
   const scopedAgents = useMemo(() => {
     if (agentFilter === 'all') return allAgents;
+    if (agentFilter === 'org') {
+      if (orgsMissing) return fallbackRows('org', allAgents, principals);
+      return orgProfile?.agents.map(agentSummaryFromOrgAgent) ?? [];
+    }
     if (sharedPage) return sharedPage.items.map((it) => agentSummaryFromRef(it.ref, info?.node?.endpoint ?? null));
     if (registryMissing) return fallbackRows(agentFilter, allAgents, principals);
     return [];
-  }, [agentFilter, allAgents, sharedPage, registryMissing, principals, info?.node?.endpoint]);
+  }, [agentFilter, allAgents, sharedPage, registryMissing, orgsMissing, orgProfile, principals, info?.node?.endpoint]);
   const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
   const { data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
@@ -231,8 +259,22 @@ export default function ExplorePage() {
     return scopedAgents.filter((a) => [a.name, a.description ?? '', a.id, ...a.skills.flatMap((s2) => [s2.name, s2.description ?? '', ...s2.tags])]
       .join(' ').toLowerCase().includes(needle));
   }, [scopedAgents, q]);
-  const scopedLoading = agentFilter !== 'all' && shared.isLoading;
-  const scopedError = agentFilter !== 'all' && shared.error && !registryMissing ? shared.error : null;
+  const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? myOrgs.isLoading || orgQuery.isLoading : false;
+  const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
+    : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
+  // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
+  const fromPublic = agentFilter === 'all' || (agentFilter === 'mine' && registryMissing) || (agentFilter === 'org' && orgsMissing);
+  const listLoading = fromPublic ? agentsLoading : scopedLoading;
+  const listError = fromPublic && !!agentError;
+  const mineCount = sharedPage ? sharedPage.items.length : registryMissing ? fallbackRows('mine', allAgents, principals).length : null;
+  const mineMore = !!sharedPage?.nextCursor;
+  const scopeName = agentFilter === 'org' ? orgProfile?.name ?? orgList.orgs.find((o) => o.id === orgId)?.name ?? '' : '';
+  /** One line that says what the list is: how many, and whose. It is also where the skip link lands. */
+  const headline = listLoading || (agentFilter === 'org' && !scopeName) ? t('explore.agents.title')
+    : agentFilter === 'org' ? t('explore.agents.count_in', { n: num(agents.length), name: scopeName }, agents.length)
+      : agentFilter === 'mine' ? t('explore.agents.count_mine', { n: num(agents.length) }, agents.length)
+        : t('explore.agents.count_public', { n: num(agents.length) }, agents.length);
+  const noOrg = orgView && !myOrgs.isLoading && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
   const reset = () => setPage(1);
@@ -248,32 +290,44 @@ export default function ExplorePage() {
       <Intro>{kind === 'agent' ? t('explore.agents.sub') : t('explore.sub')}</Intro>
       <Skip href="#explore-results">{t('explore.skip')}</Skip>
 
+      {/* What to browse is the page's subject, not a filter of it: a tab, with counts that do not move when a filter
+          below does (the public agents, every current knowledge). Only offered where there is something to switch to. */}
+      {(allAgents.length > 0 || kind === 'agent') && (
+        <KindTabs data-testid="explore-kind">
+          <Tabs value={kind} onChange={(v) => { setKind(v as Kind); reset(); }} tabs={[
+            { id: 'knowledge', label: `${t('explore.kind.knowledge')}${data ? ` · ${num(data.total)}` : ''}` },
+            { id: 'agent', label: `${t('explore.kind.agent')}${allAgents.length ? ` · ${num(allAgents.length)}` : ''}` },
+          ]} />
+        </KindTabs>
+      )}
+
       {/* SC-17: what is selling, what is being built ON, what is new, and what people asked for here. */}
       {kind === 'knowledge' && <Shelves />}
 
       <Filters>
-        {/* Only offered where there is something to switch to: a node with no agents should not advertise an
-            empty half of its marketplace. The chip stays visible in the agents view either way, since it is the
-            way back. */}
-        {(allAgents.length > 0 || kind === 'agent') && (
-          <FilterGroup>
-            <span className="label">{t('explore.kind.label')}</span>
-            <Chip $active={kind === 'knowledge'} onClick={() => { setKind('knowledge'); reset(); }} data-testid="kind-knowledge">
-              {t('explore.kind.knowledge')}{data ? ` (${num(data.total)})` : ''}
-            </Chip>
-            <Chip $active={kind === 'agent'} onClick={() => { setKind('agent'); reset(); }} data-testid="kind-agent">
-              {t('explore.kind.agent')}{allAgents.length ? ` (${num(allAgents.length)})` : ''}
-            </Chip>
-          </FilterGroup>
-        )}
+        {/* Whose agents, in one row and one click: the public list, mine, then each organization by name — the names
+            and counts `/org` shows. "Public", not "All": an organization's agents are not in that list. */}
         {kind === 'agent' && auth.isSignedIn && (
-          <FilterGroup>
-            <span className="label">{t('explore.agents.filter.label')}</span>
-            {AGENT_LIST_FILTERS.map((f) => (
-              <Chip key={f} $active={agentFilter === f} onClick={() => { setAgentFilter(f); reset(); }} data-testid={`agents-filter-${f}`}>
-                {t(`explore.agents.filter.${f}`)}
-              </Chip>
-            ))}
+          <FilterGroup data-testid="agents-scope">
+            <Chip $active={agentFilter === 'all'} onClick={() => { setAgentFilter('all'); reset(); }} data-testid="agents-filter-all">
+              {t('explore.agents.filter.all')}{` · ${num(allAgents.length)}`}
+            </Chip>
+            <Chip $active={agentFilter === 'mine'} onClick={() => { setAgentFilter('mine'); reset(); }} data-testid="agents-filter-mine">
+              {t('explore.agents.filter.mine')}{mineCount !== null ? ` · ${num(mineCount)}${mineMore ? '+' : ''}` : ''}
+            </Chip>
+            {orgsMissing ? (
+              <Chip $active={agentFilter === 'org'} onClick={() => { setAgentFilter('org'); reset(); }} data-testid="agents-filter-org">{t('explore.agents.filter.org')}</Chip>
+            ) : orgList.orgs.length > 0 && (
+              <>
+                <Divider aria-hidden="true" />
+                <span className="label">{t('explore.agents.org_label')}</span>
+                {orgList.orgs.map((o) => (
+                  <Chip key={o.id} $active={agentFilter === 'org' && o.id === orgId} onClick={() => { setOrg(o.id); reset(); }} data-testid={`agents-org-${o.id}`}>
+                    {o.name} · {num(o.agent_count)}
+                  </Chip>
+                ))}
+              </>
+            )}
           </FilterGroup>
         )}
         {kind === 'knowledge' && !!models.length && (
@@ -320,24 +374,24 @@ export default function ExplorePage() {
         <Search placeholder={t('explore.search')} value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label={t('explore.search')} />
       </Filters>
 
-      <ResultsHead id="explore-results" tabIndex={-1}>{kind === 'agent' ? t('explore.agents.title') : t('explore.results')}</ResultsHead>
+      {kind === 'knowledge' && <ResultsHead id="explore-results" tabIndex={-1}>{t('explore.results')}</ResultsHead>}
 
       {kind === 'agent' && (
         <>
-          {/* The doors to make more, beside the list they land in. Each asks for an owner, so signed-in only. */}
-          {auth.isSignedIn ? (
-            <MakeRow data-testid="agents-make">
-              <StyledLink to="/agent/new">{t('explore.agents.make.create')} →</StyledLink>
-              <StyledLink to="/agent/link">{t('explore.agents.make.link')} →</StyledLink>
-              <StyledLink to="/me/agents">{t('explore.agents.make.mine')} →</StyledLink>
-            </MakeRow>
-          ) : (
-            <ScopeNote data-testid="agents-signin-note">{t('explore.agents.signin_for_scope')}</ScopeNote>
-          )}
-          {/* Why the org chip shows what it shows, when the answer is not simply "your organization's agents". */}
-          {agentFilter === 'org' && registryMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
-          {agentFilter === 'org' && registryRefused === 'auth_required' && <ScopeNote data-testid="agents-org-needs-sso">{t('explore.agents.org_needs_sso')}</ScopeNote>}
-          {agentError && <Failure $tone="error" data-testid="agents-error">
+          <ResultBar>
+            <ResultsHead id="explore-results" tabIndex={-1} data-testid="agents-count">{headline}</ResultsHead>
+            {/* The doors to make more, beside the list they land in. Each asks for an owner, so signed-in only. */}
+            {auth.isSignedIn && (
+              <MakeRow data-testid="agents-make">
+                {orgView && orgProfile && <StyledLink to={`/org/${encodeURIComponent(orgProfile.id)}`} data-testid="agents-org-page">{t('explore.agents.org_manage')} →</StyledLink>}
+                <StyledLink to={orgView && orgId ? `/agent/new?org=${encodeURIComponent(orgId)}` : '/agent/new'}>{t('explore.agents.make.create')} →</StyledLink>
+                <StyledLink to={orgView && orgId ? `/agent/link?org=${encodeURIComponent(orgId)}` : '/agent/link'}>{t('explore.agents.make.link')} →</StyledLink>
+              </MakeRow>
+            )}
+          </ResultBar>
+          {!auth.isSignedIn && <ScopeNote data-testid="agents-signin-note">{t('explore.agents.signin_for_scope')}</ScopeNote>}
+          {orgView && orgsMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
+          {listError && <Failure $tone="error" data-testid="agents-error">
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(agentError)}</code></details>
           </Failure>}
@@ -345,15 +399,15 @@ export default function ExplorePage() {
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(scopedError)}</code></details>
           </Failure>}
-          {(agentsLoading || scopedLoading) && <ListSkeleton />}
-          {!agentsLoading && !scopedLoading && !agentError && (
+          {listLoading && <ListSkeleton />}
+          {!listLoading && !listError && (
             <>
-              <Count data-testid="agents-count">{t('explore.agents.count', { n: num(agents.length) }, agents.length)}</Count>
               {/* Keyed by node and id: two nodes may each run a `donga-desk`, and one key for both re-used one row's state for the other. */}
               <div>{agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}</div>
               {agents.length === 0 && (
-                <Empty>
+                <Empty data-testid={noOrg ? 'agents-org-none' : undefined}>
                   {q.trim() ? t('explore.agents.empty_search')
+                    : noOrg ? <>{t('explore.agents.org_none')} <StyledLink to="/org">{t('orgs.title')} →</StyledLink></>
                     : agentFilter === 'mine' ? t('explore.agents.empty_mine')
                       : agentFilter === 'org' ? t('explore.agents.empty_org')
                         : t('explore.agents.empty')}

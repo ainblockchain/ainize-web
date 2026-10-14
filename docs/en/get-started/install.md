@@ -12,6 +12,8 @@ ainize --help
 
 The prepared AinCode practice environment routes package downloads and the official CLI source repository through the workspace gateway. It includes the native build tools and SQLite binary needed by the source build below. Keep your practice files and progress in your selected AinDrive Git repository; verify that saving and restoring the repository succeeds before relying on it as a backup.
 
+The workspace agent uses Qwen3.8-Flash-Next by default. To use GLM-5.3-Flash, choose it in the model selector (`/models` in the terminal UI).
+
 ## On your own machine
 
 Use Node.js 24 or newer. Install the published CLI:

@@ -15,6 +15,7 @@
  *  - **The URL is public and the row says so.** These endpoints take no authentication because A2A sends
  *    none; anyone who copies the address can call it.
  */
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import type { AgentSummary } from '@/api/types';
@@ -22,6 +23,7 @@ import { Button } from '@/components/ui/Button';
 import { useT } from '@/i18n';
 import { HostedAgentBadges } from './HostedAgentBadges';
 import { visibilityBadgeOf } from '@/api/sharedAgents';
+import { agentPagePath } from '@/api/agentIds';
 
 /** The A2UI extension, by URI prefix — the version moves (v0.8 → v0.9) and the badge should not. */
 const A2UI = 'a2ui.org';
@@ -96,7 +98,8 @@ const Note = styled.div`font-size: 11px; line-height: 1.4; color: ${(p) => p.the
 const initials = (name: string) => name.replace(/[^\p{L}\p{N} ]/gu, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'A';
 const stateOf = (a: AgentSummary) => (a.reachable === true ? 'up' : a.reachable === false ? 'down' : 'unknown');
 
-export function AgentListItem({ agent }: { agent: AgentSummary }) {
+/** `extra` is a page's own row under the address — the organization page's groups and edit link — so one agent looks the same everywhere. */
+export function AgentListItem({ agent, extra }: { agent: AgentSummary; extra?: ReactNode }) {
   const { t } = useT();
   const state = stateOf(agent);
   // A card lists skills for machines; a browse row shows the few that fit and says how many it did not show.
@@ -111,7 +114,7 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
       <Glyph $state={state} aria-hidden="true">{initials(agent.name)}</Glyph>
       <Info>
         <NameRow>
-          <Name><NameLink to={`/agent/${encodeURIComponent(agent.id)}`}>{agent.name}</NameLink></Name>
+          <Name><NameLink to={agentPagePath(agent)}>{agent.name}</NameLink></Name>
           <State $state={state}>
             {state === 'up' ? t('agent.state.up') : state === 'down' ? t('agent.state.down') : t('agent.state.unknown')}
           </State>
@@ -148,10 +151,13 @@ export function AgentListItem({ agent }: { agent: AgentSummary }) {
             {t('agent.copy')}
           </Button>
         </UrlRow>
+        {extra}
       </Info>
       <TestCol>
         <Free>{t('agent.free')}</Free>
-        <Note>{t('agent.public_note')}</Note>
+        {/* Visibility decides who sees it LISTED, not who may call it — the node does not check a caller on the A2A
+            path. A badge saying "Organization" next to nothing would read as "only my organization can call this". */}
+        <Note data-testid="agent-call-note">{visibility ? t('agent.listed_not_locked', { who: t(`sharing.visibility.${visibility}`) }) : t('agent.public_note')}</Note>
       </TestCol>
     </Wrapper>
   );

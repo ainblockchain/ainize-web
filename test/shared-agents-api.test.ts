@@ -17,6 +17,7 @@ import {
 } from '../src/api/sharedAgents';
 import { hostedAgentDraftFromSpec, hostedAgentFormProblems, hostedAgentSpecInputFromDraft, parseHostedAgentSpecResponse, type HostedAgentFormDraft } from '../src/api/hostedAgents';
 import type { AgentSummary } from '../src/api/types';
+import { errorMessage } from '../src/api/api';
 
 const row = (extra: Record<string, unknown>): AgentSummary => ({
   id: 'a', name: 'A', description: null, skills: [], protocols: ['0.3.0'], extensions: [], provider: null, documentation_url: null,
@@ -143,6 +144,14 @@ test('scopes and the chips; a node without the registry is told apart from a ref
   assert.ok(!sharedAgentsUnsupported({ status: 401, data: { error: { code: 'auth_required' } } }));
   assert.equal(sharedAgentsErrorCode({ status: 401, data: { error: { code: 'auth_required', message: 'sign in' } } }), 'auth_required');
   assert.equal(sharedAgentsErrorCode({ status: 500 }), null);
+});
+
+test('a contract refusal reads as its message, never as the object (React #31 took /explore?agents=org down)', () => {
+  const forbidden = { status: 403, data: { error: { code: 'forbidden', message: 'organization listings need an AIN SSO session or an organization API key', retryable: false } } };
+  assert.equal(errorMessage(forbidden), 'organization listings need an AIN SSO session or an organization API key');
+  assert.equal(errorMessage({ status: 400, data: { error: { code: 'invalid_request' } } }), 'invalid_request');
+  assert.equal(errorMessage({ status: 500, data: { error: {} } }), 'request failed (500)');
+  assert.equal(errorMessage({ status: 400, data: { error: 'bad', issues: [{ message: 'x' }] } }), 'bad: x');
 });
 
 test('without the registry, "mine" is the public list by owner and "org" is the public list as is', () => {

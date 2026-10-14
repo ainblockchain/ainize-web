@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-256 operations on 213 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+285 operations on 239 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -220,6 +220,9 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/agent-previews/{preview}/rpc`](#post-apiagent-previewspreviewrpc) | operator | Talk to your proposal before merging |
 | `GET` | [`/api/shared-agents`](#get-apishared-agents) | operator | Agents this node runs or proxies, in the cross-product registry shape (contract 1.0) |
 | `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
+| `GET` | [`/api/agent-aliases/{name}`](#get-apiagent-aliasesname) | none | Resolve an agent alias (or id) to the agent's canonical id |
+| `PUT` | [`/api/agents/{id}/alias`](#put-apiagentsidalias) | none | Give an agent a readable alias (replaces its current one) |
+| `DELETE` | [`/api/agents/{id}/alias`](#delete-apiagentsidalias) | none | Remove an agent's alias |
 | `GET` | [`/api/shared-agents/events`](#get-apishared-agentsevents) | operator | Changes to the shared agent registry since a cursor (contract 1.0) |
 | `GET` | [`/api/agents`](#get-apiagents) | operator | The agent catalogue |
 | `GET` | [`/api/linked-agents`](#get-apilinked-agents) | operator | Linked agents — external A2A agents people registered by URL |
@@ -238,6 +241,28 @@ See [Error codes](./errors.md) for the full list.
 | `PUT` | [`/api/hosted-agents/{id}`](#put-apihosted-agentsid) | none | Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change |
 | `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove a hosted agent — its owner, or an `admin` of the organization it is shared with |
 | `PUT` | [`/api/hosted-agents/{id}/secrets/{name}`](#put-apihosted-agentsidsecretsname) | none | Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only |
+| `GET` | [`/agents/{id}/.well-known/agent-card.json`](#get-agentsidwell-knownagent-cardjson) | operator | Read the A2A card; bound AINFT agents advertise current-holder authentication |
+| `POST` | [`/agents/{id}`](#post-agentsid) | none | Call an A2A agent; a bound AINFT executes in the current holder’s private workspace |
+| `GET` | [`/api/hosted-agents/{id}/ainft-binding`](#get-apihosted-agentsidainft-binding) | operator | Read the verified AINFT registration snapshot for a visible agent |
+| `POST` | [`/api/hosted-agents/{id}/ainft-binding`](#post-apihosted-agentsidainft-binding) | none | Verify Factory wallet indexing and persist a token binding — agent creator only |
+| `GET` | [`/api/hosted-agents/{id}/holder-access`](#get-apihosted-agentsidholder-access) | none | Check the signed-in native wallet against current on-chain AINFT ownership |
+| `GET` | [`/api/hosted-agents/{id}/companion`](#get-apihosted-agentsidcompanion) | none | Read the current holder’s private persisted tasks, memories and activity experience |
+| `POST` | [`/api/hosted-agents/{id}/companion/tasks`](#post-apihosted-agentsidcompaniontasks) | none | Queue idempotent private chat or work; body: key, kind (chat/task), input |
+| `POST` | [`/api/hosted-agents/{id}/companion/tasks/{taskId}/cancel`](#post-apihosted-agentsidcompaniontaskstaskidcancel) | none | Cancel queued work; already running work cannot claim safe cancellation |
+| `POST` | [`/api/hosted-agents/{id}/companion/memories`](#post-apihosted-agentsidcompanionmemories) | none | Propose private memory from a completed task; body: sourceTask, text |
+| `POST` | [`/api/hosted-agents/{id}/ainft-community`](#post-apihosted-agentsidainft-community) | none | Creator configures the existing Factory community and credit symbol for the current bound release. Body: expectedVersion, community:{appId,symbol} or null to disconnect. Persists a monotonically increasing configuration version; stale saves fail. Does not create balances, award credits or purchase benefits. |
+| `GET` | [`/api/hosted-agents/{id}/companion/credits`](#get-apihosted-agentsidcompanioncredits) | none | Current holder reads the configured Factory credit community, binding chain and configuration version; no-store. Wallet-signed Factory auth/user and credit/balance reads independently verify the user-to-wallet mapping and balance. No purchase or reward is performed. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/examples`](#post-apihosted-agentsidcompanionlearningexamples) | none | Save a holder-reviewed private question and answer sourced from approved memory; body: key, memoryId, prompt (up to 400 characters), answer (up to 200), optional altPrompt (a different reviewed evaluation question, up to 400), consent:true. Training requires altPrompt for every selected example. Does not start training or publish data. Read examples through the companion workspace. |
+| `GET` | [`/api/hosted-agents/{id}/companion/learning`](#get-apihosted-agentsidcompanionlearning) | none | Read exact-model local training capability and this holder’s persisted training jobs; no-store. Job status is read from TeachWorker. |
+| `GET` | [`/api/hosted-agents/{id}/companion/learning/runs/{runId}/publication-challenge`](#get-apihosted-agentsidcompanionlearningrunsrunidpublication-challenge) | none | Get the existing Teach signed publication claim for this holder’s READY lesson. Source examples must still be approved. This companion flow publishes a free knowledge patch, keeps dataset rows private and takes no payout share. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/runs/{runId}/publish`](#post-apihosted-agentsidcompanionlearningrunsrunidpublish) | none | Submit a private lesson for shared publication using TeachWorker’s signature verification and operator review policy. Body: key, name, description?, license, claim_sig, consent:{permanent:true,rights:true}. Publication intent persists before submission; unknown outcomes are never replayed. Free patch, private dataset, no payout share. Submission is not proof of announcement or a credit reward. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/select`](#post-apihosted-agentsidcompanionlearningselect) | none | Choose a READY private lesson for subsequent holder conversations, or runId:null to restore base behavior; body: key, runId, model, consent:true. Each local model call applies the chosen lesson under an exclusive lease and restores all journaled rows afterwards. Missing or failed cleanup blocks shared generation. Revoked examples and changed releases invalidate the selection; prior lessons never become active automatically. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/train`](#post-apihosted-agentsidcompanionlearningtrain) | none | Submit reviewed examples to real compatible TeachWorker; body: key, exampleIds[], model, consent:true. Does not publish or permanently apply the draft. Training may record wallet address, state and dataset hash on the configured chain. Unknown submissions are never replayed. |
+| `POST` | [`/api/hosted-agents/{id}/companion/learning/examples/{exampleId}/withdraw`](#post-apihosted-agentsidcompanionlearningexamplesexampleidwithdraw) | none | Withdraw a private learning example. Revoking its source memory also withdraws it. Does not claim to undo an already trained model. |
+| `POST` | [`/api/hosted-agents/{id}/companion/memories/{memoryId}/revoke`](#post-apihosted-agentsidcompanionmemoriesmemoryidrevoke) | none | Withdraw approved private memory from future memory context; existing conversation records remain |
+| `POST` | [`/api/hosted-agents/{id}/companion/memories/{memoryId}/decision`](#post-apihosted-agentsidcompanionmemoriesmemoryiddecision) | none | Approve or reject private memory; body: approve boolean |
+| `GET` | [`/api/hosted-agents/{id}/ainft-metadata`](#get-apihosted-agentsidainft-metadata) | operator | Export wallet-compatible native AINFT metadata; does not mint or register a token |
+| `GET` | [`/api/ainft/avatar.svg`](#get-apiainftavatarsvg) | operator | Public default avatar for Ainize AINFT metadata |
 | `GET` | [`/api/hosted-agents/{id}/logs`](#get-apihosted-agentsidlogs) | none | Recent log lines — owner or `write` member of its organization |
 
 **Projects** — a deployment bound to a git repository that lives in an aindrive drive (`https://aindrive.ainetwork.ai/<org>/git/<repo>`) — ainize keeps no repository; aindrive calls the push hook, the node clones that commit and runs it (docs/PROJECTS.md)
@@ -249,6 +274,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
 | `GET` | [`/api/projects/{id}/domains`](#get-apiprojectsiddomains) | none | List app domains and required DNS records (project owner only) |
 | `POST` | [`/api/projects/{id}/domains`](#post-apiprojectsiddomains) | none | Claim a custom domain for a web app (project owner only) |
+| `GET` | [`/api/projects/{id}/app-login`](#get-apiprojectsidapp-login) | none | Sign in to an org-private app on its own domain (the member gate) |
 | `PATCH` | [`/api/projects/{id}/domains/default`](#patch-apiprojectsiddomainsdefault) | none | Change the automatically assigned app address (project owner only) |
 | `POST` | [`/api/projects/{id}/domains/{hostname}/check`](#post-apiprojectsiddomainshostnamecheck) | none | Recheck app domain DNS (project owner only) |
 | `DELETE` | [`/api/projects/{id}/domains/{hostname}`](#delete-apiprojectsiddomainshostname) | none | Remove a custom domain (project owner only) |
@@ -256,15 +282,18 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/by-name`](#get-apiprojectsby-name) | operator | The project at `/<org>/<repo>` — the page's own lookup |
 | `GET` | [`/api/orgs/{org}/projects`](#get-apiorgsorgprojects) | operator | Every project of an organization slug — the `/<org>` page |
 | `GET` | [`/api/orgs/{org}/repositories`](#get-apiorgsorgrepositories) | operator | The organization's drive `repositories/` folder as aindrive lists it (so `/<org>` shows a repo before its first push) |
-| `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project — public view for everyone, `owner` and `hookUrl` for its owner |
+| `GET` | [`/api/projects/{id}`](#get-apiprojectsid) | operator | One project — the view for whoever may see it, `owner` and `hookUrl` for its owner |
 | `DELETE` | [`/api/projects/{id}`](#delete-apiprojectsid) | operator | Remove a project with its deployments, logs and secrets (owner only) |
+| `GET` | [`/api/projects/{id}/secrets`](#get-apiprojectsidsecrets) | operator | A project's secrets — names and when each was set, never values (owner or org writer) |
+| `PUT` | [`/api/projects/{id}/secrets/{name}`](#put-apiprojectsidsecretsname) | operator | Set or replace one project secret (owner or org writer) |
+| `DELETE` | [`/api/projects/{id}/secrets/{name}`](#delete-apiprojectsidsecretsname) | operator | Remove one project secret (owner or org writer) |
 | `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
-| `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (public, like deployments) |
+| `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
 | `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
 | `POST` | [`/api/deployments/{id}/redeploy`](#post-apideploymentsidredeploy) | operator | Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member |
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
-| `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — public |
-| `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (public) |
+| `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — readable as the project is |
+| `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (readable as its project is) |
 | `POST` | [`/api/projects/{id}/run`](#post-apiprojectsidrun) | operator | Stream a selected repository version for the viewer |
 | `POST` | [`/api/projects/{id}/redeploy`](#post-apiprojectsidredeploy) | operator | Deploy the project's newest commit again (owner only) |
 | `GET` | [`/api/ainui/snippet`](#get-apiainuisnippet) | operator | The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted) |
@@ -2473,17 +2502,18 @@ Liveness: 200 while the process is up
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ok, node, address, version, uptime_s | `object` |
+| `200` | ok, node, address, version, commit, uptime_s | `object` |
 
 **`200` response body**
 
-| Field | Type |
-|---|---|
-| `ok` | `boolean` |
-| `node` | `string` |
-| `address` | `string` |
-| `version` | `string` |
-| `uptime_s` | `integer` |
+| Field | Type | Description |
+|---|---|---|
+| `ok` | `boolean` |   |
+| `node` | `string` |   |
+| `address` | `string` |   |
+| `version` | `string` |   |
+| `commit` | `string` \| `null` | Git commit SHA this node was built from; null when unknown |
+| `uptime_s` | `integer` |   |
 
 ### `GET /readyz`
 
@@ -2495,7 +2525,7 @@ Readiness: 200 when the ledger is reachable and, for a serving/verifier node, th
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ready — checks.ledger / checks.runtime / checks.peers | `object` |
+| `200` | ready — commit, checks.ledger / checks.runtime / checks.peers | `object` |
 | `503` | not ready — the same body, with the failing check |   |
 
 ## Organizations
@@ -3974,6 +4004,102 @@ Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without to
 |---|---|
 | `agent` | [`AgentRef`](./schemas.md#agentref) |
 
+### `GET /api/agent-aliases/{name}`
+
+Resolve an agent alias (or id) to the agent's canonical id
+
+An alias is a readable second address for an agent whose id is not one (`external-e20458854c448acf7809` → `agent-m`). `name` may be an alias or an id; the answer is the canonical `id` and its `alias` (null when it has none). An agent the caller may not see is 404, the same as by id — an alias never confirms an agent its id would not. `/agents/{alias}` (card and JSON-RPC) reaches the same agent; its card `url` stays the canonical id.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the agent behind the name | `object` |
+| `404` | not_found — no such alias or id, or one the caller may not see |   |
+
+**`200` response body**
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | `string` | yes |
+| `alias` | `string,null` | yes |
+
+### `PUT /api/agents/{id}/alias`
+
+Give an agent a readable alias (replaces its current one)
+
+The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`).
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `alias` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the alias now set | `object` |
+| `400` | invalid_request — breaks the id rule, or is the agent's own id |   |
+| `401` | not_signed_in |   |
+| `403` | not_owner |   |
+| `404` | not_found — no such agent, or one the caller may not see |   |
+| `409` | alias_taken — another agent's id or alias |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `alias` | `string` |
+
+### `DELETE /api/agents/{id}/alias`
+
+Remove an agent's alias
+
+Same permissions as setting one. The agent keeps its id; `/agents/{alias}` stops reaching it and the name is free again.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the alias removed | `object` |
+| `401` | not_signed_in |   |
+| `403` | not_owner |   |
+| `404` | not_found |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `id` | `string` |
+| `alias` | `null` |
+
 ### `GET /api/shared-agents/events`
 
 Changes to the shared agent registry since a cursor (contract 1.0)
@@ -4410,6 +4536,354 @@ Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` mem
 | `403` | `not_owner` |   |
 | `404` | `not_found` |   |
 
+### `GET /agents/{id}/.well-known/agent-card.json`
+
+Read the A2A card; bound AINFT agents advertise current-holder authentication
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | A2A agent card | `object` |
+| `404` | Agent not found |   |
+
+### `POST /agents/{id}`
+
+Call an A2A agent; a bound AINFT executes in the current holder’s private workspace
+
+For bound native AINFT agents: A2A 0.3 JSON-RPC message/send, message/stream, tasks/get and tasks/cancel. Authenticate using the native wallet session or x-ainft-auth: \<address>:\<timestamp>:\<signature>:v2. Sign with purpose ainft, destination node, HTTP method, destination path and exact request body using the request-bound core authentication format. Replay is refused. Streaming sends the task, result artifact and final status. Tasks remain wallet-scoped after transfer. Unbound agents retain their existing protocol.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | JSON-RPC task/result/error or server-sent events | `object` |
+| `401` | Wallet session or native holder proof required |   |
+| `403` | Current ownership cannot be verified |   |
+| `409` | AINFT binding release differs from current agent release |   |
+
+### `GET /api/hosted-agents/{id}/ainft-binding`
+
+Read the verified AINFT registration snapshot for a visible agent
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | binding or null; registration indexing is not current holder authorization | `object` |
+| `404` | `not_found` or not visible |   |
+
+### `POST /api/hosted-agents/{id}/ainft-binding`
+
+Verify Factory wallet indexing and persist a token binding — agent creator only
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `chainId` | `0` \| `1` | yes |
+| `objectId` | `string` | yes |
+| `tokenId` | `string` | yes |
+| `address` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | binding | `object` |
+| `400` | `invalid_request` |   |
+| `401` | `not_signed_in` |   |
+| `403` | `not_owner` |   |
+| `409` | `ainft_not_verified` or `version_conflict` |   |
+| `503` | `ainft_unavailable` |   |
+
+### `GET /api/hosted-agents/{id}/holder-access`
+
+Check the signed-in native wallet against current on-chain AINFT ownership
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | current holder access | `object` |
+| `401` | Native wallet session required |   |
+| `403` | Ownership cannot be verified |   |
+
+### `GET /api/hosted-agents/{id}/companion`
+
+Read the current holder’s private persisted tasks, memories and activity experience
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | wallet-scoped private workspace; no-store | `object` |
+| `401` | Wallet session required |   |
+| `403` | Current holder required |   |
+
+### `POST /api/hosted-agents/{id}/companion/tasks`
+
+Queue idempotent private chat or work; body: key, kind (chat/task), input
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Previously submitted task |
+| `202` | Queued task |
+| `403` | Current holder required |
+| `409` | Conflicting key or outstanding task limit |
+
+### `POST /api/hosted-agents/{id}/companion/tasks/{taskId}/cancel`
+
+Cancel queued work; already running work cannot claim safe cancellation
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | task | `object` |
+| `403` | Current holder required |   |
+| `409` | Task missing or already executing |   |
+
+### `POST /api/hosted-agents/{id}/companion/memories`
+
+Propose private memory from a completed task; body: sourceTask, text
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | Memory proposal; inactive until approved |
+| `403` | Current holder required |
+| `409` | Invalid source task or memory limit |
+
+### `POST /api/hosted-agents/{id}/ainft-community`
+
+Creator configures the existing Factory community and credit symbol for the current bound release. Body: expectedVersion, community:{appId,symbol} or null to disconnect. Persists a monotonically increasing configuration version; stale saves fail. Does not create balances, award credits or purchase benefits.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Binding with community and communityVersion | `object` |
+| `400` | Invalid configuration |   |
+| `403` | Agent creator required |   |
+| `409` | Current binding required or configuration changed |   |
+
+### `GET /api/hosted-agents/{id}/companion/credits`
+
+Current holder reads the configured Factory credit community, binding chain and configuration version; no-store. Wallet-signed Factory auth/user and credit/balance reads independently verify the user-to-wallet mapping and balance. No purchase or reward is performed.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | chainId, version and community or null | `object` |
+| `403` | Current holder required |   |
+| `409` | Bound release changed |   |
+
+### `POST /api/hosted-agents/{id}/companion/learning/examples`
+
+Save a holder-reviewed private question and answer sourced from approved memory; body: key, memoryId, prompt (up to 400 characters), answer (up to 200), optional altPrompt (a different reviewed evaluation question, up to 400), consent:true. Training requires altPrompt for every selected example. Does not start training or publish data. Read examples through the companion workspace.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Idempotent retry |
+| `201` | Reviewed private example |
+| `400` | Review and consent required |
+| `403` | Current holder required |
+| `409` | Memory inactive, conflicting key or example limit |
+
+### `GET /api/hosted-agents/{id}/companion/learning`
+
+Read exact-model local training capability and this holder’s persisted training jobs; no-store. Job status is read from TeachWorker.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | capability and private runs | `object` |
+| `403` | Current holder required |   |
+
+### `GET /api/hosted-agents/{id}/companion/learning/runs/{runId}/publication-challenge`
+
+Get the existing Teach signed publication claim for this holder’s READY lesson. Source examples must still be approved. This companion flow publishes a free knowledge patch, keeps dataset rows private and takes no payout share.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Private publication challenge | `object` |
+| `403` | Current holder required |   |
+| `409` | Lesson not publishable or publication disabled |   |
+
+### `POST /api/hosted-agents/{id}/companion/learning/runs/{runId}/publish`
+
+Submit a private lesson for shared publication using TeachWorker’s signature verification and operator review policy. Body: key, name, description?, license, claim_sig, consent:{permanent:true,rights:true}. Publication intent persists before submission; unknown outcomes are never replayed. Free patch, private dataset, no payout share. Submission is not proof of announcement or a credit reward.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Existing submission; may require reconciliation |
+| `202` | Recorded Teach publication result, possibly pending review |
+| `400` | Signature and both consent declarations required |
+| `403` | Current holder required |
+| `409` | Inactive lesson or conflicting submission key |
+| `503` | Publication outcome unknown; operator reconciliation required |
+
+### `POST /api/hosted-agents/{id}/companion/learning/select`
+
+Choose a READY private lesson for subsequent holder conversations, or runId:null to restore base behavior; body: key, runId, model, consent:true. Each local model call applies the chosen lesson under an exclusive lease and restores all journaled rows afterwards. Missing or failed cleanup blocks shared generation. Revoked examples and changed releases invalidate the selection; prior lessons never become active automatically.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Persisted private selection | `object` |
+| `400` | Selection and consent required |   |
+| `403` | Current holder required |   |
+| `409` | Lesson not ready, incompatible model, inactive examples or conflicting key |   |
+
+### `POST /api/hosted-agents/{id}/companion/learning/train`
+
+Submit reviewed examples to real compatible TeachWorker; body: key, exampleIds[], model, consent:true. Does not publish or permanently apply the draft. Training may record wallet address, state and dataset hash on the configured chain. Unknown submissions are never replayed.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Existing submission; may require outcome reconciliation |
+| `202` | Persisted TeachWorker job id |
+| `400` | Selection, model and consent required |
+| `403` | Current holder required |
+| `409` | Incompatible runtime, inactive examples or conflicting key |
+| `503` | Submission outcome unknown; operator reconciliation required |
+
+### `POST /api/hosted-agents/{id}/companion/learning/examples/{exampleId}/withdraw`
+
+Withdraw a private learning example. Revoking its source memory also withdraws it. Does not claim to undo an already trained model.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | withdrawn example | `object` |
+| `403` | Current holder required |   |
+| `404` | Example not found in this holder workspace |   |
+
+### `POST /api/hosted-agents/{id}/companion/memories/{memoryId}/revoke`
+
+Withdraw approved private memory from future memory context; existing conversation records remain
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | memory | `object` |
+| `403` | Current holder required |   |
+| `404` | Memory not found |   |
+
+### `POST /api/hosted-agents/{id}/companion/memories/{memoryId}/decision`
+
+Approve or reject private memory; body: approve boolean
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | memory | `object` |
+| `403` | Current holder required |   |
+| `404` | Memory not found |   |
+
+### `GET /api/hosted-agents/{id}/ainft-metadata`
+
+Export wallet-compatible native AINFT metadata; does not mint or register a token
+
+Uses the same visibility check as the agent detail. Returns public name, description, avatar, detail URL and versioned ainize extension; never prompt, code or secrets.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | name, description, image, external_url, ainize | `object` |
+| `404` | `not_found` or not visible to the caller |   |
+
+### `GET /api/ainft/avatar.svg`
+
+Public default avatar for Ainize AINFT metadata
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | SVG image | `object` |
+
 ### `GET /api/hosted-agents/{id}/logs`
 
 Recent log lines — owner or `write` member of its organization
@@ -4477,7 +4951,7 @@ The caller's projects
 
 Bind an aindrive git repository as a project
 
-Anyone signed in (AIN SSO, wallet session or API key). Body `{ repo, branch?: "main", kind?, entry?, name?, deployToken? }`; `repo` is the aindrive URL (`https://aindrive.ainetwork.ai/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`). `kind` and `entry` are hints for the row only — what deploys is always the commit's `ainize.json` (nextjs | service | script | agent; nextjs is the default when package.json depends on next). `deployToken` is an aindrive token (session JWT or `aind_aat_…` with `drives:read`) the clone presents — sealed at rest, never read back. The answer carries `webhookSecret` ONCE: aindrive signs the push hook with it. 409 `repo_taken` when the repo+branch is already a project here.
+Anyone signed in (AIN SSO, wallet session or API key) — but a repository whose `<org>` slug maps to an organization this node knows only by an active member of it (403 `not_member`); such a project is org-private. A repository the node cannot tie to an organization (another slug, the drive-id form) is public and cloned with `deployToken` or anonymously, never with the node's machine identity. Body `{ repo, branch?: "main", kind?, entry?, name?, deployToken? }`; `repo` is the aindrive URL (`https://aindrive.ainetwork.ai/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`). `kind` and `entry` are hints for the row only — what deploys is always the commit's `ainize.json` (nextjs | service | script | agent; nextjs is the default when package.json depends on next). `deployToken` is an aindrive token (session JWT or `aind_aat_…` with `drives:read`) the clone presents — sealed at rest, never read back. The answer carries `webhookSecret` ONCE: aindrive signs the push hook with it. 409 `repo_taken` when the repo+branch is already a project here.
 
 **Auth** — operator
 
@@ -4520,7 +4994,7 @@ List app domains and required DNS records (project owner only)
 
 Claim a custom domain for a web app (project owner only)
 
-Only nextjs/service projects. DNS ownership TXT and ingress A/AAAA verification precede HTTPS provisioning. Platform domains are reserved.
+Only nextjs/service projects. An org-private project's domain answers only active members of its organization (the member gate: `GET /api/projects/{id}/app-login`); a node without the gate answers 409 `org_private`. DNS ownership TXT and ingress A/AAAA verification precede HTTPS provisioning. Platform domains are reserved.
 
 **Auth** — none
 
@@ -4541,7 +5015,30 @@ Only nextjs/service projects. DNS ownership TXT and ingress A/AAAA verification 
 | Code | Description |
 |---|---|
 | `201` | domain with ownership verification token |
-| `409` | domain unavailable |
+| `409` | `domain_unavailable` · `org_private` |
+
+### `GET /api/projects/{id}/app-login`
+
+Sign in to an org-private app on its own domain (the member gate)
+
+Browser navigation on ainize's origin, reached by a 302 from the app domain. `return` must be an https URL on one of this project's own verified domains (400 `invalid_return`). No session: 302 to AIN SSO's silent sign-in, then to `/signing`, each coming back here. Signed in but not an active member of the project's organization (or no such project): 404. A member: 302 to `https://<domain>/__ainize_app_login?token=…&return=<path>` with a single-use login token (HMAC, ≤ 2 min, bound to the project, the hostname and the person); that path sets the host-only `__Host-ainize_app` cookie (≤ 12 h, HttpOnly, Secure, SameSite=Lax) and 302s to the path. The cookie is re-checked on every request (membership at most once a minute) and never reaches the container. A public project: 302 straight to `return`.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `return` | `query` | `string (uri)` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `302` | to sign-in, or to the app domain's login hop |
+| `400` | `invalid_return` |
+| `404` | not a member, or no such project |
 
 ### `PATCH /api/projects/{id}/domains/default`
 
@@ -4615,7 +5112,7 @@ Automatic addresses must be renamed instead. The TLS adapter removes the virtual
 
 The project bound to a repository (what aindrive's UI shows next to a repo)
 
-No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (`https://ainize.ai/<org>/<repo>` — what aindrive's Inspect links to), the newest deployment and the manifest the last deploy read; no owner and no hook address. 404 when no project is bound to the URL.
+No sign-in for a public project; CORS for `https://aindrive.ainetwork.ai`. A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. aindrive asks for an org-private project from its server, with its machine token and the viewer in `X-AIN-Actor`. Status, `pageUrl` (`https://ainize.ai/<org>/<repo>` — what aindrive's Inspect links to), the newest deployment and the manifest the last deploy read; no owner and no hook address. 404 when no project is bound to the URL.
 
 **Auth** — operator
 
@@ -4635,7 +5132,7 @@ No sign-in; CORS for `https://aindrive.ainetwork.ai`. Status, `pageUrl` (`https:
 
 The project at `/<org>/<repo>` — the page's own lookup
 
-No sign-in; CORS for `https://aindrive.ainetwork.ai`. `org` and `repo` are matched case-insensitively against the repository's aindrive URL (`/<org>/git/<repo>`). The same view as `GET /api/projects/{id}`: public fields for everyone, plus `owner` and `hookUrl` for the owner; `canManage` / `canOperate` say what the caller may do. 404 `not_found` when no project of that name is bound here.
+A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. No sign-in for a public project; CORS for `https://aindrive.ainetwork.ai`. `org` and `repo` are matched case-insensitively against the repository's aindrive URL (`/<org>/git/<repo>`). The same view as `GET /api/projects/{id}`: public fields for everyone, plus `owner` and `hookUrl` for the owner; `canManage` / `canOperate` say what the caller may do. 404 `not_found` when no project of that name is bound here.
 
 **Auth** — operator
 
@@ -4657,7 +5154,7 @@ No sign-in; CORS for `https://aindrive.ainetwork.ai`. `org` and `repo` are match
 
 Every project of an organization slug — the `/<org>` page
 
-No sign-in; CORS for `https://aindrive.ainetwork.ai`. Case-insensitive on the slug. `{ org, projects: [...] }` in the public view; an organization with no project here is an empty list — only a slug that is not even well-formed is 404.
+No sign-in; CORS for `https://aindrive.ainetwork.ai`. Case-insensitive on the slug. `{ org, projects: [...] }`: the public projects, plus the org-private ones when the viewer is an active member of the organization; an organization with no project here is an empty list — only a slug that is not even well-formed is 404.
 
 **Auth** — operator
 
@@ -4678,7 +5175,7 @@ No sign-in; CORS for `https://aindrive.ainetwork.ai`. Case-insensitive on the sl
 
 The organization's drive `repositories/` folder as aindrive lists it (so `/<org>` shows a repo before its first push)
 
-No sign-in. The node asks aindrive `GET /api/orgs/<org>/repositories` with its own AIN SSO machine token (the same identity that clones a project's repository) and relays `{ org, known, driveId, driveUrl, repositories: [{ name, cloneUrl, headSha, headSubject, updatedAt, hasManifest }] }`; an organization aindrive does not resolve is `known: false` with an empty list. Cached 30 s per organization. 503 `aindrive_off` when the node has no machine identity, 502 when aindrive does not answer.
+Only an active member of an organization known under the slug (a session, or a machine token + `X-AIN-Actor`); anyone else — and any slug that maps to no organization here — is 404 `not_found`. The node asks aindrive `GET /api/orgs/<org>/repositories` with its own AIN SSO machine token (the same identity that clones a project's repository) and relays `{ org, known, driveId, driveUrl, repositories: [{ name, cloneUrl, headSha, headSubject, updatedAt, hasManifest }] }`; an organization aindrive does not resolve is `known: false` with an empty list. Cached 30 s per organization. 503 `aindrive_off` when the node has no machine identity, 502 when aindrive does not answer.
 
 **Auth** — operator
 
@@ -4698,9 +5195,9 @@ No sign-in. The node asks aindrive `GET /api/orgs/<org>/repositories` with its o
 
 ### `GET /api/projects/{id}`
 
-One project — public view for everyone, `owner` and `hookUrl` for its owner
+One project — the view for whoever may see it, `owner` and `hookUrl` for its owner
 
-A project is an organization's repository, so it reads like one: anyone sees `{ id, org, repoName, repo, branch, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`. `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, env — never a secret: the file is in the repository), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
+A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, appAccess, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`; `appAccess` is who reaches the running app — `members` (an org-private project's default) or `public` (a public project, or an org-private one whose `ainize.json` says `"access": "public"`). `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
 
 **Auth** — operator
 
@@ -4734,6 +5231,86 @@ Remove a project with its deployments, logs and secrets (owner only)
 |---|---|---|
 | `200` | ok | `object` |
 
+### `GET /api/projects/{id}/secrets`
+
+A project's secrets — names and when each was set, never values (owner or org writer)
+
+The owner (of an org-private project, while still a member), or an active member with role `write`/`admin` of the organization that owns the project or that its slug names. A `read`/`contributor` member gets 403 `not_writer`; anyone else 404 `not_found`. `{ secrets: [{ name, updatedAt }], declared, missing }` — `declared` is the newest deployment's ainize.json `secrets` (names), `missing` the declared names with no value. 503 `secrets_off` on a node without the store.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | secret names | `object` |
+| `403` | `not_writer` |   |
+| `404` | `not_found` |   |
+
+### `PUT /api/projects/{id}/secrets/{name}`
+
+Set or replace one project secret (owner or org writer)
+
+Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable to the project's container on its next deploy and to its script runs, over ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. No redeploy unless `?redeploy=1`, which queues one of the newest commit. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status } | null }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `name` | `path` | `string` | yes |
+| `redeploy` | `query` | `"1"` \| `"true"` |   |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `value` | `string` | yes | (at most 32768 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | replaced |
+| `201` | created |
+| `400` | `invalid_name` · `reserved_name` · `invalid_value` · `invalid_request` |
+| `403` | `not_writer` |
+| `404` | `not_found` |
+| `409` | `too_many_secrets` |
+| `413` | `value_too_large` |
+
+### `DELETE /api/projects/{id}/secrets/{name}`
+
+Remove one project secret (owner or org writer)
+
+Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, redeploy }`; 404 when the secret is not set.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `name` | `path` | `string` | yes |
+| `redeploy` | `query` | `"1"` \| `"true"` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | removed | `object` |
+| `403` | `not_writer` |   |
+| `404` | `not_found` |   |
+
 ### `PATCH /api/projects/{id}/rotate-secret`
 
 A new webhook secret, shown once (owner only)
@@ -4756,9 +5333,9 @@ The old secret stops verifying at once; paste the new one into the repo's settin
 
 ### `GET /api/projects/{id}/runs`
 
-Ad-hoc runs of a script project, newest first (public, like deployments)
+Ad-hoc runs of a script project, newest first (readable as the project is)
 
-Each run is a deployment-shaped record with `trigger: "run"`, the `entry`, `inputs` and `env` it was started with, and `logUrl`.
+Each run is a deployment-shaped record with `trigger: "run"`, the `entry`, the NAMES of the inputs and env it was started with (`inputKeys`, `envKeys` — values are never read back, by members either), and `logUrl`. 404 for an org-private project the viewer may not see.
 
 **Auth** — operator
 
@@ -4859,7 +5436,9 @@ Header `X-Ainize-Signature: sha256=<hex HMAC-SHA256 of the raw body with the pro
 
 ### `GET /api/projects/{id}/deployments`
 
-A project's deployments (pushes and redeploys), newest first — public
+A project's deployments (pushes and redeploys), newest first — readable as the project is
+
+Anyone for a public project; an active member for an org-private one (404 otherwise). `pusher` is `{ subject }` — never an email.
 
 **Auth** — operator
 
@@ -4877,9 +5456,9 @@ A project's deployments (pushes and redeploys), newest first — public
 
 ### `GET /api/deployments/{id}`
 
-One deployment or run (public)
+One deployment or run (readable as its project is)
 
-`{ id, projectId, sha, ref, kind, status: queued|building|ready|error, trigger: push|redeploy|run, subject?, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }` — readable by anyone, as the project is. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
+Anyone for a public project; an active member for an org-private one (404 otherwise; also for `/log` and `/output`). `{ id, projectId, sha, ref, kind, status: queued|building|ready|error, trigger: push|redeploy|run, subject?, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }`. `pusher` is `{ subject }`; a run carries `inputKeys` / `envKeys`, never their values. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
 
 **Auth** — operator
 
@@ -5011,7 +5590,7 @@ The script's stdout alone, for a ready deployment
 
 A project's running service or Next.js container (any method)
 
-The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. 404 when no container runs for the project, 502 when it does not answer.
+The node proxies the request to the container on its internal network; the `outputUrl` of a ready `service`/`nextjs` deployment. On ainize's origin the visitor's `Cookie`, `Authorization`, `X-Ainize-*` and `X-AIN-Actor` are never forwarded and the app's `Set-Cookie` is dropped; through the app's own domain its cookies and `Authorization` pass both ways. An org-private project answers only an active member of its organization (on its own app domain, behind the member gate) — unless its running `ainize.json` says `"access": "public"`: then anyone, with no gate, while the project, its deployments and logs stay members-only. 404 when no container runs for the project (or the viewer may not see it), 502 when it does not answer.
 
 **Auth** — operator
 

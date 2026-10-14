@@ -16,6 +16,7 @@
  *
  * Everything in this file is pure: no React, no fetch. The pages call it and `test/hosted-agents-api.test.ts` pins it.
  */
+import { agentIdFromName } from './agentIds';
 import type { AgentSummary } from './types';
 import type { PublicModelCard } from './models';
 import { agentOrgIdOf, agentVisibilityOf, sharingFieldsOf, sharingProblemKey, type AgentVisibility, type OrgOption } from './sharedAgents';
@@ -133,22 +134,9 @@ export function hostedAgentMediaServed(cards: PublicModelCard[]): HostedAgentMed
   return { transcription: cards.some((c) => c.modality === 'transcription'), image: cards.some((c) => c.modality === 'image') };
 }
 
-/**
- * An id from a name: "My Score Bot!" → `my-score-bot`.
- *
- * Accents fold to their base letter first (`Café` → `cafe`) because dropping them outright turns a name into
- * nonsense. Anything else outside `[a-z0-9]` becomes one hyphen, and the result is cut to 40 characters without
- * leaving a hyphen at either end. A name with no Latin letters or digits at all (a Korean name, say) yields `''`:
- * transliterating it would be a guess, and an empty id field asks the person instead of inventing one for them.
- */
+/** An id from a name — the one rule every agent form uses (`agentIds.ts`): readable, Korean romanized. */
 export function hostedAgentIdFromName(name: string): string {
-  return name
-    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/, '')
-    .slice(0, 40)
-    .replace(/-+$/, '');
+  return agentIdFromName(name);
 }
 
 /**

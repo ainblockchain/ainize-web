@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery, useSsoConnectMutation, useSsoStatusQuery } from '@/api/api';
+import { ainWalletLoginProof } from '@/lib/ainWalletLogin';
+import type { AinftWallet } from '@/lib/ainftRegistration';
 import { connect, discoverWallets, personalSign, WalletError, type DiscoveredWallet } from '@/lib/ethWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
@@ -155,6 +157,19 @@ export default function SigningPage() {
     return errorMessage(e);
   };
 
+  const signInNative = async () => {
+    setLocalError(null); setBusy(true);
+    try {
+      const wallet = (window as unknown as { ainetwork?: AinftWallet }).ainetwork;
+      if (!wallet?.getAddress || !wallet.signMessage) throw new Error(locale === 'ko' ? 'AIN Wallet을 설치하고 잠금을 해제하세요.' : 'Install and unlock AIN Wallet.');
+      const proof = await ainWalletLoginProof(wallet, () => challenge({ scheme: 'ain' }).unwrap());
+      await loginWallet(proof).unwrap();
+      await auth.refresh();
+      navigate(next, { replace: true });
+    } catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  };
+
   const signIn = async (w: DiscoveredWallet, alsoEnroll: boolean) => {
     setLocalError(null); setBusy(true);
     try {
@@ -183,6 +198,9 @@ export default function SigningPage() {
       <Hint data-testid="sign-general">{t('op.sign.general')}</Hint>
 
       <OptionContainer>
+        <ConfirmButton type="button" onClick={() => void signInNative()} disabled={busy} data-testid="ain-wallet-signin">
+          {locale === 'ko' ? 'AIN Wallet으로 로그인' : 'Sign in with AIN Wallet'}
+        </ConfirmButton>
         {wallets !== null && wallets.length === 0 && (
           <Alert $tone="info" data-testid="no-wallet">
             {t('op.sign.key.no_wallet')}
