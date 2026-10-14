@@ -24,6 +24,10 @@
     "group": "Tutorials",
     "pages": [
       {
+        "page": "tutorials/create-ainft",
+        "title": "Create an AINFT agent"
+      },
+      {
         "page": "tutorials/teach-from-a-file",
         "title": "Teach from a file of questions"
       },
