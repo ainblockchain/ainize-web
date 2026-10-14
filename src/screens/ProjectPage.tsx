@@ -143,6 +143,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
       </Head>
       {open && (
         <>
+          {d.placement && <Meta>Node: <ExternalLink href={d.placement.endpoint} target="_blank" rel="noreferrer">{d.placement.local ? 'Local' : new URL(d.placement.endpoint).hostname} ↗</ExternalLink> · {d.placement.reason}</Meta>}
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
           {d.trigger === 'run' && runInputNames(d).length > 0 && (
@@ -382,6 +383,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         {kind ? <Chip $tone="muted">{t(`projects.kind.${kind}`)}</Chip> : <Meta>{t('projects.page.kind_pending')}</Meta>}
         <Meta>{t('projects.page.branch')}: <Mono>{p.branch}</Mono></Meta>
         <ExternalLink href={p.repo} target="_blank" rel="noreferrer">{t('projects.page.repo')} ↗</ExternalLink>
+        {p.upstreamRepo && <ExternalLink href={p.upstreamRepo} target="_blank" rel="noreferrer">GitHub ↗</ExternalLink>}
         <Chip $tone={statusToneOf(p.status)}>{t(`projects.status.${p.status}`)}</Chip>
         {p.name !== p.repoName && <Meta>{p.name}</Meta>}
         <Spacer />
@@ -449,6 +451,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
           <ProjectEnvVars project={p} onOpenDeployment={openDeployment} />
           {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
           <KeyValue>
+            {p.upstreamRepo && <><dt>GitHub</dt><dd><ExternalLink href={p.upstreamRepo} target="_blank" rel="noreferrer">{p.upstreamRepo}</ExternalLink></dd></>}
             <dt>{t('projects.page.repo')}</dt><dd><ExternalLink href={p.repo} target="_blank" rel="noreferrer">{p.repo}</ExternalLink></dd>
             <dt>{t('projects.page.branch')}</dt><dd><Mono>{p.branch}</Mono></dd>
             <dt>{t('projects.page.kind')}</dt><dd>{kind ? t(`projects.kind.${kind}`) : <Meta>{t('projects.page.kind_pending')}</Meta>}{p.manifest && <Meta> · {p.manifest.detected}</Meta>}</dd>
