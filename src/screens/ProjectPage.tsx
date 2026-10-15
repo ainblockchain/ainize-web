@@ -30,7 +30,7 @@ import {
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
 import {
-  durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, shortSha, statusToneOf,
+  aindriveLinksOf, durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
   type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
 import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
@@ -443,6 +443,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         <Meta>{t('projects.page.branch')}: <Mono>{p.branch}</Mono></Meta>
         <ExternalLink href={p.repo} target="_blank" rel="noreferrer">{t('projects.page.repo')} ↗</ExternalLink>
         {p.upstreamRepo && <ExternalLink href={p.upstreamRepo} target="_blank" rel="noreferrer">GitHub ↗</ExternalLink>}
+        {p.aindrive?.logStore && <ExternalLink href={p.aindrive.logStore.urls.logs} target="_blank" rel="noreferrer">{t('projects.aindrive.open_logs')} ↗</ExternalLink>}
         <Chip $tone={statusToneOf(p.status)}>{t(`projects.status.${p.status}`)}</Chip>
         {p.name !== p.repoName && <Meta>{p.name}</Meta>}
         <Spacer />
@@ -527,6 +528,17 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
             {p.manifest && (p.manifest.envKeys ?? Object.keys(p.manifest.env ?? {})).length > 0 && (
               <><dt>{t('projects.settings.env')}</dt><dd>{(p.manifest.envKeys ?? Object.keys(p.manifest.env ?? {})).map((k) => <div key={k}><Mono>{k}</Mono></div>)}</dd></>
             )}
+            <dt>{t('projects.aindrive.title')}</dt>
+            <dd>
+              <div><Meta>{t('projects.aindrive.repo')}: </Meta><ExternalLink href={p.aindrive?.repo?.url || p.repo} target="_blank" rel="noreferrer">{repoLabelOf(p.aindrive?.repo?.url || p.repo)} ↗</ExternalLink></div>
+              {p.aindrive?.logStore && (
+                <div style={{ marginTop: 6 }}>
+                  <Meta>{t('projects.aindrive.log_store')}: </Meta><ExternalLink href={p.aindrive.logStore.urls.base || p.aindrive.logStore.urls.logs} target="_blank" rel="noreferrer"><Mono>{p.aindrive.logStore.basePath}</Mono> ↗</ExternalLink> <CopyButton text={p.aindrive.logStore.basePath} />
+                  {aindriveLinksOf(p.aindrive).map((l) => <div key={l.key}><ExternalLink href={l.url} target="_blank" rel="noreferrer">{t(`projects.aindrive.${l.key}`)} ↗</ExternalLink> <Mono>{l.path}</Mono></div>)}
+                  <Help>{t('projects.aindrive.log_store_help')}</Help>
+                </div>
+              )}
+            </dd>
             <dt>URL</dt><dd><Mono>{p.url}</Mono> <CopyButton text={p.url} /></dd>
             {p.canManage && p.hookUrl && <><dt>{t('projects.settings.webhook')}</dt><dd><Mono>{p.hookUrl}</Mono> <CopyButton text={p.hookUrl} /><Help>{t('projects.settings.webhook_help')}</Help></dd></>}
           </KeyValue>

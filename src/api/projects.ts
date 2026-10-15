@@ -69,8 +69,37 @@ export interface Project {
   runnable?: string[];
   canManage?: boolean;
   canOperate?: boolean;
+  /** Where the project lives on aindrive (ainize-node docs/PROJECTS.md "Where the data lives"); an older node omits it. */
+  aindrive?: ProjectAindrive | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/**
+ * The repository's drive page, and — owner and members, once the durable log store was set up on a node that has one —
+ * the drive folder `app-data/<id>/` the project's logs are written to, with ready-made links into it.
+ */
+export interface ProjectAindrive {
+  repo: { url: string };
+  logStore?: { driveId: string; basePath: string; urls: { base?: string; logs: string; transcriptsToday: string; state: string } } | null;
+}
+
+/** One link of the AinDrive block: which folder (an i18n key under `projects.aindrive.`), the path as text, the drive URL. */
+export interface AindriveLink { key: 'logs' | 'transcripts_today' | 'state'; path: string; url: string }
+
+/** The log-store links the AinDrive block lists, each with the path it opens (`app-data/<id>/logs/…`) read back off the URL. */
+export function aindriveLinksOf(a: ProjectAindrive | null | undefined): AindriveLink[] {
+  const store = a?.logStore;
+  if (!store || typeof store.basePath !== 'string' || !store.urls) return [];
+  const pathOf = (url: string) => {
+    try { const segs = new URL(url).pathname.split('/').slice(1).map(decodeURIComponent); const i = segs.indexOf('app-data'); return i >= 0 ? segs.slice(i).join('/') + '/' : store.basePath; }
+    catch { return store.basePath; }
+  };
+  const rows: AindriveLink[] = [];
+  for (const [key, url] of [['logs', store.urls.logs], ['transcripts_today', store.urls.transcriptsToday], ['state', store.urls.state]] as const) {
+    if (typeof url === 'string' && /^https:\/\//.test(url)) rows.push({ key, path: pathOf(url), url });
+  }
+  return rows;
 }
 
 /** `POST /api/projects` — the secret appears here and nowhere else, once. */
