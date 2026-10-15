@@ -10,7 +10,9 @@
  *   Runs         script projects: the Run panel — entry file, the `inputs` form out of ainize.json (GitHub
  *                workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input, timeout, example
  *                presets (`examples` in ainize.json) — and the history of runs, each re-runnable with its inputs.
- *   Logs         the newest deployment's or run's log, downloadable.
+ *   Logs         a service/nextjs app's RUNTIME log — what the running container prints, on the node or the deployment
+ *                peer it was placed on; owner/members only, followed live — and the newest deployment's or run's
+ *                build log (`?log=build`), downloadable.
  *   Settings     environment variables (write-only values, .env paste, redeploy after saving — ProjectEnvVars),
  *                branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
  *
@@ -19,11 +21,11 @@
  * Reading is public (ainize-node docs/PROJECTS.md "Who sees what"); the node says with `canManage` / `canOperate`
  * which buttons this caller gets. `/projects/:id` still resolves and forwards here.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import {
-  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectSourceQuery,
+  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
   useRedeployMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
@@ -31,6 +33,7 @@ import {
   durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, shortSha, statusToneOf,
   type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
+import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/ui/Form';
@@ -107,6 +110,58 @@ function download(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
   const a = document.createElement('a'); a.href = url; a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const RunLine = styled.div<{ $err: boolean }>`
+  color: ${(p) => (p.$err ? '#ff9e9e' : 'inherit')};
+  .ts { color: #7d8a96; margin-right: 10px; user-select: none; }
+`;
+
+/**
+ * The RUNNING service's own output (src/api/runtimeLogs.ts) — on this node or on the deployment peer it was placed on.
+ * Owner and organization members only; "Follow" asks again every few seconds and keeps the view at the bottom unless
+ * the reader scrolled up.
+ */
+function RuntimeLogView({ project }: { project: Project }) {
+  const { t } = useT();
+  const { isSignedIn } = useAuth();
+  const [tail, setTail] = useState<number>(RUNTIME_LOG_DEFAULT_TAIL);
+  const [follow, setFollow] = useState(true);
+  const allowed = isSignedIn && !!project.canOperate;
+  const q = useProjectRuntimeLogsQuery({ id: project.id, tail }, { skip: !allowed, pollingInterval: follow ? RUNTIME_LOG_POLL_MS : 0, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true });
+  const box = useRef<HTMLPreElement>(null);
+  const stick = useRef(true);
+  useEffect(() => { const el = box.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [q.data]);
+  if (!isSignedIn) {
+    return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(`/signing?next=${encodeURIComponent(window.location.pathname + window.location.search)}`); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
+  }
+  if (!project.canOperate) return <Panel><Help>{t('projects.logs.not_member', { org: project.org })}</Help></Panel>;
+  const data = q.data;
+  const problem = q.error ? runtimeLogProblemOf(q.error) : null;
+  return (
+    <>
+      <FilterRow>
+        {data && <Meta>{t(data.placement === 'peer' ? 'projects.logs.placement_peer' : 'projects.logs.placement_local')} · <Mono title={data.sha}>{shortSha(data.sha)}</Mono> · {t('projects.logs.updated', { time: new Date(data.fetchedAt).toLocaleTimeString(undefined, { hour12: false }) })}</Meta>}
+        <Spacer />
+        <Checkbox label={t('projects.logs.follow')} checked={follow} onChange={(e) => { setFollow(e.target.checked); stick.current = true; }} />
+        <Select aria-label={t('projects.logs.tail')} value={String(tail)} onChange={(e) => setTail(Number(e.target.value))}>
+          {RUNTIME_LOG_TAILS.map((n) => <option key={n} value={n}>{n}</option>)}
+        </Select>
+        <Button size="small" loading={q.isFetching} onClick={() => { stick.current = true; void q.refetch(); }}>{t('projects.logs.refresh')}</Button>
+        <Button size="small" onClick={() => download(`${project.org}-${project.repoName}-runtime.log`, runtimeLogsText(data?.lines ?? []))} disabled={!data?.lines.length}>{t('projects.logs.download')}</Button>
+      </FilterRow>
+      <Help>{t('projects.logs.runtime_hint')}</Help>
+      {problem && <Alert $tone={problem === 'not_running' ? 'info' : 'error'}>{t(`projects.logs.${problem}`, { org: project.org })}</Alert>}
+      {q.isLoading && !data ? <CenterProgress /> : data && (
+        <Log ref={box} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}>
+          {data.truncated && <RunLine $err={false}><span className="ts">…</span>{t('projects.logs.truncated')}</RunLine>}
+          {data.lines.length === 0 ? t('projects.logs.runtime_empty') : data.lines.map((l, i) => (
+            <RunLine key={`${l.ts ?? ''}-${i}`} $err={l.stream === 'stderr'}><span className="ts" title={l.ts ?? undefined}>{logTime(l.ts)}</span>{l.text}</RunLine>
+          ))}
+        </Log>
+      )}
+    </>
+  );
 }
 
 /** Who: the pusher's subject; a run names the person who pressed Run. */
@@ -338,6 +393,10 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
   // Logs
   const latestAny = [latest, runRows[0]].filter((x): x is Deployment => !!x).sort((a, b) => b.createdAt - a.createdAt)[0];
   const [logText, setLogText] = useState('');
+  // A service or Next.js app has a runtime log beside its build log; `?log=build` deep-links the build one.
+  const hasRuntime = kind === 'service' || kind === 'nextjs';
+  const logView: 'runtime' | 'build' = sp.get('log') === 'build' ? 'build' : 'runtime';
+  const setLogView = (v: 'runtime' | 'build') => setSp((prev) => { const n = new URLSearchParams(prev); if (v === 'build') n.set('log', 'build'); else n.delete('log'); return n; }, { replace: true });
 
   // Settings
   const [remove, { isLoading: removing }] = useDeleteProjectMutation();
@@ -431,7 +490,13 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
 
       {tab === 'logs' && (
         <TabBody>
-          {!latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
+          {hasRuntime && (
+            <FilterRow role="group" aria-label={t('projects.tabs.logs')}>
+              <Button size="small" variant={logView === 'runtime' ? 'contained' : undefined} aria-pressed={logView === 'runtime'} onClick={() => setLogView('runtime')}>{t('projects.logs.runtime')}</Button>
+              <Button size="small" variant={logView === 'build' ? 'contained' : undefined} aria-pressed={logView === 'build'} onClick={() => setLogView('build')}>{t('projects.logs.build')}</Button>
+            </FilterRow>
+          )}
+          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
             <>
               <FilterRow>
                 <StatusDot status={latestAny.status} />
