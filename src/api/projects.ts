@@ -102,6 +102,17 @@ export function aindriveLinksOf(a: ProjectAindrive | null | undefined): Aindrive
   return rows;
 }
 
+/**
+ * Where the "Code" action opens the project's repository to edit: the ainize.ai/code workspace's `_aincode/open`
+ * route with the repo URL — under `/code/org/<org>/` for an organization's project (the node says `visibility: 'org'`,
+ * or the owner is the organization), under `/code/` for a personal one. The workspace itself decides who may open it.
+ */
+export function codeWorkspaceUrlOf(p: Pick<Project, 'org' | 'repo'> & Partial<Pick<Project, 'visibility' | 'owner'>>): string {
+  const isOrg = p.visibility === 'org' || (typeof p.owner === 'string' && p.owner.startsWith('org:'));
+  const base = isOrg ? `/code/org/${encodeURIComponent(p.org)}` : '/code';
+  return `${base}/_aincode/open?repo=${encodeURIComponent(p.repo)}`;
+}
+
 /** `POST /api/projects` — the secret appears here and nowhere else, once. */
 export interface ProjectCreated extends Project { owner: string; hookUrl: string; webhookSecret: string; hasDeployToken: boolean }
 

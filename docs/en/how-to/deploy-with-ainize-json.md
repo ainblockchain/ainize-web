@@ -116,6 +116,7 @@ The same `/<org>/git/<repo>` is the git remote (`git clone https://aindrive.aine
 3. Watch it: `GET /api/projects/{id}/deployments` lists them; `GET /api/deployments/{id}/log` streams the log while it
    runs and returns it afterwards. In aindrive, the repo folder shows the same rows — a grey pulsing dot while
    building, green when ready, red on error — with *Inspect* (the log) and *Visit* (the URL) links on each commit.
+   The project page's header has *Code*, which opens the repository in ainize.ai/code to fix or change it.
 
 ## Binding happens on push
 

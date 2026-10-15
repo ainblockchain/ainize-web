@@ -2,7 +2,7 @@
  * `/<org>/<repo>` — the project console: the deployment and run page of a repository, modelled on Vercel's project
  * dashboard. aindrive's ▶ Run is the short form; this is the full one ("aindrive의 Run은 약식이고 ainize의 run/deploy가
  * 본 페이지"). Header: `org / repo`, the kind, the production branch, the repo, the status dot and the primary
- * actions — Run (script), Visit (service / agent / nextjs), Redeploy. Four tabs, deep-linked through `?tab=`:
+ * actions — Code (the repo in ainize.ai/code), Run (script), Visit (service / agent / nextjs), Redeploy. Four tabs, deep-linked through `?tab=`:
  *
  *   Deployments  the Vercel-shaped rows (status dot, sha + subject, branch, who, when, how long); a row opens the
  *                full log (polled while it runs), exit code, output link, Redeploy — "roll back to this one" for a
@@ -30,7 +30,7 @@ import {
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
 import {
-  aindriveLinksOf, durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
+  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
   type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
 import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
@@ -448,6 +448,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
         {p.name !== p.repoName && <Meta>{p.name}</Meta>}
         <Spacer />
         <Actions>
+          <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
           <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>
           {!isScript && lastReady?.outputUrl && <Button variant="contained" size="small" onClick={() => window.open(lastReady.outputUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
@@ -530,7 +531,7 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
             )}
             <dt>{t('projects.aindrive.title')}</dt>
             <dd>
-              <div><Meta>{t('projects.aindrive.repo')}: </Meta><ExternalLink href={p.aindrive?.repo?.url || p.repo} target="_blank" rel="noreferrer">{repoLabelOf(p.aindrive?.repo?.url || p.repo)} ↗</ExternalLink></div>
+              <div><Meta>{t('projects.aindrive.repo')}: </Meta><ExternalLink href={p.aindrive?.repo?.url || p.repo} target="_blank" rel="noreferrer">{repoLabelOf(p.aindrive?.repo?.url || p.repo)} ↗</ExternalLink> <ExternalLink href={codeWorkspaceUrlOf(p)} target="_blank" rel="noreferrer" title={t('projects.page.code_hint')}>{t('projects.page.code')} ↗</ExternalLink></div>
               {p.aindrive?.logStore && (
                 <div style={{ marginTop: 6 }}>
                   <Meta>{t('projects.aindrive.log_store')}: </Meta><ExternalLink href={p.aindrive.logStore.urls.base || p.aindrive.logStore.urls.logs} target="_blank" rel="noreferrer"><Mono>{p.aindrive.logStore.basePath}</Mono> ↗</ExternalLink> <CopyButton text={p.aindrive.logStore.basePath} />

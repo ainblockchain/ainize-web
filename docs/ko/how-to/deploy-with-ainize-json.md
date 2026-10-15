@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 082ff774da44043e2121108f5a224fdecd65857412e56a2122801209d615df67
+source_sha256: ea9f442b9406c468c9dc3395890630cc963340b13d47829ae6313fbf3166585a
 ---
 
 # ainize.json으로 리포 배포하기
@@ -114,6 +114,7 @@ URL은 GitHub 규약을 따르고 주소창에 그대로 남습니다:
 3. 지켜봅니다: `GET /api/projects/{id}/deployments`가 목록을, `GET /api/deployments/{id}/log`가 실행 중엔 로그를
    스트리밍하고 끝나면 전체를 돌려줍니다. aindrive에서는 리포 폴더가 같은 행을 보여 줍니다 — 빌드 중엔 회색 점이
    깜빡이고, ready면 녹색, error면 빨강 — 커밋마다 *Inspect*(로그)와 *Visit*(URL) 링크가 붙습니다.
+   프로젝트 페이지 헤더의 *Code*는 이 저장소를 ainize.ai/code에서 열어 수정할 수 있게 합니다.
 
 ## 바인딩은 push가 합니다
 
