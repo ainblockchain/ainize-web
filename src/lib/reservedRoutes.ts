@@ -28,7 +28,12 @@ export function isReservedFirstSegment(segment: string): boolean {
 export const SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 export const looksLikeSlug = (s: string): boolean => SLUG_PATTERN.test(s) && !isReservedFirstSegment(s);
 
-/** The pretty address of a project, `/<org>/<repo>` — every link to a project goes through here. */
-export const projectPath = (p: { org: string; repoName: string }): string => `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}`;
+/**
+ * The address of a project — every link to a project goes through here. `/<org>/<repo>` for a repository's own
+ * project; a monorepo folder's project (`sourcePath`, a folder with its own ainize.json) shares that name with the
+ * root's, so it lives at `/projects/<id>`.
+ */
+export const projectPath = (p: { org: string; repoName: string; id?: string; sourcePath?: string }): string =>
+  p.sourcePath && p.id ? `/projects/${encodeURIComponent(p.id)}` : `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}`;
 /** The organization's page, `/<org>`. */
 export const orgPath = (org: string): string => `/${encodeURIComponent(org)}`;

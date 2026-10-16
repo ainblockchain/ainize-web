@@ -176,11 +176,13 @@ export interface OrgRepoRow { name: string; project: Project | null; repo: OrgRe
 export function mergeOrgRepos(projects: Project[], repos: OrgRepository[]): OrgRepoRow[] {
   const rows = new Map<string, OrgRepoRow>();
   for (const r of repos) rows.set(r.name.toLowerCase(), { name: r.name, project: null, repo: r });
+  // A monorepo folder's project is its own row, `<repo>/<folder>` — never the repository's row, which is the root's.
   for (const p of projects) {
-    const k = p.repoName.toLowerCase();
+    const name = p.sourcePath ? `${p.repoName}/${p.sourcePath}` : p.repoName;
+    const k = name.toLowerCase();
     const row = rows.get(k);
     if (row) { if (!row.project) row.project = p; }
-    else rows.set(k, { name: p.repoName, project: p, repo: null });
+    else rows.set(k, { name, project: p, repo: null });
   }
   const when = (r: OrgRepoRow) => Math.max(r.project?.updatedAt ?? 0, r.repo?.updatedAt ?? 0);
   return [...rows.values()].sort((a, b) => when(b) - when(a) || a.name.localeCompare(b.name));
