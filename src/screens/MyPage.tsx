@@ -20,6 +20,7 @@ import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
+import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './models/issuedKeyMemory';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -27,6 +28,13 @@ import { shortAddr } from '@/utils/format';
 
 const Panel = styled.div`border: 1px solid #e2e4ea; border-radius: 10px; padding: 18px; margin-bottom: 28px;`;
 const Row = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;`;
+/** The key just made — where the eye already is (under the form), loud, and with its own copy button. */
+const IssuedBox = styled.div`
+  margin-top: 14px; padding: 14px 16px; border: 2px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 10px;
+  background: ${(p) => p.theme.color.PALE_GREY};
+  strong { display: block; margin-bottom: 6px; font-size: 14px; }
+  ${Mono} { display: block; font-size: 1em; user-select: all; }
+`;
 const Links = styled.div`display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;`;
 
 export default function MyPage() {
@@ -59,7 +67,10 @@ export default function MyPage() {
   const [keyName, setKeyName] = useState('');
   const label = keyName.trim();
   const duplicateName = !!label && !!keys?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === label.toLocaleLowerCase());
-  const [issued, setIssued] = useState<string | null>(null);
+  // Kept for this tab (sessionStorage, screens/models/issuedKeyMemory.ts): a refresh or a remount of this page must not be
+  // the moment the only copy of a secret vanishes. 2026-10-16: a person made a key and never saw its value.
+  const [issued, setIssued] = useState<string | null>(() => recallIssuedKey());
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
@@ -104,13 +115,6 @@ export default function MyPage() {
       <SubTitle>{t('me.keys.title')}</SubTitle>
       <Description>{t('me.keys.lede')}</Description>
       <Panel>
-        {issued && (
-          <>
-            <Mono data-testid="me-issued-key">{issued}</Mono>
-            {/* Said where it cannot be missed: there is no second chance to read this. */}
-            <Description>{t('me.keys.once')}</Description>
-          </>
-        )}
         {(keys?.keys.length ?? 0) === 0 && !issued && <Description>{t('me.keys.none')}</Description>}
         {(keys?.keys.length ?? 0) > 0 && (
           <TableWrapper style={{ marginTop: 8 }}>
@@ -158,7 +162,7 @@ export default function MyPage() {
           if (!label || duplicateName || createState.isLoading) return;
           setError(null);
           void createKey({ label, ...(scope !== undefined ? { org_id: scope } : {}) }).unwrap()
-            .then((r) => { setIssued(r.api_key); setKeyName(''); })
+            .then((r) => { rememberIssuedKey(r.api_key); setIssued(r.api_key); setCopied(false); setKeyName(''); })
             .catch((e: unknown) => setError(errorMessage(e)));
         }}>
           <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
@@ -172,6 +176,21 @@ export default function MyPage() {
             <StyledLink to="/models">{t('me.keys.models')}</StyledLink>
           </Row>
         </form>
+        {issued && (
+          <IssuedBox data-testid="me-issued-box">
+            <strong>{t('me.keys.issued')}</strong>
+            <Mono data-testid="me-issued-key">{issued}</Mono>
+            {/* Said where it cannot be missed: there is no second chance to read this. */}
+            <Description>{t('me.keys.once')}</Description>
+            <Row>
+              <Button size="small" type="button" data-testid="me-issued-copy" onClick={() => {
+                void navigator.clipboard?.writeText(issued).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+              }}>{t(copied ? 'me.keys.copied' : 'me.keys.copy')}</Button>
+              <Button size="small" variant="text" color="secondary" type="button" data-testid="me-issued-forget"
+                onClick={() => { forgetIssuedKey(); setIssued(null); }}>{t('me.keys.forget')}</Button>
+            </Row>
+          </IssuedBox>
+        )}
         {error && <Alert>{t('me.keys.failed', { why: error })}</Alert>}
       </Panel>
 
