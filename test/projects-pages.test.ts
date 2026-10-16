@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
+import { projectPath } from '../src/lib/reservedRoutes.ts';
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`, import.meta.url)), 'utf8');
 
@@ -87,7 +88,7 @@ test('/projects/new keeps its own sign-in gate so the hand-off query string surv
   assert.match(page, /\/signing\?next=\$\{encodeURIComponent\(`\$\{pathname\}\$\{search\}`\)\}/);
 });
 
-test('every link to a project is the pretty URL /<org>/<repo>; nothing links to /projects/<id> any more', () => {
+test('every link to a project is the pretty URL /<org>/<repo> (a monorepo folder\'s project excepted, projectPath); nothing builds /projects/<id> by hand', () => {
   for (const file of ['screens/ProjectNewPage.tsx', 'screens/MyProjectsPage.tsx', 'screens/ProjectPage.tsx', 'screens/OrgRepositoriesPage.tsx']) {
     assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} still builds a /projects/<id> link`);
   }
@@ -102,6 +103,17 @@ test('the org page merges the drive\'s repositories with the projects bound here
     { name: 'notes', cloneUrl: 'n', headSha: null, headSubject: null, updatedAt: 90, hasManifest: false },
   ]);
   assert.deepEqual(rows.map((r) => [r.name, !!r.project, !!r.repo]), [['notes', false, true], ['clef-artwork-search', true, true], ['gone-from-drive', true, false]]);
+});
+
+test('a monorepo folder project is its own row and its own page; the repository row stays the root project', () => {
+  const base = { org: 'comcom', repoName: 'aindrive', repo: 'https://aindrive.ainetwork.ai/comcom/git/aindrive', branch: 'main', kind: 'service', entry: null, status: 'ready', url: '', pageUrl: '', lastDeploymentId: null, createdAt: 1 } as const;
+  const root = { ...base, id: 'prj_root', name: 'aindrive-web', updatedAt: 10, sourcePath: '' } as unknown as Project;
+  const indexer = { ...base, id: 'prj_idx', name: 'aindrive-indexer', updatedAt: 20, sourcePath: 'indexer' } as unknown as Project;
+  const rows = mergeOrgRepos([indexer, root], [{ name: 'aindrive', cloneUrl: 'c', headSha: 'a', headSubject: 's', updatedAt: 5, hasManifest: true }]);
+  assert.deepEqual(rows.map((r) => [r.name, r.project?.id ?? null]), [['aindrive/indexer', 'prj_idx'], ['aindrive', 'prj_root']]);
+  assert.equal(projectPath(root), '/comcom/aindrive');
+  assert.equal(projectPath(indexer), '/projects/prj_idx');
+  assert.match(read('screens/ProjectPage.tsx'), /if \(q\.data\?\.sourcePath\) return <ProjectConsole project=\{q\.data\} \/>;/);
 });
 
 test('the Run panel: answers fall back to defaults, required blanks are named, env lines are parsed, times are relative', () => {

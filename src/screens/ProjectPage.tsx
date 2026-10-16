@@ -574,13 +574,17 @@ export function ProjectByNamePage() {
   return <PatchPage />;
 }
 
-/** `/projects/:id` — the old address; forwards to `/<org>/<repo>` once the project is known. */
+/**
+ * `/projects/:id` — the old address; forwards to `/<org>/<repo>` once the project is known. A monorepo folder's project
+ * has no name of its own (it shares the repository's), so this is its page: it renders here.
+ */
 export default function ProjectPage() {
   const { t } = useT();
   const { id = '' } = useParams();
   const location = useLocation();
   const q = useProjectQuery(id);
   if (q.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (q.data?.sourcePath) return <ProjectConsole project={q.data} />;
   if (q.data) return <Navigate to={`${projectPath(q.data)}${location.search}`} replace />;
   const why = projectApiErrorOf(q.error);
   return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty></PageWrapper>;
