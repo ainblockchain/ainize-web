@@ -14,7 +14,9 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useMyOrgsQuery, useMyNodesQuery, useRevokeApiKeyMutation } from '@/api/api';
 import { parseOrgList } from '@/api/organizations';
+import { defaultKeyScope, keyScopeOptions } from '@/api/sharedAgents';
 import { useAuth } from '@/auth/AuthContext';
+import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
@@ -38,11 +40,18 @@ export default function MyPage() {
    * An AIN account makes keys for one of its organizations, or personal ones (ainize-node src/sso.ts). The default
    * is the organization it signed in for — the company's key is the company's to switch off — and the choice is
    * shown, because a personal key is the one that outlives leaving.
+   *
+   * The organizations offered are the ones the node counts the person a member of (`useShareableOrgs`: provisioned
+   * AIN memberships and ainize organizations), not only those the ID token named. A token that names none while the
+   * node knows two used to hide the choice AND send no `org_id` — and the node then refused the key asking for one.
    */
-  const orgs = sso?.orgs ?? [];
+  const shareable = useShareableOrgs();
+  const keyOrgs = keyScopeOptions(shareable.orgs ?? sso?.orgs);
   const [keyFor, setKeyFor] = useState<string | null | undefined>(undefined);
-  const scope = keyFor !== undefined ? keyFor : sso ? (sso.activeOrg ?? orgs[0]?.id ?? null) : undefined;
-  const orgName = (id: string | null | undefined) => (id ? orgs.find((o) => o.id === id)?.name ?? id : t('me.keys.personal'));
+  // `undefined` (omitted) only when there is nothing to choose: the node then makes a personal key without asking.
+  const scope = keyFor !== undefined ? keyFor : keyOrgs.length ? defaultKeyScope(keyOrgs, shareable.activeOrg ?? sso?.activeOrg) : undefined;
+  const orgName = (id: string | null | undefined) =>
+    (id ? keyOrgs.find((o) => o.org_id === id)?.name ?? sso?.orgs.find((o) => o.id === id)?.name ?? id : t('me.keys.personal'));
   const { data: keys } = useApiKeysQuery();
   const { data: myNodes } = useMyNodesQuery(undefined, { skip: !me?.subject });
   const [createKey, createState] = useCreateApiKeyMutation();
@@ -68,7 +77,7 @@ export default function MyPage() {
         {sso && (
           <Description data-testid="me-sso">
             {t('me.identity.sso')}: {sso.email ?? sso.name ?? sso.sub}
-            {orgs.length > 0 && <> · {t('me.identity.orgs', { orgs: orgs.map((o) => o.name).join(', ') })}</>}
+            {keyOrgs.length > 0 && <> · {t('me.identity.orgs', { orgs: keyOrgs.map((o) => o.name).join(', ') })}</>}
           </Description>
         )}
       </Panel>
@@ -109,7 +118,7 @@ export default function MyPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead $align="left" $padding="0 8px">{t('me.keys.label')}</TableHead>
-                  {sso && <TableHead>{t('me.keys.scope')}</TableHead>}
+                  {(sso || keyOrgs.length > 0) && <TableHead>{t('me.keys.scope')}</TableHead>}
                   <TableHead>{t('me.keys.created')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -118,7 +127,7 @@ export default function MyPage() {
                 {(keys?.keys ?? []).map((k) => (
                   <TableRow key={k.prefix}>
                     <TableData $align="left" $padding="0 8px">{k.label ?? k.prefix}</TableData>
-                    {sso && <TableData>{orgName(k.org_id)}{k.disabled ? ` (${t('me.keys.disabled')})` : ''}</TableData>}
+                    {(sso || keyOrgs.length > 0) && <TableData>{orgName(k.org_id)}{k.disabled ? ` (${t('me.keys.disabled')})` : ''}</TableData>}
                     <TableData>{new Date(k.issuedAt).toLocaleDateString()}</TableData>
                     <TableData>
                       <Button
@@ -134,11 +143,11 @@ export default function MyPage() {
             </Table>
           </TableWrapper>
         )}
-        {sso && orgs.length > 0 && (
+        {keyOrgs.length > 0 && (
           <Row>
             <label htmlFor="me-key-for">{t('me.keys.for')}</label>
             <select id="me-key-for" data-testid="me-key-for" value={scope ?? ''} onChange={(e) => setKeyFor(e.target.value || null)}>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              {keyOrgs.map((o) => <option key={o.org_id} value={o.org_id}>{o.name}</option>)}
               <option value="">{t('me.keys.personal')}</option>
             </select>
             <Description style={{ margin: 0 }}>{t('me.keys.org_hint')}</Description>

@@ -98,6 +98,38 @@ export function defaultOrgIdFor(orgs: readonly OrgOption[] | null | undefined, a
   return orgs.length === 1 ? orgs[0].id : null;
 }
 
+/** One organization an API key may be made for, as `POST /api/keys` takes it. */
+export interface KeyScopeOption { org_id: string; name: string }
+
+/**
+ * The organizations a person may make an API key for, in the id the node's key route accepts (ainize-node
+ * server.ts `activeOrgsOf`): an AIN SSO organization by its own id, an ainize organization by the AIN organization it
+ * links (`aliases`) — or by its ainize id when it links none, which that route admits too. Built from what the node
+ * says the person is a member of (`useShareableOrgs`), not from what the ID token happened to name: a person whose
+ * token names no organization is still asked which of the ones they are provisioned into the key is for, instead
+ * of the form hiding the question and the node then refusing the key for want of an answer.
+ */
+export function keyScopeOptions(orgs: readonly OrgOption[] | null | undefined): KeyScopeOption[] {
+  const out: KeyScopeOption[] = [];
+  const seen = new Set<string>();
+  for (const o of orgs ?? []) {
+    const org_id = o.aliases?.[0] ?? o.id;
+    if (!org_id || seen.has(org_id)) continue;
+    seen.add(org_id);
+    out.push({ org_id, name: o.name || o.slug || org_id });
+  }
+  return out;
+}
+
+/**
+ * The scope to preselect: the organization the session signed in for, else the first one — a company's key is the
+ * company's to switch off — and personal only when there is nothing to choose.
+ */
+export function defaultKeyScope(options: readonly KeyScopeOption[], activeOrg: string | null | undefined): string | null {
+  if (!options.length) return null;
+  return options.find((o) => o.org_id === activeOrg)?.org_id ?? options[0].org_id;
+}
+
 /** The pair a spec carries. `orgId` goes with `org` and only with `org` — the node's rule, applied before it is asked. */
 export function sharingFieldsOf(visibility: AgentVisibility | null | undefined, orgId: string | null | undefined): { visibility: AgentVisibility; orgId: string | null } {
   const v = visibility ?? 'public';
