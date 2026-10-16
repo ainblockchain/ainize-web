@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-285 operations on 239 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+286 operations on 240 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -299,6 +299,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/ainui/snippet`](#get-apiainuisnippet) | operator | The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted) |
 | `GET` | [`/api/deployments/{id}/log`](#get-apideploymentsidlog) | operator | The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building |
 | `GET` | [`/api/deployments/{id}/output`](#get-apideploymentsidoutput) | operator | The script's stdout alone, for a ready deployment |
+| `GET` | [`/api/projects/{id}/runtime-logs`](#get-apiprojectsidruntime-logs) | operator | The running service's own stdout/stderr, wherever it was placed (owner or member) |
 | `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
 
 **Operator** — wallet, settings, purchases, branches, peers, chain, drive
@@ -5197,7 +5198,7 @@ Only an active member of an organization known under the slug (a session, or a m
 
 One project — the view for whoever may see it, `owner` and `hookUrl` for its owner
 
-A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, appAccess, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`; `appAccess` is who reaches the running app — `members` (an org-private project's default) or `public` (a public project, or an org-private one whose `ainize.json` says `"access": "public"`). `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. 404 when there is no such project.
+A project whose repository's `<org>` slug maps to an organization this node knows is org-private (`visibility: "org"`): only an active member of that organization — a session, or an AIN SSO machine token + `X-AIN-Actor` naming them — sees it; anyone else gets 404 `not_found`, as for an unknown id. A public project reads to anyone. The view is `{ id, org, repoName, repo, branch, visibility, appAccess, kind, entry, name, status, url, pageUrl, lastDeployment, manifest, runnable, canManage, canOperate }`; `appAccess` is who reaches the running app — `members` (an org-private project's default) or `public` (a public project, or an org-private one whose `ainize.json` says `"access": "public"`). `manifest` is the `ainize.json` the newest deployment resolved (kind, entry, inputs, examples, and `envKeys` — the names of its env, never the values), `runnable` the repository's `.py`/`.js`/`.mjs` files. `aindrive` says where the project lives on aindrive: `{ repo: { url }, logStore }` — `logStore` is `{ driveId, basePath: "app-data/<id>/", urls: { base, logs, transcriptsToday, state } }` (drive links `https://<aindrive>/d/<driveId>/<path>`) for the owner and members once the project's durable log store was set up on a node that has one, otherwise null. 404 when there is no such project.
 
 **Auth** — operator
 
@@ -5585,6 +5586,32 @@ The script's stdout alone, for a ready deployment
 | Code | Description |
 |---|---|
 | `200` | text/plain |
+
+### `GET /api/projects/{id}/runtime-logs`
+
+The running service's own stdout/stderr, wherever it was placed (owner or member)
+
+Owner or active member of the project's organization only (a session, or a trusted application's machine token + `X-AIN-Actor`); never anonymous. Read from the container on this node, or from the deployment peer over the signed `project.logs` control command. Bounded: `tail` 1–1000 lines (default 200), 4 KiB per line, 256 KiB total. `{ projectId, deploymentId, sha, placement, tail, since?, fetchedAt, lines: [{ ts, stream, text }], truncated }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `tail` | `query` | `integer` |   |
+| `since` | `query` | `string (date-time)` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | runtime log lines |
+| `401` | sign_in_required |
+| `403` | not_member |
+| `404` | not_found \| not_running |
+| `502` | logs_unavailable |
 
 ### `GET /svc/{projectId}/{path}`
 

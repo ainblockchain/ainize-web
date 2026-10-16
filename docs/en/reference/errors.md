@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 148 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 149 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 91 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -188,6 +188,7 @@ A further 91 throw sites build their message at the time (a validator's own word
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: \<location>: \<message> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: build secrets require a built service or nextjs runtime | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: container requires a service or nextjs runtime | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: examples."\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: image and build are mutually exclusive | `src/project-manifest.ts` |
