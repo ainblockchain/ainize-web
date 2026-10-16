@@ -39,9 +39,13 @@ export const me: Dict = {
   'me.keys.label': { ko: '이름', en: 'Label' },
   'me.keys.revoke': { ko: '폐기', en: 'Revoke' },
   'me.keys.once': {
-    ko: '이 값은 지금만 보입니다 — 다시 보여줄 방법이 없습니다. 안전한 곳에 옮겨두세요.',
-    en: 'This is the only time it is shown — there is no way to show it again. Put it somewhere safe.',
+    ko: '이 값은 다시 보여줄 방법이 없습니다. 안전한 곳에 옮겨두세요 — 이 탭을 닫기 전까지만 여기에 남습니다.',
+    en: 'There is no way to show this again. Put it somewhere safe — it stays here only until this tab closes.',
   },
+  'me.keys.issued': { ko: '새 키가 발급되었습니다', en: 'Your new key' },
+  'me.keys.copy': { ko: '복사', en: 'Copy' },
+  'me.keys.copied': { ko: '복사됨', en: 'Copied' },
+  'me.keys.forget': { ko: '옮겼습니다, 화면에서 지우기', en: 'Saved it — clear from screen' },
   'me.keys.models': { ko: '모델 페이지에서 눌러보기 →', en: 'Try it on the Models page →' },
   'me.keys.failed': { ko: '실패: {why}', en: 'Failed: {why}' },
 
