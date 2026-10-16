@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-287 operations on 241 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+289 operations on 242 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -291,6 +291,8 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
 | `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
 | `POST` | [`/api/deployments/{id}/redeploy`](#post-apideploymentsidredeploy) | operator | Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member |
+| `GET` | [`/api/projects/{id}/github-read-token`](#get-apiprojectsidgithub-read-token) | none | Read GitHub source credential readiness without its value |
+| `PATCH` | [`/api/projects/{id}/github-read-token`](#patch-apiprojectsidgithub-read-token) | none | Set or revoke the approved source clone-only GitHub read token |
 | `POST` | [`/api/projects/{id}/github-hook`](#post-apiprojectsidgithub-hook) | operator | Deploy an approved GitHub source from its signed push |
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
 | `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — readable as the project is |
@@ -5404,6 +5406,60 @@ A new deployment of the same sha and ref, `trigger: "redeploy"`, started by the 
 |---|---|
 | `202` | { deploymentId, status } |
 | `403` | `not_member` |
+
+### `GET /api/projects/{id}/github-read-token`
+
+Read GitHub source credential readiness without its value
+
+Owner only; returns approved/configured booleans. No token or source value is returned.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | {approved, configured, reason?}; binding mismatch is distinct from unavailable storage |
+| `401` | Sign in required |
+| `404` | Not owned or unknown |
+| `503` | Credential storage unavailable |
+
+### `PATCH /api/projects/{id}/github-read-token`
+
+Set or revoke the approved source clone-only GitHub read token
+
+Owner only. Stores source-bound credentials in the encrypted project credential store; does not inject them into builds or runtime. A null token revokes even when the source mapping was removed.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `token` | `string` \| `null` | yes | (1–8192 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | {configured} |
+| `400` | Invalid token input |
+| `401` | Sign in required |
+| `404` | Not owned or unknown |
+| `409` | No approved GitHub source |
+| `503` | Credential storage unavailable |
 
 ### `POST /api/projects/{id}/github-hook`
 

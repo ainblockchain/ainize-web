@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 149 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 150 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 91 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -218,6 +218,7 @@ A further 91 throw sites build their message at the time (a validator's own word
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
 | `null` | Audio response is too large | `src/peer-models.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
+| `null` | GitHub read credential does not match the approved source | `src/project-github-credentials.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
 | `null` | invalid agent source path | `src/agent-git.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
