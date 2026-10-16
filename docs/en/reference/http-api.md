@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-286 operations on 240 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+287 operations on 241 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -291,6 +291,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
 | `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
 | `POST` | [`/api/deployments/{id}/redeploy`](#post-apideploymentsidredeploy) | operator | Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member |
+| `POST` | [`/api/projects/{id}/github-hook`](#post-apiprojectsidgithub-hook) | operator | Deploy an approved GitHub source from its signed push |
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
 | `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — readable as the project is |
 | `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (readable as its project is) |
@@ -5403,6 +5404,44 @@ A new deployment of the same sha and ref, `trigger: "redeploy"`, started by the 
 |---|---|
 | `202` | { deploymentId, status } |
 | `403` | `not_member` |
+
+### `POST /api/projects/{id}/github-hook`
+
+Deploy an approved GitHub source from its signed push
+
+Requires exact raw-body HMAC-SHA256 in X-Hub-Signature-256, X-GitHub-Event: push, and operator-approved project/source mapping. Only the matching repository and live deployment branch queue the exact after SHA. Payload hashes deduplicate retries; GitHub pushers never become AIN execution identities.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `X-Hub-Signature-256` | `header` | `string` | yes |
+| `X-GitHub-Event` | `header` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `repository` | `object` | yes |
+| `repository.full_name` | `string` | yes |
+| `ref` | `string` | yes |
+| `before` | `string` | yes |
+| `after` | `string` | yes |
+| `deleted` | `boolean` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | Queued deployment, duplicate, or ignored event |
+| `400` | Invalid push payload |
+| `401` | Invalid signature or unavailable raw body |
+| `403` | Repository mismatch |
+| `404` | Unknown project |
+| `409` | GitHub source not approved |
 
 ### `POST /api/projects/{id}/hook`
 
