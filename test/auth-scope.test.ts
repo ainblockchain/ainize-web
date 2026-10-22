@@ -58,8 +58,11 @@ test('the header offers no link that lands on "this node is not yours"', () => {
   // The menu showed the NODE's name and the NODE's address as though they were yours — the same wrong idea twice.
   // A Google-only or AIN-only (AIN SSO) session has no wallet, so it is named by its account — still the person,
   // never the node. The wallet comes first when there is one.
-  assert.ok(header.includes("const who = subject ? shortAddr(subject, 6) : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';"), 'the button names the wallet that is connected');
-  assert.ok(header.includes('{who} ▾'), 'the button shows who is signed in');
+  // An account's email shows its name part only, so the signed-in row still fits one 81 px bar; the whole address is
+  // the button's tooltip and the first line of its menu.
+  assert.ok(header.includes("const whoFull = subject ? subject : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';"), 'the button names the wallet that is connected');
+  assert.ok(header.includes("const who = subject ? shortAddr(subject, 6) : whoFull.includes('@') ? whoFull.slice(0, whoFull.indexOf('@')) : whoFull;"), 'an email is shortened to its name part');
+  assert.ok(header.includes('title={whoFull}><UserName>{who}</UserName>▾'), 'the button shows who is signed in');
 });
 
 test('the app asks the node whether it is an owner rather than deciding for itself', () => {
