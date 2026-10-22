@@ -34,6 +34,21 @@ and that provider's admission rules. Peer discovery does not enroll hosts in
 Kubernetes. The operator-only AX API below is not a public peer execution endpoint;
 automatic AX project execution must be completed before advertising that capability.
 
+## Run a peer without Kubernetes
+
+Ainize-node can run directly as a Node.js process. Docker and Kubernetes are not
+requirements for peer-network participation. A host with Docker can use it for
+local workload builds and deployment while the peer itself remains a host
+process. Packaging the peer in a container is optional; the necessary runtime
+dependencies and host access still need configuration. A managed Kubernetes peer
+runs in a Pod.
+
+Keep participation separate from execution capacity: a peer without a local
+sandbox must not advertise that sandbox or execute untrusted jobs on the host as
+a fallback. It can request supported work from an authorized execution provider.
+Automatic remote AX project execution is still pending; merely discovering an
+AX-capable peer does not authorize or route a project run to it.
+
 ## Prepare the shared cluster
 
 First inventory the hosts, live peer identities, existing deployments and persistent data. Follow the
@@ -179,7 +194,8 @@ For controller integration, the supervisor also supports
 invocation challenge before starting the command. A previous invocation's release
 cannot unlock a restarted wait. This is launch coordination, not tenant authorization;
 the trusted controller must verify task ownership, egress and file grants first.
-Automatic controller release is still pending. See the
+The internal launcher can send a checked release through the guest protocol;
+automatic project authorization and release orchestration are still pending. See the
 [launch-gate protocol](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes).
 
 The supervisor stores `result.json`, `stdout` and `stderr` under
