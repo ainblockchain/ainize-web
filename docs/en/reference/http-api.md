@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-303 operations on 251 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+305 operations on 252 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -321,6 +321,8 @@ See [Error codes](./errors.md) for the full list.
 | `DELETE` | [`/api/ax/models/{name}`](#delete-apiaxmodelsname) | operator | Delete an AX Model |
 | `POST` | [`/api/ax/tasks/{name}/suspend`](#post-apiaxtasksnamesuspend) | operator | suspend an AX task |
 | `POST` | [`/api/ax/tasks/{name}/resume`](#post-apiaxtasksnameresume) | operator | resume an AX task |
+| `GET` | [`/api/ax/tasks/{name}/egress`](#get-apiaxtasksnameegress) | operator | Read the AX task actor egress policy |
+| `PUT` | [`/api/ax/tasks/{name}/egress`](#put-apiaxtasksnameegress) | operator | Create or conditionally replace the AX task actor egress policy |
 | `GET` | [`/api/ax/tasks/{name}/runs/{runId}`](#get-apiaxtasksnamerunsrunid) | operator | Inspect an AX command result |
 | `GET` | [`/api/ax/tasks/{name}/runs/{runId}/output/{stream}`](#get-apiaxtasksnamerunsrunidoutputstream) | operator | Read bounded AX command output |
 | `GET` | [`/api/me/teach/policy`](#get-apimeteachpolicy) | operator | Teaching policy (overrides + effective + trainer state) |
@@ -6012,6 +6014,66 @@ resume an AX task
 | Code | Description | Body |
 |---|---|---|
 | `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tasks/{name}/egress`
+
+Read the AX task actor egress policy
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `PUT /api/ax/tasks/{name}/egress`
+
+Create or conditionally replace the AX task actor egress policy
+
+Requires separately configured Substrate TLS/token access. Supports exact hostname and explicit port HTTP or TLS passthrough rules. Without expected, creates only; replacement requires the current policy UID and version. Empty rules deny egress. Policy changes do not terminate existing connections.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `rules` | `object`[] | yes | (at most 256 items) |
+| `expected` | `object` |   |   |
+| `expected.uid` | `string (uuid)` | yes |   |
+| `expected.version` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `201` | AX resource | `object` |
 | `400` | Invalid resource or namespace |   |
 | `403` | Node operator session required |   |
 | `404` | Resource not found |   |

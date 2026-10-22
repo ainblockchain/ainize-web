@@ -1,6 +1,6 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: f06eae8d7e151dde58b85207b490bd12bc717762c43d4a911d4c5f83bf70cd3a
+source_sha256: 5a89c8ee0631b3ae849059ffe485da64395863f9f6d076db68dc2337bb44be85
 ---
 
 # Google AX로 에이전트 실행하기
@@ -156,3 +156,30 @@ Substrate는 명시적인 `EgressPolicy`가 없으면 작업의 외부 연결을
 고정 버전의 [외부 연결 정책 안내](https://github.com/agent-substrate/substrate/blob/v0.5.0/docs/network-egress.md)를 참고하세요.
 설치 스크립트는 `AINIZE_AX_ATESPACE`로 지정한 Kubernetes namespace(기본 `ainize`)에서만 모델 시크릿을
 읽도록 권한을 부여합니다. 참조하는 모델 시크릿을 이 namespace에 저장하세요.
+
+### 허용 목적지 관리
+
+운영자 요청을 처리하는 신뢰된 peer에서 `GET /api/ax/tasks/:name/egress`와
+`PUT /api/ax/tasks/:name/egress`를 사용할 수 있습니다. 별도의 Substrate 접근 설정이 필요합니다.
+`AINIZE_SUBSTRATE_ADDRESS=api.ate-system.svc.cluster.local:443`,
+`AINIZE_SUBSTRATE_AUTHORITY=api.ate-system.svc`를 설정하고,
+`AINIZE_SUBSTRATE_CA_FILE`과 `AINIZE_SUBSTRATE_TOKEN_FILE`이 가리키는 파일을 마운트하세요.
+서비스 DNS CA와 audience가 `api.ate-system.svc`인 projected token을 사용합니다.
+peer의 Substrate 권한과 제공된 네트워크 정책에 필요한 Pod 레이블
+`ainize.ai/substrate-policy-access: "true"`도 설정해야 합니다. 호출마다 토큰을 다시 읽으며
+TLS 서버 인증서를 검증합니다. 설정하지 않으면 이 API는 503을 반환합니다.
+
+운영자 인증을 사용한 PUT 요청에 다음과 같은 본문을 보내 정책을 생성합니다.
+
+```json
+{"rules":[{"tlsPassthrough":{"hostnames":["api.example.com"],"ports":{"numbers":[443]}}}]}
+```
+
+`api.example.com`을 승인된 목적지로 바꾸세요. 쓰기 API는 `http` 또는 `tlsPassthrough`의
+정확한 소문자 DNS 이름과 명시적인 포트만 지원합니다. 교체할 때는 먼저 GET으로 조회한 뒤
+메타데이터의 `uid`와 문자열 `version`을 `expected` 객체에 담아 PUT 본문에 추가합니다.
+중복 생성이나 오래된 버전의 갱신은 409를 반환합니다. 빈 `rules`는 새 연결을 차단하며,
+정책 변경으로 기존 연결이 종료되지는 않습니다.
+
+AX는 작업 명령을 즉시 시작합니다. 명령이 네트워크에 접근하기 전에 정책 설정 성공을 기다리도록
+구성하세요. 이 API가 프로젝트 시작 순서를 자동 조정하거나 AX 프로젝트 실행 백엔드를 활성화하지는 않습니다.

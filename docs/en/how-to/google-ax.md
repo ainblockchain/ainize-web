@@ -166,3 +166,31 @@ remote model calls or repository downloads. See the pinned
 [network egress guide](https://github.com/agent-substrate/substrate/blob/v0.5.0/docs/network-egress.md).
 The installer grants model-secret reads only in the Kubernetes namespace named by
 `AINIZE_AX_ATESPACE` (default `ainize`); put referenced model secrets in that namespace.
+
+### Manage permitted destinations
+
+Trusted operator-facing peers can expose `GET /api/ax/tasks/:name/egress` and
+`PUT /api/ax/tasks/:name/egress`. This requires separate Substrate access:
+`AINIZE_SUBSTRATE_ADDRESS=api.ate-system.svc.cluster.local:443`,
+`AINIZE_SUBSTRATE_AUTHORITY=api.ate-system.svc`, and mounted files named by
+`AINIZE_SUBSTRATE_CA_FILE` and `AINIZE_SUBSTRATE_TOKEN_FILE`. Use the service DNS
+CA and a projected token with audience `api.ate-system.svc`. The peer needs
+Substrate authorization and the Pod label `ainize.ai/substrate-policy-access: "true"`
+for the supplied network policy. The token is reread on every call; TLS verifies
+the server certificate. Without this configuration the endpoint returns 503.
+
+Create a policy with an operator-authenticated PUT body such as:
+
+```json
+{"rules":[{"tlsPassthrough":{"hostnames":["api.example.com"],"ports":{"numbers":[443]}}}]}
+```
+
+Use your approved destination instead of `api.example.com`. Writes support
+exact lowercase DNS names and explicit ports for `http` or `tlsPassthrough`.
+To replace a policy, GET it first and add `expected` with its metadata `uid`
+and string `version` to the PUT body. A duplicate create or stale update returns
+409. Empty `rules` denies new connections; changes do not close existing connections.
+
+AX starts task commands immediately. Have the command wait for successful policy
+provisioning before accessing the network. This API does not automatically order
+project startup or enable AX as the project execution backend.
