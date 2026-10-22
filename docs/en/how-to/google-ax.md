@@ -6,7 +6,7 @@ summary: Install Google Agent Executor alongside Ainize and create, inspect, sus
 # Run agents with Google AX
 
 [Google AX](https://github.com/google/ax) runs agent tasks through Agent Substrate on Kubernetes.
-**Execution hosts share one Kubernetes cluster under a trusted administrator.** Kubernetes and Agent Substrate
+**Hosts providing AX execution share one Kubernetes cluster under a trusted administrator.** Kubernetes and Agent Substrate
 are required to provide AX execution, but not to join the Ainize peer network. Independent operators
 can run their own Ainize-node and communicate through the existing peer protocol without joining
 this cluster or receiving its credentials. One operator may use one logical Ainize-node service for
@@ -34,20 +34,63 @@ and that provider's admission rules. Peer discovery does not enroll hosts in
 Kubernetes. The operator-only AX API below is not a public peer execution endpoint;
 automatic AX project execution must be completed before advertising that capability.
 
-## Run a peer without Kubernetes
+## How Ainize-node relates to Node.js, Docker and Kubernetes
 
-Ainize-node can run directly as a Node.js process. Docker and Kubernetes are not
-requirements for peer-network participation. A host with Docker can use it for
-local workload builds and deployment while the peer itself remains a host
-process. Packaging the peer in a container is optional; the necessary runtime
-dependencies and host access still need configuration. A managed Kubernetes peer
-runs in a Pod.
+**Ainize-node is the application that participates in the peer network.** Node.js
+runs that application. Docker provides containers for workloads. Kubernetes
+manages container workloads across cluster hosts. Installing Kubernetes is not a
+requirement for running an Ainize peer.
 
-Keep participation separate from execution capacity: a peer without a local
-sandbox must not advertise that sandbox or execute untrusted jobs on the host as
-a fallback. It can request supported work from an authorized execution provider.
-Automatic remote AX project execution is still pending; merely discovering an
-AX-capable peer does not authorize or route a project run to it.
+| Environment | Where Ainize-node runs | How work is executed | Kubernetes required? |
+| --- | --- | --- | --- |
+| Node.js only | A process on your computer or server | Requests supported work from another authorized execution peer; has no local Docker/AX sandbox | No |
+| Node.js and Docker | Usually a host process; packaging the peer itself in a container is optional | Uses local Docker for supported builds and application deployments | No |
+| Kubernetes cluster | A Pod in the cluster | Uses cluster execution services; AX uses Agent Substrate in this cluster | Yes, for this deployment option |
+
+### 1. Node.js only: participate and request work
+
+A laptop without Docker can run Ainize-node as a Node.js process, connect to
+other peers, and use supported remote APIs. It cannot offer a local Docker
+sandbox simply by joining the network. For example, an authorized request can
+be sent to a peer that provides the required execution capability. Provider
+availability and permission must both be checked.
+
+### 2. Docker host: also provide local execution
+
+A server can run Ainize-node as a Node.js process and let it call Docker to build
+and run supported workloads, including the existing application deployment path.
+The peer process and its application containers are separate: using Docker to
+run projects does not mean Ainize-node itself must be inside a container.
+If the peer is packaged in a container, its runtime dependencies, persistent
+state and access to the host execution service must also be configured; the
+prepared Kubernetes peer image alone is not a complete Docker-host deployment.
+
+### 3. Kubernetes: share a managed execution cluster
+
+In the shared-cluster deployment, Ainize-node runs in a Pod. Its approved
+execution requests reach cluster services through a controlled API path.
+Kubernetes places workloads on suitable workers; AX and Agent Substrate provide
+the agent execution environment. A peer Pod does not need its own Kubernetes
+cluster, and each peer does not automatically receive cluster-admin credentials.
+
+The planned Kubernetes application backend will preserve Next.js builds and
+deployments. That backend and automatic AX project execution are still pending;
+moving the current peer into a Pod does not complete either integration.
+
+### Peers and execution resources are separate
+
+All three deployments participate in the same peer network. A peer without a
+local sandbox must not advertise one or run untrusted jobs directly on the host
+as a fallback. Remote execution still requires the selected provider's supported
+API, authorization and capacity. Automatic remote AX project execution is not
+yet connected; discovering an AX-capable peer does not route a project run to it.
+
+One organization can have several independent node contributors. For example,
+Hanyang, Inha and Sookmyung can contribute three peers to the single
+GenAI-Leader-Finance-ComCom organization. Members retain the organization's shared
+project execution/redeployment permissions; contributor identity distinguishes
+node operation, supplied resources and accounting. It does not create three
+separate school access boundaries.
 
 ## Prepare the shared cluster
 
