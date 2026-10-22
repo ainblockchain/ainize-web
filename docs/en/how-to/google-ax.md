@@ -174,6 +174,14 @@ A running sandbox does not prove that the command succeeded: AX's default runner
 after command exit. `debug: true` enables the AX CLI's process/file access for inspection;
 leave it off for tasks that do not need it.
 
+For controller integration, the supervisor also supports
+`--wait-for-release-seconds N` before `--`. It waits for a release matching a fresh
+invocation challenge before starting the command. A previous invocation's release
+cannot unlock a restarted wait. This is launch coordination, not tenant authorization;
+the trusted controller must verify task ownership, egress and file grants first.
+Automatic controller release is still pending. See the
+[launch-gate protocol](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes).
+
 The supervisor stores `result.json`, `stdout` and `stderr` under
 `/workspace/.ainize-runs/hello-1/`. Use the AX CLI built by the installer with your shared
 cluster kubeconfig to inspect the actual result:

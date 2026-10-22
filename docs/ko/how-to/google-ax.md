@@ -1,6 +1,6 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: ea6fb0e1032519593b9cd912130f1b5fbde1751c23829e753340d742344119d5
+source_sha256: 63d9ccb5b98c42a709a6a1609deab4d5ba201eab100e50897eadc6417b99eff7
 ---
 
 # Google AX로 에이전트 실행하기
@@ -191,6 +191,13 @@ curl --fail-with-body "$AINIZE_URL/api/ax/tasks/ainize-hello/runs/hello-1/output
 파일이 없으면 404, 작업 상태가 맞지 않으면 409, 크기 제한을 넘으면 413, 결과 JSON이 잘못되면 502입니다.
 조회와 일시중지를 동시에 수행하지 않도록 조정하세요. 최초 상태 확인 후 작업이 중지되면
 Substrate 라우터가 조회 과정에서 다시 재개할 수 있습니다.
+
+프로젝트 제어 코드와의 연결을 위해 실행 감독 프로그램은 `--` 앞의
+`--wait-for-release-seconds N` 옵션도 지원합니다. 이번 실행에 새로 생성된 값과 일치하는 허가를
+받을 때까지 명령을 시작하지 않습니다. 이전 실행의 허가로 재시작된 대기를 해제할 수는 없습니다.
+이는 시작 순서를 조정하는 기능이며 조직 권한 검사 자체는 아닙니다. 신뢰된 제어 코드가 작업 소유권,
+네트워크 정책, 파일 접근 권한을 먼저 확인해야 합니다. 자동 허가 전달은 아직 연결되지 않았습니다.
+[시작 대기 프로토콜](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes)을 참고하세요.
 
 ## 일시중지·재개·삭제
 
