@@ -1,6 +1,6 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: 5a89c8ee0631b3ae849059ffe485da64395863f9f6d076db68dc2337bb44be85
+source_sha256: 7e33becf79ea24f669a286d110378e50b36b21202dcffab5bb6cdb00d7c3cb50
 ---
 
 # Google AX로 에이전트 실행하기
@@ -45,6 +45,31 @@ AX 서비스는 외부에 공개하지 않습니다. AX 제어 API 자체에는 
 Ainize 운영자 API를 사용합니다. 임시 로컬 점검은 관리자가
 `kubectl -n ax-system port-forward --address 127.0.0.1 svc/ax-server 18080:8080`을 실행한 뒤 로컬 Ainize
 노드에서 `127.0.0.1:18080`을 사용하면 됩니다.
+
+## 기존 peer의 클러스터 배포 준비
+
+노드 패키지는 `deploy/cluster/peers.mjs`와 `peers.example.json`을 포함합니다.
+전체 peer 목록, 복원한 PVC, 실행 UID/GID, 리소스 제한을 비공개 배포 파일에 기록하고,
+모든 peer에 하나의 digest 고정 이미지를 지정합니다. 이미지는 `/opt/ainize`에 빌드된 노드
+패키지를 제공해야 합니다. 각 peer 홈을 `/var/lib/ainize`에 복원하고 설정의 절대 데이터 경로를
+수정하세요. 보존 정책이 `Retain`이고 접근 모드가 `ReadWriteOncePod`인 CSI 파일시스템 볼륨을
+사용하며, PVC에 `ainize.ai/peer-address` 주석을 지정합니다. 실제 저장소를 확인하고 정지된
+배포 구성을 생성합니다.
+
+```bash
+umask 077
+kubectl -n ainize-peers get pvc -o json > /secure/peer-pvcs.json
+kubectl get pv -o json > /secure/peer-pvs.json
+node deploy/cluster/peers.mjs verify-storage /secure/ainize-inventory.json /secure/peer-rollout.json /secure/peer-pvcs.json /secure/peer-pvs.json
+node deploy/cluster/peers.mjs render /secure/ainize-inventory.json /secure/peer-rollout.json > /secure/peer-workloads.json
+kubectl apply --dry-run=server -f /secure/peer-workloads.json
+```
+
+검증한 공통 클러스터 context를 사용하세요. 생성된 StatefulSet은 실행 수가 0이고 업데이트 방식은
+`OnDelete`입니다. 적용해도 peer는 시작하지 않습니다. 기존 쓰기 프로세스를 중지하고 백업 복원을
+검증한 뒤 canary peer부터 활성화하세요. 실행 중인 peer에 실행 수 0인 준비 파일을 다시 적용하지
+마세요. 기존 Docker 프로젝트 실행, 모델 서버, 공개 트래픽은 별도의 이전 검증이 필요합니다.
+생성된 Pod에는 Docker 소켓 마운트나 GPU 할당이 없습니다.
 
 ## 인증과 연결 확인
 

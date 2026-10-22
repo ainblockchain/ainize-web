@@ -49,6 +49,32 @@ Ainize operator API below. For temporary local diagnostics, an administrator can
 `kubectl -n ax-system port-forward --address 127.0.0.1 svc/ax-server 18080:8080` and point a local
 Ainize node at `127.0.0.1:18080`.
 
+## Stage existing peers in the cluster
+
+The node package includes `deploy/cluster/peers.mjs` and `peers.example.json`.
+Prepare a private rollout file listing every inventoried peer, its restored PVC,
+runtime UID/GID and resource limits, with one digest-pinned image for the fleet.
+The image must provide the built node package at `/opt/ainize`. Restore each peer
+home at `/var/lib/ainize` and update the restored configuration's absolute data paths.
+Use retained CSI filesystem volumes with `ReadWriteOncePod`, annotated with
+`ainize.ai/peer-address`. Check live storage and render the stopped workloads:
+
+```bash
+umask 077
+kubectl -n ainize-peers get pvc -o json > /secure/peer-pvcs.json
+kubectl get pv -o json > /secure/peer-pvs.json
+node deploy/cluster/peers.mjs verify-storage /secure/ainize-inventory.json /secure/peer-rollout.json /secure/peer-pvcs.json /secure/peer-pvs.json
+node deploy/cluster/peers.mjs render /secure/ainize-inventory.json /secure/peer-rollout.json > /secure/peer-workloads.json
+kubectl apply --dry-run=server -f /secure/peer-workloads.json
+```
+
+Use the verified shared-cluster context. Generated StatefulSets have zero replicas
+and `OnDelete` updates: applying them stages the fleet without starting peers.
+Stop each old writer and verify its backup restore before activating a canary.
+Do not reapply the zero-replica staging file to running peers. Existing Docker
+project execution, model servers and public traffic need separate migration
+checks; these Pods do not mount a Docker socket or allocate GPUs.
+
 ## Authenticate and check
 
 Use a **node operator session token** from wallet login on your node. An inference API key does
