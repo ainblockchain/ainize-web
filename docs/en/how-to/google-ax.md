@@ -89,6 +89,25 @@ Record retained machines in the cluster inventory's `externalHosts` with their
 observed `docker` or `process` runtime and a reason. Only machines in `hosts`
 receive cluster join configurations. Both groups remain in the same peer network.
 
+### Eight busy GPUs can still leave room for application workloads
+
+GPU, CPU and memory are separate resources. A model using all eight GPUs may
+leave CPU and RAM for Next.js, TA or API workloads on the same server. Reserve
+the model's CPU/RAM needs, host overhead and peak headroom first; offer only the
+remaining capacity. Also test disk and network contention under concurrent load.
+
+Two arrangements are possible: run both workload types through Docker, or retain
+the model in Docker while the host joins Kubernetes for CPU-only applications.
+For the mixed arrangement, keep the host in `hosts` and use `retainedWorkload`
+to declare its external GPU ownership and CPU/memory reservation. The planner
+emits kubelet reservation arguments and rejects missing reservations or NVIDIA
+GPU resources advertised to Kubernetes. Operators must separately configure
+model cgroup limits, exclude the host from GPU device-plugin allocation and
+restrict Pod device access. These checks require live validation before use.
+
+A host belongs in `externalHosts` only when it remains entirely outside
+Kubernetes. Eight occupied GPUs alone are not a reason to exclude the whole host.
+
 ### Peers and execution resources are separate
 
 All three deployments participate in the same peer network. A peer without a
@@ -113,7 +132,7 @@ API endpoint and pinned cluster CA. The supported configuration uses Kubernetes 
 the certificate features required by Substrate. The plan generator checks existing network ranges,
 duplicate identities and complete host membership. Generating a plan does not migrate live workloads.
 
-Once all hosts are Ready, configure persistent storage, cluster networking with NetworkPolicy enforcement,
+Once all selected cluster hosts are Ready, configure persistent storage, cluster networking with NetworkPolicy enforcement,
 a registry accessible from every worker, and the Substrate operator installation document. Follow the
 [AX installation guide](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md)
 to set `KUBECONFIG`, `AINIZE_SUBSTRATE_CONFIG`, `AX_IMAGE_REPO`, `AX_SNAPSHOTS_BUCKET` and

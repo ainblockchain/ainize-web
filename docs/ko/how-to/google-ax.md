@@ -1,6 +1,6 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: d54aecc9eadb610069d0b6c29b7252b47e2b46194b6c79cf6b23c70ab58e652c
+source_sha256: ad5c2b51f2680fe55c43bf73b6832d4183f586bff38a39b77752a99baf40320f
 ---
 
 # Google AX로 에이전트 실행하기
@@ -79,6 +79,23 @@ AX와 공용 앱 작업은 Kubernetes에서 실행할 수 있습니다. 기존�
 유지 이유를 기록합니다. `hosts`에 있는 호스트에만 클러스터 가입 구성을 만듭니다.
 두 그룹 모두 같은 peer network에 참여합니다.
 
+### GPU 8장을 사용해도 다른 앱을 배포할 수 있음
+
+GPU와 CPU·메모리는 별도 자원입니다. 모델이 GPU 8장을 모두 사용해도 CPU와 RAM이 남으면
+같은 서버에 Next.js·TA·API를 배포할 수 있습니다. 먼저 모델이 필요한 CPU·RAM, 운영체제와
+순간적인 부하의 여유분을 예약하고 남은 자원만 제공해야 합니다. 동시 실행 시 디스크와
+네트워크 경합도 확인합니다.
+
+모델과 앱을 모두 Docker로 운영하거나, 모델은 Docker에 유지하고 같은 호스트를 Kubernetes에
+참여시켜 CPU 전용 앱을 실행할 수 있습니다. 혼합 구성에서는 호스트를 `hosts`에 두고
+`retainedWorkload`에 외부 GPU 소유와 CPU·메모리 예약량을 명시합니다. 구성 생성기는 kubelet의
+예약 인자를 만들고, 검증기는 예약 누락이나 Kubernetes에 노출된 NVIDIA GPU 자원을 거절합니다.
+운영자는 모델의 cgroup 제한, GPU device plugin의 해당 호스트 제외, Pod의 장치 접근 제한을
+별도로 구성해야 합니다. 운영에 적용하기 전 실제 환경에서 검증해야 합니다.
+
+`externalHosts`는 Kubernetes에 전혀 참여하지 않는 호스트에만 사용합니다.
+GPU 8장을 모두 사용한다는 이유만으로 서버 전체를 제외하지 않습니다.
+
 ### Peer 참여와 실행 자원은 별개
 
 세 배포 방식 모두 같은 peer network에 참여합니다. 로컬 샌드박스가 없는 peer는 해당 기능을
@@ -98,9 +115,9 @@ GenAI-Leader-Finance-ComCom 조직에 한양대·인하대·숙명여대가 각�
 [공통 클러스터 안내](https://github.com/ainblockchain/ainize-node/blob/main/deploy/cluster/README.md)에 따라
 kubeadm 초기화 구성 하나와 동일 API 주소·고정된 클러스터 CA를 사용하는 워커 참여 구성을 만듭니다.
 지원 구성은 Kubernetes v1.37.1이며 Substrate에 필요한 인증서 기능을 활성화합니다. 구성 생성기는 기존
-네트워크 대역, 중복 신원, 전체 호스트 참여 여부를 확인합니다. 구성 생성만으로 운영 워크로드가 이관되지는 않습니다.
+네트워크 대역, 중복 신원, 선택한 클러스터 호스트의 참여 여부를 확인합니다. 구성 생성만으로 운영 워크로드가 이관되지는 않습니다.
 
-모든 호스트가 Ready 상태가 되면 영구 저장소, NetworkPolicy를 적용하는 클러스터 네트워크, 모든 워커가
+선택한 클러스터 호스트가 모두 Ready 상태가 되면 영구 저장소, NetworkPolicy를 적용하는 클러스터 네트워크, 모든 워커가
 접근할 수 있는 이미지 레지스트리, Substrate 운영자 설치 문서를 준비합니다.
 [AX 설치 안내](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md)에 따라
 `KUBECONFIG`, `AINIZE_SUBSTRATE_CONFIG`, `AX_IMAGE_REPO`, `AX_SNAPSHOTS_BUCKET`,
