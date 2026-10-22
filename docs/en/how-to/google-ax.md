@@ -77,6 +77,18 @@ The planned Kubernetes application backend will preserve Next.js builds and
 deployments. That backend and automatic AX project execution are still pending;
 moving the current peer into a Pod does not complete either integration.
 
+### Dedicated model hosts can keep Docker
+
+A server dedicating all eight GPUs to one long-running model can retain its
+Docker deployment while AX and shared application jobs use Kubernetes. Keep
+native model processes as such until a separate container migration is tested.
+Choose based on actual GPU allocation, model storage and restart requirements;
+GPU count alone does not establish which host should move.
+
+Record retained machines in the cluster inventory's `externalHosts` with their
+observed `docker` or `process` runtime and a reason. Only machines in `hosts`
+receive cluster join configurations. Both groups remain in the same peer network.
+
 ### Peers and execution resources are separate
 
 All three deployments participate in the same peer network. A peer without a

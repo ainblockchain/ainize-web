@@ -1,6 +1,6 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: d09df3e353e3fb21b909de459aa018868450db40886731bdf9f23f94db06bdfd
+source_sha256: d54aecc9eadb610069d0b6c29b7252b47e2b46194b6c79cf6b23c70ab58e652c
 ---
 
 # Google AX로 에이전트 실행하기
@@ -67,6 +67,17 @@ AX와 Agent Substrate는 에이전트 실행 환경을 제공합니다. peer Pod
 Kubernetes용 앱 배포 백엔드는 Next.js 빌드·배포를 유지하도록 구현할 예정입니다.
 이 백엔드와 AX 프로젝트 자동 실행 연결은 아직 남아 있습니다. 현재 peer를 Pod에 옮기는 것만으로
 두 기능이 완성되지는 않습니다.
+
+### 전용 모델 호스트는 Docker를 유지할 수 있음
+
+GPU 8장을 하나의 장기 실행 모델에 전용으로 할당한 서버는 Docker 배포를 유지하고,
+AX와 공용 앱 작업은 Kubernetes에서 실행할 수 있습니다. 기존에 네이티브 프로세스로 실행하는
+모델은 별도 컨테이너 이관을 검증하기 전까지 현재 방식을 유지합니다. 실제 GPU 할당,
+모델 저장소, 재시작 요구를 확인해서 결정하며 GPU 개수만으로 이관 대상을 정하지 않습니다.
+
+유지할 호스트는 클러스터 목록의 `externalHosts`에 실제 실행 방식인 `docker` 또는 `process`와
+유지 이유를 기록합니다. `hosts`에 있는 호스트에만 클러스터 가입 구성을 만듭니다.
+두 그룹 모두 같은 peer network에 참여합니다.
 
 ### Peer 참여와 실행 자원은 별개
 
