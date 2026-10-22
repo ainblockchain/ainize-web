@@ -1,6 +1,6 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: 7e33becf79ea24f669a286d110378e50b36b21202dcffab5bb6cdb00d7c3cb50
+source_sha256: 2e1aef1468eceeaadcd4b74b210c746817ccdc35eff1b9e1681d0a7c30bf051b
 ---
 
 # Google AX로 에이전트 실행하기
@@ -50,8 +50,18 @@ Ainize 운영자 API를 사용합니다. 임시 로컬 점검은 관리자가
 
 노드 패키지는 `deploy/cluster/peers.mjs`와 `peers.example.json`을 포함합니다.
 전체 peer 목록, 복원한 PVC, 실행 UID/GID, 리소스 제한을 비공개 배포 파일에 기록하고,
-모든 peer에 하나의 digest 고정 이미지를 지정합니다. 이미지는 `/opt/ainize`에 빌드된 노드
-패키지를 제공해야 합니다. 각 peer 홈을 `/var/lib/ainize`에 복원하고 설정의 절대 데이터 경로를
+모든 peer에 하나의 digest 고정 이미지를 지정합니다. 커밋된 노드 체크아웃에서 공통 이미지를 빌드하고
+로컬에서 검증하세요.
+
+```bash
+bash deploy/cluster/build-peer.sh registry.example.com/ainize-node:release
+PEER_TEST_IMAGE=registry.example.com/ainize-node:release node --test --import tsx test/peer-image.integration.test.ts
+```
+
+빌드 스크립트는 커밋된 입력, 잠긴 의존성, 고정된 Node 기반 이미지를 사용합니다. 이미지에 소스 커밋을
+기록하고 `/opt/ainize`에 빌드된 패키지를 제공합니다. 테스트는 격리된 컨테이너에서 시험용 peer 데이터를
+검증합니다. 실제 모델과 프로젝트 의존성은 별도 검증이 필요합니다. 이미지를 레지스트리에 올리고
+레지스트리 manifest digest를 배포 파일에 지정하세요. 각 peer 홈을 `/var/lib/ainize`에 복원하고 설정의 절대 데이터 경로를
 수정하세요. 보존 정책이 `Retain`이고 접근 모드가 `ReadWriteOncePod`인 CSI 파일시스템 볼륨을
 사용하며, PVC에 `ainize.ai/peer-address` 주석을 지정합니다. 실제 저장소를 확인하고 정지된
 배포 구성을 생성합니다.

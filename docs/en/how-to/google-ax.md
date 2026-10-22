@@ -54,7 +54,18 @@ Ainize node at `127.0.0.1:18080`.
 The node package includes `deploy/cluster/peers.mjs` and `peers.example.json`.
 Prepare a private rollout file listing every inventoried peer, its restored PVC,
 runtime UID/GID and resource limits, with one digest-pinned image for the fleet.
-The image must provide the built node package at `/opt/ainize`. Restore each peer
+Build the common image from a committed node checkout and test it locally:
+
+```bash
+bash deploy/cluster/build-peer.sh registry.example.com/ainize-node:release
+PEER_TEST_IMAGE=registry.example.com/ainize-node:release node --test --import tsx test/peer-image.integration.test.ts
+```
+
+The builder uses committed inputs, locked dependencies and a pinned Node base.
+It records the source commit in the image and provides the built package at
+`/opt/ainize`. The test checks synthetic peer data in isolated containers; actual
+model and project dependencies still need validation. Push the image to your
+registry and use its registry manifest digest in the rollout file. Restore each peer
 home at `/var/lib/ainize` and update the restored configuration's absolute data paths.
 Use retained CSI filesystem volumes with `ReadWriteOncePod`, annotated with
 `ainize.ai/peer-address`. Check live storage and render the stopped workloads:
