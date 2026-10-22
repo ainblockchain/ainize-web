@@ -25,9 +25,11 @@ const Content = styled.div`
  * `flex: 0 0 auto` — Home holds a 121 px logo and a `white-space: nowrap` ledger badge, neither of which can shrink.
  * While it was `flex: 1; min-width: 0` the box was smaller than its content at every desktop width and the badge
  * spilled 65 px over the first nav link ("AI N[Explore knowledge]"). Nav takes the slack instead.
+ * The 12 px of vertical padding changes nothing on one 81 px row; when the bar does wrap (an owner's extra links, a
+ * narrow window) it keeps the logo off the top edge instead of pressing it against the window.
  */
 const Home = styled(Link)`
-  flex: 0 0 auto; order: 0; text-decoration: none; display: flex; align-items: center; gap: 10px;
+  flex: 0 0 auto; order: 0; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 12px 0;
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 1 auto; padding: 12px 0 2px; }
 `;
 const Logo = styled.img`width: 121px; object-fit: contain;`;
@@ -37,12 +39,14 @@ const Nav = styled.nav`
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { order: 2; flex: 1 0 100%; justify-content: flex-start; padding: 0 0 8px; margin-left: -8px; }
 `;
 /**
- * 10 px of horizontal padding, not 16. Home (121 px logo + 75 px badge, neither shrinkable) and the seven English
+ * 8 px of horizontal padding (was 16, then 10). Home (121 px logo + 75 px badge, neither shrinkable) and the seven English
  * nav labels wanted 1,005 px inside a 944 px bar, and the 61 px deficit is what used to be paid for by painting
  * the badge over the first link. At 10 px the row needs 715 px of the 738 px it has and everything fits on one
  * 81 px line; when it still cannot (a signed-in operator, a 900 px window) the bar wraps cleanly instead.
+ * 8 px since the signed-in row gained "My organizations" and the account button: logo 169 + links 573 + account
+ * ≤ 132 + language 63 = 937 of 944.
  */
-const navItemCss = `display: flex; align-items: center; height: 100%; padding: 16px 10px; font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap;`;
+const navItemCss = `display: flex; align-items: center; height: 100%; padding: 16px 8px; font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap;`;
 const NavItem = styled(NavLink)`
   ${navItemCss} color: ${(p) => p.theme.color.BLACK};
   &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; }
@@ -58,11 +62,18 @@ const NavPlain = styled(Link)<{ $active?: boolean }>`
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
+/**
+ * Capped and ellipsised: a full email address made the signed-in row ~1,050 px in a 944 px bar, so it wrapped and
+ * the logo was pushed against the top of the window on every page. The whole address stays in the tooltip and menu.
+ */
 const UserMenuButton = styled.button`
-  padding: 16px 12px 16px 20px; border: 0; background: transparent; font-size: 16px; color: ${(p) => p.theme.color.BLACK}; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 16px 10px; border: 0; background: transparent; font-size: 16px; color: ${(p) => p.theme.color.BLACK}; cursor: pointer; white-space: nowrap;
   &:hover { color: ${(p) => p.theme.color.HOVER}; }
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { padding: 8px 8px; font-size: 14px; }
 `;
+/** The name part only is truncated (≤ 96 px), so the ▾ that says "this opens a menu" is never cut off. */
+const UserName = styled.span`max-width: 96px; overflow: hidden; text-overflow: ellipsis;`;
 const Menu = styled.div<{ $open: boolean }>`
   position: absolute; right: 0; top: 100%; min-width: 220px; max-width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto; padding: 4px; background: #fff; border-radius: 4px;
   box-shadow: 0 5px 5px -3px rgba(0,0,0,.2), 0 8px 10px 1px rgba(0,0,0,.14), 0 3px 14px 2px rgba(0,0,0,.12);
@@ -96,7 +107,9 @@ const LocaleButton = styled.button`
 export function Header() {
   const { isSignedIn, isOwner, subject, google, sso, name, address, signOut } = useAuth();
   // A Google-only or AIN-only session has no address to show, so it shows the account instead.
-  const who = subject ? shortAddr(subject, 6) : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';
+  const whoFull = subject ? subject : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';
+  // An email shows its name part only; the menu under the button repeats the whole address.
+  const who = subject ? shortAddr(subject, 6) : whoFull.includes('@') ? whoFull.slice(0, whoFull.indexOf('@')) : whoFull;
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
   const { data: orgData } = useMyOrgsQuery(undefined, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
   const myOrgs = isSignedIn ? parseOrgList(orgData).orgs : [];
@@ -147,7 +160,7 @@ export function Header() {
               {/* YOUR address, not the node's. The button said the NODE's name and the row under it showed the
                   NODE's address, which is the same wrong idea twice: that being signed in means being this node.
                   What a person wants to see here is which of their wallets is connected. */}
-              <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{who} ▾</UserMenuButton>
+              <UserMenuButton onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title={whoFull}><UserName>{who}</UserName>▾</UserMenuButton>
               <Menu $open={open} role="menu">
                 {subject && <MenuInfo title={subject}>{shortAddr(subject, 8)}</MenuInfo>}
                 {sso && <MenuInfo title={sso.email ?? sso.sub} data-testid="menu-sso">AIN · {sso.email ?? sso.name ?? sso.sub}</MenuInfo>}
