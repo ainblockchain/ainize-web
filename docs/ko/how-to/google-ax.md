@@ -1,14 +1,34 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: 2e1aef1468eceeaadcd4b74b210c746817ccdc35eff1b9e1681d0a7c30bf051b
+source_sha256: ea6fb0e1032519593b9cd912130f1b5fbde1751c23829e753340d742344119d5
 ---
 
 # Google AX로 에이전트 실행하기
 
 [Google AX](https://github.com/google/ax)는 Kubernetes 위의 Agent Substrate를 통해 에이전트 작업을 실행합니다.
-**모든 Ainize peer 호스트를 하나의 Kubernetes 클러스터로 묶습니다.** Kubernetes와 Agent Substrate가
-모두 필요하며, peer 프로세스마다 클러스터를 만들지 않습니다. Ainize peer는 공통 릴리스와 설정 형식을
-사용하고 AX는 클러스터의 실행 워커에 작업을 배치합니다. `@ax-llm/ax` TypeScript 라이브러리와는 별개입니다.
+**실행 호스트들을 신뢰하는 관리자가 운영하는 하나의 Kubernetes 클러스터로 묶습니다.** Kubernetes와 Agent Substrate는
+AX 실행을 제공할 때 필요하며, Ainize peer network에 참여하는 조건은 아닙니다. 독립 운영자는 자신의
+ainize-node를 실행하고 기존 peer 프로토콜로 통신합니다. 이 클러스터에 가입하거나 그 자격 증명을 받을
+필요는 없습니다. 한 운영자가 논리적 ainize-node 서비스 하나로 여러 워커를 관리할 수 있지만, 네트워크
+전체의 독립 peer들을 대체하지 않습니다. AX는 실행 워커에 작업을 배치하며, 이 통합은 `@ax-llm/ax`
+TypeScript 라이브러리와 별개입니다.
+여러 조직이 독립된 peer 식별자와 권한을 유지하며 이 클러스터를 공유할 수도 있습니다. Namespace, RBAC,
+네트워크, 저장소, 사용량 제한과 샌드박스 격리를 함께 검증해야 합니다. 현재 준비용 배포 파일만으로는
+그 격리가 보장되지 않습니다.
+
+Ainize-node는 peer 식별자와 상태를 유지하고, 사용자 인증, 다른 peer와의 통신, 모델·프로젝트 API를
+담당하는 애플리케이션입니다. Kubernetes는 그 Pod를 배치하고 재시작하며, AX와 Substrate는 에이전트
+실행 환경을 제공합니다. 여기서 설명하는 운영자용 AX API는 연결되어 있지만, 기존 Ainize 프로젝트
+실행을 AX에 자동으로 넘기는 부분은 아직 완성되지 않았습니다.
+기존 Docker 앱 호스트를 옮기려면 Next.js용 Kubernetes 빌드·배포 백엔드도 구현해야 합니다.
+준비된 Pod만으로는 이 기능을 제공하지 않습니다. 기존 peer를 통합하기 전에 소유권, 잔액, 데이터,
+배포 참조를 조사해야 합니다. 통합은 같은 운영자의 peer를 대상으로 검토하며 독립 참여자는 유지합니다.
+이관 검증이 끝날 때까지 기존 식별자와 상태를 보존하세요. 같은 식별자의
+프로세스를 동시에 복제하려면 현재 SQLite와 프로세스 내부 상태 관리도 바꿔야 합니다.
+
+다른 운영자에게 보내는 요청은 인증된 Ainize peer 인터페이스와 해당 제공자의 수락 규칙을 거칩니다.
+peer 발견이 Kubernetes 호스트 등록으로 이어지지는 않습니다. 아래 운영자 전용 AX API는 공개 peer 실행
+엔드포인트가 아니며, AX 프로젝트 자동 실행을 구현하기 전에는 해당 기능을 제공한다고 광고하면 안 됩니다.
 
 ## 공통 클러스터 준비
 
@@ -39,6 +59,7 @@ AX `0f085aa063db6de888e37def7a8943f7901e6c1e`를 설치합니다. 기존 클러�
 AINIZE_AX_ADDRESS=ax-server.ax-system.svc.cluster.local:8080
 AINIZE_AX_ATESPACE=ainize
 AINIZE_AX_ROUTER_ADDRESS=atenet-router.ate-system.svc.cluster.local:80
+AINIZE_DEPLOYMENT_MANAGER=kubernetes
 ```
 
 AX 서비스는 외부에 공개하지 않습니다. AX 제어 API 자체에는 Ainize 사용자 인증이 적용되지 않으므로 아래
@@ -49,8 +70,15 @@ Ainize 운영자 API를 사용합니다. 임시 로컬 점검은 관리자가
 ## 기존 peer의 클러스터 배포 준비
 
 노드 패키지는 `deploy/cluster/peers.mjs`와 `peers.example.json`을 포함합니다.
-전체 peer 목록, 복원한 PVC, 실행 UID/GID, 리소스 제한을 비공개 배포 파일에 기록하고,
-모든 peer에 하나의 digest 고정 이미지를 지정합니다. 커밋된 노드 체크아웃에서 공통 이미지를 빌드하고
+스키마 버전 2의 비공개 배포 파일에서 `peers`에는 배포를 준비할 식별자만 기록하고, 각각 복원한 PVC,
+실행 UID/GID, 리소스 제한을 지정합니다. 하나의 digest 고정 이미지를 사용하세요. 나머지 모든 식별자는
+`deferredPeers`에 `address`와 미해결 이관 작업을 설명하는 빈 문자열이 아닌 `reason`으로 기록합니다.
+예제는 서비스 하나를 선택합니다. 보류 항목은 Pod를 생성하지 않으며, 기존 프로세스 중지나 데이터 병합을
+수행하지 않고 이관 완료를 증명하지도 않습니다.
+생성기는 기본적으로 AX 연결을 넣지 않습니다. 신뢰된 제어용 peer에만 선택적 `ax` 객체의 `address`,
+`atespace`, 선택적 `routerAddress`를 설정하세요. atespace 설정은 클라이언트 요청 범위이며 서버 측
+조직 인증이 아닙니다. AX/Substrate 직접 접근은 비공개로 유지하세요.
+커밋된 노드 체크아웃에서 공통 이미지를 빌드하고
 로컬에서 검증하세요.
 
 ```bash
@@ -80,6 +108,13 @@ kubectl apply --dry-run=server -f /secure/peer-workloads.json
 검증한 뒤 canary peer부터 활성화하세요. 실행 중인 peer에 실행 수 0인 준비 파일을 다시 적용하지
 마세요. 기존 Docker 프로젝트 실행, 모델 서버, 공개 트래픽은 별도의 이전 검증이 필요합니다.
 생성된 Pod에는 Docker 소켓 마운트나 GPU 할당이 없습니다.
+
+Kubernetes 관리 모드는 기존 `node.update`와 호스트 모델 배포·중지·다운로드 명령을 비활성화하며,
+인증된 운영자에게도 `409 cluster_managed`를 반환합니다. 공통 이미지와 StatefulSet을 갱신하고,
+이전한 모델 워크로드는 클러스터에서 관리하세요. 전환할 때 기존 호스트 서비스와 cron 작업도
+중지해야 합니다. 이 설정이 해당 작업을 중지하지는 않습니다. 상태 응답에는 `deploymentManager`와
+빌드 커밋이 포함되지만, 이 값만으로 실제 클러스터 참여가 증명되지는 않습니다. 제어 상태는 호스트
+작업이 비활성화됐다고 보고하며, 비어 있는 GPU·모델 목록은 Kubernetes 워크로드 목록이 아닙니다.
 
 ## 인증과 연결 확인
 

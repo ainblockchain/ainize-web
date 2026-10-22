@@ -2522,7 +2522,7 @@ Liveness: 200 while the process is up
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ok, node, address, version, commit, uptime_s | `object` |
+| `200` | ok, node, address, version, commit, deploymentManager, uptime_s | `object` |
 
 **`200` response body**
 
@@ -2533,6 +2533,7 @@ Liveness: 200 while the process is up
 | `address` | `string` |   |
 | `version` | `string` |   |
 | `commit` | `string` \| `null` | Git commit SHA this node was built from; null when unknown |
+| `deploymentManager` | `"host"` \| `"kubernetes"` | Configured deployment manager, not proof of cluster membership |
 | `uptime_s` | `integer` |   |
 
 ### `GET /readyz`
@@ -2545,7 +2546,7 @@ Readiness: 200 when the ledger is reachable and, for a serving/verifier node, th
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ready — commit, checks.ledger / checks.runtime / checks.peers | `object` |
+| `200` | ready — commit, deploymentManager, checks.ledger / checks.runtime / checks.peers | `object` |
 | `503` | not ready — the same body, with the failing check |   |
 
 ## Organizations

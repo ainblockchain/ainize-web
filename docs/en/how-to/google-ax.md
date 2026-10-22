@@ -6,10 +6,33 @@ summary: Install Google Agent Executor alongside Ainize and create, inspect, sus
 # Run agents with Google AX
 
 [Google AX](https://github.com/google/ax) runs agent tasks through Agent Substrate on Kubernetes.
-**All Ainize peer hosts join one Kubernetes cluster.** Both Kubernetes and Agent Substrate are
-required; each peer process does not create its own cluster. Ainize peers use a common release and
-configuration format, while AX schedules tasks across the cluster's execution workers. This integration
-is separate from the `@ax-llm/ax` TypeScript library.
+**Execution hosts share one Kubernetes cluster under a trusted administrator.** Kubernetes and Agent Substrate
+are required to provide AX execution, but not to join the Ainize peer network. Independent operators
+can run their own Ainize-node and communicate through the existing peer protocol without joining
+this cluster or receiving its credentials. One operator may use one logical Ainize-node service for
+many workers; this does not replace independent peers throughout the network. AX schedules tasks
+across its execution workers. This integration is separate from the `@ax-llm/ax` TypeScript library.
+Organizations may also share that cluster while retaining independent peer identities
+and permissions. Namespace, RBAC, network, storage, quota and sandbox isolation must
+be verified together; the current staging manifests do not establish that isolation.
+
+Ainize-node remains the peer-facing application: it keeps the peer identity and
+state, authenticates users, communicates with other peers and exposes model and
+project APIs. Kubernetes places and restarts its Pods. AX and Substrate provide
+the agent execution environment. The operator AX API described here is connected;
+automatic execution of existing Ainize project runs through AX is still pending.
+Next.js hosting also requires a Kubernetes build/deployment backend before moving
+existing Docker application hosts. The staged Pod alone does not provide it.
+Audit ownership, balances, data and deployment references before consolidating
+legacy peers belonging to the same operator. Preserve independent participants
+and retain all identities and state until migration is verified.
+Concurrent replicas of the surviving identity require redesigning the current
+SQLite and in-process state.
+
+Requests to another operator continue through authenticated Ainize peer interfaces
+and that provider's admission rules. Peer discovery does not enroll hosts in
+Kubernetes. The operator-only AX API below is not a public peer execution endpoint;
+automatic AX project execution must be completed before advertising that capability.
 
 ## Prepare the shared cluster
 
@@ -42,6 +65,7 @@ and these environment settings:
 AINIZE_AX_ADDRESS=ax-server.ax-system.svc.cluster.local:8080
 AINIZE_AX_ATESPACE=ainize
 AINIZE_AX_ROUTER_ADDRESS=atenet-router.ate-system.svc.cluster.local:80
+AINIZE_DEPLOYMENT_MANAGER=kubernetes
 ```
 
 Keep the AX service private. Its control API does not apply Ainize user authentication; use the
@@ -52,8 +76,16 @@ Ainize node at `127.0.0.1:18080`.
 ## Stage existing peers in the cluster
 
 The node package includes `deploy/cluster/peers.mjs` and `peers.example.json`.
-Prepare a private rollout file listing every inventoried peer, its restored PVC,
-runtime UID/GID and resource limits, with one digest-pinned image for the fleet.
+Prepare a private schema-version-2 rollout file. In `peers`, list only the identities
+to stage, each with its restored PVC, runtime UID/GID and resource limits. Use one
+digest-pinned image. Account for all other inventoried identities in `deferredPeers`,
+each with an `address` and a nonempty `reason` describing unresolved migration work.
+The example selects one service. Deferral creates no Pod and neither stops the old
+process nor merges its data; it does not establish migration completion.
+The renderer supplies no AX connection by default. Configure the optional per-peer
+`ax` object (`address`, `atespace`, optional `routerAddress`) only for trusted
+control-plane peers. An atespace setting scopes client requests; it is not
+server-side tenant authentication. Keep direct AX/Substrate access private.
 Build the common image from a committed node checkout and test it locally:
 
 ```bash
@@ -85,6 +117,15 @@ Stop each old writer and verify its backup restore before activating a canary.
 Do not reapply the zero-replica staging file to running peers. Existing Docker
 project execution, model servers and public traffic need separate migration
 checks; these Pods do not mount a Docker socket or allocate GPUs.
+
+Kubernetes management mode disables legacy `node.update` and host model deploy,
+stop and pull commands, returning `409 cluster_managed` even to an authenticated
+operator. Update the shared image/StatefulSet and manage migrated model workloads
+through the cluster. Stop old host services and cron jobs as part of cutover; this
+setting does not stop them. Health responses include `deploymentManager` and the
+build commit, but those fields alone do not prove cluster membership. Control
+status reports host operations disabled; its empty GPU/model lists are not a
+Kubernetes workload inventory.
 
 ## Authenticate and check
 
