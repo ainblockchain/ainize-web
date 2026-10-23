@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-313 operations on 258 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+314 operations on 259 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -272,6 +272,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/source`](#get-apiprojectsidsource) | operator | Read the manifest from an immutable execution source |
 | `POST` | [`/api/projects/{id}/ax-runs`](#post-apiprojectsidax-runs) | operator | Create an AX run awaiting signed approval |
 | `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-approval`](#post-apiprojectsiddeploymentsdeploymentidax-approval) | operator | Verify a run-scoped SSO delegation and enqueue the AX run |
+| `POST` | [`/api/ax/runs/{deploymentId}/v1/chat/completions`](#post-apiaxrunsdeploymentidv1chatcompletions) | operator | Invoke a delegated model from an authenticated AX workload |
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
 | `GET` | [`/api/projects/{id}/domains`](#get-apiprojectsiddomains) | none | List app domains and required DNS records (project owner only) |
@@ -5033,6 +5034,39 @@ Requires an existing project owner/member session and AINIZE_AX_PROJECT_ADMISSIO
 | `404` | Project/run absent or hidden |
 | `409` | Registration or run state incompatible |
 | `503` | AX admission disabled |
+
+### `POST /api/ax/runs/{deploymentId}/v1/chat/completions`
+
+Invoke a delegated model from an authenticated AX workload
+
+Bearer is a native Substrate actor JWT, not an operator token. Requires AINIZE_AX_BROKER_MODELS_FILE, fixed broker issuer/JWKS, an active UID-bound project run, and the exact model resource invoke grant. Supports bounded JSON responses with stream=false. User credentials stay inside the node; its existing model gateway applies account and usage checks. Gateway JWT injection must be configured separately.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `model` | `string` | yes |
+| `messages` | `object`[] | yes |
+| `stream` | `object` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Bounded model JSON response |
+| `400` | Invalid request or streaming requested |
+| `401` | Missing workload token |
+| `403` | Workload, delegation or model permission denied |
+| `429` | Broker concurrency limit or model quota |
+| `502` | Model gateway failed or returned an unsafe/oversized response |
 
 ### `GET /api/projects`
 
