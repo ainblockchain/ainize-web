@@ -6162,7 +6162,7 @@ Read the AX task actor egress policy
 
 Create or conditionally replace the AX task actor egress policy
 
-Requires separately configured Substrate TLS/token access. Supports exact hostname and explicit port HTTP or TLS passthrough rules. Without expected, creates only; replacement requires the current policy UID and version. Empty rules deny egress. Policy changes do not terminate existing connections.
+Requires separately configured Substrate TLS/token access. Supports exact hostname and explicit port HTTP, intercepted HTTPS or TLS passthrough rules. HTTPS may replace the authorization header with a native actor JWT using one HTTPS audience and a 300-second lifetime; clients must send a placeholder header and trust the gateway CA. Without expected, creates only; replacement requires the current policy UID and version. Empty rules deny egress. Policy changes do not terminate existing connections.
 
 **Auth** — operator
 
