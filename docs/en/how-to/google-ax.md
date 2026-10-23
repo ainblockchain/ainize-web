@@ -10,7 +10,8 @@ aincode: false
 > [ainize-node PR #251](https://github.com/ainblockchain/ainize-node/pull/251).
 > It is not deployed on ainize.ai or included in the current main release.
 > Use the `feat/google-ax` source branch for evaluation. Shared-cluster provisioning,
-> organization authorization and automatic project execution are still being integrated.
+> live cluster validation and production rollout are still pending. The branch includes explicit
+> project-run admission, delegated model calls and AinDrive file reads.
 
 [Google AX](https://github.com/google/ax) runs agent tasks through Agent Substrate on Kubernetes.
 **Hosts providing AX execution share one Kubernetes cluster under a trusted administrator.** Kubernetes and Agent Substrate
@@ -27,7 +28,8 @@ Ainize-node remains the peer-facing application: it keeps the peer identity and
 state, authenticates users, communicates with other peers and exposes model and
 project APIs. Kubernetes places and restarts its Pods. AX and Substrate provide
 the agent execution environment. The operator AX API described here is implemented in that preview;
-automatic execution of existing Ainize project runs through AX is still pending.
+explicit AX-selected script runs now connect to the project worker after signed SSO approval.
+Existing runs do not switch backends automatically.
 Next.js hosting also requires a Kubernetes build/deployment backend before moving
 existing Docker application hosts. The staged Pod alone does not provide it.
 Audit ownership, balances, data and deployment references before consolidating
@@ -39,7 +41,7 @@ SQLite and in-process state.
 Requests to another operator continue through authenticated Ainize peer interfaces
 and that provider's admission rules. Peer discovery does not enroll hosts in
 Kubernetes. The operator-only AX API below is not a public peer execution endpoint;
-automatic AX project execution must be completed before advertising that capability.
+cross-peer AX dispatch and production validation remain unfinished.
 
 ## How Ainize-node relates to Node.js, Docker and Kubernetes
 
@@ -81,8 +83,8 @@ the agent execution environment. A peer Pod does not need its own Kubernetes
 cluster, and each peer does not automatically receive cluster-admin credentials.
 
 The planned Kubernetes application backend will preserve Next.js builds and
-deployments. That backend and automatic AX project execution are still pending;
-moving the current peer into a Pod does not complete either integration.
+deployments. That backend is still pending; moving a peer into a Pod does not provide
+Next.js hosting. AX-selected script execution is configured separately below.
 
 ### Dedicated model hosts can keep Docker
 
@@ -114,6 +116,15 @@ restrict Pod device access. These checks require live validation before use.
 
 A host belongs in `externalHosts` only when it remains entirely outside
 Kubernetes. Eight occupied GPUs alone are not a reason to exclude the whole host.
+
+For retained Docker hosts, the preview branch supports
+`AINIZE_PROJECT_HOST_RESERVATIONS=/etc/ainize/host-reservations.json`.
+The operator-owned JSON specifies `cpuCores`, `memoryHeadroomMiB` and `gpuUuids`.
+Memory is additional free-memory headroom beyond current usage; list every
+model-owned GPU even when idle. Invalid or missing configuration refuses new
+admissions. This per-peer budget does not install cgroup limits or coordinate
+multiple peers on the same host. See the
+[host reservation example](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/cluster/README.md#share-cpu-and-memory-while-retaining-a-gpu-model).
 
 ### Peers and execution resources are separate
 
@@ -223,6 +234,103 @@ build commit, but those fields alone do not prove cluster membership. Control
 status reports host operations disabled; its empty GPU/model lists are not a
 Kubernetes workload inventory.
 
+## Run a project script with AX (preview)
+
+This flow uses a project owner/member session. The operator API in the next
+section is a separate interface. Organization members may run each other's
+projects under the organization's shared permissions; contributing a node does
+not grant another organization's project access.
+
+### Operator setup
+
+Register the organization tenant and bind the project using the
+[tenant setup instructions](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#bind-a-controller-to-a-tenant).
+Enable `AINIZE_AX_TENANT_REGISTRY=true` and `AINIZE_AX_PROJECT_ADMISSION=true`,
+configure AIN SSO, `AINIZE_AX_CLUSTER_UID` and the exact HTTPS
+`AINIZE_AX_PROJECT_ORIGIN`, and set `AINIZE_AX_PROJECT_EXECUTOR_FILE` to the
+operator-owned executor JSON. It specifies digest-pinned Python/Node images,
+CPU/memory limits and registered tenant egress policies. Configure the AX,
+guest-router and authenticated Substrate endpoints as described in
+[executor setup](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#configure-the-project-executor).
+Enabling admission without an executor leaves runs queued.
+
+### Submit and approve
+
+1. With your project session, POST `/api/projects/<projectId>/ax-runs`:
+   `{"target":"commit","sha":"<full-commit-sha>","entry":"main.py"}`.
+   Use `dataRequired: true` as an additional field if the program needs admitted
+   files at startup. The response includes `runId` and `approvalPath`.
+2. Obtain an AIN SSO `invoke` delegation for that exact run and its possession
+   proof for POST to `AINIZE_AX_PROJECT_ORIGIN + approvalPath`. A login session
+   alone is not a run delegation.
+3. POST `{"token":"<delegation>","proof":"<possession-proof>"}` to
+   `approvalPath`, with the same project session. This acknowledges admission,
+   not successful execution. A data-required run also waits for step 4 below.
+
+The worker checks approval before cloning, verifies the task's egress policy
+before release, and persists the output/exit result before cleanup. It checks
+permission again while running, including while waiting on guest reads. Loss of
+permission cancels observation and triggers cleanup or suspension for recovery.
+This does not guarantee termination during controller or network failure.
+Only script execution is connected: this flow does not deploy a Next.js service,
+accept arbitrary project secrets, or enable automatic cross-peer AX dispatch.
+
+### Optional model calls
+
+The operator sets `AINIZE_AX_BROKER_MODELS_FILE` to a JSON map from supported
+model IDs to their exact SSO resource identifiers, and configures
+`AINIZE_AX_BROKER_ISSUER` and `AINIZE_AX_BROKER_JWKS_URL` for Substrate workload
+identity. These are separate from AIN SSO user identity. Add `broker.origin`
+(equal to the project origin) and `broker.caBundleFile` to the executor JSON.
+The PEM bundle must include the gateway interception CA and required public CAs.
+See the [model broker configuration](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#model-broker).
+
+The run delegation must also grant `invoke` on the selected model resource.
+The executor injects `OPENAI_BASE_URL`, a placeholder `OPENAI_API_KEY` and CA
+settings. An OpenAI-compatible client can use these variables with `stream: false`;
+the gateway replaces its Authorization header with a short-lived actor JWT.
+The guest receives no internal account key. Model calls are checked against the
+current run approval and existing account/model/usage rules.
+
+### Optional AinDrive files
+
+The operator also sets `AINIZE_AX_AINDRIVE_ORIGIN` to the exact HTTPS AinDrive
+origin; the broker configuration above is required. For a data-required run:
+
+1. POST `{}` to `/api/projects/<projectId>/deployments/<runId>/ax-data/key`.
+   Use its `publicJwk`, `agent` and `audience` to obtain a separate SSO data
+   delegation for the same subject/organization and exact file `read` resources.
+2. POST the data token, selected `resources` and exact `files` to
+   `.../ax-data/grants`. Follow the [request format](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#optional-aindrive-data-access).
+   Supply real AinDrive path-derived file IDs; include a revision only if the
+   origin provides one. The response returns immutable file reference IDs.
+3. Repeat for other grants if needed. A run invocation grant alone cannot read files.
+4. POST `{"grantIds":["<delegationId>"]}` to `.../ax-data/ready` to freeze the
+   selection and enqueue execution. Limits are 64 grants and 64 total files.
+   A different selection requires a new run.
+
+The guest reads the token-free manifest at `AINIZE_AX_DATA_MANIFEST`:
+
+```python
+import json, os, urllib.request
+
+with open(os.environ["AINIZE_AX_DATA_MANIFEST"]) as source:
+    files = json.load(source)["files"]
+request = urllib.request.Request(files[0]["url"], headers={
+    "Authorization": "Bearer " + os.environ["OPENAI_API_KEY"]
+})
+with urllib.request.urlopen(request) as response:
+    file_data = json.load(response)  # content, encoding, mime, bytes
+```
+
+Check `encoding` before consuming `content`; binary files use base64. Each read
+checks the current run, data grant and AinDrive ACL. To disable one stored grant,
+POST `{"delegationId":"<id>"}` to `.../ax-data/revoke`. This local action does not
+revoke the SSO token in other services or recall already returned bytes.
+Only AinDrive file reads are connected; directory listing and AIN Teams/AIN Mem/
+AINA data adapters remain unfinished. Live gateway TLS, production AinDrive
+access and shared-cluster isolation have not yet been verified.
+
 ## Authenticate and check
 
 Use a **node operator session token** from wallet login on your node. An inference API key does
@@ -276,7 +384,7 @@ invocation challenge before starting the command. A previous invocation's releas
 cannot unlock a restarted wait. This is launch coordination, not tenant authorization;
 the trusted controller must verify task ownership, egress and file grants first.
 The internal launcher can send a checked release through the guest protocol;
-automatic project authorization and release orchestration are still pending. See the
+the configured project executor now orders approval, policy checks and release. See the
 [launch-gate protocol](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes).
 
 The supervisor stores `result.json`, `stdout` and `stderr` under
@@ -292,7 +400,8 @@ AX_CLI="${AINIZE_AX_ROOT:-$HOME/.local/share/ainize-ax}/ax"
 Success means `state: "exited"` and `code: 0`. Other states include `running`, `timed_out`,
 `interrupted` and `launch_failed`. Output files are capped at 1 MiB each; the result includes
 byte counts and truncation flags. These files are task output and can be modified by task code.
-They are not yet ingested into Ainize project runs; `/api/run` still uses its existing backend.
+Manually created operator tasks are not project runs. The project executor persists
+AX-selected run results separately; `/api/run` keeps its existing backend.
 
 You can also inspect these files through the node's operator API:
 

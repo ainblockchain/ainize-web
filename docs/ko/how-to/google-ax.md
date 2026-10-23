@@ -1,6 +1,6 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: 8910843315d51bf2b5f23c40606316bd3279aa52fd18b888afdae9882b6c49b2
+source_sha256: 477d1feef5869d3426b901f1866cd91ad134c142b114a72fa91733be755ec7cc
 aincode: false
 ---
 
@@ -9,7 +9,8 @@ aincode: false
 > **개발 미리보기입니다.** 이 안내는 [ainize-node PR #251](https://github.com/ainblockchain/ainize-node/pull/251)의
 > AX 통합 구현을 설명합니다. 현재 ainize.ai 운영 서버나 main 릴리스에는 배포되지 않았습니다.
 > 평가할 때는 `feat/google-ax` 소스 브랜치를 사용하세요. 공통 클러스터 구성, 조직 권한 연결,
-> 프로젝트 자동 실행은 통합 작업이 진행 중입니다.
+> 실제 클러스터 검증과 운영 배포는 아직 남아 있습니다. 브랜치에는 명시적인 프로젝트 실행 승인,
+> 위임된 모델 호출, AinDrive 파일 읽기가 구현되어 있습니다.
 
 [Google AX](https://github.com/google/ax)는 Kubernetes 위의 Agent Substrate를 통해 에이전트 작업을 실행합니다.
 **AX 실행을 제공하는 호스트들을 신뢰하는 관리자가 운영하는 하나의 Kubernetes 클러스터로 묶습니다.** Kubernetes와 Agent Substrate는
@@ -25,7 +26,8 @@ TypeScript 라이브러리와 별개입니다.
 Ainize-node는 peer 식별자와 상태를 유지하고, 사용자 인증, 다른 peer와의 통신, 모델·프로젝트 API를
 담당하는 애플리케이션입니다. Kubernetes는 그 Pod를 배치하고 재시작하며, AX와 Substrate는 에이전트
 실행 환경을 제공합니다. 여기서 설명하는 운영자용 AX API는 연결되어 있지만, 기존 Ainize 프로젝트
-실행을 AX에 자동으로 넘기는 부분은 아직 완성되지 않았습니다.
+실행은 AX를 명시적으로 선택하고 서명된 SSO 승인을 받은 스크립트에 한해 프로젝트 워커로 연결됩니다.
+기존 실행의 백엔드가 자동으로 변경되지는 않습니다.
 기존 Docker 앱 호스트를 옮기려면 Next.js용 Kubernetes 빌드·배포 백엔드도 구현해야 합니다.
 준비된 Pod만으로는 이 기능을 제공하지 않습니다. 기존 peer를 통합하기 전에 소유권, 잔액, 데이터,
 배포 참조를 조사해야 합니다. 통합은 같은 운영자의 peer를 대상으로 검토하며 독립 참여자는 유지합니다.
@@ -34,7 +36,7 @@ Ainize-node는 peer 식별자와 상태를 유지하고, 사용자 인증, 다�
 
 다른 운영자에게 보내는 요청은 인증된 Ainize peer 인터페이스와 해당 제공자의 수락 규칙을 거칩니다.
 peer 발견이 Kubernetes 호스트 등록으로 이어지지는 않습니다. 아래 운영자 전용 AX API는 공개 peer 실행
-엔드포인트가 아니며, AX 프로젝트 자동 실행을 구현하기 전에는 해당 기능을 제공한다고 광고하면 안 됩니다.
+엔드포인트가 아닙니다. peer 간 AX 실행 전달과 운영 검증은 아직 남아 있습니다.
 
 ## Ainize-node와 Node.js·Docker·Kubernetes의 관계
 
@@ -71,8 +73,8 @@ AX와 Agent Substrate는 에이전트 실행 환경을 제공합니다. peer Pod
 않으며, 모든 peer에 클러스터 관리자 자격 증명을 주지도 않습니다.
 
 Kubernetes용 앱 배포 백엔드는 Next.js 빌드·배포를 유지하도록 구현할 예정입니다.
-이 백엔드와 AX 프로젝트 자동 실행 연결은 아직 남아 있습니다. 현재 peer를 Pod에 옮기는 것만으로
-두 기능이 완성되지는 않습니다.
+이 앱 배포 백엔드는 아직 남아 있으며, peer를 Pod에 옮기는 것만으로 Next.js 호스팅이 제공되지는 않습니다.
+AX를 선택한 스크립트 실행은 아래와 같이 별도로 구성합니다.
 
 ### 전용 모델 호스트는 Docker를 유지할 수 있음
 
@@ -101,6 +103,14 @@ GPU와 CPU·메모리는 별도 자원입니다. 모델이 GPU 8장을 모두 �
 
 `externalHosts`는 Kubernetes에 전혀 참여하지 않는 호스트에만 사용합니다.
 GPU 8장을 모두 사용한다는 이유만으로 서버 전체를 제외하지 않습니다.
+
+Docker를 유지하는 호스트에서는 미리보기 브랜치의
+`AINIZE_PROJECT_HOST_RESERVATIONS=/etc/ainize/host-reservations.json` 설정도 사용할 수 있습니다.
+운영자 JSON에 `cpuCores`, `memoryHeadroomMiB`, `gpuUuids`를 지정합니다. 메모리는 현재
+사용량 외에 확보할 추가 여유분이며, GPU는 유휴 상태라도 모델 소유라면 모두 나열합니다.
+파일이 없거나 잘못되면 새 배포를 거부합니다. 이 peer별 예산이 cgroup 제한을 적용하거나 같은
+호스트의 여러 peer를 조정하지는 않습니다.
+[호스트 예약 예제](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/cluster/README.md#share-cpu-and-memory-while-retaining-a-gpu-model)를 참고하세요.
 
 ### Peer 참여와 실행 자원은 별개
 
@@ -201,6 +211,94 @@ Kubernetes 관리 모드는 기존 `node.update`와 호스트 모델 배포·중
 빌드 커밋이 포함되지만, 이 값만으로 실제 클러스터 참여가 증명되지는 않습니다. 제어 상태는 호스트
 작업이 비활성화됐다고 보고하며, 비어 있는 GPU·모델 목록은 Kubernetes 워크로드 목록이 아닙니다.
 
+## AX로 프로젝트 스크립트 실행하기 (미리보기)
+
+이 절차는 프로젝트 소유자 또는 조직 구성원의 세션을 사용합니다. 다음 절의 운영자 API와는
+별도 인터페이스입니다. 조직 구성원은 조직의 공동 권한에 따라 다른 구성원의 프로젝트를
+실행할 수 있습니다. 노드를 기여하는 것만으로 다른 조직의 프로젝트 권한이 생기지는 않습니다.
+
+### 운영자 설정
+
+[테넌트 설정 안내](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#bind-a-controller-to-a-tenant)에
+따라 조직 테넌트를 등록하고 프로젝트를 연결합니다. `AINIZE_AX_TENANT_REGISTRY=true`,
+`AINIZE_AX_PROJECT_ADMISSION=true`를 설정하고 AIN SSO, `AINIZE_AX_CLUSTER_UID`, 정확한
+HTTPS 주소인 `AINIZE_AX_PROJECT_ORIGIN`을 구성합니다. `AINIZE_AX_PROJECT_EXECUTOR_FILE`은
+운영자가 관리하는 실행기 JSON을 가리킵니다. 여기에 digest로 고정한 Python/Node 이미지,
+CPU·메모리 한도, 등록된 테넌트의 외부 통신 정책을 지정합니다.
+[실행기 설정 안내](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#configure-the-project-executor)에
+따라 AX, guest-router, 인증된 Substrate 연결도 구성합니다. 실행기 없이 승인 기능만 켜면 실행은 대기합니다.
+
+### 실행 생성과 승인
+
+1. 프로젝트 세션으로 `/api/projects/<projectId>/ax-runs`에
+   `{"target":"commit","sha":"<전체-커밋-SHA>","entry":"main.py"}`를 POST합니다.
+   시작할 때 파일이 필요한 프로그램은 `dataRequired: true`도 추가합니다.
+   응답에는 `runId`와 `approvalPath`가 포함됩니다.
+2. 해당 실행에 대한 AIN SSO `invoke` 위임과, `AINIZE_AX_PROJECT_ORIGIN + approvalPath`로
+   POST하기 위한 소유 증명을 발급받습니다. 로그인 세션만으로 실행 위임을 대신할 수는 없습니다.
+3. 같은 프로젝트 세션으로 `approvalPath`에
+   `{"token":"<위임-토큰>","proof":"<소유-증명>"}`을 POST합니다.
+   응답은 실행 수락이며 실행 성공을 뜻하지 않습니다. 파일이 필요한 실행은 아래 4단계까지 기다립니다.
+
+워커는 소스를 복제하기 전에 승인을 확인하고, 작업의 외부 통신 정책을 검증한 후 시작을 허가합니다.
+출력과 종료 결과는 정리 전에 저장합니다. 게스트 응답을 기다리는 동안에도 별도로 권한을 확인하며,
+권한이 없어지면 읽기를 취소하고 작업 정리 또는 복구를 위한 정지를 시도합니다.
+컨트롤러나 네트워크 장애 중의 종료까지 보장하는 것은 아닙니다.
+현재 연결된 것은 스크립트 실행입니다. 이 절차로 Next.js 서비스를 배포하거나 임의의 프로젝트
+비밀정보를 전달하거나 다른 peer로 AX 실행을 자동 전달할 수는 없습니다.
+
+### 모델 호출 (선택 사항)
+
+운영자는 `AINIZE_AX_BROKER_MODELS_FILE`에 지원 모델 ID와 정확한 SSO 리소스 식별자의
+JSON 매핑을 지정합니다. `AINIZE_AX_BROKER_ISSUER`와 `AINIZE_AX_BROKER_JWKS_URL`은
+Substrate 작업 신원 확인용이며 AIN SSO 사용자 신원과 별개입니다. 실행기 JSON에
+`broker.origin`(프로젝트 origin과 동일)과 `broker.caBundleFile`을 추가합니다.
+PEM 묶음에는 게이트웨이 중계 CA와 필요한 공개 CA가 포함되어야 합니다.
+[모델 중계 설정](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#model-broker)을 참고하세요.
+
+실행 위임에는 선택한 모델 리소스의 `invoke` 권한도 필요합니다. 실행기가
+`OPENAI_BASE_URL`, 임시 표시값인 `OPENAI_API_KEY`, CA 설정을 주입합니다.
+OpenAI 호환 클라이언트에서 이 환경변수와 `stream: false`를 사용할 수 있습니다.
+게이트웨이가 Authorization 헤더를 짧은 수명의 actor JWT로 교체하므로 게스트에는 내부 계정 키를
+주지 않습니다. 호출 시 현재 실행 승인과 기존 계정·모델·사용량 규칙을 확인합니다.
+
+### AinDrive 파일 읽기 (선택 사항)
+
+운영자는 `AINIZE_AX_AINDRIVE_ORIGIN`에 정확한 HTTPS AinDrive origin도 지정합니다.
+위의 모델 중계 구성이 필요합니다. `dataRequired` 실행에서는 다음 순서로 진행합니다.
+
+1. `/api/projects/<projectId>/deployments/<runId>/ax-data/key`에 `{}`를 POST합니다.
+   응답의 `publicJwk`, `agent`, `audience`로 별도의 SSO 데이터 위임을 발급받습니다.
+   실행 승인과 같은 사용자·조직이며 정확한 파일 리소스의 `read` 권한이 있어야 합니다.
+2. 데이터 토큰, 선택한 `resources`, 정확한 `files`를 `.../ax-data/grants`에 POST합니다.
+   [요청 형식](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#optional-aindrive-data-access)을
+   따르세요. 실제 AinDrive 경로 기반 파일 ID를 사용하고, origin이 제공하는 경우에만 revision을
+   넣습니다. 응답에는 변경 불가능한 파일 참조 ID가 포함됩니다.
+3. 필요한 다른 위임도 등록합니다. 실행 호출 권한만으로 파일을 읽을 수는 없습니다.
+4. `.../ax-data/ready`에 `{"grantIds":["<위임-ID>"]}`를 POST해 선택을 확정하고 실행을
+   대기열에 넣습니다. 위임 64개, 전체 파일 64개까지입니다. 선택을 바꾸려면 새 실행이 필요합니다.
+
+게스트는 `AINIZE_AX_DATA_MANIFEST`가 가리키는, 토큰이 없는 파일 목록을 읽습니다.
+
+```python
+import json, os, urllib.request
+
+with open(os.environ["AINIZE_AX_DATA_MANIFEST"]) as source:
+    files = json.load(source)["files"]
+request = urllib.request.Request(files[0]["url"], headers={
+    "Authorization": "Bearer " + os.environ["OPENAI_API_KEY"]
+})
+with urllib.request.urlopen(request) as response:
+    file_data = json.load(response)  # content, encoding, mime, bytes
+```
+
+`content`를 사용하기 전에 `encoding`을 확인하세요. 바이너리는 base64입니다. 각 읽기에서 현재
+실행, 데이터 위임, AinDrive ACL을 확인합니다. 저장된 위임 하나를 막으려면 `.../ax-data/revoke`에
+`{"delegationId":"<ID>"}`를 POST합니다. 이 로컬 조치는 다른 서비스의 SSO 토큰을 철회하거나
+이미 반환한 데이터를 회수하지 않습니다. 현재 AinDrive 파일 읽기만 연결되어 있으며 디렉터리 목록,
+AIN Teams·AIN Mem·AINA 데이터 어댑터는 미완성입니다. 실제 게이트웨이 TLS, 운영 AinDrive 접근,
+공통 클러스터 격리는 아직 검증하지 않았습니다.
+
 ## 인증과 연결 확인
 
 자신의 노드에서 지갑 로그인으로 발급받은 **노드 운영자 세션 토큰**을 사용합니다. 추론 API 키는 AX 관리 권한을
@@ -258,8 +356,9 @@ AX_CLI="${AINIZE_AX_ROOT:-$HOME/.local/share/ainize-ax}/ax"
 
 성공은 `state: "exited"`이면서 `code: 0`인 경우입니다. 다른 상태로 `running`, `timed_out`,
 `interrupted`, `launch_failed`가 있습니다. 출력 파일은 각각 최대 1 MiB이며 결과에 전체 바이트 수와
-잘림 여부가 기록됩니다. 이 파일은 작업 코드가 수정할 수 있는 작업 출력입니다. 아직 Ainize 프로젝트
-실행 결과로 수집되지는 않으며 `/api/run`은 기존 실행 백엔드를 사용합니다.
+잘림 여부가 기록됩니다. 이 파일은 작업 코드가 수정할 수 있는 작업 출력입니다. 운영자가 직접 만든
+작업은 프로젝트 실행이 아닙니다. 프로젝트 실행기는 AX를 선택한 실행의 결과를 별도로 저장하며,
+`/api/run`은 기존 실행 백엔드를 사용합니다.
 
 노드의 운영자 API로도 이 파일을 조회할 수 있습니다.
 
@@ -282,7 +381,7 @@ Substrate 라우터가 조회 과정에서 다시 재개할 수 있습니다.
 받을 때까지 명령을 시작하지 않습니다. 이전 실행의 허가로 재시작된 대기를 해제할 수는 없습니다.
 이는 시작 순서를 조정하는 기능이며 조직 권한 검사 자체는 아닙니다. 신뢰된 제어 코드가 작업 소유권,
 네트워크 정책, 파일 접근 권한을 먼저 확인해야 합니다. 내부 실행 제어용 클라이언트는 guest 프로토콜로
-검사된 허가를 전달할 수 있습니다. 프로젝트 권한 검사와 자동 시작 절차의 연결은 아직 남아 있습니다.
+검사된 허가를 전달할 수 있습니다. 구성된 프로젝트 실행기는 승인, 정책 검사, 시작 허가 순서를 처리합니다.
 [시작 대기 프로토콜](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes)을 참고하세요.
 
 ## 일시중지·재개·삭제
