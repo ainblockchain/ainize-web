@@ -1,6 +1,6 @@
 ---
 source: en/get-started/install.md
-source_sha256: a81e814aed164cbbceb2aa6041229f5ada4f98119f4b675a8cf9e6ae3e4dae45
+source_sha256: ea5ded66bd3dc8c2b70addbefd3eaf35974416cbf7f408aa94d928427a123041
 summary: ainize.ai/code의 AinCode는 CLI·Git·AinDrive가 이미 준비된 작업 공간입니다. 설치할 것이 없습니다.
 ---
 
@@ -31,8 +31,8 @@ ainize --help
 | `ainize` | 에이전트와 모델을 호출하는 CLI. |
 | `curl`, `jq` | API 응답을 읽는 도구. |
 
-작업 공간의 에이전트는 기본으로 Qwen3.8-Flash-Next를 씁니다. GLM-5.3-Flash를 쓰려면 모델 선택기(터미널
-UI에서는 `/models`)에서 고르세요.
+작업 공간의 에이전트는 기본으로 GLM-5.3-Flash를 씁니다. Qwen3.8-Flash-Next 같은 다른 모델을 쓰려면 모델
+선택기(터미널 UI에서는 `/models`)에서 고르세요.
 
 내 컴퓨터에서 노드를 돌리려면 [내 컴퓨터에 CLI 설치](../node/install.md)를 보세요.
 

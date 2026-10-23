@@ -1,6 +1,6 @@
 ---
 source: en/get-started/quickstart.md
-source_sha256: 9a06eea2acf67b4406049a649272b840a6c3de5d6e3ca94e4e406046d1188e48
+source_sha256: 8376b2f8baaff4a30198a8cabeb810e4f00ea427f7e66a2bce17867fb0ae619a
 summary: AinCode에서 코드를 쓰고 AinDrive에 push 하면 Ainize가 배포합니다. 스크립트 하나, 그리고 에이전트 하나.
 ---
 
@@ -92,7 +92,7 @@ cat > ainize.json <<'EOF'
   "agent": {
     "name": "Hello agent",
     "description": "Answers in one friendly sentence.",
-    "model": "GLM-5.3-Flash"
+    "model": "Qwen3.8-Flash-Next"
   }
 }
 EOF

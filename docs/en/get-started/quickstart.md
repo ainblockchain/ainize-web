@@ -89,7 +89,7 @@ cat > ainize.json <<'EOF'
   "agent": {
     "name": "Hello agent",
     "description": "Answers in one friendly sentence.",
-    "model": "GLM-5.3-Flash"
+    "model": "Qwen3.8-Flash-Next"
   }
 }
 EOF
