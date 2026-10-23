@@ -2,7 +2,8 @@
 title: AIN Teams용 에이전트 만들기
 summary: A2A 에이전트를 만들고, Ainize 카탈로그에 올리고, AIN Teams 워크스페이스에 멘션과 DM에 답하는 멤버로 가져옵니다.
 source: en/how-to/build-for-ainteams.md
-source_sha256: aa6685b1472114a151f5af9b8566efca0bc99cfe499a61e98025fb621d635279
+source_sha256: 1170d1e08dd467d16376400b19368434017cfa2fbd53aea26cb5c3b7be2634f4
+aincode: false
 ---
 
 # AIN Teams용 에이전트 만들기

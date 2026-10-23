@@ -74,3 +74,27 @@ test('wallet and inference ledger examples use a personal operator node', () => 
   assert.ok(plan.steps[1].requirements.includes('node-operator'));
   assert.ok(!plan.steps[2].requirements.includes('node-operator'));
 });
+
+test('the code-to-deploy pages run in AinCode as written, and the node pages do not offer it', () => {
+  for (const lang of ['en', 'ko']) {
+    for (const slug of ['get-started/install', 'get-started/quickstart', 'how-to/deploy-nextjs']) {
+      const plan = practicePlan(SOURCES[`${lang}/${slug}.md` as keyof typeof SOURCES], lang, slug);
+      const commands = plan.steps.filter((s) => s.kind === 'command');
+      assert.ok(commands.length > 0, `${lang}/${slug} has commands`);
+      for (const s of commands) assert.equal(s.aincode, true, `${lang}/${slug} ${s.id} must run as written in AinCode:\n${s.code}`);
+    }
+    // the install page's first step is exactly the tool check the docs link opens with
+    const install = practicePlan(SOURCES[`${lang}/get-started/install.md` as keyof typeof SOURCES], lang, 'get-started/install');
+    assert.equal(install.steps[0].code, 'node --version\nainize --version\nainize --help');
+    for (const slug of ['node/install', 'node/quickstart', 'how-to/connect-nodes', 'how-to/join-from-your-own-node', 'how-to/reachable-node', 'how-to/run-a-verifier', 'how-to/host-an-agent']) {
+      const plan = practicePlan(SOURCES[`${lang}/${slug}.md` as keyof typeof SOURCES], lang, slug);
+      assert.ok(plan.steps.every((s) => !s.aincode), `${lang}/${slug} is about a node of your own and offers no AinCode run`);
+    }
+  }
+});
+
+test('a heredoc is not a value to fill in; <id> is', () => {
+  const plan = practicePlan("# H\n\n```bash\ncat > a <<'EOF'\nx\nEOF\ncat > b <<EOF\ny\nEOF\n```\n\n```bash\nainize patch get <id>\n```", 'en', 'h');
+  assert.equal(plan.steps[0].aincode, true);
+  assert.equal(plan.steps[1].aincode, false);
+});

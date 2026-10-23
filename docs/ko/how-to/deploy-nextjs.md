@@ -2,7 +2,7 @@
 title: Next.js 앱 배포하고 Teams에서 공유하기
 summary: Next.js 저장소를 AIN Drive에 push하고 Ainize 배포를 확인한 뒤 AIN Teams에서 AIN-UI 카드로 공유합니다.
 source: en/how-to/deploy-nextjs.md
-source_sha256: a2de2890dcaa60281fd9a64b8403677356ed29023091b7c8d7d6bf47eff9e373
+source_sha256: a8f5a43530b1e2c43bdc393fc60c9b8088e7c8152a75866ced10b01bea99e487
 ---
 
 # Next.js 앱 배포하고 Teams에서 공유하기
@@ -11,18 +11,16 @@ source_sha256: a2de2890dcaa60281fd9a64b8403677356ed29023091b7c8d7d6bf47eff9e373
 
 ## 예제로 시작하기
 
-[Next.js Hello World 저장소](https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world)에는 페이지, 클릭 카운터, `/api/health`가 있습니다. [Ainize 프로젝트](https://ainize.ai/comcom/nextjs-hello-world)에서 배포 상태와 로그, 배포된 앱 링크를 확인할 수 있습니다.
+[Next.js Hello World 저장소](https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world)에는 페이지 하나, 클릭 카운터, `/api/health`가 있습니다. 이것을 내 저장소로 복사해 push 합니다. 아래 코드는 모두 [AinCode](../get-started/install.md)에서 그대로 실행됩니다.
 
-저장소를 clone하거나 push 권한이 있는 저장소에 파일을 복사하세요. `package-lock.json`을 커밋하고 `node_modules`, `.next`, 비밀 값은 제외합니다.
-
-```sh
-git clone https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world
-cd nextjs-hello-world
-npm ci
-npm run dev
+```bash
+git clone https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world ~/projects/$AINDRIVE_USER-nextjs
+cd ~/projects/$AINDRIVE_USER-nextjs
+git remote set-url origin https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-nextjs
+git push -u origin main
 ```
 
-자신의 저장소에 push할 때는 AIN Drive 계정에서 제공하는 Git 인증을 사용하세요. 토큰을 커밋되는 원격 URL이나 소스 파일에 넣지 마세요.
+push가 우리 조직 AinDrive에 저장소를 만들고, 저장소에 `ainize.json`이 있으므로 Ainize가 빌드해 배포합니다. `package-lock.json`은 커밋하고, `node_modules`, `.next`, 비밀 값은 저장소에 넣지 마세요.
 
 ## 앱 설정하기
 
@@ -43,11 +41,17 @@ npm run dev
 
 예제는 Next.js middleware에서 요청마다 CSP nonce를 추가하고 페이지를 동적으로 렌더링합니다. 임의의 인라인 스크립트를 허용하지 않으면서 Next.js 클라이언트 컴포넌트를 초기화하기 위한 설정입니다. 예제를 복사할 때 이 middleware도 유지하세요.
 
-## Push하고 확인하기
+## 배포 확인
 
-앱을 커밋하고 조직의 AIN Drive Git 저장소에 push하세요. 루트에 `ainize.json`이 있는 저장소는 권한 있는 push가 들어오면 자동으로 연결됩니다. 브라우저에서 커밋하면 작업 사본에 저장됩니다. **Push**를 눌러 원격에 보내야 배포가 시작됩니다.
+Next.js 빌드는 1~2분 걸립니다. `status`가 `ready`가 될 때까지 실행하세요.
 
-저장소의 **Deployments** 화면이나 Ainize 프로젝트 페이지를 여세요. **ready**가 되면 배포된 앱에서 카운터가 증가하는지, `/api/health`가 `ok: true`를 반환하는지 확인합니다. 실패하면 빌드 로그를 읽고 소스나 설정을 수정해 다시 push하세요.
+```bash
+P=$(curl -s "$AINIZE_API/projects/by-repo?repo=https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-nextjs&branch=main")
+echo "$P" | jq '{name, status, page: .url, app: .lastDeployment.outputUrl}'
+curl -s "$AINIZE_NODE_URL/svc/$(echo "$P" | jq -r .id)/api/health"
+```
+
+`app`이 배포된 앱의 주소입니다. 열어서 카운터가 올라가는지 확인하세요. 마지막 줄은 실행 중인 앱의 `/api/health`를 물어보며 `{"ok":true,…}`로 답합니다. 배포가 실패하면 프로젝트 `page`에서 빌드 로그를 읽고, 소스나 `ainize.json`을 고쳐 커밋하고 다시 push 하세요.
 
 ## 앱 주소 설정
 

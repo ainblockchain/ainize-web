@@ -2,7 +2,8 @@
 title: 에이전트를 노드에 올리기
 summary: 이미 돌고 있는 A2A 에이전트에 공개 주소와 에이전트 카드를 주고 마켓플레이스에 올립니다. 내 포트를 열 필요는 없습니다.
 source: en/how-to/host-an-agent.md
-source_sha256: 923be45b30d919d5232629e9d4c22250daa3bab7548b7c9c5c08cedca64c156f
+source_sha256: fe6b138ef73fdb98e2278c11346fde83ff7d5e65aa8fe9bc9c363936d31ac235
+aincode: false
 ---
 
 # 에이전트를 노드에 올리기

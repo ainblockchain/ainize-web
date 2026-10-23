@@ -1,6 +1,7 @@
 ---
 source: en/how-to/reachable-node.md
-source_sha256: b972c31f4cfe4b75a743565b3801baffaf2c76f5ac4dd31590225a90fc4db656
+source_sha256: 63c1f596c255d5d1802d36100b98cc686258f79f2bc302f48398f2568fa3c853
+aincode: false
 ---
 
 # 외부에서 접근 가능한 노드 운영

@@ -1,6 +1,7 @@
 ---
 title: Build an agent for AIN Teams
 summary: Write an A2A agent, put it in the Ainize catalogue, and import it into an AIN Teams workspace as a member that answers mentions and DMs.
+aincode: false
 ---
 
 # Build an agent for AIN Teams

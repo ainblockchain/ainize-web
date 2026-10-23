@@ -1,6 +1,7 @@
 ---
 source: en/tutorials/teach-from-a-file.md
-source_sha256: f099e29c8b98c0550e5c4eddefd11d86ad271ad367e2a49ee8545cbb56c182ae
+source_sha256: 7163c9eb05a2889f552cc4d5c639acee1d680c2b358e4039efffad8c64e19d41
+aincode: false
 ---
 
 # 질문 파일로 가르치기

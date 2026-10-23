@@ -17,7 +17,7 @@ import { practiceHref } from '@/components/docs/practice';
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
-import { Blocks, Prose, useHashScroll } from '@/components/docs/Markdown';
+import { Blocks, pageRunsInAinCode, Prose, useHashScroll } from '@/components/docs/Markdown';
 import { FooterNav } from '@/components/docs/FooterNav';
 import { Sidebar } from '@/components/docs/Sidebar';
 import { Toc } from '@/components/docs/Toc';
@@ -223,13 +223,13 @@ function DocsShell({ lang, slug, explicit }: { lang: Lang; slug: string; explici
                 <Toc headings={entry.doc.headings} title={entry.title} slug={entry.slug} />
               </TocFold>
             )}
-            <Banner>
+            {pageRunsInAinCode(entry.doc.blocks, entry.doc.front) && <Banner>
               <strong>{t('docs.practice.title')}</strong>
               <p>{t('docs.practice.body')}</p>
               <a href={practiceHref({ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang })}>{t('docs.practice.start')}</a>
-            </Banner>
+            </Banner>}
             <Prose>
-              <Blocks blocks={entry.doc.blocks} ctx={{ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang }} />
+              <Blocks blocks={entry.doc.blocks} ctx={{ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang, front: entry.doc.front }} />
             </Prose>
             <Source>{t('docs.source')} <code>docs/{entry.untranslated ? 'en' : entry.lang}/{entry.slug}.md</code></Source>
             <FooterNav prev={prev} next={next} />

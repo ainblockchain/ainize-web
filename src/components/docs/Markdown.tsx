@@ -14,6 +14,7 @@ import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useDocsT } from './i18n';
 import { CodeBlock } from './CodeBlock';
+import { runsInAinCode, stepKind, stepRequirements } from './practice-step';
 import type { AlertKind, Block, Inline, ListItem } from './markdown-parser';
 import { resolveDocHref, type LinkCtx } from './docsTree';
 export type { LinkCtx } from './docsTree';
@@ -181,6 +182,18 @@ function OptionTabs({ panels, ctx, stepIds }: { panels: { label: string; c: Bloc
 
 /* ------------------------------------------------------------------ blocks */
 
+/** The same judgement the practice plan makes, so a block shows "Run in AinCode" exactly when it opens ready to run. */
+function codeRunsInAinCode(b: Extract<Block, { t: 'code' }>, front?: Record<string, string>): boolean {
+  const language = b.lang || 'text';
+  const kind = stepKind(language, b.code, Boolean(b.output));
+  return runsInAinCode(kind, stepRequirements(kind, b.code, language), front);
+}
+
+/** True when some block on the page runs as written in AinCode — the page's own "practice" box needs one. */
+export function pageRunsInAinCode(blocks: Block[], front?: Record<string, string>): boolean {
+  return codeBlocks(blocks).some((b) => b.t === 'code' && codeRunsInAinCode(b, front));
+}
+
 function codeBlocks(blocks: Block[]): Block[] {
   return blocks.flatMap(b => b.t === 'code' ? [b] : b.t === 'quote' ? codeBlocks(b.c) : b.t === 'tabs' ? b.panels.flatMap(p => codeBlocks(p.c)) : []);
 }
@@ -200,7 +213,7 @@ export function Blocks({ blocks, ctx, stepIds }: { blocks: Block[]; ctx: LinkCtx
               </H>
             );
           case 'para': return <p key={i}><Inlines nodes={b.c} ctx={ctx} /></p>;
-          case 'code': return <CodeBlock key={i} code={b.code} lang={b.lang} ctx={ctx} stepId={ids.get(b)} />;
+          case 'code': return <CodeBlock key={i} code={b.code} lang={b.lang} ctx={ctx} stepId={ids.get(b)} runnable={codeRunsInAinCode(b, ctx.front)} />;
           case 'hr': return <hr key={i} />;
           case 'list': return b.ordered
             ? <ol key={i}><Items items={b.items} ctx={ctx} /></ol>

@@ -140,7 +140,7 @@ function NotYourNode() {
   const { t, locale } = useT();
   const { subject, google, name } = useAuth();
   const short = subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : google?.email ?? '';
-  const setup = locale === 'ko' ? '/docs/ko/get-started/quickstart' : '/docs/get-started/quickstart';
+  const setup = locale === 'ko' ? '/docs/ko/node/quickstart' : '/docs/node/quickstart';
   return (
     <NotYours data-testid="not-owner">
       <h1>{t('op.sign.not_owner.title')}</h1>

@@ -1,13 +1,19 @@
 ---
 source: en/get-started/install.md
-source_sha256: 2a39b5c827c0412d68adf9b25e8d4e81cfc11fed21a06c914ad0145f52f10c48
+source_sha256: a81e814aed164cbbceb2aa6041229f5ada4f98119f4b675a8cf9e6ae3e4dae45
+summary: ainize.ai/code의 AinCode는 CLI·Git·AinDrive가 이미 준비된 작업 공간입니다. 설치할 것이 없습니다.
 ---
 
-# 설치
+# AinCode 열기
 
-## 웹의 AinCode에서
+[AinCode](/code)는 ainize.ai의 코딩 작업 공간입니다. Ainize 계정으로 로그인하면 Node.js, Python, Git,
+`ainize` CLI가 설치되어 있고 Git이 우리 조직의 AinDrive에 바로 연결된 상태로 열립니다. 따로 설치할 것이
+없습니다.
 
-Ainize 계정으로 [AinCode](/code)를 열고 본인의 AinDrive 실습 저장소를 선택하세요. 작업 공간에는 Node.js와 CLI가 이미 설치되어 있습니다. 제공된 도구를 확인한 뒤 [빠른 시작](./quickstart.md)으로 이어갑니다.
+이 문서의 실행 가능한 코드 아래에 있는 **AinCode에서 이 코드 실행**을 누르면, 그 코드의 명령이 셸 모드로
+입력창에 들어간 채 작업 공간이 열립니다. Enter를 누르면 실행됩니다.
+
+## 도구 확인
 
 ```bash
 node --version
@@ -15,46 +21,19 @@ ainize --version
 ainize --help
 ```
 
-준비된 AinCode 실습 환경은 게이트웨이를 통해 패키지 다운로드와 공식 CLI 소스 저장소에 연결됩니다. 아래 소스 빌드에 필요한 도구와 SQLite 바이너리도 기본 환경에 포함되어 있습니다. 실습 파일과 진행 기록은 선택한 AinDrive Git 저장소에 보관하고, 백업으로 사용하기 전에 저장과 복원이 성공하는지 확인하세요.
+## 작업 공간에 준비된 것
 
-작업 공간의 에이전트는 기본으로 Qwen3.8-Flash-Next를 씁니다. GLM-5.3-Flash를 쓰려면 모델 선택기(터미널 UI에서는 `/models`)에서 고르세요.
-
-## 내 컴퓨터에서
-
-Node.js 24 이상에서 공개 CLI 패키지를 설치합니다.
-
-```bash
-node --version
-npm install -g ainize
-ainize --help
-```
-
-## 소스에서 빌드
-
-CLI를 수정할 때 사용합니다.
-
-```bash
-git clone https://github.com/ainblockchain/ainize-cli
-cd ainize-cli
-npm ci
-npm run build
-npm link
-```
-
-## 노드 파일
-
-`--home` 또는 `AINIZE_HOME`으로 노드 디렉터리를 지정합니다. 기본값은 `~/.ainize`입니다.
-노드마다 별도의 디렉터리와 포트를 사용하세요.
-
-| 파일 | 용도 |
+| | |
 |---|---|
-| `config.json` | 신원·모델·네트워크 설정. 개인 키가 있으므로 안전하게 백업하세요. |
-| `data/` | 원장·데이터셋·지식 파일. |
-| `node.log`, `node.pid` | 백그라운드 프로세스 로그와 PID. |
-| `cli.json` | CLI 세션. |
-| `teaching-key.json` | CLI 수업의 소유 키. 가르치기 전에 백업하세요. |
+| `$AINDRIVE_ORG`, `$AINDRIVE_USER` | 우리 조직의 AinDrive와 내 이름. 문서의 명령이 이 값을 쓰므로 만들어지는 저장소는 내 것입니다. |
+| Git | `https://aindrive.ainetwork.ai/<org>/git/<repo>`를 토큰 없이 내 AinDrive 권한으로 clone·push 합니다. 새 이름으로 push 하면 저장소가 만들어집니다. |
+| `$AINIZE_API` | 내 계정으로 로그인된 Ainize API: 프로젝트, 배포, 배포 로그. |
+| `ainize` | 에이전트와 모델을 호출하는 CLI. |
+| `curl`, `jq` | API 응답을 읽는 도구. |
 
-웹 애플리케이션은 노드와 별도로 배포합니다. [ainize.ai](https://ainize.ai)를 이용하거나
-[ainize-web](https://github.com/ainblockchain/ainize-web)을 자신의 노드에 연결하세요.
+작업 공간의 에이전트는 기본으로 Qwen3.8-Flash-Next를 씁니다. GLM-5.3-Flash를 쓰려면 모델 선택기(터미널
+UI에서는 `/models`)에서 고르세요.
+
+내 컴퓨터에서 노드를 돌리려면 [내 컴퓨터에 CLI 설치](../node/install.md)를 보세요.
 
 다음: [빠른 시작](./quickstart.md).

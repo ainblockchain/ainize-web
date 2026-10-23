@@ -1,6 +1,7 @@
 ---
 title: Build on someone else's knowledge
 summary: Take a published knowledge's questions, teach your own answers on top of it, and publish the result — what it costs, what it pays its ancestors, and the two rules that stop it.
+aincode: false
 ---
 
 # Build on someone else's knowledge

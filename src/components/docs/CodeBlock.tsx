@@ -69,7 +69,7 @@ async function copyText(text: string): Promise<boolean> {
   } catch { return false; }
 }
 
-export function CodeBlock({ code, lang, ctx, stepId }: { code: string; lang: string; ctx?: LinkCtx; stepId?: string }) {
+export function CodeBlock({ code, lang, ctx, stepId, runnable = false }: { code: string; lang: string; ctx?: LinkCtx; stepId?: string; runnable?: boolean }) {
   const { t } = useDocsT();
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const tokens = highlight(code, lang);
@@ -88,7 +88,9 @@ export function CodeBlock({ code, lang, ctx, stepId }: { code: string; lang: str
       <Pre><code>{tokens.map((tok, i) => (
         tok.k === 'plain' ? <span key={i}>{tok.v}</span> : <span key={i} style={{ color: TOKEN[tok.k], fontWeight: tok.k === 'command' ? 600 : undefined }}>{tok.v}</span>
       ))}</code></Pre>
-      {ctx && <a href={practiceHref(ctx, stepId)}>{t('docs.practice.block')}</a>}
+      {/* Only where AinCode opens the block ready to run: a node of your own, a value to fill in, a file or an
+          output sample has nothing to press Enter on. */}
+      {ctx && runnable && <a href={practiceHref(ctx, stepId)}>{t('docs.practice.block')}</a>}
     </Wrap>
   );
 }

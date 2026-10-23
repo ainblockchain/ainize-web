@@ -2,7 +2,8 @@
 title: 남의 지식 위에 얹어 만들기
 summary: 이미 공개된 지식이 배운 질문을 받아, 그 위에 내 답을 가르치고, 결과를 공개하는 전체 경로 — 무엇이 들고, 조상에게 얼마가 가고, 무엇이 이것을 막는지.
 source: en/how-to/build-on-knowledge.md
-source_sha256: d21379cf244491e201694c1e4aac61ed66fb7ff68eb0adfe887313c5badbde51
+source_sha256: ae75639545c99ec1cc966001bff97828861fa9634f04fb9ea616365cbfbe2cc8
+aincode: false
 ---
 
 # 남의 지식 위에 얹어 만들기

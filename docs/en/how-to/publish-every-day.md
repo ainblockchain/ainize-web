@@ -1,3 +1,7 @@
+---
+aincode: false
+---
+
 # Publish every day
 
 Automate only after a manual lesson has passed on your configured trainer.

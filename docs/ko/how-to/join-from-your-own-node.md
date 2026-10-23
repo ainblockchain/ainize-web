@@ -1,6 +1,7 @@
 ---
 source: en/how-to/join-from-your-own-node.md
-source_sha256: b9d90b2d6fd8ce8634a0a3fd0520636b9b2ea2fc7b1617b600a823646a77afff
+source_sha256: 5fc123848328ac9f7d9aa0fa9022c0d78c12bd17365847668b0adc0a22865813
+aincode: false
 ---
 
 # 내 노드로 네트워크 참여하기
@@ -27,7 +28,7 @@ ainize nodes
 
 ## 런타임 연결
 
-[빠른 시작](../get-started/quickstart.md)의 모델·패치 훅 설정을 따릅니다.
+[로컬 노드 시작하기](../node/quickstart.md)의 모델·패치 훅 설정을 따릅니다.
 `runtime.gpus`에는 모델 컨테이너가 실제 사용하는 호스트 GPU 번호를 지정하세요.
 준비가 끝난 뒤 `serving` 역할을 추가합니다.
 

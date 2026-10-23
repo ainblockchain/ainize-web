@@ -2,7 +2,8 @@
 title: 지식을 사서 기억하는 에이전트
 summary: 이미 아는 것으로 답하고, 질문을 담은 지식이 있으면 사고, 없으면 조회하고 — 같은 조회를 반복하는 비용이 한 번 컴파일하는 비용을 넘어서면 그 조회를 엔그램으로 굽는 에이전트.
 source: en/how-to/agent-memory.md
-source_sha256: c62fb4d961655d0ee6d0119e5ba927ad54836cba4ee28fa89afacd7050175667
+source_sha256: 5da33e556ff96adb8273ac10309089ecb71dbaafad06135485e738211b3a757e
+aincode: false
 ---
 
 # 지식을 사서 기억하는 에이전트

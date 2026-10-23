@@ -1,6 +1,7 @@
 ---
 source: en/how-to/connect-nodes.md
-source_sha256: 0b576206e004de001875ce9c891033468b2970f044d59a57ce217f630713a1e0
+source_sha256: 9c47fe68d1d0525b7dd8861e36ea37d1fc9118a5fd70124d7348c7d35dce08e7
+aincode: false
 ---
 
 # AIN 계정에 노드 연결

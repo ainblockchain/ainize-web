@@ -1,3 +1,7 @@
+---
+aincode: false
+---
+
 # Connect nodes to your AIN account
 
 Sign in at [Ainize](/signing) with your AIN account (SSO) or a compatible wallet. In your personal AinCode workspace, the existing AIN session connects the node to your account automatically.

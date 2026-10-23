@@ -1,3 +1,7 @@
+---
+aincode: false
+---
+
 # Run a node others can reach
 
 ## `host` binds. `publicUrl` is what peers write down

@@ -1,3 +1,7 @@
+---
+aincode: false
+---
+
 # Teach from a file of questions
 
 A teaching key owns your datasets and lessons. Back it up; browser and CLI keys are separate

@@ -1,6 +1,7 @@
 ---
 title: An agent that buys knowledge and remembers it
 summary: An agent that answers from what it already knows, buys a knowledge when one covers the question, looks it up when nothing does — and compiles the lookup into an engram once repeating it has cost more than compiling it would.
+aincode: false
 ---
 
 # An agent that buys knowledge and remembers it

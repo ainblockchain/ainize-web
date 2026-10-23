@@ -1,76 +1,124 @@
 ---
 source: en/get-started/quickstart.md
-source_sha256: c5c0363208de0f26aafa919ffb4a1b97febb38512781448a3540c475a3cf9876
+source_sha256: 9a06eea2acf67b4406049a649272b840a6c3de5d6e3ca94e4e406046d1188e48
+summary: AinCode에서 코드를 쓰고 AinDrive에 push 하면 Ainize가 배포합니다. 스크립트 하나, 그리고 에이전트 하나.
 ---
 
-# 빠른 시작
+# 빠른 시작: 코드에서 배포까지
 
-로컬 노드를 실행하고 확인한 뒤 호환 모델에 연결합니다. 먼저 [CLI](./install.md)를 설치하세요.
-아래 명령은 별도의 홈을 사용하므로 기존 노드를 변경하지 않습니다.
+Ainize에서는 `git push`가 곧 배포입니다. 우리 조직 AinDrive의 저장소 루트에 `ainize.json`이 있으면 push 할
+때마다 빌드되고 실행됩니다. 이 페이지에서는 작은 스크립트를 배포하고, 고쳐서 다시 배포한 뒤, 에이전트를
+배포합니다.
 
-## 노드 실행
+아래 코드는 모두 [AinCode](./install.md)에서 그대로 실행됩니다. 코드 아래의 **AinCode에서 이 코드 실행**을
+누르면 명령이 입력창에 들어간 채 작업 공간이 열리고, Enter로 실행됩니다. 저장소 이름은 내 이름
+(`$AINDRIVE_USER`)으로, 위치는 우리 조직의 AinDrive(`$AINDRIVE_ORG`)로 정해지므로 채울 값이 없습니다.
 
-```bash
-export AINIZE_HOME="$HOME/ainize-quickstart"
-ainize init --name quickstart --port 3694 --roles seller
-ainize login --no-open
-ainize start -d
-ainize status
-ainize login --node-key
-ainize wallet
-```
-
-노드를 시작하기 전에 AIN 계정에 연결합니다. 개인 AinCode에서 `login --no-open`은 기존 AIN SSO 로그인을 자동으로 사용합니다. AinCode 밖에서는 출력된 웹사이트 링크를 열고 연결을 승인하세요. 이후의 `login --node-key`는 로컬 운영자로 로그인합니다.
-
-로컬 원장의 초기 CREDIT은 테스트용이며 AIN 메인넷 잔액이 아닙니다.
-노드 머신에서 `ainize login --node-key`을 실행하면 해당 노드 키로 서명합니다.
-
-## 모델 연결
-
-지식 적용에는 호환 런타임과 **패치 훅**이 모두 필요합니다. 채팅 API만으로는 충분하지 않습니다.
-Qwen3.8 런타임의 서빙 컨테이너는 `ENGRAM_HOOK=1`, `MTP=0`으로 실행하세요.
-패치 디렉터리를 컨테이너에 마운트하고 `runtime.patchDir`과 일치시켜야 합니다.
-아래 경로를 실제 런타임 소스와 패치 디렉터리로 바꾸세요.
+## 1. 저장소 만들기
 
 ```bash
-ainize config set runtime.api http://127.0.0.1:8000
-ainize config set runtime.repo /path/to/qwen3.8
-ainize config set runtime.patchDir /path/to/patch-mailbox
-ainize config set roles seller,serving
-ainize stop
-ainize start -d
-ainize status --check
+mkdir -p ~/projects/$AINDRIVE_USER-hello
+cd ~/projects/$AINDRIVE_USER-hello
+git init -b main
+git remote add origin https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-hello
 ```
 
-런타임이 `available`이고 훅이 동작할 때 라이브 테스트를 진행하세요.
-모델 목록 조회 성공만으로 지식 적용 가능 여부를 판단할 수 없습니다.
+AinDrive에는 아직 이 저장소가 없습니다. 첫 push가 만듭니다.
 
-## 지식 찾기와 사용
+## 2. 코드와 ainize.json 작성
 
 ```bash
-ainize peers add https://ainize.ai
-ainize patch ls --status VERIFIED
-ainize chat --list
+cd ~/projects/$AINDRIVE_USER-hello
+cat > hello.py <<'EOF'
+import platform
+
+print("Hello from Ainize")
+print("Python", platform.python_version())
+EOF
+cat > ainize.json <<'EOF'
+{ "kind": "script", "entry": "hello.py" }
+EOF
 ```
 
-카탈로그의 실제 ID를 선택하고 모델·검증 근거·가격·라이선스를 확인합니다.
+`"kind": "script"`는 push 할 때마다 `hello.py`를 한 번 실행하고, 출력한 내용을 배포 로그로 남깁니다.
+다른 종류(Next.js 앱, 서비스, 에이전트)는 [ainize.json](../how-to/deploy-with-ainize-json.md)에 있습니다.
+
+## 3. push: 이것이 배포입니다
 
 ```bash
-ainize patch get <id>
-ainize chat <id> "질문"
-ainize use <id>
-ainize patch stack
+cd ~/projects/$AINDRIVE_USER-hello
+git add .
+git commit -m "Hello from Ainize"
+git push -u origin main
 ```
 
-라이브 테스트는 노드에 파일이 있어야 가능합니다. `use`는 구매·다운로드·적용을 수행하므로
-견적을 확인한 뒤 승인하세요. 적용이 실패해도 구매는 완료됐을 수 있습니다.
-재시도 전 `ainize wallet`과 `ainize purchases`를 확인하세요.
+AinDrive가 push 된 커밋에서 `ainize.json`을 보고, Ainize가 프로젝트를 만들어 배포합니다. 따로 배포하는
+단계는 없습니다.
 
-## 종료
+## 4. 배포 확인
 
 ```bash
-ainize stop
+P=$(curl -s "$AINIZE_API/projects/by-repo?repo=https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-hello&branch=main")
+echo "$P" | jq '{name, status, page: .url}'
+curl -s "$AINIZE_API/deployments/$(echo "$P" | jq -r .lastDeploymentId)/log"
 ```
 
-키와 데이터는 홈 디렉터리에 유지됩니다.
-다음: [파일로 가르치기](../tutorials/teach-from-a-file.md), [구매와 적용](../tutorials/buy-and-apply.md).
+`status`는 몇 초 안에 `building` → `ready`가 됩니다. 아직 `ready`가 아니면 다시 실행하세요. 로그 끝에
+`hello.py`가 출력한 내용이 있습니다. `page`는 ainize.ai의 프로젝트 페이지로, 모든 배포와 로그가 있습니다.
+
+## 5. 고쳐서 다시 push
+
+```bash
+cd ~/projects/$AINDRIVE_USER-hello
+sed -i 's/Hello from Ainize/Hello again from Ainize/' hello.py
+git commit -am "Say hello again"
+git push
+```
+
+4단계를 다시 실행하면 새 배포가 보이고, 로그에 *Hello again*이 찍혀 있습니다.
+
+## 6. 에이전트 배포
+
+에이전트도 저장소입니다. 이 에이전트는 프롬프트와 모델만으로 되어 있어 작성할 코드가 없습니다.
+
+```bash
+mkdir -p ~/projects/$AINDRIVE_USER-agent
+cd ~/projects/$AINDRIVE_USER-agent
+git init -b main
+git remote add origin https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-agent
+cat > ainize.json <<'EOF'
+{
+  "kind": "agent",
+  "agent": {
+    "name": "Hello agent",
+    "description": "Answers in one friendly sentence.",
+    "model": "GLM-5.3-Flash"
+  }
+}
+EOF
+cat > prompt.md <<'EOF'
+You are a friendly greeter. Answer in one short sentence.
+EOF
+git add .
+git commit -m "Hello agent"
+git push -u origin main
+```
+
+## 7. 에이전트 호출
+
+```bash
+P=$(curl -s "$AINIZE_API/projects/by-repo?repo=https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-agent&branch=main")
+echo "$P" | jq '{name, status, agent: .lastDeployment.outputUrl}'
+AGENT=$(echo "$P" | jq -r '.lastDeployment.outputUrl | split("/") | last')
+ainize agent call "$AGENT" "Hello, who are you?"
+```
+
+`agent`는 에이전트의 A2A 주소입니다. 이 에이전트는 우리 조직에 공유되므로 [AIN Teams](https://ainteams.ainetwork.ai)의
+**Invite agent**에도 나타납니다. `prompt.md`를 고쳐 push 하면 다음 호출부터 새 프롬프트로 답합니다.
+
+## 다음
+
+- [Next.js 앱 배포하기](../how-to/deploy-nextjs.md): 자기 주소를 가진 웹 앱.
+- [ainize.json](../how-to/deploy-with-ainize-json.md): 모든 키와 종류.
+- [AIN Teams용 에이전트 만들기](../how-to/build-for-ainteams.md): 코드가 있는 에이전트.
+- 내 노드를 돌리는 것은 별개입니다: [로컬 노드 시작하기](../node/quickstart.md).

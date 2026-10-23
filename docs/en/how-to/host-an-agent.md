@@ -1,6 +1,7 @@
 ---
 title: Put an agent on a node
 summary: Give an A2A agent you already run a public address, an agent card and a place on the marketplace — without opening a port of your own.
+aincode: false
 ---
 
 # Put an agent on a node
