@@ -1,3 +1,7 @@
+---
+aincode: false
+---
+
 # Join the network from your own node
 
 ## Start and connect
@@ -22,7 +26,7 @@ Check ledger compatibility before connecting other peers.
 
 ## Connect your runtime
 
-Follow the model and patch-hook setup in [Quickstart](../get-started/quickstart.md).
+Follow the model and patch-hook setup in [Start a local node](../node/quickstart.md).
 Configure `runtime.gpus` with the host GPU indices actually used by the model container.
 Add the `serving` role only when it is ready.
 

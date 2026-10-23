@@ -2,7 +2,8 @@
 title: 지식 여러 개를 한꺼번에 올리기
 summary: 스택의 순서가 무슨 뜻인지, 두 지식이 겹칠 때 누가 이기는지, 내릴 때 무엇이 돌아오는지, 그리고 돈을 쓰기 전에 이 모두를 어떻게 보는지.
 source: en/how-to/load-several.md
-source_sha256: 61b62697402f016f027fade563a260192be62a034c7689ccb0282f1894294625
+source_sha256: 6f224c2cbb4f36bb32a24ef4bfe98bc82a9f81ab737eee30ee29fd4ade1beb91
+aincode: false
 ---
 
 # 지식 여러 개를 한꺼번에 올리기

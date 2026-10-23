@@ -1,6 +1,7 @@
 ---
 title: Load several knowledges at once
 summary: What the order of a stack means, who wins where two knowledges disagree, what unloading puts back, and how to see all of it before you spend anything.
+aincode: false
 ---
 
 # Load several knowledges at once

@@ -127,7 +127,7 @@ test('a visitor who does not run the node is given ways out, never a command the
     assert.ok(!/SigningCheckLayout|NewPatchGate/.test(route), `${to} must be open to a visitor — it is offered as the way out`);
   }
   // And the answer to "these screens are not for you": run a node where they are. A guide, not a command.
-  assert.match(layout, /const setup = locale === 'ko' \? '\/docs\/ko\/get-started\/quickstart'/);
+  assert.match(layout, /const setup = locale === 'ko' \? '\/docs\/ko\/node\/quickstart'/);
   assert.ok(layout.includes('<Way to={setup}'), 'the setup guide is a link');
 });
 

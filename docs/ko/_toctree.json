@@ -1,6 +1,6 @@
 [
   {
-    "group": "시작하기",
+    "group": "코드 실습 → 배포",
     "pages": [
       {
         "page": "index",
@@ -8,15 +8,19 @@
       },
       {
         "page": "get-started/install",
-        "title": "설치"
+        "title": "AinCode 열기"
       },
       {
         "page": "get-started/quickstart",
-        "title": "빠른 시작"
+        "title": "빠른 시작: 코드에서 배포까지"
       },
       {
-        "page": "how-to/connect-nodes",
-        "title": "지갑에 노드 연결"
+        "page": "how-to/deploy-nextjs",
+        "title": "Next.js 앱 배포하기"
+      },
+      {
+        "page": "how-to/deploy-with-ainize-json",
+        "title": "ainize.json 레퍼런스"
       }
     ]
   },
@@ -78,18 +82,6 @@
         "title": "결정 모델 쓰기 (Cloudflare Clef)"
       },
       {
-        "page": "how-to/join-from-your-own-node",
-        "title": "내 노드로 네트워크에 합류하기"
-      },
-      {
-        "page": "how-to/reachable-node",
-        "title": "다른 노드가 찾아올 수 있는 노드 운영하기"
-      },
-      {
-        "page": "how-to/run-a-verifier",
-        "title": "검증에 드는 비용"
-      },
-      {
         "page": "how-to/price-knowledge",
         "title": "값을 매기고 정산받기"
       },
@@ -114,18 +106,6 @@
         "title": "지식을 사서 기억하는 에이전트"
       },
       {
-        "page": "how-to/host-an-agent",
-        "title": "에이전트를 노드에 올리기"
-      },
-      {
-        "page": "how-to/deploy-with-ainize-json",
-        "title": "ainize.json으로 리포 배포하기"
-      },
-      {
-        "page": "how-to/deploy-nextjs",
-        "title": "Next.js 앱 배포하고 Teams에서 공유하기"
-      },
-      {
         "page": "how-to/create-an-agent-from-a-model",
         "title": "모델로 에이전트 만들기"
       },
@@ -136,6 +116,39 @@
       {
         "page": "how-to/organizations",
         "title": "팀의 에이전트를 조직으로 운영하기"
+      }
+    ]
+  },
+  {
+    "group": "노드 운영",
+    "pages": [
+      {
+        "page": "node/install",
+        "title": "내 컴퓨터에 CLI 설치"
+      },
+      {
+        "page": "node/quickstart",
+        "title": "로컬 노드 시작하기"
+      },
+      {
+        "page": "how-to/connect-nodes",
+        "title": "지갑에 노드 연결"
+      },
+      {
+        "page": "how-to/join-from-your-own-node",
+        "title": "내 노드로 네트워크에 합류하기"
+      },
+      {
+        "page": "how-to/reachable-node",
+        "title": "다른 노드가 찾아올 수 있는 노드 운영하기"
+      },
+      {
+        "page": "how-to/run-a-verifier",
+        "title": "검증에 드는 비용"
+      },
+      {
+        "page": "how-to/host-an-agent",
+        "title": "에이전트를 노드에 올리기"
       },
       {
         "page": "how-to/google-ax",

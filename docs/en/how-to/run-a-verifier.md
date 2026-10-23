@@ -1,6 +1,7 @@
 ---
 title: What verifying costs you
 summary: Every node created by `ainize init` is a verifier and nothing says what that spends — the disk it fills with other people's files, the model time it takes from your own visitors, and the share of a sale it earns when the knowledge sells at all.
+aincode: false
 ---
 
 # What verifying costs you

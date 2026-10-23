@@ -1,6 +1,7 @@
 ---
 source: en/how-to/publish-every-day.md
-source_sha256: 14edd37fe1f58e70d7dbd909d8b48bad3ee381fd43e17ca6c1d5afef18dc42ce
+source_sha256: b63a2e5b9cb0dc55bb3897703fe809a5dfc9e5c789ba8a667bc6517afa0fa17c
+aincode: false
 ---
 
 # 매일 공개하기

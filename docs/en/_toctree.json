@@ -1,6 +1,6 @@
 [
   {
-    "group": "Get started",
+    "group": "Code → deploy",
     "pages": [
       {
         "page": "index",
@@ -8,15 +8,19 @@
       },
       {
         "page": "get-started/install",
-        "title": "Installation"
+        "title": "Open AinCode"
       },
       {
         "page": "get-started/quickstart",
-        "title": "Quickstart"
+        "title": "Quickstart: code to deployment"
       },
       {
-        "page": "how-to/connect-nodes",
-        "title": "Connect nodes to your wallet"
+        "page": "how-to/deploy-nextjs",
+        "title": "Deploy a Next.js app"
+      },
+      {
+        "page": "how-to/deploy-with-ainize-json",
+        "title": "ainize.json reference"
       }
     ]
   },
@@ -78,18 +82,6 @@
         "title": "Use a decision model (Cloudflare Clef)"
       },
       {
-        "page": "how-to/join-from-your-own-node",
-        "title": "Join the network from your own node"
-      },
-      {
-        "page": "how-to/reachable-node",
-        "title": "Run a node others can reach"
-      },
-      {
-        "page": "how-to/run-a-verifier",
-        "title": "What verifying costs"
-      },
-      {
         "page": "how-to/price-knowledge",
         "title": "Set a price and get paid"
       },
@@ -114,18 +106,6 @@
         "title": "An agent that buys knowledge and remembers it"
       },
       {
-        "page": "how-to/host-an-agent",
-        "title": "Put an agent on a node"
-      },
-      {
-        "page": "how-to/deploy-with-ainize-json",
-        "title": "Deploy a repo with ainize.json"
-      },
-      {
-        "page": "how-to/deploy-nextjs",
-        "title": "Deploy a Next.js app and share it in Teams"
-      },
-      {
         "page": "how-to/create-an-agent-from-a-model",
         "title": "Create an agent from a model"
       },
@@ -136,6 +116,39 @@
       {
         "page": "how-to/organizations",
         "title": "Run your team's agents as an organization"
+      }
+    ]
+  },
+  {
+    "group": "Run a node",
+    "pages": [
+      {
+        "page": "node/install",
+        "title": "Install the CLI on your machine"
+      },
+      {
+        "page": "node/quickstart",
+        "title": "Start a local node"
+      },
+      {
+        "page": "how-to/connect-nodes",
+        "title": "Connect nodes to your wallet"
+      },
+      {
+        "page": "how-to/join-from-your-own-node",
+        "title": "Join the network from your own node"
+      },
+      {
+        "page": "how-to/reachable-node",
+        "title": "Run a node others can reach"
+      },
+      {
+        "page": "how-to/run-a-verifier",
+        "title": "What verifying costs"
+      },
+      {
+        "page": "how-to/host-an-agent",
+        "title": "Put an agent on a node"
       },
       {
         "page": "how-to/google-ax",

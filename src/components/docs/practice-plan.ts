@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
 import { parseDoc, type Block } from './markdown-parser';
+import { runsInAinCode, stepKind, stepRequirements, type StepKind } from './practice-step';
 
 export type PracticeStep = {
   id: string; number: number; section: string; language: string; code: string;
-  kind: 'command' | 'file' | 'request' | 'reference';
+  kind: StepKind;
   requirements: string[];
+  /** runs as written in an AinCode shell — the docs link opens it ready to run (`practice-step.ts`) */
+  aincode: boolean;
 };
 
 /** Exact source examples, including tabs and callouts. An example is never evidence of a successful run. */
@@ -19,21 +22,10 @@ export function practicePlan(source: string, lang: string, slug: string) {
       if (block.t === 'tabs') for (const panel of block.panels) walk(panel.c);
       if (block.t !== 'code') continue;
       const language = block.lang || 'text';
-      const kind = block.output ? 'reference' : ['bash', 'sh', 'shell', 'console'].includes(language) ? 'command'
-        : language === 'http' ? (/^\s*HTTP\/\d(?:\.\d)?\s+\d{3}\b/.test(block.code) ? 'reference' : 'request')
-        : ['js', 'javascript', 'ts', 'typescript', 'python', 'json', 'jsonl', 'yaml', 'toml'].includes(language) ? 'file' : 'reference';
-      const requirements = [
-        ...(kind === 'command' && /(?:^|\n)\s*ainize(?:-agent)?\s/.test(block.code) && /\[(?:options|[A-Za-z][\w.-]*(?:…|\.\.\.)?)\]|<[^>]+>/.test(block.code) ? ['command-template'] : []),
-        ...(/\bainize(?:-agent)?\b/.test(block.code) ? ['ainize-cli'] : []),
-        ...(/\b(?:docker|nvidia-smi|systemctl)\b|\bainize\s+(?:init|start|stop|config|verify|agent\s+add|wallet|ledger\s+inference)\b/.test(block.code) ? ['node-operator'] : []),
-        ...(/\b(?:pip|npm|git clone)\b/.test(block.code) ? ['package-or-git-access'] : []),
-        ...(/\b(?:python|import ainize)\b/.test(block.code) || language === 'python' ? ['python-runtime'] : []),
-        ...(/<[^>]+>|\/path\/to\/|YOUR_|REPLACE_/.test(block.code) ? ['user-input'] : []),
-        ...(/\b(?:buy|purchase|publish|deposit|transfer|ainize use|git push)\b/.test(block.code) ? ['review-before-write'] : []),
-        ...(/private_key|PRIVATE_KEY|API_KEY|secret|token/i.test(block.code) ? ['credential-handling'] : []),
-      ];
+      const kind = stepKind(language, block.code, Boolean(block.output));
+      const requirements = stepRequirements(kind, block.code, language);
       const number = steps.length + 1;
-      steps.push({ id: `step-${number}`, number, section, language, code: block.code, kind, requirements });
+      steps.push({ id: `step-${number}`, number, section, language, code: block.code, kind, requirements, aincode: runsInAinCode(kind, requirements, doc.front) });
     }
   };
   walk(doc.blocks);

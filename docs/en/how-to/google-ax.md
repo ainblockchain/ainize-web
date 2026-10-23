@@ -1,6 +1,7 @@
 ---
 title: Run agents with Google AX
 summary: Install Google Agent Executor alongside Ainize and create, inspect, suspend and resume sandboxed agent tasks.
+aincode: false
 ---
 
 # Run agents with Google AX

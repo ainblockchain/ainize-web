@@ -9,18 +9,16 @@ Open **Apps** in the top menu to connect a Git repository, browse your team's ap
 
 ## Start from the example
 
-The [Next.js Hello World repository](https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world) contains a page, a client-side click counter, and `/api/health`. Its [Ainize project](https://ainize.ai/comcom/nextjs-hello-world) shows deployment status, logs, and the deployed app link.
+The [Next.js Hello World repository](https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world) contains a page, a client-side click counter, and `/api/health`. Copy it into a repository of your own and push it. Each block runs as written in [AinCode](../get-started/install.md):
 
-Clone it, or copy its files into a repository you can push to. Keep `package-lock.json` committed and exclude `node_modules`, `.next`, and secrets.
-
-```sh
-git clone https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world
-cd nextjs-hello-world
-npm ci
-npm run dev
+```bash
+git clone https://aindrive.ainetwork.ai/comcom/git/nextjs-hello-world ~/projects/$AINDRIVE_USER-nextjs
+cd ~/projects/$AINDRIVE_USER-nextjs
+git remote set-url origin https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-nextjs
+git push -u origin main
 ```
 
-Use the Git credentials provided by your AIN Drive account when pushing to your own repository. Do not put a token in a committed remote URL or source file.
+The push creates the repository in your organization's AinDrive, and because the repository has `ainize.json`, Ainize builds and deploys it. Keep `package-lock.json` committed and keep `node_modules`, `.next` and secrets out of the repository.
 
 ## Describe the app
 
@@ -41,11 +39,17 @@ The deployed app is served under `/svc/<projectId>/`. The example uses `assetPre
 
 The example also adds a per-request CSP nonce through Next.js middleware and renders the page dynamically. This lets Next.js initialize its client components without allowing arbitrary inline scripts. Preserve this middleware when copying the example.
 
-## Push and verify
+## Watch it deploy
 
-Commit and push your app to your organization's AIN Drive Git repository. A repository with a root `ainize.json` is connected automatically on an authorized push. Committing in the browser saves a local commit; use **Push** to send it and trigger deployment.
+A Next.js build takes a minute or two. Run this until `status` is `ready`:
 
-Open the repository's **Deployments** view or its Ainize project page. Wait for **ready**, open the deployed app, and check that the counter increments and `/api/health` returns `ok: true`. If deployment fails, read the build log, fix the source or manifest, and push another commit.
+```bash
+P=$(curl -s "$AINIZE_API/projects/by-repo?repo=https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDRIVE_USER-nextjs&branch=main")
+echo "$P" | jq '{name, status, page: .url, app: .lastDeployment.outputUrl}'
+curl -s "$AINIZE_NODE_URL/svc/$(echo "$P" | jq -r .id)/api/health"
+```
+
+`app` is the deployed app's address; open it and check that the counter increments. The last line asks the running app for `/api/health`, which answers `{"ok":true,…}`. If the deployment fails, read the build log on the project `page`, fix the source or `ainize.json`, commit and push again.
 
 ## Set your app address
 

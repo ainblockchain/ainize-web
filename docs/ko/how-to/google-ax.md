@@ -1,6 +1,7 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: 301f1e60d1138848abef21361dd93888590deb643d7a7999ebdd6787018e2b31
+source_sha256: 8910843315d51bf2b5f23c40606316bd3279aa52fd18b888afdae9882b6c49b2
+aincode: false
 ---
 
 # Google AX로 에이전트 실행하기

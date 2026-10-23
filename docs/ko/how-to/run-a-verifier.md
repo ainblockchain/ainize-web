@@ -2,7 +2,8 @@
 title: 검증에 드는 비용
 summary: `ainize init`으로 만든 노드는 전부 검증 노드이고, 그것이 무엇을 쓰는지는 어디에도 적혀 있지 않습니다 — 남의 파일로 채워지는 디스크, 내 방문자에게서 가져가는 모델 시간, 그리고 그 지식이 팔릴 때 받는 몫.
 source: en/how-to/run-a-verifier.md
-source_sha256: df8ebb4ff4fd97c1e3d80b3f5453ee555780bceabb0c11fd9fd87e0db4c94eba
+source_sha256: 2526369aff1f2e854a9dea448c1642dd2ffc9405b675059125a2adcefd827a97
+aincode: false
 ---
 
 # 검증에 드는 비용
