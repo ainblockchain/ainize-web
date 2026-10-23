@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-311 operations on 256 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+313 operations on 258 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -270,6 +270,8 @@ See [Error codes](./errors.md) for the full list.
 | Method | Path | Auth | What it does |
 |---|---|---|---|
 | `GET` | [`/api/projects/{id}/source`](#get-apiprojectsidsource) | operator | Read the manifest from an immutable execution source |
+| `POST` | [`/api/projects/{id}/ax-runs`](#post-apiprojectsidax-runs) | operator | Create an AX run awaiting signed approval |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-approval`](#post-apiprojectsiddeploymentsdeploymentidax-approval) | operator | Verify a run-scoped SSO delegation and enqueue the AX run |
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
 | `GET` | [`/api/projects/{id}/domains`](#get-apiprojectsiddomains) | none | List app domains and required DNS records (project owner only) |
@@ -4961,6 +4963,76 @@ Same project viewer/actor permission as Run. Deployed means last successful acti
 | `403` | Operation not permitted |
 | `404` | Unknown or unreadable resource |
 | `409` | Read-only source, conflict or runtime not ready |
+
+### `POST /api/projects/{id}/ax-runs`
+
+Create an AX run awaiting signed approval
+
+Requires an existing project owner/member session and AINIZE_AX_PROJECT_ADMISSION=true. This is durable admission only; runtime dispatch requires the AX executor. No tenant or cluster can be supplied by the caller.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `target` | `object` | yes |   |
+| `sha` | `string` | yes |   |
+| `entry` | `string` |   | (at most 200 characters) |
+| `inputs` | `object` |   |   |
+| `env` | `object` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | Persisted AX run/approval; not evidence of execution |
+| `400` | Invalid request |
+| `401` | Sign-in required |
+| `403` | Project access or execution approval denied |
+| `404` | Project/run absent or hidden |
+| `409` | Registration or run state incompatible |
+| `503` | AX admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-approval`
+
+Verify a run-scoped SSO delegation and enqueue the AX run
+
+Requires an existing project owner/member session and AINIZE_AX_PROJECT_ADMISSION=true. This is durable admission only; runtime dispatch requires the AX executor. No tenant or cluster can be supplied by the caller.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `token` | `string` | yes | AIN SSO resource delegation; never stored verbatim (1–32768 characters) |
+| `proof` | `string` | yes | PoP for POST to the configured origin and this exact approval path (1–8192 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | Persisted AX run/approval; not evidence of execution |
+| `400` | Invalid request |
+| `401` | Sign-in required |
+| `403` | Project access or execution approval denied |
+| `404` | Project/run absent or hidden |
+| `409` | Registration or run state incompatible |
+| `503` | AX admission disabled |
 
 ### `GET /api/projects`
 
