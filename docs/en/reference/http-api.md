@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-305 operations on 252 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+311 operations on 256 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -325,6 +325,12 @@ See [Error codes](./errors.md) for the full list.
 | `PUT` | [`/api/ax/tasks/{name}/egress`](#put-apiaxtasksnameegress) | operator | Create or conditionally replace the AX task actor egress policy |
 | `GET` | [`/api/ax/tasks/{name}/runs/{runId}`](#get-apiaxtasksnamerunsrunid) | operator | Inspect an AX command result |
 | `GET` | [`/api/ax/tasks/{name}/runs/{runId}/output/{stream}`](#get-apiaxtasksnamerunsrunidoutputstream) | operator | Read bounded AX command output |
+| `GET` | [`/api/ax/tenants`](#get-apiaxtenants) | operator | List registered AX tenant bindings |
+| `POST` | [`/api/ax/tenants`](#post-apiaxtenants) | operator | Register an immutable SSO organization runtime binding |
+| `GET` | [`/api/ax/tenants/audit`](#get-apiaxtenantsaudit) | operator | Read AX tenant registry audit events |
+| `GET` | [`/api/ax/tenants/{id}`](#get-apiaxtenantsid) | operator | Read an AX tenant binding |
+| `PATCH` | [`/api/ax/tenants/{id}`](#patch-apiaxtenantsid) | operator | Activate or disable an AX tenant binding |
+| `POST` | [`/api/ax/tenants/{id}/projects`](#post-apiaxtenantsidprojects) | operator | Bind a provider project to an AX tenant |
 | `GET` | [`/api/me/teach/policy`](#get-apimeteachpolicy) | operator | Teaching policy (overrides + effective + trainer state) |
 | `PATCH` | [`/api/me/teach/policy`](#patch-apimeteachpolicy) | operator | Change the teaching policy (persisted in the node store) |
 | `GET` | [`/api/me/teach/datasets`](#get-apimeteachdatasets) | operator | What visitors uploaded to this machine (moderation view) |
@@ -6138,6 +6144,187 @@ Requires AINIZE_AX_ROUTER_ADDRESS and a Running task with debug enabled. Reads w
 | `409` | Resource exists or lifecycle precondition failed |   |
 | `413` | Artifact exceeds the bounded read limit |   |
 | `502` | Invalid artifact or guest service error |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tenants`
+
+List registered AX tenant bindings
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default |
+|---|---|---|---|
+| `limit` | `query` | `integer` | `100` |
+| `offset` | `query` | `integer` | `0` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/tenants`
+
+Register an immutable SSO organization runtime binding
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `orgId` | `string` | yes |   |
+| `policyVersion` | `string` | yes |   |
+| `reason` | `string` | yes | (1–1024 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tenants/audit`
+
+Read AX tenant registry audit events
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default |
+|---|---|---|---|
+| `limit` | `query` | `integer` | `100` |
+| `offset` | `query` | `integer` | `0` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tenants/{id}`
+
+Read an AX tenant binding
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `PATCH /api/ax/tenants/{id}`
+
+Activate or disable an AX tenant binding
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `state` | `"active"` \| `"disabled"` | yes |   |
+| `reason` | `string` | yes | (1–1024 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/tenants/{id}/projects`
+
+Bind a provider project to an AX tenant
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `providerPeer` | `string` | yes |   |
+| `projectId` | `string` | yes |   |
+| `reason` | `string` | yes | (1–1024 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
 | `503` | AX disabled or unavailable |   |
 | `504` | AX RPC deadline exceeded |   |
 
