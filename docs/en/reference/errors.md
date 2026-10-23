@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 139 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 138 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 92 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -234,7 +234,6 @@ A further 92 throw sites build their message at the time (a validator's own word
 | `null` | this node runs its maximum of \<this.limits.total> agents | `src/hosted-agent-store.ts` |
 | `null` | this organization has too many open invites | `src/organization-store.ts` |
 | `null` | this organization has too many pending requests | `src/organization-store.ts` |
-| `null` | This peer is managed by Kubernetes; use the shared cluster deployment workflow for node updates and model operations | `src/node-control.ts` |
 | `null` | this repository is not a valid agent: … | `src/project-agents.ts` |
 | `null` | this tree is not a valid agent: … | `src/agent-git.ts` |
 | `400` | \<address> is listed in operatorAddresses in this node's config file — remove it there, on the machine this node runs on (`ainize operators remove <address>`), and restart | `src/api.ts` |

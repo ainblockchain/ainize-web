@@ -5,6 +5,12 @@ summary: Install Google Agent Executor alongside Ainize and create, inspect, sus
 
 # Run agents with Google AX
 
+> **Preview implementation.** These instructions describe the AX integration in
+> [ainize-node PR #251](https://github.com/ainblockchain/ainize-node/pull/251).
+> It is not deployed on ainize.ai or included in the current main release.
+> Use the `feat/google-ax` source branch for evaluation. Shared-cluster provisioning,
+> organization authorization and automatic project execution are still being integrated.
+
 [Google AX](https://github.com/google/ax) runs agent tasks through Agent Substrate on Kubernetes.
 **Hosts providing AX execution share one Kubernetes cluster under a trusted administrator.** Kubernetes and Agent Substrate
 are required to provide AX execution, but not to join the Ainize peer network. Independent operators
@@ -19,7 +25,7 @@ be verified together; the current staging manifests do not establish that isolat
 Ainize-node remains the peer-facing application: it keeps the peer identity and
 state, authenticates users, communicates with other peers and exposes model and
 project APIs. Kubernetes places and restarts its Pods. AX and Substrate provide
-the agent execution environment. The operator AX API described here is connected;
+the agent execution environment. The operator AX API described here is implemented in that preview;
 automatic execution of existing Ainize project runs through AX is still pending.
 Next.js hosting also requires a Kubernetes build/deployment backend before moving
 existing Docker application hosts. The staged Pod alone does not provide it.
@@ -126,7 +132,7 @@ separate school access boundaries.
 ## Prepare the shared cluster
 
 First inventory the hosts, live peer identities, existing deployments and persistent data. Follow the
-[shared cluster guide](https://github.com/ainblockchain/ainize-node/blob/main/deploy/cluster/README.md)
+[shared cluster guide](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/cluster/README.md)
 to generate one kubeadm initialization configuration and worker join configurations using the same
 API endpoint and pinned cluster CA. The supported configuration uses Kubernetes v1.37.1 and enables
 the certificate features required by Substrate. The plan generator checks existing network ranges,
@@ -134,7 +140,7 @@ duplicate identities and complete host membership. Generating a plan does not mi
 
 Once all selected cluster hosts are Ready, configure persistent storage, cluster networking with NetworkPolicy enforcement,
 a registry accessible from every worker, and the Substrate operator installation document. Follow the
-[AX installation guide](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md)
+[AX installation guide](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md)
 to set `KUBECONFIG`, `AINIZE_SUBSTRATE_CONFIG`, `AX_IMAGE_REPO`, `AX_SNAPSHOTS_BUCKET` and
 `AINIZE_AX_STORAGE_CLASS`, then run from the ainize-node checkout:
 
@@ -270,7 +276,7 @@ cannot unlock a restarted wait. This is launch coordination, not tenant authoriz
 the trusted controller must verify task ownership, egress and file grants first.
 The internal launcher can send a checked release through the guest protocol;
 automatic project authorization and release orchestration are still pending. See the
-[launch-gate protocol](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes).
+[launch-gate protocol](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes).
 
 The supervisor stores `result.json`, `stdout` and `stderr` under
 `/workspace/.ainize-runs/hello-1/`. Use the AX CLI built by the installer with your shared

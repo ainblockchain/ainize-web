@@ -1,9 +1,14 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: ad5c2b51f2680fe55c43bf73b6832d4183f586bff38a39b77752a99baf40320f
+source_sha256: 301f1e60d1138848abef21361dd93888590deb643d7a7999ebdd6787018e2b31
 ---
 
 # Google AX로 에이전트 실행하기
+
+> **개발 미리보기입니다.** 이 안내는 [ainize-node PR #251](https://github.com/ainblockchain/ainize-node/pull/251)의
+> AX 통합 구현을 설명합니다. 현재 ainize.ai 운영 서버나 main 릴리스에는 배포되지 않았습니다.
+> 평가할 때는 `feat/google-ax` 소스 브랜치를 사용하세요. 공통 클러스터 구성, 조직 권한 연결,
+> 프로젝트 자동 실행은 통합 작업이 진행 중입니다.
 
 [Google AX](https://github.com/google/ax)는 Kubernetes 위의 Agent Substrate를 통해 에이전트 작업을 실행합니다.
 **AX 실행을 제공하는 호스트들을 신뢰하는 관리자가 운영하는 하나의 Kubernetes 클러스터로 묶습니다.** Kubernetes와 Agent Substrate는
@@ -112,14 +117,14 @@ GenAI-Leader-Finance-ComCom 조직에 한양대·인하대·숙명여대가 각�
 ## 공통 클러스터 준비
 
 먼저 호스트, 실제 실행 중인 peer 신원, 기존 배포와 영구 데이터를 조사합니다.
-[공통 클러스터 안내](https://github.com/ainblockchain/ainize-node/blob/main/deploy/cluster/README.md)에 따라
+[공통 클러스터 안내](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/cluster/README.md)에 따라
 kubeadm 초기화 구성 하나와 동일 API 주소·고정된 클러스터 CA를 사용하는 워커 참여 구성을 만듭니다.
 지원 구성은 Kubernetes v1.37.1이며 Substrate에 필요한 인증서 기능을 활성화합니다. 구성 생성기는 기존
 네트워크 대역, 중복 신원, 선택한 클러스터 호스트의 참여 여부를 확인합니다. 구성 생성만으로 운영 워크로드가 이관되지는 않습니다.
 
 선택한 클러스터 호스트가 모두 Ready 상태가 되면 영구 저장소, NetworkPolicy를 적용하는 클러스터 네트워크, 모든 워커가
 접근할 수 있는 이미지 레지스트리, Substrate 운영자 설치 문서를 준비합니다.
-[AX 설치 안내](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md)에 따라
+[AX 설치 안내](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md)에 따라
 `KUBECONFIG`, `AINIZE_SUBSTRATE_CONFIG`, `AX_IMAGE_REPO`, `AX_SNAPSHOTS_BUCKET`,
 `AINIZE_AX_STORAGE_CLASS`를 설정하고 ainize-node 소스에서 실행합니다.
 
@@ -277,7 +282,7 @@ Substrate 라우터가 조회 과정에서 다시 재개할 수 있습니다.
 이는 시작 순서를 조정하는 기능이며 조직 권한 검사 자체는 아닙니다. 신뢰된 제어 코드가 작업 소유권,
 네트워크 정책, 파일 접근 권한을 먼저 확인해야 합니다. 내부 실행 제어용 클라이언트는 guest 프로토콜로
 검사된 허가를 전달할 수 있습니다. 프로젝트 권한 검사와 자동 시작 절차의 연결은 아직 남아 있습니다.
-[시작 대기 프로토콜](https://github.com/ainblockchain/ainize-node/blob/main/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes)을 참고하세요.
+[시작 대기 프로토콜](https://github.com/ainblockchain/ainize-node/blob/feat/google-ax/deploy/ax/README.md#gate-a-command-until-policy-setup-finishes)을 참고하세요.
 
 ## 일시중지·재개·삭제
 
