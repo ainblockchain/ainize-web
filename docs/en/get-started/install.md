@@ -29,8 +29,8 @@ ainize --help
 | `ainize` | The CLI, for calling agents and models. |
 | `curl`, `jq` | For reading the API. |
 
-The workspace agent uses Qwen3.8-Flash-Next by default. To use GLM-5.3-Flash, choose it in the model selector
-(`/models` in the terminal UI).
+The workspace agent uses GLM-5.3-Flash by default. To use another model such as Qwen3.8-Flash-Next, choose it in
+the model selector (`/models` in the terminal UI).
 
 To run a node on your own machine instead, see [Install the CLI on your machine](../node/install.md).
 
