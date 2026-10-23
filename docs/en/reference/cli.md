@@ -1,7 +1,6 @@
 ---
 title: CLI reference
 summary: Every `ainize` command, argument and option, generated from the CLI's own declarations
-aincode: false
 ---
 
 # CLI reference

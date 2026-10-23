@@ -43,3 +43,12 @@ export function runsInAinCode(kind: StepKind, requirements: string[], front: Rec
   if (front.aincode === 'false') return false;
   return kind === 'command' && !requirements.some((r) => NOT_IN_AINCODE.includes(r));
 }
+
+/**
+ * The frontmatter a page is judged by. `reference/*` pages are generated from ainize-node (its docs-gen test
+ * fails on any edit), so they cannot carry `aincode: false` themselves: a reference is not a practice page, and its
+ * examples name IDs and nodes of their own.
+ */
+export function practiceFront(slug: string, front: Record<string, string> = {}): Record<string, string> {
+  return slug.startsWith('reference/') ? { ...front, aincode: 'false' } : front;
+}

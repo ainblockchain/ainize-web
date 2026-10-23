@@ -1,4 +1,5 @@
 import { practiceHref } from '@/components/docs/practice';
+import { practiceFront } from '@/components/docs/practice-step';
 /**
  * `/docs` — the frame every documentation page renders into.
  *
@@ -223,13 +224,13 @@ function DocsShell({ lang, slug, explicit }: { lang: Lang; slug: string; explici
                 <Toc headings={entry.doc.headings} title={entry.title} slug={entry.slug} />
               </TocFold>
             )}
-            {pageRunsInAinCode(entry.doc.blocks, entry.doc.front) && <Banner>
+            {pageRunsInAinCode(entry.doc.blocks, practiceFront(entry.slug, entry.doc.front)) && <Banner>
               <strong>{t('docs.practice.title')}</strong>
               <p>{t('docs.practice.body')}</p>
               <a href={practiceHref({ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang })}>{t('docs.practice.start')}</a>
             </Banner>}
             <Prose>
-              <Blocks blocks={entry.doc.blocks} ctx={{ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang, front: entry.doc.front }} />
+              <Blocks blocks={entry.doc.blocks} ctx={{ lang: entry.lang, slug: entry.slug, sourceLang: entry.untranslated ? 'en' : entry.lang, front: practiceFront(entry.slug, entry.doc.front) }} />
             </Prose>
             <Source>{t('docs.source')} <code>docs/{entry.untranslated ? 'en' : entry.lang}/{entry.slug}.md</code></Source>
             <FooterNav prev={prev} next={next} />
