@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-318 operations on 263 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+319 operations on 264 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -275,6 +275,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/key`](#post-apiprojectsiddeploymentsdeploymentidax-datakey) | operator | AX data key |
 | `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/grants`](#post-apiprojectsiddeploymentsdeploymentidax-datagrants) | operator | AX data grants |
 | `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/revoke`](#post-apiprojectsiddeploymentsdeploymentidax-datarevoke) | operator | AX data revoke |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/ready`](#post-apiprojectsiddeploymentsdeploymentidax-dataready) | operator | AX data ready |
 | `GET` | [`/api/ax/runs/{deploymentId}/data/{grantId}/files/{referenceId}`](#get-apiaxrunsdeploymentiddatagrantidfilesreferenceid) | operator | Read an admitted AinDrive file from an AX workload |
 | `POST` | [`/api/ax/runs/{deploymentId}/v1/chat/completions`](#post-apiaxrunsdeploymentidv1chatcompletions) | operator | Invoke a delegated model from an authenticated AX workload |
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
@@ -4987,6 +4988,7 @@ Requires an existing project owner/member session and AINIZE_AX_PROJECT_ADMISSIO
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `dataRequired` | `boolean` |   | Wait for explicit data grant selection before execution |
 | `target` | `object` | yes |   |
 | `sha` | `string` | yes |   |
 | `entry` | `string` |   | (at most 200 characters) |
@@ -5064,6 +5066,7 @@ Requires an active approved AX run, project owner/member access, and AINIZE_AX_A
 |---|---|
 | `200` | Public run PoP key, agent and product audience |
 | `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
 | `204` | Local data grant retired |
 | `400` | Invalid input |
 | `401` | Sign-in required |
@@ -5107,6 +5110,7 @@ Requires an active approved AX run, project owner/member access, and AINIZE_AX_A
 |---|---|
 | `200` | Public run PoP key, agent and product audience |
 | `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
 | `204` | Local data grant retired |
 | `400` | Invalid input |
 | `401` | Sign-in required |
@@ -5142,6 +5146,43 @@ Requires an active approved AX run, project owner/member access, and AINIZE_AX_A
 |---|---|
 | `200` | Public run PoP key, agent and product audience |
 | `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/ready`
+
+AX data ready
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `grantIds` | `string`[] | yes | (1–64 items) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
 | `204` | Local data grant retired |
 | `400` | Invalid input |
 | `401` | Sign-in required |
