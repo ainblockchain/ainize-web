@@ -20,6 +20,7 @@ import { errorMessage, useAgentsByModelQuery, useModelDetailQuery, useModelsQuer
 import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse, pickNetworkModelProvider } from '@/api/networkModels';
 import { parseBillingThroughputResponse } from '@/api/billingThroughput';
 import { agentsBuiltOnModel } from '@/api/hostedAgents';
+import { harnessForModel } from '@/api/modelHarness';
 import { modelDetailViewState, parseModelsResponse } from '@/api/models';
 import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
@@ -58,6 +59,14 @@ const ModelDetailSpeedLink = styled(StyledLink)<{ $busy: boolean }>`
   color: ${(p) => (p.$busy ? p.theme.color.PRIMARY : p.theme.color.GREY)};
 `;
 const ModelDetailAgents = styled.div`margin-top: 12px;`;
+const ModelDetailHarness = styled.section`
+  margin: 28px 0 8px; padding: 16px 20px; border: 1px solid #e2e4ea; border-radius: 12px;
+  pre { margin: 8px 0 0; padding: 10px 12px; border-radius: 8px; background: #11131a; color: #e8eaf0; font-size: 12.5px; overflow-x: auto; }
+`;
+const ModelDetailHarnessOpen = styled.a`
+  display: inline-block; margin-top: 12px; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  background: ${(p) => p.theme.color.PRIMARY}; color: #fff; text-decoration: none; &:hover { opacity: .9; }
+`;
 const ModelDetailProviders = styled.div`
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 4px;
   span { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: ${(p) => p.theme.color.GREY}; margin-right: 4px; }
@@ -136,6 +145,7 @@ export default function ModelDetailPage() {
 
   const { model } = view;
   const isChat = model.modality === 'chat';
+  const harness = harnessForModel(model.id);
   const speed = modelSpeedFactOf(parseBillingThroughputResponse(throughputQuery.data));
 
   return (
@@ -201,6 +211,31 @@ export default function ModelDetailPage() {
           </Button>
           <ModelDetailSmall>{auth.subject ? t('modelDetail.create_help') : t('modelDetail.create_signin')}</ModelDetailSmall>
         </ModelDetailCreateRow>
+      )}
+
+      {harness && (
+        <ModelDetailHarness data-testid="model-harness">
+          <SubTitle $mt={0}>{t('modelDetail.harness.title')}</SubTitle>
+          <Description>{t('modelDetail.harness.lede', { name: harness.name })}</Description>
+          <ModelDetailFacts>
+            <div>
+              <dt>{t('modelDetail.harness.fact.harness')}</dt>
+              <dd><a href={harness.source} target="_blank" rel="noreferrer">{harness.name}</a> {harness.version} · {harness.license}</dd>
+            </div>
+            <div><dt>{t('modelDetail.harness.fact.sampling')}</dt><dd><Mono>temperature {harness.settings.temperature.toFixed(1)} · top_p {harness.settings.topP.toFixed(1)}</Mono></dd></div>
+            <div>
+              <dt>{t('modelDetail.harness.fact.reasoning')}</dt>
+              <dd>{t('modelDetail.harness.reasoning_value', { effort: harness.settings.reasoningEffort, efforts: harness.settings.reasoningEfforts.join('/') })}</dd>
+            </div>
+            <div>
+              <dt>{t('modelDetail.harness.fact.context')}</dt>
+              <dd>{t('modelDetail.harness.context_value', { context: harness.settings.context.toLocaleString('en-US'), compact: harness.settings.compactAt.toLocaleString('en-US') })}</dd>
+            </div>
+          </ModelDetailFacts>
+          <ModelDetailSmall>{t('modelDetail.harness.howto')}</ModelDetailSmall>
+          <pre>{`$ ${harness.commands.web}\n$ ${harness.commands.run}`}</pre>
+          <ModelDetailHarnessOpen href={harness.openPath} data-testid="model-harness-open">{t('modelDetail.harness.open')} →</ModelDetailHarnessOpen>
+        </ModelDetailHarness>
       )}
 
       <ModelPlaygroundPanel
