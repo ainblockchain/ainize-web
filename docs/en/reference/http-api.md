@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-286 operations on 240 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+319 operations on 264 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -270,6 +270,14 @@ See [Error codes](./errors.md) for the full list.
 | Method | Path | Auth | What it does |
 |---|---|---|---|
 | `GET` | [`/api/projects/{id}/source`](#get-apiprojectsidsource) | operator | Read the manifest from an immutable execution source |
+| `POST` | [`/api/projects/{id}/ax-runs`](#post-apiprojectsidax-runs) | operator | Create an AX run awaiting signed approval |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-approval`](#post-apiprojectsiddeploymentsdeploymentidax-approval) | operator | Verify a run-scoped SSO delegation and enqueue the AX run |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/key`](#post-apiprojectsiddeploymentsdeploymentidax-datakey) | operator | AX data key |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/grants`](#post-apiprojectsiddeploymentsdeploymentidax-datagrants) | operator | AX data grants |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/revoke`](#post-apiprojectsiddeploymentsdeploymentidax-datarevoke) | operator | AX data revoke |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/ready`](#post-apiprojectsiddeploymentsdeploymentidax-dataready) | operator | AX data ready |
+| `GET` | [`/api/ax/runs/{deploymentId}/data/{grantId}/files/{referenceId}`](#get-apiaxrunsdeploymentiddatagrantidfilesreferenceid) | operator | Read an admitted AinDrive file from an AX workload |
+| `POST` | [`/api/ax/runs/{deploymentId}/v1/chat/completions`](#post-apiaxrunsdeploymentidv1chatcompletions) | operator | Invoke a delegated model from an authenticated AX workload |
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
 | `GET` | [`/api/projects/{id}/domains`](#get-apiprojectsiddomains) | none | List app domains and required DNS records (project owner only) |
@@ -306,6 +314,31 @@ See [Error codes](./errors.md) for the full list.
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
+| `GET` | [`/api/ax`](#get-apiax) | operator | Check Google AX connectivity and configured atespace |
+| `GET` | [`/api/ax/tasks`](#get-apiaxtasks) | operator | List AX tasks |
+| `POST` | [`/api/ax/tasks`](#post-apiaxtasks) | operator | Create an AX Task |
+| `GET` | [`/api/ax/tasks/{name}`](#get-apiaxtasksname) | operator | Read an AX Task |
+| `DELETE` | [`/api/ax/tasks/{name}`](#delete-apiaxtasksname) | operator | Delete an AX Task |
+| `GET` | [`/api/ax/workspaces`](#get-apiaxworkspaces) | operator | List AX workspaces |
+| `POST` | [`/api/ax/workspaces`](#post-apiaxworkspaces) | operator | Upsert an AX Workspace |
+| `GET` | [`/api/ax/workspaces/{name}`](#get-apiaxworkspacesname) | operator | Read an AX Workspace |
+| `DELETE` | [`/api/ax/workspaces/{name}`](#delete-apiaxworkspacesname) | operator | Delete an AX Workspace |
+| `GET` | [`/api/ax/models`](#get-apiaxmodels) | operator | List AX models |
+| `POST` | [`/api/ax/models`](#post-apiaxmodels) | operator | Upsert an AX Model |
+| `GET` | [`/api/ax/models/{name}`](#get-apiaxmodelsname) | operator | Read an AX Model |
+| `DELETE` | [`/api/ax/models/{name}`](#delete-apiaxmodelsname) | operator | Delete an AX Model |
+| `POST` | [`/api/ax/tasks/{name}/suspend`](#post-apiaxtasksnamesuspend) | operator | suspend an AX task |
+| `POST` | [`/api/ax/tasks/{name}/resume`](#post-apiaxtasksnameresume) | operator | resume an AX task |
+| `GET` | [`/api/ax/tasks/{name}/egress`](#get-apiaxtasksnameegress) | operator | Read the AX task actor egress policy |
+| `PUT` | [`/api/ax/tasks/{name}/egress`](#put-apiaxtasksnameegress) | operator | Create or conditionally replace the AX task actor egress policy |
+| `GET` | [`/api/ax/tasks/{name}/runs/{runId}`](#get-apiaxtasksnamerunsrunid) | operator | Inspect an AX command result |
+| `GET` | [`/api/ax/tasks/{name}/runs/{runId}/output/{stream}`](#get-apiaxtasksnamerunsrunidoutputstream) | operator | Read bounded AX command output |
+| `GET` | [`/api/ax/tenants`](#get-apiaxtenants) | operator | List registered AX tenant bindings |
+| `POST` | [`/api/ax/tenants`](#post-apiaxtenants) | operator | Register an immutable SSO organization runtime binding |
+| `GET` | [`/api/ax/tenants/audit`](#get-apiaxtenantsaudit) | operator | Read AX tenant registry audit events |
+| `GET` | [`/api/ax/tenants/{id}`](#get-apiaxtenantsid) | operator | Read an AX tenant binding |
+| `PATCH` | [`/api/ax/tenants/{id}`](#patch-apiaxtenantsid) | operator | Activate or disable an AX tenant binding |
+| `POST` | [`/api/ax/tenants/{id}/projects`](#post-apiaxtenantsidprojects) | operator | Bind a provider project to an AX tenant |
 | `GET` | [`/api/me/teach/policy`](#get-apimeteachpolicy) | operator | Teaching policy (overrides + effective + trainer state) |
 | `PATCH` | [`/api/me/teach/policy`](#patch-apimeteachpolicy) | operator | Change the teaching policy (persisted in the node store) |
 | `GET` | [`/api/me/teach/datasets`](#get-apimeteachdatasets) | operator | What visitors uploaded to this machine (moderation view) |
@@ -2503,7 +2536,7 @@ Liveness: 200 while the process is up
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ok, node, address, version, commit, uptime_s | `object` |
+| `200` | ok, node, address, version, commit, deploymentManager, uptime_s | `object` |
 
 **`200` response body**
 
@@ -2514,6 +2547,7 @@ Liveness: 200 while the process is up
 | `address` | `string` |   |
 | `version` | `string` |   |
 | `commit` | `string` \| `null` | Git commit SHA this node was built from; null when unknown |
+| `deploymentManager` | `"host"` \| `"kubernetes"` | Configured deployment manager, not proof of cluster membership |
 | `uptime_s` | `integer` |   |
 
 ### `GET /readyz`
@@ -2526,7 +2560,7 @@ Readiness: 200 when the ledger is reachable and, for a serving/verifier node, th
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ready — commit, checks.ledger / checks.runtime / checks.peers | `object` |
+| `200` | ready — commit, deploymentManager, checks.ledger / checks.runtime / checks.peers | `object` |
 | `503` | not ready — the same body, with the failing check |   |
 
 ## Organizations
@@ -4936,6 +4970,289 @@ Same project viewer/actor permission as Run. Deployed means last successful acti
 | `404` | Unknown or unreadable resource |
 | `409` | Read-only source, conflict or runtime not ready |
 
+### `POST /api/projects/{id}/ax-runs`
+
+Create an AX run awaiting signed approval
+
+Requires an existing project owner/member session and AINIZE_AX_PROJECT_ADMISSION=true. This is durable admission only; runtime dispatch requires the AX executor. No tenant or cluster can be supplied by the caller.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `dataRequired` | `boolean` |   | Wait for explicit data grant selection before execution |
+| `target` | `object` | yes |   |
+| `sha` | `string` | yes |   |
+| `entry` | `string` |   | (at most 200 characters) |
+| `inputs` | `object` |   |   |
+| `env` | `object` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | Persisted AX run/approval; not evidence of execution |
+| `400` | Invalid request |
+| `401` | Sign-in required |
+| `403` | Project access or execution approval denied |
+| `404` | Project/run absent or hidden |
+| `409` | Registration or run state incompatible |
+| `503` | AX admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-approval`
+
+Verify a run-scoped SSO delegation and enqueue the AX run
+
+Requires an existing project owner/member session and AINIZE_AX_PROJECT_ADMISSION=true. This is durable admission only; runtime dispatch requires the AX executor. No tenant or cluster can be supplied by the caller.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `token` | `string` | yes | AIN SSO resource delegation; never stored verbatim (1–32768 characters) |
+| `proof` | `string` | yes | PoP for POST to the configured origin and this exact approval path (1–8192 characters) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | Persisted AX run/approval; not evidence of execution |
+| `400` | Invalid request |
+| `401` | Sign-in required |
+| `403` | Project access or execution approval denied |
+| `404` | Project/run absent or hidden |
+| `409` | Registration or run state incompatible |
+| `503` | AX admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/key`
+
+AX data key
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+`{"type":"object","additionalProperties":false}`
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/grants`
+
+AX data grants
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `token` | `string` | yes | SSO data delegation bound to this run PoP key; encrypted at rest (at most 32768 characters) |
+| `resources` | `object`[] | yes | (1–64 items) |
+| `resources[].resource` | `string` | yes |   |
+| `resources[].actions` | `"read"` \| `"list"`[] | yes |   |
+| `files` | `object`[] | yes | (1–64 items) |
+| `files[].driveId` | `string` | yes |   |
+| `files[].fileId` | `string` | yes |   |
+| `files[].path` | `string` | yes | Canonical relative AinDrive path matching fileId |
+| `files[].revision` | `string` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/revoke`
+
+AX data revoke
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `delegationId` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/ready`
+
+AX data ready
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `grantIds` | `string`[] | yes | (1–64 items) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `202` | Data selection persisted and run requeued; execution still checks current authorization |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `GET /api/ax/runs/{deploymentId}/data/{grantId}/files/{referenceId}`
+
+Read an admitted AinDrive file from an AX workload
+
+Bearer must be a native Substrate actor JWT. Checks live workload/run approval and data delegation, then reads the stored reference through the fixed AinDrive origin. No query parameters or destination overrides. Returns content, encoding, mime and decoded byte count.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `deploymentId` | `path` | `string` | yes |
+| `grantId` | `path` | `string` | yes |
+| `referenceId` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Bounded file content envelope |
+| `400` | Invalid identifier or query override |
+| `401` | Missing workload JWT |
+| `403` | Workload, grant or file access denied |
+| `413` | File exceeds bounds |
+| `429` | Four concurrent reads already active |
+| `502` | Origin request or response failed |
+| `503` | Origin offline or broker stopping |
+
+### `POST /api/ax/runs/{deploymentId}/v1/chat/completions`
+
+Invoke a delegated model from an authenticated AX workload
+
+Bearer is a native Substrate actor JWT, not an operator token. Requires AINIZE_AX_BROKER_MODELS_FILE, fixed broker issuer/JWKS, an active UID-bound project run, and the exact model resource invoke grant. Supports bounded JSON responses with stream=false. User credentials stay inside the node; its existing model gateway applies account and usage checks. Gateway JWT injection must be configured separately.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `model` | `string` | yes |
+| `messages` | `object`[] | yes |
+| `stream` | `object` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Bounded model JSON response |
+| `400` | Invalid request or streaming requested |
+| `401` | Missing workload token |
+| `403` | Workload, delegation or model permission denied |
+| `429` | Broker concurrency limit or model quota |
+| `502` | Model gateway failed or returned an unsafe/oversized response |
+
 ### `GET /api/projects`
 
 The caller's projects
@@ -5637,6 +5954,670 @@ The node proxies the request to the container on its internal network; the `outp
 ## Operator
 
 wallet, settings, purchases, branches, peers, chain, drive
+
+### `GET /api/ax`
+
+Check Google AX connectivity and configured atespace
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tasks`
+
+List AX tasks
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default |
+|---|---|---|---|
+| `limit` | `query` | `integer` | `100` |
+| `offset` | `query` | `integer` | `0` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/tasks`
+
+Create an AX Task
+
+Uses AINIZE_AX_ATESPACE. Task readiness is not command completion. Requires Kubernetes and Agent Substrate.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `apiVersion` | `object` | yes |
+| `kind` | `object` | yes |
+| `metadata` | `object` | yes |
+| `metadata.name` | `string` | yes |
+| `metadata.atespace` | `string` |   |
+| `spec` | `object` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tasks/{name}`
+
+Read an AX Task
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `DELETE /api/ax/tasks/{name}`
+
+Delete an AX Task
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `204` | Deleted |
+| `400` | Invalid resource or namespace |
+| `403` | Node operator session required |
+| `404` | Resource not found |
+| `409` | Resource exists or lifecycle precondition failed |
+| `503` | AX disabled or unavailable |
+| `504` | AX RPC deadline exceeded |
+
+### `GET /api/ax/workspaces`
+
+List AX workspaces
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/workspaces`
+
+Upsert an AX Workspace
+
+Uses AINIZE_AX_ATESPACE. Task readiness is not command completion. Requires Kubernetes and Agent Substrate.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `apiVersion` | `object` | yes |
+| `kind` | `object` | yes |
+| `metadata` | `object` | yes |
+| `metadata.name` | `string` | yes |
+| `metadata.atespace` | `string` |   |
+| `spec` | `object` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/workspaces/{name}`
+
+Read an AX Workspace
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `DELETE /api/ax/workspaces/{name}`
+
+Delete an AX Workspace
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `204` | Deleted |
+| `400` | Invalid resource or namespace |
+| `403` | Node operator session required |
+| `404` | Resource not found |
+| `409` | Resource exists or lifecycle precondition failed |
+| `503` | AX disabled or unavailable |
+| `504` | AX RPC deadline exceeded |
+
+### `GET /api/ax/models`
+
+List AX models
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/models`
+
+Upsert an AX Model
+
+Uses AINIZE_AX_ATESPACE. Task readiness is not command completion. Requires Kubernetes and Agent Substrate.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `apiVersion` | `object` | yes |
+| `kind` | `object` | yes |
+| `metadata` | `object` | yes |
+| `metadata.name` | `string` | yes |
+| `metadata.atespace` | `string` |   |
+| `spec` | `object` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/models/{name}`
+
+Read an AX Model
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `DELETE /api/ax/models/{name}`
+
+Delete an AX Model
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `204` | Deleted |
+| `400` | Invalid resource or namespace |
+| `403` | Node operator session required |
+| `404` | Resource not found |
+| `409` | Resource exists or lifecycle precondition failed |
+| `503` | AX disabled or unavailable |
+| `504` | AX RPC deadline exceeded |
+
+### `POST /api/ax/tasks/{name}/suspend`
+
+suspend an AX task
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/tasks/{name}/resume`
+
+resume an AX task
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tasks/{name}/egress`
+
+Read the AX task actor egress policy
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `PUT /api/ax/tasks/{name}/egress`
+
+Create or conditionally replace the AX task actor egress policy
+
+Requires separately configured Substrate TLS/token access. Supports exact hostname and explicit port HTTP, intercepted HTTPS or TLS passthrough rules. HTTPS may replace the authorization header with a native actor JWT using one HTTPS audience and a 300-second lifetime; clients must send a placeholder header and trust the gateway CA. Without expected, creates only; replacement requires the current policy UID and version. Empty rules deny egress. Policy changes do not terminate existing connections.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `rules` | `object`[] | yes | (at most 256 items) |
+| `expected` | `object` |   |   |
+| `expected.uid` | `string (uuid)` | yes |   |
+| `expected.version` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `201` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tasks/{name}/runs/{runId}`
+
+Inspect an AX command result
+
+Requires AINIZE_AX_ROUTER_ADDRESS and a Running task with debug enabled. Reads workload-produced files, marked trusted:false; does not establish trusted job completion or billing evidence.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+| `runId` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `413` | Artifact exceeds the bounded read limit |   |
+| `502` | Invalid artifact or guest service error |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tasks/{name}/runs/{runId}/output/{stream}`
+
+Read bounded AX command output
+
+Requires AINIZE_AX_ROUTER_ADDRESS and a Running task with debug enabled. Reads workload-produced files, marked trusted:false; does not establish trusted job completion or billing evidence.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+| `runId` | `path` | `string` | yes |
+| `stream` | `path` | `"stdout"` \| `"stderr"` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `413` | Artifact exceeds the bounded read limit |   |
+| `502` | Invalid artifact or guest service error |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tenants`
+
+List registered AX tenant bindings
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default |
+|---|---|---|---|
+| `limit` | `query` | `integer` | `100` |
+| `offset` | `query` | `integer` | `0` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/tenants`
+
+Register an immutable SSO organization runtime binding
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `orgId` | `string` | yes |   |
+| `policyVersion` | `string` | yes |   |
+| `reason` | `string` | yes | (1–1024 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tenants/audit`
+
+Read AX tenant registry audit events
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default |
+|---|---|---|---|
+| `limit` | `query` | `integer` | `100` |
+| `offset` | `query` | `integer` | `0` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `GET /api/ax/tenants/{id}`
+
+Read an AX tenant binding
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `PATCH /api/ax/tenants/{id}`
+
+Activate or disable an AX tenant binding
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `state` | `"active"` \| `"disabled"` | yes |   |
+| `reason` | `string` | yes | (1–1024 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
+
+### `POST /api/ax/tenants/{id}/projects`
+
+Bind a provider project to an AX tenant
+
+Requires AINIZE_AX_TENANT_REGISTRY=true, AIN SSO and AINIZE_AX_CLUSTER_UID. Administrative mapping only: does not provision Kubernetes or grant product data access. Issuer and cluster are fixed by server configuration.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `providerPeer` | `string` | yes |   |
+| `projectId` | `string` | yes |   |
+| `reason` | `string` | yes | (1–1024 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | AX resource | `object` |
+| `400` | Invalid resource or namespace |   |
+| `403` | Node operator session required |   |
+| `404` | Resource not found |   |
+| `409` | Resource exists or lifecycle precondition failed |   |
+| `500` | Tenant registry unavailable |   |
+| `503` | AX disabled or unavailable |   |
+| `504` | AX RPC deadline exceeded |   |
 
 ### `GET /api/me/teach/policy`
 
