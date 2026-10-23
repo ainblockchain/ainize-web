@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parseDoc, type Block } from './markdown-parser';
-import { runsInAinCode, stepKind, stepRequirements, type StepKind } from './practice-step';
+import { practiceFront, runsInAinCode, stepKind, stepRequirements, type StepKind } from './practice-step';
 
 export type PracticeStep = {
   id: string; number: number; section: string; language: string; code: string;
@@ -25,7 +25,7 @@ export function practicePlan(source: string, lang: string, slug: string) {
       const kind = stepKind(language, block.code, Boolean(block.output));
       const requirements = stepRequirements(kind, block.code, language);
       const number = steps.length + 1;
-      steps.push({ id: `step-${number}`, number, section, language, code: block.code, kind, requirements, aincode: runsInAinCode(kind, requirements, doc.front) });
+      steps.push({ id: `step-${number}`, number, section, language, code: block.code, kind, requirements, aincode: runsInAinCode(kind, requirements, practiceFront(slug, doc.front)) });
     }
   };
   walk(doc.blocks);
