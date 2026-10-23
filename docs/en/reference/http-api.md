@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-314 operations on 259 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+318 operations on 263 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -272,6 +272,10 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/source`](#get-apiprojectsidsource) | operator | Read the manifest from an immutable execution source |
 | `POST` | [`/api/projects/{id}/ax-runs`](#post-apiprojectsidax-runs) | operator | Create an AX run awaiting signed approval |
 | `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-approval`](#post-apiprojectsiddeploymentsdeploymentidax-approval) | operator | Verify a run-scoped SSO delegation and enqueue the AX run |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/key`](#post-apiprojectsiddeploymentsdeploymentidax-datakey) | operator | AX data key |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/grants`](#post-apiprojectsiddeploymentsdeploymentidax-datagrants) | operator | AX data grants |
+| `POST` | [`/api/projects/{id}/deployments/{deploymentId}/ax-data/revoke`](#post-apiprojectsiddeploymentsdeploymentidax-datarevoke) | operator | AX data revoke |
+| `GET` | [`/api/ax/runs/{deploymentId}/data/{grantId}/files/{referenceId}`](#get-apiaxrunsdeploymentiddatagrantidfilesreferenceid) | operator | Read an admitted AinDrive file from an AX workload |
 | `POST` | [`/api/ax/runs/{deploymentId}/v1/chat/completions`](#post-apiaxrunsdeploymentidv1chatcompletions) | operator | Invoke a delegated model from an authenticated AX workload |
 | `GET` | [`/api/projects`](#get-apiprojects) | operator | The caller's projects |
 | `POST` | [`/api/projects`](#post-apiprojects) | operator | Bind an aindrive git repository as a project |
@@ -5034,6 +5038,146 @@ Requires an existing project owner/member session and AINIZE_AX_PROJECT_ADMISSIO
 | `404` | Project/run absent or hidden |
 | `409` | Registration or run state incompatible |
 | `503` | AX admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/key`
+
+AX data key
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+`{"type":"object","additionalProperties":false}`
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/grants`
+
+AX data grants
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `token` | `string` | yes | SSO data delegation bound to this run PoP key; encrypted at rest (at most 32768 characters) |
+| `resources` | `object`[] | yes | (1–64 items) |
+| `resources[].resource` | `string` | yes |   |
+| `resources[].actions` | `"read"` \| `"list"`[] | yes |   |
+| `files` | `object`[] | yes | (1–64 items) |
+| `files[].driveId` | `string` | yes |   |
+| `files[].fileId` | `string` | yes |   |
+| `files[].path` | `string` | yes | Canonical relative AinDrive path matching fileId |
+| `files[].revision` | `string` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/revoke`
+
+AX data revoke
+
+Requires an active approved AX run, project owner/member access, and AINIZE_AX_AINDRIVE_ORIGIN. Subject and organization of data grants must match the immutable run approval. Local revocation does not revoke the token at SSO.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `deploymentId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `delegationId` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Public run PoP key, agent and product audience |
+| `201` | Admitted delegation ID, expiry and stored file references; no token |
+| `204` | Local data grant retired |
+| `400` | Invalid input |
+| `401` | Sign-in required |
+| `403` | Data admission denied |
+| `404` | Project/run absent or hidden |
+| `409` | Run is not active |
+| `503` | Data admission disabled |
+
+### `GET /api/ax/runs/{deploymentId}/data/{grantId}/files/{referenceId}`
+
+Read an admitted AinDrive file from an AX workload
+
+Bearer must be a native Substrate actor JWT. Checks live workload/run approval and data delegation, then reads the stored reference through the fixed AinDrive origin. No query parameters or destination overrides. Returns content, encoding, mime and decoded byte count.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `deploymentId` | `path` | `string` | yes |
+| `grantId` | `path` | `string` | yes |
+| `referenceId` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | Bounded file content envelope |
+| `400` | Invalid identifier or query override |
+| `401` | Missing workload JWT |
+| `403` | Workload, grant or file access denied |
+| `413` | File exceeds bounds |
+| `429` | Four concurrent reads already active |
+| `502` | Origin request or response failed |
+| `503` | Origin offline or broker stopping |
 
 ### `POST /api/ax/runs/{deploymentId}/v1/chat/completions`
 
