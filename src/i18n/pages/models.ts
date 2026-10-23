@@ -5,6 +5,22 @@ export const models: Dict = {
   'models.served_by': { ko: '제공 노드: {nodes}', en: 'Served by {nodes}' },
   'modelDetail.providers': { ko: '제공 노드', en: 'Served by' },
   'modelDetail.provider_here': { ko: '이 노드', en: 'this node' },
+  'modelDetail.harness.title': { ko: '하네스', en: 'Harness' },
+  'modelDetail.harness.lede': {
+    ko: '이 모델은 {name}에 맞춰 최적화되었습니다. ainize.ai/code의 모든 AinCode 워크스페이스에 {name}가 들어 있고, 네트워크의 이 모델(온프렘)에 연결되어 있습니다. AinCode 에이전트의 기본 모델도 이 모델입니다.',
+    en: 'This model is optimized for {name}. Every AinCode workspace on ainize.ai/code ships {name}, connected to this model on the network (on-prem). It is also the AinCode agent’s default model.',
+  },
+  'modelDetail.harness.fact.harness': { ko: '하네스', en: 'Harness' },
+  'modelDetail.harness.fact.sampling': { ko: '샘플링', en: 'Sampling' },
+  'modelDetail.harness.fact.reasoning': { ko: '추론 강도', en: 'Reasoning effort' },
+  'modelDetail.harness.fact.context': { ko: '컨텍스트', en: 'Context' },
+  'modelDetail.harness.reasoning_value': { ko: '{effort} (선택: {efforts})', en: '{effort} ({efforts} accepted)' },
+  'modelDetail.harness.context_value': { ko: '{context} 토큰 · {compact}에서 자동 압축', en: '{context} tokens · auto-compacts at {compact}' },
+  'modelDetail.harness.open': { ko: 'AinCode에서 열기', en: 'Open in AinCode' },
+  'modelDetail.harness.howto': {
+    ko: '워크스페이스 터미널에서 실행하면 하네스 웹 UI가 비공개 미리보기 링크로 열립니다. 한 번만 실행하려면:',
+    en: 'Run it in the workspace terminal to open the harness Web UI at a private preview link. For one headless task:',
+  },
   'models.title': { ko: '모델', en: 'Models' },
   'models.lede': {
     ko: 'Ainize 네트워크에 연결된 노드들이 제공하는 모델입니다. 누구나 자기 노드에 모델을 올려 연결할 수 있고, 모델마다 어느 노드가 제공하는지 함께 표시됩니다. 아래에서 바로 눌러볼 수 있고 — 키도 예치도 필요 없습니다 — 같은 호출을 코드로 복사해 갈 수 있습니다.',
