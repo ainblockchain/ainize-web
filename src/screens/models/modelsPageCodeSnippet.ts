@@ -103,9 +103,12 @@ const shellJson = (value: unknown): string => JSON.stringify(value).replace(/'/g
  * nothing to answer, and the copied code "works" by printing nothing — which reads as the call being broken.
  * A real question gets a real reply, so the first paste proves the key, the URL and the model all at once.
  */
-export const SNIPPET_SAMPLE_PROMPT = { chat: 'Hello! Introduce yourself in one sentence.', image: 'a lighthouse at sunset, photo' } as const;
+export const SNIPPET_SAMPLE_PROMPT = { chat: 'Hello! Introduce yourself in one sentence.', image: 'a lighthouse at sunset, photo', music: 'calm lo-fi piano, soft rain' } as const;
 const promptOf = (o: SnippetOptions): string =>
-  (o.prompt?.trim() ? o.prompt : o.modality === 'image' ? SNIPPET_SAMPLE_PROMPT.image : SNIPPET_SAMPLE_PROMPT.chat);
+  (o.prompt?.trim() ? o.prompt : o.modality === 'image' ? SNIPPET_SAMPLE_PROMPT.image : o.modality === 'music' ? SNIPPET_SAMPLE_PROMPT.music : SNIPPET_SAMPLE_PROMPT.chat);
+
+/** What the playground and the snippet ask a music model for besides the prompt: a short instrumental. */
+export const MUSIC_TRY = { instrumental: true, duration: 30, response_format: 'mp3' } as const;
 
 /** A literal that is valid in all three languages. */
 const lit = (value: string): string => JSON.stringify(value);
@@ -125,6 +128,8 @@ function python(o: SnippetOptions): string {
   }
   if (o.modality === 'embedding') return `${head}out = client.embeddings.create(model=${model}, input=${prompt})\nprint(out.data[0].embedding)\n`;
   if (o.modality === 'speech') return `${head}with client.audio.speech.with_streaming_response.create(model=${model}, input=${prompt}, voice="default") as audio:\n    audio.stream_to_file("out.mp3")\n`;
+  // OpenAI's client has no music call; its generic post() reaches the node's /v1/audio/music with the same key.
+  if (o.modality === 'music') return `${head}import httpx\n\nsong = client.post("/audio/music", cast_to=httpx.Response, body={\n    "model": ${model},\n    "prompt": ${prompt},\n    "instrumental": True,\n    "duration": ${MUSIC_TRY.duration},\n    "response_format": "mp3",\n}, options={"timeout": 300})\nopen("out.mp3", "wb").write(song.content)\n`;
   if (o.modality === 'transcription') {
     return `${head}with open("audio.flac", "rb") as f:\n    print(client.audio.transcriptions.create(model=${model}, file=f).text)\n`;
   }
@@ -146,6 +151,7 @@ function typescript(o: SnippetOptions): string {
   }
   if (o.modality === 'embedding') return `${head}const out = await client.embeddings.create({ model: ${model}, input: ${prompt} });\nconsole.log(out.data[0].embedding);\n`;
   if (o.modality === 'speech') return `${head}import { writeFile } from 'node:fs/promises';\nconst audio = await client.audio.speech.create({ model: ${model}, input: ${prompt}, voice: 'default' });\nawait writeFile('out.mp3', Buffer.from(await audio.arrayBuffer()));\n`;
+  if (o.modality === 'music') return `${head}import { writeFile } from 'node:fs/promises';\nconst song = await client.post<Response>('/audio/music', {\n  body: { model: ${model}, prompt: ${prompt}, instrumental: true, duration: ${MUSIC_TRY.duration}, response_format: 'mp3' },\n  __binaryResponse: true,\n  timeout: 300_000,\n});\nawait writeFile('out.mp3', Buffer.from(await song.arrayBuffer()));\n`;
   if (o.modality === 'transcription') {
     return `${head}const text = await client.audio.transcriptions.create({\n  model: ${model},\n  file: await fetch('audio.flac').then((r) => r.blob()),\n});\nconsole.log(text.text);\n`;
   }
@@ -165,11 +171,12 @@ function curl(o: SnippetOptions): string {
     const { state, questions } = decisionRequestOf(o);
     return `${key}curl ${v1(o.nodeUrl, 'systemone')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d '${shellJson({ model: o.model, state, questions })}'\n`;
   }
-  if (o.modality === 'embedding' || o.modality === 'speech') {
-    const path = o.modality === 'embedding' ? 'embeddings' : 'audio/speech';
-    const body = JSON.stringify({ model: o.model, input: promptOf(o), ...(o.modality === 'speech' ? { voice: 'default' } : {}) });
+  if (o.modality === 'embedding' || o.modality === 'speech' || o.modality === 'music') {
+    const path = o.modality === 'embedding' ? 'embeddings' : o.modality === 'speech' ? 'audio/speech' : 'audio/music';
+    const body = JSON.stringify(o.modality === 'music' ? { model: o.model, prompt: promptOf(o), ...MUSIC_TRY }
+      : { model: o.model, input: promptOf(o), ...(o.modality === 'speech' ? { voice: 'default' } : {}) });
     const quoted = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
-    return `curl ${quoted(v1(o.nodeUrl, path))} -H ${quoted(`Authorization: Bearer ${bearer}`)} -H 'Content-Type: application/json' -d ${quoted(body)}${o.modality === 'speech' ? ' --output out.mp3' : ''}\n`;
+    return `curl ${quoted(v1(o.nodeUrl, path))} -H ${quoted(`Authorization: Bearer ${bearer}`)} -H 'Content-Type: application/json' -d ${quoted(body)}${o.modality === 'embedding' ? '' : ' --output out.mp3'}\n`;
   }
   if (o.modality === 'transcription') {
     // Multipart, not JSON: an audio upload has a file in it, and a JSON content type would be rejected.

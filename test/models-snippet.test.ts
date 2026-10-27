@@ -26,6 +26,23 @@ test('embedding and speech snippets call the appropriate SDK methods', () => {
   assert.match(modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'speech' }), /\/v1\/audio\/speech/);
 });
 
+test('music snippets post to /v1/audio/music through the SDK client and save the audio', () => {
+  const python = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'music', model: 'ace-step-1.5', prompt: 'calm piano' });
+  assert.match(python, /ainize\.connect/);
+  assert.match(python, /client\.post\("\/audio\/music", cast_to=httpx\.Response/);
+  assert.match(python, /"prompt": "calm piano"/);
+  assert.match(python, /out\.mp3/);
+  const ts = modelsPageCodeSnippet({ ...base, language: 'typescript', modality: 'music', model: 'ace-step-1.5', prompt: 'calm piano' });
+  assert.match(ts, /connectAinize/);
+  assert.match(ts, /client\.post<Response>\('\/audio\/music'/);
+  assert.match(ts, /__binaryResponse: true/);
+  const curl = modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'music', model: 'ace-step-1.5', prompt: '' });
+  assert.match(curl, /\/v1\/audio\/music/);
+  assert.match(curl, /"prompt":"calm lo-fi piano, soft rain"/, 'an empty box still sends a real prompt');
+  assert.match(curl, /--output out\.mp3/);
+  for (const s of [python, ts, curl]) assert.doesNotMatch(s, /chat\.completions|audio\/speech|"input"/);
+});
+
 test('the python snippet installs, connects and calls', () => {
   const s = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat' });
   assert.match(s, /pip install ainize/);

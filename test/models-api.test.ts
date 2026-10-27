@@ -21,6 +21,15 @@ test('embedding and speech models remain visible in their own groups', () => {
   assert.equal(cards[1].available, false);
 });
 
+test('music models are kept and grouped after speech', () => {
+  const cards = parseModelsResponse({ data: [
+    { id: 'ace-step-1.5', modality: 'music', available: true },
+    { id: 'voice', modality: 'speech', available: true },
+  ] });
+  assert.equal(cards.length, 2);
+  assert.deepEqual(modelsByModality(cards).map(group => group.modality), ['speech', 'music']);
+});
+
 test('a node answer parses into cards', () => {
   const parsed = parseModelsResponse({ object: 'list', data: [{ id: 'qwen3-asr', modality: 'transcription', available: true }] });
   assert.deepEqual(parsed, [{ id: 'qwen3-asr', modality: 'transcription', available: true }]);

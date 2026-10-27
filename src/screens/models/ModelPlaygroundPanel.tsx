@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Input, Textarea, TextField } from '@/components/ui/Form';
 import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { DECISION_EXAMPLE, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
+import { DECISION_EXAMPLE, MUSIC_TRY, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
 import { readChatStream } from './playgroundStream';
 import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './issuedKeyMemory';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
@@ -153,7 +153,7 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
         setRun({ kind: 'text', text: done.text, reasoning: done.reasoning, remaining: null });
         return;
       }
-      if (model.modality === 'speech') {
+      if (model.modality === 'speech' || model.modality === 'music') {
         setRun({ kind: 'audio', url: URL.createObjectURL(await res.blob()) });
         return;
       }
@@ -242,7 +242,7 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
                 ))}
               </Decisions>
             )}
-            {run.kind === 'audio' && <audio controls src={run.url} aria-label="Generated speech" />}
+            {run.kind === 'audio' && <audio controls src={run.url} aria-label={model.modality === 'music' ? 'Generated music' : 'Generated speech'} />}
             {run.kind === 'failed' && <Alert>{t('models.try.failed', { why: run.why })}</Alert>}
             {(run.kind === 'text' || run.kind === 'image' || run.kind === 'decision') && run.remaining !== null && (
               <Description>{t('models.try.free', { n: String(run.remaining) })}</Description>
@@ -358,6 +358,11 @@ function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, p
     if (!apiKey) throw new Error('Create an API key below to try this model.');
     const path = model.modality === 'embedding' ? 'embeddings' : 'audio/speech';
     return fetch(`/v1/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: modelRef, input: prompt, ...(model.modality === 'speech' ? { voice: 'default' } : {}) }) });
+  }
+  if (model.modality === 'music') {
+    // No free tier: like speech, a song is generated with the visitor's own key. 30 s instrumental is the quick try.
+    if (!apiKey) throw new Error('Create an API key below to try this model.');
+    return fetch('/v1/audio/music', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: modelRef, ...MUSIC_TRY, prompt }) });
   }
   if (model.modality === 'transcription') {
     const form = new FormData();
