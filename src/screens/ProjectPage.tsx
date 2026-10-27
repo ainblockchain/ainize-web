@@ -25,7 +25,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import {
-  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
+  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
   useRedeployMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
@@ -40,6 +40,7 @@ import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRoutes';
+import { repoProjectLabel, repoProjects, selectRepoProject } from '@/lib/repoProjects';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
@@ -342,7 +343,11 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
 type Tab = 'deployments' | 'runs' | 'logs' | 'settings';
 const TABS: Tab[] = ['deployments', 'runs', 'logs', 'settings'];
 
-export function ProjectConsole({ project: initial }: { project: Project }) {
+/**
+ * One project's console. `switcher`: on a repository's page with several deployments (the root and its monorepo
+ * folder projects), the row that picks which one this console shows — drawn under the breadcrumb.
+ */
+export function ProjectConsole({ project: initial, switcher }: { project: Project; switcher?: ReactNode }) {
   const { t } = useT();
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
@@ -434,8 +439,10 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
     <PageWrapper $wide>
       <Crumbs aria-label="breadcrumb">
         <Link to={orgPath(p.org)}>{p.org}</Link><span className="sep">/</span><span>{p.repoName}</span>
+        {p.sourcePath && <><span className="sep">/</span><span>{p.sourcePath}</span></>}
         <StatusDot status={p.status} />
       </Crumbs>
+      {switcher}
       <HeaderRow>
         {p.sourceCommit && <Meta>{t('projects.page.source')}: <Mono title={p.sourceCommit}>{shortSha(p.sourceCommit)}</Mono></Meta>}
         {p.activeCommit && <Meta>{t('projects.page.active')}: <Mono title={p.activeCommit}>{shortSha(p.activeCommit)}</Mono></Meta>}
@@ -560,6 +567,26 @@ export function ProjectConsole({ project: initial }: { project: Project }) {
   );
 }
 
+/** Every deployment of the repository — its root and folder projects — each a tab with its status. */
+function RepoDeployments({ projects, selected, onPick }: { projects: Project[]; selected: string; onPick: (id: string) => void }) {
+  const { t } = useT();
+  return (
+    <section aria-label={t('projects.page.repo_deployments')} data-testid="repo-deployments">
+      <Meta>{t('projects.page.repo_deployments')}</Meta>
+      <Tabs tabs={projects.map((p) => ({ id: p.id, label: `${repoProjectLabel(p)} · ${t(`projects.status.${p.status}`)}` }))} value={selected} onChange={onPick} />
+    </section>
+  );
+}
+
+/** `path` (which may carry its own query) with `search` (`?a=b`) merged in; the path's own parameters win. */
+const withSearch = (path: string, search: string) => {
+  const [base, own = ''] = path.split('?');
+  const merged = new URLSearchParams(search);
+  for (const [k, v] of new URLSearchParams(own)) merged.set(k, v);
+  const q = merged.toString();
+  return q ? `${base}?${q}` : base!;
+};
+
 // ------------------------------------------------------------------------------------------------ routes
 
 /** `/:org/:repo` — a project by name; when none is bound here, the knowledge page that used to own this shape. */
@@ -567,9 +594,18 @@ export function ProjectByNamePage() {
   const { org = '', repo = '' } = useParams();
   const reserved = isReservedFirstSegment(org);
   const q = useProjectByNameQuery({ org, repo }, { skip: reserved });
+  // A monorepo's folder projects share this address: the organization's list names them (the ones this viewer may see).
+  const orgQ = useOrgProjectsQuery(org, { skip: reserved || !q.data });
+  const [sp, setSp] = useSearchParams();
   if (reserved) return <NotFoundPage />;
   if (q.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (q.data) return <ProjectConsole project={q.data} />;
+  if (q.data) {
+    const all = repoProjects(q.data, orgQ.data?.projects ?? []);
+    const selected = selectRepoProject(all, sp.get('project'));
+    const pick = (id: string) => setSp(() => { const n = new URLSearchParams(); const folder = all.find((p) => p.id === id)?.sourcePath; if (folder) n.set('project', folder); return n; });
+    const switcher = all.length > 1 ? <RepoDeployments projects={all} selected={selected.id} onPick={pick} /> : undefined;
+    return <ProjectConsole key={selected.id} project={selected} switcher={switcher} />;
+  }
   // Not a project here (404), or the node is unreachable: `/<author>/<patchId>` has its own answer either way.
   return <PatchPage />;
 }
@@ -584,8 +620,8 @@ export default function ProjectPage() {
   const location = useLocation();
   const q = useProjectQuery(id);
   if (q.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (q.data?.sourcePath) return <ProjectConsole project={q.data} />;
-  if (q.data) return <Navigate to={`${projectPath(q.data)}${location.search}`} replace />;
+  // A folder project's page is its repository's, with it selected (`?project=<folder>`); other parameters ride along.
+  if (q.data) return <Navigate to={withSearch(projectPath(q.data), location.search)} replace />;
   const why = projectApiErrorOf(q.error);
   return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty></PageWrapper>;
 }

@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
 import { projectPath } from '../src/lib/reservedRoutes.ts';
+import { repoProjectLabel, repoProjects, selectRepoProject } from '../src/lib/repoProjects.ts';
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`, import.meta.url)), 'utf8');
 
@@ -92,7 +93,7 @@ test('every link to a project is the pretty URL /<org>/<repo> (a monorepo folder
   for (const file of ['screens/ProjectNewPage.tsx', 'screens/MyProjectsPage.tsx', 'screens/ProjectPage.tsx', 'screens/OrgRepositoriesPage.tsx']) {
     assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} still builds a /projects/<id> link`);
   }
-  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{`\$\{projectPath\(q\.data\)\}/, '/projects/:id forwards to the pretty URL');
+  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{withSearch\(projectPath\(q\.data\), location\.search\)\}/, '/projects/:id forwards to the pretty URL');
   assert.match(read('screens/ProjectPage.tsx'), /<Link to=\{orgPath\(p\.org\)\}>\{p\.org\}<\/Link>/, 'the breadcrumb\'s org links to /<org>');
 });
 
@@ -105,15 +106,27 @@ test('the org page merges the drive\'s repositories with the projects bound here
   assert.deepEqual(rows.map((r) => [r.name, !!r.project, !!r.repo]), [['notes', false, true], ['clef-artwork-search', true, true], ['gone-from-drive', true, false]]);
 });
 
-test('a monorepo folder project is its own row and its own page; the repository row stays the root project', () => {
+test('a monorepo folder project is its own row; its page is the repository\'s, selected with ?project=<folder>', () => {
   const base = { org: 'comcom', repoName: 'aindrive', repo: 'https://aindrive.ainetwork.ai/comcom/git/aindrive', branch: 'main', kind: 'service', entry: null, status: 'ready', url: '', pageUrl: '', lastDeploymentId: null, createdAt: 1 } as const;
   const root = { ...base, id: 'prj_root', name: 'aindrive-web', updatedAt: 10, sourcePath: '' } as unknown as Project;
   const indexer = { ...base, id: 'prj_idx', name: 'aindrive-indexer', updatedAt: 20, sourcePath: 'indexer' } as unknown as Project;
   const rows = mergeOrgRepos([indexer, root], [{ name: 'aindrive', cloneUrl: 'c', headSha: 'a', headSubject: 's', updatedAt: 5, hasManifest: true }]);
   assert.deepEqual(rows.map((r) => [r.name, r.project?.id ?? null]), [['aindrive/indexer', 'prj_idx'], ['aindrive', 'prj_root']]);
   assert.equal(projectPath(root), '/comcom/aindrive');
-  assert.equal(projectPath(indexer), '/projects/prj_idx');
-  assert.match(read('screens/ProjectPage.tsx'), /if \(q\.data\?\.sourcePath\) return <ProjectConsole project=\{q\.data\} \/>;/);
+  assert.equal(projectPath(indexer), '/comcom/aindrive?project=indexer');
+  // every deployment of the repository on its one page: the root first, then folders; ?project= picks one
+  const other = { ...base, id: 'prj_other', name: 'x', updatedAt: 1, sourcePath: 'web', repo: 'https://aindrive.ainetwork.ai/comcom/git/other' } as unknown as Project;
+  const docs = { ...base, id: 'prj_docs', name: 'aindrive-docs', updatedAt: 30, sourcePath: 'docs' } as unknown as Project;
+  const all = repoProjects(root, [indexer, other, root, docs]);
+  assert.deepEqual(all.map((p) => p.id), ['prj_root', 'prj_docs', 'prj_idx'], 'other repositories are left out');
+  assert.equal(selectRepoProject(all, null).id, 'prj_root', 'no parameter: the root, as the page always was');
+  assert.equal(selectRepoProject(all, 'indexer').id, 'prj_idx');
+  assert.equal(selectRepoProject(all, 'nope').id, 'prj_root');
+  assert.deepEqual(repoProjects(root, [root]).map((p) => p.id), ['prj_root'], 'no folder projects: no switcher');
+  assert.equal(repoProjectLabel(indexer), 'aindrive/indexer');
+  const page = read('screens/ProjectPage.tsx');
+  assert.match(page, /const switcher = all\.length > 1 \? <RepoDeployments/, 'the switcher only when the repository has folder projects');
+  assert.match(page, /<ProjectConsole key=\{selected\.id\} project=\{selected\} switcher=\{switcher\} \/>/);
 });
 
 test('the Run panel: answers fall back to defaults, required blanks are named, env lines are parsed, times are relative', () => {
