@@ -26,7 +26,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } 
 import styled, { keyframes } from 'styled-components';
 import {
   useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
-  useRedeployMutation, useRotateProjectSecretMutation, useRunProjectMutation,
+  useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
 import {
@@ -387,7 +387,15 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   // and leaves the answers to be given again.
   const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
+  const [syncFromGithub, { isLoading: syncing }] = useSyncFromGithubMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
+  const [synced, setSynced] = useState(false);
+  // GitHub → AIN Drive runs on a backoff; this asks for it now. The push to AIN Drive then deploys as usual.
+  const syncNow = async () => {
+    setHeadErr(null);
+    try { await syncFromGithub(p.id).unwrap(); setSynced(true); }
+    catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
+  };
   const redeployLatest = async () => {
     if (!latest) return;
     setHeadErr(null);
@@ -459,6 +467,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
           <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>
           {!isScript && lastReady?.outputUrl && <Button variant="contained" size="small" onClick={() => window.open(lastReady.outputUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
+          {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}
