@@ -33,6 +33,7 @@ export const models: Dict = {
   'models.modality.decision': { ko: '의사결정', en: 'Decisions' },
   'models.modality.embedding': { ko: '임베딩', en: 'Embeddings' },
   'models.modality.speech': { ko: '음성 합성', en: 'Text to speech' },
+  'models.modality.music': { ko: '음악 생성', en: 'Music' },
   'models.available': { ko: '응답 중', en: 'answering' },
   'models.unavailable': { ko: '응답 없음', en: 'not answering' },
   'models.select': { ko: '선택', en: 'Select' },
