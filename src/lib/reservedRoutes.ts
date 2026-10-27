@@ -9,9 +9,9 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   // React Router routes (src/App.tsx)
   'explore', 'apps', 'models', 'billing', 'network', 'agent', 'agents', 'tracks', 'ledger', 'terms', 'signing', 'authorize', 'docs',
   'chat', 'teach', 'teacher', 'verifier', 'benchmarks', 'patch', 'me', 'projects', 'org', 'dashboard', 'new-patch', 'my-nodes',
-  'logs', 'project', 'account', 'drive',
+  'logs', 'project', 'account', 'drive', 'aincode',
   // Next.js routes (app/*) — served before the SPA ever renders
-  'api', 'git', 'p2p', 'v1', 'svc', 'x402', '_next',
+  'api', 'git', 'p2p', 'v1', 'svc', 'x402', '_next', 'code',
   // never a slug
   'static', 'assets', 'favicon.ico', 'robots.txt', 'sitemap.xml',
 ];

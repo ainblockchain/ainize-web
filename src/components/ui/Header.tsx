@@ -145,6 +145,9 @@ export function Header() {
               down, which is not where somebody arriving to see what this can do will find it. */}
           <NavItem to="/models" data-testid="nav-models">{t('nav.models')}</NavItem>
           <NavItem to="/apps" data-testid="nav-apps">{t('nav.apps')}</NavItem>
+          {/* Where each AinCode session runs and what it works on — a member once worked for hours in the personal
+              workspace on an organization project without noticing. */}
+          <NavItem to="/aincode" data-testid="nav-aincode">{t('nav.aincode')}</NavItem>
           {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}
           {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach" $active={teaching} className={teaching ? 'active' : undefined}>{t('nav.teach')}</NavPlain>}
           {isSignedIn && <NavItem to="/org" data-testid="nav-my-orgs">{t('orgs.mine')}</NavItem>}
