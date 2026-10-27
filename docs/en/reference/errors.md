@@ -165,9 +165,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 138 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 164 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 92 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 103 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -191,6 +191,13 @@ A further 92 throw sites build their message at the time (a validator's own word
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" example "\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
+| `null` | \<rel> is a binary file | `src/hosted-qa-engine.ts` |
+| `null` | \<rel> is a directory | `src/hosted-qa-engine.ts` |
+| `null` | \<rel> is a directory; use list_dir | `src/hosted-qa-engine.ts` |
+| `null` | \<rel> is larger than 1 MiB | `src/hosted-qa-engine.ts` |
+| `null` | \<rel> is not a directory | `src/hosted-qa-engine.ts` |
+| `null` | \<rel> is not a regular file | `src/hosted-qa-engine.ts` |
+| `null` | a file path is required | `src/hosted-qa-engine.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
@@ -207,19 +214,37 @@ A further 92 throw sites build their message at the time (a validator's own word
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
 | `null` | Audio response is too large | `src/peer-models.ts` |
+| `null` | binary content is not supported | `src/hosted-qa-engine.ts` |
+| `null` | cannot access \<rel> | `src/hosted-qa-engine.ts` |
+| `null` | content is larger than 1 MiB | `src/hosted-qa-engine.ts` |
+| `null` | content must be a string | `src/hosted-qa-engine.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
 | `null` | invalid agent source path | `src/agent-git.ts` |
+| `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
 | `null` | Model backend failed | `src/peer-models.ts` |
+| `null` | no such file or directory: \<rel> | `src/hosted-qa-engine.ts` |
+| `null` | not a directory: … | `src/hosted-qa-engine.ts` |
+| `null` | old_string and new_string are identical | `src/hosted-qa-engine.ts` |
+| `null` | old_string and new_string must be strings | `src/hosted-qa-engine.ts` |
+| `null` | old_string must not be empty; use write_file to create a file | `src/hosted-qa-engine.ts` |
+| `null` | old_string occurs \<count> times in \<rel>; include more surrounding lines to make it unique, or set replace_all | `src/hosted-qa-engine.ts` |
+| `null` | old_string was not found in \<rel>; read the file again and copy the text exactly (without the line-number prefix) | `src/hosted-qa-engine.ts` |
 | `null` | one account may create \<this.limits.perCreator> organizations on this node | `src/organization-store.ts` |
 | `null` | one account may link \<this.limits.perOwner> agents on this node | `src/linked-agent-store.ts` |
 | `null` | only a signed-in member of the AIN organization \<id> can link it | `src/organization-store.ts` |
 | `null` | only someone signed in with an @\<d> address can claim \<d> | `src/organization-store.ts` |
+| `null` | path must be a string | `src/hosted-qa-engine.ts` |
+| `null` | path refused | `src/hosted-qa-engine.ts` |
+| `null` | path refused: … is a symbolic link | `src/hosted-qa-engine.ts` |
+| `null` | path refused: \<raw> (paths are relative to the repository root; .., .git, .env files and absolute paths outside the repository are not allowed) | `src/hosted-qa-engine.ts` |
+| `null` | pattern is required | `src/hosted-qa-engine.ts` |
 | `null` | repository id already exists | `src/agent-git.ts` |
 | `null` | repository objects must not be symlinks | `src/agent-git.ts` |
 | `null` | repository storage limit exceeded (\<bytes> > \<this.storageLimitBytes> bytes); export history or ask the operator to raise the limit | `src/agent-git.ts` |
+| `null` | result is larger than 1 MiB | `src/hosted-qa-engine.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | shared workspace agents must stay in their organization | `src/agent-git-http.ts` |
 | `null` | the alias is the agent's own id | `src/agent-aliases.ts` |
@@ -235,6 +260,7 @@ A further 92 throw sites build their message at the time (a validator's own word
 | `null` | this organization has too many open invites | `src/organization-store.ts` |
 | `null` | this organization has too many pending requests | `src/organization-store.ts` |
 | `null` | this repository is not a valid agent: … | `src/project-agents.ts` |
+| `null` | this session is read-only | `src/hosted-qa-engine.ts` |
 | `null` | this tree is not a valid agent: … | `src/agent-git.ts` |
 | `400` | \<address> is listed in operatorAddresses in this node's config file — remove it there, on the machine this node runs on (`ainize operators remove <address>`), and restart | `src/api.ts` |
 | `400` | \<label> must be a non-negative number (e.g. "0", "0.1", "25") | `../ainize-core/src/catalog.ts` |
