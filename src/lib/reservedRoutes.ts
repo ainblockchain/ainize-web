@@ -30,10 +30,10 @@ export const looksLikeSlug = (s: string): boolean => SLUG_PATTERN.test(s) && !is
 
 /**
  * The address of a project — every link to a project goes through here. `/<org>/<repo>` for a repository's own
- * project; a monorepo folder's project (`sourcePath`, a folder with its own ainize.json) shares that name with the
- * root's, so it lives at `/projects/<id>`.
+ * project; a monorepo folder's project (`sourcePath`, a folder with its own ainize.json) is shown on that same page,
+ * selected with `?project=<folder>` (src/lib/repoProjects.ts).
  */
 export const projectPath = (p: { org: string; repoName: string; id?: string; sourcePath?: string }): string =>
-  p.sourcePath && p.id ? `/projects/${encodeURIComponent(p.id)}` : `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}`;
+  `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}${p.sourcePath ? `?project=${encodeURIComponent(p.sourcePath)}` : ''}`;
 /** The organization's page, `/<org>`. */
 export const orgPath = (org: string): string => `/${encodeURIComponent(org)}`;

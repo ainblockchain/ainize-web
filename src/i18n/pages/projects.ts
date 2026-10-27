@@ -57,6 +57,7 @@ export const projects: Dict = {
   'projects.page.pending_hint': { ko: '대기 중 — 같은 프로젝트의 앞선 배포가 끝나면 시작합니다.', en: 'Queued — starts when the project\'s earlier deployment finishes.' },
   'projects.page.output': { ko: '출력', en: 'Output' },
   'projects.page.redeploy': { ko: '다시 배포', en: 'Redeploy' },
+  'projects.page.repo_deployments': { ko: '이 저장소의 배포', en: 'Deployments in this repository' },
   'projects.page.code': { ko: 'Code', en: 'Code' },
   'projects.page.code_hint': { ko: 'ainize.ai/code에서 이 저장소를 열어 수정합니다', en: 'Open this repository in ainize.ai/code to fix or change it' },
   'projects.page.rollback': { ko: '이 배포로 되돌리기', en: 'Roll back to this' },
