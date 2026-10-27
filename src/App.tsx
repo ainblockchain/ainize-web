@@ -18,6 +18,7 @@ const BenchmarkPage = lazy(() => import('./screens/BenchmarkPage'));
 const LedgerPage = lazy(() => import('./screens/LedgerPage'));
 const NetworkPage = lazy(() => import('./screens/NetworkPage'));
 const ModelsPage = lazy(() => import('./screens/ModelsPage'));
+const AinCodePage = lazy(() => import('./screens/AinCodePage'));
 const MyPage = lazy(() => import('./screens/MyPage'));
 const ProjectNewPage = lazy(() => import('./screens/ProjectNewPage'));
 const ProjectPage = lazy(() => import('./screens/ProjectPage'));
@@ -90,6 +91,7 @@ export default function App() {
                 <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
                 <Route path="/apps" element={<Layout><AppsPage /></Layout>} />
                 <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
+                <Route path="/aincode" element={<Layout><AinCodePage /></Layout>} />
                 <Route path="/models/:id" element={<Layout><ModelDetailPage /></Layout>} />
                 {/* `?model=` preselects; linked from the model page and from the free tier's "tries used up" */}
                 <Route path="/billing" element={<Layout><BillingPage /></Layout>} />
