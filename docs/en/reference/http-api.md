@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-286 operations on 240 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+287 operations on 241 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -299,6 +299,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/ainui/snippet`](#get-apiainuisnippet) | operator | The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted) |
 | `GET` | [`/api/deployments/{id}/log`](#get-apideploymentsidlog) | operator | The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building |
 | `GET` | [`/api/deployments/{id}/output`](#get-apideploymentsidoutput) | operator | The script's stdout alone, for a ready deployment |
+| `GET` | [`/api/projects/{id}/requests`](#get-apiprojectsidrequests) | operator | What visitors asked the running app through this node (owner or member) |
 | `GET` | [`/api/projects/{id}/runtime-logs`](#get-apiprojectsidruntime-logs) | operator | The running service's own stdout/stderr, wherever it was placed (owner or member) |
 | `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
 
@@ -5586,6 +5587,31 @@ The script's stdout alone, for a ready deployment
 | Code | Description |
 |---|---|
 | `200` | text/plain |
+
+### `GET /api/projects/{id}/requests`
+
+What visitors asked the running app through this node (owner or member)
+
+Owner or active member only, like runtime-logs. The last requests relayed to the app (app domain and `/svc`, local or peer-hosted): `{ projectId, tail, since?, fetchedAt, requests: [{ ts, method, path, status, ms, host, via }] }`, oldest first. Query values are redacted except diagnostic keys (`error`, `error_description`, …); no headers, cookies, bodies or client addresses are kept. `tail` 1–500 (default 100), `since` epoch ms.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `tail` | `query` | `integer` |   |
+| `since` | `query` | `integer` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | the request log |
+| `401` | sign in |
+| `403` | not a member |
+| `404` | no such project, or not recorded on this node |
 
 ### `GET /api/projects/{id}/runtime-logs`
 
