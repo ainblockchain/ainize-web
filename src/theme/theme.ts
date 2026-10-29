@@ -36,12 +36,21 @@ export const AppColors = {
 
 export const theme = {
   color: AppColors,
+  /**
+   * huggingface.co's grid: one `container` (Tailwind's — 100 % wide, capped at the 2xl screen, 16 px side padding)
+   * under a 64 px header, and every card grid steps 1 → 2 → 3 → 4 columns at the same breakpoints. The three
+   * widths are one value on purpose: every page, the header and the footer share the same left and right edges.
+   */
   layout: {
-    maxWidth: '944px',
-    maxWidthWide: '1024px',
-    maxWidthLanding: '1440px',
+    maxWidth: '1536px',
+    maxWidthWide: '1536px',
+    maxWidthLanding: '1536px',
+    /** Side gutter inside the container (Tailwind `px-4`). */
+    gutter: '16px',
+    headerHeight: '64px',
   },
-  breakpoint: { xs: 0, sm: 600, md: 960, lg: 1280, xl: 1920 },
+  /** Tailwind's default screens, which is what huggingface.co lays out against. */
+  breakpoint: { xs: 0, sm: 640, md: 768, lg: 1024, xl: 1280, xxl: 1536 },
   // Every stack ends in the Hangul fallbacks index.html already downloads (Noto Sans KR). Mulish and Inconsolata
   // carry no Hangul, so on a host without a system Korean face the landing headings and both hero CTA labels
   // rendered blank while /explore (font.body) was perfect — the stacks, not the webfont, were the gap.

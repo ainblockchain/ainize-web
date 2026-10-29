@@ -4,6 +4,8 @@ export const apps: Dict = {
   'apps.lede': { en: 'Deploy web apps and API services from Git. View each deployment and share your app in AIN Teams.', ko: 'Git 저장소에서 웹앱과 API 서비스를 배포하세요. 배포 결과를 확인하고 AIN Teams에서 앱을 공유할 수 있습니다.' },
   'apps.connect': { en: 'Connect a repository', ko: '저장소 연결' },
   'apps.mine': { en: 'My apps', ko: '내 앱' },
+  'apps.search_results': { en: 'Apps matching "{q}"', ko: '"{q}" 검색 결과' },
+  'apps.search_none': { en: 'None of your apps matches "{q}"', ko: '"{q}"에 맞는 내 앱이 없습니다' },
   'apps.guide': { en: 'Deploy a Next.js app', ko: 'Next.js 앱 배포 가이드' },
   'apps.team': { en: 'Team apps', ko: '팀 앱' },
   'apps.team.lede': { en: 'Open your organization’s repositories and deployment status.', ko: '조직의 저장소와 배포 상태를 확인하세요.' },

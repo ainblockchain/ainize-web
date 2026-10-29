@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { Link } from 'react-router';
 import { useExploreShelvesQuery } from '@/api/api';
 import type { ShelfCard } from '@/api/types';
-import { StatusChip } from '@/components/ui/Misc';
+import { CardGrid, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { num } from '@/utils/format';
 
@@ -23,13 +23,10 @@ const Head = styled.h2`
   margin: 0; font-size: 15px; font-weight: 700; color: ${(p) => p.theme.color.BLACK};
   small { margin-left: 8px; font-size: 11px; font-weight: 500; color: ${(p) => p.theme.color.GREY}; }
 `;
-const Rail = styled.div`
-  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;
-  scroll-snap-type: x proximity;
-  > * { scroll-snap-align: start; }
-`;
+/** huggingface.co's card grid (Misc.CardGrid) in place of a horizontal rail: every card is on screen, none behind a scroll. */
+const Rail = styled(CardGrid)`gap: 10px;`;
 const Card = styled(Link)`
-  flex: 0 0 232px; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-decoration: none;
+  min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-decoration: none;
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; background: #fff;
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
   .nm { font-size: 14px; font-weight: 600; color: ${(p) => p.theme.color.BLACK}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

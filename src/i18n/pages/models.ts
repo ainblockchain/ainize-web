@@ -22,6 +22,8 @@ export const models: Dict = {
     en: 'Run it in the workspace terminal to open the harness Web UI at a private preview link. For one headless task:',
   },
   'models.title': { ko: '모델', en: 'Models' },
+  'models.search': { ko: '모델 이름·노드 검색', en: 'Search models by name or node' },
+  'models.search_none': { ko: '"{q}"에 맞는 모델이 없습니다', en: 'No model matches "{q}"' },
   'models.lede': {
     ko: 'Ainize 네트워크에 연결된 노드들이 제공하는 모델입니다. 누구나 자기 노드에 모델을 올려 연결할 수 있고, 모델마다 어느 노드가 제공하는지 함께 표시됩니다. 아래에서 바로 눌러볼 수 있고 — 키도 예치도 필요 없습니다 — 같은 호출을 코드로 복사해 갈 수 있습니다.',
     en: 'Models served by the nodes connected to the Ainize network. Anyone can join with models on their own node, and each model shows which nodes serve it. Press one below — no key, no deposit — and take the same call away as code.',

@@ -6,20 +6,25 @@ import { useMyOrgsQuery, useInfoQuery } from '@/api/api';
 import { useLocale, useT } from '@/i18n';
 import { parseOrgList } from '@/api/organizations';
 import { shortAddr } from '@/utils/format';
+import { GlobalSearch } from './GlobalSearch';
 
 /** Ported from ainize-web components/ui/Header.js — white bar, 81px, subtle shadow, purple hover; original Ainize logo. */
 const Wrapper = styled.header`
   width: 100%; display: flex; flex-direction: column; align-items: center;
-  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.1); background-color: #ffffff; z-index: 5; position: relative;
+  border-bottom: 1px solid #f0f0f2; background-color: #ffffff; z-index: 5; position: relative;
 `;
 /**
  * Desktop: one 81 px row (logo left, nav right). Phones (≤ breakpoint.sm): the nav wraps under the logo and its items
  * wrap onto as many lines as they need, so the page is never wider than the viewport (the review measured a 607–927 px
  * layout viewport at 360 px before this).
  */
+/**
+ * huggingface.co's header: one 64 px row inside the shared container — logo, then the search box, then the nav
+ * pushed to the right. Under the md breakpoint the search box drops to its own full-width row below (order 3).
+ */
 const Content = styled.div`
-  width: calc(100% - 32px); min-height: 81px; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap;
-  @media (min-width: ${(p) => p.theme.layout.maxWidth}) { width: ${(p) => p.theme.layout.maxWidth}; }
+  width: 100%; max-width: ${(p) => p.theme.layout.maxWidth}; box-sizing: border-box; padding: 0 ${(p) => p.theme.layout.gutter};
+  min-height: ${(p) => p.theme.layout.headerHeight}; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 0 16px;
 `;
 /**
  * `flex: 0 0 auto` — Home holds a 121 px logo and a `white-space: nowrap` ledger badge, neither of which can shrink.
@@ -32,7 +37,7 @@ const Home = styled(Link)`
   flex: 0 0 auto; order: 0; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 12px 0;
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { flex: 1 1 auto; padding: 12px 0 2px; }
 `;
-const Logo = styled.img`width: 121px; object-fit: contain;`;
+const Logo = styled.img`width: 104px; object-fit: contain;`;
 /** Takes the whole slack and right-aligns inside it, so the row's spare width lives between the logo and the links. */
 const Nav = styled.nav`
   flex: 1 1 auto; order: 1; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; min-width: 0;
@@ -46,7 +51,7 @@ const Nav = styled.nav`
  * 8 px since the signed-in row gained "My organizations" and the account button: logo 169 + links 573 + account
  * ≤ 132 + language 63 = 937 of 944.
  */
-const navItemCss = `display: flex; align-items: center; height: 100%; padding: 16px 8px; font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap;`;
+const navItemCss = `display: flex; align-items: center; height: 100%; padding: 12px 8px; font-size: 15px; font-weight: 500; text-decoration: none; white-space: nowrap;`;
 const NavItem = styled(NavLink)`
   ${navItemCss} color: ${(p) => p.theme.color.BLACK};
   &:hover, &.active { color: ${(p) => p.theme.color.HOVER}; }
@@ -135,6 +140,8 @@ export function Header() {
           <Logo src="/static/images/asset-logo.png" srcSet="/static/images/asset-logo@2x.png 2x, /static/images/asset-logo@3x.png 3x" alt="Ainize" />
           {info && <LedgerBadge $ain={ain} title={`${help('ledger')} · ${ain ? t('nav.ledger_ain', { provider: info.ledger.provider ?? '' }) : t('nav.ledger_local')}`}>{ain ? 'AI Network' : 'P2P'}</LedgerBadge>}
         </Home>
+        {/* huggingface.co's header: the search box sits right after the logo and searches everything the nav lists. */}
+        <GlobalSearch />
         <Nav>
           <NavItem to="/explore">{t('nav.explore')}</NavItem>
           {/* A node sells two kinds of thing and only one of them had a way in. The agents were behind a chip
