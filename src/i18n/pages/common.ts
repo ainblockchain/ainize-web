@@ -79,4 +79,16 @@ export const common: Dict = {
   // Finding 88 — called without a count this read "1 facts" on every single-fact knowledge in the live-test picker.
   'units.facts_one': { ko: '사실 1건', en: '1 fact' },
   'units.verified_by': { ko: '검증 노드 {passed}/{quorum}', en: '{passed}/{quorum} verifiers' },
+  // The header's unified search (huggingface-style): one box over apps, models, agents and knowledge.
+  'search.placeholder': { ko: '앱·모델·에이전트·지식 검색', en: 'Search apps, models, agents, knowledge' },
+  'search.label': { ko: '통합 검색', en: 'Search everything' },
+  'search.kind.app': { ko: '앱', en: 'Apps' },
+  'search.kind.model': { ko: '모델', en: 'Models' },
+  'search.kind.agent': { ko: '에이전트', en: 'Agents' },
+  'search.kind.knowledge': { ko: '지식', en: 'Knowledge' },
+  'search.see_all': { ko: '{kind} 결과 {n}개 모두 보기', en: 'See all {n} {kind}' },
+  'search.empty': { ko: '"{q}"에 맞는 항목이 없습니다', en: 'Nothing matches "{q}"' },
+  'search.loading': { ko: '검색 중…', en: 'Searching…' },
+  'search.all': { ko: '지식에서 "{q}" 검색', en: 'Search knowledge for "{q}"' },
+  'search.apps_signin': { ko: '앱은 로그인하면 내 프로젝트에서 검색됩니다', en: 'Sign in to search your apps' },
 };

@@ -148,7 +148,8 @@ export default function ExplorePage() {
   const [schema, setSchema] = useState('');
   /** Item 206: the API has always accepted `branch`; nothing on the page could ask for it. */
   const [branch, setBranch] = useState('');
-  const [q, setQ] = useState('');
+  /** `?q=` is how the header's search hands over its query ("See all knowledge" / "See all agents"). */
+  const [q, setQ] = useState(() => params.get('q') ?? '');
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
   /**

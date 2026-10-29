@@ -19,8 +19,8 @@ const Wrapper = styled.footer<{ $landing?: boolean }>`
     : `min-height: 62px; background-color: ${p.theme.color.FOOTER};`)}
 `;
 const Content = styled.div`
-  width: calc(100% - 32px); display: flex; flex-direction: row; align-items: center; gap: 24px; padding: 12px 0; flex-wrap: wrap;
-  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { width: 903px; }
+  width: 100%; max-width: ${(p) => p.theme.layout.maxWidth}; box-sizing: border-box; display: flex; flex-direction: row; align-items: center; gap: 24px;
+  padding: 12px ${(p) => p.theme.layout.gutter}; flex-wrap: wrap;
 `;
 const Copyright = styled.div`flex: 1; font-size: 12px; color: #ffffff;`;
 /**

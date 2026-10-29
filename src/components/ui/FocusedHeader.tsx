@@ -21,8 +21,8 @@ const Wrapper = styled.header`
  * width, so the Tab order never changes with the viewport.
  */
 const Content = styled.div`
-  width: calc(100% - 32px); min-height: 56px; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 0 4px;
-  @media (min-width: ${(p) => p.theme.layout.maxWidth}) { width: ${(p) => p.theme.layout.maxWidth}; }
+  width: 100%; max-width: ${(p) => p.theme.layout.maxWidth}; box-sizing: border-box; padding: 0 ${(p) => p.theme.layout.gutter};
+  min-height: 56px; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 0 4px;
 `;
 const Home = styled(Link)`
   flex: 0 0 auto; order: 0; display: flex; align-items: center; text-decoration: none; padding: 10px 0;

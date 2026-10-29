@@ -6,11 +6,22 @@ import { useT } from '@/i18n';
 import { ArrowLeftIcon, ArrowRightIcon, CertifiedIcon } from './Icons';
 
 // ------------------------------------------------------------------ page scaffolding
+/** huggingface.co's `container`: full width, capped, with a 16 px gutter at every width — the header and footer share it. */
 export const PageWrapper = styled.div<{ $wide?: boolean }>`
-  width: 100%;
+  width: 100%; box-sizing: border-box;
   max-width: ${(p) => (p.$wide ? p.theme.layout.maxWidthWide : p.theme.layout.maxWidth)};
-  padding: 32px 16px;
-  @media (min-width: ${(p) => p.theme.breakpoint.md}px) { padding: 32px 0; }
+  padding: 32px ${(p) => p.theme.layout.gutter};
+`;
+
+/**
+ * The card grid every listing uses — huggingface.co's `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`.
+ * `minmax(0, 1fr)` so a long model id or repository name shrinks the cell instead of widening the row.
+ */
+export const CardGrid = styled.div`
+  display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr);
+  @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: ${(p) => p.theme.breakpoint.lg}px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (min-width: ${(p) => p.theme.breakpoint.xl}px) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 `;
 
 export const TitleRow = styled.div`
