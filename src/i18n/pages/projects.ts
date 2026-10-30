@@ -38,6 +38,8 @@ export const projects: Dict = {
 
   // ── /projects/:id
   'projects.page.title': { ko: '프로젝트', en: 'Project' },
+  'projects.page.retry': { ko: '다시 시도', en: 'Try again' },
+  'projects.page.apps': { ko: '앱 목록', en: 'Browse apps' },
   'projects.page.unavailable': { ko: '프로젝트를 열 수 없습니다', en: 'This project is unavailable' },
   'projects.page.load_failed': { ko: '프로젝트를 불러오지 못했습니다', en: 'Could not load this project' },
   'projects.page.signin_check': { ko: '주소가 올바른지 확인하세요. 비공개 프로젝트라면 접근 권한이 있는 계정으로 로그인해야 합니다.', en: 'Check the address. If this is a private project, sign in with an account that has access.' },
