@@ -168,7 +168,7 @@ export default function TeachSettingsPage() {
           ...(teacher?.name ? { contributor: { name: teacher.name } } : {}),
         }).unwrap();
       clearKnown(dsId);
-      rememberJob({ id: out.job.id, name: out.job.name, created_at: Date.now() });
+      rememberJob({ id: out.job.id, name: out.job.name, created_at: Date.now() }, teacherIdentity);
       navigate(`/train/lesson/${out.job.id}`);
     } catch (e) { setError(mapTeachError(e, t)); }
   };

@@ -11,6 +11,7 @@ export const chat: Dict = {
 
   // picker
   'chat.picker.title': { ko: '테스트할 지식', en: 'Knowledge to test' },
+  'chat.picker.retry': { ko: '다시 불러오기', en: 'Try again' },
   'chat.picker.hint': { ko: '이 노드에 본문이 있는 지식만 테스트할 수 있습니다.', en: 'Only knowledge whose body is on this node can be tested.' },
   'chat.picker.empty': { ko: '이 노드에서 테스트할 수 있는 지식이 아직 없습니다.', en: 'No knowledge on this node can be tested yet.' },
   'chat.picker.accuracy': { ko: '정답률 {pct}%', en: '{pct}% accuracy' },

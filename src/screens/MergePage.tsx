@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Input, SelectField } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import { rememberJob } from '@/lib/teachStore';
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 
 /**
  * `/train/merge?a=&b=` — combining two knowledges (design §4 SC-14, §9).
@@ -53,6 +54,7 @@ type Choice = 'a' | 'b' | 'drop' | { answer: string };
 const TIERS = ['union', 'retrain', 'rebuild'] as const;
 
 export default function MergePage() {
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -85,7 +87,7 @@ export default function MergePage() {
     });
     const job = (res as { data?: { job?: { id: string; name?: string } } }).data?.job;
     if (!job) return;
-    rememberJob({ id: job.id, name: job.name, created_at: Date.now() });
+    rememberJob({ id: job.id, name: job.name, created_at: Date.now() }, teacherIdentity);
     navigate(`/train/lesson/${job.id}`);
   };
 

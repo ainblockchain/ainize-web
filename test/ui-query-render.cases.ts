@@ -18,6 +18,7 @@ import SigningPage from '../src/screens/SigningPage';
 import AuthorizePage from '../src/screens/AuthorizePage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
+import ChatPage from '../src/screens/ChatPage';
 import MyAgentsPage from '../src/screens/MyAgentsPage';
 import AinCodePage from '../src/screens/AinCodePage';
 import OrgPage from '../src/screens/org/OrgPage';
@@ -662,4 +663,27 @@ test('malformed project and repository lists show recovery instead of an empty l
     assert.match(html, /Try again/);
     assert.doesNotMatch(html, /No repositories/);
   }
+});
+
+const chatTeachPolicy: Fixture = { name: 'teachPolicy', value: { enabled: true, trainer: 'ready', timing: { simulated: true }, queue: { depth: 0 }, limits: { facts_per_job: 8 }, shares: { contributor: 0.7, lineage: 0.3 }, model: { id_M: 'fixture' } } };
+test('chat keeps unavailable selected knowledge visible and prevents an unintended base-model send', () => {
+  const fixtures: Fixture[] = [...signedOut, chatTeachPolicy,
+    { name: 'chatPatches', arg: '', value: { items: [], lessons: [], runtime: { available: true, model: 'fixture' }, lock: null } },
+  ];
+  const html = render(ChatPage, fixtures, '/chat/missing-knowledge?q=Keep+this+question', '/chat/:patchId');
+  assert.match(html, /missing-knowledge/);
+  assert.match(html, /Try again/);
+  assert.match(html, /<textarea[^>]*disabled=""/);
+  assert.match(html, /Keep this question/);
+  const base = render(ChatPage, fixtures, '/chat?q=Keep+this+question', '/chat');
+  assert.doesNotMatch(base, /<textarea[^>]*disabled=""/, 'explicitly opening the plain model still allows chat');
+});
+
+test('chat refresh failure is visible and disables sending even with a retained catalog', () => {
+  const html = render(ChatPage, [...signedOut, chatTeachPolicy,
+    { name: 'chatPatches', arg: '', value: { items: [], lessons: [], runtime: { available: true, model: 'fixture' }, lock: null }, status: 'rejected' },
+  ], '/chat?q=Keep+this+question', '/chat');
+  assert.match(html, /role="alert"/); assert.match(html, /Try again/);
+  assert.match(html, /<textarea[^>]*disabled=""/);
+  assert.doesNotMatch(html, /This node knows nothing/);
 });

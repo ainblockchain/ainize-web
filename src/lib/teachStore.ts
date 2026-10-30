@@ -95,16 +95,20 @@ export function strandedBaskets(currentIds: string[]): { ids: string[]; facts: n
   return out.sort((a, b) => b.facts - a.facts || stackHash(a.ids).localeCompare(stackHash(b.ids)));
 }
 
-export function loadJobs(): JobRef[] {
-  const j = read<JobRef[]>(JOBS_KEY, []);
+/** Job ownership is the teaching address, not the browser. Legacy unowned records are not auto-selected. */
+const jobsKey = (owner: string) => `${JOBS_KEY}:${encodeURIComponent(owner.toLowerCase())}`;
+export function loadJobs(owner: string): JobRef[] {
+  if (!owner) return [];
+  const j = read<JobRef[]>(jobsKey(owner), []);
   return Array.isArray(j) ? j.filter((x) => x && typeof x.id === 'string') : [];
 }
-export function rememberJob(ref: JobRef) {
-  const rest = loadJobs().filter((j) => j.id !== ref.id);
-  write(JOBS_KEY, [ref, ...rest].slice(0, 50));
+export function rememberJob(ref: JobRef, owner: string) {
+  if (!owner) return;
+  const rest = loadJobs(owner).filter((j) => j.id !== ref.id);
+  write(jobsKey(owner), [ref, ...rest].slice(0, 50));
 }
-export function forgetJob(id: string) { write(JOBS_KEY, loadJobs().filter((j) => j.id !== id)); }
-export function clearJobs() { remove(JOBS_KEY); }
+export function forgetJob(id: string, owner: string) { if (owner) write(jobsKey(owner), loadJobs(owner).filter((j) => j.id !== id)); }
+export function clearJobs(owner: string) { if (owner) remove(jobsKey(owner)); }
 
 export function bannerDismissed(): boolean { return read<boolean>(BANNER_KEY, false) === true; }
 export function dismissBanner() { write(BANNER_KEY, true); }

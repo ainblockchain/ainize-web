@@ -23,7 +23,7 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
+import { captureTeacherKey, currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
 import { bannerDismissed, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
 import type { PreflightFact } from '@/api/types';
 import { num } from '@/utils/format';
@@ -253,13 +253,12 @@ export default function ChatPage() {
    * would answer a question nobody asked.
    */
   const unselectable = useMemo(() => {
-    if (!data) return null;                               // still loading — absence is not yet evidence
+    if (!data || error) return null;                       // a failed list is not evidence of absence
     const missing = routeIds.filter((id) => !pickable.some((e) => e.anchor.id === id));
     if (!missing.length) return null;
     const row = (data.elsewhere ?? []).find((e) => e.patch_id === missing[0]);
     return { id: missing[0], name: row?.name ?? null, reason: row?.reason ?? null, status: row?.status ?? null, buyable: !!row?.buyable };
-  }, [data, routeIds, pickable]);
-  useEffect(() => { setMissingId(unselectable?.id ?? null); }, [unselectable]);
+  }, [data, error, routeIds, pickable]);
   const runtimeOff = !!data && !data.runtime.available;
   const userCleared = useRef(false);
   /** Navigate to a selection path while keeping the teach-mode query params (?teach / ?lesson / ?mine). */
@@ -304,7 +303,6 @@ export default function ChatPage() {
    *
    * It is derived, not stored, so it cannot drift out of step with the selection the way a setState would.
    */
-  const [missingId, setMissingId] = useState<string | null>(null);
   /** Optimistic selection: the route update is a React transition, so the checkboxes flip from this state first. */
   const [pendingIds, setPendingIds] = useState<string[] | null>(null);
   useEffect(() => { setPendingIds(null); }, [patchId]);
@@ -339,14 +337,14 @@ export default function ChatPage() {
   const basketStack = useRef<string[]>(parseSelection(patchId));
   const [stranded, setStranded] = useState<{ ids: string[]; facts: number }[]>([]);
   useEffect(() => {
-    if (!data) return;   // the route's ids are not resolved against this node's catalog yet
+    if (!data || error || unselectable) return;   // don't move a draft to an incomplete selection
     const from = basketStack.current;
     basketStack.current = selectedIds;
     if (stackKey(from) !== selectionKey) setBasket(carryBasket(from, selectedIds));
     const next = strandedBaskets(selectedIds);
     setStranded((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
-  }, [selectionKey, data, basket, selectedIds]);
-  const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(selectedIds, next); return next; }); }, [selectedIds]);
+  }, [selectionKey, data, error, unselectable, basket, selectedIds]);
+  const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(routeIds, next); return next; }); }, [routeIds]);
   const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || loadBasket(parseSelection(patchId)).facts.length > 0);
   /** the basket panel — scrolled into view on ?teach=1 and after "Add to lesson" so the visitor sees where the correction went */
   const basketRef = useRef<HTMLDivElement>(null);
@@ -368,25 +366,21 @@ export default function ChatPage() {
   const [keptBack, setKeptBack] = useState<{ n: number; known: number; overlap: number; invalid: number; in_base: number } | null>(null);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [sheetJob, setSheetJob] = useState<TeachJob | null>(null);
-  const [cardJobId, setCardJobId] = useState<string | null>(() => lessonParam ?? loadJobs()[0]?.id ?? null);
-  const [cardHidden, setCardHidden] = useState(false);
+  const [card, setCard] = useState<{ owner: string; id: string | null; hidden: boolean }>(() => ({ owner: teacherIdentity, id: lessonParam ?? loadJobs(teacherIdentity)[0]?.id ?? null, hidden: false }));
+  const cardJobId = lessonParam ?? (card.owner === teacherIdentity ? card.id : loadJobs(teacherIdentity)[0]?.id ?? null);
+  const cardHidden = !lessonParam && card.owner === teacherIdentity && card.hidden;
+  const setCardJobId = useCallback((id: string | null) => setCard({ owner: teacherIdentity, id, hidden: false }), [teacherIdentity]);
+  const setCardHidden = useCallback((hidden: boolean) => setCard((prev) => ({ owner: teacherIdentity, id: prev.owner === teacherIdentity ? prev.id : lessonParam ?? loadJobs(teacherIdentity)[0]?.id ?? null, hidden })), [teacherIdentity, lessonParam]);
   const [bannerOff, setBannerOff] = useState<boolean>(() => bannerDismissed());
-  useEffect(() => { if (lessonParam) { setCardJobId(lessonParam); setCardHidden(false); } }, [lessonParam]);
+  useEffect(() => { if (lessonParam) setCardJobId(lessonParam); }, [lessonParam, setCardJobId]);
   useEffect(() => { if (teachParam && policy) { setBasketOpen(true); setBasketNudge((n) => n + 1); } }, [teachParam, !!policy]);   // eslint-disable-line react-hooks/exhaustive-deps
   const showBanner = teachOn && (teachParam || !bannerOff);
 
-  // Preselect from the route; fall back to the first testable knowledge (and remember what the route asked for).
-  // Ids the route names but this node cannot test are dropped from the address (and reported once).
+  // An explicit selection stays in the address even when it cannot be loaded. Never replace it with another item.
   useEffect(() => {
-    if (!data || items.length === 0) return;
-    const missing = routeIds.filter((id) => !selectedIds.includes(id));
-    if (missing.length > 0) {
-      setMissingId(missing.join(', '));
-      go(selectedIds.length ? selectionPath(selectedIds) : '/chat', true);
-      return;
-    }
+    if (!data || error || routeIds.length > 0 || items.length === 0) return;
     if (selectedIds.length === 0 && !userCleared.current) go(selectionPath([items[0].anchor.id]), true);
-  }, [data, items, routeIds, selectedIds, go]);
+  }, [data, error, items, routeIds, selectedIds, go]);
 
   // Abort any in-flight request when leaving the page. `alive` guards the refreshes that outlive the page: a
   // request aborted by this cleanup settles one microtask later, and RTK Query's refetch() throws
@@ -437,7 +431,7 @@ export default function ChatPage() {
   const send = useCallback(async (text: string, opts?: { mode?: ChatModeKind; thinking?: boolean; replaceId?: string }) => {
     // An empty selection is allowed while teaching: you are correcting the model itself, and a node with an empty
     // catalog has nothing to pick. There is no "with knowledge" side then, so the turn is base-only.
-    if ((selectedIds.length === 0 && !teachOn) || busy || exhausted) return;
+    if (!data || error || unselectable || (selectedIds.length === 0 && !teachOn) || busy || exhausted) return;
     const ids = selectedIds;
     const useMode: ChatModeKind = selectedIds.length === 0 ? 'base' : (opts?.mode ?? mode);
     const useThinking = opts?.thinking ?? thinking;
@@ -511,7 +505,7 @@ export default function ChatPage() {
       if (inflight.current === request) inflight.current = null;
       refreshPatches();   // lock released (or still queued) — refresh the banner without waiting for the poll
     }
-  }, [selectedIds, selectedList, selectionKey, busy, exhausted, teachOn, mode, thinking, turns, sendChat, refreshPatches, t]);
+  }, [data, error, unselectable, selectedIds, selectedList, selectionKey, busy, exhausted, teachOn, mode, thinking, turns, sendChat, refreshPatches, t]);
 
   /**
    * D3 — "Stop waiting". While the request is still queued the node drops it before touching the model and no free
@@ -535,7 +529,6 @@ export default function ChatPage() {
   /** "Clear conversation" empties the whole transcript — every turn is in one list now, whatever was loaded for it. */
   const clear = useCallback(() => setTurns([]), []);
   const toggle = useCallback((id: string) => {
-    setMissingId(null);
     userCleared.current = false;
     const cur = shownIds;
     const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_CHAT_PATCHES ? cur : [...cur, id];
@@ -556,11 +549,11 @@ export default function ChatPage() {
     setPendingIds(cur);
     go(selectionPath(cur));
   }, [shownIds, go]);
-  const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); setPendingIds([]); go('/chat'); }, [go]);
+  const clearSelection = useCallback(() => { userCleared.current = true; setPendingIds([]); go('/chat'); }, [go]);
   /** Load a whole stack at once — how the "corrections saved under another selection" note takes you back to them. */
   const showStack = useCallback((ids: string[]) => {
     if (ids.length === 0) { clearSelection(); return; }
-    setMissingId(null); userCleared.current = false; setPendingIds(ids); go(selectionPath(ids));
+    userCleared.current = false; setPendingIds(ids); go(selectionPath(ids));
   }, [clearSelection, go]);
   /** Selected knowledge whose benchmark format has no chat form — the live test asks through the chat template. */
   const templateOnly = useMemo(() => selectedList.filter((e) => { const f = e.anchor.benchmark.format ?? []; return f.length > 0 && !f.includes('chat') && !f.includes('natural'); }), [selectedList]);
@@ -604,7 +597,7 @@ export default function ChatPage() {
       : b.facts.length >= factsPerJob ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
     setDrawer(null); setBasketOpen(true); setBasketNudge((n) => n + 1);
   }, [updateBasket, factsPerJob, drawer?.editId]);
-  const onTrain = useCallback(() => { setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey]);
+  const onTrain = useCallback(() => { if (data && !error && !unselectable) setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey, data, error, unselectable]);
   /**
    * Finding 38 — queueing used to empty the whole basket, including every correction the pre-flight REFUSED to
    * train. A visitor who taught four things and had three skipped watched all four disappear, and the rejected one
@@ -612,7 +605,8 @@ export default function ChatPage() {
    * lesson are taken out; the rest stay where they are, with one line saying how many and why.
    */
   const onQueued = useCallback((job: TeachJob, left: { id: string; status: PreflightFact['status'] }[] = []) => {
-    rememberJob({ id: job.id, name: job.name, created_at: job.created_at });
+    if (job.contributor.address.toLowerCase() !== teacherIdentity || (currentTeacherKey()?.address.toLowerCase() ?? '') !== teacherIdentity) return;
+    rememberJob({ id: job.id, name: job.name, created_at: job.created_at }, teacherIdentity);
     const keep = new Set(left.map((x) => x.id));
     const facts = basket.facts.filter((f) => keep.has(f.id));
     if (facts.length) {
@@ -624,7 +618,7 @@ export default function ChatPage() {
       clearBasket(selectedIds); setBasket({ facts: [], builds_on: false }); setKeptBack(null);
     }
     setSheet(null); setCardJobId(job.id); setCardHidden(false); setParam('lesson', job.id);
-  }, [selectedIds, setParam, basket.facts, basket.builds_on, basket.base]);
+  }, [teacherIdentity, selectedIds, setParam, setCardJobId, setCardHidden, basket.facts, basket.builds_on, basket.base]);
   /**
    * Finding 43 — "Try it now" is the payoff of the whole flow, and it used to tick a checkbox and stop: the taught
    * question was not put in the box, not asked and not added to the sample chips, so the primary green button on a
@@ -633,7 +627,10 @@ export default function ChatPage() {
    */
   const onTry = useCallback(async (job: TeachJob) => {
     const id = job.draft_id ?? job.patch_id; if (!id) return;
-    await refetch();   // the draft must be in `lessons` before the route names it (otherwise it is dropped as untestable)
+    const identity = captureTeacherKey();
+    const result = await refetch();   // only navigate after this identity's draft list has loaded
+    try { identity.assertCurrent(); } catch { return; }
+    if (!alive.current || result.error) return;
     userCleared.current = false;
     const next = selectedIds.includes(id) ? selectedIds : selectedIds.length >= MAX_CHAT_PATCHES ? [...selectedIds.slice(0, MAX_CHAT_PATCHES - 1), id] : [...selectedIds, id];
     const ask = job.facts[0]?.prompt ?? '';
@@ -682,7 +679,7 @@ export default function ChatPage() {
     }
   }, [basket.facts, updateBasket, factsPerJob]);
   const openSheet = useCallback((kind: SheetKind, job: TeachJob | null) => { setSheetJob(job); setSheet(kind); }, []);
-  const hideCard = useCallback(() => { setCardHidden(true); setParam('lesson', null); }, [setParam]);
+  const hideCard = useCallback(() => { setCardHidden(true); setParam('lesson', null); }, [setParam, setCardHidden]);
   const closeMine = useCallback(() => setParam('mine', null), [setParam]);
 
   /**
@@ -696,7 +693,7 @@ export default function ChatPage() {
    * remembered as it is loaded, and when the visitor lands on a single knowledge with a different set remembered,
    * the head offers it back in one click, in the order it was loaded.
    */
-  useEffect(() => { if (data) saveStack(selectedIds); }, [selectionKey, data]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (data && !error && !unselectable) saveStack(selectedIds); }, [selectionKey, data, error, unselectable]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [lastStack, setLastStack] = useState<string[]>(() => loadStack());
   useEffect(() => { setLastStack(loadStack()); }, [patchId]);
   const restorable = useMemo(() => {
@@ -770,8 +767,10 @@ export default function ChatPage() {
       : exhausted || quota <= 0 ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short')
         : quotaLimit ? t('chat.quota.left_of', { n: quota, limit: quotaLimit }) : t('chat.quota.left', { n: quota });
 
-  const composerDisabled = (selectedIds.length === 0 && !teachOn) || runtimeOff || outOfTries;
-  const disabledReason = selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : outOfTries ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short') : undefined;
+  const selectionProblem = unselectable ? t(`chat.picker.route_${unselectable.reason ?? 'unknown'}`, { id: unselectable.id, name: unselectable.name ?? unselectable.id, status: unselectable.status ?? '' }) : undefined;
+  const composerDisabled = !data || !!error || !!unselectable || (selectedIds.length === 0 && !teachOn) || runtimeOff || outOfTries;
+  const selectionBlocked = selectionProblem ?? (error ? t('common.error', { message: errorMessage(error) }) : !data ? t('common.loading') : undefined);
+  const disabledReason = selectionBlocked ?? (selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : outOfTries ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short') : undefined);
   const keyLabel = !teacherKey ? undefined
     : teacherKey.name ? t('teach.key.chip', { name: teacherKey.name, short: shortKey(teacherKey.address) })
       : t('teach.key.chip_anon', { short: shortKey(teacherKey.address) });
@@ -815,7 +814,7 @@ export default function ChatPage() {
       <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
         baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
         onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
-        onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} nodeName={info?.node.name} />
+        onTrain={onTrain} blockedReason={selectionBlocked} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} nodeName={info?.node.name} />
     </div>
   );
 
@@ -839,7 +838,7 @@ export default function ChatPage() {
       <LiveSources />
 
       {!data && isFetching && <CenterProgress />}
-      {!!error && !data && <Alert $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })}</Alert>}
+      {!!error && <Alert role="alert" $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })} <Button loading={isFetching} onClick={() => void refetch()}>{t('chat.picker.retry')}</Button></Alert>}
 
       {data && (
         <>
@@ -849,7 +848,7 @@ export default function ChatPage() {
               <button type="button" className="x" onClick={() => { dismissBanner(); setBannerOff(true); if (teachParam) setParam('teach', null); }}>{t('chat.banner.dismiss')}</button>
             </TeachBanner>
           )}
-          {unselectable && <Alert $tone="warning" style={{ marginTop: 16 }}>{t(`chat.picker.route_${unselectable.reason ?? 'unknown'}`, { id: unselectable.id, name: unselectable.name ?? unselectable.id, status: unselectable.status ?? '' })}</Alert>}
+          {unselectable && <Alert role="alert" $tone="warning" style={{ marginTop: 16 }}>{selectionProblem} <Button loading={isFetching} onClick={() => void refetch()}>{t('chat.picker.retry')}</Button></Alert>}
           <Grid>
             <Side>
               {/* The basket heads the column when this node teaches (§5.5: the visitor must see it without scrolling past every knowledge card); a node that does not accept lessons shows the "does not accept" line under the picker instead. */}
@@ -1030,7 +1029,7 @@ export default function ChatPage() {
           onAdd={addCorrection} onClose={() => setDrawer(null)} />
       )}
       {sheet === 'credit' && <CreditSheet onDone={(k) => { setTeacherKey(k); setSheet('preflight'); }} onClose={() => setSheet(null)} />}
-      {sheet === 'preflight' && policy && (
+      {sheet === 'preflight' && policy && !selectionBlocked && (
         <PreflightSheet patchIds={selectedIds} basket={basket} policy={policy} baseCandidates={baseCandidates} onBasket={updateBasket} contributorName={teacherKey?.name} onQueued={onQueued} onClose={() => setSheet(null)} />
       )}
       {sheet === 'publish' && sheetJob && sheetJob.contributor.address.toLowerCase() === teacherIdentity && policy && teacherKey && (
