@@ -8,12 +8,13 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
 import { Button } from '@/components/ui/Button';
+import { QueryError } from '@/components/operator/common';
 import { CenterProgress, Description, KeyValue, Mono, PageWrapper, Title } from '@/components/ui/Misc';
 import { dateTime } from '@/utils/format';
 
 /** A terminal request is reviewed once, then approved using the current AIN account.
  * Wallet delegation remains available on nodes that use wallet sign-in. */
-const Panel = styled.div`max-width: 620px; margin-top: 32px;`;
+const Panel = styled.div`max-width: 620px; margin-top: 32px; dd { min-width: 0; overflow-wrap: anywhere; }`;
 const Signed = styled.pre`
   margin: 10px 0 0; padding: 14px 16px; border: 1px solid #e5e5e8; border-radius: 6px;
   background: #fafafa; font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; line-height: 1.7; color: #333;
@@ -24,12 +25,18 @@ const Muted = styled.p`margin: 10px 0 0; font-size: 12.5px; line-height: 1.7; co
 const Label = styled.span`font-size: 13px; color: ${(p) => p.theme.color.GREY}; margin-left: 8px;`;
 
 export default function AuthorizePage() {
+  const [params] = useSearchParams();
+  const auth = useAuth();
+  return <DeviceApproval key={`${params.get('code') ?? ''}:${auth.cacheIdentity}`} />;
+}
+
+function DeviceApproval() {
   const { t } = useT();
   useTitle(t('op.authorize.title'));
   const [params] = useSearchParams();
   const code = params.get('code') ?? '';
   const auth = useAuth();
-  const { currentData: data, isLoading, error, refetch } = useDeviceRequestQuery(code, { skip: !code });
+  const { currentData: data, isLoading, isFetching, error, refetch } = useDeviceRequestQuery(code, { skip: !code });
   const [approveAccount, accountState] = useApproveAccountDeviceMutation();
   const [approveDevice, approveState] = useApproveDeviceMutation();
   const [wallets, setWallets] = useState<DiscoveredWallet[] | null>(null);
@@ -48,7 +55,8 @@ export default function AuthorizePage() {
   useEffect(() => { if (accountMode || !auth.subject) return; let live = true; void discoverWallets().then((w) => { if (live) setWallets(w); }); return () => { live = false; }; }, [accountMode, auth.subject]);
 
   if (!code) return <PageWrapper><Title>{t('op.authorize.title')}</Title><Alert $tone="error">{t('op.authorize.no_code')}</Alert></PageWrapper>;
-  if (isLoading || auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (isLoading || (!data && isFetching) || auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (error && !('status' in error && error.status === 404)) return <PageWrapper><Title>{t('op.authorize.title')}</Title><QueryError error={error} what={t('op.authorize.title')} onRetry={() => void refetch()} retrying={isFetching} /></PageWrapper>;
   if (error || !data) return <PageWrapper><Title>{t('op.authorize.title')}</Title><Alert $tone="error">{t('op.authorize.unknown')}</Alert></PageWrapper>;
 
   /**

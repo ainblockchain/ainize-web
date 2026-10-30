@@ -283,3 +283,9 @@ function assertAccountDevice(kind: 'cli' | 'node') {
 }
 test('terminal login uses AIN account approval without wallet controls', () => assertAccountDevice('cli'));
 test('node connection uses AIN account approval without wallet controls', () => assertAccountDevice('node'));
+
+test('a temporary terminal request failure offers retry instead of claiming the link is invalid', () => {
+  const html = render(AuthorizePage, [...signedOut, { name: 'deviceRequest', arg: 'offline-code', status: 'rejected' }], '/authorize?code=offline-code');
+  assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /That is not a link this node issued/);
+});
