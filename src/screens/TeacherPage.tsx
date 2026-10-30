@@ -125,7 +125,7 @@ export default function TeacherPage() {
                           </dl>
                         ))}
                         {!r.failures.length && <div style={{ marginTop: 4 }}>{t('teacher.rej.no_questions', { who: r.verifier_name ?? shortAddr(r.verifier, 8) })}</div>}
-                        {mine && l.job_id && <div style={{ marginTop: 6 }}><StyledLink to={`/teach/lesson/${l.job_id}`}>{t('teacher.rej.again')} →</StyledLink></div>}
+                        {mine && l.job_id && <div style={{ marginTop: 6 }}><StyledLink to={`/train/lesson/${l.job_id}`}>{t('teacher.rej.again')} →</StyledLink></div>}
                         <div style={{ marginTop: 6, color: '#8d8d8f' }}>{t('teacher.rej.permanent')}</div>
                       </Rejected>
                     ))}

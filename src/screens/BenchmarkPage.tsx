@@ -176,7 +176,7 @@ export default function BenchmarkPage() {
       </TitleRow>
       <Stats>{t('bench.stats', { total: num(items.length), listed: num(listed), sets: num(groups.length), models: models.join(', ') || '—' })}</Stats>
       <Explain title={`${help('superseded')} (${tech('superseded')})`}>
-        {t('bench.explain')}{' '}<StyledLink to="/explore">{t('bench.back')}</StyledLink>
+        {t('bench.explain')}{' '}<StyledLink to="/train/knowledge">{t('bench.back')}</StyledLink>
       </Explain>
       {items.length > 0 && <TermsLegend />}
       {/* Finding 18: same as /explore — the price is in the table, its unit is said once for the page. */}

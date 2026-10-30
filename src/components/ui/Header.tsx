@@ -131,7 +131,7 @@ export function Header() {
   const ain = info?.ledger.kind === 'ain';
   /** Finding 72 — /chat?teach=1 IS the teach flow's conversational door, so the Teach item is the one lit there. */
   const location = useLocation();
-  const teaching = location.pathname.startsWith('/teach') || (location.pathname.startsWith('/chat') && new URLSearchParams(location.search).get('teach') === '1');
+  const teaching = location.pathname.startsWith('/train') || location.pathname.startsWith('/teach') || (location.pathname === '/explore' && new URLSearchParams(location.search).get('kind') !== 'agent') || (location.pathname.startsWith('/chat') && new URLSearchParams(location.search).get('teach') === '1');
   return (
     <Wrapper>
       {process.env.NODE_ENV !== "production" && <DevBadge>Development Mode</DevBadge>}
@@ -143,20 +143,18 @@ export function Header() {
         {/* huggingface.co's header: the search box sits right after the logo and searches everything the nav lists. */}
         <GlobalSearch />
         <Nav>
-          <NavItem to="/explore">{t('nav.explore')}</NavItem>
           {/* A node sells two kinds of thing and only one of them had a way in. The agents were behind a chip
               inside a page titled "Explore knowledge", so somebody who came here to host an agent read the
               whole site and concluded it was a knowledge marketplace. */}
-          <NavItem to="/explore?kind=agent" data-testid="nav-agents">{t('nav.agents')}</NavItem>
+          <NavPlain to="/explore?kind=agent" data-testid="nav-agents" $active={location.pathname === "/explore" && !teaching} aria-current={location.pathname === "/explore" && !teaching ? "page" : undefined}>{t('nav.agents')}</NavPlain>
           {/* What the network's nodes serve over the LLM API, and a place to press it. It was documentation three levels
               down, which is not where somebody arriving to see what this can do will find it. */}
           <NavItem to="/models" data-testid="nav-models">{t('nav.models')}</NavItem>
           <NavItem to="/apps" data-testid="nav-apps">{t('nav.apps')}</NavItem>
+          <NavPlain to="/train" data-testid="nav-train" $active={teaching} aria-current={teaching ? 'page' : undefined}>{t('nav.train')}</NavPlain>
           {/* Where each AinCode session runs and what it works on — a member once worked for hours in the personal
               workspace on an organization project without noticing. */}
           <NavItem to="/aincode" data-testid="nav-aincode">{t('nav.aincode')}</NavItem>
-          {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}
-          {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach" $active={teaching} className={teaching ? 'active' : undefined}>{t('nav.teach')}</NavPlain>}
           {isSignedIn && <NavItem to="/org" data-testid="nav-my-orgs">{t('orgs.mine')}</NavItem>}
           <NavItem to="/docs">{t('nav.docs')}</NavItem>
           {/* The dashboard is the node runner's screen and the node refuses it to anyone else, so offering it to

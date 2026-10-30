@@ -15,7 +15,7 @@ import { signedDownload } from '@/lib/teachDataset';
 import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
- * `/teach/mine` — my datasets and lessons (design §5.8), organised dataset-first: the dataset is the durable object
+ * `/train/mine` — my datasets and lessons (design §5.8), organised dataset-first: the dataset is the durable object
  * and a lesson is one attempt at it. Lessons a v1 chat basket produced (no dataset of their own) keep their own list
  * at the bottom rather than being hidden — G5: no v1 lesson may disappear from the visitor's view.
  */
@@ -92,7 +92,7 @@ export default function TeachMinePage() {
       <Description>{t('teach.data.sub')}</Description>
       <Head>
         <span>{policy?.limits?.dataset_ttl_days ? t('teach.data.expires', { days: policy.limits.dataset_ttl_days }) : ''}</span>
-        <Button variant="contained" onClick={() => navigate('/teach/upload')} data-testid="mine-upload">{t('teach.data.upload_cta')}</Button>
+        <Button variant="contained" onClick={() => navigate('/train/upload')} data-testid="mine-upload">{t('teach.data.upload_cta')}</Button>
       </Head>
 
       <LiveLessons jobs={jobs} />
@@ -109,8 +109,8 @@ export default function TeachMinePage() {
               key={d.id} dataset={d} lessons={byDataset.get(d.id) ?? []} ttlDays={policy?.limits?.dataset_ttl_days} busy={deleting || patching}
               onRetention={(r) => setRetention(d.id, r)}
               baseName={catalog?.items.find((e) => e.anchor.id === d.parent_patch)?.anchor.name}
-              onRetrain={() => navigate(`/teach/dataset/${d.id}/settings`)}
-              onContinue={() => navigate(`/teach/dataset/${d.id}`)}
+              onRetrain={() => navigate(`/train/dataset/${d.id}/settings`)}
+              onContinue={() => navigate(`/train/dataset/${d.id}`)}
               onDownload={() => void signedDownload(`/api/teach/datasets/${d.id}/download`, `${d.name}.jsonl`).catch((e: Error) => setError(e.message))}
               onDelete={() => drop(d.id, d.name)}
             />
@@ -124,7 +124,7 @@ export default function TeachMinePage() {
                     <b>{(j.name ?? '').replace(/^Lesson:\s*/, '') || j.id.slice(0, 8)}</b>
                     <span>{t(mineStatusKey(j))}</span>
                     <span>{t('teach.data.count', { n: j.facts.length })}</span>
-                    <StyledLink to={`/teach/lesson/${j.id}`}>{t('teach.data.open')}</StyledLink>
+                    <StyledLink to={`/train/lesson/${j.id}`}>{t('teach.data.open')}</StyledLink>
                   </li>
                 ))}
               </Legacy>

@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useLocale, useT } from '@/i18n';
 
 /**
- * The slim header of the teach flow (`/teach/*`, ux-critique-owner O-3 / O-6 / O-8). One task lives on these pages —
+ * The slim header of the teach flow (`/train/*`, ux-critique-owner O-3 / O-6 / O-8). One task lives on these pages —
  * teaching the model — so the marketplace navigation and its ledger badge stay off them. What remains is what the
  * flow needs: the logo (home), the one route back to existing work ("My datasets and lessons", O-6 — a navigational
  * link in the header's secondary position, never part of the action group), a way out to the marketplace, and the
@@ -64,8 +64,8 @@ export function FocusedHeader() {
           <Logo src="/static/images/asset-logo.png" srcSet="/static/images/asset-logo@2x.png 2x, /static/images/asset-logo@3x.png 3x" alt="Ainize" />
         </Home>
         <Links aria-label={t('teach.chrome.nav')}>
-          <MineLink to="/teach/mine" data-testid="link-mine">{t('teach.entry.mine')}</MineLink>
-          <ExitLink to="/explore" data-testid="teach-exit" title={t('teach.chrome.exit_help')}>{t('teach.chrome.exit')}</ExitLink>
+          <MineLink to="/train/mine" data-testid="link-mine">{t('teach.entry.mine')}</MineLink>
+          <ExitLink to="/train" data-testid="teach-exit" title={t('teach.chrome.exit_help')}>{t('teach.chrome.exit')}</ExitLink>
         </Links>
         <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
       </Content>

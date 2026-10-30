@@ -154,7 +154,7 @@ export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], 
           <Tools>
             <button type="button" onClick={() => setViewing(true)} disabled={n === 0} data-testid="basket-view">{t('teach.basket.view')}</button>
             <button type="button" onClick={download} disabled={n === 0} data-testid="basket-download">{t('teach.basket.download')}</button>
-            <Link to="/teach/upload" data-testid="basket-upload-link">{t('teach.basket.upload_link')}</Link>
+            <Link to="/train/upload" data-testid="basket-upload-link">{t('teach.basket.upload_link')}</Link>
           </Tools>
           <Hint>{t('teach.basket.add_more')}</Hint>
           <Hint>{stackNames.length ? t('teach.basket.stack', { names: stackNames.join(', ') }) : t('teach.basket.stack_none')}</Hint>

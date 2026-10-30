@@ -290,14 +290,13 @@ export default function LandingPage() {
         <NavContent>
           <NavHome to="/" aria-label="Ainize"><NavLogo {...LOGO} alt="Ainize" /></NavHome>
           <NavLinks aria-label={t('landing.nav.aria')}>
-            <NavLink to="/explore">{t('landing.nav.explore')}</NavLink>
             {/* The landing has its own chrome, and adding the entry to the shared header (Header.tsx) left this
                 one without it — which is the nav a first-time visitor actually sees. */}
             <NavLink to="/explore?kind=agent" data-testid="landing-nav-agents">{t('nav.agents')}</NavLink>
             <NavLink to="/models" data-testid="landing-nav-models">{t('nav.models')}</NavLink>
             <NavLink to="/apps" data-testid="landing-nav-apps">{t('nav.apps')}</NavLink>
+            <NavLink to="/train" data-testid="landing-nav-train">{t('nav.train')}</NavLink>
             <NavLink to="/aincode" data-testid="landing-nav-aincode">{t('nav.aincode')}</NavLink>
-            {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
             {/* The network and the public record were in every page's header and in neither of the landing's
                 chromes — the third time an entry was added to Header.tsx and not to this one. The two are now
                 held to the same list by test/nav-parity.test.ts, so a fourth is a failing test rather than a
@@ -497,7 +496,7 @@ export default function LandingPage() {
               <OnlyTitle>{t('landing.only.teach.title')}</OnlyTitle>
               <OnlyDesc>{t('landing.only.teach.desc')}</OnlyDesc>
               <OnlyLinks>
-                <OnlyCta to="/teach" data-testid="only-teach-cta">{t('landing.only.teach.cta')}</OnlyCta>
+                <OnlyCta to="/train" data-testid="only-teach-cta">{t('landing.only.teach.cta')}</OnlyCta>
                 <OnlyDoc to="/docs/concepts/knowledge-patch">{t('landing.only.teach.l1')}</OnlyDoc>
                 <OnlyDoc to="/docs/concepts/lineage-and-royalties">{t('landing.only.teach.l2')}</OnlyDoc>
                 <OnlyDoc to="/docs/how-to/run-a-verifier">{t('landing.only.teach.l3')}</OnlyDoc>

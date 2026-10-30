@@ -12,8 +12,6 @@ import type { Dict } from '../index';
  */
 export const landing: Dict = {
   // nav
-  'landing.nav.explore': { ko: '지식', en: 'Knowledge' },
-  'landing.nav.teach': { ko: '가르치기', en: 'Teach' },
   'landing.nav.signin': { ko: '로그인', en: 'Sign in' },
   'landing.nav.aria': { ko: '주요 메뉴', en: 'Main' },
   'landing.nav.signin_help': { ko: '노드 운영자·개발자용 콘솔입니다. 모델을 써 보는 데는 로그인이 필요 없습니다.', en: 'Console for node operators and developers. You do not need to sign in to try the models.' },

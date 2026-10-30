@@ -78,7 +78,7 @@ test('"see all" carries the query to the page that lists that kind', () => {
   assert.equal(seeAllHref('app', 'a b'), '/apps?q=a%20b');
   assert.equal(seeAllHref('model', 'x'), '/models?q=x');
   assert.equal(seeAllHref('agent', 'x'), '/explore?kind=agent&q=x');
-  assert.equal(seeAllHref('knowledge', 'x'), '/explore?q=x');
+  assert.equal(seeAllHref('knowledge', 'x'), '/train/knowledge?q=x');
 });
 
 test('every string the search box reads exists in English and in Korean', () => {

@@ -466,7 +466,7 @@ export const teach: Dict = {
   'teach.err.generic': { ko: '수업에 문제가 생겼습니다: {message}', en: 'Something went wrong with the lesson: {message}' },
 
   // ---------------------------------------------------------------- teach mode v2 (dataset design §5) — entry choice
-  'teach.entry.title': { ko: '모델에게 새로운 것을 가르치기', en: 'Teach the model something new' },
+  'teach.entry.title': { ko: 'Train', en: 'Train' },
   // ux-critique-owner O-7: one line of intro, one sentence + one benefit per card; the longer story sits behind "How it works"
   'teach.entry.sub': { ko: '계정도 코드도 필요 없습니다. 질문과 정답이 지식이 되어 써보고, 나만 쓰고, 공개할 수 있습니다.', en: 'No account, no code: your questions and answers become knowledge you can test, keep private or publish.' },
   'teach.entry.chat.title': { ko: '대화하며 가르치기', en: 'Teach it in a conversation' },
@@ -511,9 +511,9 @@ export const teach: Dict = {
   'teach.entry.next_same': { ko: '어느 쪽으로 들어와도 같은 다섯 단계입니다', en: 'the same five steps, whichever door you pick' },
   'teach.entry.mine': { ko: '내 데이터셋과 수업', en: 'My datasets and lessons' },
   // the slim chrome of /teach/* (ux-critique-owner O-3): logo · exit · language, nothing else
-  'teach.chrome.nav': { ko: '가르치기', en: 'Teaching' },
-  'teach.chrome.exit': { ko: '나가기', en: 'Exit' },
-  'teach.chrome.exit_help': { ko: '가르치기를 나가 지식 둘러보기로 갑니다', en: 'Leave teaching and go to Explore knowledge' },
+  'teach.chrome.nav': { ko: 'Train', en: 'Train' },
+  'teach.chrome.exit': { ko: 'Train으로', en: 'Back to Train' },
+  'teach.chrome.exit_help': { ko: 'Train으로 돌아갑니다', en: 'Return to Train' },
 
   // §5.1 stepper
   'teach.step.data': { ko: '데이터셋', en: 'Dataset' },

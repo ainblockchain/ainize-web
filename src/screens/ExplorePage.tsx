@@ -12,8 +12,8 @@ import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
 import { PatchListItem, PriceUnitNote, TermsLegend } from '@/components/public/PatchListItem';
 import { Shelves } from '@/components/public/Shelves';
-import { Alert, Input } from '@/components/ui/Form';
-import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
+import { Alert } from '@/components/ui/Form';
+import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { num } from '@/utils/format';
@@ -59,9 +59,6 @@ const Chip = styled.button<{ $active: boolean }>`
   transition: border-color 0.2s ease, background 0.2s ease;
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
 `;
-const Search = styled(Input)`
-  max-width: 320px; margin-left: auto;
-`;
 /** Finding 81: the first result was the 19th focusable element, behind every filter chip and every sort option. */
 const Skip = styled.a`
   position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden;
@@ -86,7 +83,6 @@ const Intro = styled(Description)`margin: 0 0 24px;`;
 const MakeRow = styled.div`display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;`;
 /** The list's name on the left, what you can do with it on the right; wraps under on a phone. */
 const ResultBar = styled.div`display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px;`;
-const KindTabs = styled.div`margin-bottom: 16px;`;
 const Divider = styled.span`width: 1px; height: 16px; background: ${(p) => p.theme.color.LIGHT_GREY}; margin: 0 6px;`;
 const ScopeNote = styled.div`margin: -6px 0 12px; font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
 /**
@@ -132,24 +128,20 @@ function ListSkeleton() {
   );
 }
 
-export default function ExplorePage() {
+export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const { t, tech, help, term } = useT();
   const [params, setParams] = useSearchParams();
-  const kind: Kind = params.get('kind') === 'agent' ? 'agent' : 'knowledge';
+  const kind: Kind = fixedKind ?? (params.get('kind') === 'agent' ? 'agent' : 'knowledge');
   // after `kind`, never before: read through a closure this ran in the temporal dead zone of `params`
   useTitle(kind === 'agent' ? t('explore.title_agent') : t('explore.title'));
-  const setKind = (k: Kind) => {
-    const next = new URLSearchParams(params);
-    if (k === 'agent') next.set('kind', 'agent'); else next.delete('kind');
-    setParams(next, { replace: true });
-  };
   const [sort, setSort] = useState<Sort>('popular');
   const [model, setModel] = useState('');
   const [schema, setSchema] = useState('');
   /** Item 206: the API has always accepted `branch`; nothing on the page could ask for it. */
   const [branch, setBranch] = useState('');
   /** `?q=` is how the header's search hands over its query ("See all knowledge" / "See all agents"). */
-  const [q, setQ] = useState(() => params.get('q') ?? '');
+  const q = params.get('q') ?? '';
+  useEffect(() => { setPage(1); }, [q]);
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
   /**
@@ -291,17 +283,6 @@ export default function ExplorePage() {
       <Intro>{kind === 'agent' ? t('explore.agents.sub') : t('explore.sub')}</Intro>
       <Skip href="#explore-results">{t('explore.skip')}</Skip>
 
-      {/* What to browse is the page's subject, not a filter of it: a tab, with counts that do not move when a filter
-          below does (the public agents, every current knowledge). Only offered where there is something to switch to. */}
-      {(allAgents.length > 0 || kind === 'agent') && (
-        <KindTabs data-testid="explore-kind">
-          <Tabs value={kind} onChange={(v) => { setKind(v as Kind); reset(); }} tabs={[
-            { id: 'knowledge', label: `${t('explore.kind.knowledge')}${data ? ` · ${num(data.total)}` : ''}` },
-            { id: 'agent', label: `${t('explore.kind.agent')}${allAgents.length ? ` · ${num(allAgents.length)}` : ''}` },
-          ]} />
-        </KindTabs>
-      )}
-
       {/* SC-17: what is selling, what is being built ON, what is new, and what people asked for here. */}
       {kind === 'knowledge' && <Shelves />}
 
@@ -372,7 +353,6 @@ export default function ExplorePage() {
             <Chip $active={showAll} onClick={() => { setShowAll(true); reset(); }}>{t('explore.filter.all_versions')}</Chip>
           </FilterGroup>
         )}
-        <Search placeholder={t('explore.search')} value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label={t('explore.search')} />
       </Filters>
 
       {kind === 'knowledge' && <ResultsHead id="explore-results" tabIndex={-1}>{t('explore.results')}</ResultsHead>}
@@ -441,13 +421,6 @@ export default function ExplorePage() {
             <Hidden data-testid="explore-hidden" title={t('explore.filter.show_help')}>
               {t('explore.hidden', { n: num(hidden) }, hidden)}{' · '}
               <button type="button" onClick={() => { setShowAll(true); reset(); }}>{t('explore.hidden_show')}</button>
-            </Hidden>
-          )}
-          {/* The chip above is the control; this line is the one a reader who skipped the filters still sees. */}
-          {allAgents.length > 0 && (
-            <Hidden data-testid="explore-agents-also">
-              {t('explore.agents.also', { n: num(allAgents.length) }, allAgents.length)}{' · '}
-              <button type="button" onClick={() => { setKind('agent'); reset(); }}>{t('explore.agents.also_link')}</button>
             </Hidden>
           )}
           {items.length > 0 && <TermsLegend title={help('liveTest')} />}

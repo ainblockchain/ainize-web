@@ -244,7 +244,7 @@ export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, 
       {j.dataset?.id && j.dataset.source === 'chat' && (
         <Tip data-testid="freeze-note">
           {t('teach.basket.freeze_note', { n: j.dataset.rows, filename: basketFilename(j.created_at) })}{' '}
-          <StyledLink to={`/teach/dataset/${j.dataset.id}`}>{t('teach.basket.view')}</StyledLink>
+          <StyledLink to={`/train/dataset/${j.dataset.id}`}>{t('teach.basket.view')}</StyledLink>
         </Tip>
       )}
       {/* never a whole-dataset claim from a sampled check (v2 §5.12); counts are per QUESTION, from `facts` */}

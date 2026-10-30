@@ -23,7 +23,7 @@ import { signedDownload } from '@/lib/teachDataset';
 import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
- * `/teach/lesson/:jobId` — steps 4 and 5 on one route (design §5.6, §5.7).
+ * `/train/lesson/:jobId` — steps 4 and 5 on one route (design §5.6, §5.7).
  *
  * While the lesson moves this is the progress screen: the stage rail, a REAL `step / max_steps` bar (never a computed
  * percentage), the per-question hit counter, honest elapsed time and — only under §10's three conditions — a time left.
@@ -183,10 +183,10 @@ export default function TeachLessonPage() {
   const doRetrain = () => void (async () => {
     setError(null);
     const effort = nextEffort((j.training?.effort ?? 'balanced') as TeachEffort);
-    if (j.dataset?.id && !j.dataset.deleted) { navigate(`/teach/dataset/${j.dataset.id}/settings?retrain=${encodeURIComponent(j.id)}&effort=${effort}`); return; }
+    if (j.dataset?.id && !j.dataset.deleted) { navigate(`/train/dataset/${j.dataset.id}/settings?retrain=${encodeURIComponent(j.id)}&effort=${effort}`); return; }
     try {
       const out = await retrain({ id: j.id, training: { effort } }).unwrap();
-      navigate(`/teach/lesson/${out.job.id}`);
+      navigate(`/train/lesson/${out.job.id}`);
     } catch (e) { setError(mapTeachError(e, t)); }
   })();
 
@@ -297,7 +297,7 @@ export default function TeachLessonPage() {
       {/* a deleted dataset keeps its line below, but neither control is rendered: both can now only answer 404 */}
       {j.dataset?.id && !j.dataset.deleted && (
         <Description>
-          <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.dataset_link', { name: j.dataset.name ?? '', n: j.dataset.rows })}</Link>
+          <Link to={`/train/dataset/${j.dataset.id}`}>{t('teach.res.dataset_link', { name: j.dataset.name ?? '', n: j.dataset.rows })}</Link>
           {' · '}
           <button
             type="button" data-testid="download-dataset"
@@ -349,7 +349,7 @@ export default function TeachLessonPage() {
               ))}
             </tbody>
           </FactTable>
-          {learned.length > ROWS_SHOWN && <ShownNote data-testid="learned-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: learned.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
+          {learned.length > ROWS_SHOWN && <ShownNote data-testid="learned-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: learned.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/train/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
         </Panel>
       )}
       {!failedTone && !!missed.length && (
@@ -364,7 +364,7 @@ export default function TeachLessonPage() {
               ))}
             </tbody>
           </FactTable>
-          {missed.length > ROWS_SHOWN && <ShownNote data-testid="missed-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: missed.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
+          {missed.length > ROWS_SHOWN && <ShownNote data-testid="missed-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: missed.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/train/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
         </Panel>
       )}
 
@@ -458,7 +458,7 @@ export default function TeachLessonPage() {
       {sheet === 'keep' && policy && (
         <KeepPrivateSheet
           job={j} policy={policy} runtimeModel={info?.node.model} onClose={() => setSheet(null)}
-          onPublishLater={() => setSheet('publish')} onDeleted={() => navigate('/teach/mine')}
+          onPublishLater={() => setSheet('publish')} onDeleted={() => navigate('/train/mine')}
         />
       )}
     </PageWrapper>

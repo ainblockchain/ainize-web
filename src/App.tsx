@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router';
 import { Provider } from 'react-redux';
 import { ThemeProvider } from 'styled-components';
 import { store } from './store';
@@ -8,6 +8,8 @@ import { GlobalStyle } from './styles/GlobalStyle';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LocaleProvider } from './i18n';
 import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SignedInLayout, SigningCheckLayout } from './components/base/Layout';
+import { TrainSection } from './components/teach/TrainSection';
+import { legacyTrainDestination } from './lib/trainNavigation';
 import { CenterProgress } from './components/ui/Misc';
 
 // Pages are code-split like ainize-web did with @loadable/component.
@@ -69,6 +71,18 @@ const MergePage = lazy(() => import('./screens/MergePage'));
 
 const fallback = <CenterProgress />;
 
+function LegacyTrainRoute() {
+  const location = useLocation();
+  return <Navigate to={legacyTrainDestination(location.pathname, location.search, location.hash)} replace />;
+}
+
+function ExploreEntry() {
+  const location = useLocation();
+  return new URLSearchParams(location.search).get('kind') === 'agent'
+    ? <Layout><ExplorePage fixedKind="agent" /></Layout>
+    : <Navigate to={`/train/knowledge${location.search}${location.hash}`} replace />;
+}
+
 function AccountEntry() {
   const { isOwner } = useAuth();
   return isOwner ? <AccountPage /> : <MyPage />;
@@ -88,7 +102,7 @@ export default function App() {
                 <Route path="/" element={<FullScreenLayout><LandingPage /></FullScreenLayout>} />
 
                 {/* Public pages (Layout) */}
-                <Route path="/explore" element={<Layout><ExplorePage /></Layout>} />
+                <Route path="/explore" element={<ExploreEntry />} />
                 <Route path="/apps" element={<Layout><AppsPage /></Layout>} />
                 <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
                 <Route path="/aincode" element={<Layout><AinCodePage /></Layout>} />
@@ -127,14 +141,16 @@ export default function App() {
                 <Route path="/chat/:patchId" element={<Layout><ChatPage /></Layout>} />
                 {/* Teach mode: the entry choice, the dataset wizard, and the public data-provider page (spec §11) */}
                 {/* the wizard runs under the slim FocusedLayout (logo · exit · language); the data-provider page keeps the marketplace chrome */}
-                <Route path="/teach" element={<FocusedLayout><TeachPage /></FocusedLayout>} />
-                <Route path="/teach/upload" element={<FocusedLayout><TeachUploadPage /></FocusedLayout>} />
-                <Route path="/teach/dataset/:dsId" element={<FocusedLayout><TeachDatasetPage /></FocusedLayout>} />
-                <Route path="/teach/dataset/:dsId/settings" element={<FocusedLayout><TeachSettingsPage /></FocusedLayout>} />
-                <Route path="/teach/lesson/:jobId" element={<FocusedLayout><TeachLessonPage /></FocusedLayout>} />
-                <Route path="/teach/mine" element={<FocusedLayout><TeachMinePage /></FocusedLayout>} />
+                <Route path="/teach/*" element={<LegacyTrainRoute />} />
+                <Route path="/train" element={<Layout><TrainSection><TeachPage /></TrainSection></Layout>} />
+                <Route path="/train/knowledge" element={<Layout><TrainSection><ExplorePage fixedKind="knowledge" /></TrainSection></Layout>} />
+                <Route path="/train/upload" element={<FocusedLayout><TeachUploadPage /></FocusedLayout>} />
+                <Route path="/train/dataset/:dsId" element={<FocusedLayout><TeachDatasetPage /></FocusedLayout>} />
+                <Route path="/train/dataset/:dsId/settings" element={<FocusedLayout><TeachSettingsPage /></FocusedLayout>} />
+                <Route path="/train/lesson/:jobId" element={<FocusedLayout><TeachLessonPage /></FocusedLayout>} />
+                <Route path="/train/mine" element={<Layout><TrainSection><TeachMinePage /></TrainSection></Layout>} />
                 {/* Combining two knowledges (lineage design §4 SC-14, §9) — the third door, behind the `teach.lineage` flag */}
-                <Route path="/teach/merge" element={<FocusedLayout><MergePage /></FocusedLayout>} />
+                <Route path="/train/merge" element={<FocusedLayout><MergePage /></FocusedLayout>} />
                 <Route path="/teacher/:address" element={<Layout><TeacherPage /></Layout>} />
                 {/* item 337: what one verifier has actually done — the record behind a tick that had no page at all */}
                 <Route path="/verifier/:address" element={<Layout><VerifierPage /></Layout>} />

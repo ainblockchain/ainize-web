@@ -373,7 +373,7 @@ function LoadFailed({ id, error, busy, onRetry }: { id: string; error: unknown; 
             <Note style={{ margin: '8px 0 0' }}><Mono>{errorMessage(error)}</Mono></Note>
             <div style={{ marginTop: 16, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
               <Button variant="contained" loading={busy} loadingText={t('detail.patch.error_retrying')} onClick={onRetry}>{t('detail.patch.error_retry')}</Button>
-              <StyledLink to="/explore">{t('detail.patch.error_explore')} →</StyledLink>
+              <StyledLink to="/train/knowledge">{t('detail.patch.error_explore')} →</StyledLink>
             </div>
             <Note style={{ margin: '12px 0 0' }}>{t('detail.patch.error_auto')}</Note>
           </Section>
@@ -502,7 +502,7 @@ export default function PatchPage() {
             {/* SC-9 *Build on this* — the flag holds it back, and a private training set says why nobody can. */}
             <BuildOn type="button" data-testid="build-on" disabled={!canBuildOn || noBase}
               title={datasetPrivate ? t('detail.build_on_private') : datasetNone ? t('detail.build_on_none') : undefined}
-              onClick={() => { window.location.href = `/teach/upload?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
+              onClick={() => { window.location.href = `/train/upload?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
             <ViewAll to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{t('detail.patch.view_same_subject')}</ViewAll>
           </HeadRight>
         </BandContent>
