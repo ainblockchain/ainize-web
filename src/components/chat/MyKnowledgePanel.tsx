@@ -46,7 +46,7 @@ export function MyKnowledgePanel({ teacherKey, lessonEntries, onOpenLesson, onKe
   const { t } = useT();
   const elapsed = useElapsed();
   const [restoring, setRestoring] = useState(false);
-  const { currentData: data, error, isLoading } = useMyTeachJobsQuery(teacherKey?.address.toLowerCase() ?? '', { skip: !teacherKey, pollingInterval: 10_000 });
+  const { currentData: data, error, isFetching } = useMyTeachJobsQuery(teacherKey?.address.toLowerCase() ?? '', { skip: !teacherKey, pollingInterval: 10_000 });
   const { currentData: profile } = useTeacherQuery(teacherKey?.address ?? '', { skip: !teacherKey, pollingInterval: 30_000 });
   const items = data?.items ?? [];
   const entryOf = (j: TeachJob) => lessonEntries.find((e) => e.anchor.id === (j.patch_id ?? j.draft_id));
@@ -70,7 +70,7 @@ export function MyKnowledgePanel({ teacherKey, lessonEntries, onOpenLesson, onKe
       {teacherKey && (
         <>
           <H>{t('teach.mine.lessons')}</H>
-          {isLoading && <SheetNote>{t('common.loading')}</SheetNote>}
+          {!data && isFetching && <SheetNote>{t('common.loading')}</SheetNote>}
           {!!error && <Alert $tone="error" role="alert">{mapTeachError(error, t)}</Alert>}
           {data && items.length === 0 && <SheetNote>{t('teach.mine.empty')}</SheetNote>}
           {items.length > 0 && (

@@ -69,7 +69,7 @@ export default function TeachSettingsPage() {
   const retrainOf = params.get('retrain') ?? '';
   const asked = params.get('effort');
   const { data: policy } = useTeachPolicyQuery();
-  const { currentData: dsData, isLoading } = useTeachDatasetQuery({ id: dsId, teacherIdentity }, { skip: !dsId });
+  const { currentData: dsData, isFetching, error: loadError, refetch } = useTeachDatasetQuery({ id: dsId, teacherIdentity }, { skip: !dsId });
   const dataset = dsData?.dataset;
   const cap = rowsPerJob(policy);
   const selection = useMemo(() => loadSelection(dsId), [dsId]);
@@ -173,12 +173,13 @@ export default function TeachSettingsPage() {
     } catch (e) { setError(mapTeachError(e, t)); }
   };
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!dataset && isFetching) return <PageWrapper data-testid="dataset-loading"><CenterProgress /></PageWrapper>;
   if (!dataset) {
     return (
       <PageWrapper data-testid="teach-settings">
         <Stepper current={3} />
-        <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('teach.err.dataset_not_found')}</Alert>
+        <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{loadError ? mapTeachError(loadError, t) : t('teach.err.dataset_not_found')}</Alert>
+        <Button size="small" variant="text" onClick={() => void refetch()}>{t('teach.data.retry')}</Button>
       </PageWrapper>
     );
   }

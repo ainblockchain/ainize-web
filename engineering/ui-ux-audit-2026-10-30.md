@@ -264,3 +264,9 @@ Validation so far: typecheck and 44 focused navigation, project action, translat
 - U42: private lists/details shared cache entries across teaching keys. Scope chat drafts, own jobs/datasets, dataset details/rows, job details/events, training-set previews and publish previews by public address; consumers use currentData and unused entries expire immediately. Keys never enter Redux/cache arguments.
 - Local validation: typecheck and generated-file check passed; 10 storage/transport regression tests and 26 actual component-render cases passed, including old-key history exclusion. Server full CI and deployment still pending. No real key was changed, imported, or removed in the user's browser.
 - Remaining audit includes session-cookie private endpoint families, chat-local draft/history ownership, operator/member actions and the broader route inventory. This is not completion of the full audit.
+
+### Dataset recovery follow-up
+
+- PR #155 merged as b1d2aa5a624b30df38fb56505ff4ee3c2d77fd8d. Isolated ainize CI at 814cf255 passed all 534 tests, 26 executed render cases, typecheck, generated-file/deploy checks and production build. Standard production deployment is running; public verification is pending.
+- U43: dataset settings reported every failed request as a deleted dataset. Preview/settings now distinguish fetching current identity from absent data and offer retry on read failure. Chat and the private lesson panel also show current-identity loading rather than relying on an older query's isLoading state.
+- A new actual-render scenario checks pending and failed dataset preview/settings routes, including parameterized URLs, retry controls and absence of the incorrect deletion message. Local typecheck and all 27 render scenarios pass. Production gate/deployment pending.

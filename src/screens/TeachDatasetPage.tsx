@@ -72,7 +72,7 @@ export default function TeachDatasetPage() {
   const navigate = useNavigate();
   const { search } = useLocation();          // a re-train carries `?retrain=<job>&effort=…` through to the settings screen
   const { data: policy } = useTeachPolicyQuery();
-  const { currentData: dsData, isLoading, error: loadError } = useTeachDatasetQuery({ id: dsId, teacherIdentity }, { skip: !dsId });
+  const { currentData: dsData, isFetching, error: loadError, refetch } = useTeachDatasetQuery({ id: dsId, teacherIdentity }, { skip: !dsId });
   const [offset, setOffset] = useState(0);
   const [origin, setOrigin] = useState<'all' | 'mine' | 'inherited' | 'changed' | 'conflicts'>('all');
   const { currentData: page } = useTeachDatasetRowsQuery({ teacherIdentity, id: dsId, offset, limit: PAGE, origin }, { skip: !dsId });
@@ -240,12 +240,13 @@ export default function TeachDatasetPage() {
     navigate(`/train/dataset/${dsId}/settings${search}`);
   };
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!dataset && isFetching) return <PageWrapper data-testid="dataset-loading"><CenterProgress /></PageWrapper>;
   if (loadError || !dataset) {
     return (
       <PageWrapper data-testid="teach-dataset">
         <Stepper current={2} />
         <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{loadError ? mapTeachError(loadError, t) : t('teach.err.dataset_not_found')}</Alert>
+        <Button size="small" variant="text" onClick={() => void refetch()}>{t('teach.data.retry')}</Button>
       </PageWrapper>
     );
   }
