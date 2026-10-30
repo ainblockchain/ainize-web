@@ -122,7 +122,7 @@ export default function AuthorizePage() {
         <Muted style={{ marginTop: 22 }}>{t('op.authorize.message')}</Muted>
         <Signed data-testid="authorize-message">{data.message}</Signed>
 
-        {!auth.subject && <Alert $tone="info" style={{ marginTop: 18 }}><Link to={`/signing?next=${encodeURIComponent(`/authorize?code=${code}`)}`}>{t('op.authorize.signin_first')}</Link></Alert>}
+        {!auth.subject && <Alert $tone="info" style={{ marginTop: 18 }}><Link to={`/signing?wallet=1&next=${encodeURIComponent(`/authorize?code=${code}`)}`}>{t('op.authorize.signin_first')}</Link></Alert>}
         {wallets && wallets.length > 1 && <select aria-label={t('op.sign.wallet.pick')} value={walletIndex} onChange={e => setWalletIndex(Number(e.target.value))}>{wallets.map((w, i) => <option key={w.info.uuid} value={i}>{w.info.name}</option>)}</select>}
         {wallets !== null && wallets.length === 0 && <Alert $tone="error" style={{ marginTop: 18 }}>{t('op.sign.wallet.err_no_extension')}</Alert>}
         {localError && <Alert $tone="error" role="alert" style={{ marginTop: 18 }}>{localError}</Alert>}

@@ -93,6 +93,12 @@ export function ssoRedirectUri(req: Request, cfg: AinSsoConfig): string {
 
 interface FlowPayload { state: string; nonce: string; verifier: string; redirectUri: string; next: string; exp: number; silent?: true }
 
+/** Recover a failed explicit login's destination only from its authenticated, matching flow. */
+export function verifiedSsoReturnPath(req: Request, cfg: AinSsoConfig, cookie: string | undefined, now = Date.now()): string | null {
+  const flow = unseal<FlowPayload>(cookie, cfg, 'flow', now);
+  return flow && new URL(req.url).searchParams.get('state') === flow.state ? safeGoogleNext(flow.next) : null;
+}
+
 /**
  * What the person asked for besides signing in. `prompt=none`: automatic sign-in (silentSso.ts) — AIN SSO answers
  * without showing anything. `prompt=create`: the sign-up page (OIDC Prompt Create 1.0). `idp=google`: straight to

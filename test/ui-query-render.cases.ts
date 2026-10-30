@@ -91,14 +91,11 @@ test('a failed refresh retains previous history while reporting the error', () =
   assert.doesNotMatch(html, /data-testid="mine-empty"/);
 });
 
-test('public sign-in leads with the AIN account and keeps wallets available in a closed section', () => {
+test('ordinary sign-in goes directly to AIN and retains the requested page without showing wallet controls', () => {
   const html = render(SigningPage, signedOut, '/signing?next=%2Fapps%3Fq%3Ddemo%23results');
-  assert.ok(html.indexOf('data-testid="sso-signin"') < html.indexOf('data-testid="wallet-options"'));
-  const details = html.match(/<details[^>]*data-testid="wallet-options"[^>]*>/)?.[0];
-  assert.ok(details);
-  assert.doesNotMatch(details, /\bopen=/);
-  assert.match(html, /next=%2Fapps%3Fq%3Ddemo%23results/);
-  assert.doesNotMatch(html, /connect and manage your nodes/);
+  assert.match(html, /data-testid="signin-redirect"/);
+  assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fapps%3Fq%3Ddemo%23results"/);
+  assert.doesNotMatch(html, /data-testid="wallet-options"|data-testid="ain-wallet-signin"/);
 });
 
 test('wallet-only nodes and explicit node enrollment keep the wallet section expanded', () => {
@@ -113,9 +110,9 @@ test('wallet-only nodes and explicit node enrollment keep the wallet section exp
 
 test('signed-in account visitors can continue without being forced into wallet login', () => {
   const html = render(SigningPage, [...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { sso: { sub: 'test-user', name: 'Test user', principal: 'sso:test-user' } } }], '/signing?next=%2Fapps');
-  assert.match(html, /data-testid="signin-continue"/);
-  assert.doesNotMatch(html, /data-testid="sso-signin"/);
-  assert.match(html, /Connect a wallet/);
+  assert.match(html, /data-testid="signin-redirect"/);
+  assert.match(html, /href="\/apps"/);
+  assert.doesNotMatch(html, /data-testid="wallet-options"|data-testid="sso-signin"/);
 });
 
 test('sign-in waits for configured options instead of flashing a wallet-only page', () => {
@@ -261,4 +258,12 @@ test('explicit wallet connection links open wallet controls for an already signe
   assert.match(html, /<details[^>]*open=""[^>]*data-testid="wallet-options"/);
   assert.match(html, /data-testid="ain-wallet-signin"/);
   assert.match(html, /data-testid="signin-continue"/);
+});
+
+
+test('a failed sign-in stays on a recovery screen rather than immediately restarting authentication', () => {
+  const html = render(SigningPage, signedOut, '/signing?next=%2Fapps&sso_error=account_suspended');
+  assert.doesNotMatch(html, /data-testid="signin-redirect"/);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fapps"/);
 });
