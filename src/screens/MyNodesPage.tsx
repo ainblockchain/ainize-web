@@ -45,7 +45,7 @@ export default function MyNodesPage() {
       <Description>{t('op.mynodes.desc', { addr: subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : '' })}</Description>
       <details style={{ marginTop: 20 }}><summary>{t('op.mynodes.add')}</summary><p>{t('op.mynodes.add_hint')}</p><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>ainize init --home ~/.ainize-node2 --name node2 --port 3403{'\n'}ainize login --home ~/.ainize-node2{'\n'}ainize start --home ~/.ainize-node2 -d</pre></details>
       {unlinkState.error && <QueryError error={unlinkState.error} what={t('op.mynodes.disconnect')} onRetry={() => unlinkState.reset()} />}
-      {isLoading && <CenterProgress />}
+      {!data && (isLoading || isFetching) && <CenterProgress />}
       {error && <QueryError error={error} what={t('op.mynodes.title')} onRetry={() => void refetch()} retrying={isFetching} />}
 
       {!isLoading && !error && data && rows.length === 0 && (
