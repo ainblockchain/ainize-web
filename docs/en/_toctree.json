@@ -25,6 +25,10 @@
       {
         "page": "how-to/deploy-with-ainize-json",
         "title": "ainize.json reference"
+      },
+      {
+        "page": "how-to/run-scripts-on-a-schedule",
+        "title": "Run scripts on a schedule"
       }
     ]
   },
@@ -52,6 +56,10 @@
   {
     "group": "Concepts",
     "pages": [
+      {
+        "page": "concepts/deployments-and-runs",
+        "title": "Deployments vs Runs"
+      },
       {
         "page": "concepts/knowledge-patch",
         "title": "What a knowledge patch is"

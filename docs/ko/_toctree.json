@@ -25,6 +25,10 @@
       {
         "page": "how-to/deploy-with-ainize-json",
         "title": "ainize.json 레퍼런스"
+      },
+      {
+        "page": "how-to/run-scripts-on-a-schedule",
+        "title": "스크립트를 스케줄로 실행하기"
       }
     ]
   },
@@ -52,6 +56,10 @@
   {
     "group": "개념",
     "pages": [
+      {
+        "page": "concepts/deployments-and-runs",
+        "title": "배포와 실행의 차이"
+      },
       {
         "page": "concepts/knowledge-patch",
         "title": "지식이란 무엇인가"
