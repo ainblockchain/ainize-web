@@ -50,11 +50,11 @@ export default function AppsPage() {
     { skip: !auth.isSignedIn, pollingInterval: 15_000, refetchOnMountOrArgChange: true });
   const rows = appProjects(apps.currentData?.projects ?? [], q);
   const partial = apps.isError || !!apps.currentData?.failedSources?.length;
-  const next = `/apps${q ? `?q=${encodeURIComponent(q)}` : ''}`;
+  const next = `/deployments${q ? `?q=${encodeURIComponent(q)}` : ''}`;
   useTitle(t('apps.title'));
   return <PageWrapper>
     <Header>
-      <div><Title>{t('apps.title')}</Title><p>{t('apps.list.lede')}</p></div>
+      <div><Title>{t('apps.title')}</Title><p>{t('apps.list.lede')}</p><p>{t('apps.vs_runs')} <StyledLink to="/runs">{t('nav.runs')}</StyledLink> · <StyledLink to="/docs/concepts/deployments-and-runs">{t('apps.vs_runs_doc')}</StyledLink></p></div>
       <Actions><StyledLink to="/docs/how-to/deploy-nextjs">{t('apps.guide')}</StyledLink><Primary to="/projects/new">{t('apps.new')}</Primary></Actions>
     </Header>
     {auth.loading ? <CenterProgress /> : !auth.isSignedIn ? <Notice>
@@ -67,7 +67,7 @@ export default function AppsPage() {
       <Summary>{q ? t('apps.search_results', { q }) : t(partial ? 'apps.loaded_count' : 'apps.count', { n: rows.length })}</Summary>
       {!rows.length && partial ? <Notice><h2>{t('apps.partial_empty')}</h2><p>{t('apps.partial_hint')}</p></Notice> : !rows.length ? <Notice><h2>{t(q ? 'apps.search_none' : 'apps.empty.title', { q })}</h2>
         <p>{t(q ? 'apps.search_hint' : 'apps.empty.body')}</p>
-        {q ? <StyledLink to="/apps">{t('apps.all')}</StyledLink> : <Primary to="/projects/new">{t('apps.new')}</Primary>}
+        {q ? <StyledLink to="/deployments">{t('apps.all')}</StyledLink> : <Primary to="/projects/new">{t('apps.new')}</Primary>}
       </Notice> : <CardGrid aria-label={t('apps.title')}>
         {rows.map((p) => <AppCard key={p.id} project={p} />)}
       </CardGrid>}

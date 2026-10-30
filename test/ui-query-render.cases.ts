@@ -14,6 +14,9 @@ import { createTeacherKey, forgetTeacherKey } from '../src/lib/teacherKey';
 import TeachMinePage from '../src/screens/TeachMinePage';
 import SigningPage from '../src/screens/SigningPage';
 import AppsPage from '../src/screens/AppsPage';
+import RunsPage from '../src/screens/RunsPage';
+import MyProjectsPage from '../src/screens/MyProjectsPage';
+import { ProjectConsole } from '../src/screens/ProjectPage';
 import SearchPage from '../src/screens/SearchPage';
 import MyPage from '../src/screens/MyPage';
 import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel';
@@ -266,4 +269,84 @@ test('a failed sign-in stays on a recovery screen rather than immediately restar
   assert.doesNotMatch(html, /data-testid="signin-redirect"/);
   assert.match(html, /role="alert"/);
   assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fapps"/);
+});
+
+// ── Deployments and Runs (ainize-node "Runs" contract §3)
+const scriptProject = { id: 'job', name: 'Nightly check', org: 'studio', repoName: 'check', kind: 'script', entry: 'check.py', branch: 'main', status: 'ready', updatedAt: Date.now(), lastDeployment: { id: 'r1', status: 'ready', createdAt: Date.now() - 60_000 }, canOperate: true, canManage: true, repo: 'https://aindrive.ainetwork.ai/studio/git/check', url: 'https://ainize.ai/studio/check', pageUrl: '', lastDeploymentId: 'r1', createdAt: 1 };
+
+test('Runs lists script projects only, and sends the visitor to the guide, the run project form and the filtered list', () => {
+  const html = render(RunsPage, [...appAccount, appsFixture([webApp, scriptProject])], '/runs');
+  assert.match(html, /Nightly check/);
+  assert.doesNotMatch(html, /Storefront/);
+  assert.match(html, /href="\/studio\/check\?tab=runs"/);
+  assert.match(html, /href="\/docs\/how-to\/run-scripts-on-a-schedule"/);
+  assert.match(html, /href="\/me\/projects\?kind=script"/);
+  assert.match(html, /href="\/projects\/new"/);
+  assert.match(html, /AIN blockchain/);
+  const empty = render(RunsPage, [...appAccount, appsFixture([webApp])], '/runs');
+  assert.match(empty, /data-testid="runs-empty"/);
+  const out = render(RunsPage, [...signedOut, appsFixture([scriptProject])], '/runs');
+  assert.match(out, /Sign in with AIN/);
+  assert.doesNotMatch(out, /Nightly check/);
+});
+
+test('Deployments points at Runs for scripts, and the signed-out return address is /deployments', () => {
+  const html = render(AppsPage, [...signedOut, appsFixture([webApp])], '/deployments?q=x');
+  assert.match(html, /href="\/signing\?next=%2Fdeployments%3Fq%3Dx"/);
+  assert.match(html, /href="\/runs"/);
+  assert.match(html, /href="\/docs\/concepts\/deployments-and-runs"/);
+});
+
+test('My projects filters Runs from Deployments by ?kind=', () => {
+  const mine: Fixture = { name: 'myProjects', value: { projects: [webApp, scriptProject] } };
+  const runs = render(MyProjectsPage, [...appAccount, mine], '/me/projects?kind=script');
+  assert.match(runs, /studio\/check/);
+  assert.doesNotMatch(runs, /studio\/mono/);
+  const deployments = render(MyProjectsPage, [...appAccount, mine], '/me/projects?kind=deployment');
+  assert.match(deployments, /studio\/mono/);
+  assert.doesNotMatch(deployments, /studio\/check/);
+  const all = render(MyProjectsPage, [...appAccount, mine], '/me/projects');
+  assert.match(all, /studio\/mono/); assert.match(all, /studio\/check/);
+  assert.match(all, /data-testid="projects-filter"/);
+});
+
+const Console = () => createElement(ProjectConsole, { project: scriptProject as any });
+const triggers = [
+  { name: 'hourly', type: 'schedule', cron: '0 * * * *', timezone: 'Asia/Seoul', enabled: true, nextRunAt: Date.now() + 3_600_000, lastRunAt: Date.now() - 60_000, lastRunId: 'r1', hasToken: false },
+  { name: 'on-post', type: 'ain', path: '/apps/afan/posts/$post_id', enabled: true, fireUrl: 'https://ainize.ai/api/projects/job/triggers/on-post/fire', hasToken: true },
+  { name: 'webhook', type: 'http', enabled: false, fireUrl: 'https://ainize.ai/api/projects/job/triggers/webhook/fire', hasToken: true },
+];
+const consoleFixtures = (extra: Fixture[]): Fixture[] => [...appAccount, { name: 'project', arg: 'job', value: scriptProject },
+  { name: 'projectDeployments', arg: 'job', value: { deployments: [] } },
+  { name: 'projectRuns', arg: 'job', value: { runs: [
+    { id: 'r1', projectId: 'job', sha: 'a'.repeat(40), ref: 'refs/heads/main', status: 'ready', kind: 'script', trigger: 'schedule', triggerName: 'hourly', pusher: null, createdAt: Date.now() - 60_000, startedAt: null, finishedAt: null, ms: 1200, logUrl: '/log/r1' },
+    { id: 'r2', projectId: 'job', sha: 'a'.repeat(40), ref: 'refs/heads/main', status: 'error', kind: 'script', trigger: 'ain', triggerName: 'on-post', pusher: null, createdAt: Date.now() - 30_000, startedAt: null, finishedAt: null, ms: 900, logUrl: '/log/r2' },
+    { id: 'r3', projectId: 'job', sha: 'a'.repeat(40), ref: 'refs/heads/main', status: 'ready', kind: 'script', trigger: 'http', triggerName: 'webhook', pusher: null, createdAt: Date.now() - 10_000, startedAt: null, finishedAt: null, ms: 300, logUrl: '/log/r3' },
+  ] } }, ...extra];
+
+test('the Runs tab lists the triggers ainize.json installed, with their schedule, path, fire URL and state', () => {
+  const html = render(Console, consoleFixtures([{ name: 'projectTriggers', arg: 'job', value: { triggers } }]), '/studio/check?tab=runs');
+  assert.match(html, /data-testid="triggers"/);
+  assert.equal((html.match(/data-testid="trigger-row"/g) ?? []).length, 3);
+  assert.match(html, /0 \* \* \* \* · Asia\/Seoul/);
+  assert.match(html, /\/apps\/afan\/posts\/\$post_id/);
+  assert.match(html, /https:\/\/ainize.ai\/api\/projects\/job\/triggers\/on-post\/fire/);
+  assert.match(html, /Run now/); assert.match(html, /Rotate token/); assert.match(html, /Show AIN rule/);
+  assert.match(html, /Disabled/, 'the webhook is switched off');
+  // the history rows carry the trigger chip and the trigger's name
+  assert.match(html, />schedule · <[^>]*>hourly</);
+  assert.match(html, />AIN trigger · <[^>]*>on-post</);
+  assert.match(html, />webhook · <[^>]*>webhook</);
+  assert.doesNotMatch(html, /data-testid="triggers-empty"/);
+});
+
+test('a script project with no triggers explains the triggers key, and a failed list is retryable', () => {
+  const empty = render(Console, consoleFixtures([{ name: 'projectTriggers', arg: 'job', value: { triggers: [] } }]), '/studio/check?tab=runs');
+  assert.match(empty, /data-testid="triggers-empty"/);
+  assert.match(empty, /ainize.json/);
+  assert.match(empty, /href="\/docs\/how-to\/run-scripts-on-a-schedule"/);
+  const failed = render(Console, consoleFixtures([{ name: 'projectTriggers', arg: 'job', status: 'rejected' }]), '/studio/check?tab=runs');
+  assert.match(failed, /Could not load the triggers/);
+  assert.match(failed, /Try again/);
+  assert.doesNotMatch(failed, /data-testid="triggers-empty"/);
 });

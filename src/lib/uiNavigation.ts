@@ -15,12 +15,18 @@ export function withQuery(path: string, values: Record<string, string>): string 
   return url.pathname + url.search + url.hash;
 }
 
-export function navigationSection(pathname: string, search = ''): 'train' | 'agents' | 'apps' | null {
+/**
+ * Which header item is lit. A project's console (`/<org>/<repo>`) cannot say from its address whether it is a Deployment
+ * or a Run, so it lights Deployments — the item that was always theirs; `/runs` and the Runs filter of `/me/projects`
+ * light Runs.
+ */
+export function navigationSection(pathname: string, search = ''): 'train' | 'agents' | 'deployments' | 'runs' | null {
   const parts = pathname.split('/').filter(Boolean);
   const first = parts[0] ?? '';
   if (first === 'explore') return new URLSearchParams(search).get('kind') === 'agent' ? 'agents' : 'train';
   if (['train', 'teach', 'teacher'].includes(first) || isKnowledgeAuthor(first) || (first === 'chat' && new URLSearchParams(search).get('teach') === '1')) return 'train';
   if (['agent', 'agents'].includes(first) || pathname === '/me/agents') return 'agents';
-  if (['apps', 'projects'].includes(first) || pathname === '/me/projects' || (parts.length === 2 && looksLikeSlug(first))) return 'apps';
+  if (first === 'runs' || (pathname === '/me/projects' && new URLSearchParams(search).get('kind') === 'script')) return 'runs';
+  if (['apps', 'deployments', 'projects'].includes(first) || pathname === '/me/projects' || (parts.length === 2 && looksLikeSlug(first))) return 'deployments';
   return null;
 }

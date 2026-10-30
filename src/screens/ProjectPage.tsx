@@ -7,9 +7,11 @@
  *   Deployments  the Vercel-shaped rows (status dot, sha + subject, branch, who, when, how long); a row opens the
  *                full log (polled while it runs), exit code, output link, Redeploy — "roll back to this one" for a
  *                service, since a redeploy of an earlier commit re-points the container. Filters, pagination.
- *   Runs         script projects: the Run panel — entry file, the `inputs` form out of ainize.json (GitHub
- *                workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input, timeout, example
- *                presets (`examples` in ainize.json) — and the history of runs, each re-runnable with its inputs.
+ *   Runs         script projects: the Triggers section (what `triggers` in ainize.json installed — a schedule, an
+ *                AIN blockchain write, a webhook — each with its next/last run, an enabled switch, Run now, the fire
+ *                URL and token, the AIN `.function` rule), the Run panel — entry file, the `inputs` form out of
+ *                ainize.json (GitHub workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input,
+ *                timeout, example presets (`examples` in ainize.json) — and the history of runs, each re-runnable.
  *   Logs         a service/nextjs app's RUNTIME log — what the running container prints, on the node or the deployment
  *                peer it was placed on; owner/members only, followed live — and the newest deployment's or run's
  *                build log (`?log=build`), downloadable.
@@ -27,11 +29,12 @@ import styled, { keyframes } from 'styled-components';
 import {
   useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
   useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRunProjectMutation,
+  useDisableTriggerMutation, useEnableTriggerMutation, useInstallTriggerAinRuleMutation, useProjectTriggersQuery, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
 import {
-  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
-  type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
+  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, isModelInput, isRunTrigger, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, sortTriggers, statusToneOf, triggerDetail,
+  type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type ProjectTrigger, type RunInput,
 } from '@/api/projects';
 import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
 import { useAuth } from '@/auth/AuthContext';
@@ -195,7 +198,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
         {d.subject && <Subject title={d.subject}>{d.subject}</Subject>}
         <Meta><Mono>{d.ref.replace(/^refs\/heads\//, '')}</Mono></Meta>
         {d.kind && <Chip $tone="muted">{t(`projects.kind.${d.kind}`)}</Chip>}
-        {d.trigger !== 'push' && <Chip $tone="muted">{t(`projects.trigger.${d.trigger}`)}</Chip>}
+        {d.trigger !== 'push' && <Chip $tone="muted" data-testid="run-trigger">{t(`projects.trigger.${d.trigger}`)}{d.triggerName ? <> · <Mono>{d.triggerName}</Mono></> : null}</Chip>}
         {who(d) && <Meta>{t('projects.page.by', { who: who(d)! })}</Meta>}
         <Spacer />
         <Meta title={when(d.createdAt)}>{relativeTime(d.createdAt)}</Meta>
@@ -207,7 +210,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
           {d.placement && <Meta>Node: <ExternalLink href={d.placement.endpoint} target="_blank" rel="noreferrer">{d.placement.local ? 'Local' : new URL(d.placement.endpoint).hostname} ↗</ExternalLink> · {d.placement.reason}</Meta>}
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
-          {d.trigger === 'run' && runInputNames(d).length > 0 && (
+          {isRunTrigger(d.trigger) && runInputNames(d).length > 0 && (
             <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
           )}
           <Actions>
@@ -215,7 +218,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
             <ExternalLink href={d.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
             <Spacer />
             {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
-            {project.canOperate && d.trigger !== 'run' && d.sha && (
+            {project.canOperate && !isRunTrigger(d.trigger) && d.sha && (
               <Button size="small" loading={redeploying} onClick={again} title={isService ? t('projects.page.rollback_hint') : undefined}>
                 {isService && project.lastDeploymentId !== d.id ? t('projects.page.rollback') : t('projects.page.redeploy')}
               </Button>
@@ -340,6 +343,106 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
         <Help>{t('projects.runs.key_hint')}</Help>
       </Actions>
     </Panel>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------ triggers
+
+const TriggerRows = styled.ul`list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 8px;`;
+const TriggerRow = styled.li<{ $off?: boolean }>`
+  border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 10px; background: #fff; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+  opacity: ${(p) => (p.$off ? 0.7 : 1)};
+`;
+const TriggerHead = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; min-height: 36px;`;
+const Rule = styled.pre`margin: 0; padding: 10px 12px; border-radius: 8px; background: #f6f7f9; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; font-family: ${(p) => p.theme.font.mono};`;
+
+/** The AIN `.function` rule for an `ain` trigger: shown to copy, and — when the node holds a key that may write there — installed on chain. */
+function AinRule({ project, trigger }: { project: Project; trigger: ProjectTrigger }) {
+  const { t } = useT();
+  const rule = useTriggerAinRuleQuery({ id: project.id, name: trigger.name });
+  const [install, { isLoading: installing }] = useInstallTriggerAinRuleMutation();
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const onInstall = async () => {
+    setErr(null);
+    try { await install({ id: project.id, name: trigger.name }).unwrap(); setDone(true); }
+    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+  };
+  if (rule.isLoading) return <Help>{t('projects.triggers.rule_loading')}</Help>;
+  if (rule.error || !rule.currentData) return <Alert $tone="error">{projectApiErrorOf(rule.error).message ?? t('projects.api.unknown')} <Button size="small" onClick={() => void rule.refetch()}>{t('projects.page.retry')}</Button></Alert>;
+  const json = JSON.stringify(rule.currentData.rule, null, 2);
+  return (
+    <div data-testid="trigger-ain-rule">
+      <Help>{t('projects.triggers.rule_help')} <Mono>{rule.currentData.path}</Mono></Help>
+      <Rule>{json}</Rule>
+      <Actions style={{ marginTop: 6 }}>
+        <CopyButton text={json} label={t('projects.triggers.copy_rule')} />
+        {project.canOperate && <Button size="small" loading={installing} disabled={done} onClick={onInstall}>{done ? t('projects.triggers.installed') : t('projects.triggers.install')}</Button>}
+        <Help>{t('projects.triggers.install_hint')}</Help>
+      </Actions>
+      {err && <Alert $tone="error">{err}</Alert>}
+    </div>
+  );
+}
+
+function TriggerItem({ project, trigger: tr, onOpenRun }: { project: Project; trigger: ProjectTrigger; onOpenRun: (id: string) => void }) {
+  const { t } = useT();
+  const [enable, { isLoading: enabling }] = useEnableTriggerMutation();
+  const [disable, { isLoading: disabling }] = useDisableTriggerMutation();
+  const [rotate, { isLoading: rotating }] = useRotateTriggerTokenMutation();
+  const [fire, { isLoading: firing }] = useRunTriggerMutation();
+  const [token, setToken] = useState<string | null>(null);
+  const [showRule, setShowRule] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const call = async (f: () => Promise<unknown>) => {
+    setErr(null);
+    try { await f(); }
+    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+  };
+  const detail = triggerDetail(tr);
+  const can = !!project.canOperate;
+  return (
+    <TriggerRow $off={!tr.enabled} data-testid="trigger-row">
+      <TriggerHead>
+        <Mono><strong>{tr.name}</strong></Mono>
+        <Chip $tone={tr.enabled ? 'ok' : 'muted'}>{t(`projects.triggers.type.${tr.type}`)}</Chip>
+        {detail && <Mono title={tr.type === 'schedule' ? tr.timezone ?? 'Etc/UTC' : undefined}>{detail}</Mono>}
+        {tr.type === 'schedule' && tr.enabled && tr.nextRunAt && <Meta title={when(tr.nextRunAt)}>{t('projects.triggers.next', { when: when(tr.nextRunAt) })}</Meta>}
+        {tr.lastRunAt ? <Meta title={when(tr.lastRunAt)}>{t('projects.triggers.last')}: {tr.lastRunId ? <a href={`?tab=runs&open=${encodeURIComponent(tr.lastRunId)}`} onClick={(e) => { e.preventDefault(); onOpenRun(tr.lastRunId!); }}>{relativeTime(tr.lastRunAt)}</a> : relativeTime(tr.lastRunAt)}</Meta> : <Meta>{t('projects.triggers.never')}</Meta>}
+        <Spacer />
+        {can && <Checkbox label={t(tr.enabled ? 'projects.triggers.enabled' : 'projects.triggers.disabled')} checked={tr.enabled} disabled={enabling || disabling}
+          onChange={(e) => void call(() => (e.target.checked ? enable : disable)({ id: project.id, name: tr.name }).unwrap())} />}
+        {can && <Button size="small" loading={firing} onClick={() => void call(async () => { const r = await fire({ id: project.id, name: tr.name }).unwrap(); if (r.runId) onOpenRun(r.runId); })}>▶ {t('projects.triggers.run_now')}</Button>}
+      </TriggerHead>
+      {tr.type !== 'schedule' && (
+        <Actions>
+          {tr.fireUrl && <><Meta>{t('projects.triggers.fire_url')}:</Meta> <Mono style={{ overflowWrap: 'anywhere' }}>{tr.fireUrl}</Mono> <CopyButton text={tr.fireUrl} /></>}
+          {can && <Button size="small" loading={rotating} onClick={() => void call(async () => { const r = await rotate({ id: project.id, name: tr.name }).unwrap(); setToken(r.token); })}>{t(tr.hasToken ? 'projects.triggers.rotate' : 'projects.triggers.issue')}</Button>}
+          {tr.type === 'ain' && <Button size="small" onClick={() => setShowRule((v) => !v)} aria-expanded={showRule}>{t(showRule ? 'projects.triggers.hide_rule' : 'projects.triggers.show_rule')}</Button>}
+        </Actions>
+      )}
+      {tr.type === 'http' && <Help>{t('projects.triggers.http_help')}</Help>}
+      {token && <Alert $tone="warning" data-testid="trigger-token"><strong>{t('projects.triggers.token_once')}</strong> <Mono>{token}</Mono> <CopyButton text={token} /></Alert>}
+      {showRule && tr.type === 'ain' && <AinRule project={project} trigger={tr} />}
+      {err && <Alert $tone="error">{err}</Alert>}
+    </TriggerRow>
+  );
+}
+
+/** The triggers `ainize.json` installed for this script project (contract §2): one row each, above the Run panel. */
+function TriggersSection({ project, onOpenRun }: { project: Project; onOpenRun: (id: string) => void }) {
+  const { t } = useT();
+  const q = useProjectTriggersQuery(project.id, { pollingInterval: 15_000 });
+  const rows = sortTriggers(q.currentData?.triggers ?? []);
+  return (
+    <section aria-label={t('projects.triggers.title')} data-testid="triggers">
+      <SubTitle>{t('projects.triggers.title')}{rows.length ? ` (${rows.length})` : ''}</SubTitle>
+      {q.isError && !q.currentData ? <Alert $tone="error">{t('projects.triggers.failed')} <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('projects.page.retry')}</Button></Alert>
+        : q.isLoading ? <CenterProgress />
+        : rows.length === 0 ? <Empty data-testid="triggers-empty">{t('projects.triggers.none')} <StyledLink to="/docs/how-to/run-scripts-on-a-schedule">{t('projects.triggers.guide')}</StyledLink></Empty>
+        : <TriggerRows>{rows.map((tr) => <TriggerItem key={tr.name} project={project} trigger={tr} onOpenRun={onOpenRun} />)}</TriggerRows>}
+      {rows.length > 0 && <Help style={{ margin: '0 0 16px' }}>{t('projects.triggers.help')} <StyledLink to="/docs/how-to/run-scripts-on-a-schedule">{t('projects.triggers.guide')}</StyledLink></Help>}
+    </section>
   );
 }
 
@@ -505,6 +608,8 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
       {tab === 'runs' && !isScript && <Alert $tone="info">{t(kind ? 'projects.api.not_a_script' : 'projects.page.kind_pending')} <Button onClick={() => setTab('deployments')}>{t('projects.tabs.deployments')}</Button></Alert>}
       {tab === 'runs' && isScript && (
         <TabBody>
+          <TriggersSection project={p} onOpenRun={(id) => { setOpen(id); void runs.refetch(); }} />
+          <SubTitle>{t('projects.runs.panel')}</SubTitle>
           <RunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
           <SubTitle>{t('projects.runs.history')}</SubTitle>
           {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : runs.isLoading ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
@@ -636,7 +741,7 @@ export function ProjectByNamePage() {
     <Actions>
       {!isSignedIn && unavailable && <StyledLink to={signInHref(location)}>{t('projects.runs.sign_in_button')}</StyledLink>}
       <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('projects.page.retry')}</Button>
-      <StyledLink to="/apps">{t('projects.page.apps')}</StyledLink>
+      <StyledLink to="/deployments">{t('projects.page.apps')}</StyledLink>
     </Actions>
   </PageWrapper>;
 }

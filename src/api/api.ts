@@ -22,7 +22,7 @@ import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
-import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
+import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse, TriggerAinRule, TriggerFired, TriggerToken, TriggersResponse } from './projects';
 import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
 
 /**
@@ -201,6 +201,22 @@ export const api = createApi({
     }),
     projectRuns: b.query<RunsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/runs` }] }),
     runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
+    /**
+     * Triggers of a Run (script) project — installed from `ainize.json` `triggers` when a deployment reaches `ready`
+     * (ainize-node "Runs" contract §2). Listed as the project is readable; enable/disable/rotate/run for operators.
+     * The list is re-read after each action and whenever the run history changes (`<id>/runs`): a manual fire adds a run.
+     */
+    projectTriggers: b.query<TriggersResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/triggers`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/triggers` }] }),
+    enableTrigger: b.mutation<{ ok?: true } | void, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/enable`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    disableTrigger: b.mutation<{ ok?: true } | void, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/disable`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    /** The new token, once; `hasToken` flips on the list. */
+    rotateTriggerToken: b.mutation<TriggerToken, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/rotate-token`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    /** "Run now": fires the trigger with a synthetic `{ type: "manual" }` event; 202 `{ runId }`. */
+    runTrigger: b.mutation<TriggerFired, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/run`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }, { type: 'Project', id: `${a.id}/runs` }] }),
+    /** ain only: the `.function` rule to set at `path` on chain — the console shows it to copy, or installs it. */
+    triggerAinRule: b.query<TriggerAinRule, { id: string; name: string }>({ query: ({ id, name }) => `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/ain-rule`, providesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    /** ain only, when the node holds an AIN key with write permission on the path: sets the rule on chain (ain-js `setFunction`). */
+    installTriggerAinRule: b.mutation<{ ok?: boolean; txHash?: string } | void, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/ain-rule/install`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
     redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
     syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
@@ -675,6 +691,7 @@ export const {
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
+  useProjectTriggersQuery, useEnableTriggerMutation, useDisableTriggerMutation, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery, useInstallTriggerAinRuleMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,

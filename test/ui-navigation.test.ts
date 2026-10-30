@@ -27,7 +27,12 @@ test('detail pages keep the correct parent menu selected', () => {
   assert.equal(navigationSection('/explore', '?kind=agent'), 'agents');
   assert.equal(navigationSection('/explore'), 'train');
   assert.equal(navigationSection('/0x' + 'a'.repeat(40) + '/lesson'), 'train');
-  assert.equal(navigationSection('/comcom/app'), 'apps');
+  assert.equal(navigationSection('/comcom/app'), 'deployments');
+  assert.equal(navigationSection('/deployments'), 'deployments');
+  assert.equal(navigationSection('/apps'), 'deployments', 'the old address lights the same item');
+  assert.equal(navigationSection('/me/projects'), 'deployments');
+  assert.equal(navigationSection('/runs'), 'runs');
+  assert.equal(navigationSection('/me/projects', '?kind=script'), 'runs');
   assert.equal(navigationSection('/models/clef'), null);
   assert.equal(navigationSection('/docs/topic'), null);
 });
