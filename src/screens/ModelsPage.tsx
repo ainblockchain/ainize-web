@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { CardGrid, CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, Title } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { docsFromModels, matchingSearchIds } from '@/lib/globalSearch';
 
 /** huggingface.co's card grid (Misc.CardGrid), the same columns every listing steps through. */
 const Cards = styled(CardGrid)`margin: 12px 0 28px;`;
@@ -53,9 +54,10 @@ export default function ModelsPage() {
   const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000, skipPollingIfUnfocused: true, refetchOnFocus: true, refetchOnReconnect: true });
   const catalogue = useMemo(() => networkModelCatalogue(cards, parseNetworkModelsResponse(network.data)), [cards, network.data]);
   const needle = q.trim().toLowerCase();
+  const matchingIds = useMemo(() => matchingSearchIds(docsFromModels(catalogue), q), [catalogue, q]);
   const groups = useMemo(() => MODEL_MODALITIES
-    .map((modality) => ({ modality, models: catalogue.filter((m) => m.modality === modality && (!needle || `${m.id} ${m.modality} ${m.providers.map((p) => p.node.name ?? '').join(' ')}`.toLowerCase().includes(needle))) }))
-    .filter((g) => g.models.length > 0), [catalogue, needle]);
+    .map((modality) => ({ modality, models: catalogue.filter((m) => m.modality === modality && matchingIds.has(m.id)) }))
+    .filter((g) => g.models.length > 0), [catalogue, matchingIds]);
 
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
 

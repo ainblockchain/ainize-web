@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { SEARCH_KINDS, docsFromAgents, docsFromCatalog, docsFromModels, docsFromProjects, flattenHits, scoreDoc, searchDocs, searchHref, seeAllHref, type SearchDoc } from '../src/lib/globalSearch.ts';
+import { SEARCH_KINDS, docsFromAgents, docsFromCatalog, docsFromModels, docsFromProjects, flattenHits, matchingSearchIds, scoreDoc, searchDocs, searchHref, seeAllHref, type SearchDoc } from '../src/lib/globalSearch.ts';
 import { common } from '../src/i18n/pages/common.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,6 +25,15 @@ const docs: SearchDoc[] = [
 test('an empty query matches nothing', () => {
   assert.deepEqual(searchDocs(docs, ''), []);
   assert.deepEqual(searchDocs(docs, '   '), []);
+});
+
+test('full lists keep every preview match, including words in separate fields', () => {
+  for (const query of ['museum docent', 'hello nextjs', 'dsv41 ainspace', 'not-a-match']) {
+    const preview = flattenHits(searchDocs(docs, query));
+    const ids = matchingSearchIds(docs, query);
+    assert.deepEqual([...ids].sort(), preview.map((hit) => hit.id).sort());
+  }
+  assert.equal(matchingSearchIds(docs, '').size, docs.length, 'unfiltered lists still show all rows');
 });
 
 test('groups come back in nav order and only when they have hits', () => {

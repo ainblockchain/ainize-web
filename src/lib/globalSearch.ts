@@ -89,6 +89,11 @@ export function flattenHits(groups: readonly SearchGroup[]): SearchHit[] {
   return groups.flatMap((g) => g.hits);
 }
 
+/** Full lists must apply the same matching rules as their search-preview links. */
+export function matchingSearchIds(docs: readonly SearchDoc[], query: string): Set<string> {
+  return new Set(docs.filter((doc) => !norm(query) || scoreDoc(doc, query) > 0).map((doc) => doc.id));
+}
+
 // ------------------------------------------------------------------ adapters: what the API returned → SearchDoc
 
 export function docsFromProjects(projects: readonly { id: string; org: string; repoName: string; name: string; sourcePath?: string; kind?: string | null; status?: string }[]): SearchDoc[] {

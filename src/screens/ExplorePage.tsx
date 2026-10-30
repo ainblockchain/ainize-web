@@ -16,6 +16,7 @@ import { Alert } from '@/components/ui/Form';
 import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { docsFromAgents, matchingSearchIds } from '@/lib/globalSearch';
 import { num } from '@/utils/format';
 
 // `built_on` and `trending` are the two orderings §10 of the lineage design defines: most built on (children on the
@@ -247,10 +248,8 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
    * everything a reader can see on the row, which includes the skills the agent's card names.
    */
   const agents = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return scopedAgents;
-    return scopedAgents.filter((a) => [a.name, a.description ?? '', a.id, ...a.skills.flatMap((s2) => [s2.name, s2.description ?? '', ...s2.tags])]
-      .join(' ').toLowerCase().includes(needle));
+    const matches = matchingSearchIds(docsFromAgents(scopedAgents), q);
+    return scopedAgents.filter((a) => matches.has(a.id));
   }, [scopedAgents, q]);
   const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? myOrgs.isLoading || orgQuery.isLoading : false;
   const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
