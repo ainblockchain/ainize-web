@@ -1,16 +1,18 @@
 ---
 source: en/how-to/google-ax.md
-source_sha256: 477d1feef5869d3426b901f1866cd91ad134c142b114a72fa91733be755ec7cc
+source_sha256: 824424c736cab88aa5eded97bc7c41605941ad60e449d62d55cf14454889e559
 aincode: false
 ---
 
 # Google AX로 에이전트 실행하기
 
-> **개발 미리보기입니다.** 이 안내는 [ainize-node PR #251](https://github.com/ainblockchain/ainize-node/pull/251)의
-> AX 통합 구현을 설명합니다. 현재 ainize.ai 운영 서버나 main 릴리스에는 배포되지 않았습니다.
-> 평가할 때는 `feat/google-ax` 소스 브랜치를 사용하세요. 공통 클러스터 구성, 조직 권한 연결,
-> 실제 클러스터 검증과 운영 배포는 아직 남아 있습니다. 브랜치에는 명시적인 프로젝트 실행 승인,
-> 위임된 모델 호출, AinDrive 파일 읽기가 구현되어 있습니다.
+> **머지됐지만 ainize.ai에서는 아직 꺼져 있습니다.** AX 통합은 2026-10-30
+> [PR #251](https://github.com/ainblockchain/ainize-node/pull/251)로 ainize-node `main`에 머지되었습니다.
+> 운영자가 `AINIZE_AX_ADDRESS`를 설정하기 전까지는 비활성 상태이며, 그전에는 `/api/ax` 경로가 503을 돌려줍니다.
+> 운영자 경로는 kind 클러스터에서 끝까지 검증했습니다(`deploy/ax/dev-kind.sh` + `deploy/ax/sample-task.sh`):
+> Python 명령이 gVisor 샌드박스에서 실행되고 그 결과가 노드를 통해 돌아왔습니다. Substrate 워커는
+> Linux 커널 6.5 이상이 필요해서, 공유 운영 클러스터는 그런 커널을 가진 워커 호스트가 준비될 때까지 기다립니다.
+> 코드에는 명시적인 프로젝트 실행 승인, 위임된 모델 호출, AinDrive 파일 읽기가 포함되어 있습니다.
 
 [Google AX](https://github.com/google/ax)는 Kubernetes 위의 Agent Substrate를 통해 에이전트 작업을 실행합니다.
 **AX 실행을 제공하는 호스트들을 신뢰하는 관리자가 운영하는 하나의 Kubernetes 클러스터로 묶습니다.** Kubernetes와 Agent Substrate는
