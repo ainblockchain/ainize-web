@@ -1,5 +1,21 @@
 import type { Dict } from '../index';
 export const apps: Dict = {
+  'apps.list.lede': { en: "Your web apps and API services, including apps shared with your organizations.", ko: "내 웹앱과 조직에서 공유하는 앱의 배포 상태를 확인하세요." },
+  'apps.new': { en: "Deploy an app", ko: "새 앱 배포" },
+  'apps.signin.title': { en: "Your apps, in one place", ko: "내 앱을 한곳에서" },
+  'apps.signin.body': { en: "Sign in to see your apps and your organization’s apps, check deployment status, and open them.", ko: "로그인하면 내 앱과 소속 조직의 앱 목록, 배포 상태를 확인하고 앱을 열 수 있습니다." },
+  'apps.signin.action': { en: "Sign in with AIN", ko: "AIN 계정으로 로그인" },
+  'apps.error.title': { en: "Could not load apps", ko: "앱 목록을 불러오지 못했습니다" },
+  'apps.error.body': { en: "Please try again. Your apps may still be running.", ko: "잠시 후 다시 시도해 주세요. 앱 실행 상태는 개별 앱에서 확인할 수 있습니다." },
+  'apps.retry': { en: "Try again", ko: "다시 시도" },
+  'apps.count': { en: "{n} apps", ko: "앱 {n}개" },
+  'apps.empty.title': { en: "Deploy your first app", ko: "첫 앱을 배포해 보세요" },
+  'apps.empty.body': { en: "Connect a Git repository to deploy a web app or API service.", ko: "Git 저장소를 연결해 웹앱이나 API 서비스를 배포하세요." },
+  'apps.search_hint': { en: "Try another query in the search bar above, or view all apps.", ko: "상단 검색창에서 다른 검색어를 입력하거나 전체 앱을 확인하세요." },
+  'apps.all': { en: "All apps", ko: "전체 앱" },
+  'apps.service': { en: "API service", ko: "API 서비스" },
+  'apps.open': { en: "Open app", ko: "앱 열기" },
+
   'apps.title': { en: 'Apps', ko: '앱' },
   'apps.lede': { en: 'Deploy web apps and API services from Git. View each deployment and share your app in AIN Teams.', ko: 'Git 저장소에서 웹앱과 API 서비스를 배포하세요. 배포 결과를 확인하고 AIN Teams에서 앱을 공유할 수 있습니다.' },
   'apps.connect': { en: 'Connect a repository', ko: '저장소 연결' },
