@@ -17,7 +17,7 @@ import { useModelsQuery, useNetworkModelsQuery } from '@/api/api';
 import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse } from '@/api/networkModels';
 import { MODEL_MODALITIES, modelsFetchState, parseModelsResponse } from '@/api/models';
 import { Button } from '@/components/ui/Button';
-import { CardGrid, CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, Title } from '@/components/ui/Misc';
+import { CardGrid, CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, SectionTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { docsFromModels, matchingSearchIds } from '@/lib/globalSearch';
@@ -63,9 +63,8 @@ export default function ModelsPage() {
 
   return (
     <PageWrapper>
-      <Title>{t('models.title')}</Title>
+      <SectionTitle>{t('nav.models')}</SectionTitle>
       {q && <Description>{t('search.query', { q })}</Description>}
-      <Description>{t('models.lede')}</Description>
       {needle && catalogue.length > 0 && !groups.length && <Empty>{t('models.search_none', { q: q.trim() })}</Empty>}
 
       {/* The two states production is in when its node is down. Neither pretends to be a model list. */}
@@ -92,7 +91,7 @@ export default function ModelsPage() {
 
       {groups.map((group) => (
         <div key={group.modality}>
-          <SubTitle>{t(`models.modality.${group.modality}`)}</SubTitle>
+          <SubTitle $mt={0}>{t(`models.modality.${group.modality}`)}</SubTitle>
           <Cards>
             {group.models.map((model) => {
               const available = model.providers.some((p) => p.available);

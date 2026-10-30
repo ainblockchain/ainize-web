@@ -7,7 +7,7 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
-import { Description, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
+import { Description, PageWrapper, StyledLink, SectionTitle } from '@/components/ui/Misc';
 import { mapTeachError, mineStatusKey } from '@/components/chat/teachUtil';
 import { DatasetCard } from '@/components/teach/DatasetCard';
 import { LiveLessons, isActiveTeach } from '@/components/teach/LiveLessons';
@@ -92,8 +92,7 @@ export default function TeachMinePage() {
 
   return (
     <PageWrapper $wide data-testid="teach-mine">
-      <TitleRow><Title>{t('teach.data.title')}</Title></TitleRow>
-      <Description>{t('teach.data.sub')}</Description>
+      <SectionTitle>{t('train.mine')}</SectionTitle>
       <Head>
         <span>{policy?.limits?.dataset_ttl_days ? t('teach.data.expires', { days: policy.limits.dataset_ttl_days }) : ''}</span>
         <Button variant="contained" onClick={() => navigate('/train/upload')} data-testid="mine-upload">{t('teach.data.upload_cta')}</Button>

@@ -68,7 +68,7 @@ function MyAccount() {
     (id ? keyOrgs.find((o) => o.org_id === id)?.name ?? sso?.orgs.find((o) => o.id === id)?.name ?? id : t('me.keys.personal'));
   const keysQuery = useApiKeysQuery(cacheIdentity, { skip: !isSignedIn });
   const keys = keysQuery.currentData;
-  const nodesQuery = useMyNodesQuery(me?.subject ?? '', { skip: !isSignedIn || !me?.subject });
+  const nodesQuery = useMyNodesQuery(cacheIdentity, { skip: !isSignedIn || !(me?.subject || sso) });
   const myNodes = nodesQuery.currentData;
   const [createKey, createState] = useCreateApiKeyMutation();
   const [revokeKey, revokeState] = useRevokeApiKeyMutation();
@@ -221,7 +221,7 @@ function MyAccount() {
       <SubTitle>{t('me.nodes.title')}</SubTitle>
       <Description>{t('me.nodes.lede')}</Description>
       <Panel data-testid="me-nodes">
-        {!me?.subject ? <>
+        {!me?.subject && !sso ? <>
           <Description>{t('me.nodes.wallet_needed')}</Description>
           <StyledLink to={`${signInHref({ pathname: '/me' })}&wallet=1`}>{t('op.sign.wallet.connect_option')}</StyledLink>
         </> : <>

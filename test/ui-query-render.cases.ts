@@ -13,6 +13,7 @@ import { AuthProvider } from '../src/auth/AuthContext';
 import { createTeacherKey, forgetTeacherKey } from '../src/lib/teacherKey';
 import TeachMinePage from '../src/screens/TeachMinePage';
 import SigningPage from '../src/screens/SigningPage';
+import AuthorizePage from '../src/screens/AuthorizePage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
 import MyPage from '../src/screens/MyPage';
@@ -202,11 +203,11 @@ test('account keys do not claim empty during loading or failure and failed refre
   assert.match(render(MyPage, [...appAccount, accountOrgs, noKeys], '/me'), /No keys yet/);
 });
 
-test('an SSO account without a wallet sees an explanation instead of a false empty node list', () => {
-  const html = render(MyPage, [...appAccount, accountOrgs, noKeys], '/me');
-  assert.match(html, /Connect that wallet to see your nodes/);
-  assert.match(html, /href="\/signing\?next=%2Fme&amp;wallet=1"/);
-  assert.doesNotMatch(html, /None yet\. A node appears/);
+test('an SSO account sees its linked nodes without another wallet login', () => {
+  const html = render(MyPage, [...appAccount, accountOrgs, noKeys, { name: 'myNodes', arg: accountIdentity, value: { nodes: [{ address: '0x123', name: 'My AIN node' }] } }], '/me');
+  assert.match(html, /My AIN node/);
+  assert.match(html, /href="\/my-nodes"/);
+  assert.doesNotMatch(html, /Connect that wallet to see your nodes|wallet=1/);
 });
 
 test('account key, organization and node caches cannot be borrowed from another identity', () => {
@@ -219,7 +220,7 @@ test('account key, organization and node caches cannot be borrowed from another 
     { name: 'myNodes', arg: 'other-wallet', value: { nodes: [{ address: 'other-wallet', name: 'Previous private node' }] } },
     { name: 'apiKeys', arg: current, status: 'pending' },
     { name: 'myOrgs', arg: current, status: 'pending' },
-    { name: 'myNodes', arg: wallet, status: 'pending' },
+    { name: 'myNodes', arg: current, status: 'pending' },
   ], '/me');
   assert.doesNotMatch(html, /Previous secret label|Previous private organization|Previous private node/);
   assert.doesNotMatch(html, /No keys yet|None yet\. A node appears/);
@@ -231,7 +232,7 @@ test('failed wallet node lookup shows recovery while retaining cached current-wa
   const html = render(MyPage, [
     ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet } },
     { ...noKeys, arg: current }, { ...accountOrgs, arg: current },
-    { name: 'myNodes', arg: wallet, status: 'rejected', value: { nodes: [{ address: wallet, name: 'Current wallet node' }] } },
+    { name: 'myNodes', arg: current, status: 'rejected', value: { nodes: [{ address: wallet, name: 'Current wallet node' }] } },
   ], '/me');
   assert.match(html, /data-testid="me-nodes-error"/);
   assert.match(html, /Current wallet node/);
@@ -266,4 +267,25 @@ test('a failed sign-in stays on a recovery screen rather than immediately restar
   assert.doesNotMatch(html, /data-testid="signin-redirect"/);
   assert.match(html, /role="alert"/);
   assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fapps"/);
+});
+
+function assertAccountDevice(kind: 'cli' | 'node') {
+  const request = { name: 'deviceRequest', arg: 'terminal-code', value: { kind, status: 'pending', delegate: '0x' + '1'.repeat(40), label: 'My laptop', name: 'Ainize', node: '0x' + '2'.repeat(40), expires: Date.now() + 60000, message: 'wallet message' } };
+  const html = render(AuthorizePage, [...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { sso: { sub: 'account', principal: 'sso:account', name: 'Test account' } } }, request], '/authorize?code=terminal-code');
+  assert.match(html, /data-testid="authorize-account"/);
+  assert.match(html, /Test account/);
+  assert.match(html, kind === 'cli' ? /Sign in this device/ : /Connect node/);
+  assert.doesNotMatch(html, /authorize-message|wallet=1|Approve and sign|disabled="" data-testid="authorize-approve"/);
+  const loggedOut = render(AuthorizePage, [...signedOut, request], '/authorize?code=terminal-code');
+  assert.match(loggedOut, /data-testid="authorize-login"/);
+  assert.match(loggedOut, /href="\/api\/auth\/sso\/start\?next=%2Fauthorize%3Fcode%3Dterminal-code"/);
+  assert.doesNotMatch(loggedOut, /wallet=1|authorize-message/);
+}
+test('terminal login uses AIN account approval without wallet controls', () => assertAccountDevice('cli'));
+test('node connection uses AIN account approval without wallet controls', () => assertAccountDevice('node'));
+
+test('a temporary terminal request failure offers retry instead of claiming the link is invalid', () => {
+  const html = render(AuthorizePage, [...signedOut, { name: 'deviceRequest', arg: 'offline-code', status: 'rejected' }], '/authorize?code=offline-code');
+  assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /That is not a link this node issued/);
 });

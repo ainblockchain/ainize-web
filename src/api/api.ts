@@ -450,6 +450,10 @@ export const api = createApi({
     // exact string the wallet will sign — rendered rather than recomposed here, so what a person reads on the
     // page and what they read in MetaMask cannot drift apart.
     deviceRequest: b.query<DeviceRequest, string>({ query: (code) => `api/auth/device/${encodeURIComponent(code)}` }),
+    approveAccountDevice: b.mutation<{ ok: boolean }, { code: string }>({
+      query: (body) => ({ url: 'api/auth/sso/device-approve', method: 'POST', body }),
+      invalidatesTags: ['Me'],
+    }),
     approveDevice: b.mutation<{ ok: boolean; delegate: string; owner: string; expires: number }, { code: string; signature: string }>({
       query: ({ code, signature }) => ({ url: `api/auth/device/${encodeURIComponent(code)}/approve`, method: 'POST', body: { signature } }),
     }),
@@ -684,7 +688,7 @@ export const {
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
-  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
+  useApproveAccountDeviceMutation, useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

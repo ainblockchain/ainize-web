@@ -33,6 +33,12 @@ export const Title = styled.h1`
   flex: 1; margin: 0; font-size: 32px; font-weight: 700; color: ${(p) => p.theme.color.BLACK};
 `;
 
+/** Section tabs provide the visible title; retain a heading for assistive navigation without taking space. */
+export const SectionTitle = styled.h1`
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+`;
+
 export const SubTitle = styled.h2<{ $mt?: number }>`
   margin: ${(p) => p.$mt ?? 56}px 0 0; font-size: 20px; font-weight: 700; color: ${(p) => p.theme.color.BLACK};
 `;

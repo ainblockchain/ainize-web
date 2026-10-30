@@ -10,11 +10,10 @@ import { useTitle } from '@/utils/useTitle';
 import { projectPath } from '@/lib/reservedRoutes';
 import { appProjects } from '@/lib/appProjects';
 import { Button } from '@/components/ui/Button';
-import { CardGrid, CenterProgress, PageWrapper, StyledLink, Title } from '@/components/ui/Misc';
+import { CardGrid, CenterProgress, PageWrapper, StyledLink, SectionTitle } from '@/components/ui/Misc';
 
 const Header = styled.div`
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;
-  p { margin: 8px 0 0; color: #62616b; line-height: 1.6; }
+  display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;
 `;
 const Actions = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 12px;`;
 const Primary = styled(Link)`
@@ -53,8 +52,8 @@ export default function AppsPage() {
   const next = `/apps${q ? `?q=${encodeURIComponent(q)}` : ''}`;
   useTitle(t('apps.title'));
   return <PageWrapper>
+    <SectionTitle>{t('nav.apps')}</SectionTitle>
     <Header>
-      <div><Title>{t('apps.title')}</Title><p>{t('apps.list.lede')}</p></div>
       <Actions><StyledLink to="/docs/how-to/deploy-nextjs">{t('apps.guide')}</StyledLink><Primary to="/projects/new">{t('apps.new')}</Primary></Actions>
     </Header>
     {auth.loading ? <CenterProgress /> : !auth.isSignedIn ? <Notice>
