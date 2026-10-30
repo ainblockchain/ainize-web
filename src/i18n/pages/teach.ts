@@ -867,7 +867,7 @@ export const teach: Dict = {
   'teach.err.dataset_empty_remove': { ko: '데이터셋에는 질문이 최소 하나 있어야 합니다 — 다른 질문을 먼저 추가하세요.', en: 'A dataset needs at least one question — add another one first.' },
   'teach.err.dataset_format': { ko: '이 파일을 데이터셋으로 읽지 못했습니다. 형식 예시를 확인하세요.', en: 'This node could not read that file as a dataset. See the format examples.' },
   'teach.err.lesson_not_found': { ko: '이 노드에 더 이상 없는 수업입니다. 저장하지 않은 수업은 7일 뒤 삭제됩니다.', en: 'That lesson is no longer on this node. Unsaved lessons are deleted after 7 days.' },
-  'teach.err.dataset_not_found': { ko: '이 노드에 더 이상 없는 데이터셋입니다. 다시 올려 주세요 — 내 데이터셋에서 내려받을 수도 있습니다.', en: 'That dataset is no longer on this node. Upload it again — you can also download it from My datasets.' },
+  'teach.err.dataset_not_found': { ko: '데이터셋을 찾을 수 없습니다. 주소를 확인하거나 내 데이터와 학습에서 다시 선택해 주세요.', en: 'That dataset could not be found. Check the address or choose it again from My data and training.' },
   'teach.err.dataset_in_use': { ko: '지금 학습 중이라 바꿀 수 없습니다. 복사본을 만들어 고치세요.', en: 'This dataset is being trained right now, so it cannot be changed. Make a copy to edit it.' },
   'teach.err.dataset_hash': { ko: '올리는 중에 파일이 바뀌었습니다. 다시 시도해 주세요.', en: 'The file changed while it was being uploaded. Try again.' },
   'teach.err.quota_dataset': { ko: '이 노드가 가르치기 키 하나에 보관하는 데이터셋 수를 넘었습니다. 하나를 먼저 삭제하세요.', en: 'You have reached the number of datasets this node keeps for one teaching key. Delete one first.' },

@@ -1,4 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useDispatch } from 'react-redux';
+import { api } from '@/api/api';
+import { signOutSessions } from './signOutSessions';
+import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { useGoogleLogoutMutation, useGoogleSessionQuery, useLogoutMutation, useMeQuery, useSsoStatusQuery } from '@/api/api';
 import { activateIssuedKeyOwner } from '@/screens/models/issuedKeyMemory';
 import type { GoogleIdentityView, SsoSessionView } from '@/api/types';
@@ -54,6 +57,7 @@ export interface AuthState {
   scope: string[];
   /** true between clicking Log out and the fresh /api/auth/me result — route guards send you home instead of to /signing */
   signingOut: boolean;
+  signOutFailed: boolean;
   canEnroll: boolean;
   /** the node's own address — not the visitor's */
   address: string | null;
@@ -61,12 +65,12 @@ export interface AuthState {
   roles: string[];
   /** Re-read /api/auth/me; resolves once the fresh state is in the store. */
   refresh: () => Promise<void>;
-  /** Sign out: reports isSignedIn=false immediately (so route guards do not bounce through /dashboard), then clears both cookies — the node's and Google's — and re-reads both. An AIN session then continues to AIN SSO's sign-out page. */
+  /** Hide private views while ending active sessions. Failure is retryable; only success clears caches and proceeds to AIN SSO sign-out. */
   signOut: () => Promise<void>;
 }
 
 const EMPTY: AuthState = {
-  cacheIdentity: '', loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, sitePrincipal: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
+  cacheIdentity: '', loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, sitePrincipal: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false, signOutFailed: false,
   canEnroll: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined,
 };
 const AuthContext = createContext<AuthState>(EMPTY);
@@ -78,6 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [logout] = useLogoutMutation();
   const [googleLogout] = useGoogleLogoutMutation();
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
+  const signOutPending = useRef(false);
+  const dispatch = useDispatch();
   const refresh = async () => {
     // One failing must not keep the other from being re-read: the node can be down while this app is up.
     await Promise.all([refetch().unwrap(), refetchGoogle().unwrap()].map((p) => p.catch(() => undefined)));
@@ -109,22 +116,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // /api/auth/me, so a grant or a revocation lands within the poll rather than at the end of a 30-day cookie.
     isOwner: live && !!data?.isOwner,
     scope: live ? data?.scope ?? [] : [],
-    signingOut,
+    signingOut, signOutFailed,
     canEnroll: !!data?.canEnroll,
     address: data?.address ?? null,
     name: data?.name ?? null,
     roles: data?.roles ?? [],
     refresh,
     signOut: async () => {
+      if (signOutPending.current) return;
+      signOutPending.current = true;
       const wasSso = !!sso;
       activateIssuedKeyOwner(null);
-      setSigningOut(true);   // optimistic: the very next render is already signed-out
-      await Promise.all([logout().unwrap(), googleLogout().unwrap()].map((p) => p.catch(() => undefined)));   // either cookie may already be gone
-      // An AIN session continues to AIN SSO's sign-out (RP-initiated logout), which asks whether to sign out of AIN in
-      // this browser too, and comes back to this site. Otherwise the AIN session would sign the person back in here.
-      if (wasSso && typeof window !== 'undefined') { window.location.assign('/api/auth/sso/logout'); return; }
-      await refresh();
-      setSigningOut(false);
+      setSignOutFailed(false); setSigningOut(true);
+      try {
+        const ended = await signOutSessions({
+          nodeActive: live || wasSso, googleActive: !!google,
+          node: () => logout().unwrap(), google: () => googleLogout().unwrap(),
+        });
+        if (!ended) {
+          await refresh();
+          setSignOutFailed(true);
+          return;
+        }
+        // Clear private views and old /me results together. Hooks fetch the new signed-out state after reset.
+        dispatch(api.util.resetApiState());
+        if (wasSso && typeof window !== 'undefined') {
+          window.location.assign('/api/auth/sso/logout');
+          return;
+        }
+      } catch {
+        setSignOutFailed(true);
+      } finally {
+        signOutPending.current = false;
+        setSigningOut(false);
+      }
     },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

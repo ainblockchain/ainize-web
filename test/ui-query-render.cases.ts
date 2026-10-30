@@ -18,6 +18,9 @@ import SigningPage from '../src/screens/SigningPage';
 import AuthorizePage from '../src/screens/AuthorizePage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
+import MyAgentsPage from '../src/screens/MyAgentsPage';
+import { SignOutNotice } from '../src/components/ui/SignOutNotice';
+import { Header } from '../src/components/ui/Header';
 import MyPage from '../src/screens/MyPage';
 import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel';
 
@@ -323,6 +326,80 @@ test('dataset preview and settings show loading or retryable errors without clai
     const failed = render(page, [...signedOut, policy, { name: 'teachDataset', arg, status: 'rejected' }], path, route);
     assert.match(failed, /role="alert"/);
     assert.match(failed, /Try again/);
-    assert.doesNotMatch(failed, /That dataset is no longer on this node/i);
+    assert.doesNotMatch(failed, /That dataset could not be found/i);
   }
+});
+
+
+const privateLinked = { id: 'private-proxy', name: 'Private linked assistant', owner: 'sso:viewer', visibility: 'private', a2a_url: 'https://fixture.invalid/agents/private-proxy', card_url: 'https://fixture.invalid/agents/private-proxy/card' };
+const agentLists: Fixture[] = [
+  { name: 'agents', value: { agents: [] } },
+  { name: 'manageableHostedAgents', arg: accountIdentity, value: { agents: [] } },
+  { name: 'myLinkedAgents', arg: accountIdentity, value: { agents: [] } },
+  { name: 'agentArchives', arg: { offset: 0, principal: accountIdentity }, value: { archives: [], total: 0, limit: 10, offset: 0 } },
+];
+
+test('My agents includes private linked agents and routes Open and Edit to that exact resource', () => {
+  const fixtures = agentLists.map(f => f.name === 'myLinkedAgents' ? { ...f, value: { agents: [privateLinked] } } : f);
+  const html = render(MyAgentsPage, [...appAccount, ...fixtures], '/me/agents');
+  assert.match(html, /Private linked assistant/);
+  assert.match(html, /href="\/agent\/private-proxy"/);
+  assert.match(html, /href="\/agent\/private-proxy\/link"/);
+  assert.match(html, /data-testid="my-agent-delete-private-proxy"/);
+  assert.doesNotMatch(html, /data-testid="my-agents-empty"|What is not here is not there/);
+});
+
+test('My agents distinguishes pending, failed, partial and confirmed-empty lists', () => {
+  for (const status of ['pending', 'rejected'] as const) {
+    const fixtures = agentLists.map(f => f.name === 'myLinkedAgents' ? { ...f, value: undefined, status } : f);
+    const html = render(MyAgentsPage, [...appAccount, ...fixtures], '/me/agents');
+    assert.doesNotMatch(html, /data-testid="my-agents-empty"/);
+    assert.match(html, status === 'pending' ? /data-testid="my-agents-loading"/ : /data-testid="my-agents-load-error"/);
+    if (status === 'rejected') assert.match(html, /Try again/);
+  }
+  const partial = agentLists.map(f => f.name === 'manageableHostedAgents' ? { ...f, status: 'rejected' as const, value: undefined } : f.name === 'myLinkedAgents' ? { ...f, value: { agents: [privateLinked] } } : f);
+  const html = render(MyAgentsPage, [...appAccount, ...partial], '/me/agents');
+  assert.match(html, /Private linked assistant/); assert.match(html, /data-testid="my-agents-load-error"/);
+  assert.doesNotMatch(html, /data-testid="my-agents-empty"/);
+  assert.match(render(MyAgentsPage, [...appAccount, ...agentLists], '/me/agents'), /data-testid="my-agents-empty"/);
+});
+
+test('shared hosted agents expose edit but not deletion when the current membership cannot delete', () => {
+  const fixtures = agentLists.map(f => f.name === 'manageableHostedAgents' ? { ...f, value: { agents: [{ id: 'team-agent', name: 'Team agent', owner: 'sso:someone-else', mode: 'prompt', visibility: 'org', org_id: 'studio', can_manage: true, can_delete: false }] } } : f);
+  const html = render(MyAgentsPage, [...appAccount, ...fixtures], '/me/agents');
+  assert.match(html, /href="\/agent\/team-agent\/edit"/);
+  assert.doesNotMatch(html, /data-testid="my-agent-delete-team-agent"/);
+});
+
+test('private agent and archive caches cannot be shown to another account or a signed-out visitor', () => {
+  const previousIdentity = JSON.stringify([null, 'sso:previous', null, null]);
+  const privateFixtures: Fixture[] = [
+    { name: 'manageableHostedAgents', arg: previousIdentity, value: { agents: [{ id: 'old-secret-agent', name: 'Previous account private agent', owner: 'sso:previous', mode: 'prompt', can_manage: true, can_delete: true }] } },
+    { name: 'myLinkedAgents', arg: previousIdentity, value: { agents: [{ ...privateLinked, owner: 'sso:previous' }] } },
+    { name: 'agentArchives', arg: { offset: 0, principal: previousIdentity }, value: { archives: [{ id: 'old-archive', name: 'Previous account archive', agent: 'old-agent', secretNames: [], bytes: 1, createdAt: 1 }], total: 1, offset: 0, limit: 10 } },
+  ];
+  for (const auth of [appAccount, signedOut]) {
+    const html = render(MyAgentsPage, [...auth, { name: 'agents', value: { agents: [] } }, ...privateFixtures], '/me/agents');
+    assert.doesNotMatch(html, /Previous account|old-secret-agent|private-proxy|old-archive/);
+  }
+});
+
+test('AIN account navigation includes its supported node inventory without a wallet', () => {
+  const html = render(Header, [...appAccount, accountOrgs], '/me');
+  assert.match(html, /My nodes/);
+});
+
+
+test('sign-out exposes pending and retryable failure states without claiming success', () => {
+  const Failure = () => createElement(SignOutNotice, { failed: true, pending: false, retry: () => undefined });
+  const Pending = () => createElement(SignOutNotice, { failed: false, pending: true, retry: () => undefined });
+  const failure = render(Failure, signedOut, '/');
+  assert.match(failure, /role="alert"/);
+  assert.match(failure, /Sign-out could not be completed/);
+  assert.match(failure, /Try again/);
+  assert.doesNotMatch(failure, /disabled=""/);
+  const pending = render(Pending, signedOut, '/');
+  assert.match(pending, /role="status"/);
+  assert.match(pending, /Signing out/);
+  assert.doesNotMatch(pending, /Sign-out could not be completed/);
 });

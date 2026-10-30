@@ -367,7 +367,8 @@ export function parseManageableHostedAgents(raw: unknown, origin: string): Manag
   const out: ManageableAgent[] = [];
   for (const a of agents as Record<string, unknown>[]) {
     const agent = agentSummaryFromHostedSpecResponse(a, origin);
-    if (agent) out.push({ agent, canManage: a.can_manage === true, canDelete: a.can_delete === true, updatedBy: str(a.updated_by) });
+    if (!agent) return null;
+    out.push({ agent, canManage: a.can_manage === true, canDelete: a.can_delete === true, updatedBy: str(a.updated_by) });
   }
   return out;
 }

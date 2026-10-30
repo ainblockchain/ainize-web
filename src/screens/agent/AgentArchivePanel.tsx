@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useAuth } from '@/auth/AuthContext';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useAgentArchivesQuery, useRestoreAgentArchiveMutation, useDeleteAgentArchiveMutation } from '@/api/agentArchives';
 import type { AgentArchiveSummary } from '@/api/agentArchives';
@@ -11,10 +12,16 @@ const Panel = styled.section`margin-top:24px; min-width:0; p { overflow-wrap:any
 const Record = styled.article`border:1px solid #ddd; border-radius:10px; padding:16px; margin:12px 0; min-width:0; h4 { margin:0; overflow-wrap:anywhere; }`;
 const Actions = styled.div`display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; button,a { min-height:44px; }`;
 export function AgentArchivePanel() {
+  const auth = useAuth();
+  return auth.isSignedIn ? <ArchiveContent key={auth.cacheIdentity} principal={auth.cacheIdentity} /> : null;
+}
+function ArchiveContent({ principal }: { principal: string }) {
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const { locale } = useT(), ko = locale === 'ko';
   const [offset, setOffset] = useState(0), [busy, setBusy] = useState(''), [error, setError] = useState('');
   const [restored, setRestored] = useState<{ agentId: string; secretsRequired: string[] } | null>(null);
-  const query = useAgentArchivesQuery(offset, { pollingInterval: 30_000 });
+  const query = useAgentArchivesQuery({ offset, principal }, { pollingInterval: 30_000 });
   const [restore] = useRestoreAgentArchiveMutation(), [remove] = useDeleteAgentArchiveMutation();
   useEffect(() => { if (query.currentData && offset > 0 && offset >= query.currentData.total) setOffset(Math.max(0, offset - 10)); }, [query.currentData, offset]);
   const act = async (record: AgentArchiveSummary, action: 'export' | 'restore' | 'delete') => {
@@ -24,20 +31,25 @@ export function AgentArchivePanel() {
       if (action === 'export') {
         const response = await fetch(`/api/agent-archives/${encodeURIComponent(record.id)}/export`, { method: 'POST', credentials: 'include' });
         if (!response.ok) { const data: unknown = await response.json().catch(() => null); throw { data, status: response.status }; }
-        const blob = await response.blob(), url = URL.createObjectURL(blob);
+        const blob = await response.blob();
+        if (!active.current) return;
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a'); link.href = url; link.download = `${record.agent}-${record.id}.tar.gz`; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000); await query.refetch();
-      } else if (action === 'restore') setRestored(await restore(record.id).unwrap());
+      } else if (action === 'restore') {
+        const result = await restore(record.id).unwrap();
+        if (active.current) setRestored(result);
+      }
       else await remove(record.id).unwrap();
-    } catch (err) { const failure = hostedAgentApiErrorOf(err); setError(failure.message || (ko ? '작업을 완료하지 못했습니다. 다시 시도해 주세요.' : 'Could not complete this action. Please retry.')); }
-    finally { setBusy(''); }
+    } catch (err) { if (!active.current) return; const failure = hostedAgentApiErrorOf(err); setError(failure.message || (ko ? '작업을 완료하지 못했습니다. 다시 시도해 주세요.' : 'Could not complete this action. Please retry.')); }
+    finally { if (active.current) setBusy(''); }
   };
   return <Panel aria-label={ko ? '삭제한 에이전트 복구' : 'Recover deleted agents'}>
     <h3>{ko ? '삭제한 에이전트' : 'Deleted agents'}</h3>
     <p>{ko ? '보관된 이력으로 같은 주소에 복구합니다. 비밀 값은 다시 설정해야 합니다. 영구 삭제 전에 보관본을 내려받아 주세요.' : 'Restore the same address from retained history. Set secret values again after recovery. Download an archive before permanently removing it.'}</p>
     {error && <Alert $tone="error" role="alert">{error}</Alert>}
     {restored && <p role="status">{ko ? '복구되었습니다.' : 'Restored.'} <StyledLink to={`/agent/${encodeURIComponent(restored.agentId)}/edit`}>{ko ? '에이전트 설정 열기' : 'Open agent settings'}</StyledLink>{restored.secretsRequired.length > 0 && <> · {ko ? '다시 설정할 비밀 값' : 'Secrets to set again'}: {restored.secretsRequired.join(', ')}</>}</p>}
-    {query.isLoading && <p role="status">{ko ? '보관본을 불러오는 중…' : 'Loading archives…'}</p>}
+    {!query.currentData && query.isFetching && <p role="status">{ko ? '보관본을 불러오는 중…' : 'Loading archives…'}</p>}
     {query.isError && <Alert $tone="error">{ko ? '보관본을 불러오지 못했습니다.' : 'Could not load archives.'} <Button onClick={() => void query.refetch()}>{ko ? '다시 시도' : 'Retry'}</Button></Alert>}
     {query.currentData?.total === 0 && <p>{ko ? '보관된 에이전트가 없습니다.' : 'No retained agents.'}</p>}
     {query.currentData?.archives.map((record) => <Record key={record.id}>

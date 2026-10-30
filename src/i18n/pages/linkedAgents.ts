@@ -75,6 +75,7 @@ export const linkedAgents: Dict = {
   },
   'myAgents.create': { ko: '모델로 에이전트 만들기', en: 'Create an agent on a model' },
   'myAgents.link': { ko: '외부 에이전트 연결', en: 'Link an external agent' },
+  'myAgents.load_failed': { ko: '에이전트 목록을 모두 불러오지 못했습니다. 다시 불러와 주세요.', en: 'Some agent lists could not be loaded. Please try again.' },
   'myAgents.empty': { ko: '아직 내 에이전트가 없습니다.', en: 'You have no agents here yet.' },
   'myAgents.kind.upstream': { ko: '연결', en: 'Linked' },
   'myAgents.kind.prompt': { ko: '프롬프트', en: 'Prompt' },

@@ -205,9 +205,9 @@ export const api = createApi({
     /** The running service's own stdout/stderr, on the node or its deployment peer (src/api/runtimeLogs.ts). Owner/members only. */
     projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: parseRuntimeLogs, keepUnusedDataFor: 0 }),
     deploymentLog: b.query<string, string>({ query: (id) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
-    myHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
+    myHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
     /** Own hosted agents plus the ones shared with an organization where the caller may edit — read through `parseManageableHostedAgents`. */
-    manageableHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?manageable=1', providesTags: ['HostedAgent', 'Me', 'Org'] }),
+    manageableHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?manageable=1', providesTags: ['HostedAgent', 'Me', 'Org'] }),
     /** The full stored spec, files included — owner only; anyone else gets 403. */
     hostedAgent: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'HostedAgent', id }] }),
     createHostedAgent: b.mutation<unknown, HostedAgentSpecInput>({
@@ -229,7 +229,7 @@ export const api = createApi({
      * Linked agents (ainize-node linked-agents design): external A2A agents a person registers by URL. Typed
      * `unknown` and read through `src/api/linkedAgents.ts`, as the hosted ones are and for the same reason.
      */
-    myLinkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents?mine=1', providesTags: ['LinkedAgent', 'Me'] }),
+    myLinkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents?mine=1', providesTags: ['LinkedAgent', 'Me'] }),
     /** The stored record, upstream included — owner only; anyone else gets 403. */
     linkedAgent: b.query<unknown, string>({ query: (id) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'LinkedAgent', id }] }),
     createLinkedAgent: b.mutation<unknown, LinkedAgentInput>({

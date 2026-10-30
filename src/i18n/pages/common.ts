@@ -20,6 +20,8 @@ export const common: Dict = {
   'nav.account': { ko: '계정 설정', en: 'Account settings' },
   'nav.logs': { ko: '노드 로그', en: 'Node log' },
   'nav.files': { ko: '파일과 변경 이력', en: 'Files & changes' },
+  'nav.logging_out': { ko: '로그아웃 중…', en: 'Signing out…' },
+  'nav.logout_failed': { ko: '로그아웃을 완료하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.', en: 'Sign-out could not be completed. Check your connection and try again.' },
   'nav.logout': { ko: '로그아웃', en: 'Log out' },
   'footer.terms': { ko: '이용약관', en: 'Terms and Policies' },
   // Finding 99 — the privacy policy is §3 of /terms and had no link anywhere; in Korean the words 개인정보 처리방침

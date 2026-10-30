@@ -195,7 +195,7 @@ export function AgentPage() {
   useEffect(() => { if (redirect) navigate(redirect, { replace: true }); }, [redirect, navigate]);
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
-  const { subject, sso, sitePrincipal, isSignedIn } = useAuth();
+  const { subject, sso, sitePrincipal, isSignedIn, cacheIdentity } = useAuth();
   const hosted = agentSummaryHostedFieldsOf(agent);
   const visibility = agentVisibilityOf(agent);
   const orgId = agentOrgIdOf(agent);
@@ -207,8 +207,8 @@ export function AgentPage() {
   const ownsIt = !linked && isHostedAgentOwnedBy(hosted.owner, principals);
   // An organization member may edit an agent shared with the organization without owning it (ainize-node: `write`
   // members edit; delete and sharing stay with the owner and admins). The manageable list says which.
-  const manageable = useManageableHostedAgentsQuery(undefined, { skip: !isSignedIn || linked || ownsIt || !agent });
-  const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.data, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.data, agent?.id]);
+  const manageable = useManageableHostedAgentsQuery(cacheIdentity, { skip: !isSignedIn || linked || ownsIt || !agent });
+  const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.currentData, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.currentData, agent?.id]);
   const managesIt = !linked && !ownsIt && !!managedRow?.canManage;
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.

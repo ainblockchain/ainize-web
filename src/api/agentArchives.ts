@@ -6,8 +6,9 @@ export interface AgentArchiveSummary {
   source: { provider: string; url?: string; commit?: string } | null;
 }
 export const archiveApi = api.injectEndpoints({ endpoints: (b) => ({
-  agentArchives: b.query<{ archives: AgentArchiveSummary[]; total: number; limit: number; offset: number }, number>({
-    query: (offset) => `api/agent-archives?limit=10&offset=${offset}`, providesTags: ['HostedAgent'],
+  agentArchives: b.query<{ archives: AgentArchiveSummary[]; total: number; limit: number; offset: number }, { offset: number; principal: string }>({
+    keepUnusedDataFor: 0,
+    query: ({ offset }) => `api/agent-archives?limit=10&offset=${offset}`, providesTags: ['HostedAgent'],
   }),
   restoreAgentArchive: b.mutation<{ agentId: string; version: number; secretsRequired: string[] }, string>({
     query: (id) => ({ url: `api/agent-archives/${encodeURIComponent(id)}/restore`, method: 'POST' }), invalidatesTags: ['Agents', 'HostedAgent'],
