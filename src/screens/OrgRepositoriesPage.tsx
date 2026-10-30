@@ -13,7 +13,7 @@
  */
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { useOrgProjectsQuery, useOrgQuery, useOrgRepositoriesQuery } from '@/api/api';
+import { useMeQuery, useOrgProjectsQuery, useOrgQuery, useOrgRepositoriesQuery } from '@/api/api';
 import { parseOrgProfile } from '@/api/organizations';
 import { mergeOrgRepos, projectApiErrorOf, relativeTime, shortSha, statusToneOf } from '@/api/projects';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -51,6 +51,8 @@ export default function OrgRepositoriesPage() {
   const projectsQ = useOrgProjectsQuery(org, { skip: reserved, pollingInterval: 15_000 });
   const reposQ = useOrgRepositoriesQuery(org, { skip: reserved });
   const orgQ = useOrgQuery(org, { skip: reserved });
+  const meQ = useMeQuery();
+  const signedIn = !!(meQ.data?.signedIn || meQ.data?.sso || meQ.data?.site);
   const profile = parseOrgProfile(orgQ.data);
   useTitle(profile?.name ?? org);
   if (reserved) return <NotFoundPage />;
@@ -64,6 +66,7 @@ export default function OrgRepositoriesPage() {
   const rows = mergeOrgRepos(projectsQ.data.projects, repos);
   const driveUrl = reposQ.data?.driveUrl ?? null;
   const members = profile?.member_count ?? null;
+  const accessRequired = rows.length === 0 && reposQ.isError && projectApiErrorOf(reposQ.error).code === 'not_found';
   return (
     <PageWrapper $wide>
       <TitleRow><Title>{profile?.name ?? slug}</Title>{profile?.name && profile.name !== slug && <Chip>{slug}</Chip>}</TitleRow>
@@ -71,11 +74,11 @@ export default function OrgRepositoriesPage() {
         {typeof members === 'number' && <span>{t('projects.org.members', { n: members })}</span>}
         {profile && <StyledLink to={`/org/${encodeURIComponent(profile.id)}`}>{t('projects.org.org_page')}</StyledLink>}
         {driveUrl && <ExternalLink href={driveUrl} target="_blank" rel="noreferrer">{t('projects.org.drive')} ↗</ExternalLink>}
-        <span>{t('projects.org.count', { n: rows.length })}</span>
+        {!accessRequired && <span>{t('projects.org.count', { n: rows.length })}</span>}
       </HeaderMeta>
       {profile?.description && <Description>{profile.description}</Description>}
       {reposQ.isError && projectApiErrorOf(reposQ.error).code === 'aindrive_off' && <Description>{t('projects.org.no_aindrive')}</Description>}
-      {rows.length === 0 ? <Empty>{t('projects.org.none')}</Empty> : (
+      {accessRequired ? <Empty><p>{t(signedIn ? 'projects.org.members_only' : 'projects.org.signin_hint')}</p><StyledLink to={`/signing?next=${encodeURIComponent(`/${org}`)}`}>{t('projects.org.signin')}</StyledLink></Empty> : rows.length === 0 && reposQ.isFetching ? <CenterProgress /> : rows.length === 0 ? <Empty>{t('projects.org.none')}</Empty> : (
         <List>
           {rows.map((r) => {
             const p = r.project;
