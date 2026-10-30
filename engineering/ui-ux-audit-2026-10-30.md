@@ -153,3 +153,12 @@ Prepared changes (not yet deployed):
 - Mobile: long repository/source-folder names wrap and organization list actions can wrap below the name.
 
 Validation so far: typecheck and 44 focused navigation, project action, translation, access and route tests passed; generated docs match. Authenticated destructive actions are not exercised on user data. Server CI and production UI checks remain required.
+
+### Release and browser verification: 93a7432
+
+- PR #146 passed isolated ainize CI at fc0e1c2, then the existing automatic deployment passed full CI/build and activated merge 93a7432f2f8ec6ff0d5aaf3c2eb8d6a4ecc39894. Public `/web-build.json` matches. No separate deployment was launched.
+- Signed-out `/org/comcom/settings?tab=members#members` now reaches login with the entire destination preserved in both the login URL and AIN SSO link. Previously both tab and anchor were lost. Actual sign-in and authenticated project actions are still not browser-verified.
+- Train top navigation and all three subroutes are present; Knowledge and Teach are absent from the top navigation. `/teach?from=bookmark#start` preserves its query and anchor when redirecting to `/train`.
+- New U23: at 320px, Train cards produce scrollWidth=323 because the format chip's unbroken text determines grid minimum width. Prepared fix: zero-minimum grid tracks, shrinkable cards, wrapping bounded chips. Public mobile verification remains required after deployment.
+- Train still reports serving API unreachable; actual training is not verified. The login page's wallet-first/node-operator copy also remains a separate UI audit finding.
+- TeachMinePage query errors currently fall through to an empty-state claim; dataset/job loading and error distinctions need a follow-up fix.
