@@ -7,6 +7,7 @@ import { FocusedHeader } from '@/components/ui/FocusedHeader';
 import { Footer } from '@/components/ui/Footer';
 import { Header } from '@/components/ui/Header';
 import { CenterProgress } from '@/components/ui/Misc';
+import { signInHref } from '@/lib/uiNavigation';
 import { useT } from '@/i18n';
 
 /** ainize-web base/Layout.js: header + centered content column + footer. */
@@ -83,20 +84,20 @@ export function FocusedLayout({ children }: { children: ReactNode }) {
  */
 export function SignedInLayout({ children }: { children: ReactNode }) {
   const { isSignedIn, loading, signingOut } = useAuth();
-  const { pathname } = useLocation();
+  const location = useLocation();
   const [sawSignOut, setSawSignOut] = useState(false);
   useEffect(() => { if (signingOut) setSawSignOut(true); }, [signingOut]);
   if (loading) return <Layout><CenterProgress /></Layout>;
   // A deliberate sign-out rests on the landing page; only an expired session asks to sign in again, and
   // remembers where to come back to. Same rule as the operator gate, for the same reason.
   if (signingOut || (sawSignOut && !isSignedIn)) return <Navigate to="/" replace />;
-  if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(pathname)}`} replace />;
+  if (!isSignedIn) return <Navigate to={signInHref(location)} replace />;
   return <Layout>{children}</Layout>;
 }
 
 export function SigningCheckLayout({ children }: { children: ReactNode }) {
   const { isSignedIn, isOwner, loading, signingOut } = useAuth();
-  const { pathname } = useLocation();
+  const location = useLocation();
   // Remember that this guard witnessed a deliberate sign-out. react-router wraps navigate('/') in a transition, so on a cold cache
   // (landing chunk still downloading) this guard is still mounted when /api/auth/me settles to signed-out — it must rest on /, not /signing?next=.
   const [sawSignOut, setSawSignOut] = useState(false);
@@ -104,7 +105,7 @@ export function SigningCheckLayout({ children }: { children: ReactNode }) {
   if (loading) return <Layout><CenterProgress /></Layout>;
   // A deliberate sign-out rests on the landing page; only an expired/missing session asks to sign in again (and remembers where to return).
   if (signingOut || (sawSignOut && !isSignedIn)) return <Navigate to="/" replace />;
-  if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(pathname)}`} replace />;
+  if (!isSignedIn) return <Navigate to={signInHref(location)} replace />;
   if (!isOwner) return <Layout><NotYourNode /></Layout>;
   return <Layout>{children}</Layout>;
 }

@@ -70,7 +70,7 @@ const ALLOWED_ONLY_IN_HEADER: Record<string, string> = {
  * not change. `/chat` likewise: the landing hero and the patch pages still link to it.
  */
 const ALLOWED_ONLY_IN_LANDING: Record<string, string> = {
-  '/my-nodes': 'the signed-in account link that replaces "Sign in" on the landing; the header reaches it from its account menu',
+  '/me': 'the signed-in account link that replaces "Sign in" on the landing; the header reaches it from its account menu',
 };
 const ALLOWED_EQUIVALENT: Record<string, string> = {
 };

@@ -7,6 +7,8 @@ import type { AinftWallet } from '@/lib/ainftRegistration';
 import { connect, discoverWallets, personalSign, WalletError, type DiscoveredWallet } from '@/lib/ethWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
+import { safeReturnPath } from '@/lib/uiNavigation';
+import { Button } from '@/components/ui/Button';
 import { servedOutsideApp } from '@/lib/nextNavigation';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
@@ -85,7 +87,7 @@ export default function SigningPage() {
     routerNavigate(to, options);
   }, [routerNavigate]);
   const requestedNext = params.get('next');
-  const next = requestedNext?.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/my-nodes';
+  const next = safeReturnPath(requestedNext);
   /**
    * The one-time enrolment token, handed over in the link.
    *
@@ -120,7 +122,7 @@ export default function SigningPage() {
   useEffect(() => { if (!auth.loading && auth.subject) navigate(next, { replace: true }); }, [auth.loading, auth.subject, navigate, next]);
   const googleError = params.get('google_error');
   // Not the /dashboard default: that screen is the node owner's, and a Google session can never own a node.
-  const googleNext = params.get('next') || '/';
+  const googleNext = next;
 
   /**
    * AIN SSO (src/lib/ainSso.ts). The button is offered only where the server can complete it. `?sso=connect` is where
@@ -293,6 +295,7 @@ export default function SigningPage() {
             <GoogleMark />{t('op.sign.sso.google')}
           </GoogleButton>
         )}
+        {auth.isSignedIn && !pending && !auth.subject && <Button variant="contained" onClick={() => navigate(next, { replace: true })} data-testid="signin-continue">{t('op.sign.continue')}</Button>}
         {auth.sso && <Alert $tone="info" role="status" data-testid="sso-signed-in" style={{ marginTop: 24 }}>{t('op.sign.sso.signed_in', { who: auth.sso.email ?? auth.sso.name ?? auth.sso.sub })}</Alert>}
         {ssoError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.sso.err', { reason: ssoError })}</Alert>}
 

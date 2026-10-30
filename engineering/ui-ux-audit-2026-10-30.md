@@ -118,3 +118,38 @@ A row remains pending until the applicable flows and rendered behavior are check
 - Current follow-up: local TypeScript and 31 focused route/search/access checks pass; full server CI and public browser checks not yet run for U04–U10.
 
 - First server deployment attempt for #142 stopped at gen:check before activation because the engineering audit document was in the public docs directory. Move it outside public docs; preserve the last running release and rerun the gate.
+
+- Browser evidence: before the new release, typing `clef` in the global search then Enter opened `/train/knowledge?q=clef`, reported zero results and still displayed unrelated recommendation cards. Public project lookup returns 404 while `/api/patches/defi-engram-eth-vocabulary` returns 200; the project/knowledge routing failure is frontend behavior.
+- Public model check: `/models/Qwen%2FQwen3-ASR-1.7B` renders the correct model, audio-file input and disabled Run before a file is chosen. Switching the code example to curl produces the audio transcription endpoint and the same model ID. Actual transcription execution is not verified.
+- Follow-up U15: `isReservedFirstSegment` calls decodeURIComponent on a route parameter that React Router already decodes; a malformed percent token may throw instead of showing Not found. Needs a controlled negative-route test before changing it.
+- Search follow-up: PR #145 unifies full-list and preview matching, including words in separate fields. TypeScript and 44 focused checks pass. Server release SHA expected e73c892f956d9165b508e144bd0491203d75e620; verification is still pending.
+
+### Release and browser verification: e73c892
+
+- Public `/web-build.json` and standard deploy log agree on e73c892f956d9165b508e144bd0491203d75e620. Release `/home/comcom/ainize-web-releases/releases/20261030T131032Z-e73c892f956d`. Server suite: 494 passed, 0 failed; deploy contract: 5 passed, 0 failed.
+- U04: signed-out `/comcom/nextjs-hello-world` now shows project access guidance, login returning to the same project, retry and Apps recovery. No empty knowledge ID or JSON parsing error. Actual authenticated project operations remain unverified.
+- U05: `/patch/0xAb6fC64Ed70dEA2294E8f2371e29535ED71278E5/defi-engram-eth-vocabulary?tab=lineage` redirects to the canonical detail with the same ID and tab. It renders the named knowledge and selects lineage.
+- U06: top search Enter for clef reaches `/search?q=clef` with two matching models. Searching DeepSeek chat from that same page updates to exactly the matching DeepSeek model. ArrowDown + Enter on the clef preview opens `/models/clef`; Back restores the clef result page.
+- U08 and matching consistency: `/models?q=DeepSeek%20chat` shows the same model and only one search field (the global field). No horizontal overflow at 390px. Search page at 320px has scrollWidth=320 and both clef results visible. Viewport restored.
+- U07: monorepo destinations and app kind filtering covered by regression tests; authenticated app result rendering remains pending.
+- U09: server pagination implemented; production catalogue has too few rows to prove >200-row navigation. A controlled dataset test is still needed. Recommendation suppression is implemented; explicit no-match browser check remains pending.
+- Browser artifacts: ui-compact-verification/project-access-after-20261030.png, search-after-20261030.png, search-mobile-after-20261030.png, knowledge-link-after-20261030.png.
+- Deployment coordination: final log named 1852a4c82178 as previous release, although this task did not manually activate that SHA. Another deployment mechanism may track main. Inspect active deployment processes before starting another manual deployment; do not restart a live build.
+
+Additional visible findings, not yet fixed: knowledge detail shows a completed verification count alongside a “not yet verified” accuracy summary when score evidence is absent; determine the precise field semantics. Knowledge and agent detail routes do not keep their parent top-level navigation highlighted. Check these as part of the remaining detail audit.
+
+### Account, navigation and project action follow-up
+
+Prepared changes (not yet deployed):
+- U12: landing identity consistently opens /me for wallet, SSO and Google sessions. Signed-in SSO/Google visitors on the login page have an explicit Continue action; default login destinations agree on /me.
+- U13: shared signInHref preserves pathname, query and anchor in guards, header, project hand-off, run/log access prompts and unavailable-project recovery. Unsafe/self-return destinations fall back to /me.
+- U15: malformed percent-encoded route segments return Not found rather than throwing from decodeURIComponent.
+- Detail parent selection: agent, knowledge and project details keep Agents, Train and Apps selected respectively.
+- U18: non-script/unknown project types no longer show a script Run button/tab. Legacy Run URLs show an explanation and a Deployments action. API runs polling is skipped for non-scripts.
+- U19: repository Run shortcuts merge tab=runs into the existing monorepo query rather than producing a second question mark.
+- U20: project Visit selects activeDeploymentId/activeCommit, never an arbitrary earlier successful deployment. Missing/unsafe output URLs have no Visit action.
+- U21: build-log, deployment-history and run-history failures show recovery instead of empty-state claims. Failed/new logs clear downloaded text, preventing a previous log from being downloaded under a new filename.
+- U22: project tab/log navigation uses history entries; redeploy success updates tab and open deployment in one query change.
+- Mobile: long repository/source-folder names wrap and organization list actions can wrap below the name.
+
+Validation so far: typecheck and 44 focused navigation, project action, translation, access and route tests passed; generated docs match. Authenticated destructive actions are not exercised on user data. Server CI and production UI checks remain required.

@@ -65,6 +65,7 @@ export const operatorCommon: Dict = {
 };
 
 export const operatorSign: Dict = {
+  'op.sign.continue': { ko: '계속하기', en: 'Continue' },
   'op.sign.agree': { ko: '{terms}에 동의합니다 (필수)', en: 'I agree to the {terms} (required)' },
   'op.sign.terms': { ko: '이용약관', en: 'Terms and Policies' },
   // Finding 89: the node answers 401 with the bare string "wrong password". This is what the reader sees instead —

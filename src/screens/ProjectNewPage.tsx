@@ -7,14 +7,15 @@
  * with the person's aindrive session, so a push there calls the hook here) and returns to the drive. If aindrive
  * does not take the secret, it is shown — once — with the hook URL, because the node never shows it again.
  *
- * Sign-in is checked here rather than by `SignedInLayout`: that gate forwards to `/signing?next=<pathname>` and loses
- * the query string, which is the whole hand-off.
+ * Sign-in is checked here so the hand-off form keeps its own loading state. The shared signInHref helper
+ * preserves the repository query string and anchor through authentication.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useCreateProjectMutation } from '@/api/api';
 import { connectParamsOf, connectRepoOnAindrive, projectApiErrorOf, repoLabelOf, repoUrlLooksRight, type ProjectCreated } from '@/api/projects';
+import { signInHref } from '@/lib/uiNavigation';
 import { projectPath } from '@/lib/reservedRoutes';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -36,7 +37,8 @@ export default function ProjectNewPage() {
   const { t } = useT();
   useTitle(t('projects.new.title'));
   const { isSignedIn, loading } = useAuth();
-  const { pathname, search } = useLocation();
+  const location = useLocation();
+  const { search } = location;
   const navigate = useNavigate();
   const params = useMemo(() => connectParamsOf(search), [search]);
   const [repo, setRepo] = useState(params.repo ?? '');
@@ -57,7 +59,7 @@ export default function ProjectNewPage() {
   }, [created, connect, params.returnTo]);
 
   if (loading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (!isSignedIn) return <Navigate to={`/signing?next=${encodeURIComponent(`${pathname}${search}`)}`} replace />;
+  if (!isSignedIn) return <Navigate to={signInHref(location)} replace />;
 
   const repoOk = repoUrlLooksRight(repo.trim());
 
