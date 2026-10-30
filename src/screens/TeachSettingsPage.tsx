@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
@@ -58,6 +59,7 @@ const EFFORTS = ['quick', 'balanced', 'thorough'] as const;
 
 export default function TeachSettingsPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   useTitle(t('teach.set.title'));
   const navigate = useNavigate();
@@ -67,13 +69,13 @@ export default function TeachSettingsPage() {
   const retrainOf = params.get('retrain') ?? '';
   const asked = params.get('effort');
   const { data: policy } = useTeachPolicyQuery();
-  const { data: dsData, isLoading } = useTeachDatasetQuery(dsId, { skip: !dsId });
+  const { currentData: dsData, isLoading } = useTeachDatasetQuery({ id: dsId, teacherIdentity }, { skip: !dsId });
   const dataset = dsData?.dataset;
   const cap = rowsPerJob(policy);
   const selection = useMemo(() => loadSelection(dsId), [dsId]);
   // the questions this lesson will actually train: the visitor's pick, else the first `cap` accepted ones
   const trained = Math.min(selection?.length ?? dataset?.rows ?? 0, cap);
-  const { data: page } = useTeachDatasetRowsQuery({ id: dsId, offset: 0, limit: 200, status: 'ok' }, { skip: !dsId });
+  const { currentData: page } = useTeachDatasetRowsQuery({ teacherIdentity, id: dsId, offset: 0, limit: 200, status: 'ok' }, { skip: !dsId });
   const altCount = useMemo(() => {
     const picked = page?.items?.filter((r) => r.index !== null && (!selection || selection.includes(r.index))) ?? [];
     return picked.slice(0, cap).filter((r) => !!r.alt_prompt).length;

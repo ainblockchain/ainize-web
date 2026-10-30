@@ -46,8 +46,8 @@ export function MyKnowledgePanel({ teacherKey, lessonEntries, onOpenLesson, onKe
   const { t } = useT();
   const elapsed = useElapsed();
   const [restoring, setRestoring] = useState(false);
-  const { data, error, isLoading } = useMyTeachJobsQuery(undefined, { skip: !teacherKey, pollingInterval: 10_000 });
-  const { data: profile } = useTeacherQuery(teacherKey?.address ?? '', { skip: !teacherKey, pollingInterval: 30_000 });
+  const { currentData: data, error, isLoading } = useMyTeachJobsQuery(teacherKey?.address.toLowerCase() ?? '', { skip: !teacherKey, pollingInterval: 10_000 });
+  const { currentData: profile } = useTeacherQuery(teacherKey?.address ?? '', { skip: !teacherKey, pollingInterval: 30_000 });
   const items = data?.items ?? [];
   const entryOf = (j: TeachJob) => lessonEntries.find((e) => e.anchor.id === (j.patch_id ?? j.draft_id));
   const forget = () => { if (!window.confirm(t('teach.mine.forget_confirm'))) return; forgetTeacherKey(); onKeyChanged(); };

@@ -23,7 +23,9 @@ import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
 import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
-import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
+import { currentTeacherKey } from '@/lib/teacherKey';
+import { createTeacherFetch, SIGN_MARKER, DATASET_SHA_HEADER } from '@/lib/teacherFetch';
+export { DATASET_SHA_HEADER } from '@/lib/teacherFetch';
 
 /**
  * Endpoints that carry the visitor's signed `x-ainize-auth` when this browser has a teaching key (spec §6.1).
@@ -38,11 +40,6 @@ const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'merg
   'retrainTeachJob', 'teachJobEvents',
   // item 306 — the person who is owed the money asks the node to try the transfer again, signed with the key that is owed it
   'nudgePayout']);
-/** Header that carries the sha256 of a multipart upload — it is what the v2 signature covers (design §D14). */
-export const DATASET_SHA_HEADER = 'x-ainize-dataset-sha256';
-/** Internal marker set by prepareHeaders and consumed by `signedFetch` (never sent). */
-const SIGN_MARKER = 'x-ainize-sign';
-
 let nodeAddressPromise: Promise<string | null> | null = null;
 /** This node's address (signed into every v2 header), fetched once from /api/info. */
 const nodeAddress = (): Promise<string | null> => {
@@ -54,30 +51,7 @@ const nodeAddress = (): Promise<string | null> => {
   return nodeAddressPromise;
 };
 
-/**
- * fetch with the request-bound v2 `x-ainize-auth` (`teach:<node>:<METHOD>:<path+query>:<ts>[:<sha256 body>]`) on marked
- * requests — single-use on the node and bound to route + body, so a captured header cannot be replayed elsewhere.
- * Stop when the node identity is unavailable; never downgrade to an unbound legacy signature.
- */
-const signedFetch: typeof fetch = async (input, init) => {
-  const req = input instanceof Request ? input : new Request(input, init);
-  if (!req.headers.has(SIGN_MARKER)) return fetch(req);
-  const headers = new Headers(req.headers);
-  headers.delete(SIGN_MARKER);
-  if (currentTeacherKey()) {
-    const node = await nodeAddress();
-    if (!node) throw new Error('Cannot verify the node identity. Retry when the node is available.');
-    const method = req.method.toUpperCase();
-    // A multipart body is never captured as `rawBody` on the node, so the client signs the value of
-    // `x-ainize-dataset-sha256` instead and the node re-hashes the stored file against it (design §D14).
-    const declared = headers.get(DATASET_SHA_HEADER);
-    const body = declared ?? (method === 'GET' || method === 'HEAD' ? null : await req.clone().text());
-    const u = new URL(req.url);
-    const h = teachAuthHeaderFor({ node, method, path: `${u.pathname}${u.search}`, body });
-    if (h) headers.set('x-ainize-auth', h);
-  }
-  return fetch(new Request(req, { headers }));
-};
+const signedFetch = createTeacherFetch(nodeAddress);
 
 /** This node's address, for requests signed outside RTK Query (authenticated downloads). */
 export const nodeAddressOnce = (): Promise<string | null> => nodeAddress();
@@ -96,12 +70,16 @@ const toQuery = (params: Record<string, unknown>) => {
   return s ? `?${s}` : '';
 };
 
+type TeacherScope = { teacherIdentity: string };
+type TeacherResource = TeacherScope & { id: string };
+const teacherRead = (url: string, teacherIdentity: string) => ({ url, headers: { [SIGN_MARKER]: teacherIdentity } });
+
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
     baseUrl: '/', credentials: 'include', fetchFn: signedFetch,
     prepareHeaders: (headers, { endpoint }) => {
-      if (SIGNED_ENDPOINTS.has(endpoint)) headers.set(SIGN_MARKER, '1');
+      if (SIGNED_ENDPOINTS.has(endpoint) && !headers.has(SIGN_MARKER)) headers.set(SIGN_MARKER, currentTeacherKey()?.address.toLowerCase() ?? '');
       return headers;
     },
   }),
@@ -149,7 +127,7 @@ export const api = createApi({
     patchTree: b.query<TreeResponse, { id: string; depth?: number; dir?: 'up' | 'down' | 'both' }>({ query: ({ id, depth, dir }) => `api/patches/${encodeURIComponent(id)}/tree${toQuery({ depth, dir })}`, providesTags: ['Catalog'] }),
     patchSignals: b.query<SignalsResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/signals`, providesTags: ['Catalog'] }),
     patchIssues: b.query<IssuesResponse, { id: string; kind?: string; status?: string; limit?: number }>({ query: ({ id, ...q }) => `api/patches/${encodeURIComponent(id)}/issues${toQuery(q)}`, providesTags: ['Issues'] }),
-    patchDataset: b.query<PatchDatasetResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/dataset`, providesTags: ['Catalog'] }),
+    patchDataset: b.query<PatchDatasetResponse, TeacherResource>({ keepUnusedDataFor: 0, query: ({ id, teacherIdentity }) => teacherRead(`api/patches/${encodeURIComponent(id)}/dataset`, teacherIdentity), providesTags: ['Catalog'] }),
     createIssue: b.mutation<{ id: string; count: number; people: number; shared: boolean }, { id: string; text: string; topic?: string; share: boolean }>({
       query: ({ id, ...body }) => ({ url: `api/patches/${encodeURIComponent(id)}/issues`, method: 'POST', body }), invalidatesTags: ['Issues'],
     }),
@@ -549,7 +527,7 @@ export const api = createApi({
     driveAction: b.mutation<unknown, { action: 'up' | 'stop' | 'sync' | 'login'; server?: string }>({ query: (body) => ({ url: 'api/drive', method: 'POST', body }), invalidatesTags: ['Drive'] }),
 
     // ChatMode (live test)
-    chatPatches: b.query<ChatPatchesResponse, void>({ query: () => 'api/chat/patches', providesTags: ['Chat', 'Catalog', 'Runtime'] }),
+    chatPatches: b.query<ChatPatchesResponse, string>({ keepUnusedDataFor: 0, query: (identity) => teacherRead('api/chat/patches', identity), providesTags: ['Chat', 'Catalog', 'Runtime'] }),
     chat: b.mutation<ChatResponse, ChatRequest>({ query: (body) => ({ url: 'api/chat', method: 'POST', body }), invalidatesTags: ['Events'] }),
     // D3 — polled every 1.5 s while a turn is pending: is it still queued behind the shared model, and who holds it?
     chatStatus: b.query<ChatStatusResponse, string>({ query: (id) => `api/chat/status?request_id=${encodeURIComponent(id)}` }),
@@ -576,8 +554,8 @@ export const api = createApi({
     }>({
       query: (body) => ({ url: 'api/teach/jobs', method: 'POST', body }), invalidatesTags: ['Teach', 'TeachDataset'],
     }),
-    teachJob: b.query<{ job: TeachJob | TeachJobPublic }, string>({ query: (id) => `api/teach/jobs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Teach', id }] }),
-    myTeachJobs: b.query<{ items: TeachJob[] }, void>({ query: () => 'api/teach/jobs?mine=1', providesTags: ['Teach'] }),
+    teachJob: b.query<{ job: TeachJob | TeachJobPublic }, TeacherResource>({ keepUnusedDataFor: 0, query: ({ id, teacherIdentity }) => teacherRead(`api/teach/jobs/${encodeURIComponent(id)}`, teacherIdentity), providesTags: (_r, _e, { id }) => [{ type: 'Teach', id }] }),
+    myTeachJobs: b.query<{ items: TeachJob[] }, string>({ keepUnusedDataFor: 0, query: (identity) => teacherRead('api/teach/jobs?mine=1', identity), providesTags: ['Teach'] }),
     cancelTeachJob: b.mutation<{ ok: boolean; status: 'CANCELLED' }, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, id) => [{ type: 'Teach', id }, 'Teach', 'Chat'] }),
     retryTeachJob: b.mutation<CreateTeachJobResponse, { id: string; facts: TeachFactInput[]; name?: string }>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/retry`, method: 'POST', body }), invalidatesTags: ['Teach'] }),
     recheckTeachJob: b.mutation<{ ok: boolean; status: 'EXPORTED' }, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/recheck`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Teach', id }, 'Teach'] }),
@@ -589,8 +567,9 @@ export const api = createApi({
      * sheet has to show what a sale would pay BEFORE the creator commits to a price (item 186). The mutation above
      * still fetches a fresh one at submit time, so the claim that is signed is never a cached one.
      */
-    publishPreview: b.query<PublishChallenge, { id: string; payout_address?: string | null }>({
-      query: ({ id, payout_address }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish-challenge${toQuery({ payout_address: payout_address === null ? 'none' : payout_address })}`, method: 'GET' }),
+    publishPreview: b.query<PublishChallenge, TeacherResource & { payout_address?: string | null }>({
+      keepUnusedDataFor: 0,
+      query: ({ id, payout_address, teacherIdentity }) => teacherRead(`api/teach/jobs/${encodeURIComponent(id)}/publish-challenge${toQuery({ payout_address: payout_address === null ? 'none' : payout_address })}`, teacherIdentity),
     }),
     publishTeachJob: b.mutation<PublishResponse, { id: string } & PublishRequest>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Teach', id: a.id }, 'Teach', 'Chat', 'Catalog', 'Teacher'] }),
     saveTeachJob: b.mutation<TeachSaveResponse, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/save`, method: 'POST' }) }),
@@ -599,10 +578,11 @@ export const api = createApi({
     forkPatch: b.mutation<ForkPatchResponse, { id: string; name?: string }>({
       query: ({ id, ...body }) => ({ url: `api/patches/${encodeURIComponent(id)}/fork`, method: 'POST', body }), invalidatesTags: ['TeachDataset'],
     }),
-    teachDatasets: b.query<{ items: TeachDataset[] }, void>({ query: () => 'api/teach/datasets', providesTags: ['TeachDataset'] }),
-    teachDataset: b.query<{ dataset: TeachDataset }, string>({ query: (id) => `api/teach/datasets/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'TeachDataset', id }] }),
-    teachDatasetRows: b.query<DatasetRowsPage, { id: string; offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected'; origin?: 'all' | 'mine' | 'inherited' | 'changed' | 'conflicts' }>({
-      query: ({ id, ...q }) => `api/teach/datasets/${encodeURIComponent(id)}/rows${toQuery({ ...q })}`,
+    teachDatasets: b.query<{ items: TeachDataset[] }, string>({ keepUnusedDataFor: 0, query: (identity) => teacherRead('api/teach/datasets', identity), providesTags: ['TeachDataset'] }),
+    teachDataset: b.query<{ dataset: TeachDataset }, TeacherResource>({ keepUnusedDataFor: 0, query: ({ id, teacherIdentity }) => teacherRead(`api/teach/datasets/${encodeURIComponent(id)}`, teacherIdentity), providesTags: (_r, _e, { id }) => [{ type: 'TeachDataset', id }] }),
+    teachDatasetRows: b.query<DatasetRowsPage, TeacherResource & { offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected'; origin?: 'all' | 'mine' | 'inherited' | 'changed' | 'conflicts' }>({
+      keepUnusedDataFor: 0,
+      query: ({ id, teacherIdentity, ...q }) => teacherRead(`api/teach/datasets/${encodeURIComponent(id)}/rows${toQuery(q)}`, teacherIdentity),
       providesTags: (_r, _e, a) => [{ type: 'TeachDataset', id: a.id }],
     }),
     /** The chat door and the paste box: already-canonical questions, no file. */
@@ -640,8 +620,9 @@ export const api = createApi({
     retrainTeachJob: b.mutation<CreateTeachJobResponse, { id: string; dataset_id?: string; selected_indexes?: number[]; training?: Partial<TeachTrainingSpec>; name?: string }>({
       query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/retrain`, method: 'POST', body }), invalidatesTags: ['Teach', 'TeachDataset'],
     }),
-    teachJobEvents: b.query<{ events: TeachEventRow[]; cursor: number }, { id: string; since?: number }>({
-      query: ({ id, since }) => `api/teach/jobs/${encodeURIComponent(id)}/events${toQuery({ since })}`,
+    teachJobEvents: b.query<{ events: TeachEventRow[]; cursor: number }, TeacherResource & { since?: number }>({
+      keepUnusedDataFor: 0,
+      query: ({ id, since, teacherIdentity }) => teacherRead(`api/teach/jobs/${encodeURIComponent(id)}/events${toQuery({ since })}`, teacherIdentity),
     }),
     teacher: b.query<TeacherProfile, string>({ query: (address) => `api/teacher/${encodeURIComponent(address)}`, providesTags: (_r, _e, address) => [{ type: 'Teacher', id: address.toLowerCase() }, 'Teacher'] }),
     /**
