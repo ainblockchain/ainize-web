@@ -47,7 +47,7 @@ export function Layout({ children }: { children: ReactNode }) {
 }
 
 /**
- * The teach flow's chrome (`/teach/*`, ux-critique-owner O-3): a slim header (logo · exit · language) and a minimal
+ * The teach flow's chrome (`/train/*`, ux-critique-owner O-3): a slim header (logo · exit · language) and a minimal
  * footer, so the one task on these pages — teaching the model — is not competing with seven marketplace links and
  * the developer footer. Marketplace pages keep `Layout`.
  */
@@ -151,10 +151,10 @@ function NotYourNode() {
           <strong>{t('op.sign.not_owner.try')} →</strong>
           <span>{t('op.sign.not_owner.try_hint')}</span>
         </Way>
-        <Way to="/explore" data-testid="not-owner-explore">
+        <Way to="/train/knowledge" data-testid="not-owner-explore">
           <strong>{t('op.sign.not_owner.explore')} →</strong>
         </Way>
-        <Way to="/teach" data-testid="not-owner-teach">
+        <Way to="/train" data-testid="not-owner-teach">
           <strong>{t('op.sign.not_owner.teach')} →</strong>
           <span>{t('op.sign.not_owner.teach_hint')}</span>
         </Way>

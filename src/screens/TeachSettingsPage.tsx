@@ -21,7 +21,7 @@ import { rememberJob } from '@/lib/teachStore';
 import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
- * `/teach/dataset/:dsId/settings` — step 3 (design §5.5). Exactly four things a non-expert can judge: a name, how hard
+ * `/train/dataset/:dsId/settings` — step 3 (design §5.5). Exactly four things a non-expert can judge: a name, how hard
  * to try, whether to measure side effects (locked on where publishing is possible, because it is the publish gate) and
  * whether to hold the "another way to ask" column out of training. Everything with a number in it — the per-lesson
  * question cap, the presets, the queue — comes from the node's policy; nothing here is hard-coded.
@@ -140,7 +140,7 @@ export default function TeachSettingsPage() {
       const mine = (page?.items ?? []).filter((r) => r.index !== null && r.prompt && r.answer && !r.from && !r.replaces)
         .map((r) => ({ prompt: r.prompt as string, answer: r.answer as string, ...(r.alt_prompt ? { alt_prompt: r.alt_prompt } : {}) }));
       if (mine.length) await patchDataset({ id: fork.dataset_id, rows_op: { op: 'append', rows: mine } }).unwrap();
-      navigate(`/teach/dataset/${fork.dataset_id}?on=${encodeURIComponent(chosen.id)}`);
+      navigate(`/train/dataset/${fork.dataset_id}?on=${encodeURIComponent(chosen.id)}`);
     } catch (e) { setError(mapTeachError(e, t)); } finally { setCopying(false); }
   };
 
@@ -167,7 +167,7 @@ export default function TeachSettingsPage() {
         }).unwrap();
       clearKnown(dsId);
       rememberJob({ id: out.job.id, name: out.job.name, created_at: Date.now() });
-      navigate(`/teach/lesson/${out.job.id}`);
+      navigate(`/train/lesson/${out.job.id}`);
     } catch (e) { setError(mapTeachError(e, t)); }
   };
 

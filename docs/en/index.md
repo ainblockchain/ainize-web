@@ -2,7 +2,7 @@
 
 Ainize lets you teach a model from question–answer pairs, test the resulting knowledge, and publish or use knowledge shared by other nodes.
 
-## The four surfaces
+## Ways to use Ainize
 
 | Surface | Use |
 |---|---|
@@ -14,6 +14,16 @@ Ainize lets you teach a model from question–answer pairs, test the resulting k
 | Agents | Register an existing agent and expose its interface through a node. See [hosting an agent](./how-to/host-an-agent.md). |
 
 The website and node API are separate deployments. A CLI installation does not include a ready-to-use website or a model server.
+
+## Train
+
+[Train](/train) brings training and learned knowledge into one place:
+
+- **Start training**: correct answers in a conversation or upload a question–answer dataset.
+- **Trained knowledge**: browse published results and use the top search bar to find knowledge.
+- **My data & training**: return to your datasets, lessons and results on this browser.
+
+The former Knowledge and Teach menus are now one Train menu. Existing `/explore` knowledge links and `/teach` lesson links still open the corresponding Train screen. Training availability depends on the node; browsing knowledge remains available even when training is paused.
 
 ## Check that a node is answering
 

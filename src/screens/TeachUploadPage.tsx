@@ -17,7 +17,7 @@ import { acceptedFile, fileSize, isoDay, looksBinary, previewCount, rememberData
 import { createTeacherKey, currentTeacherKey, shortKey } from '@/lib/teacherKey';
 
 /**
- * `/teach/upload` — step 1 (design §5.3). Three ways in, always all three: drop, a native file input, and a paste box.
+ * `/train/upload` — step 1 (design §5.3). Three ways in, always all three: drop, a native file input, and a paste box.
  * The paste box uploads its text as a file so the NODE's parser decides what it means — the browser never becomes a
  * second parser that can disagree with it (§D2). The privacy sentence sits directly above the button, before a file is
  * chosen: this is a stranger's machine, and saying so afterwards would be too late.
@@ -119,7 +119,7 @@ export default function TeachUploadPage() {
       setChip({ name: file.name, size: fileSize(file.size), n });
       const out = await upload({ file, sha256: sha256Hex(buf), retention }).unwrap();
       rememberDataset(out.dataset.id, out.dataset.name);
-      navigate(`/teach/dataset/${out.dataset.id}${carry}`);
+      navigate(`/train/dataset/${out.dataset.id}${carry}`);
     } catch (e) {
       setChip(null);
       setError(mapTeachError(e, t));
@@ -145,7 +145,7 @@ export default function TeachUploadPage() {
       // carrying the original's exact name is indistinguishable from it in the list and in the lesson id it produces
       const fork = await forkPatch({ id: base.anchor.id }).unwrap();
       rememberDataset(fork.dataset_id, fork.dataset.name);
-      navigate(`/teach/dataset/${fork.dataset_id}?on=${encodeURIComponent(base.anchor.id)}`);
+      navigate(`/train/dataset/${fork.dataset_id}?on=${encodeURIComponent(base.anchor.id)}`);
     } catch (e) { setError(mapTeachError(e, t)); } finally { setCopying(false); }
   };
 
@@ -155,7 +155,7 @@ export default function TeachUploadPage() {
     try {
       const out = await create({ source: 'sample', sample: kind, retention }).unwrap();
       rememberDataset(out.dataset.id, out.dataset.name);
-      navigate(`/teach/dataset/${out.dataset.id}${carry}`);
+      navigate(`/train/dataset/${out.dataset.id}${carry}`);
     } catch (e) { setError(mapTeachError(e, t)); }
   };
 

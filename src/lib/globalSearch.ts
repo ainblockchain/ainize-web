@@ -32,7 +32,7 @@ export function seeAllHref(kind: SearchKind, q: string): string {
     case 'app': return `/apps?q=${query}`;
     case 'model': return `/models?q=${query}`;
     case 'agent': return `/explore?kind=agent&q=${query}`;
-    case 'knowledge': return `/explore?q=${query}`;
+    case 'knowledge': return `/train/knowledge?q=${query}`;
   }
 }
 

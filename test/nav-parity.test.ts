@@ -71,10 +71,8 @@ const ALLOWED_ONLY_IN_HEADER: Record<string, string> = {
  */
 const ALLOWED_ONLY_IN_LANDING: Record<string, string> = {
   '/my-nodes': 'the signed-in account link that replaces "Sign in" on the landing; the header reaches it from its account menu',
-  '/chat?teach=1': 'the landing links straight to the chat door; the header leads to the entry choice at /teach',
 };
 const ALLOWED_EQUIVALENT: Record<string, string> = {
-  '/teach': '/chat?teach=1',
 };
 
 test('every destination in the shared header is reachable from the landing nav too', () => {

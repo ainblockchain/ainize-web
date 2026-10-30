@@ -11,7 +11,7 @@ import { CenterProgress, Description, PageWrapper, Title, TitleRow } from '@/com
 import { rememberJob } from '@/lib/teachStore';
 
 /**
- * `/teach/merge?a=&b=` — combining two knowledges (design §4 SC-14, §9).
+ * `/train/merge?a=&b=` — combining two knowledges (design §4 SC-14, §9).
  *
  * The screen is the design's four steps in one scroll: what OVERLAPS (questions and rows, both measured by the node),
  * which questions the two answer DIFFERENTLY (one card each, resolved by a person — nothing is built until every one
@@ -86,7 +86,7 @@ export default function MergePage() {
     const job = (res as { data?: { job?: { id: string; name?: string } } }).data?.job;
     if (!job) return;
     rememberJob({ id: job.id, name: job.name, created_at: Date.now() });
-    navigate(`/teach/lesson/${job.id}`);
+    navigate(`/train/lesson/${job.id}`);
   };
 
   if (policy && !policy.lineage) return <PageWrapper><Alert $tone="warning">{t('merge.disabled')}</Alert></PageWrapper>;

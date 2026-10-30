@@ -126,7 +126,7 @@ export function DatasetCard({ dataset, lessons, ttlDays, baseName, onRetrain, on
                 {j.facts.some((f) => f.hit !== undefined) && (
                   <span className="hit">{t('teach.data.learned', { hits: j.facts.filter((f) => f.hit === true).length, total: j.facts.length })}</span>
                 )}
-                <Link to={`/teach/lesson/${j.id}`}>{t('teach.data.open')}</Link>
+                <Link to={`/train/lesson/${j.id}`}>{t('teach.data.open')}</Link>
               </li>
             ))}
           </Lessons>

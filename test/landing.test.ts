@@ -63,7 +63,7 @@ test('each capability leads where its brief says', () => {
 
 test('the differentiators follow: teach, and one identity', () => {
   const only = block('landing-only');
-  assert.match(only, /to="\/teach"/, 'Teach → /teach');
+  assert.match(only, /to="\/train"/, 'Train → /train');
   assert.match(only, /to="\/docs\/concepts\/lineage-and-royalties"/);
   assert.match(only, /to="\/docs\/how-to\/run-a-verifier"/);
   assert.match(only, /to="\/signing"/, 'the identity card leads to sign-in');

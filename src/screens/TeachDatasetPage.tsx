@@ -20,7 +20,7 @@ import { rowsPerJob, sourceLabel } from '@/components/teach/util';
 import { saveKnown, saveSelection, shortSha, signedDownload } from '@/lib/teachDataset';
 
 /**
- * `/teach/dataset/:dsId` — step 2 (design §5.4): the preview, the per-question validation and the live pre-flight.
+ * `/train/dataset/:dsId` — step 2 (design §5.4): the preview, the per-question validation and the live pre-flight.
  *
  * Two rules drive the whole screen. Nothing was silently dropped, so every source line that did not become a question
  * is counted here and inspectable; and the model-side status of a question is cleared the moment its text changes —
@@ -235,7 +235,7 @@ export default function TeachDatasetPage() {
     saveKnown(dsId, revision ?? 1, Object.entries(flight)
       .filter(([, f]) => f.status === 'already_known')
       .map(([index, f]) => ({ index: Number(index), base_answer: f.base_answer ?? '' })), checked);
-    navigate(`/teach/dataset/${dsId}/settings${search}`);
+    navigate(`/train/dataset/${dsId}/settings${search}`);
   };
 
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;

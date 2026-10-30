@@ -1,7 +1,7 @@
 /**
  * Lessons that are running RIGHT NOW, all of them, under one teaching identity.
  *
- * Nothing showed this. `/teach/mine` lists datasets and folds each dataset's lessons underneath it, which is the
+ * Nothing showed this. `/train/mine` lists datasets and folds each dataset's lessons underneath it, which is the
  * right shape for "what have I taught" and the wrong one for "what is happening": several lessons trained in
  * parallel under one key appear as unrelated rows inside unrelated cards, none of them refreshing, so the only way
  * to watch a run was to reload the page and read a status word. On this model a lesson takes hours, which is
@@ -97,7 +97,7 @@ export function LiveLessons({ jobs, skewMs = 0 }: { jobs: TeachJob[]; skewMs?: n
                 {training && <span>{t('teach.live.step', { step: p!.step, max: p!.max_steps })}</span>}
                 {j.status === 'QUEUED' && typeof j.position === 'number' && <span>{t('teach.live.position', { n: j.position + 1 })}</span>}
                 {started && <span>{since(started)}</span>}
-                <Link to={`/teach/lesson/${j.id}`}>{t('teach.live.open')}</Link>
+                <Link to={`/train/lesson/${j.id}`}>{t('teach.live.open')}</Link>
               </Line>
               <Rail>{training ? <Fill $pct={pct} /> : <Indeterminate />}</Rail>
               <Line>

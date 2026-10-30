@@ -10,7 +10,7 @@ import { STEP_KEYS } from '@/components/teach/Stepper';
 import { readiness, rowsPerJob } from '@/components/teach/util';
 
 /**
- * `/teach` — the entry choice (design §5.2, ux-critique-owner O-1). Two doors, one pipeline — and one of them leads.
+ * `/train` — the entry choice (design §5.2, ux-critique-owner O-1). Two doors, one pipeline — and one of them leads.
  * The conversation door is primary: a newcomer needs no file, no preparation, and sees the value in one question
  * (ask, correct, the model learns it). The file door is for people who already have their questions and answers in
  * a file; it is one click away, styled as the clearly secondary alternative (smaller card, outlined button, an
@@ -175,7 +175,7 @@ export default function TeachPage() {
           <Cta $primary className="cta" id="door-chat-cta" data-testid="door-chat-cta">{t('teach.entry.chat.cta')}</Cta>
         </Door>
         <Door
-          to="/teach/upload" data-testid="door-file" aria-labelledby="door-file-title door-file-cta" aria-describedby="door-file-body"
+          to="/train/upload" data-testid="door-file" aria-labelledby="door-file-title door-file-cta" aria-describedby="door-file-body"
           aria-disabled={open ? undefined : true} tabIndex={open ? undefined : -1} onClick={(e) => { if (!open) e.preventDefault(); }}
         >
           <Eyebrow>{t('teach.entry.file.eyebrow')}</Eyebrow>

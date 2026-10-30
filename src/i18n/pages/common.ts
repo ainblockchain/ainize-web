@@ -2,6 +2,10 @@ import type { Dict } from '../index';
 
 /** Strings shared by header/footer/layout and generic UI. */
 export const common: Dict = {
+  'nav.train': { ko: 'Train', en: 'Train' },
+  'train.start': { ko: '학습 시작', en: 'Start training' },
+  'train.knowledge': { ko: '학습된 지식', en: 'Trained knowledge' },
+  'train.mine': { ko: '내 데이터와 학습', en: 'My data & training' },
   'nav.explore': { ko: '지식', en: 'Knowledge' },
   'nav.apps': { ko: '앱', en: 'Apps' },
   'nav.models': { ko: '모델', en: 'Models' },
