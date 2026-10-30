@@ -19,6 +19,8 @@ import AuthorizePage from '../src/screens/AuthorizePage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
 import ChatPage from '../src/screens/ChatPage';
+import { BASKET_PREFIX, chatStorageOwner } from '../src/lib/teachStore';
+import { loadComposerDraft, loadStack, loadTurns, saveComposerDraft, saveStack, saveTurns } from '../src/components/chat/util';
 import MyAgentsPage from '../src/screens/MyAgentsPage';
 import AinCodePage from '../src/screens/AinCodePage';
 import OrgPage from '../src/screens/org/OrgPage';
@@ -686,4 +688,47 @@ test('chat refresh failure is visible and disables sending even with a retained 
   assert.match(html, /role="alert"/); assert.match(html, /Try again/);
   assert.match(html, /<textarea[^>]*disabled=""/);
   assert.doesNotMatch(html, /This node knows nothing/);
+});
+
+test('chat restores only this account draft and transcript and leaves another account storage intact', () => {
+  const originals = ['localStorage', 'sessionStorage'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)] as const);
+  for (const name of ['localStorage', 'sessionStorage']) {
+    const values = new Map<string, string>();
+    Object.defineProperty(globalThis, name, { configurable: true, value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+      get length() { return values.size; }, key: (i: number) => [...values.keys()][i] ?? null,
+    } });
+  }
+  try {
+    const owner = chatStorageOwner(accountIdentity, '');
+    const other = chatStorageOwner('another-account', '');
+    const turn = { id: 'one', prompt: 'Current conversation', mode: 'base', thinking: false, status: 'error', error: 'Fixture error', patchIds: [] };
+    saveTurns([turn, { ...turn, id: 'pending', status: 'pending' }], owner);
+    saveTurns([{ ...turn, prompt: 'Other private conversation' }], other);
+    saveComposerDraft('Current unsent question', owner);
+    saveComposerDraft('Other private draft', other);
+    saveStack(['one', 'two'], owner);
+    localStorage.setItem(`${BASKET_PREFIX}legacy`, JSON.stringify({ facts: [{ prompt: 'Unowned legacy question', answer: 'Unowned legacy answer' }], builds_on: false }));
+    sessionStorage.setItem('ainize.chat.turns', JSON.stringify([{ ...turn, prompt: 'Unowned legacy conversation' }]));
+    assert.deepEqual(loadStack(other), []);
+    assert.deepEqual(loadStack(owner), ['one', 'two']);
+    assert.equal(loadTurns(owner).length, 1, 'pending calls are not restored');
+    const catalog: Fixture = { name: 'chatPatches', arg: '', value: { items: [], lessons: [], runtime: { available: true, model: 'fixture' }, lock: null } };
+    const html = render(ChatPage, [...appAccount, chatTeachPolicy, catalog], '/chat');
+    assert.match(html, /Current conversation/); assert.match(html, /Current unsent question/);
+    assert.match(html, /data-testid="legacy-draft-recovery"/);
+    assert.match(html, /Download older drafts/);
+    assert.doesNotMatch(html, /Other private|Unowned legacy question|Unowned legacy answer|Unowned legacy conversation/);
+    const anonymous = render(ChatPage, [...signedOut, chatTeachPolicy, catalog], '/chat');
+    assert.doesNotMatch(anonymous, /Current conversation|Current unsent question|Other private/);
+    assert.equal(loadComposerDraft(other), 'Other private draft');
+    assert.equal(loadTurns(other).length, 1);
+  } finally {
+    for (const [name, descriptor] of originals) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    }
+  }
 });

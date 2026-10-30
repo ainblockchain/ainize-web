@@ -11,6 +11,11 @@ export const chat: Dict = {
 
   // picker
   'chat.picker.title': { ko: '테스트할 지식', en: 'Knowledge to test' },
+  'chat.draft.conflict': { ko: '불러온 키에 이미 초안이 있습니다. 작성 중이던 초안은 덮어쓰지 않고 보관했습니다. 다운로드하거나 이 키의 저장된 초안으로 계속할 수 있습니다.', en: 'This key already has a draft. Your current draft has been kept without overwriting it. Download it or continue with the saved draft.' },
+  'chat.draft.download': { ko: '작성 중인 초안 다운로드', en: 'Download current draft' },
+  'chat.draft.use_saved': { ko: '저장된 초안 열기', en: 'Open saved draft' },
+  'chat.draft.legacy': { ko: '이 브라우저에 소유 정보가 없는 이전 초안 {n}개와 대화 {turns}개가 있습니다.', en: 'This browser has {n} older drafts and {turns} conversation entries without ownership information.' },
+  'chat.draft.legacy_download': { ko: '이전 초안 백업 다운로드', en: 'Download older drafts' },
   'chat.picker.retry': { ko: '다시 불러오기', en: 'Try again' },
   'chat.picker.hint': { ko: '이 노드에 본문이 있는 지식만 테스트할 수 있습니다.', en: 'Only knowledge whose body is on this node can be tested.' },
   'chat.picker.empty': { ko: '이 노드에서 테스트할 수 있는 지식이 아직 없습니다.', en: 'No knowledge on this node can be tested yet.' },

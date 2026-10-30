@@ -8,7 +8,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
-import { MAX_HISTORY, answerHits, loadStack, loadTurns, matchSampleAny, matchSampleEach, parseSelection, saveStack, saveTurns, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
+import { MAX_HISTORY, answerHits, legacyTurns, loadComposerDraft, saveComposerDraft, loadStack, loadTurns, matchSampleAny, matchSampleEach, parseSelection, saveStack, saveTurns, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
 import { TeachDrawer } from '@/components/chat/TeachDrawer';
 import { toCandidate } from '@/components/chat/BasePicker';
 import { LessonBasket } from '@/components/chat/LessonBasket';
@@ -23,10 +23,11 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { captureTeacherKey, currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
-import { bannerDismissed, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
+import { captureTeacherKey, createTeacherKey, currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
+import { acceptBasketDraft, bannerDismissed, chatStorageOwner, legacyBaskets, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
 import type { PreflightFact } from '@/api/types';
 import { num } from '@/utils/format';
+import { downloadText } from '@/components/chat/teachUtil';
 import { LiveSources } from '@/components/chat/LiveSources';
 
 /* ---------------------------------------------------------------- layout */
@@ -193,10 +194,67 @@ function buildHistory(prior: Turn[], text: string, column: 'base' | 'patched'): 
   return capped;
 }
 
-type SheetKind = 'credit' | 'preflight' | 'publish' | 'keep' | null;
+type SheetKind = 'preflight' | 'publish' | 'keep' | null;
 
 /* ---------------------------------------------------------------- page */
+type ChatHandoff = { owner: string; basket: Basket; turns: Turn[]; text: string; preflight: boolean };
+type CreditDraft = { ids: string[]; basket: Basket; turns: Turn[]; text: string };
+
 export default function ChatPage() {
+  const { cacheIdentity, loading } = useAuth();
+  if (loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  return <ChatAccount key={cacheIdentity} account={cacheIdentity} />;
+}
+
+function ChatAccount({ account }: { account: string }) {
+  const teacherIdentity = useTeacherIdentity();
+  const owner = chatStorageOwner(account, teacherIdentity);
+  const { t } = useT();
+  const [credit, setCredit] = useState<(CreditDraft & { createdOwner: string }) | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [handoff, setHandoff] = useState<ChatHandoff | null>(null);
+  const [revision, setRevision] = useState(0);
+  const consumeHandoff = useCallback(() => setHandoff(null), []);
+  const beginCredit = (draft: CreditDraft) => {
+    const key = createTeacherKey();
+    const createdOwner = chatStorageOwner(account, key.address);
+    saveBasket(draft.ids, draft.basket, createdOwner);
+    saveTurns(draft.turns, createdOwner);
+    saveComposerDraft(draft.text, createdOwner);
+    setHandoff({ owner: createdOwner, basket: draft.basket, turns: draft.turns, text: draft.text, preflight: false });
+    setRevision((n) => n + 1);
+    setCredit({ ...draft, createdOwner }); setConflict(false);
+  };
+  const finishCredit = (key: TeacherKey, keepExisting = false) => {
+    if (!credit || currentTeacherKey()?.address.toLowerCase() !== key.address.toLowerCase()) return;
+    const target = chatStorageOwner(account, key.address);
+    const accepted = acceptBasketDraft(credit.ids, credit.basket, target, keepExisting ? 'keep-saved' : target === credit.createdOwner ? 'new-key' : 'import-key');
+    if (accepted.conflict) { setConflict(true); return; }
+    const basket = accepted.basket;
+    const savedTurns = loadTurns<Turn>(target);
+    const turns = keepExisting || savedTurns.length ? savedTurns : credit.turns;
+    if (!keepExisting && !savedTurns.length) saveTurns(turns, target);
+    const text = loadComposerDraft(target) || (keepExisting ? '' : credit.text);
+    saveComposerDraft(text, target);
+    setHandoff({ owner: target, basket, turns, text, preflight: !keepExisting });
+    setRevision((n) => n + 1);
+    setCredit(null); setConflict(false);
+  };
+  return <>
+    <ChatContent key={`${owner}:${revision}`} owner={owner}
+      handoff={handoff?.owner === owner ? handoff : undefined} onHandoffConsumed={consumeHandoff} onNeedKey={beginCredit} />
+    {credit && <CreditSheet onDone={(key) => finishCredit(key)} onClose={() => { setCredit(null); setConflict(false); }}>
+      {conflict && <Alert role="alert" $tone="warning">
+        <p>{t('chat.draft.conflict')}</p>
+        <Button onClick={() => downloadText('lesson-draft.jsonl', credit.basket.facts.map(({ prompt, answer, alt_prompt }) => JSON.stringify({ prompt, answer, ...(alt_prompt ? { alt_prompt } : {}) })).join('\n'))}>{t('chat.draft.download')}</Button>
+        <Button onClick={() => { const key = currentTeacherKey(); if (key) finishCredit(key, true); }}>{t('chat.draft.use_saved')}</Button>
+      </Alert>}
+    </CreditSheet>}
+  </>;
+}
+
+function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: string; handoff?: ChatHandoff; onHandoffConsumed: () => void; onNeedKey: (draft: CreditDraft) => void }) {
+  useEffect(() => { if (handoff) onHandoffConsumed(); }, [handoff, onHandoffConsumed]);
   const teacherIdentity = useTeacherIdentity();
   const { t, help, tech, term, audience, locale } = useT();
   useTitle(t('chat.title'));
@@ -260,7 +318,6 @@ export default function ChatPage() {
     return { id: missing[0], name: row?.name ?? null, reason: row?.reason ?? null, status: row?.status ?? null, buyable: !!row?.buyable };
   }, [data, error, routeIds, pickable]);
   const runtimeOff = !!data && !data.runtime.available;
-  const userCleared = useRef(false);
   /** Navigate to a selection path while keeping the teach-mode query params (?teach / ?lesson / ?mine). */
   const go = useCallback((path: string, replace = false) => navigate({ pathname: path, search: location.search }, { replace }), [navigate, location.search]);
 
@@ -272,12 +329,15 @@ export default function ChatPage() {
    * said "No questions yet", throwing away (to the eye) answers bought with scarce free tries. Every turn carries
    * the knowledge it was asked with instead, and the transcript marks where that changed.
    */
-  const [turns, setTurns] = useState<Turn[]>(() => loadTurns<Turn>());
+  const [initialComposerDraft] = useState(() => handoff?.text ?? loadComposerDraft(owner));
+  const composerDraft = useRef(initialComposerDraft);
+  const rememberComposer = useCallback((text: string) => { composerDraft.current = text; saveComposerDraft(text, owner); }, [owner]);
+  const [turns, setTurns] = useState<Turn[]>(() => handoff?.turns ?? loadTurns<Turn>(owner));
   /**
    * Finding 67 — and it survives leaving the page. The only route to the price is the head's *Details →*; the
    * transcript that persuaded the visitor used to die on that click, together with the free tries it cost.
    */
-  useEffect(() => { saveTurns(turns); }, [turns]);
+  useEffect(() => { saveTurns(turns, owner); }, [turns, owner]);
   /** undefined = not asked yet; null = unlimited (operator); number = remaining free tries */
   const [quota, setQuota] = useState<number | null | undefined>(undefined);
   const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
@@ -327,7 +387,9 @@ export default function ChatPage() {
   }, [setSearchParams]);
   const [teacherKey, setTeacherKey] = useState<TeacherKey | null>(() => currentTeacherKey());
   useEffect(() => onTeacherKeyChange(() => { setTeacherKey(currentTeacherKey()); }), []);
-  const [basket, setBasket] = useState<Basket>(() => loadBasket(parseSelection(patchId)));
+  const [olderDrafts] = useState(() => legacyBaskets());
+  const [olderTurns] = useState(() => legacyTurns());
+  const [basket, setBasket] = useState<Basket>(() => handoff?.basket ?? loadBasket(parseSelection(patchId), owner));
   /**
    * Finding 14 — the lesson FOLLOWS the selection. Loading `loadBasket(selectedIds)` on every change swapped the
    * panel for a different, empty record the moment a knowledge was ticked, and the correction being written looked
@@ -340,12 +402,12 @@ export default function ChatPage() {
     if (!data || error || unselectable) return;   // don't move a draft to an incomplete selection
     const from = basketStack.current;
     basketStack.current = selectedIds;
-    if (stackKey(from) !== selectionKey) setBasket(carryBasket(from, selectedIds));
-    const next = strandedBaskets(selectedIds);
+    if (stackKey(from) !== selectionKey) setBasket(carryBasket(from, selectedIds, owner));
+    const next = strandedBaskets(selectedIds, owner);
     setStranded((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
-  }, [selectionKey, data, error, unselectable, basket, selectedIds]);
-  const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(routeIds, next); return next; }); }, [routeIds]);
-  const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || loadBasket(parseSelection(patchId)).facts.length > 0);
+  }, [owner, selectionKey, data, error, unselectable, basket, selectedIds]);
+  const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(routeIds, next, owner); return next; }); }, [routeIds, owner]);
+  const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || (handoff?.basket ?? loadBasket(parseSelection(patchId), owner)).facts.length > 0);
   /** the basket panel — scrolled into view on ?teach=1 and after "Add to lesson" so the visitor sees where the correction went */
   const basketRef = useRef<HTMLDivElement>(null);
   const [basketNudge, setBasketNudge] = useState(0);
@@ -364,7 +426,7 @@ export default function ChatPage() {
   const [improveFull, setImproveFull] = useState<{ n: number; max: number } | null>(null);
   /** Finding 38 — corrections the queued lesson did not take, still in the basket, counted by reason. */
   const [keptBack, setKeptBack] = useState<{ n: number; known: number; overlap: number; invalid: number; in_base: number } | null>(null);
-  const [sheet, setSheet] = useState<SheetKind>(null);
+  const [sheet, setSheet] = useState<SheetKind>(handoff?.preflight ? 'preflight' : null);
   const [sheetJob, setSheetJob] = useState<TeachJob | null>(null);
   const [card, setCard] = useState<{ owner: string; id: string | null; hidden: boolean }>(() => ({ owner: teacherIdentity, id: lessonParam ?? loadJobs(teacherIdentity)[0]?.id ?? null, hidden: false }));
   const cardJobId = lessonParam ?? (card.owner === teacherIdentity ? card.id : loadJobs(teacherIdentity)[0]?.id ?? null);
@@ -376,17 +438,14 @@ export default function ChatPage() {
   useEffect(() => { if (teachParam && policy) { setBasketOpen(true); setBasketNudge((n) => n + 1); } }, [teachParam, !!policy]);   // eslint-disable-line react-hooks/exhaustive-deps
   const showBanner = teachOn && (teachParam || !bannerOff);
 
-  // An explicit selection stays in the address even when it cannot be loaded. Never replace it with another item.
-  useEffect(() => {
-    if (!data || error || routeIds.length > 0 || items.length === 0) return;
-    if (selectedIds.length === 0 && !userCleared.current) go(selectionPath([items[0].anchor.id]), true);
-  }, [data, error, items, routeIds, selectedIds, go]);
+  // The URL is the selection, including an empty stack. Loading a catalog or creating a key must not
+  // choose an arbitrary first item or undo the visitor's explicit plain-model choice.
 
   // Abort any in-flight request when leaving the page. `alive` guards the refreshes that outlive the page: a
   // request aborted by this cleanup settles one microtask later, and RTK Query's refetch() throws
   // ("Cannot refetch a query that has not been started yet") once the hook's own cleanup has run.
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; inflight.current?.abort(); }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; inflight.current?.abort(); }; }, []);
   const refreshPatches = useCallback(() => { if (alive.current) void refetch(); }, [refetch]);
 
   const lastStatus = turns[turns.length - 1]?.status;
@@ -473,6 +532,7 @@ export default function ChatPage() {
     const lockPeek = setTimeout(refreshPatches, 800);
     try {
       const res = await request.unwrap();
+      if (!alive.current) return;
       setQuota(res.remaining_quota);
       if (res.quota_limit !== undefined) setQuotaLimit(res.quota_limit);
       if (res.remaining_quota !== null && res.remaining_quota <= 0) setExhausted(true);
@@ -480,6 +540,7 @@ export default function ChatPage() {
       measured.current.set(stackKey(ids) + (useMode === 'compare' ? '|c' : ''), Date.now() - startedAt);
       setTurns((prev) => prev.map((x) => (x.id === id ? { ...x, status: 'done', response: res, baseHit: answerHits(res.base?.content, sample?.expect) } : x)));
     } catch (err) {
+      if (!alive.current) return;
       const e = err as { status?: number | string; name?: string; data?: { quota_reset?: number | null; quota_scope?: string; quota_limit?: number } } | undefined;
       const quotaHit = e?.status === 429;
       if (quotaHit) {
@@ -529,10 +590,8 @@ export default function ChatPage() {
   /** "Clear conversation" empties the whole transcript — every turn is in one list now, whatever was loaded for it. */
   const clear = useCallback(() => setTurns([]), []);
   const toggle = useCallback((id: string) => {
-    userCleared.current = false;
     const cur = shownIds;
     const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_CHAT_PATCHES ? cur : [...cur, id];
-    if (next.length === 0) userCleared.current = true;
     setPendingIds(next);
     go(next.length ? selectionPath(next) : '/chat');
   }, [shownIds, go]);
@@ -549,11 +608,11 @@ export default function ChatPage() {
     setPendingIds(cur);
     go(selectionPath(cur));
   }, [shownIds, go]);
-  const clearSelection = useCallback(() => { userCleared.current = true; setPendingIds([]); go('/chat'); }, [go]);
+  const clearSelection = useCallback(() => { setPendingIds([]); go('/chat'); }, [go]);
   /** Load a whole stack at once — how the "corrections saved under another selection" note takes you back to them. */
   const showStack = useCallback((ids: string[]) => {
     if (ids.length === 0) { clearSelection(); return; }
-    userCleared.current = false; setPendingIds(ids); go(selectionPath(ids));
+    setPendingIds(ids); go(selectionPath(ids));
   }, [clearSelection, go]);
   /** Selected knowledge whose benchmark format has no chat form — the live test asks through the chat template. */
   const templateOnly = useMemo(() => selectedList.filter((e) => { const f = e.anchor.benchmark.format ?? []; return f.length > 0 && !f.includes('chat') && !f.includes('natural'); }), [selectedList]);
@@ -597,7 +656,11 @@ export default function ChatPage() {
       : b.facts.length >= factsPerJob ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
     setDrawer(null); setBasketOpen(true); setBasketNudge((n) => n + 1);
   }, [updateBasket, factsPerJob, drawer?.editId]);
-  const onTrain = useCallback(() => { if (data && !error && !unselectable) setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey, data, error, unselectable]);
+  const onTrain = () => {
+    if (!data || error || unselectable) return;
+    if (teacherKey) setSheet('preflight');
+    else onNeedKey({ ids: routeIds, basket, turns, text: composerDraft.current });
+  };
   /**
    * Finding 38 — queueing used to empty the whole basket, including every correction the pre-flight REFUSED to
    * train. A visitor who taught four things and had three skipped watched all four disappear, and the rejected one
@@ -605,20 +668,20 @@ export default function ChatPage() {
    * lesson are taken out; the rest stay where they are, with one line saying how many and why.
    */
   const onQueued = useCallback((job: TeachJob, left: { id: string; status: PreflightFact['status'] }[] = []) => {
-    if (job.contributor.address.toLowerCase() !== teacherIdentity || (currentTeacherKey()?.address.toLowerCase() ?? '') !== teacherIdentity) return;
+    if (!alive.current || job.contributor.address.toLowerCase() !== teacherIdentity || (currentTeacherKey()?.address.toLowerCase() ?? '') !== teacherIdentity) return;
     rememberJob({ id: job.id, name: job.name, created_at: job.created_at }, teacherIdentity);
     const keep = new Set(left.map((x) => x.id));
     const facts = basket.facts.filter((f) => keep.has(f.id));
     if (facts.length) {
       const next: Basket = { facts, builds_on: basket.builds_on, ...(basket.base ? { base: basket.base } : {}) };
-      saveBasket(selectedIds, next); setBasket(next);
+      saveBasket(selectedIds, next, owner); setBasket(next);
       const count = (status: PreflightFact['status']) => left.filter((x) => x.status === status).length;
       setKeptBack({ n: facts.length, known: count('already_known'), overlap: count('overlaps_listing'), invalid: count('invalid'), in_base: count('in_base') });
     } else {
-      clearBasket(selectedIds); setBasket({ facts: [], builds_on: false }); setKeptBack(null);
+      clearBasket(selectedIds, owner); setBasket({ facts: [], builds_on: false }); setKeptBack(null);
     }
     setSheet(null); setCardJobId(job.id); setCardHidden(false); setParam('lesson', job.id);
-  }, [teacherIdentity, selectedIds, setParam, setCardJobId, setCardHidden, basket.facts, basket.builds_on, basket.base]);
+  }, [owner, teacherIdentity, selectedIds, setParam, setCardJobId, setCardHidden, basket.facts, basket.builds_on, basket.base]);
   /**
    * Finding 43 — "Try it now" is the payoff of the whole flow, and it used to tick a checkbox and stop: the taught
    * question was not put in the box, not asked and not added to the sample chips, so the primary green button on a
@@ -631,7 +694,6 @@ export default function ChatPage() {
     const result = await refetch();   // only navigate after this identity's draft list has loaded
     try { identity.assertCurrent(); } catch { return; }
     if (!alive.current || result.error) return;
-    userCleared.current = false;
     const next = selectedIds.includes(id) ? selectedIds : selectedIds.length >= MAX_CHAT_PATCHES ? [...selectedIds.slice(0, MAX_CHAT_PATCHES - 1), id] : [...selectedIds, id];
     const ask = job.facts[0]?.prompt ?? '';
     const search = `?lesson=${encodeURIComponent(job.id)}${ask ? `&q=${encodeURIComponent(ask)}` : ''}`;
@@ -693,9 +755,9 @@ export default function ChatPage() {
    * remembered as it is loaded, and when the visitor lands on a single knowledge with a different set remembered,
    * the head offers it back in one click, in the order it was loaded.
    */
-  useEffect(() => { if (data && !error && !unselectable) saveStack(selectedIds); }, [selectionKey, data, error, unselectable]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const [lastStack, setLastStack] = useState<string[]>(() => loadStack());
-  useEffect(() => { setLastStack(loadStack()); }, [patchId]);
+  useEffect(() => { if (data && !error && !unselectable) saveStack(selectedIds, owner); }, [owner, selectionKey, data, error, unselectable]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [lastStack, setLastStack] = useState<string[]>(() => loadStack(owner));
+  useEffect(() => { setLastStack(loadStack(owner)); }, [patchId, owner]);
   const restorable = useMemo(() => {
     if (!data || lastStack.length < 2 || stackKey(lastStack) === selectionKey) return null;
     const rows = lastStack.map((id) => pickable.find((e) => e.anchor.id === id)).filter((e): e is NonNullable<typeof e> => !!e);
@@ -836,6 +898,10 @@ export default function ChatPage() {
       </TitleRow>
       <Description>{teachDoor ? t('chat.subtitle_teach', { model: data?.runtime.model ?? info?.node.model ?? t('chat.model_unknown') }) : t('chat.subtitle')}</Description>
       <LiveSources />
+      {(olderDrafts.length > 0 || olderTurns.length > 0) && <Alert $tone="info" data-testid="legacy-draft-recovery">
+        {t('chat.draft.legacy', { n: olderDrafts.length, turns: olderTurns.length })}{' '}
+        <Button onClick={() => downloadText('ainize-older-drafts.json', JSON.stringify({ baskets: olderDrafts, turns: olderTurns }, null, 2))}>{t('chat.draft.legacy_download')}</Button>
+      </Alert>}
 
       {!data && isFetching && <CenterProgress />}
       {!!error && <Alert role="alert" $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })} <Button loading={isFetching} onClick={() => void refetch()}>{t('chat.picker.retry')}</Button></Alert>}
@@ -1007,7 +1073,7 @@ export default function ChatPage() {
                 mode={mode} onMode={setMode} thinking={thinking} onThinking={setThinking}
                 samples={samples} samplesGloss={samplesGloss}
                 onSend={(text) => { void send(text); }} onClear={clear} canClear={turns.length > 0}
-                footer={quotaOffer || quotaText} prefill={askParam} restore={restore}
+                footer={quotaOffer || quotaText} prefill={askParam ?? initialComposerDraft} onDraftChange={rememberComposer} restore={restore}
               />
             </Main>
           </Grid>
@@ -1028,7 +1094,6 @@ export default function ChatPage() {
           labels={drawer.editId ? { title: t('chat.improve.title'), sub: t('chat.improve.sub'), add: t('chat.improve.save') } : undefined}
           onAdd={addCorrection} onClose={() => setDrawer(null)} />
       )}
-      {sheet === 'credit' && <CreditSheet onDone={(k) => { setTeacherKey(k); setSheet('preflight'); }} onClose={() => setSheet(null)} />}
       {sheet === 'preflight' && policy && !selectionBlocked && (
         <PreflightSheet patchIds={selectedIds} basket={basket} policy={policy} baseCandidates={baseCandidates} onBasket={updateBasket} contributorName={teacherKey?.name} onQueued={onQueued} onClose={() => setSheet(null)} />
       )}

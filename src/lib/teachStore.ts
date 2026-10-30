@@ -40,8 +40,12 @@ export function stackHash(ids: string[]): string { return ids.length ? ids.join(
 /** `stackHash` read back: ids never contain '+' (slug = [a-z0-9._-]), and 'base' is the empty stack. */
 export function stackIds(hash: string): string[] { return hash === 'base' ? [] : hash.split('+').filter(Boolean); }
 
-export function loadBasket(ids: string[]): Basket {
-  const b = read<Partial<Basket>>(BASKET_PREFIX + stackHash(ids), {});
+const basketPrefix = (owner: string) => `${BASKET_PREFIX}v2:${encodeURIComponent(owner)}:`;
+export const chatStorageOwner = (account: string, teacher: string) => JSON.stringify([account, teacher.toLowerCase()]);
+export const hasBasketContent = (basket: Basket) => basket.facts.length > 0 || !!basket.retry_of || basket.base !== undefined || basket.builds_on || !!basket.confirm_conflicts;
+
+function parseBasket(value: unknown): Basket {
+  const b = value && typeof value === 'object' ? value as Partial<Basket> : {};
   const facts = Array.isArray(b.facts) ? b.facts.filter((f) => f && typeof f.prompt === 'string' && typeof f.answer === 'string').slice(0, MAX_FACTS) : [];
   return {
     facts, builds_on: !!b.builds_on,
@@ -50,11 +54,26 @@ export function loadBasket(ids: string[]): Basket {
     ...(typeof b.retry_of === 'string' ? { retry_of: b.retry_of } : {}),
   };
 }
-export function saveBasket(ids: string[], basket: Basket) {
-  if (basket.facts.length === 0 && !basket.builds_on && !basket.retry_of && basket.base === undefined) remove(BASKET_PREFIX + stackHash(ids));
-  else write(BASKET_PREFIX + stackHash(ids), basket);
+export function loadBasket(ids: string[], owner: string): Basket { return parseBasket(read(basketPrefix(owner) + stackHash(ids), null)); }
+export function saveBasket(ids: string[], basket: Basket, owner: string): boolean {
+  try {
+    const key = basketPrefix(owner) + stackHash(ids);
+    if (!hasBasketContent(basket)) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(basket));
+    return true;
+  } catch { return false; }
 }
-export function clearBasket(ids: string[]) { remove(BASKET_PREFIX + stackHash(ids)); }
+export function clearBasket(ids: string[], owner: string) { remove(basketPrefix(owner) + stackHash(ids)); }
+
+/** The first-key flow may carry its draft; importing an existing key must not overwrite that key's work. */
+export function acceptBasketDraft(ids: string[], incoming: Basket, owner: string, choice: 'new-key' | 'import-key' | 'keep-saved') {
+  const saved = loadBasket(ids, owner);
+  if (choice === 'keep-saved') return { conflict: false as const, basket: saved };
+  if (choice === 'import-key' && hasBasketContent(saved)) return { conflict: true as const };
+  saveBasket(ids, incoming, owner);
+  // The active view keeps the in-memory draft even when persistence is unavailable.
+  return { conflict: false as const, basket: incoming };
+}
 
 /**
  * Finding 14 — the basket FOLLOWS the selection instead of being swapped out with it. Ticking a second knowledge
@@ -65,14 +84,13 @@ export function clearBasket(ids: string[]) { remove(BASKET_PREFIX + stackHash(id
  * Nothing is ever overwritten: a stack that already holds its own draft keeps it, and the one left behind is named
  * to the visitor by `strandedBaskets` rather than disappearing.
  */
-export function carryBasket(fromIds: string[], toIds: string[]): Basket {
+export function carryBasket(fromIds: string[], toIds: string[], owner: string): Basket {
   const to = stackHash(toIds);
-  const target = loadBasket(toIds);
-  if (to === stackHash(fromIds) || target.facts.length > 0 || target.retry_of) return target;
-  const source = loadBasket(fromIds);
-  if (source.facts.length === 0 && !source.retry_of) return target;
-  saveBasket(toIds, source);
-  clearBasket(fromIds);
+  const target = loadBasket(toIds, owner);
+  if (to === stackHash(fromIds) || hasBasketContent(target)) return target;
+  const source = loadBasket(fromIds, owner);
+  if (!hasBasketContent(source)) return target;
+  if (saveBasket(toIds, source, owner)) clearBasket(fromIds, owner);
   return source;
 }
 
@@ -80,15 +98,16 @@ export function carryBasket(fromIds: string[], toIds: string[]): Basket {
  * Every OTHER stack that still holds corrections — work this browser has saved under a key the page is not showing.
  * The chat page names each one and offers to load it, so a draft can never be invisible (finding 14).
  */
-export function strandedBaskets(currentIds: string[]): { ids: string[]; facts: number }[] {
-  const here = BASKET_PREFIX + stackHash(currentIds);
+export function strandedBaskets(currentIds: string[], owner: string): { ids: string[]; facts: number }[] {
+  const prefix = basketPrefix(owner);
+  const here = prefix + stackHash(currentIds);
   const out: { ids: string[]; facts: number }[] = [];
   try {
     for (let i = 0; i < localStorage.length; i += 1) {
       const key = localStorage.key(i);
-      if (!key || !key.startsWith(BASKET_PREFIX) || key === here) continue;
-      const ids = stackIds(key.slice(BASKET_PREFIX.length));
-      const facts = loadBasket(ids).facts.length;
+      if (!key || !key.startsWith(prefix) || key === here) continue;
+      const ids = stackIds(key.slice(prefix.length));
+      const facts = loadBasket(ids, owner).facts.length;
       if (facts > 0) out.push({ ids, facts });
     }
   } catch { /* storage unavailable */ }
@@ -115,3 +134,17 @@ export function dismissBanner() { write(BANNER_KEY, true); }
 export function undismissBanner() { remove(BANNER_KEY); }
 
 export const newCorrectionId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** Legacy drafts have no owner. Offer an explicit export; never silently claim or delete them. */
+export function legacyBaskets(): { ids: string[]; basket: Basket }[] {
+  const out: { ids: string[]; basket: Basket }[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(BASKET_PREFIX) || key.startsWith(`${BASKET_PREFIX}v2:`)) continue;
+      const basket = parseBasket(read(key, null));
+      if (basket.facts.length) out.push({ ids: stackIds(key.slice(BASKET_PREFIX.length)), basket });
+    }
+  } catch { /* unavailable */ }
+  return out;
+}
