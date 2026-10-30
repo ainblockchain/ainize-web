@@ -20,19 +20,19 @@ User request: audit all inconsistent UI/UX, mismatched labels and destinations, 
 | U01 | Apps contained instructional/examples content instead of the viewer’s app list | PR #140; public signed-out Apps has generic sign-in; accessible app aggregation and app-kind filtering | Deployed; signed-in browser flow still requires controlled verification |
 | U02 | Signed-out organization listing presented denied/hidden resources as an authoritative empty organization | PR #139; login/member guidance | Deployed; member flow pending |
 | U03 | Knowledge/Teach duplicated top-level navigation, and Agents highlighted the shared knowledge route | PR #141; Train subsections, old-link redirects; desktop, Korean/English 320/390px checked | Deployed |
-| U04 | An inaccessible project fell into PatchPage with an empty ID, requesting HTML and showing a knowledge JSON error | Reproduced publicly at /comcom/nextjs-hello-world; ProjectByNamePage fallback + mismatched route parameter names | Fix prepared; production verification pending |
-| U05 | Legacy /patch/:author/:patchId redirected to home | App.tsx Navigate ../ | Fix prepared |
-| U06 | Unified search Enter opened knowledge only; dropdown and full results had different app scope | GlobalSearch.tsx and api.ts inspected | Shared search hook and grouped results prepared |
-| U07 | App search lost monorepo sourcePath and included non-app project kinds | globalSearch.ts docsFromProjects; regression assertions cover exact paths and kinds | Fix prepared |
-| U08 | Model list repeated the top search and retained a stale query after same-page navigation | ModelsPage.tsx local useState seeded from URL | Fix prepared |
-| U09 | Knowledge search showed unrelated recommendation shelves and pagination stopped after 200 fetched rows | ExplorePage.tsx fetch limit=200 followed by client slicing | Server pagination and search-only results prepared |
-| U10 | Generic missing-page recovery always sent visitors to knowledge | NotFoundPage.tsx | Home recovery prepared |
+| U04 | An inaccessible project fell into PatchPage with an empty ID, requesting HTML and showing a knowledge JSON error | Reproduced publicly at /comcom/nextjs-hello-world; ProjectByNamePage fallback + mismatched route parameter names | Deployed; signed-out browser verified, authenticated actions pending |
+| U05 | Legacy /patch/:author/:patchId redirected to home | Legacy and canonical URLs verified at e73c892 | Deployed |
+| U06 | Unified search Enter opened knowledge only; dropdown and full results had different app scope | GlobalSearch.tsx and api.ts inspected | Deployed; Enter/arrow selection and query changes verified |
+| U07 | App search lost monorepo sourcePath and included non-app project kinds | globalSearch.ts docsFromProjects; regression assertions cover exact paths and kinds | Deployed; regression coverage, authenticated rendering pending |
+| U08 | Model list repeated the top search and retained a stale query after same-page navigation | One shared search; URL query and matching result verified | Deployed |
+| U09 | Knowledge search showed unrelated recommendation shelves and pagination stopped after 200 fetched rows | ExplorePage.tsx fetch limit=200 followed by client slicing | Deployed; no-match browser verified; >200-row fixture pending |
+| U10 | Generic missing-page recovery always sent visitors to knowledge | NotFoundPage.tsx | Deployed; malformed URL reaches 404 and Home |
 | U11 | Production Train cannot start while serving API is unreachable | Public /train policy warning observed after #141 | Runtime issue unresolved; do not present training as verified |
 
 ## Newly identified follow-up findings
 
-- U12: Landing signed-in identity links to `/my-nodes` for wallet sessions and `/models` for SSO/Google, rather than the account/profile destination the label implies. Source: LandingPage.tsx landing-nav-account. Not fixed yet.
-- U13: SignedInLayout and SigningCheckLayout preserve only pathname in the login return link, dropping query/anchor selections. Source: components/base/Layout.tsx. Not fixed yet.
+- U12: Landing signed-in identity links to `/my-nodes` for wallet sessions and `/models` for SSO/Google, rather than the account/profile destination the label implies. Fixed/deployed in #146; controlled signed-in rendering still pending.
+- U13: SignedInLayout and SigningCheckLayout preserve only pathname in the login return link, dropping query/anchor selections. Fixed/deployed in #146; public return URL and SSO link verified with tab and anchor.
 - U14: Landing demo console links point at a specific ComCom repository; verify its public accessibility before presenting it as a public working example. Source: LandingPage.tsx EXAMPLE_PROJECT. Not verified yet.
 
 ## Route coverage inventory
@@ -162,3 +162,23 @@ Validation so far: typecheck and 44 focused navigation, project action, translat
 - New U23: at 320px, Train cards produce scrollWidth=323 because the format chip's unbroken text determines grid minimum width. Prepared fix: zero-minimum grid tracks, shrinkable cards, wrapping bounded chips. Public mobile verification remains required after deployment.
 - Train still reports serving API unreachable; actual training is not verified. The login page's wallet-first/node-operator copy also remains a separate UI audit finding.
 - TeachMinePage query errors currently fall through to an empty-state claim; dataset/job loading and error distinctions need a follow-up fix.
+
+### Release and browser verification: 33e197a
+
+- PR #147 deployed through the existing `ainize-auto-deploy.service` after it was confirmed idle. Server CI/build succeeded, current release and public `/web-build.json` match 33e197accb33fdf3c039db91094dce975c6b3ed4.
+- U23 verified on the public site: at 320px both Korean and English now have document scrollWidth=320; both cards are 288px wide with right edge at 304px. Before: document scrollWidth=323 and card right edge=322.83. Language and viewport restored after checking.
+- Screenshots: ui-compact-verification/train-mobile-fixed-ko-20261030.png, train-mobile-fixed-en-20261030.png, train-final-20261030.png.
+- U15 public negative-route check: `/%25/broken` renders the 404 explanation and Home recovery link, without crashing.
+- U09 public no-match check: `/train/knowledge?q=ainize-no-result-check-20261030` renders 0 matching knowledge entries and an explicit empty result. No unrelated recommended cards appear. >200-row pagination still needs controlled data.
+- U13 screenshot: ui-compact-verification/account-return-after-20261030.png. Authenticated login execution and project operations remain unverified.
+- Additional confirmed finding: initial full-page `/train` and `/train/knowledge?...` can retain the generic root title after content loads; client navigation changes the title correctly. Investigate interaction between app/layout.tsx metadata and useTitle before fixing.
+
+
+### Training history and sign-in states (current work)
+
+- U24: `/train/mine` claimed empty when one request failed or completed before the other. Added independent dataset/history errors with retry, loading state, and empty state only after both succeed (or the browser has no teaching key). Cached results remain visible with a failure notice.
+- U25: lessons whose source dataset was deleted disappeared from history. They now remain under the other-lessons section with their own result link.
+- U26: ordinary public login led with MetaMask installation and node-management copy. AIN account comes first; wallet methods are an expandable secondary option. Wallet-only nodes and explicit enrollment invitations expand wallets. SSO/Google visitors retain Continue and optional wallet connection; pending account linking remains explicit. Failed option loading is retryable.
+- Added real component rendering against isolated RTK Query fixtures: failures, asynchronous partial loading, removed-dataset lessons, failed refresh, SSO ordering, wallet-only/enrollment, signed-in Continue, option loading and option errors. These exercise rendered output rather than source-text assertions. esbuild is an explicit test dependency for browser-compatible JSX/ESM transforms.
+- Remaining: teaching-key changes reuse void-argument caches in `myTeachJobs` and `teachDatasets`; inspect and scope cached results by teacher identity, including Chat's MyKnowledgePanel. Do not mark private identity switching verified yet.
+- These changes require server CI, deployment and public login/mobile checks before being marked deployed.
