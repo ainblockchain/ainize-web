@@ -111,13 +111,13 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, isOwner, subject, google, sso, name, address, signOut } = useAuth();
+  const { isSignedIn, isOwner, subject, google, sso, name, address, signOut, cacheIdentity } = useAuth();
   // A Google-only or AIN-only session has no address to show, so it shows the account instead.
   const whoFull = subject ? subject : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';
   // An email shows its name part only; the menu under the button repeats the whole address.
   const who = subject ? shortAddr(subject, 6) : whoFull.includes('@') ? whoFull.slice(0, whoFull.indexOf('@')) : whoFull;
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
-  const { data: orgData } = useMyOrgsQuery(undefined, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
+  const { currentData: orgData } = useMyOrgsQuery(cacheIdentity, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
   const myOrgs = isSignedIn ? parseOrgList(orgData).orgs : [];
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

@@ -129,7 +129,9 @@ export const api = createApi({
     // Every model the node can reach, its own and its peers' (ainize-node peer-models.ts). An older node answers 404.
     networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
-    apiKeys: b.query<{ keys: ApiKeySummary[] }, void>({
+    // These cache arguments distinguish viewers; authorization still comes only from the session cookie.
+    apiKeys: b.query<{ keys: ApiKeySummary[] }, string>({
+      keepUnusedDataFor: 0,
       query: () => 'api/keys', providesTags: ['ApiKeys'],
     }),
     /** Issue one. The secret is in this response and nowhere else, ever again. */
@@ -266,7 +268,7 @@ export const api = createApi({
      * Organizations (ainize-node organizations design). Typed `unknown` and read through `src/api/organizations.ts`
      * for the same reason as the agents above: a node from before organizations answers 404 for all of these.
      */
-    myOrgs: b.query<unknown, void>({ query: () => 'api/orgs', providesTags: ['Org', 'Me'] }),
+    myOrgs: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/orgs', providesTags: ['Org', 'Me'] }),
     org: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
     createOrg: b.mutation<unknown, OrgCreateInput>({ query: (body) => ({ url: 'api/orgs', method: 'POST', body }), invalidatesTags: ['Org'] }),
     updateOrg: b.mutation<unknown, { id: string; patch: OrgUpdateInput }>({
@@ -462,7 +464,7 @@ export const api = createApi({
      * connected to a person when it asks this hub for a code at startup and that person approves it.
      */
     unlinkNode: b.mutation<{ ok: boolean }, string>({ query: (address) => ({ url: `api/my/nodes/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
-    myNodes: b.query<{ nodes: MyNode[]; hub: string }, void>({ query: () => 'api/my/nodes', providesTags: ['Me'] }),
+    myNodes: b.query<{ nodes: MyNode[]; hub: string }, string>({ keepUnusedDataFor: 0, query: () => 'api/my/nodes', providesTags: ['Me'] }),
     removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
     }),

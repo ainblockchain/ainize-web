@@ -11,8 +11,8 @@ import { shareableOrgOptions, type OrgOption } from '@/api/sharedAgents';
 import { useAuth } from '@/auth/AuthContext';
 
 export function useShareableOrgs(): { orgs: OrgOption[] | null; activeOrg: string | null } {
-  const { isSignedIn, sso } = useAuth();
-  const { data } = useMyOrgsQuery(undefined, { skip: !isSignedIn });
+  const { isSignedIn, sso, cacheIdentity } = useAuth();
+  const { currentData: data } = useMyOrgsQuery(cacheIdentity, { skip: !isSignedIn });
   return useMemo(() => {
     const list = data ? parseOrgList(data) : null;
     const ainize = list?.signed_in ? list.orgs.map((o) => ({ id: o.id, name: o.name, role: o.my_role, ssoOrgIds: o.sso_org_ids })) : null;

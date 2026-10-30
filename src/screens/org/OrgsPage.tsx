@@ -32,7 +32,7 @@ export default function OrgsPage() {
   useTitle(t('orgs.title'));
   const auth = useAuth();
   const location = useLocation();
-  const { data, isLoading, error } = useMyOrgsQuery(undefined, { skip: !auth.isSignedIn });
+  const { currentData: data, isLoading, error } = useMyOrgsQuery(auth.cacheIdentity, { skip: !auth.isSignedIn });
   const list = useMemo(() => parseOrgList(data), [data]);
   const err = error ? orgApiErrorOf(error) : null;
 

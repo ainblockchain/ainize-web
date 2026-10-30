@@ -173,8 +173,8 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
   const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
   const orgView = kind === 'agent' && agentFilter === 'org';
-  const myOrgs = useMyOrgsQuery(undefined, { skip: !scopesOn });
-  const orgList = useMemo(() => parseOrgList(myOrgs.data), [myOrgs.data]);
+  const myOrgs = useMyOrgsQuery(auth.cacheIdentity, { skip: !scopesOn });
+  const orgList = useMemo(() => parseOrgList(myOrgs.currentData), [myOrgs.currentData]);
   const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
   const orgParam = params.get('org');
   const orgId = orgList.orgs.find((o) => o.id === orgParam)?.id ?? orgList.orgs[0]?.id ?? null;
