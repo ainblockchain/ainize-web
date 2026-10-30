@@ -14,7 +14,12 @@ import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
 import { PageWrapper, Title } from '@/components/ui/Misc';
 
-const OptionContainer = styled.div`margin-top: 40px; max-width: 460px;`;
+const OptionContainer = styled.div`margin-top: 24px; width: 100%; max-width: 460px;`;
+const WalletOptions = styled.details`
+  margin-top: 24px; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; padding-top: 16px;
+  summary { cursor: pointer; color: ${(p) => p.theme.color.PRIMARY}; font-size: 14px; font-weight: 600; }
+  summary:focus-visible { outline: 2px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 4px; }
+`;
 const StyledLink = styled(Link)`color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { border-bottom: 1px solid #8b3eeb; }`;
 const Outbound = styled.a`color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { border-bottom: 1px solid #8b3eeb; }`;
 const ConfirmButton = styled.button`
@@ -38,16 +43,15 @@ const WalletButton = styled.button`
 const WalletList = styled.div`margin-top: 32px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;`;
 const GoogleButton = styled.a`
   min-width: 196px; height: 44px; padding: 0 16px; border: 1px solid #dadce0; border-radius: 4px; background: #fff;
-  color: #3c4043; font-size: 15px; font-weight: 500; text-decoration: none;
+  color: #3c4043; font-size: 15px; font-weight: 500; text-decoration: none; box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
   display: inline-flex; align-items: center; gap: 10px;
   &:hover { background: #f8f9fa; }
   svg { width: 18px; height: 18px; flex: none; }
 `;
-const Or = styled.p`margin: 24px 0 0; font-size: 13px; color: ${(p) => p.theme.color.GREY};`;
 /** AIN SSO's door: the same shape as Google's, in the brand colour, because it is this company's own account. */
 const SsoButton = styled.a`
   min-width: 196px; height: 44px; padding: 0 16px; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; background: ${(p) => p.theme.color.PRIMARY};
-  color: #fff; font-size: 15px; font-weight: 500; text-decoration: none;
+  color: #fff; font-size: 15px; font-weight: 500; text-decoration: none; box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
   display: inline-flex; align-items: center; gap: 10px;
   &:hover { background: ${(p) => p.theme.color.HOVER}; }
 `;
@@ -131,7 +135,7 @@ export default function SigningPage() {
    */
   const ssoError = params.get('sso_error');
   const connecting = params.get('sso') === 'connect';
-  const { data: ssoStatus, refetch: refetchSso } = useSsoStatusQuery();
+  const { data: ssoStatus, isLoading: ssoLoading, isError: ssoUnavailable, refetch: refetchSso } = useSsoStatusQuery();
   const [ssoConnect, ssoConnectState] = useSsoConnectMutation();
   const [connectError, setConnectError] = useState<string | null>(null);
   const pending = connecting ? ssoStatus?.pending ?? null : null;
@@ -194,64 +198,16 @@ export default function SigningPage() {
   const loginDocs = locale === 'ko' ? '/docs/ko/how-to/connect-nodes' : '/docs/how-to/connect-nodes';
   const [agreeBefore, agreeAfter] = t('op.sign.agree', { terms: '|' }).split('|');
 
+  if (auth.loading || ssoLoading) return <PageWrapper><Title>{t('op.sign.login.title')}</Title><p role="status">{t('common.loading')}</p></PageWrapper>;
+
   return (
     <PageWrapper>
       <Title>{t('op.sign.login.title')}</Title>
       <Hint data-testid="sign-general">{t('op.sign.general')}</Hint>
 
       <OptionContainer>
-        <ConfirmButton type="button" onClick={() => void signInNative()} disabled={busy} data-testid="ain-wallet-signin">
-          {locale === 'ko' ? 'AIN Wallet으로 로그인' : 'Sign in with AIN Wallet'}
-        </ConfirmButton>
-        {wallets !== null && wallets.length === 0 && (
-          <Alert $tone="info" data-testid="no-wallet">
-            {t('op.sign.key.no_wallet')}
-            <Hint>
-              <Outbound href="https://metamask.io/download/" target="_blank" rel="noreferrer noopener">{t('op.sign.wallet.no_install')} →</Outbound>
-              {' · '}
-              <StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink>
-            </Hint>
-          </Alert>
-        )}
-
-        {/* One wallet is a button. Several is a choice, and making it for them would pick the wrong address about
-            as often as not. */}
-        {wallets && wallets.length === 1 && (
-          <ConfirmButton type="button" onClick={() => void signIn(wallets[0]!, false)} disabled={busy} data-testid="wallet-signin">
-            {busy ? t('op.sign.wallet.busy') : t('op.sign.wallet.button')}
-          </ConfirmButton>
-        )}
-        {wallets && wallets.length > 1 && (
-          <>
-            <Hint style={{ marginTop: 24 }}>{t('op.sign.wallet.pick')}</Hint>
-            <WalletList data-testid="wallet-picker">
-              {wallets.map((w) => (
-                <WalletButton key={w.info.uuid} type="button" onClick={() => void signIn(w, false)} disabled={busy}>
-                  {w.info.icon && <img src={w.info.icon} alt="" />}{w.info.name}
-                </WalletButton>
-              ))}
-            </WalletList>
-          </>
-        )}
-
-        {wallets && wallets.length > 0 && (
-          <>
-            <Hint>{t('op.sign.wallet.what')}</Hint>
-            {/* An invitation is not an ordinary sign-in and must not look like one: signing here makes this
-                address an operator of the node, which is worth saying before the wallet prompt, not after. */}
-            {setupToken && !me?.canEnroll && (
-              <Alert $tone="info" role="status" style={{ marginTop: 12 }}>{t('op.sign.enroll_invite')}</Alert>
-            )}
-            {/* Offered only when the node says this caller could actually do it — from its own machine, or with the
-                one-time token. Shown to anyone else it would be a button that always fails. */}
-            {me?.canEnroll && (
-              <EnrollRow>
-                <WalletButton type="button" onClick={() => void signIn(wallets[0]!, true)} disabled={busy}>{t('op.sign.key.enroll')}</WalletButton>
-              </EnrollRow>
-            )}
-          </>
-        )}
-
+        {ssoUnavailable && <Alert $tone="error" role="alert">{t('op.sign.options_failed')} <Button size="small" onClick={() => void refetchSso()}>{t('op.sign.options_retry')}</Button></Alert>}
+        {auth.isSignedIn && !pending && !auth.subject && <Button variant="contained" onClick={() => navigate(next, { replace: true })} data-testid="signin-continue">{t('op.sign.continue')}</Button>}
         {/* The AIN sign-in waiting to be finished: connect the old account, or not. */}
         {connecting && pending && (
           <ConnectPanel data-testid="sso-connect">
@@ -273,12 +229,10 @@ export default function SigningPage() {
         )}
         {connecting && ssoStatus && !pending && <Alert $tone="info" role="status" style={{ marginTop: 24 }}>{t('op.sign.sso.connect.expired')}</Alert>}
 
-        {/* AIN SSO: another door beside Google's, never instead of the wallet. Offered only where configured. Under it,
-            sign-up at AIN SSO (prompt=create) — this site has no sign-up of its own to keep beside it. */}
+        {/* The shared AIN account is the primary sign-in when this server offers it. */}
         {auth.ssoConfigured && !auth.sso && !pending && (
           <>
-            {wallets && wallets.length > 0 && <Or>{t('op.sign.google.or')}</Or>}
-            <SsoButton href={`/api/auth/sso/start?next=${encodeURIComponent(googleNext)}`} data-testid="sso-signin" style={{ marginTop: wallets && wallets.length > 0 ? 12 : 32 }}>
+            <SsoButton href={`/api/auth/sso/start?next=${encodeURIComponent(googleNext)}`} data-testid="sso-signin" style={{ marginTop: 0 }}>
               {t('op.sign.sso.button')}
             </SsoButton>
             <div>
@@ -295,7 +249,6 @@ export default function SigningPage() {
             <GoogleMark />{t('op.sign.sso.google')}
           </GoogleButton>
         )}
-        {auth.isSignedIn && !pending && !auth.subject && <Button variant="contained" onClick={() => navigate(next, { replace: true })} data-testid="signin-continue">{t('op.sign.continue')}</Button>}
         {auth.sso && <Alert $tone="info" role="status" data-testid="sso-signed-in" style={{ marginTop: 24 }}>{t('op.sign.sso.signed_in', { who: auth.sso.email ?? auth.sso.name ?? auth.sso.sub })}</Alert>}
         {ssoError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.sso.err', { reason: ssoError })}</Alert>}
 
@@ -303,14 +256,69 @@ export default function SigningPage() {
             screen is Google's page and cannot be fetched. Offered only when this server holds the credentials. */}
         {auth.googleConfigured && !auth.google && !pending && (
           <>
-            {wallets && wallets.length > 0 && <Or>{t('op.sign.google.or')}</Or>}
-            <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(googleNext)}`} data-testid="google-signin" style={{ marginTop: wallets && wallets.length > 0 ? 12 : 32 }}>
+            <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(googleNext)}`} data-testid="google-signin" style={{ marginTop: 0 }}>
               <GoogleMark />{t('op.sign.google.button')}
             </GoogleButton>
           </>
         )}
         {auth.google && <Alert $tone="info" role="status" data-testid="google-signed-in" style={{ marginTop: 24 }}>{t('op.sign.google.signed_in', { email: auth.google.email })}</Alert>}
         {googleError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.google.err', { reason: googleError })}</Alert>}
+
+        <WalletOptions open={!!setupToken || !!me?.canEnroll || (!auth.ssoConfigured && !auth.googleConfigured)} data-testid="wallet-options">
+          <summary>{t(auth.isSignedIn ? 'op.sign.wallet.connect_option' : 'op.sign.wallet.option')}</summary>
+          <ConfirmButton type="button" onClick={() => void signInNative()} disabled={busy} data-testid="ain-wallet-signin">
+            {locale === 'ko' ? 'AIN Wallet으로 로그인' : 'Sign in with AIN Wallet'}
+          </ConfirmButton>
+          {wallets !== null && wallets.length === 0 && (
+            <Alert $tone="info" data-testid="no-wallet">
+              {t('op.sign.key.no_wallet')}
+              <Hint>
+                <Outbound href="https://metamask.io/download/" target="_blank" rel="noreferrer noopener">{t('op.sign.wallet.no_install')} →</Outbound>
+                {' · '}
+                <StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink>
+              </Hint>
+            </Alert>
+          )}
+
+          {/* One wallet is a button. Several is a choice, and making it for them would pick the wrong address about
+              as often as not. */}
+          {wallets && wallets.length === 1 && (
+            <ConfirmButton type="button" onClick={() => void signIn(wallets[0]!, false)} disabled={busy} data-testid="wallet-signin">
+              {busy ? t('op.sign.wallet.busy') : t('op.sign.wallet.button')}
+            </ConfirmButton>
+          )}
+          {wallets && wallets.length > 1 && (
+            <>
+              <Hint style={{ marginTop: 24 }}>{t('op.sign.wallet.pick')}</Hint>
+              <WalletList data-testid="wallet-picker">
+                {wallets.map((w) => (
+                  <WalletButton key={w.info.uuid} type="button" onClick={() => void signIn(w, false)} disabled={busy}>
+                    {w.info.icon && <img src={w.info.icon} alt="" />}{w.info.name}
+                  </WalletButton>
+                ))}
+              </WalletList>
+            </>
+          )}
+
+          {wallets && wallets.length > 0 && (
+            <>
+              <Hint>{t('op.sign.wallet.what')}</Hint>
+              {/* An invitation is not an ordinary sign-in and must not look like one: signing here makes this
+                  address an operator of the node, which is worth saying before the wallet prompt, not after. */}
+              {setupToken && !me?.canEnroll && (
+                <Alert $tone="info" role="status" style={{ marginTop: 12 }}>{t('op.sign.enroll_invite')}</Alert>
+              )}
+              {/* Offered only when the node says this caller could actually do it — from its own machine, or with the
+                  one-time token. Shown to anyone else it would be a button that always fails. */}
+              {me?.canEnroll && (
+                <EnrollRow>
+                  <WalletButton type="button" onClick={() => void signIn(wallets[0]!, true)} disabled={busy}>{t('op.sign.key.enroll')}</WalletButton>
+                </EnrollRow>
+              )}
+            </>
+          )}
+
+        </WalletOptions>
 
         {localError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{localError}</Alert>}
         <Fine>

@@ -35,7 +35,7 @@ export default function TeachMinePage() {
   const navigate = useNavigate();
   const hasKey = !!currentTeacherKey();
   const { data: policy } = useTeachPolicyQuery();
-  const { data: dsData, isFetching } = useTeachDatasetsQuery(undefined, { skip: !hasKey });
+  const datasetsQuery = useTeachDatasetsQuery(undefined, { skip: !hasKey });
   const [anyActive, setAnyActive] = useState(true);   // assume yes until the first answer says otherwise
   /**
    * Poll while something is running. Without an interval this page was a snapshot of the moment it loaded, which on
@@ -45,16 +45,16 @@ export default function TeachMinePage() {
    * 5 s while active and 30 s otherwise mirrors the operator's Teaching tab. `anyActive` is read from the data this
    * very query returns, so the fast poll stops on its own when the last lesson finishes.
    */
-  const { data: jobData } = useMyTeachJobsQuery(undefined, { skip: !hasKey, pollingInterval: hasKey ? (anyActive ? 5000 : 30_000) : 0 });
+  const jobsQuery = useMyTeachJobsQuery(undefined, { skip: !hasKey, pollingInterval: hasKey ? (anyActive ? 5000 : 30_000) : 0 });
   const [remove, { isLoading: deleting }] = useDeleteTeachDatasetMutation();
   const [patchDataset, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  const datasets = dsData?.items ?? [];
+  const datasets = datasetsQuery.data?.items ?? [];
   // SC-16 names the knowledge a set was copied from; the catalog is only fetched when one of them has a parent
   const { data: catalog } = useCatalogQuery({ limit: 200 }, { skip: !datasets.some((d) => d.parent_patch) });
-  const jobs = useMemo(() => jobData?.items ?? [], [jobData]);
+  const jobs = useMemo(() => jobsQuery.data?.items ?? [], [jobsQuery.data]);
   useEffect(() => { setAnyActive(jobs.some(isActiveTeach)); }, [jobs]);
   const byDataset = useMemo(() => {
     const map = new Map<string, TeachJob[]>();
@@ -67,7 +67,11 @@ export default function TeachMinePage() {
     }
     return map;
   }, [jobs]);
-  const legacy = jobs.filter((j) => !j.dataset?.id);
+  // A lesson can outlive its dataset (for example after delete-after-training).
+  // Keep it reachable even when its dataset is no longer returned in the list.
+  const legacy = jobs.filter((j) => !j.dataset?.id || !datasets.some((d) => d.id === j.dataset?.id));
+  const loading = hasKey && ((!datasetsQuery.data && datasetsQuery.isFetching) || (!jobsQuery.data && jobsQuery.isFetching));
+  const empty = !hasKey || (datasetsQuery.isSuccess && jobsQuery.isSuccess && datasets.length === 0 && jobs.length === 0);
 
   /** Finding 45 — the retention choice, changed after the upload that fixed it. */
   const setRetention = (id: string, retention: 'keep' | 'delete_after_training') => {
@@ -100,7 +104,15 @@ export default function TeachMinePage() {
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}
       {note && <Alert $tone="success" role="status" style={{ marginTop: 12 }}>{note}</Alert>}
 
-      {!hasKey || (!isFetching && datasets.length === 0 && legacy.length === 0) ? (
+      {hasKey && datasetsQuery.isError && <Alert $tone="error" role="alert" data-testid="mine-datasets-error" style={{ marginTop: 12 }}>
+        {t('teach.data.datasets_failed')} <Button size="small" disabled={datasetsQuery.isFetching} onClick={() => void datasetsQuery.refetch()}>{t('teach.data.retry')}</Button>
+      </Alert>}
+      {hasKey && jobsQuery.isError && <Alert $tone="error" role="alert" data-testid="mine-jobs-error" style={{ marginTop: 12 }}>
+        {t('teach.data.jobs_failed')} <Button size="small" disabled={jobsQuery.isFetching} onClick={() => void jobsQuery.refetch()}>{t('teach.data.retry')}</Button>
+      </Alert>}
+      {loading && <p role="status" data-testid="mine-loading">{t('teach.data.loading')}</p>}
+
+      {empty ? (
         <Alert $tone="info" style={{ marginTop: 16 }} data-testid="mine-empty">{t('teach.data.empty')}</Alert>
       ) : (
         <List>
