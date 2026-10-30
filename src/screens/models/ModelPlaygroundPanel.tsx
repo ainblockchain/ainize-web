@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useThroughputQuoteQuery } from '@/api/api';
+import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useThroughputQuoteQuery } from '@/api/api';
 import { parseBillingThroughputResponse } from '@/api/billingThroughput';
 import { useAuth } from '@/auth/AuthContext';
 import type { ModelModality, PublicModelCard } from '@/api/models';
@@ -107,16 +107,9 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
 
-  // Signed in? Then the snippet should be paste-and-run rather than paste-and-go-find-a-key.
-  const { data: me } = useMeQuery();
-  // The node's own session, i.e. a wallet. A Google sign-in sets `google` on the auth context but not this,
-  // and /api/keys answers 401 to it, so it is told apart below instead of being shown the sign-in prompt
-  // again by a page it is already signed in to.
-  const signedIn = !!me?.signedIn;
-  // A Google account holds keys too: this app vouches for it to the node on /api/keys (lib/siteAssertion.ts).
-  const { google, sso, cacheIdentity } = useAuth();
-  // …and so does an AIN account (AIN SSO): the node keeps its session and issues it keys for its organization.
-  const canHoldKeys = signedIn || !!google || !!sso;
+  // AuthContext includes optimistic sign-out; raw cached /me can still name the old wallet while logout runs.
+  const { google, sso, subject, isSignedIn: canHoldKeys, cacheIdentity } = useAuth();
+  const signedIn = !!subject;
   const keyQuery = useApiKeysQuery(cacheIdentity, { skip: !canHoldKeys });
   const keyList = keyQuery.currentData;
   const [createKey, createState] = useCreateApiKeyMutation();
