@@ -51,15 +51,15 @@ const Glyph = styled.div<{ $state: 'up' | 'down' | 'unknown' }>`
   @media (max-width: ${(p) => p.theme.breakpoint.sm}px) { width: 40px; height: 40px; font-size: 16px; }
 `;
 const Info = styled.div`display: flex; flex-direction: column; align-items: flex-start; min-width: 0; flex: 1;`;
-const NameRow = styled.div`display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px;`;
-const Name = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; word-break: keep-all;`;
+const NameRow = styled.div`max-width: 100%; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px;`;
+const Name = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; overflow-wrap: anywhere;`;
 const NameLink = styled(Link)`
   color: inherit; text-decoration: none;
   &::after { content: ''; position: absolute; inset: 0; }
   &:hover { text-decoration: underline; }
   &:focus-visible { outline: 2px solid ${(p) => p.theme.color.PRIMARY}; outline-offset: 3px; }
 `;
-const chipCss = `display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.7;`;
+const chipCss = `max-width: 100%; min-width: 0; box-sizing: border-box; overflow-wrap: anywhere; display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.7;`;
 const State = styled.span<{ $state: 'up' | 'down' | 'unknown' }>`
   ${chipCss}
   background: ${(p) => (p.$state === 'up' ? '#e3f4e8' : p.$state === 'down' ? '#fdeaea' : '#eef1f4')};
@@ -71,7 +71,7 @@ const Tag = styled.span<{ $tone: 'skill' | 'proto' | 'ui' | 'peer' | 'org' | 'pr
   background: ${(p) => ({ skill: '#eef1f4', proto: '#fff1de', ui: '#f0eafd', peer: '#e1eef3', org: '#e6f1ea', private: '#fbe9e7', unlisted: '#f1f2f5' }[p.$tone])};
   color: ${(p) => ({ skill: '#4a5560', proto: '#8a4b00', ui: '#5b1ca8', peer: '#0b5468', org: '#1c6b34', private: '#8d3b2f', unlisted: '#555' }[p.$tone])};
 `;
-const Chips = styled.div`margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;`;
+const Chips = styled.div`width: 100%; min-width: 0; margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;`;
 const Desc = styled.div`
   margin-top: 12px; font-size: 14px; line-height: 1.5; color: ${(p) => p.theme.color.BLACK};
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;

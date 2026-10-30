@@ -14,7 +14,7 @@ import type { AgentSummary } from '@/api/types';
 import { agentSummaryHostedFieldsOf } from '@/api/hostedAgents';
 import { useT } from '@/i18n';
 
-const hostedAgentChipCss = `display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.7; position: relative; z-index: 1;`;
+const hostedAgentChipCss = `max-width: 100%; min-width: 0; box-sizing: border-box; overflow-wrap: anywhere; display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.7; position: relative; z-index: 1;`;
 const HostedAgentModelChip = styled(Link)`
   ${hostedAgentChipCss}
   background: #e8f0fe; color: #1a4fb5; text-decoration: none;
