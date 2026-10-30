@@ -148,6 +148,8 @@ not create another project or return its webhook secret again.
 
 ## A complete example
 
+This walkthrough is public. The linked ComCom repository and its deployment console require an AIN account with access to that organization; they are not public demos. You can follow the manifest and input examples above with your own repository. For the model request, see [Calling Clef](./decision-models-clef.md).
+
 [`clef-artwork-search`](https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search) is a `script` project: three
 Python files that rank artworks against a description using the Clef decision model, with the `ainize.json` above and a
 `Dockerfile` for running the same thing anywhere else. Every push re-runs `art_search.py` against the live model and

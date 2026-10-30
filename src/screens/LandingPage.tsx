@@ -246,15 +246,18 @@ const Products = styled.div`
 `;
 
 const LOGO = { src: '/static/images/logo-white.png', srcSet: '/static/images/logo-white@2x.png 2x, /static/images/logo-white@3x.png 3x' };
-/** The example project — a real `script` repo; both URLs are the ones the deploy how-to names. */
-const EXAMPLE_PROJECT = 'https://ainize.ai/comcom/clef-artwork-search';
+/** The organization repository requires access; the walkthrough itself is public. */
 const EXAMPLE_REPO = 'https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search';
 const AINDRIVE = 'https://aindrive.ainetwork.ai';
 
 export default function LandingPage() {
   const { t, audience } = useT();
+
   useTitle(t('landing.hero.title').replace('\n', ' '));
   const { locale, setLocale } = useLocale();
+  const exampleGuide = locale === 'ko'
+    ? '/docs/ko/how-to/deploy-with-ainize-json#완전한-예'
+    : '/docs/en/how-to/deploy-with-ainize-json#a-complete-example';
   const [solid, setSolid] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
   /**
@@ -450,7 +453,7 @@ export default function LandingPage() {
               </CapCode>
               <CapLinks>
                 <CapCta to="/docs/how-to/deploy-with-ainize-json" data-testid="cap-deploy-cta">{t('landing.cap.deploy.cta')}</CapCta>
-                <CapDocExt href={EXAMPLE_PROJECT} data-testid="cap-deploy-example">{t('landing.cap.deploy.docs')}</CapDocExt>
+                <CapDoc to={exampleGuide} data-testid="cap-deploy-example">{t('landing.cap.deploy.docs')}</CapDoc>
               </CapLinks>
             </CapCard>
           </CapGrid>
@@ -480,7 +483,7 @@ export default function LandingPage() {
             </ExampleStep>
           </ExampleGrid>
           <ExampleLinks>
-            <OutlinePillExt href={EXAMPLE_PROJECT} data-testid="example-project">{t('landing.example.cta')}</OutlinePillExt>
+            <OutlinePillExt href={exampleGuide} data-testid="example-project">{t('landing.example.cta')}</OutlinePillExt>
             <CapDocExt href={EXAMPLE_REPO} target="_blank" rel="noopener noreferrer">{t('landing.example.repo')}</CapDocExt>
           </ExampleLinks>
         </Inner>

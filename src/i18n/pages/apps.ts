@@ -14,6 +14,12 @@ export const apps: Dict = {
   'apps.search_hint': { en: "Try another query in the search bar above, or view all apps.", ko: "상단 검색창에서 다른 검색어를 입력하거나 전체 앱을 확인하세요." },
   'apps.all': { en: "All apps", ko: "전체 앱" },
   'apps.service': { en: "API service", ko: "API 서비스" },
+  'apps.refresh_failed': { en: 'Could not refresh the app lists. Showing the previous results.', ko: '앱 목록을 갱신하지 못했습니다. 이전에 불러온 결과를 표시합니다.' },
+  'apps.partial': { en: 'Some app lists could not be loaded. Showing the results that are available.', ko: '일부 앱 목록을 불러오지 못했습니다. 확인된 앱은 계속 표시합니다.' },
+  'apps.loaded_count': { en: '{n} apps loaded', ko: '불러온 앱 {n}개' },
+  'apps.partial_empty': { en: 'No matching apps in the available results', ko: '불러온 결과에는 해당 앱이 없습니다' },
+  'apps.partial_hint': { en: 'Other apps may be missing. Retry the failed lists before concluding that there are no apps.', ko: '조회하지 못한 목록에 앱이 있을 수 있습니다. 다시 시도해 주세요.' },
+  'apps.url_failed': { en: 'Could not load the active app address.', ko: '실행 중인 앱 주소를 불러오지 못했습니다.' },
   'apps.open': { en: "Open app", ko: "앱 열기" },
 
   'apps.title': { en: 'Apps', ko: '앱' },

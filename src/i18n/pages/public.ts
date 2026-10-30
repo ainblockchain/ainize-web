@@ -53,10 +53,10 @@ export const landing: Dict = {
   'landing.cap.deploy.title': { ko: '`ainize.json` 하나로 push마다 배포됩니다', en: 'One `ainize.json`, and every push deploys' },
   'landing.cap.deploy.desc': { ko: 'aindrive 드라이브 안의 저장소 루트에 `ainize.json`을 두면 push마다 노드가 그 커밋을 받아 빌드하고 격리된 샌드박스에서 띄웁니다. 스크립트, Dockerfile 서비스, Next.js 앱, A2A 에이전트 네 종류이고, 배포 목록·로그·이전 배포 유지는 `/<org>/<repo>`에서 봅니다.', en: 'Put `ainize.json` at the root of a repo in an aindrive drive and every push makes the node clone that commit, build it and run it in an isolated sandbox. Four kinds — a script, a Dockerfile service, a Next.js app, an A2A agent — with deployments, logs and the previous deployment kept at `/<org>/<repo>`.' },
   'landing.cap.deploy.cta': { ko: 'ainize.json으로 배포하기', en: 'Deploy a repo with ainize.json' },
-  'landing.cap.deploy.docs': { ko: '예시 프로젝트: comcom/clef-artwork-search', en: 'Example project: comcom/clef-artwork-search' },
+  'landing.cap.deploy.docs': { ko: '작품 검색 배포 예시 읽기', en: 'Read the artwork search deployment example' },
 
   // example in 60 seconds — the clef-artwork-search story, which uses all four
-  'landing.example.title': { ko: '60초짜리 예시', en: 'An example in 60 seconds' },
+  'landing.example.title': { ko: '작품 검색 배포 예시', en: 'An artwork search deployment example' },
   'landing.example.sub': { ko: 'clef-artwork-search는 작품 묘사 한 줄을 받아 Clef 판단 모델로 그림을 순위 매기는 파이썬 파일 세 개입니다. 저장소에는 키가 없고, 서버 설정도 없습니다.', en: 'clef-artwork-search is three Python files that rank artworks against a one-line description with the Clef decision model. There is no key in the repo and nothing configured on a server.' },
   'landing.example.s1.title': { ko: 'push 한 번', en: 'Push' },
   'landing.example.s1.desc': { ko: 'aindrive 드라이브의 저장소에 `ainize.json`과 함께 push합니다. 첫 push가 프로젝트를 만들고, 그 push부터 배포가 시작됩니다.', en: 'Push to the repo in an aindrive drive with `ainize.json` beside the code. The first push creates the project and is itself the first deployment.' },
@@ -64,8 +64,8 @@ export const landing: Dict = {
   'landing.example.s2.desc': { ko: '노드가 그 커밋을 받아 `art_search.py`를 샌드박스에서 돌립니다. 스크립트는 환경 변수의 키로 `client.decide("clef-flash", …)`를 호출합니다.', en: 'The node clones that commit and runs `art_search.py` in the sandbox. The script calls `client.decide("clef-flash", …)` with the key from its environment.' },
   'landing.example.s3.title': { ko: '기록', en: 'The record' },
   'landing.example.s3.desc': { ko: '순위가 표준 출력으로 나오고, 그대로 배포 로그가 됩니다. 프로젝트 페이지에서 배포마다 로그를 다시 열 수 있습니다.', en: 'The ranking goes to standard output and becomes the deployment log. The project page keeps one per deployment, ready to open again.' },
-  'landing.example.cta': { ko: '프로젝트 보기', en: 'Open the project' },
-  'landing.example.repo': { ko: 'aindrive에서 저장소 보기', en: 'Repo on aindrive' },
+  'landing.example.cta': { ko: '배포 예시 읽기', en: 'Read the deployment example' },
+  'landing.example.repo': { ko: '조직 저장소 열기 (로그인·권한 필요)', en: 'Organization repo (sign-in and access required)' },
 
   // what only ainize does — teach, and one identity
   'landing.only.title': { ko: 'Ainize만 하는 두 가지', en: 'Two things only Ainize does' },

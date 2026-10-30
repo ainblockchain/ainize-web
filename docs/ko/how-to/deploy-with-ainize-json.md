@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 43215e6bb998d33f6b12605a2590be996cac06780ddbe88e2887b85ee6af82e4
+source_sha256: 40264e37f490bfa0c92749c37a9702e30c9b0df545f641ab4638ef8438033415
 ---
 
 # ainize.json으로 리포 배포하기
@@ -143,6 +143,8 @@ curl -X POST https://ainize.ai/api/projects \
 이어갈 수 있습니다. 생성 요청을 반복해도 프로젝트가 중복 생성되거나 웹훅 시크릿이 다시 표시되지 않습니다.
 
 ## 완전한 예
+
+이 가이드는 로그인 없이 읽을 수 있습니다. 아래 ComCom 저장소와 배포 콘솔은 해당 조직에 접근 권한이 있는 AIN 계정이 필요하며, 공개 데모가 아닙니다. 위의 매니페스트와 입력 예시는 내 저장소에 적용할 수 있습니다. 모델 호출 방법은 [Clef 사용 가이드](./decision-models-clef.md)를 참고하세요.
 
 [`clef-artwork-search`](https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search)는 `script` 프로젝트입니다.
 Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 셋, 위의 `ainize.json`, 그리고 같은 것을 다른 곳에서 돌리기

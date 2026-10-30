@@ -1,8 +1,10 @@
 import { Link, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
-import { useAccessibleAppsQuery } from '@/api/api';
-import { relativeTime } from '@/api/projects';
+import { useAccessibleAppsQuery, useProjectDeploymentsQuery } from '@/api/api';
+import { relativeTime, type Project } from '@/api/projects';
+import { activeProjectUrl } from '@/lib/projectActions';
+import { Alert } from '@/components/ui/Form';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { projectPath } from '@/lib/reservedRoutes';
@@ -25,7 +27,7 @@ const Card = styled.article`
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 12px; background: white;
   h2 { font-size: 17px; margin: 0; overflow-wrap: anywhere; }
   p { margin: 0; font-size: 13px; color: #62616b; overflow-wrap: anywhere; }
-  footer { display: flex; gap: 16px; align-items: center; margin-top: auto; padding-top: 12px; border-top: 1px solid #eee; }
+  footer { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: auto; padding-top: 12px; border-top: 1px solid #eee; }
   footer a { min-height: 44px; display: inline-flex; align-items: center; }
 `;
 const Meta = styled.div`display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #62616b;`;
@@ -47,6 +49,7 @@ export default function AppsPage() {
   const apps = useAccessibleAppsQuery({ principal: auth.principal ?? '', orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] },
     { skip: !auth.isSignedIn, pollingInterval: 15_000, refetchOnMountOrArgChange: true });
   const rows = appProjects(apps.currentData?.projects ?? [], q);
+  const partial = apps.isError || !!apps.currentData?.failedSources?.length;
   const next = `/apps${q ? `?q=${encodeURIComponent(q)}` : ''}`;
   useTitle(t('apps.title'));
   return <PageWrapper>
@@ -57,24 +60,38 @@ export default function AppsPage() {
     {auth.loading ? <CenterProgress /> : !auth.isSignedIn ? <Notice>
       <h2>{t('apps.signin.title')}</h2><p>{t('apps.signin.body')}</p>
       <Primary to={`/signing?next=${encodeURIComponent(next)}`}>{t('apps.signin.action')}</Primary>
-    </Notice> : apps.isError ? <Notice role="alert">
+    </Notice> : apps.isError && !apps.currentData ? <Notice role="alert">
       <h2>{t('apps.error.title')}</h2><p>{t('apps.error.body')}</p><Button onClick={() => apps.refetch()}>{t('apps.retry')}</Button>
     </Notice> : !apps.currentData ? <CenterProgress /> : <>
-      <Summary>{q ? t('apps.search_results', { q }) : t('apps.count', { n: rows.length })}</Summary>
-      {!rows.length ? <Notice><h2>{t(q ? 'apps.search_none' : 'apps.empty.title', { q })}</h2>
+      {partial && <Alert $tone="warning" role="alert" data-testid="apps-partial">{t(apps.isError ? 'apps.refresh_failed' : 'apps.partial')} <Button loading={apps.isFetching} onClick={() => void apps.refetch()}>{t('apps.retry')}</Button></Alert>}
+      <Summary>{q ? t('apps.search_results', { q }) : t(partial ? 'apps.loaded_count' : 'apps.count', { n: rows.length })}</Summary>
+      {!rows.length && partial ? <Notice><h2>{t('apps.partial_empty')}</h2><p>{t('apps.partial_hint')}</p></Notice> : !rows.length ? <Notice><h2>{t(q ? 'apps.search_none' : 'apps.empty.title', { q })}</h2>
         <p>{t(q ? 'apps.search_hint' : 'apps.empty.body')}</p>
         {q ? <StyledLink to="/apps">{t('apps.all')}</StyledLink> : <Primary to="/projects/new">{t('apps.new')}</Primary>}
       </Notice> : <CardGrid aria-label={t('apps.title')}>
-        {rows.map((p) => <Card key={p.id}>
-          <Meta><span>{p.kind === 'nextjs' ? 'Next.js' : t('apps.service')}</span><Status $status={p.status}>{t(`projects.status.${p.status}`)}</Status></Meta>
-          <h2><StyledLink to={projectPath(p)}>{p.name || p.repoName}</StyledLink></h2>
-          <p>{p.org}/{p.repoName}{p.sourcePath ? ` · ${p.sourcePath}` : ''}</p>
-          <p>{p.branch} · {relativeTime(p.updatedAt)}</p>
-          <footer><StyledLink to={projectPath(p)}>{t('apps.project')}</StyledLink>
-            {p.lastDeployment?.status === 'ready' && p.lastDeployment.outputUrl && /^https?:\/\//.test(p.lastDeployment.outputUrl) && <a href={p.lastDeployment.outputUrl} target="_blank" rel="noreferrer">{t('apps.open')} ↗</a>}
-          </footer>
-        </Card>)}
+        {rows.map((p) => <AppCard key={p.id} project={p} />)}
       </CardGrid>}
     </>}
   </PageWrapper>;
+}
+
+/** Resolve a previous active deployment when the newest build failed or was rolled back. */
+function AppCard({ project: p }: { project: Project }) {
+  const { t } = useT();
+  const knownUrl = activeProjectUrl(p);
+  const needsHistory = !knownUrl && !!(p.activeDeploymentId || p.activeCommit);
+  const history = useProjectDeploymentsQuery(p.id, { skip: !needsHistory, pollingInterval: needsHistory ? 15_000 : 0, refetchOnMountOrArgChange: true });
+  const url = activeProjectUrl(p, history.currentData?.deployments ?? []);
+  return (
+    <Card>
+      <Meta><span>{p.kind === 'nextjs' ? 'Next.js' : t('apps.service')}</span><Status $status={p.status}>{t(`projects.status.${p.status}`)}</Status></Meta>
+      <h2><StyledLink to={projectPath(p)}>{p.name || p.repoName}</StyledLink></h2>
+      <p>{p.org}/{p.repoName}{p.sourcePath ? ` · ${p.sourcePath}` : ''}</p>
+      <p>{p.branch} · {relativeTime(p.updatedAt)}</p>
+      <footer><StyledLink to={projectPath(p)}>{t('apps.project')}</StyledLink>
+        {url && <a href={url} target="_blank" rel="noreferrer">{t('apps.open')} ↗</a>}
+        {history.isError && <span>{t('apps.url_failed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
+      </footer>
+    </Card>
+  );
 }

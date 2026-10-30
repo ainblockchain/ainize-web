@@ -26,7 +26,7 @@ export function useSearchResults(query: string, enabled: boolean, perKind = 4) {
     return result;
   }, [active, query, perKind, auth.isSignedIn, apps.currentData, models.currentData, network.currentData, agents.currentData, catalog.currentData]);
   const failures: SearchKind[] = active ? [
-    ...(auth.isSignedIn && apps.isError ? ['app' as const] : []),
+    ...(auth.isSignedIn && (apps.isError || !!apps.currentData?.failedSources?.length) ? ['app' as const] : []),
     ...(models.isError || network.isError ? ['model' as const] : []),
     ...(agents.isError ? ['agent' as const] : []),
     ...(catalog.isError ? ['knowledge' as const] : []),
