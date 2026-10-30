@@ -12,7 +12,7 @@
  * the node would not — the last-admin rule, the domain rule, the roles are the node's, and refusals are shown as
  * they come back.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
@@ -42,13 +42,24 @@ const Row = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap:
 const Table = styled.table`
   width: 100%; border-collapse: collapse; font-size: 13px;
   th { text-align: left; color: ${(p) => p.theme.color.GREY}; font-weight: 600; padding: 6px 8px; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; }
-  td { padding: 8px; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; vertical-align: middle; word-break: break-all; }
+  td { padding: 8px; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; vertical-align: middle; overflow-wrap: anywhere; }
+  @media (max-width: 640px) {
+    display: block;
+    thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    tbody { display: grid; gap: 12px; }
+    tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; }
+    td { display: flex; flex-direction: column; gap: 4px; padding: 0; min-width: 0; border: 0; align-items: flex-start; }
+    td:first-child { grid-column: 1 / -1; }
+    td[data-label]::before { content: attr(data-label); font-size: 11px; font-weight: 600; color: ${(p) => p.theme.color.GREY}; }
+    td > * { max-width: 100%; min-width: 0; box-sizing: border-box; }
+  }
 `;
 const Chip = styled.span<{ $tone?: 'warn' | 'ok' }>`
   font-size: 12px; padding: 2px 8px; border-radius: 999px;
   background: ${(p) => (p.$tone === 'warn' ? '#fdeeee' : p.$tone === 'ok' ? '#e8f6ec' : '#f1f2f5')}; color: ${(p) => (p.$tone === 'warn' ? '#a33030' : p.$tone === 'ok' ? '#227a3c' : '#555')};
 `;
 const Danger = styled(Panel)`border-color: #e8b4b4;`;
+const Controls = styled.fieldset`border: 0; padding: 0; margin: 0; min-width: 0;`;
 
 type Tab = 'general' | 'members' | 'groups' | 'billing' | 'security';
 const TABS: Tab[] = ['general', 'members', 'groups', 'billing', 'security'];
@@ -110,11 +121,32 @@ function OrgSettingsContent() {
   );
 }
 
-function useApiError() {
+function useOrgAction() {
   const { t } = useT();
+  const active = useActiveView();
+  const running = useRef(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const capture = (err: unknown) => { const e = orgApiErrorOf(err); setError(e.message ? `${t(`org.api.${e.code}`)} — ${e.message}` : t(`org.api.${e.code}`)); };
-  return { error, setError, capture };
+  const [success, setSuccess] = useState(false);
+  const reset = () => { setError(null); setSuccess(false); };
+  const run = async <T,>(fn: () => Promise<T>, done?: (result: T) => void) => {
+    if (running.current) return;
+    running.current = true;
+    reset(); setPending(true);
+    try {
+      const result = await fn();
+      if (active()) { done?.(result); setSuccess(true); }
+    } catch (err) {
+      if (active()) { const e = orgApiErrorOf(err); setError(err instanceof Error ? err.message : e.message ? `${t(`org.api.${e.code}`)} — ${e.message}` : t(`org.api.${e.code}`)); }
+    } finally {
+      running.current = false;
+      if (active()) setPending(false);
+    }
+  };
+  const feedback = pending ? <div role="status">{t('orgSettings.working')}</div>
+    : error ? <Alert role="alert" $tone="error">{error}</Alert>
+      : success ? <Alert role="status" $tone="success">{t('orgSettings.applied')}</Alert> : null;
+  return { pending, run, feedback, reset, setError };
 }
 
 // ------------------------------------------------------------------------------------------------ General
@@ -123,11 +155,9 @@ function GeneralTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
   const { sso } = useAuth();
   const navigate = useNavigate();
-  const active = useActiveView();
   const [update, updateState] = useUpdateOrgMutation();
-  const [remove] = useDeleteOrgMutation();
-  const { error, setError, capture } = useApiError();
-  const [saved, setSaved] = useState(false);
+  const [remove, removeState] = useDeleteOrgMutation();
+  const action = useOrgAction();
   const [name, setName] = useState(org.name);
   const [description, setDescription] = useState(org.description);
   const [readme, setReadme] = useState(org.readme);
@@ -135,23 +165,17 @@ function GeneralTab({ org }: { org: OrgProfile }) {
   const [domainRole, setDomainRole] = useState<OrgRole>(org.domain_role);
   const [ssoOrgIds, setSsoOrgIds] = useState(org.sso_org_ids.join(', '));
   const myDomain = emailDomain(sso?.email);
-  useEffect(() => { setName(org.name); setDescription(org.description); setReadme(org.readme); setDomains(org.domains); setDomainRole(org.domain_role); setSsoOrgIds(org.sso_org_ids.join(', ')); }, [org]);
+  // Resource/account changes remount this view. Background refetches must not overwrite unsaved inputs.
 
-  const save = async () => {
-    setError(null); setSaved(false);
-    try {
-      await update({ id: org.id, patch: { name: name.trim(), description: description.trim(), readme, domains, domainRole, ssoOrgIds: ssoOrgIds.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean) } }).unwrap();
-      setSaved(true);
-    } catch (e) { capture(e); }
-  };
+  const save = () => action.run(() => update({ id: org.id, patch: { name: name.trim(), description: description.trim(), readme, domains, domainRole, ssoOrgIds: ssoOrgIds.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean) } }).unwrap());
   const destroy = async () => {
+    if (action.pending) return;
     if (!window.confirm(t('orgSettings.general.delete_confirm', { name: org.name }))) return;
-    setError(null);
-    try { await remove(org.id).unwrap(); if (active()) navigate('/org'); } catch (e) { if (active()) capture(e); }
+    await action.run(() => remove(org.id).unwrap(), () => navigate('/org'));
   };
 
   return (
-    <>
+    <Controls disabled={action.pending} onChange={action.reset}>
       <Panel data-testid="org-settings-general">
         <Field><FieldLabel htmlFor="org-name">{t('orgNew.field.name')}</FieldLabel><Input id="org-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="org-description">{t('orgNew.field.description')}</FieldLabel><Input id="org-description" value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} /></Field>
@@ -166,9 +190,9 @@ function GeneralTab({ org }: { org: OrgProfile }) {
         <Description style={{ margin: 0 }}>{t('orgSettings.general.domains_help')}</Description>
         <Row>
           {domains.map((d) => (
-            <Chip key={d}>@{d} <Button size="small" variant="text" color="secondary" onClick={() => setDomains(domains.filter((x) => x !== d))}>{t('orgSettings.general.remove')}</Button></Chip>
+            <Chip key={d}>@{d} <Button size="small" variant="text" color="secondary" onClick={() => { action.reset(); setDomains(domains.filter((x) => x !== d)); }}>{t('orgSettings.general.remove')}</Button></Chip>
           ))}
-          {myDomain && !domains.includes(myDomain) && <Button size="small" onClick={() => setDomains([...domains, myDomain])} data-testid="org-add-domain">{t('orgSettings.general.add_domain', { domain: myDomain })}</Button>}
+          {myDomain && !domains.includes(myDomain) && <Button size="small" onClick={() => { action.reset(); setDomains([...domains, myDomain]); }} data-testid="org-add-domain">{t('orgSettings.general.add_domain', { domain: myDomain })}</Button>}
         </Row>
         <SelectField label={t('orgNew.field.domain_role')} value={domainRole} onChange={(e) => setDomainRole(e.target.value as OrgRole)}>
           {ORG_ROLES.map((r) => <option key={r} value={r}>{t(`org.role.${r}`)} — {t(`org.role.${r}_help`)}</option>)}
@@ -178,16 +202,15 @@ function GeneralTab({ org }: { org: OrgProfile }) {
           <Input id="org-sso-orgs" value={ssoOrgIds} placeholder="org_…" onChange={(e) => setSsoOrgIds(e.target.value)} />
           <HelperText>{t('orgSettings.general.sso_orgs_help')}</HelperText>
         </Field>
-        {error && <Alert $tone="error">{error}</Alert>}
-        {saved && <Alert $tone="success">{t('orgSettings.saved')}</Alert>}
+        {action.feedback}
         <Row><Button variant="contained" loading={updateState.isLoading} onClick={() => void save()} data-testid="org-settings-save">{t('orgSettings.save')}</Button></Row>
       </Panel>
       <Danger>
         <h3>{t('orgSettings.general.danger')}</h3>
         <Description style={{ margin: 0 }}>{t('orgSettings.general.delete_help')}</Description>
-        <Row><Button color="secondary" onClick={() => void destroy()} data-testid="org-delete">{t('orgSettings.general.danger')}</Button></Row>
+        <Row><Button color="secondary" loading={removeState.isLoading} onClick={() => void destroy()} data-testid="org-delete">{t('orgSettings.general.danger')}</Button></Row>
       </Danger>
-    </>
+    </Controls>
   );
 }
 
@@ -205,7 +228,8 @@ function RoleSelect({ value, onChange, disabled, testId }: { value: OrgRole; onC
 function MembersTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
   const { cacheIdentity } = useAuth();
-  const { error, setError, capture } = useApiError();
+  const action = useOrgAction();
+  const { run } = action;
   const [setRole] = useSetOrgMemberRoleMutation();
   const [removeMember] = useRemoveOrgMemberMutation();
   const [addMember, addState] = useAddOrgMemberMutation();
@@ -227,15 +251,13 @@ function MembersTab({ org }: { org: OrgProfile }) {
   const [inviteRole, setInviteRole] = useState<OrgRole>('read');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteDays, setInviteDays] = useState(7);
-  const [freshInvite, setFreshInvite] = useState<string | null>(null);
+  const [freshInvite, setFreshInvite] = useState<{ url: string; prefix: string } | null>(null);
   const [approveRole, setApproveRole] = useState<Record<string, OrgRole>>({});
   const needle = q.trim().toLowerCase();
   const members = org.members.filter((m) => !needle || [m.name, m.email, m.principal].some((s) => (s ?? '').toLowerCase().includes(needle)));
 
-  const run = async (fn: () => Promise<unknown>) => { setError(null); try { await fn(); } catch (e) { capture(e); } };
-
   return (
-    <>
+    <Controls disabled={action.pending}>
       <Panel data-testid="org-settings-members">
         <Description style={{ margin: 0 }}>{t('orgSettings.members.lede')}</Description>
         <Input value={q} placeholder={t('orgSettings.members.search')} onChange={(e) => setQ(e.target.value)} data-testid="org-members-search" />
@@ -244,8 +266,8 @@ function MembersTab({ org }: { org: OrgProfile }) {
           <tbody>
             {members.map((m) => (
               <tr key={m.principal} data-testid={`org-settings-member-${m.principal}`}>
-                <td><div>{m.name ?? '—'}</div><div style={{ color: '#777' }}>{m.email ?? ''}</div><Mono style={{ fontSize: 12 }}>{m.principal}</Mono></td>
-                <td><RoleSelect value={m.role} onChange={(role) => void run(() => setRole({ id: org.id, principal: m.principal, role }).unwrap())} testId={`org-role-${m.principal}`} /></td>
+                <td data-label={t('org.tab.members')}><div>{m.name ?? '—'}</div><div style={{ color: '#777' }}>{m.email ?? ''}</div><Mono style={{ fontSize: 12 }}>{m.principal}</Mono></td>
+                <td data-label={t('orgSettings.invites.role')}><RoleSelect value={m.role} onChange={(role) => void run(() => setRole({ id: org.id, principal: m.principal, role }).unwrap())} testId={`org-role-${m.principal}`} /></td>
                 <td><Chip>{t(`org.via.${m.via}`)}</Chip></td>
                 <td><Button size="small" variant="text" color="secondary" onClick={() => { if (window.confirm(t('orgSettings.members.remove_confirm', { who: m.name ?? m.email ?? m.principal }))) void run(() => removeMember({ id: org.id, principal: m.principal }).unwrap()); }}>{t('orgSettings.members.remove')}</Button></td>
               </tr>
@@ -255,10 +277,9 @@ function MembersTab({ org }: { org: OrgProfile }) {
         <Row>
           <Input value={newPrincipal} placeholder="0x… / sso:…" onChange={(e) => setNewPrincipal(e.target.value)} style={{ maxWidth: 360 }} data-testid="org-add-principal" />
           <RoleSelect value={newRole} onChange={setNewRole} />
-          <Button size="small" loading={addState.isLoading} disabled={!newPrincipal.trim()} onClick={() => void run(async () => { await addMember({ id: org.id, principal: newPrincipal.trim(), role: newRole }).unwrap(); setNewPrincipal(''); })} data-testid="org-add-member">{t('orgSettings.members.add_cta')}</Button>
+          <Button size="small" loading={addState.isLoading} disabled={!newPrincipal.trim()} onClick={() => void run(() => addMember({ id: org.id, principal: newPrincipal.trim(), role: newRole }).unwrap(), () => setNewPrincipal(''))} data-testid="org-add-member">{t('orgSettings.members.add_cta')}</Button>
         </Row>
         <HelperText>{t('orgSettings.members.add')} — {t('orgSettings.members.add_help')}</HelperText>
-        {error && <Alert $tone="error">{error}</Alert>}
       </Panel>
 
       <Panel data-testid="org-settings-requests">
@@ -284,14 +305,15 @@ function MembersTab({ org }: { org: OrgProfile }) {
           <Select value={String(inviteDays)} onChange={(e) => setInviteDays(Number(e.target.value))} style={{ width: 'auto', padding: '4px 8px' }}>
             {[1, 7, 30].map((d) => <option key={d} value={d}>{t('orgSettings.invites.ttl_days', { n: d })}</option>)}
           </Select>
-          <Button size="small" variant="contained" loading={inviteState.isLoading} data-testid="org-invite-make" onClick={() => void run(async () => {
-            const made = parseOrgInvite(await makeInvite({ id: org.id, role: inviteRole, email: inviteEmail.trim() || null, ttlHours: inviteDays * 24 }).unwrap());
-            setFreshInvite(made?.url ?? null);
+          <Button size="small" variant="contained" loading={inviteState.isLoading} data-testid="org-invite-make" onClick={() => void run(() => makeInvite({ id: org.id, role: inviteRole, email: inviteEmail.trim() || null, ttlHours: inviteDays * 24 }).unwrap(), (result) => {
+            const made = parseOrgInvite(result);
+            if (!made?.url) throw new Error(t('orgSettings.invites.missing_url'));
+            setFreshInvite({ url: made.url, prefix: made.token_prefix });
           })}>{t('orgSettings.invites.make')}</Button>
         </Row>
         {freshInvite && (
           <Alert $tone="success" data-testid="org-invite-url">
-            {t('orgSettings.invites.new')} <Mono>{freshInvite}</Mono> <CopyButton text={freshInvite} label={t('orgSettings.invites.copy')} />
+            {t('orgSettings.invites.new')} <Mono>{freshInvite.url}</Mono> <CopyButton text={freshInvite.url} label={t('orgSettings.invites.copy')} />
           </Alert>
         )}
         <SubTitle $mt={4} style={{ fontSize: 14 }}>{t('orgSettings.invites.open')}</SubTitle>
@@ -301,11 +323,12 @@ function MembersTab({ org }: { org: OrgProfile }) {
           <Row key={i.token_prefix}>
             <Mono>{i.token_prefix}…</Mono><Chip>{t(`org.role.${i.role}`)}</Chip>{i.email && <span>{i.email}</span>}
             <span style={{ color: '#777', fontSize: 12 }}>{i.used_by ? t('orgSettings.invites.used') : t('orgSettings.invites.expires', { date: when(i.expires_at) })}</span>
-            {!i.used_by && <Button size="small" variant="text" color="secondary" onClick={() => void run(() => revoke({ id: org.id, token: i.token_prefix }).unwrap())}>{t('orgSettings.invites.revoke')}</Button>}
+            {!i.used_by && <Button size="small" variant="text" color="secondary" onClick={() => void run(() => revoke({ id: org.id, token: i.token_prefix }).unwrap(), () => { if (freshInvite?.prefix === i.token_prefix) setFreshInvite(null); })}>{t('orgSettings.invites.revoke')}</Button>}
           </Row>
         ))}
       </Panel>
-    </>
+      {action.feedback}
+    </Controls>
   );
 }
 
@@ -313,27 +336,24 @@ function MembersTab({ org }: { org: OrgProfile }) {
 
 function GroupsTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
-  const { error, setError, capture } = useApiError();
+  const action = useOrgAction();
   const [createGroup, createState] = useCreateOrgGroupMutation();
   const [updateGroup, updateState] = useUpdateOrgGroupMutation();
   const [deleteGroup] = useDeleteOrgGroupMutation();
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<OrgGroupView | null>(null);
   const [name, setName] = useState('');
   const [members, setMembers] = useState<string[]>([]);
   const [agents, setAgents] = useState<string[]>([]);
-  const start = (g: OrgGroupView | null) => { setEditing(g); setName(g?.name ?? ''); setMembers(g?.members ?? []); setAgents(g?.agents ?? []); };
+  const start = (g: OrgGroupView | null) => { action.reset(); setFormOpen(true); setEditing(g); setName(g?.name ?? ''); setMembers(g?.members ?? []); setAgents(g?.agents ?? []); };
+  const close = () => { setFormOpen(false); setEditing(null); setName(''); setMembers([]); setAgents([]); };
   const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-  const save = async () => {
-    setError(null);
-    try {
-      if (editing) await updateGroup({ id: org.id, groupId: editing.id, name: name.trim(), members, agents }).unwrap();
-      else await createGroup({ id: org.id, name: name.trim(), members, agents }).unwrap();
-      start(null);
-    } catch (e) { capture(e); }
-  };
+  const save = () => action.run(() => editing
+    ? updateGroup({ id: org.id, groupId: editing.id, name: name.trim(), members, agents }).unwrap()
+    : createGroup({ id: org.id, name: name.trim(), members, agents }).unwrap(), close);
 
   return (
-    <>
+    <Controls disabled={action.pending}>
       <Panel data-testid="org-settings-groups">
         <Description style={{ margin: 0 }}>{t('orgSettings.groups.lede')}</Description>
         {org.groups.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.groups.empty')}</Description>}
@@ -343,12 +363,12 @@ function GroupsTab({ org }: { org: OrgProfile }) {
             <Chip>{t('orgSettings.groups.members')} {g.members.length}</Chip>
             <Chip>{t('orgSettings.groups.agents')} {g.agents.length}</Chip>
             <Button size="small" variant="text" onClick={() => start(g)}>{t('orgSettings.groups.edit')}</Button>
-            <Button size="small" variant="text" color="secondary" onClick={() => void (async () => { setError(null); try { await deleteGroup({ id: org.id, groupId: g.id }).unwrap(); } catch (e) { capture(e); } })()}>{t('orgSettings.groups.delete')}</Button>
+            <Button size="small" variant="text" color="secondary" onClick={() => void action.run(() => deleteGroup({ id: org.id, groupId: g.id }).unwrap(), () => { if (editing?.id === g.id) close(); })}>{t('orgSettings.groups.delete')}</Button>
           </Row>
         ))}
         <Row><Button size="small" onClick={() => start(null)} data-testid="org-group-new">{t('orgSettings.groups.new')}</Button></Row>
       </Panel>
-      {(editing !== null || name !== '' || members.length > 0 || agents.length > 0) && (
+      {formOpen && (
         <Panel data-testid="org-group-form">
           <h3>{editing ? editing.name : t('orgSettings.groups.new')}</h3>
           <Field><FieldLabel htmlFor="org-group-name">{t('orgSettings.groups.name')}</FieldLabel><Input id="org-group-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} data-testid="org-group-name" /></Field>
@@ -361,14 +381,14 @@ function GroupsTab({ org }: { org: OrgProfile }) {
             <Row>{org.agents.map((a) => <Checkbox key={a.id} label={a.name} checked={agents.includes(a.id)} onChange={() => toggle(agents, setAgents, a.id)} />)}</Row>
             <HelperText>{t('orgSettings.groups.agents_hint')}</HelperText>
           </div>
-          {error && <Alert $tone="error">{error}</Alert>}
           <Row>
             <Button variant="contained" loading={createState.isLoading || updateState.isLoading} disabled={!name.trim()} onClick={() => void save()} data-testid="org-group-save">{t('orgSettings.groups.save')}</Button>
-            <Button variant="text" onClick={() => start(null)}>{t('orgSettings.general.remove')}</Button>
+            <Button variant="text" onClick={close}>{t('orgSettings.cancel')}</Button>
           </Row>
         </Panel>
       )}
-    </>
+      {action.feedback}
+    </Controls>
   );
 }
 
@@ -381,14 +401,13 @@ function BillingTab({ org }: { org: OrgProfile }) {
   const { currentData: data } = query;
   const billing = useMemo(() => parseOrgBilling(data), [data]);
   const [update, updateState] = useUpdateOrgMutation();
-  const { error, setError, capture } = useApiError();
+  const action = useOrgAction();
   const [cap, setCap] = useState(org.spend_cap_credits === null ? '' : String(org.spend_cap_credits));
-  useEffect(() => { setCap(org.spend_cap_credits === null ? '' : String(org.spend_cap_credits)); }, [org.spend_cap_credits]);
   const saveCap = async () => {
-    setError(null);
+    action.reset();
     const value = orgSpendCap(cap);
-    if (value === undefined) { setError(t('orgSettings.billing.cap_invalid')); return; }
-    try { await update({ id: org.id, patch: { spendCapCredits: value } }).unwrap(); } catch (e) { capture(e); }
+    if (value === undefined) { action.setError(t('orgSettings.billing.cap_invalid')); return; }
+    await action.run(() => update({ id: org.id, patch: { spendCapCredits: value } }).unwrap());
   };
   if (query.isError || !billing) return <OrgReadStatus query={query} valid={!!billing} />;
   const max = Math.max(1, ...billing.agents.map((a) => a.total));
@@ -399,10 +418,10 @@ function BillingTab({ org }: { org: OrgProfile }) {
         {!billing.spend_metered && <Alert $tone="info" data-testid="org-billing-not-metered">{t('orgSettings.billing.not_metered')}</Alert>}
         <Field>
           <FieldLabel htmlFor="org-cap">{t('orgSettings.billing.cap')}</FieldLabel>
-          <Row><Input id="org-cap" value={cap} inputMode="numeric" onChange={(e) => setCap(e.target.value)} style={{ maxWidth: 200 }} data-testid="org-cap" /><Button size="small" loading={updateState.isLoading} onClick={() => void saveCap()}>{t('orgSettings.save')}</Button></Row>
+          <Row><Input id="org-cap" value={cap} disabled={action.pending} inputMode="numeric" onChange={(e) => setCap(e.target.value)} style={{ maxWidth: 200 }} data-testid="org-cap" /><Button size="small" loading={updateState.isLoading || action.pending} onClick={() => void saveCap()}>{t('orgSettings.save')}</Button></Row>
           <HelperText>{t('orgSettings.billing.cap_help')}</HelperText>
         </Field>
-        {error && <Alert $tone="error">{error}</Alert>}
+        {action.feedback}
       </Panel>
       <Panel>
         <h3>{t('orgSettings.billing.keys')}</h3>
@@ -411,7 +430,7 @@ function BillingTab({ org }: { org: OrgProfile }) {
           <Table>
             <thead><tr><th>{t('orgSettings.billing.key_owner')}</th><th>{t('orgSettings.billing.key_label')}</th><th>{t('orgSettings.billing.key_issued')}</th><th /></tr></thead>
             <tbody>{billing.keys.map((k) => (
-              <tr key={`${k.owner}:${k.prefix}`}><td><Mono>{k.owner}</Mono></td><td>{k.label ?? <Mono>{k.prefix}…</Mono>}</td><td>{when(k.issuedAt)}</td><td>{k.disabled && <Chip $tone="warn">{t('orgSettings.billing.key_disabled')}</Chip>}</td></tr>
+              <tr key={`${k.owner}:${k.prefix}`}><td data-label={t('orgSettings.billing.key_owner')}><Mono>{k.owner}</Mono></td><td data-label={t('orgSettings.billing.key_label')}>{k.label ?? <Mono>{k.prefix}…</Mono>}</td><td data-label={t('orgSettings.billing.key_issued')}>{when(k.issuedAt)}</td><td>{k.disabled && <Chip $tone="warn">{t('orgSettings.billing.key_disabled')}</Chip>}</td></tr>
             ))}</tbody>
           </Table>
         )}
@@ -423,9 +442,9 @@ function BillingTab({ org }: { org: OrgProfile }) {
           <thead><tr><th>{t('org.tab.agents')}</th><th>{t('orgSettings.billing.agents')}</th><th>{t('orgSettings.billing.last_call')}</th></tr></thead>
           <tbody>{billing.agents.map((a) => (
             <tr key={a.id} data-testid={`org-billing-agent-${a.id}`}>
-              <td>{a.name}</td>
-              <td><Bar pct={(a.total / max) * 100} label={String(a.total)} /></td>
-              <td>{a.last_at ? when(a.last_at) : t('orgSettings.billing.never')}</td>
+              <td data-label={t('org.tab.agents')}>{a.name}</td>
+              <td data-label={t('orgSettings.billing.agents')}><Bar pct={(a.total / max) * 100} label={String(a.total)} /></td>
+              <td data-label={t('orgSettings.billing.last_call')}>{a.last_at ? when(a.last_at) : t('orgSettings.billing.never')}</td>
             </tr>
           ))}</tbody>
         </Table>
@@ -434,7 +453,7 @@ function BillingTab({ org }: { org: OrgProfile }) {
   );
 }
 
-const BarTrack = styled.div`display: flex; align-items: center; gap: 8px; min-width: 160px;`;
+const BarTrack = styled.div`display: flex; align-items: center; gap: 8px; width: 160px; max-width: 100%; min-width: 0;`;
 const BarFill = styled.div<{ $pct: number }>`height: 8px; border-radius: 4px; background: #8b3eeb; width: ${(p) => Math.max(2, p.$pct)}%; max-width: 100%; flex: 0 0 auto;`;
 function Bar({ pct, label }: { pct: number; label: ReactNode }) {
   return <BarTrack><div style={{ flex: 1 }}><BarFill $pct={pct} /></div><span style={{ fontSize: 12 }}>{label}</span></BarTrack>;
@@ -480,7 +499,7 @@ function SecurityTab({ org }: { org: OrgProfile }) {
           <Table>
             <thead><tr><th>{t('orgSettings.security.when')}</th><th>{t('orgSettings.security.actor')}</th><th>{t('orgSettings.security.action')}</th><th>{t('orgSettings.security.target')}</th></tr></thead>
             <tbody>{audit.map((e) => (
-              <tr key={e.seq}><td>{when(e.ts)}</td><td><Mono>{e.actor}</Mono></td><td>{e.action}{e.detail && <span style={{ color: '#777' }}> {JSON.stringify(e.detail)}</span>}</td><td>{e.target ? <Mono>{e.target}</Mono> : '—'}</td></tr>
+              <tr key={e.seq}><td data-label={t('orgSettings.security.when')}>{when(e.ts)}</td><td data-label={t('orgSettings.security.actor')}><Mono>{e.actor}</Mono></td><td data-label={t('orgSettings.security.action')}>{e.action}{e.detail && <span style={{ color: '#777' }}> {JSON.stringify(e.detail)}</span>}</td><td data-label={t('orgSettings.security.target')}>{e.target ? <Mono>{e.target}</Mono> : '—'}</td></tr>
             ))}</tbody>
           </Table>
         )}
