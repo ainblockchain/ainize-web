@@ -178,6 +178,17 @@ export const api = createApi({
      * The log is text once over and SSE while running; `Accept: text/plain` asks for text either way, and the page
      * polls it while a deployment is queued or building.
      */
+    accessibleApps: b.query<ProjectsResponse, { principal: string; orgs: string[] }>({
+      async queryFn({ orgs }, _api, _extra, baseQuery) {
+        const urls = ['api/projects', ...[...new Set(orgs)].sort().map((org) => `api/orgs/${encodeURIComponent(org)}/projects`)];
+        const results = await Promise.all(urls.map((url) => baseQuery(url)));
+        const failed = results.find((r) => r.error);
+        if (failed?.error) return { error: failed.error };
+        const projects = results.flatMap((r) => (r.data as ProjectsResponse).projects);
+        return { data: { projects: [...new Map(projects.map((p) => [p.id, p])).values()] } };
+      },
+      providesTags: ['Project', 'Me', 'Org'],
+    }),
     myProjects: b.query<ProjectsResponse, void>({ query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
     project: b.query<Project, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
     createProject: b.mutation<ProjectCreated, ProjectCreateInput>({ query: (body) => ({ url: 'api/projects', method: 'POST', body }), invalidatesTags: ['Project'] }),
@@ -666,7 +677,7 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
-  useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
+  useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
