@@ -18,8 +18,8 @@ import { readiness, rowsPerJob } from '@/components/teach/util';
  * sentence says why.
  */
 const Doors = styled.div`
-  display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 24px;
-  @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { grid-template-columns: 3fr 2fr; align-items: stretch; }
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 24px;
+  @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: stretch; }
 `;
 /**
  * A door is ONE click target (ux-critique-owner O-9): the whole card is the link — both doors are navigations, so a
@@ -29,7 +29,7 @@ const Doors = styled.div`
  * `aria-disabled` and the card goes flat.
  */
 const Door = styled(Link)<{ $primary?: boolean }>`
-  display: flex; flex-direction: column; gap: 10px; border-radius: 10px; text-decoration: none; color: inherit; cursor: pointer;
+  display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; gap: 10px; border-radius: 10px; text-decoration: none; color: inherit; cursor: pointer;
   padding: ${(p) => (p.$primary ? '28px 28px 24px' : '20px')};
   background: ${(p) => (p.$primary ? p.theme.color.PALE_GREY : '#fff')};
   border: ${(p) => (p.$primary ? `2px solid ${p.theme.color.PRIMARY}` : `1px solid ${p.theme.color.LIGHT_GREY}`)};
@@ -59,8 +59,8 @@ const Cta = styled.span<{ $primary?: boolean }>`
  */
 const Limits = styled.ul`
   display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
-  li { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
-    color: ${(p) => p.theme.color.HOVER}; background: ${(p) => p.theme.color.PALE_GREY}; white-space: nowrap; }
+  li { display: inline-flex; align-items: center; max-width: 100%; box-sizing: border-box; padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    color: ${(p) => p.theme.color.HOVER}; background: ${(p) => p.theme.color.PALE_GREY}; white-space: normal; }
 `;
 /** The secondary door's eyebrow: says who it is for before the visitor reads the card. */
 const Eyebrow = styled.span`
