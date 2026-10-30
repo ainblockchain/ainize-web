@@ -198,10 +198,10 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
     return [];
   }, [agentFilter, allAgents, sharedPage, registryMissing, orgsMissing, orgProfile, principals, info?.node?.endpoint]);
   const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
-  const { data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
+  const { currentData: data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: ITEM_LIMIT, offset: (page - 1) * ITEM_LIMIT }, { skip: kind !== 'knowledge' });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
   // page-of-one call for its `total`, never a node-wide count that would not match what is on screen.
-  const { data: unfiltered } = useCatalogQuery({ ...filters, limit: 1 }, { skip: showAll });
+  const { data: unfiltered } = useCatalogQuery({ ...filters, limit: 1 }, { skip: showAll || kind !== 'knowledge' });
   const hidden = showAll || !data || !unfiltered ? 0 : Math.max(0, unfiltered.total - data.total);
 
   /**
@@ -226,9 +226,9 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
 
   const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
   const items = data?.items ?? [];
-  const pageCount = Math.max(1, Math.ceil(items.length / ITEM_LIMIT));
-  const current = Math.min(page, pageCount);
-  const visible = useMemo(() => items.slice((current - 1) * ITEM_LIMIT, current * ITEM_LIMIT), [items, current]);
+  const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / ITEM_LIMIT));
+  const current = page;
+  const visible = items;
   /** A parent id is only an id until something on this page knows its name (findings 282, 200). */
   const nameOf = useMemo(() => {
     const m = new Map(items.map((e) => [e.anchor.id, e.anchor.name || e.anchor.id]));
@@ -281,10 +281,11 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
         {kind === 'knowledge' && <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} />}
       </TitleRow>
       <Intro>{kind === 'agent' ? t('explore.agents.sub') : t('explore.sub')}</Intro>
+      {q && <Intro>{t('search.query', { q })}</Intro>}
       <Skip href="#explore-results">{t('explore.skip')}</Skip>
 
       {/* SC-17: what is selling, what is being built ON, what is new, and what people asked for here. */}
-      {kind === 'knowledge' && <Shelves />}
+      {kind === 'knowledge' && !q.trim() && <Shelves />}
 
       <Filters>
         {/* Whose agents, in one row and one click: the public list, mine, then each organization by name — the names
@@ -409,7 +410,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
           </details>
         </Failure>
       )}
-      {kind === 'knowledge' && isLoading && <ListSkeleton />}
+      {kind === 'knowledge' && (isLoading || (isFetching && !data)) && <ListSkeleton />}
       {kind === 'knowledge' && !isLoading && data && (
         <>
           <Count data-testid="explore-count">
@@ -431,7 +432,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
             {visible.map((e) => <PatchListItem key={e.anchor.id} entry={e} currency={info?.currency} nameOf={nameOf} />)}
           </div>
           {items.length === 0 && <Empty>{t('explore.empty')}</Empty>}
-          {items.length > 0 && <Pagination page={current} pageCount={pageCount} onChange={setPage} />}
+          {data.total > ITEM_LIMIT && <Pagination page={current} pageCount={pageCount} onChange={setPage} />}
         </>
       )}
     </PageWrapper>

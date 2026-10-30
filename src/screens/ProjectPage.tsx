@@ -40,6 +40,7 @@ import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRoutes';
+import { isKnowledgeAuthor } from '@/lib/detailRoutes';
 import { repoProjectLabel, repoProjects, selectRepoProject } from '@/lib/repoProjects';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
@@ -601,22 +602,38 @@ const withSearch = (path: string, search: string) => {
 /** `/:org/:repo` — a project by name; when none is bound here, the knowledge page that used to own this shape. */
 export function ProjectByNamePage() {
   const { org = '', repo = '' } = useParams();
+  const { t } = useT();
+  const { isSignedIn } = useAuth();
+  const location = useLocation();
+  useTitle(`${org}/${repo}`);
   const reserved = isReservedFirstSegment(org);
-  const q = useProjectByNameQuery({ org, repo }, { skip: reserved });
+  const knowledge = isKnowledgeAuthor(org);
+  const q = useProjectByNameQuery({ org, repo }, { skip: reserved || knowledge });
   // A monorepo's folder projects share this address: the organization's list names them (the ones this viewer may see).
-  const orgQ = useOrgProjectsQuery(org, { skip: reserved || !q.data });
+  const orgQ = useOrgProjectsQuery(org, { skip: reserved || knowledge || !q.currentData });
   const [sp, setSp] = useSearchParams();
   if (reserved) return <NotFoundPage />;
-  if (q.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (q.data) {
-    const all = repoProjects(q.data, orgQ.data?.projects ?? []);
+  if (knowledge) return <PatchPage author={org} patchId={repo} />;
+  if (q.isLoading || (q.isFetching && !q.currentData)) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (q.currentData) {
+    const all = repoProjects(q.currentData, orgQ.currentData?.projects ?? []);
     const selected = selectRepoProject(all, sp.get('project'));
     const pick = (id: string) => setSp(() => { const n = new URLSearchParams(); const folder = all.find((p) => p.id === id)?.sourcePath; if (folder) n.set('project', folder); return n; });
     const switcher = all.length > 1 ? <RepoDeployments projects={all} selected={selected.id} onPick={pick} /> : undefined;
     return <ProjectConsole key={selected.id} project={selected} switcher={switcher} />;
   }
-  // Not a project here (404), or the node is unreachable: `/<author>/<patchId>` has its own answer either way.
-  return <PatchPage />;
+  const why = projectApiErrorOf(q.error);
+  const unavailable = why.status === 404 || why.status === 401 || why.status === 403;
+  return <PageWrapper>
+    <Crumbs aria-label={t('projects.page.title')}><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span></Crumbs>
+    <SubTitle>{t(unavailable ? 'projects.page.unavailable' : 'projects.page.load_failed')}</SubTitle>
+    <Empty>{t(unavailable ? (isSignedIn ? 'projects.page.check_access' : 'projects.page.signin_check') : 'projects.page.retry_help')}</Empty>
+    <Actions>
+      {!isSignedIn && unavailable && <StyledLink to={`/signing?next=${encodeURIComponent(location.pathname + location.search)}`}>{t('projects.runs.sign_in_button')}</StyledLink>}
+      <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('apps.retry')}</Button>
+      <StyledLink to="/apps">{t('apps.all')}</StyledLink>
+    </Actions>
+  </PageWrapper>;
 }
 
 /**

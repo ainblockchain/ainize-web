@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router';
 import { Provider } from 'react-redux';
 import { ThemeProvider } from 'styled-components';
 import { store } from './store';
@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LocaleProvider } from './i18n';
 import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SignedInLayout, SigningCheckLayout } from './components/base/Layout';
 import { TrainSection } from './components/teach/TrainSection';
+import { knowledgePath } from './lib/detailRoutes';
 import { legacyTrainDestination } from './lib/trainNavigation';
 import { CenterProgress } from './components/ui/Misc';
 
@@ -27,6 +28,7 @@ const ProjectPage = lazy(() => import('./screens/ProjectPage'));
 // `/<org>/<repo>` and `/<org>` — the GitHub-shaped addresses of a project and of an organization's repositories.
 const ProjectByNamePage = lazy(() => import('./screens/ProjectPage').then((m) => ({ default: m.ProjectByNamePage })));
 const OrgRepositoriesPage = lazy(() => import('./screens/OrgRepositoriesPage'));
+const SearchPage = lazy(() => import('./screens/SearchPage'));
 const AppsPage = lazy(() => import('./screens/AppsPage'));
 const MyProjectsPage = lazy(() => import('./screens/MyProjectsPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
@@ -71,6 +73,12 @@ const MergePage = lazy(() => import('./screens/MergePage'));
 
 const fallback = <CenterProgress />;
 
+function LegacyKnowledgeRoute() {
+  const { author = '', patchId = '' } = useParams();
+  const { search, hash } = useLocation();
+  return <Navigate to={`${knowledgePath(author, patchId)}${search}${hash}`} replace />;
+}
+
 function LegacyTrainRoute() {
   const location = useLocation();
   return <Navigate to={legacyTrainDestination(location.pathname, location.search, location.hash)} replace />;
@@ -103,6 +111,7 @@ export default function App() {
 
                 {/* Public pages (Layout) */}
                 <Route path="/explore" element={<ExploreEntry />} />
+                <Route path="/search" element={<Layout><SearchPage /></Layout>} />
                 <Route path="/apps" element={<Layout><AppsPage /></Layout>} />
                 <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
                 <Route path="/aincode" element={<Layout><AinCodePage /></Layout>} />
@@ -155,7 +164,7 @@ export default function App() {
                 {/* item 337: what one verifier has actually done — the record behind a tick that had no page at all */}
                 <Route path="/verifier/:address" element={<Layout><VerifierPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
-                <Route path="/patch/:author/:patchId" element={<Navigate to="../" replace />} />
+                <Route path="/patch/:author/:patchId" element={<LegacyKnowledgeRoute />} />
 
                 {/* Signed in is enough: these are the caller's own things, not this node's. */}
                 <Route path="/me" element={<SignedInLayout><MyPage /></SignedInLayout>} />

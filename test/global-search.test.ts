@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { SEARCH_KINDS, docsFromAgents, docsFromCatalog, docsFromModels, docsFromProjects, flattenHits, scoreDoc, searchDocs, seeAllHref, type SearchDoc } from '../src/lib/globalSearch.ts';
+import { SEARCH_KINDS, docsFromAgents, docsFromCatalog, docsFromModels, docsFromProjects, flattenHits, scoreDoc, searchDocs, searchHref, seeAllHref, type SearchDoc } from '../src/lib/globalSearch.ts';
 import { common } from '../src/i18n/pages/common.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -75,10 +75,23 @@ test('adapters link where the site already links', () => {
 });
 
 test('"see all" carries the query to the page that lists that kind', () => {
+  assert.equal(searchHref('  hello world  '), '/search?q=hello%20world');
   assert.equal(seeAllHref('app', 'a b'), '/apps?q=a%20b');
   assert.equal(seeAllHref('model', 'x'), '/models?q=x');
   assert.equal(seeAllHref('agent', 'x'), '/explore?kind=agent&q=x');
   assert.equal(seeAllHref('knowledge', 'x'), '/train/knowledge?q=x');
+});
+
+test('app search has the same kinds and exact monorepo destinations as the Apps list', () => {
+  const rows = docsFromProjects([
+    { id: 'web', org: 'team', repoName: 'mono', name: 'Website', kind: 'nextjs', sourcePath: 'apps/web' },
+    { id: 'api', org: 'team', repoName: 'mono', name: 'Backend', kind: 'service', sourcePath: 'services/api' },
+    { id: 'script', org: 'team', repoName: 'mono', name: 'Migration', kind: 'script' },
+    { id: 'agent', org: 'team', repoName: 'mono', name: 'Assistant', kind: 'agent' },
+  ]);
+  assert.deepEqual(rows.map((r) => r.id), ['web', 'api']);
+  assert.equal(rows[0]!.href, '/team/mono?project=apps%2Fweb');
+  assert.equal(searchDocs(rows, 'services/api')[0]!.hits[0]!.href, '/team/mono?project=services%2Fapi');
 });
 
 test('every string the search box reads exists in English and in Korean', () => {
