@@ -13,6 +13,8 @@ import { AuthProvider } from '../src/auth/AuthContext';
 import { createTeacherKey, forgetTeacherKey } from '../src/lib/teacherKey';
 import TeachMinePage from '../src/screens/TeachMinePage';
 import SigningPage from '../src/screens/SigningPage';
+import AppsPage from '../src/screens/AppsPage';
+import SearchPage from '../src/screens/SearchPage';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -22,10 +24,10 @@ const makeStore = (preloadedState?: any) => configureStore({
 });
 const stores: ReturnType<typeof makeStore>[] = [];
 afterEach(() => { forgetTeacherKey(); for (const store of stores.splice(0)) store.dispatch(api.util.resetApiState()); });
-type Fixture = { name: string; value?: unknown; status?: 'pending' | 'rejected' };
-function render(page: typeof TeachMinePage | typeof SigningPage, fixtures: Fixture[], path = '/train/mine') {
+type Fixture = { name: string; arg?: unknown; value?: unknown; status?: 'pending' | 'rejected' };
+function render(page: typeof TeachMinePage | typeof SigningPage | typeof AppsPage | typeof SearchPage, fixtures: Fixture[], path = '/train/mine') {
   const seed = makeStore(); stores.push(seed);
-  seed.dispatch(api.util.upsertQueryEntries(fixtures.map(({ name, value }) => ({ endpointName: name, arg: undefined, value })) as any));
+  seed.dispatch(api.util.upsertQueryEntries(fixtures.map(({ name, value, arg }) => ({ endpointName: name, arg, value })) as any));
   const state = seed.getState();
   const queries = { ...state[api.reducerPath].queries };
   for (const [key, entry] of Object.entries(queries)) {
@@ -126,4 +128,57 @@ test('unavailable AIN sign-in options show a retry and retain the wallet fallbac
   assert.match(html, /Could not load AIN account sign-in options/);
   assert.match(html, /Try again/);
   assert.match(html, /data-testid="wallet-options"/);
+});
+
+const appAccount: Fixture[] = [
+  ...signedOut.filter((f) => f.name !== 'me'),
+  { name: 'me', value: { sso: { sub: 'viewer', principal: 'sso:viewer', orgs: [{ id: 'studio', slug: 'studio' }] } } },
+];
+const appsArg = { principal: 'sso:viewer', orgs: ['studio'] };
+const webApp = { id: 'web', name: 'Storefront', org: 'studio', repoName: 'mono', sourcePath: 'packages/web', kind: 'nextjs', branch: 'main', status: 'ready', updatedAt: Date.now(), lastDeployment: { id: 'newest', status: 'ready', outputUrl: 'https://newest.example.test' }, activeDeploymentId: 'previous' };
+const appsFixture = (projects: unknown[], failedSources: string[] = []): Fixture => ({ name: 'accessibleApps', arg: appsArg, value: { projects, failedSources } });
+
+test('signed-out Apps never renders organization-specific cached results', () => {
+  const html = render(AppsPage, [...signedOut, appsFixture([webApp])], '/apps');
+  assert.match(html, /Sign in with AIN/);
+  assert.doesNotMatch(html, /Storefront|studio\/mono/);
+});
+
+test('Apps shows only app kinds and preserves the selected monorepo folder', () => {
+  const html = render(AppsPage, [...appAccount, appsFixture([webApp, { ...webApp, id: 'script', kind: 'script', name: 'Hidden script' }, { ...webApp, id: 'agent', kind: 'agent', name: 'Hidden agent' }])], '/apps');
+  assert.match(html, /Storefront/);
+  assert.match(html, /href="\/studio\/mono\?project=packages%2Fweb"/);
+  assert.doesNotMatch(html, /Hidden script|Hidden agent/);
+});
+
+test('App Open uses the active deployment after rollback, not the newest successful build', () => {
+  const html = render(AppsPage, [...appAccount, appsFixture([webApp]), { name: 'projectDeployments', arg: 'web', value: { deployments: [{ id: 'previous', status: 'ready', outputUrl: 'https://active.example.test' }] } }], '/apps');
+  assert.match(html, /href="https:\/\/active.example.test"/);
+  assert.doesNotMatch(html, /href="https:\/\/newest.example.test"/);
+});
+
+test('partial Apps results remain visible and are identified as incomplete', () => {
+  const html = render(AppsPage, [...appAccount, appsFixture([webApp], ['other-team'])], '/apps');
+  assert.match(html, /Storefront/);
+  assert.match(html, /data-testid="apps-partial"/);
+  assert.match(html, /Try again/);
+  const empty = render(AppsPage, [...appAccount, appsFixture([], ['other-team'])], '/apps');
+  assert.match(empty, /Other apps may be missing/);
+  assert.doesNotMatch(empty, /Deploy your first app/);
+});
+
+test('failed app refresh preserves previous results and tells the visitor they are previous', () => {
+  const html = render(AppsPage, [...appAccount, { ...appsFixture([webApp]), status: 'rejected' }], '/apps');
+  assert.match(html, /Storefront/);
+  assert.match(html, /Showing the previous results/);
+});
+
+test('search retains partial app matches while reporting the incomplete source', () => {
+  const html = render(SearchPage, [...appAccount, appsFixture([webApp], ['other-team']),
+    { name: 'models', value: {} }, { name: 'networkModels', value: {} }, { name: 'agents', value: { agents: [] } },
+    { name: 'catalog', arg: { q: 'Storefront', status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: 8 }, value: { items: [], total: 0 } },
+  ], '/search?q=Storefront');
+  assert.match(html, /Storefront/);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /Try again/);
 });

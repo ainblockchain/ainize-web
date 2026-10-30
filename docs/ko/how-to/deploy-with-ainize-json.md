@@ -144,6 +144,8 @@ curl -X POST https://ainize.ai/api/projects \
 
 ## 완전한 예
 
+이 가이드는 로그인 없이 읽을 수 있습니다. 아래 ComCom 저장소와 배포 콘솔은 해당 조직에 접근 권한이 있는 AIN 계정이 필요하며, 공개 데모가 아닙니다. 위의 매니페스트와 입력 예시는 내 저장소에 적용할 수 있습니다. 모델 호출 방법은 [Clef 사용 가이드](./decision-models-clef.md)를 참고하세요.
+
 [`clef-artwork-search`](https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search)는 `script` 프로젝트입니다.
 Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 셋, 위의 `ainize.json`, 그리고 같은 것을 다른 곳에서 돌리기
 위한 `Dockerfile`로 되어 있습니다. push마다 `art_search.py`가 라이브 모델을 상대로 다시 돌고, 랭킹이 배포 로그에 남습니다.

@@ -1,3 +1,4 @@
+import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
 import type { AppDomain, AppDomainsResponse } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
 import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
@@ -178,15 +179,8 @@ export const api = createApi({
      * The log is text once over and SSE while running; `Accept: text/plain` asks for text either way, and the page
      * polls it while a deployment is queued or building.
      */
-    accessibleApps: b.query<ProjectsResponse, { principal: string; orgs: string[] }>({
-      async queryFn({ orgs }, _api, _extra, baseQuery) {
-        const urls = ['api/projects', ...[...new Set(orgs)].sort().map((org) => `api/orgs/${encodeURIComponent(org)}/projects`)];
-        const results = await Promise.all(urls.map((url) => baseQuery(url)));
-        const failed = results.find((r) => r.error);
-        if (failed?.error) return { error: failed.error };
-        const projects = results.flatMap((r) => (r.data as ProjectsResponse).projects);
-        return { data: { projects: [...new Map(projects.map((p) => [p.id, p])).values()] } };
-      },
+    accessibleApps: b.query<AccessibleAppsResponse, { principal: string; orgs: string[] }>({
+      queryFn: ({ orgs }, _api, _extra, baseQuery) => loadAccessibleApps(orgs, async (url) => baseQuery(url)),
       providesTags: ['Project', 'Me', 'Org'],
     }),
     myProjects: b.query<ProjectsResponse, void>({ query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
