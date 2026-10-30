@@ -54,7 +54,7 @@ const BarPct = styled.span`text-align: right; color: #6b7280;`;
 /** The decision box is JSON the visitor types; a bad body is a message, not a thrown stack. This marks that case. */
 const DECISION_BAD_JSON = 'decision:bad-json';
 
-const Tabs = styled.div`display: flex; gap: 6px; margin-bottom: 10px;`;
+const Tabs = styled.div`display: flex; flex-wrap: wrap; min-width: 0; gap: 6px; margin-bottom: 10px;`;
 const Tab = styled.button<{ $on: boolean }>`
   cursor: pointer; font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px;
   border: 1px solid ${(p) => (p.$on ? '#5b3df5' : '#e2e4ea')};
@@ -64,7 +64,7 @@ const CodeBlock = styled.pre`
   padding: 16px; border-radius: 8px; background: #11131a; color: #e6e8ee; overflow: auto;
   font-size: 12.5px; line-height: 1.6;
 `;
-const CodeHead = styled.div`display: flex; justify-content: space-between; align-items: center; gap: 12px;`;
+const CodeHead = styled.div`display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;`;
 
 /** What the browser is talking to. Read at render so a node behind a different origin still copies correctly. */
 const nodeUrlFromBrowser = (): string =>
