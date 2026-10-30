@@ -4,9 +4,9 @@
  * without noticing; here each session says where it runs and what it works on, and a personal session on an
  * organization's repository is flagged. Data: the AinCode gateway's `GET /code/_aincode/sessions` (same origin).
  */
-import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { groupOverview, misplaced, parseOverview, type AinCodeOverview, type AinCodeSession } from '@/api/aincodeSessions';
+import { groupOverview, misplaced, type AinCodeSession } from '@/api/aincodeSessions';
+import { useAincodeOverviewQuery } from '@/api/aincodeOverview';
 import { relativeTime } from '@/api/projects';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -16,7 +16,7 @@ import { useTitle } from '@/utils/useTitle';
 
 const Workspace = styled.section`margin: 20px 0 28px;`;
 const WorkspaceHead = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;`;
-const WorkspaceName = styled.h2`font-size: 17px; font-weight: 700; margin: 0;`;
+const WorkspaceName = styled.h2`font-size: 17px; font-weight: 700; margin: 0; min-width: 0; overflow-wrap: anywhere;`;
 const Meta = styled.span`font-size: 12px; color: #6b7280;`;
 const Dot = styled.span<{ $tone: 'up' | 'down' | 'busy' }>`
   display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px;
@@ -24,7 +24,7 @@ const Dot = styled.span<{ $tone: 'up' | 'down' | 'busy' }>`
 `;
 const Spacer = styled.span`flex: 1;`;
 const Repo = styled.div`border: 1px solid #e2e4ea; border-radius: 10px; background: #fff; margin-bottom: 10px; overflow: hidden;`;
-const RepoHead = styled.div`display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f8f9fb; border-bottom: 1px solid #eef0f4; font-weight: 600; font-size: 14px;`;
+const RepoHead = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: #f8f9fb; border-bottom: 1px solid #eef0f4; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; & > * { min-width: 0; }`;
 const RepoLink = styled.a`color: inherit; text-decoration: none; &:hover { color: #5b3df5; text-decoration: underline; }`;
 const Rows = styled.div`display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; column-gap: 14px; row-gap: 0; align-items: center;
   @media (max-width: 720px) { grid-template-columns: minmax(0, 1fr) auto; }`;
@@ -37,26 +37,15 @@ const LinkButton = styled.a`display: inline-block; padding: 5px 12px; border: 1p
   font-size: 13px; font-weight: 600; text-decoration: none; &:hover { background: #f4f1ff; }`;
 const OpenLink = styled.a`font-size: 13px; font-weight: 600; color: #5b3df5; text-decoration: none; &:hover { text-decoration: underline; }`;
 
-type State = { kind: 'loading' } | { kind: 'signedOut' } | { kind: 'error' } | { kind: 'ok'; data: AinCodeOverview };
-
 export default function AinCodePage() {
   const { t } = useT();
   const auth = useAuth();
   useTitle(t('aincode.title'));
-  const [state, setState] = useState<State>({ kind: 'loading' });
-
-  const load = useCallback(async () => {
-    setState({ kind: 'loading' });
-    try {
-      const res = await fetch('/code/_aincode/sessions', { credentials: 'include', headers: { accept: 'application/json' } });
-      if (res.status === 401) return setState({ kind: 'signedOut' });
-      const data = res.ok ? parseOverview(await res.json()) : null;
-      setState(data ? { kind: 'ok', data } : { kind: 'error' });
-    } catch {
-      setState({ kind: 'error' });
-    }
-  }, []);
-  useEffect(() => { void load(); }, [load, auth.isSignedIn]);
+  const query = useAincodeOverviewQuery(auth.cacheIdentity, { skip: auth.loading || !auth.isSignedIn });
+  const unauthorized = query.isError && query.error && 'status' in query.error && query.error.status === 401;
+  const signedOut = !auth.loading && !auth.isSignedIn;
+  const data = auth.isSignedIn && !unauthorized ? query.currentData : undefined;
+  const loading = auth.loading || (auth.isSignedIn && !data && query.isFetching);
 
   const status = (s: AinCodeSession) => (
     <><Dot $tone={s.status === 'working' ? 'busy' : s.status === 'idle' ? 'up' : 'down'} />{t(`aincode.status.${s.status}`)}</>
@@ -65,20 +54,20 @@ export default function AinCodePage() {
   return (
     <PageWrapper>
       <SectionTitle>{t('nav.aincode')}</SectionTitle>
-      {state.kind === 'loading' && <CenterProgress />}
-      {state.kind === 'signedOut' && (
+      {loading && <div role="status" data-testid="aincode-loading"><CenterProgress /></div>}
+      {signedOut && (
         <Empty>
           {t('aincode.signin')}{' '}
           <LinkButton href={`/signing?next=${encodeURIComponent('/aincode')}`}>{t('aincode.signin.cta')}</LinkButton>
         </Empty>
       )}
-      {state.kind === 'error' && (
-        <Empty>{t('aincode.failed')} <Button size="small" variant="text" onClick={() => void load()}>{t('aincode.retry')}</Button></Empty>
+      {auth.isSignedIn && query.isError && (
+        <Empty role="alert">{t('aincode.failed')} <Button size="small" variant="text" disabled={query.isFetching} onClick={() => void query.refetch()}>{t('aincode.retry')}</Button></Empty>
       )}
-      {state.kind === 'ok' && state.data.sessions.length === 0 && (
-        <Empty>{t('aincode.empty')} <LinkButton href="/code/">{t('aincode.start')}</LinkButton></Empty>
+      {data && !query.isError && !query.isFetching && data.workspaces.length === 0 && (
+        <Empty data-testid="aincode-empty">{t('aincode.empty')} <LinkButton href="/code/">{t('aincode.start')}</LinkButton></Empty>
       )}
-      {state.kind === 'ok' && groupOverview(state.data).map((g) => (
+      {data && groupOverview(data).map((g) => (
         <Workspace key={g.key} data-testid={`aincode-workspace-${g.key}`}>
           <WorkspaceHead>
             <WorkspaceName>{g.workspace.kind === 'organization' ? t('aincode.workspace.org', { name: g.workspace.org!.name }) : t('aincode.workspace.personal')}</WorkspaceName>
@@ -87,6 +76,7 @@ export default function AinCodePage() {
             <Spacer />
             <LinkButton href={g.workspace.newSessionUrl}>{t('aincode.newSession')}</LinkButton>
           </WorkspaceHead>
+          {g.repos.length === 0 && <Meta>{t('aincode.empty')}</Meta>}
           {g.repos.map((r) => (
             <Repo key={r.key} data-testid="aincode-repo">
               <RepoHead>

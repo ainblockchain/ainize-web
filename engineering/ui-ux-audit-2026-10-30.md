@@ -46,7 +46,7 @@ A row remains pending until the applicable flows and rendered behavior are check
 | `/search` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/apps` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/models` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
-| `/aincode` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
+| `/aincode` | Partial: deployed list/title checked; revised account/error/empty rendering fixtures pass | New account-scoped release, session destination gateway behavior and long-name 320/390px verification pending |
 | `/models/:id` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/billing` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/network` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
@@ -287,3 +287,10 @@ Validation so far: typecheck and 44 focused navigation, project action, translat
 - U48: the header still hid My nodes from SSO accounts after inventory support was deployed. AIN account and wallet users now both have the menu entry.
 - U44: missing-dataset copy now says the identifier cannot be found and points to address/list recovery, without claiming past existence or suggesting an unavailable download.
 - Prepared validation: 17 agent/parser tests (five new aggregation cases), four logout coordination cases, 33 actual render cases and typecheck passed locally. Coverage includes private linked Open/Edit targets, shared edit-without-delete permission, failed/partial lists, old-account private/archived result exclusion, SSO node menu and logout notices. Actual user logout, agent deletion/restoration and private downloads were not performed. Full ainize CI/build and deployment remain pending.
+
+### AinCode account and list recovery follow-up
+
+- U49: AinCode used an unscoped manual fetch effect keyed only by the signed-in boolean. Switching between signed-in accounts could preserve the previous account's list, and late responses could overwrite a newer fetch. Use an account-keyed RTK query, read only currentData, skip signed-out/auth-loading requests, and immediately expire unused lists. A gateway 401 hides cached rows and offers retry rather than looping a still-signed-in account through `/signing`.
+- U50: malformed rows were silently dropped and missing workspace fields could crash grouping. Reject malformed/incomplete/duplicate/orphaned rows as a recoverable read failure; verify action paths are under `/code` and repository links use web protocols. Existing successful rows remain on a transient refresh failure, with an alert and retry. An empty workspace keeps its exact workspace-specific New session action instead of replacing it with a generic start link. Long workspace/repository names wrap.
+- Validation: three AinCode parser/grouping tests plus the 36 actually executed render scenarios pass, along with the agent/logout focused tests, typecheck and generated-file check. AinCode fixtures cover exact Open/New session destinations, pending/failed/retained/empty states, former-account exclusion, signed-out entry and a signed-in gateway 401. They do not prove the remote gateway opens the correct session; that remains a live verification item.
+- Deployment evidence: public `/web-build.json` still reports cf86dbfd8266472d6ec055ce7ee7d7de2b36867d. The old CI-launch SSH session exited 255 (broken master), and its control socket is absent. The server job's existence/result is unknown; inspect remote process/status before starting another job. Asked the user to reopen ainize SSH; VPN/auth settings were not changed. These changes are not yet deployed.

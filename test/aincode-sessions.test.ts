@@ -26,11 +26,28 @@ test('organization workspaces come first, then personal; sessions grouped by rep
   assert.equal(g[0].repos[0].href, 'https://aindrive.ainetwork.ai/comcom/git/ainspace', 'no project page: AIN Drive');
 });
 
-test('a personal session on an organization repository is flagged; foreign or malformed rows are dropped', () => {
+test('a personal session on an organization repository is flagged; malformed lists are rejected', () => {
   assert.equal(misplaced(overview.sessions[0]), true);
   assert.equal(misplaced(overview.sessions[1]), false);
   assert.equal(repoKey(overview.sessions[1]).label, 'notes');
   const parsed = parseOverview({ workspaces: overview.workspaces, sessions: [...overview.sessions, { id: 'x', openUrl: 'https://evil.example/' }] });
-  assert.equal(parsed?.sessions.length, 3, 'an open link outside /code is refused');
+  assert.equal(parsed, null, 'invalid rows must not silently disappear from the list');
   assert.equal(parseOverview({}), null);
+  assert.deepEqual(parseOverview(overview), overview);
+});
+
+test('incomplete workspaces, orphaned sessions and duplicate rows cannot crash or misrepresent a list', () => {
+  for (const workspaces of [
+    [{ ...overview.workspaces[1], org: undefined }],
+    [{ ...overview.workspaces[0], newSessionUrl: undefined }],
+    [overview.workspaces[0], overview.workspaces[0]],
+    [],
+  ]) assert.equal(parseOverview({ ...overview, workspaces }), null);
+  for (const changes of [
+    { workingDirectory: undefined }, { updatedAt: 'yesterday' }, { status: 'unexpected' },
+    { openUrl: '/code-elsewhere' }, { openUrl: '//evil.example/code' },
+    { repo: { ...overview.sessions[0].repo, projectPageUrl: 'javascript:alert(1)' } },
+  ]) assert.equal(parseOverview({ ...overview, sessions: [{ ...overview.sessions[0], ...changes }] }), null);
+  assert.equal(parseOverview({ ...overview, sessions: [overview.sessions[0], overview.sessions[0]] }), null);
+  assert.deepEqual(parseOverview({ workspaces: [], sessions: [] }), { workspaces: [], sessions: [] });
 });

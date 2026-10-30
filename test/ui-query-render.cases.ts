@@ -19,6 +19,7 @@ import AuthorizePage from '../src/screens/AuthorizePage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
 import MyAgentsPage from '../src/screens/MyAgentsPage';
+import AinCodePage from '../src/screens/AinCodePage';
 import { SignOutNotice } from '../src/components/ui/SignOutNotice';
 import { Header } from '../src/components/ui/Header';
 import MyPage from '../src/screens/MyPage';
@@ -32,7 +33,7 @@ const makeStore = (preloadedState?: any) => configureStore({
 });
 const stores: ReturnType<typeof makeStore>[] = [];
 afterEach(() => { forgetTeacherKey(); for (const store of stores.splice(0)) store.dispatch(api.util.resetApiState()); });
-type Fixture = { name: string; arg?: unknown; value?: unknown; status?: 'pending' | 'rejected' };
+type Fixture = { name: string; arg?: unknown; value?: unknown; status?: 'pending' | 'rejected'; errorStatus?: number };
 function render(page: () => any, fixtures: Fixture[], path = '/train/mine', route?: string) {
   const seed = makeStore(); stores.push(seed);
   seed.dispatch(api.util.upsertQueryEntries(fixtures.map(({ name, value, arg }) => ({ endpointName: name, arg, value })) as any));
@@ -40,7 +41,7 @@ function render(page: () => any, fixtures: Fixture[], path = '/train/mine', rout
   const queries = { ...state[api.reducerPath].queries };
   for (const [key, entry] of Object.entries(queries)) {
     const fixture = fixtures.find((f) => f.name === entry?.endpointName && JSON.stringify(f.arg) === JSON.stringify(entry?.originalArgs));
-    if (fixture?.status) queries[key] = { ...entry, status: fixture.status, error: fixture.status === 'rejected' ? { status: 503, data: 'unavailable' } : undefined } as any;
+    if (fixture?.status) queries[key] = { ...entry, status: fixture.status, error: fixture.status === 'rejected' ? { status: fixture.errorStatus ?? 503, data: 'unavailable' } : undefined } as any;
   }
   const store = makeStore({ [api.reducerPath]: { ...state[api.reducerPath], queries } }); stores.push(store);
   return renderToStaticMarkup(createElement(Provider, { store, children:
@@ -402,4 +403,45 @@ test('sign-out exposes pending and retryable failure states without claiming suc
   assert.match(pending, /role="status"/);
   assert.match(pending, /Signing out/);
   assert.doesNotMatch(pending, /Sign-out could not be completed/);
+});
+
+const codeOverview = {
+  workspaces: [{ kind: 'organization', org: { id: 'studio', name: 'Studio', role: 'write' }, base: '/code/org/studio', running: true, newSessionUrl: '/code/_workspaces/choose?to=studio' }],
+  sessions: [{ workspace: 'studio', id: 'session-current', title: 'Current account session', directory: '/projects/demo', workingDirectory: '/projects/demo', updatedAt: 1, status: 'idle', openUrl: '/code/org/studio/demo/session/session-current' }],
+};
+
+test('AinCode shows exact session/workspace destinations without repeated title or introduction', () => {
+  const html = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: codeOverview }], '/aincode');
+  assert.match(html, /href="\/code\/org\/studio\/demo\/session\/session-current"/);
+  assert.match(html, /href="\/code\/_workspaces\/choose\?to=studio"/);
+  assert.match(html, /Current account session/);
+  assert.doesNotMatch(html, /Which workspace and which repository|AinCode sessions<\/h1>/);
+});
+
+test('AinCode distinguishes loading, failed, retained and empty workspace results', () => {
+  for (const status of ['pending', 'rejected'] as const) {
+    const html = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, status }], '/aincode');
+    assert.doesNotMatch(html, /No AinCode sessions yet/);
+    assert.match(html, status === 'pending' ? /data-testid="aincode-loading"/ : /role="alert"/);
+    if (status === 'rejected') assert.match(html, /Try again/);
+  }
+  const retained = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, status: 'rejected', value: codeOverview }], '/aincode');
+  assert.match(retained, /Current account session/); assert.match(retained, /Try again/);
+  const empty = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: { ...codeOverview, sessions: [] } }], '/aincode');
+  assert.match(empty, /No AinCode sessions yet/);
+  assert.match(empty, /href="\/code\/_workspaces\/choose\?to=studio"/);
+  assert.doesNotMatch(empty, /href="\/code\/"/);
+});
+
+test('AinCode hides another account session cache and shows sign-in only when signed out', () => {
+  const previous = { name: 'aincodeOverview', arg: 'previous-account', value: codeOverview };
+  const current = render(AinCodePage, [...appAccount, previous], '/aincode');
+  assert.doesNotMatch(current, /Current account session|No AinCode sessions yet/);
+  assert.match(current, /data-testid="aincode-loading"/);
+  const anonymous = render(AinCodePage, [...signedOut, previous], '/aincode');
+  assert.doesNotMatch(anonymous, /Current account session/);
+  assert.match(anonymous, /href="\/signing\?next=%2Faincode"/);
+  const denied = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: codeOverview, status: 'rejected', errorStatus: 401 }], '/aincode');
+  assert.doesNotMatch(denied, /Current account session|href="\/signing/);
+  assert.match(denied, /Try again/);
 });
