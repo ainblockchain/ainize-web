@@ -46,6 +46,7 @@ test('incomplete workspaces, orphaned sessions and duplicate rows cannot crash o
   for (const changes of [
     { workingDirectory: undefined }, { updatedAt: 'yesterday' }, { status: 'unexpected' },
     { openUrl: '/code-elsewhere' }, { openUrl: '//evil.example/code' },
+    { openUrl: '/code/../other' }, { openUrl: '/code/%2e%2e/other' },
     { repo: { ...overview.sessions[0].repo, projectPageUrl: 'javascript:alert(1)' } },
   ]) assert.equal(parseOverview({ ...overview, sessions: [{ ...overview.sessions[0], ...changes }] }), null);
   assert.equal(parseOverview({ ...overview, sessions: [overview.sessions[0], overview.sessions[0]] }), null);

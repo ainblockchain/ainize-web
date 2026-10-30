@@ -25,7 +25,11 @@ export type AinCodeSession = {
 export type AinCodeOverview = { workspaces: AinCodeWorkspace[]; sessions: AinCodeSession[] };
 
 const text = (value: unknown): value is string => typeof value === 'string';
-const codePath = (value: unknown): value is string => text(value) && /^\/code(?:\/|\?|$)/.test(value) && !value.includes('\\');
+const codePath = (value: unknown): value is string => {
+  if (!text(value) || !/^\/code(?:\/|\?|$)/.test(value) || /[\\\s]/.test(value)) return false;
+  const path = new URL(value, 'https://ainize.ai').pathname;
+  return path === '/code' || path.startsWith('/code/');
+};
 const webLink = (value: unknown): value is string => {
   if (!text(value)) return false;
   try { const url = new URL(value, 'https://ainize.ai'); return ['https:', 'http:'].includes(url.protocol); } catch { return false; }
