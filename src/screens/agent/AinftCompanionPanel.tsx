@@ -84,7 +84,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
   }, [running, agentId, auth.subject]);
   return <section style={{ marginTop: 24 }} data-testid="ainft-companion">
     <h3>{text('보유자 전용 대화·작업', 'Holder conversations and work')}</h3>
-    {!auth.subject ? <Link to={`/signing?next=${encodeURIComponent(`/agent/${agentId}`)}`}>{text('NFT 보유 지갑으로 로그인', 'Sign in with the holder wallet')}</Link>
+    {!auth.subject ? <Link to={`/signing?wallet=1&next=${encodeURIComponent(`/agent/${agentId}`)}`}>{text('NFT 보유 지갑으로 로그인', 'Sign in with the holder wallet')}</Link>
       : !state ? <Button size="small" loading={busy} onClick={() => void action(async () => {})}>{text('내 공간 열기', 'Open my workspace')}</Button> : <>
         <p>{text('활동 경험치', 'Activity experience')}: {state.experience}</p>
         <details>

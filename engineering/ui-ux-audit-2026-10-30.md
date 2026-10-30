@@ -218,3 +218,16 @@ Validation so far: typecheck and 44 focused navigation, project action, translat
 - U34: Model playground's key-management links went to node settings for node owners. They now go to /me for every account, and failed key-list queries offer retry.
 - Prepared validation: six issued-key lifecycle tests cover ownership, logout, late responses, reload, legacy/corrupt storage, blocked storage and subscriber updates. Actual component fixtures now also cover account loading/failure/empty, retained rows, cross-identity keys/orgs/nodes, absent wallet, model key-management destination and explicit wallet controls. Real key issuance/revocation and real account switching were not performed against user data.
 - Remaining: teacher-key scoped history/detail/chat queries; other session-private endpoint caches; logout failure handling; the previously recorded route/action inventory. Server CI/deployment still required for this batch.
+
+### Release verification: 252c117
+
+- PR #150 merged as 252c1179f7902f32e559a884bdf9b0f746d9493c. Isolated ainize CI passed at da6e6cca3b2220995ffb4ce8879fa3937110b51e (514 tests, 21 executed render scenarios, six issued-key lifecycle tests; deploy contract, typecheck, generated files and production build passed).
+- The existing automatic deployment was started only after it was confirmed inactive. It completed web CI/build and activated 252c117; public `/web-build.json` matched. Real account switching and key mutations remain fixture-tested rather than performed on user data.
+
+### Direct account login — user-requested follow-up
+
+- U35: publicly reproduced Apps “Sign in with AIN” leading to another sign-in-method page with a wallet option. Normal `/signing?next=…` now goes directly to the configured account provider; an already signed-in visitor resumes the exact original URL without another Continue click. Ordinary login does not discover browser wallets.
+- Explicit wallet proof, node enrollment, pending legacy-account linking and error recovery remain explicit flows. Wallet-dependent entry points carry `wallet=1`, so they do not loop through account login. This change does not claim to replace CLI/node delegation with account authentication; that requires its separate server authorization contract.
+- Authentication failures remain on a recovery screen and retain a verified return destination, avoiding both automatic retry loops and lost URL selections. SSO callback destinations are recovered only from the matching authenticated flow cookie.
+- Focused validation: direct-login decision tests and 22 executed render scenarios pass. Added OIDC route-fixture cases for return-path recovery and provider discovery failure; those require the ainize server suite. Server CI, deployment and public direct-login verification remain pending for this change.
+- Next audit evidence: signedFetch currently reads the teaching key again after awaiting node discovery, and teacher-key list/detail caches still need ownership scope. Cross-tab teacher-key removal may fall back to a stale in-memory key. Inspect these together before claiming identity switching is covered globally.

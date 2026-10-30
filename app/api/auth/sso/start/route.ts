@@ -9,6 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SSO_FLOW_COOKIE, SSO_FLOW_TTL_S, readAinSsoConfig, readSsoStartOptions, ssoRedirectUri, startSsoFlow } from '@/lib/ainSso';
 import { googleCookieOptions } from '@/lib/googleOAuth';
 import { silentSignIn } from '@/lib/silentSignIn';
+import { safeReturnPath } from '@/lib/uiNavigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     // AIN SSO unreachable (discovery failed): back to the sign-in page with a reason, not a stack trace.
     console.error('[ain-sso] could not start a sign-in', e);
     const back = new URL('/signing', new URL(ssoRedirectUri(req, config)).origin);
+    back.searchParams.set('next', safeReturnPath(next));
     back.searchParams.set('sso_error', 'AIN SSO is not answering — try again, or sign in another way');
     return NextResponse.redirect(back, 302);
   }

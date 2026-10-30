@@ -153,7 +153,7 @@ export default function BillingPage() {
 
   const deposits = view?.deposits;
   const chain = deposits?.enabled ? billingPickDepositChain(deposits.chains, token) : null;
-  const signInHref = `/signing?next=${encodeURIComponent(`/billing${model ? `?model=${encodeURIComponent(model)}` : ''}`)}`;
+  const signInHref = `/signing?wallet=1&next=${encodeURIComponent(`/billing${model ? `?model=${encodeURIComponent(model)}` : ''}`)}`;
 
   async function depositWith(wallet: DiscoveredWallet) {
     if (!deposits?.enabled || !chain || !auth.subject || units === null) return;

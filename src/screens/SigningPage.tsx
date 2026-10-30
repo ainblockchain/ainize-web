@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery, useSsoConnectMutation, useSsoStatusQuery } from '@/api/api';
@@ -8,6 +8,7 @@ import { connect, discoverWallets, personalSign, WalletError, type DiscoveredWal
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { safeReturnPath } from '@/lib/uiNavigation';
+import { directSignIn } from '@/lib/signInFlow';
 import { Button } from '@/components/ui/Button';
 import { servedOutsideApp } from '@/lib/nextNavigation';
 import { useTitle } from '@/utils/useTitle';
@@ -116,14 +117,10 @@ export default function SigningPage() {
    * silently using whichever won a race at page load. One wallet, one button; several, a short list.
    */
   const [wallets, setWallets] = useState<DiscoveredWallet[] | null>(null);
-  useEffect(() => { let live = true; void discoverWallets().then((w) => { if (live) setWallets(w); }); return () => { live = false; }; }, []);
   const [challenge] = useLoginChallengeMutation();
   const [loginWallet] = useLoginWalletMutation();
   const [enroll] = useEnrollMutation();
 
-  // A wallet session is what sends you on. A Google-only one does not: it is the person this page must still be able
-  // to offer a wallet to, and every guard that needs an address sends them here to get one.
-  useEffect(() => { if (!auth.loading && auth.subject) navigate(next, { replace: true }); }, [auth.loading, auth.subject, navigate, next]);
   const googleError = params.get('google_error');
   // Not the /dashboard default: that screen is the node owner's, and a Google session can never own a node.
   const googleNext = next;
@@ -139,6 +136,28 @@ export default function SigningPage() {
   const [ssoConnect, ssoConnectState] = useSsoConnectMutation();
   const [connectError, setConnectError] = useState<string | null>(null);
   const pending = connecting ? ssoStatus?.pending ?? null : null;
+  const direct = directSignIn({
+    loading: auth.loading || ssoLoading, signedIn: auth.isSignedIn,
+    ssoConfigured: auth.ssoConfigured, googleConfigured: auth.googleConfigured,
+    optionsFailed: ssoUnavailable, params,
+  });
+  const automatic = !!direct;
+  useEffect(() => {
+    if (auth.loading || ssoLoading || automatic) return;
+    let live = true;
+    void discoverWallets().then((w) => { if (live) setWallets(w); });
+    return () => { live = false; };
+  }, [auth.loading, ssoLoading, automatic]);
+  const redirectKind = direct?.kind;
+  const redirectHref = direct?.href;
+  const lastRedirect = useRef<string | null>(null);
+  useEffect(() => {
+    if (!redirectHref) { lastRedirect.current = null; return; }
+    if (lastRedirect.current === redirectHref) return;
+    lastRedirect.current = redirectHref;
+    if (redirectKind === 'return') navigate(redirectHref, { replace: true });
+    else window.location.replace(redirectHref);
+  }, [redirectHref, redirectKind, navigate]);
   const finishConnect = async (choice: 'legacy' | 'new') => {
     setConnectError(null);
     try {
@@ -197,6 +216,12 @@ export default function SigningPage() {
 
   const loginDocs = locale === 'ko' ? '/docs/ko/how-to/connect-nodes' : '/docs/how-to/connect-nodes';
   const [agreeBefore, agreeAfter] = t('op.sign.agree', { terms: '|' }).split('|');
+
+  if (direct) return <PageWrapper>
+    <Title>{t('op.sign.login.title')}</Title>
+    <p role="status" data-testid="signin-redirect">{t(direct.kind === 'return' ? 'op.sign.returning' : 'op.sign.redirecting')}</p>
+    <Outbound href={direct.href}>{t('op.sign.continue')}</Outbound>
+  </PageWrapper>;
 
   if (auth.loading || ssoLoading) return <PageWrapper><Title>{t('op.sign.login.title')}</Title><p role="status">{t('common.loading')}</p></PageWrapper>;
 

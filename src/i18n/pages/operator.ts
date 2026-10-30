@@ -1164,6 +1164,8 @@ export const operatorTeach: Dict = {
   'op.account.operators.how': { ko: '여기서 추가한 주소만 여기서 해제할 수 있습니다. 노드 자기 키와 설정 파일에 적힌 주소는 노드가 도는 기계에서 다룹니다: `ainize operators add 0x…`. 그 파일이 세션을 모두 잃었을 때 돌아올 수 있는 길이라 화면에서 지우지 않습니다.', en: 'Only what was added here can be removed here. The node’s own key and the addresses in its config file are handled on the machine it runs on (`ainize operators add 0x…`) — that file is the way back when every session is lost, so this page cannot erase it.' },
   'op.sign.general': { ko: '로그인하여 앱, 에이전트와 내 작업을 관리하세요.', en: 'Sign in to manage your apps, agents and work.' },
   'op.sign.wallet.option': { ko: '지갑으로 로그인', en: 'Sign in with a wallet' },
+  'op.sign.redirecting': { ko: '계정 로그인으로 연결하고 있습니다…', en: 'Opening account sign-in…' },
+  'op.sign.returning': { ko: '로그인되었습니다. 원래 페이지로 돌아갑니다…', en: 'Signed in. Returning to your page…' },
   'op.sign.wallet.connect_option': { ko: '지갑 연결', en: 'Connect a wallet' },
   'op.sign.options_failed': { ko: 'AIN 계정 로그인 정보를 불러오지 못했습니다.', en: 'Could not load AIN account sign-in options.' },
   'op.sign.options_retry': { ko: '다시 불러오기', en: 'Try again' },
