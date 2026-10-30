@@ -30,19 +30,19 @@ const Empty = styled.div`
 
 export default function MyNodesPage() {
   const { t } = useT();
-  const { subject, loading } = useAuth();
+  const { subject, sso, cacheIdentity, loading } = useAuth();
+  const owner = subject ?? sso?.principal;
   useTitle(t('op.mynodes.title'));
-  const { currentData: data, error, isLoading, refetch, isFetching } = useMyNodesQuery(subject ?? '', { skip: loading || !subject, pollingInterval: 15000 });
+  const { currentData: data, error, isLoading, refetch, isFetching } = useMyNodesQuery(cacheIdentity, { skip: loading || !owner, pollingInterval: 15000 });
   const [unlink, unlinkState] = useUnlinkNodeMutation();
   const rows = data?.nodes ?? [];
   if (loading) return <CenterProgress />;
-  // `subject`, not `isSignedIn`: the node finds your nodes by wallet address, which a Google-only session does not have.
-  if (!subject) return <Navigate to="/signing?next=%2Fmy-nodes&wallet=1" replace />;
+  if (!owner) return <Navigate to="/signing?next=%2Fmy-nodes" replace />;
 
   return (
     <PageWrapper>
       <Title>{t('op.mynodes.title')}</Title>
-      <Description>{t('op.mynodes.desc', { addr: subject ? `${subject.slice(0, 10)}…${subject.slice(-4)}` : '' })}</Description>
+      <Description>{t('op.mynodes.desc', { addr: sso?.name || (owner ? `${owner.slice(0, 10)}…${owner.slice(-4)}` : '') })}</Description>
       <details style={{ marginTop: 20 }}><summary>{t('op.mynodes.add')}</summary><p>{t('op.mynodes.add_hint')}</p><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>ainize init --home ~/.ainize-node2 --name node2 --port 3403{'\n'}ainize login --home ~/.ainize-node2{'\n'}ainize start --home ~/.ainize-node2 -d</pre></details>
       {unlinkState.error && <QueryError error={unlinkState.error} what={t('op.mynodes.disconnect')} onRetry={() => unlinkState.reset()} />}
       {!data && (isLoading || isFetching) && <CenterProgress />}
