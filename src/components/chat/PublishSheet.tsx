@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useInfoQuery, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation } from '@/api/api';
@@ -7,7 +8,7 @@ import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select, Textarea } from '@/components/ui/Form';
 import { StyledLink } from '@/components/ui/Misc';
-import { isAddress, shortKey, signMessage, type TeacherKey } from '@/lib/teacherKey';
+import { captureTeacherKey, isAddress, shortKey, signMessage, type TeacherKey } from '@/lib/teacherKey';
 import { Sheet, SheetFooter, SheetNote } from './Sheet';
 import { mapTeachError, pct } from './teachUtil';
 
@@ -58,6 +59,7 @@ export interface PublishSheetProps {
 
 /** §5.9 — name / price / license / payout / consents → the browser signs the node's claim → announce or review. */
 export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: PublishSheetProps) {
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   const { data: info } = useInfoQuery();
   const [challenge] = usePublishChallengeMutation();
@@ -103,7 +105,7 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
    * This is the same GET the submit path signs, read as a query so the numbers are on screen before the price is typed.
    */
   const payoutForPreview = payoutMode === 'none' ? null : payoutMode === 'wallet' ? (isAddress(wallet.trim()) ? wallet.trim() : undefined) : undefined;
-  const { data: preview } = usePublishPreviewQuery({ id: job.id, payout_address: payoutForPreview });
+  const { currentData: preview } = usePublishPreviewQuery({ teacherIdentity, id: job.id, payout_address: payoutForPreview });
   const split = preview?.split_preview;
   const verification = preview?.verification ?? policy.verification;
   const ledgerKind = preview?.ledger?.kind ?? policy.ledger?.kind ?? (currency === 'CREDIT' ? 'local' : undefined);
@@ -140,14 +142,18 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
   const declarationRows = policy.limits?.declaration_rows ?? 100;
   const needsDeclaration = (job.dataset?.rows ?? job.facts.length) >= declarationRows;
   const consentBad = !consentPermanent || !consentRights || (needsDeclaration && !consentData);
-  const disabled = nameBad || priceBad || walletBad || consentBad || (cannotSell && !anyway) || busy;
+  const keyChanged = teacherIdentity !== teacherKey.address.toLowerCase() || teacherIdentity !== job.contributor.address.toLowerCase();
+  const disabled = keyChanged || nameBad || priceBad || walletBad || consentBad || (cannotSell && !anyway) || busy;
 
   const submit = async () => {
     if (disabled) return;
     setBusy(true); setError(null);
     try {
+      const identity = captureTeacherKey();
+      if (identity.key?.address !== teacherKey.address) throw new Error('Teaching key changed.');
       const payout_address = payoutMode === 'none' ? null : payoutMode === 'wallet' ? wallet.trim() : undefined;
       const ch = await challenge({ id: job.id, payout_address }).unwrap();
+      identity.assertCurrent();
       const claim_sig = signMessage(ch.claim, teacherKey.privateKey);
       const res = await publish({
         id: job.id, name: name.trim(), description: description.trim() || undefined, price: price.trim(), license, payout_address, claim_sig,
@@ -162,9 +168,16 @@ export function PublishSheet({ job, policy, teacherKey, onClose, onPublished }: 
         // public record agree with what the sheet just promised (design §9.3)
         ...(!job.contributor.name && teacherKey.name ? { contributor: { name: teacherKey.name } } : {}),
       }).unwrap();
+      identity.assertCurrent();
       setResult(res); onPublished(res);
     } catch (e) { setError(mapTeachError(e, t)); } finally { setBusy(false); }
   };
+
+  if (keyChanged) return (
+    <Sheet title={t('teach.pub.title')} onClose={onClose} testId="publish-sheet">
+      <Alert $tone="warning" role="alert">{t('teach.err.key_changed')}</Alert>
+    </Sheet>
+  );
 
   if (result) {
     const pageUrl = result.status === 'ANNOUNCED' ? `/${encodeURIComponent(info?.node.address ?? '')}/${encodeURIComponent(result.patch_id)}` : null;

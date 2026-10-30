@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
@@ -149,6 +150,7 @@ function mapChatError(err: unknown, t: Tr): string {
   const m = raw.toLowerCase();
   if (e?.status === 499 || m.includes('cancelled while it was still queued')) return t('chat.queue.cancelled');
   if (e?.name === 'AbortError' || m.includes('aborted')) return t('chat.err.cancelled');
+  if (m.includes('teaching key changed')) return t('teach.err.key_changed');
   if (e?.status === 'FETCH_ERROR') return t('chat.err.network');
   if (e?.status === 'TIMEOUT_ERROR' || m.includes('timeout') || m.includes('timed out')) return t('chat.err.timeout');
   if (m.includes('does not hold the patch body')) return t('chat.err.no_body');
@@ -195,6 +197,7 @@ type SheetKind = 'credit' | 'preflight' | 'publish' | 'keep' | null;
 
 /* ---------------------------------------------------------------- page */
 export default function ChatPage() {
+  const teacherIdentity = useTeacherIdentity();
   const { t, help, tech, term, audience, locale } = useT();
   useTitle(t('chat.title'));
   const { patchId } = useParams<{ patchId: string }>();
@@ -205,7 +208,7 @@ export default function ChatPage() {
   // own electricity), not for anyone who connected a wallet. Showing an unlimited counter to a visitor the node
   // still counts would be a lie the very next message corrects.
   const { isOwner } = useAuth();
-  const { data, isLoading, error, refetch } = useChatPatchesQuery(undefined, { pollingInterval: 20_000 });
+  const { currentData: data, isLoading, error, refetch } = useChatPatchesQuery(teacherIdentity, { pollingInterval: 20_000 });
   const { data: info } = useInfoQuery();
   // Teach mode: policy is public and cached 10 s on the node; a pre-teach node answers 404 → the teach UI stays hidden.
   const { data: policy } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
@@ -325,7 +328,7 @@ export default function ChatPage() {
     setSearchParams((prev) => { const next = new URLSearchParams(prev); if (value === null) next.delete(key); else next.set(key, value); return next; }, { replace: true });
   }, [setSearchParams]);
   const [teacherKey, setTeacherKey] = useState<TeacherKey | null>(() => currentTeacherKey());
-  useEffect(() => onTeacherKeyChange(() => { setTeacherKey(currentTeacherKey()); void refetch(); }), [refetch]);
+  useEffect(() => onTeacherKeyChange(() => { setTeacherKey(currentTeacherKey()); }), []);
   const [basket, setBasket] = useState<Basket>(() => loadBasket(parseSelection(patchId)));
   /**
    * Finding 14 — the lesson FOLLOWS the selection. Loading `loadBasket(selectedIds)` on every change swapped the
@@ -1030,10 +1033,10 @@ export default function ChatPage() {
       {sheet === 'preflight' && policy && (
         <PreflightSheet patchIds={selectedIds} basket={basket} policy={policy} baseCandidates={baseCandidates} onBasket={updateBasket} contributorName={teacherKey?.name} onQueued={onQueued} onClose={() => setSheet(null)} />
       )}
-      {sheet === 'publish' && sheetJob && policy && teacherKey && (
+      {sheet === 'publish' && sheetJob && sheetJob.contributor.address.toLowerCase() === teacherIdentity && policy && teacherKey && (
         <PublishSheet job={sheetJob} policy={policy} teacherKey={teacherKey} onClose={() => setSheet(null)} onPublished={() => undefined} />
       )}
-      {sheet === 'keep' && sheetJob && policy && (
+      {sheet === 'keep' && sheetJob && sheetJob.contributor.address.toLowerCase() === teacherIdentity && policy && (
         <KeepPrivateSheet job={sheetJob} policy={policy} runtimeModel={data?.runtime.model ?? info?.node.model} onClose={() => setSheet(null)} onPublishLater={() => setSheet('publish')} onDeleted={() => setSheet(null)} />
       )}
       {mineParam && (

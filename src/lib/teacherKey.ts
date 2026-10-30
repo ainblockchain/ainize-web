@@ -144,40 +144,84 @@ export interface TeacherKey {
 export const KEY_STORAGE = 'ainize.teacher.key';
 const CHANGE_EVENT = 'ainize:teacher-key';
 
-function readStorage(): TeacherKey | null {
+type StoredKey = { available: true; raw: string | null; key: TeacherKey | null } | { available: false };
+function readStorage(): StoredKey {
+  let raw: string | null;
   try {
-    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(KEY_STORAGE);
-    if (!raw) return null;
-    const k = JSON.parse(raw) as Partial<TeacherKey>;
-    if (!isPrivateKey(k.privateKey)) return null;
-    const address = addressOf(k.privateKey);
-    return { privateKey: k.privateKey.replace(/^0x/, '').toLowerCase(), address, ...(k.name ? { name: k.name } : {}), ...(isAddress(k.payout_address) ? { payout_address: k.payout_address } : {}), created_at: typeof k.created_at === 'number' ? k.created_at : Date.now() };
-  } catch { return null; }
+    if (typeof localStorage === 'undefined') return { available: false };
+    raw = localStorage.getItem(KEY_STORAGE);
+  } catch { return { available: false }; }
+  // Missing or damaged storage is an authoritative absence, not permission to revive an old key.
+  let key: TeacherKey | null = null;
+  try { if (raw) key = parseTeacherKeyBackup(raw); } catch { /* invalid backup */ }
+  return { available: true, raw, key };
 }
 
+let memoryKey: TeacherKey | null = null;
+// Failed writes/removals may leave an old persisted value. Keep the user's new choice until storage changes.
+let override: { baseline: string | null | undefined } | null = null;
+let generation = 0;
+function remember(key: TeacherKey | null) {
+  if (key?.privateKey !== memoryKey?.privateKey) generation++;
+  memoryKey = key;
+  return key;
+}
 function notify() { try { window.dispatchEvent(new Event(CHANGE_EVENT)); } catch { /* not in a browser */ } }
 
-export function loadTeacherKey(): TeacherKey | null { return readStorage(); }
+export function loadTeacherKey(): TeacherKey | null {
+  const stored = readStorage();
+  return stored.available ? stored.key : null;
+}
+
+export function currentTeacherKey(): TeacherKey | null {
+  const stored = readStorage();
+  if (!stored.available) return memoryKey;
+  if (override) {
+    if (override.baseline === undefined) override.baseline = stored.raw;
+    if (override.baseline === stored.raw) return memoryKey;
+    override = null;
+  }
+  return remember(stored.key);
+}
+
+function persistChoice(key: TeacherKey | null) {
+  const before = readStorage();
+  try {
+    if (key) localStorage.setItem(KEY_STORAGE, JSON.stringify(key));
+    else localStorage.removeItem(KEY_STORAGE);
+    override = null;
+  } catch { override = { baseline: before.available ? before.raw : undefined }; }
+  remember(key);
+  notify();
+}
 
 export function saveTeacherKey(key: TeacherKey): TeacherKey {
   const k: TeacherKey = { ...key, privateKey: key.privateKey.replace(/^0x/, '').toLowerCase(), address: addressOf(key.privateKey) };
-  try { localStorage.setItem(KEY_STORAGE, JSON.stringify(k)); } catch { /* storage unavailable — the key lives in memory for this page only */ }
-  memoryKey = k;
-  notify();
+  persistChoice(k);
   return k;
 }
 
-/** Fallback when localStorage throws (private window, blocked storage): the key still works until the tab closes. */
-let memoryKey: TeacherKey | null = null;
+/** True only when the active key, rather than an older key, survives in storage. */
+export function keyIsPersisted(): boolean {
+  const key = currentTeacherKey();
+  const stored = readStorage();
+  return !!key && stored.available && key.privateKey === stored.key?.privateKey;
+}
 
-export function currentTeacherKey(): TeacherKey | null { return readStorage() ?? memoryKey; }
-
-/**
- * Finding 37 — did the key actually SURVIVE being written? `saveTeacherKey` swallows the storage error and falls
- * back to a key that lives until the tab closes, and the sheet's warning ("if you clear this browser…") is then a
- * kinder sentence than the truth. This is the one fact that separates the two, read back from storage.
- */
-export function keyIsPersisted(): boolean { return readStorage() !== null; }
+/** Capture before any await; reject work and late results after identity changes. */
+export function captureTeacherKey() {
+  const key = currentTeacherKey();
+  const capturedGeneration = generation;
+  return {
+    key,
+    assertCurrent() {
+      const current = currentTeacherKey();
+      if (current?.privateKey !== key?.privateKey || generation !== capturedGeneration) {
+        throw new Error('Teaching key changed. Retry with the current key.');
+      }
+    },
+  };
+}
 
 export function createTeacherKey(extra: { name?: string; payout_address?: string } = {}): TeacherKey {
   const privateKey = randomPrivateKey();
@@ -193,11 +237,7 @@ export function updateTeacherKey(patch: { name?: string; payout_address?: string
   return saveTeacherKey(next);
 }
 
-export function forgetTeacherKey() {
-  try { localStorage.removeItem(KEY_STORAGE); } catch { /* ignore */ }
-  memoryKey = null;
-  notify();
-}
+export function forgetTeacherKey() { persistChoice(null); }
 
 /** Parse a backup file / pasted JSON / bare private key. Throws a plain Error on garbage. */
 export function parseTeacherKeyBackup(text: string): TeacherKey {
@@ -221,9 +261,20 @@ export function teachAuthHeaderFor(t: TeachAuthTarget): string | null {
   return k ? authHeaderV2(k.privateKey, k.address, t) : null;
 }
 
-/** Subscribe to key changes (created / imported / forgotten) in this tab. */
+/** Same-tab changes and browser storage events from other tabs. Never trust event payloads as keys. */
 export function onTeacherKeyChange(fn: () => void): () => void {
-  try { window.addEventListener(CHANGE_EVENT, fn); return () => window.removeEventListener(CHANGE_EVENT, fn); } catch { return () => undefined; }
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== KEY_STORAGE) return;
+    try { if (event.storageArea && event.storageArea !== localStorage) return; } catch { return; }
+    override = null;
+    currentTeacherKey();
+    fn();
+  };
+  try {
+    window.addEventListener(CHANGE_EVENT, fn);
+    window.addEventListener('storage', onStorage);
+    return () => { window.removeEventListener(CHANGE_EVENT, fn); window.removeEventListener('storage', onStorage); };
+  } catch { return () => undefined; }
 }
 
 export function shortKey(address: string): string { return `${address.slice(0, 6)}…${address.slice(-4)}`; }

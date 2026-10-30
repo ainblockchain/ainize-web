@@ -10,7 +10,7 @@
 import { sha256 } from '@noble/hashes/sha2';
 import type { DatasetRowInput } from '@/api/types';
 import { nodeAddressOnce } from '@/api/api';
-import { currentTeacherKey, authHeaderV2 } from '@/lib/teacherKey';
+import { captureTeacherKey, authHeaderV2 } from '@/lib/teacherKey';
 
 /** Keys are emitted in this order, exactly one trailing LF, no BOM — the node's canonical form (§6.1). */
 export function canonicalJsonl(rows: DatasetRowInput[]): string {
@@ -133,13 +133,18 @@ export function downloadBytes(filename: string, body: BlobPart, type = 'applicat
  * fetched with a request-bound signature and saved from the blob.
  */
 export async function signedDownload(path: string, fallbackName: string): Promise<void> {
-  const key = currentTeacherKey();
+  const identity = captureTeacherKey();
+  const key = identity.key;
   const headers: Record<string, string> = {};
   if (key) {
     const node = await nodeAddressOnce();
-    if (node) headers['x-ainize-auth'] = authHeaderV2(key.privateKey, key.address, { node, method: 'GET', path });
+    if (!node) throw new Error('Cannot verify the node identity. Retry when the node is available.');
+    identity.assertCurrent();
+    headers['x-ainize-auth'] = authHeaderV2(key.privateKey, key.address, { node, method: 'GET', path });
   }
+  identity.assertCurrent();
   const res = await fetch(path, { headers, credentials: 'include' });
+  identity.assertCurrent();
   if (!res.ok) {
     let message = `request failed (${res.status})`;
     try { message = ((await res.json()) as { error?: string }).error ?? message; } catch { /* not json */ }
@@ -147,7 +152,9 @@ export async function signedDownload(path: string, fallbackName: string): Promis
   }
   const cd = res.headers.get('content-disposition') ?? '';
   const named = /filename="([^"]+)"/.exec(cd)?.[1];
-  downloadBytes(named ?? fallbackName, await res.blob());
+  const bytes = await res.blob();
+  identity.assertCurrent();
+  downloadBytes(named ?? fallbackName, bytes);
 }
 
 // ------------------------------------------------------------------ the wizard's own scratch state

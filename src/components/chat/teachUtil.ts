@@ -32,6 +32,7 @@ export function mapTeachError(err: unknown, t: Tr, ctx: { stage?: 'preflight' | 
   const m = raw.toLowerCase();
   /** at pre-flight no lesson exists yet, so "the lesson will continue automatically" would be untrue */
   const runtimeKey = ctx.stage === 'preflight' ? 'teach.pre.err_runtime' : 'teach.err.runtime';
+  if (m.includes('teaching key changed')) return t('teach.err.key_changed');
   if (e?.status === 'FETCH_ERROR') return t('teach.err.network');
   const code = /^([a-z_]+)\s*:/.exec(m)?.[1] ?? '';
   switch (code) {

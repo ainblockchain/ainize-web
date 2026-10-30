@@ -10,7 +10,7 @@ import { api } from '../src/api/api';
 import { theme } from '../src/theme/theme';
 import { LocaleProvider } from '../src/i18n';
 import { AuthProvider } from '../src/auth/AuthContext';
-import { createTeacherKey, forgetTeacherKey } from '../src/lib/teacherKey';
+import { createTeacherKey, forgetTeacherKey, currentTeacherKey } from '../src/lib/teacherKey';
 import TeachMinePage from '../src/screens/TeachMinePage';
 import SigningPage from '../src/screens/SigningPage';
 import AuthorizePage from '../src/screens/AuthorizePage';
@@ -50,7 +50,7 @@ const signedOut: Fixture[] = [
   { name: 'ssoStatus', value: { configured: true } },
 ];
 const policy: Fixture = { name: 'teachPolicy', value: { enabled: false, trainer: 'paused' } };
-const lists = (datasets: Fixture, jobs: Fixture) => [...signedOut, policy, datasets, jobs];
+const lists = (datasets: Fixture, jobs: Fixture) => [...signedOut, policy, ...[datasets, jobs].map(f => ({ ...f, arg: currentTeacherKey()?.address.toLowerCase() ?? '' }))];
 const dsEmpty: Fixture = { name: 'teachDatasets', value: { items: [] } };
 const jobsEmpty: Fixture = { name: 'myTeachJobs', value: { items: [] } };
 
@@ -288,4 +288,21 @@ test('a temporary terminal request failure offers retry instead of claiming the 
   const html = render(AuthorizePage, [...signedOut, { name: 'deviceRequest', arg: 'offline-code', status: 'rejected' }], '/authorize?code=offline-code');
   assert.match(html, /Try again/);
   assert.doesNotMatch(html, /That is not a link this node issued/);
+});
+
+
+test('changing or removing a teaching key cannot render another key’s cached lesson history', () => {
+  const previous = createTeacherKey().address.toLowerCase();
+  const previousFixtures: Fixture[] = [
+    ...signedOut, policy,
+    { name: 'teachDatasets', arg: previous, value: { items: [] } },
+    { name: 'myTeachJobs', arg: previous, value: { items: [{ id: 'private-a', name: 'Private lesson from A', status: 'READY', facts: [] }] } },
+  ];
+  assert.match(render(TeachMinePage, previousFixtures), /Private lesson from A/);
+  createTeacherKey();
+  const switched = render(TeachMinePage, previousFixtures);
+  assert.doesNotMatch(switched, /Private lesson from A|private-a/);
+  forgetTeacherKey();
+  const forgotten = render(TeachMinePage, previousFixtures);
+  assert.doesNotMatch(forgotten, /Private lesson from A|private-a/);
 });

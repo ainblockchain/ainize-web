@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
@@ -12,7 +13,6 @@ import { mapTeachError, mineStatusKey } from '@/components/chat/teachUtil';
 import { DatasetCard } from '@/components/teach/DatasetCard';
 import { LiveLessons, isActiveTeach } from '@/components/teach/LiveLessons';
 import { signedDownload } from '@/lib/teachDataset';
-import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
  * `/train/mine` — my datasets and lessons (design §5.8), organised dataset-first: the dataset is the durable object
@@ -30,12 +30,13 @@ const Legacy = styled.ul`
 const Head = styled.div`display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px;`;
 
 export default function TeachMinePage() {
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   useTitle(t('teach.data.title'));
   const navigate = useNavigate();
-  const hasKey = !!currentTeacherKey();
+  const hasKey = !!teacherIdentity;
   const { data: policy } = useTeachPolicyQuery();
-  const datasetsQuery = useTeachDatasetsQuery(undefined, { skip: !hasKey });
+  const datasetsQuery = useTeachDatasetsQuery(teacherIdentity, { skip: !hasKey });
   const [anyActive, setAnyActive] = useState(true);   // assume yes until the first answer says otherwise
   /**
    * Poll while something is running. Without an interval this page was a snapshot of the moment it loaded, which on
@@ -45,16 +46,16 @@ export default function TeachMinePage() {
    * 5 s while active and 30 s otherwise mirrors the operator's Teaching tab. `anyActive` is read from the data this
    * very query returns, so the fast poll stops on its own when the last lesson finishes.
    */
-  const jobsQuery = useMyTeachJobsQuery(undefined, { skip: !hasKey, pollingInterval: hasKey ? (anyActive ? 5000 : 30_000) : 0 });
+  const jobsQuery = useMyTeachJobsQuery(teacherIdentity, { skip: !hasKey, pollingInterval: hasKey ? (anyActive ? 5000 : 30_000) : 0 });
   const [remove, { isLoading: deleting }] = useDeleteTeachDatasetMutation();
   const [patchDataset, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  const datasets = datasetsQuery.data?.items ?? [];
+  const datasets = datasetsQuery.currentData?.items ?? [];
   // SC-16 names the knowledge a set was copied from; the catalog is only fetched when one of them has a parent
   const { data: catalog } = useCatalogQuery({ limit: 200 }, { skip: !datasets.some((d) => d.parent_patch) });
-  const jobs = useMemo(() => jobsQuery.data?.items ?? [], [jobsQuery.data]);
+  const jobs = useMemo(() => jobsQuery.currentData?.items ?? [], [jobsQuery.currentData]);
   useEffect(() => { setAnyActive(jobs.some(isActiveTeach)); }, [jobs]);
   const byDataset = useMemo(() => {
     const map = new Map<string, TeachJob[]>();
@@ -70,7 +71,7 @@ export default function TeachMinePage() {
   // A lesson can outlive its dataset (for example after delete-after-training).
   // Keep it reachable even when its dataset is no longer returned in the list.
   const legacy = jobs.filter((j) => !j.dataset?.id || !datasets.some((d) => d.id === j.dataset?.id));
-  const loading = hasKey && ((!datasetsQuery.data && datasetsQuery.isFetching) || (!jobsQuery.data && jobsQuery.isFetching));
+  const loading = hasKey && ((!datasetsQuery.currentData && datasetsQuery.isFetching) || (!jobsQuery.currentData && jobsQuery.isFetching));
   const empty = !hasKey || (datasetsQuery.isSuccess && jobsQuery.isSuccess && datasets.length === 0 && jobs.length === 0);
 
   /** Finding 45 — the retention choice, changed after the upload that fixed it. */
