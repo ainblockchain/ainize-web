@@ -4,13 +4,15 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Routes, Route } from 'react-router';
 import { ThemeProvider } from 'styled-components';
 import { api } from '../src/api/api';
 import { theme } from '../src/theme/theme';
 import { LocaleProvider } from '../src/i18n';
 import { AuthProvider } from '../src/auth/AuthContext';
 import { createTeacherKey, forgetTeacherKey, currentTeacherKey } from '../src/lib/teacherKey';
+import TeachDatasetPage from '../src/screens/TeachDatasetPage';
+import TeachSettingsPage from '../src/screens/TeachSettingsPage';
 import TeachMinePage from '../src/screens/TeachMinePage';
 import SigningPage from '../src/screens/SigningPage';
 import AuthorizePage from '../src/screens/AuthorizePage';
@@ -28,7 +30,7 @@ const makeStore = (preloadedState?: any) => configureStore({
 const stores: ReturnType<typeof makeStore>[] = [];
 afterEach(() => { forgetTeacherKey(); for (const store of stores.splice(0)) store.dispatch(api.util.resetApiState()); });
 type Fixture = { name: string; arg?: unknown; value?: unknown; status?: 'pending' | 'rejected' };
-function render(page: () => any, fixtures: Fixture[], path = '/train/mine') {
+function render(page: () => any, fixtures: Fixture[], path = '/train/mine', route?: string) {
   const seed = makeStore(); stores.push(seed);
   seed.dispatch(api.util.upsertQueryEntries(fixtures.map(({ name, value, arg }) => ({ endpointName: name, arg, value })) as any));
   const state = seed.getState();
@@ -42,7 +44,7 @@ function render(page: () => any, fixtures: Fixture[], path = '/train/mine') {
     createElement(MemoryRouter, { initialEntries: [path] },
       createElement(ThemeProvider, { theme },
         createElement(LocaleProvider, null,
-          createElement(AuthProvider, null, createElement(page))))) }));
+          createElement(AuthProvider, null, route ? createElement(Routes, null, createElement(Route, { path: route, element: createElement(page) })) : createElement(page))))) }));
 }
 const signedOut: Fixture[] = [
   { name: 'me', value: { signedIn: false } },
@@ -305,4 +307,22 @@ test('changing or removing a teaching key cannot render another key’s cached l
   forgetTeacherKey();
   const forgotten = render(TeachMinePage, previousFixtures);
   assert.doesNotMatch(forgotten, /Private lesson from A|private-a/);
+});
+
+
+test('dataset preview and settings show loading or retryable errors without claiming a missing dataset', () => {
+  const teacherIdentity = createTeacherKey().address.toLowerCase();
+  const arg = { id: 'dataset-a', teacherIdentity };
+  for (const [page, path, route] of [
+    [TeachDatasetPage, '/train/dataset/dataset-a', '/train/dataset/:dsId'],
+    [TeachSettingsPage, '/train/dataset/dataset-a/settings', '/train/dataset/:dsId/settings'],
+  ] as const) {
+    const loading = render(page, [...signedOut, policy, { name: 'teachDataset', arg, status: 'pending' }], path, route);
+    assert.match(loading, /data-testid="dataset-loading"/);
+    assert.doesNotMatch(loading, /role="alert"/);
+    const failed = render(page, [...signedOut, policy, { name: 'teachDataset', arg, status: 'rejected' }], path, route);
+    assert.match(failed, /role="alert"/);
+    assert.match(failed, /Try again/);
+    assert.doesNotMatch(failed, /That dataset is no longer on this node/i);
+  }
 });

@@ -208,7 +208,7 @@ export default function ChatPage() {
   // own electricity), not for anyone who connected a wallet. Showing an unlimited counter to a visitor the node
   // still counts would be a lie the very next message corrects.
   const { isOwner } = useAuth();
-  const { currentData: data, isLoading, error, refetch } = useChatPatchesQuery(teacherIdentity, { pollingInterval: 20_000 });
+  const { currentData: data, isFetching, error, refetch } = useChatPatchesQuery(teacherIdentity, { pollingInterval: 20_000 });
   const { data: info } = useInfoQuery();
   // Teach mode: policy is public and cached 10 s on the node; a pre-teach node answers 404 → the teach UI stays hidden.
   const { data: policy } = useTeachPolicyQuery(undefined, { pollingInterval: 60_000 });
@@ -838,7 +838,7 @@ export default function ChatPage() {
       <Description>{teachDoor ? t('chat.subtitle_teach', { model: data?.runtime.model ?? info?.node.model ?? t('chat.model_unknown') }) : t('chat.subtitle')}</Description>
       <LiveSources />
 
-      {isLoading && <CenterProgress />}
+      {!data && isFetching && <CenterProgress />}
       {!!error && !data && <Alert $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })}</Alert>}
 
       {data && (
