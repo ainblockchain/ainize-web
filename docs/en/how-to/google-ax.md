@@ -6,12 +6,13 @@ aincode: false
 
 # Run agents with Google AX
 
-> **Preview implementation.** These instructions describe the AX integration in
-> [ainize-node PR #251](https://github.com/ainblockchain/ainize-node/pull/251).
-> It is not deployed on ainize.ai or included in the current main release.
-> Use the `feat/google-ax` source branch for evaluation. Shared-cluster provisioning,
-> live cluster validation and production rollout are still pending. The branch includes explicit
-> project-run admission, delegated model calls and AinDrive file reads.
+> **Merged, not yet enabled on ainize.ai.** The AX integration landed in ainize-node `main` with
+> [PR #251](https://github.com/ainblockchain/ainize-node/pull/251) on 2026-10-30. It stays off until an
+> operator sets `AINIZE_AX_ADDRESS`; the `/api/ax` routes answer 503 before that. The operator path was
+> verified end to end on a kind cluster (`deploy/ax/dev-kind.sh` + `deploy/ax/sample-task.sh`): a Python
+> command ran in a gVisor sandbox and its result came back through the node. Substrate workers need a
+> Linux kernel of 6.5 or newer, so the shared production cluster still awaits worker hosts with such a
+> kernel. The code includes explicit project-run admission, delegated model calls and AinDrive file reads.
 
 [Google AX](https://github.com/google/ax) runs agent tasks through Agent Substrate on Kubernetes.
 **Hosts providing AX execution share one Kubernetes cluster under a trusted administrator.** Kubernetes and Agent Substrate
