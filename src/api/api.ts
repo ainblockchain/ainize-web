@@ -329,7 +329,7 @@ export const api = createApi({
     /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
     linkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
-    hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
+    hostedAgentLogs: b.query<unknown, { id: string; identity: string }>({ query: ({ id }) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
     /**
      * The agent's history. An agent on ainize is a git repository the node hosts and runs, so these answer the
      * questions a version number could not: what changed, who changed it, and what it looked like before.
@@ -337,31 +337,31 @@ export const api = createApi({
      * Tagged `HostedAgent`, so a push or an edit that invalidates the agent invalidates its history with it —
      * a commit list still showing the version before the one on screen is worse than no commit list.
      */
-    agentExecutions: b.query<AgentExecutionsResponse, { id: string; offset?: number; limit?: number }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/executions${toQuery(q)}`,
+    agentExecutions: b.query<AgentExecutionsResponse, { id: string; identity: string; offset?: number; limit?: number }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/executions${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    agentCommits: b.query<AgentCommitsResponse, { id: string; ref?: string; limit?: number }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/commits${toQuery(q)}`,
+    agentCommits: b.query<AgentCommitsResponse, { id: string; identity: string; ref?: string; limit?: number }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/commits${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    agentRefs: b.query<AgentRefsResponse, string>({
-      query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/refs`,
+    agentRefs: b.query<AgentRefsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0,
+      query: ({ id }) => `api/hosted-agents/${encodeURIComponent(id)}/refs`,
       providesTags: ['HostedAgent'],
     }),
     /** Proposals on an agent, and merging one — which is the deploy, so it invalidates the agent with it. */
-    agentPulls: b.query<AgentPullsResponse, { id: string; state?: 'open' | 'merged' | 'closed' }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
+    agentPulls: b.query<AgentPullsResponse, { id: string; identity: string; state?: 'open' | 'merged' | 'closed' }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    agentPreviewRuns: b.query<AgentPreviewRunsResponse, { id: string; offset?: number }>({ query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/preview-runs${toQuery(q)}`, providesTags: ['HostedAgent'] }),
+    agentPreviewRuns: b.query<AgentPreviewRunsResponse, { id: string; identity: string; offset?: number }>({ keepUnusedDataFor: 0, query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/preview-runs${toQuery(q)}`, providesTags: ['HostedAgent'] }),
     exportAgentPreviewRun: b.mutation<{ run: AgentPreviewRun }, { id: string; run: string }>({ query: ({ id, run }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/preview-runs/${encodeURIComponent(run)}/export`, method: 'POST' }), invalidatesTags: ['HostedAgent'] }),
     deleteAgentPreviewRun: b.mutation<{ ok: boolean }, { id: string; run: string }>({ query: ({ id, run }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/preview-runs/${encodeURIComponent(run)}`, method: 'DELETE' }), invalidatesTags: ['HostedAgent'] }),
     createAgentPreview: b.mutation<{ preview: AgentPreview }, { id: string; ref: string }>({ query: ({ id, ref }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/previews`, method: 'POST', body: { ref } }) }),
-    agentPreview: b.query<{ preview: AgentPreview }, string>({ query: (id) => `api/agent-previews/${encodeURIComponent(id)}`, keepUnusedDataFor: 0 }),
+    agentPreview: b.query<{ preview: AgentPreview }, { id: string; identity: string }>({ query: ({ id }) => `api/agent-previews/${encodeURIComponent(id)}`, keepUnusedDataFor: 0 }),
     deleteAgentPreview: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/agent-previews/${encodeURIComponent(id)}`, method: 'DELETE' }) }),
     chatAgentPreview: b.mutation<unknown, { id: string; body: Record<string, unknown> }>({ query: ({ id, body }) => ({ url: `api/agent-previews/${encodeURIComponent(id)}/rpc`, method: 'POST', body }), invalidatesTags: ['HostedAgent'] }),
-    myAgentForks: b.query<{ forks: AgentFork[] }, void>({ query: () => 'api/agent-forks', providesTags: ['HostedAgent'] }),
+    myAgentForks: b.query<{ forks: AgentFork[] }, string>({ keepUnusedDataFor: 0, query: () => 'api/agent-forks', providesTags: ['HostedAgent'] }),
     createAgentFork: b.mutation<{ fork: AgentFork; clonePath: string }, { id: string; ref: string }>({
       query: ({ id, ref }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/forks`, method: 'POST', body: { ref } }), invalidatesTags: ['HostedAgent'],
     }),
@@ -386,8 +386,8 @@ export const api = createApi({
       query: (id) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/mirror/sync`, method: 'POST', body: {} }),
       invalidatesTags: ['HostedAgent', 'Agents'],
     }),
-    agentDiff: b.query<AgentDiffResponse, { id: string; base: string; head: string }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/diff${toQuery(q)}`,
+    agentDiff: b.query<AgentDiffResponse, { id: string; identity: string; base: string; head: string }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/diff${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),

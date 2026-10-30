@@ -5,7 +5,8 @@
  * principals. Like the hosted panel, the check is for the page, not for safety — every route behind these buttons
  * is owner-only on the node. There are no logs: the node forwards to the agent, it does not run it.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useActiveView } from '@/hooks/useActiveView';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useDeleteLinkedAgentMutation } from '@/api/api';
@@ -27,19 +28,24 @@ const LinkedAgentOwnerRow = styled.div`display: flex; gap: 12px; align-items: ce
 export function LinkedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null }) {
   const { t } = useT();
   const navigate = useNavigate();
+  const active = useActiveView();
+  const pending = useRef(false);
   const [unlink, state] = useDeleteLinkedAgentMutation();
   const [error, setError] = useState<string | null>(null);
 
   const remove = async () => {
+    if (pending.current || !active()) return;
     if (!window.confirm(t('linkedOwner.delete_confirm', { name: agentName }))) return;
     setError(null);
+    pending.current = true;
     try {
       await unlink(agentId).unwrap();
-      navigate('/me/agents');
+      if (active()) navigate('/me/agents');
     } catch (err) {
+      if (!active()) return;
       const e = linkedAgentApiErrorOf(err);
       setError(e.message ?? t(`agentLink.api.${e.code}`));
-    }
+    } finally { pending.current = false; }
   };
 
   return (

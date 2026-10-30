@@ -30,6 +30,8 @@ export interface AuthState {
   loading: boolean;
   /** Browser cache identity only; never sent as authorization to the server. */
   cacheIdentity: string;
+  /** A captured account view may use this before follow-up requests or cleanup. */
+  isCurrentAccount: () => boolean;
   /** somebody is signed in — a name, not a permission */
   isSignedIn: boolean;
   /** the address signed in, or null — also null for a Google-only session, which has no address */
@@ -70,7 +72,7 @@ export interface AuthState {
 }
 
 const EMPTY: AuthState = {
-  cacheIdentity: '', loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, sitePrincipal: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false, signOutFailed: false,
+  cacheIdentity: '', isCurrentAccount: () => false, loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, sitePrincipal: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false, signOutFailed: false,
   canEnroll: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined,
 };
 const AuthContext = createContext<AuthState>(EMPTY);
@@ -99,8 +101,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoading && !googleLoading) activateIssuedKeyOwner(cacheIdentity || null);
   }, [cacheIdentity, isLoading, googleLoading]);
+  const currentIdentity = useRef<string | null>(cacheIdentity);
+  currentIdentity.current = cacheIdentity;
+  useEffect(() => { currentIdentity.current = cacheIdentity; return () => { currentIdentity.current = null; }; }, [cacheIdentity]);
   const value: AuthState = {
     cacheIdentity,
+    isCurrentAccount: () => !!cacheIdentity && currentIdentity.current === cacheIdentity && !signOutPending.current,
     loading: isLoading || googleLoading,
     isSignedIn: live || !!google || !!sso,
     subject: live ? data?.subject ?? null : null,

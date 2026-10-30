@@ -5,7 +5,8 @@
  * `PUT /api/shared-agents/<id>/visibility` is one route for either kind, owner or node operator. An older node has
  * no such route; its 404 is reported as "this node does not support visibility" and the control offers nothing else.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useActiveView } from '@/hooks/useActiveView';
 import styled from 'styled-components';
 import { useSetAgentVisibilityMutation } from '@/api/api';
 import { hostedAgentApiErrorOf } from '@/api/hostedAgents';
@@ -24,6 +25,10 @@ const VisibilityActions = styled.div`display: flex; gap: 12px; align-items: cent
 export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId: string; visibility: AgentVisibility | null; orgId: string | null }) {
   const { t } = useT();
   const shareable = useShareableOrgs();
+  const active = useActiveView();
+  const pending = useRef(false);
+  const [confirmed, setConfirmed] = useState<{ visibility: AgentVisibility; orgId: string | null } | null>(null);
+  useEffect(() => { setConfirmed(null); }, [visibility, orgId]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<{ visibility: AgentVisibility; orgId: string | null }>({ visibility: visibility ?? 'public', orgId });
   const [saved, setSaved] = useState(false);
@@ -32,19 +37,24 @@ export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId
   const [save, state] = useSetAgentVisibilityMutation();
 
   const problem = editing ? sharingProblemKey(draft.visibility, draft.orgId, shareable.orgs) : null;
-  const current = visibility ?? 'public';
+  const current = confirmed?.visibility ?? visibility ?? 'public';
+  const currentOrg = confirmed ? confirmed.orgId : orgId;
 
   const submit = async () => {
-    if (problem) return;
+    if (problem || pending.current || !active()) return;
+    pending.current = true;
     setError(null); setSaved(false);
     try {
       await save({ id: agentId, ...sharingFieldsOf(draft.visibility, draft.orgId) }).unwrap();
+      if (!active()) return;
+      setConfirmed(sharingFieldsOf(draft.visibility, draft.orgId));
       setEditing(false); setSaved(true);
     } catch (err) {
+      if (!active()) return;
       if (sharedAgentsUnsupported(err)) { setUnsupported(true); setEditing(false); return; }
       const e = hostedAgentApiErrorOf(err);
       setError(e.message ?? t(`agentCreate.api.${e.code}`));
-    }
+    } finally { pending.current = false; }
   };
 
   return (
@@ -52,10 +62,10 @@ export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId
       <VisibilityNow>
         <b>{t('sharing.owner.title')}</b>
         <span data-testid="agent-visibility-now">
-          {current === 'org' && orgId ? <><OrganizationName orgId={orgId} /> · {t('sharing.owner.shared_org')}</> : t('sharing.owner.current', { visibility: t(`sharing.visibility.${current}`) })}
+          {current === 'org' && currentOrg ? <><OrganizationName orgId={currentOrg!} /> · {t('sharing.owner.shared_org')}</> : t('sharing.owner.current', { visibility: t(`sharing.visibility.${current}`) })}
         </span>
         {!editing && !unsupported && (
-          <Button size="small" variant="outlined" onClick={() => { setDraft({ visibility: current, orgId }); setEditing(true); setSaved(false); }} data-testid="agent-visibility-change">
+          <Button size="small" variant="outlined" onClick={() => { setDraft({ visibility: current, orgId: currentOrg }); setEditing(true); setSaved(false); }} data-testid="agent-visibility-change">
             {t('sharing.owner.change')}
           </Button>
         )}
@@ -64,10 +74,10 @@ export function AgentVisibilityControl({ agentId, visibility, orgId }: { agentId
       {saved && <Alert $tone="success">{t('sharing.owner.saved')}</Alert>}
       {editing && (
         <>
-          <SharingFields visibility={draft.visibility} orgId={draft.orgId} orgs={shareable.orgs} activeOrg={shareable.activeOrg} onChange={setDraft} problemKey={problem} idPrefix="agent-visibility" />
+          <fieldset disabled={state.isLoading} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}><SharingFields visibility={draft.visibility} orgId={draft.orgId} orgs={shareable.orgs} activeOrg={shareable.activeOrg} onChange={setDraft} problemKey={problem} idPrefix="agent-visibility" /></fieldset>
           <VisibilityActions>
             <Button size="small" variant="contained" loading={state.isLoading} disabled={!!problem} onClick={() => { void submit(); }} data-testid="agent-visibility-save">{t('sharing.owner.save')}</Button>
-            <Button size="small" variant="text" onClick={() => setEditing(false)}>{t('sharing.owner.cancel')}</Button>
+            <Button size="small" variant="text" disabled={state.isLoading} onClick={() => setEditing(false)}>{t('sharing.owner.cancel')}</Button>
           </VisibilityActions>
         </>
       )}

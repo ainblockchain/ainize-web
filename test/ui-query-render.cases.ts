@@ -26,6 +26,8 @@ import AinCodePage from '../src/screens/AinCodePage';
 import AgentCreatePage from '../src/screens/AgentCreatePage';
 import AgentLinkPage from '../src/screens/AgentLinkPage';
 import { AgentPage } from '../src/screens/AgentPage';
+import { AgentHistoryPanel } from '../src/screens/agent/AgentHistoryPanel';
+import { AgentPreviewHistory } from '../src/screens/agent/AgentPreviewHistory';
 import OrgPage from '../src/screens/org/OrgPage';
 import OrgsPage from '../src/screens/org/OrgsPage';
 import OrgSettingsPage from '../src/screens/org/OrgSettingsPage';
@@ -810,4 +812,57 @@ test('another account private-agent lookup cache cannot resolve the selected rou
     { name: 'agentAlias', arg: { name: 'chosen', identity: 'other-account' }, value: { id: 'chosen' } },
     { name: 'hostedAgent', arg: { id: 'chosen', identity: 'other-account' }, value: { agent: editableHosted } }]);
   assert.doesNotMatch(html, /Chosen private draft|Private prompt|No agent called/);
+});
+
+
+const historyPage = () => createElement(AgentHistoryPanel, { agentId: 'chosen' });
+const historyRefs = { head: 'release', branches: [{ name: 'release', sha: 'live' }, { name: 'proposal', sha: 'change' }], clone_url: 'https://example.invalid/chosen.git' };
+const historyFixtures: Fixture[] = [
+  ...appAccount,
+  { name: 'agentRefs', arg: editorArg, value: historyRefs },
+  { name: 'agentCommits', arg: { ...editorArg, ref: 'live', limit: 20 }, value: { commits: [{ sha: 'live', short: 'live', subject: 'Current private history', author: 'Viewer', at: 1, email: '', body: '' }], clone_url: historyRefs.clone_url } },
+  { name: 'agentPulls', arg: editorArg, value: { pulls: [] } },
+  { name: 'agentExecutions', arg: { ...editorArg, offset: 0, limit: 10 }, value: { executions: [], total: 0, limit: 10, offset: 0 } },
+  { name: 'myAgentForks', arg: accountIdentity, value: { forks: [] } },
+  { name: 'agentPreviewRuns', arg: { ...editorArg, offset: 0 }, value: { runs: [], total: 0, limit: 10, offset: 0 } },
+];
+
+test('agent history uses the real deployed branch and shows read failures with recovery', () => {
+  const html = render(historyPage, historyFixtures);
+  assert.match(html, /Current private history/);
+  assert.match(html, /release/);
+  const failed = render(historyPage, historyFixtures.map((fixture) => fixture.name === 'agentCommits' ? { ...fixture, status: 'rejected' as const } : fixture));
+  assert.match(failed, /agent-history/); assert.match(failed, /Could not load this information/);
+  assert.match(failed, /Try again/); assert.doesNotMatch(failed, /Current private history|No commits yet/);
+});
+
+test('unavailable branch inventory never guesses main or offers executable preview controls', () => {
+  for (const status of ['pending', 'rejected'] as const) {
+    const fixtures = historyFixtures.map((fixture) => fixture.name === 'agentRefs' ? { ...fixture, value: undefined, status } : fixture);
+    const html = render(historyPage, fixtures);
+    assert.doesNotMatch(html, /Current private history|No commits yet|Start preview/);
+    assert.match(html, status === 'pending' ? /Loading history/ : /Try again/);
+  }
+});
+
+test('another account cannot reuse agent history, forks, executions or preview records', () => {
+  const old = historyFixtures.map((fixture) => fixture.arg === accountIdentity ? { ...fixture, arg: 'other-account' } : fixture.arg && typeof fixture.arg === 'object' && 'identity' in fixture.arg ? { ...fixture, arg: { ...fixture.arg, identity: 'other-account' } } : fixture);
+  const html = render(historyPage, old);
+  assert.doesNotMatch(html, /Current private history|example.invalid\/chosen.git/);
+  assert.match(html, /Loading history/);
+});
+
+const previewRecord = { id: 'record-one', previewId: 'preview-one', agent: 'chosen', owner: 'sso:viewer', commit: '1234567890', model: 'test-model', request: { parts: [{ text: 'Current private input' }] }, output: JSON.stringify({ result: { parts: [{ text: 'Current private output' }] } }), outputBytes: 10, outputTruncated: false, status: 'ready', error: null, createdAt: 1, finishedAt: 2, exportedAt: 3 };
+const previewsPage = () => createElement(AgentPreviewHistory, { agentId: 'chosen' });
+const previewFixture = { name: 'agentPreviewRuns', arg: { ...editorArg, offset: 0 }, value: { runs: [previewRecord], total: 1, limit: 10, offset: 0 } };
+
+test('preview records hide retained private results after read failure and expose retry', () => {
+  const current = render(previewsPage, [...appAccount, previewFixture]);
+  assert.match(current, /Current private input/); assert.match(current, /Current private output/);
+  const failed = render(previewsPage, [...appAccount, { ...previewFixture, status: 'rejected' }]);
+  assert.match(failed, /Could not load preview records/); assert.match(failed, /Try again/);
+  assert.doesNotMatch(failed, /Current private input|Current private output|No records on this page/);
+  const other = render(previewsPage, [...appAccount, { ...previewFixture, arg: { ...previewFixture.arg, identity: 'other-account' } }]);
+  assert.doesNotMatch(other, /Current private input|Current private output/);
+  assert.match(other, /Loading records/);
 });

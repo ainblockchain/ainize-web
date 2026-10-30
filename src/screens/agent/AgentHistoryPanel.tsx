@@ -13,7 +13,9 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useAgentExecutionsQuery, useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
+import { useAgentExecutionsQuery, useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
+import { agentHistorySelection } from '@/lib/agentHistorySelection';
+import { useActiveView } from '@/hooks/useActiveView';
 import { useAuth } from '@/auth/AuthContext';
 import type { AgentPull } from '@/api/types';
 import type { AgentGitInfo } from '@/api/types';
@@ -21,8 +23,8 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Input, Select, Field, FieldLabel } from '@/components/ui/Form';
 import { Description } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import { PreviewPanel } from './PreviewPanel';
 import { AgentPreviewHistory } from './AgentPreviewHistory';
-import { A2UISurface, readSurface } from '@/components/a2ui/A2UISurface';
 
 const Box = styled.div`
   min-width: 0; overflow-wrap: anywhere;
@@ -80,60 +82,11 @@ const when = (at: number, locale: string) => new Date(at).toLocaleString(locale 
 /** An author is an address or an email; neither is readable at full length in a list. */
 const who = (name: string) => (/^0x[0-9a-fA-F]{40}$/.test(name) ? `${name.slice(0, 6)}…${name.slice(-4)}` : name);
 
-function PreviewPanel({ agentId, refName }: { agentId: string; refName: string }) {
-  const { t } = useT();
-  const [create, creating] = useCreateAgentPreviewMutation();
-  const [remove] = useDeleteAgentPreviewMutation();
-  const [chat, chatting] = useChatAgentPreviewMutation();
-  const [id, setId] = useState('');
-  const [message, setMessage] = useState('');
-  const [context, setContext] = useState<string | undefined>();
-  const [reply, setReply] = useState<{ parts?: Parameters<typeof readSurface>[0]; contextId?: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const pending = useRef<ReturnType<typeof chat> | null>(null);
-  const query = useAgentPreviewQuery(id, { skip: !id, pollingInterval: 2000 });
-  const preview = query.currentData?.preview;
-  const surface = readSurface(reply?.parts ?? []);
-  useEffect(() => () => { pending.current?.abort(); if (id) void remove(id); }, [id, remove]);
-  const report = (e: unknown) => setError(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e));
-  const start = async () => {
-    setError(null);
-    try {
-      if (id) await remove(id).unwrap().catch(() => {});
-      const created = await create({ id: agentId, ref: refName }).unwrap();
-      setId(created.preview.id); setReply(null); setContext(undefined);
-    } catch (e) { report(e); }
-  };
-  const send = async () => {
-    setError(null);
-    const request = chat({ id, body: { jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send', params: { message: { kind: 'message', role: 'user', messageId: crypto.randomUUID(), ...(context ? { contextId: context } : {}), parts: [{ kind: 'text', text: message }] }, configuration: { blocking: true } } } });
-    pending.current = request;
-    try {
-      const body = await request.unwrap() as { result?: { parts?: Parameters<typeof readSurface>[0]; contextId?: string }; error?: { message?: string } };
-      if (body.error) throw new Error(body.error.message ?? 'RPC error');
-      setReply(body.result ?? null); setContext(body.result?.contextId); setMessage('');
-    } catch (e) { if ((e as { name?: string }).name === 'AbortError') setError(t('agentGit.preview_stopped')); else report(e); }
-    finally { if (pending.current === request) pending.current = null; }
-  };
-  return <section style={{ marginTop: 16, minWidth: 0 }}>
-    <Button loading={creating.isLoading} disabled={!!id && !query.isError && preview?.status !== 'error'} onClick={() => void start()}>{t('agentGit.preview_create')}</Button>
-    <Description>{t('agentGit.preview_help')}</Description>
-    {id && <>
-      {query.isError ? <Alert $tone="error">{t('agentGit.preview_expired')}</Alert> : preview?.status === 'error' ? <Alert $tone="error">{preview.error}</Alert> : preview?.status !== 'ready' ? <Description>{t('agentGit.preview_building')}</Description> : <>
-        <code>{preview.commit.slice(0, 12)} · {new Date(preview.expiresAt).toLocaleTimeString()}</code>
-        <Field><FieldLabel htmlFor="preview-message">{t('agentGit.preview_message')}</FieldLabel><Input id="preview-message" as="textarea" value={message} maxLength={20000} disabled={chatting.isLoading} onChange={(e) => setMessage(e.target.value)} /></Field>
-        <Button loading={chatting.isLoading} disabled={!message.trim()} onClick={() => void send()}>{t('agentGit.preview_send')}</Button>
-        {chatting.isLoading && <Button onClick={() => pending.current?.abort()}>{t('agentGit.preview_cancel')}</Button>}
-        {reply && <div aria-live="polite">{(reply.parts ?? []).map((part, index) => { const text = (part as { text?: string }).text; return text ? <Description key={index} style={{ whiteSpace: 'pre-wrap' }}>{text}</Description> : null; })}{surface && <A2UISurface surface={surface} />}</div>}
-      </>}
-      <Button onClick={() => { pending.current?.abort(); setId(''); }}>{t('agentGit.preview_stop')}</Button>
-    </>}
-    {error && <Alert $tone="error">{error}</Alert>}
-  </section>;
-}
 
 function ReviewThread({ id, pull, canMerge }: { id: string; pull: AgentPull; canMerge: boolean }) {
   const { t } = useT();
+  const active = useActiveView();
+  const pending = useRef(false);
   const { isSignedIn, principal } = useAuth();
   const [body, setBody] = useState('');
   const [editing, setEditing] = useState<number | null>(null);
@@ -141,14 +94,25 @@ function ReviewThread({ id, pull, canMerge }: { id: string; pull: AgentPull; can
   const [add, adding] = useAddAgentReviewCommentMutation();
   const [edit, editingState] = useEditAgentReviewCommentMutation();
   const [remove, removing] = useDeleteAgentReviewCommentMutation();
-  const report = (e: unknown) => setError(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e));
+  const report = (e: unknown) => { if (active()) setError(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e)); };
+  const busy = adding.isLoading || editingState.isLoading || removing.isLoading;
   const submit = async () => {
+    if (pending.current || !active() || !body.trim()) return;
+    pending.current = true;
     setError(null);
     try {
       if (editing !== null) await edit({ id, number: pull.number, comment: editing, body }).unwrap();
       else await add({ id, number: pull.number, body }).unwrap();
-      setBody(''); setEditing(null);
-    } catch (e) { report(e); }
+      if (active()) { setBody(''); setEditing(null); }
+    } catch (e) { report(e); } finally { pending.current = false; }
+  };
+  const removeComment = async (comment: number) => {
+    if (pending.current || !active()) return;
+    pending.current = true; setError(null);
+    try {
+      await remove({ id, number: pull.number, comment }).unwrap();
+      if (active() && editing === comment) { setEditing(null); setBody(''); }
+    } catch (e) { report(e); } finally { pending.current = false; }
   };
   return <section style={{ flexBasis: '100%', minWidth: 0 }} aria-label={t('agentGit.comments')}>
     {pull.body && <Description style={{ whiteSpace: 'pre-wrap' }}>{pull.body}</Description>}
@@ -157,57 +121,80 @@ function ReviewThread({ id, pull, canMerge }: { id: string; pull: AgentPull; can
       {comment.path && <code>{comment.commit?.slice(0, 7)} · {comment.path}:{comment.line}</code>}
       <Description>{comment.deletedAt ? t('agentGit.comment_deleted') : comment.body}</Description>
       {!comment.deletedAt && isSignedIn && <div>
-        {principal === comment.author && <Button size="small" onClick={() => { setEditing(comment.id); setBody(comment.body); }}>{t('agentGit.comment_edit')}</Button>}
-        {(principal === comment.author || canMerge) && <Button size="small" loading={removing.isLoading} onClick={() => { setError(null); void remove({ id, number: pull.number, comment: comment.id }).unwrap().catch(report); }}>{t('agentGit.comment_delete')}</Button>}
+        {principal === comment.author && <Button size="small" disabled={busy} onClick={() => { setEditing(comment.id); setBody(comment.body); }}>{t('agentGit.comment_edit')}</Button>}
+        {(principal === comment.author || canMerge) && <Button size="small" loading={removing.isLoading} disabled={busy} onClick={() => void removeComment(comment.id)}>{t('agentGit.comment_delete')}</Button>}
       </div>}
     </div>)}
-    {isSignedIn && <Field style={{ marginTop: 12 }}><FieldLabel htmlFor={`review-${pull.number}`}>{t('agentGit.comments')}</FieldLabel><Input id={`review-${pull.number}`} as="textarea" value={body} maxLength={8000} onChange={(e) => setBody(e.target.value)} />
-      <div><Button size="small" disabled={!body.trim()} loading={adding.isLoading || editingState.isLoading} onClick={() => void submit()}>{t(editing === null ? 'agentGit.comment_add' : 'agentGit.comment_save')}</Button>
-      {editing !== null && <Button size="small" onClick={() => { setEditing(null); setBody(''); }}>{t('agentGit.comment_cancel')}</Button>}</div>
+    {isSignedIn && <Field style={{ marginTop: 12 }}><FieldLabel htmlFor={`review-${pull.number}`}>{t('agentGit.comments')}</FieldLabel><Input disabled={busy} id={`review-${pull.number}`} as="textarea" value={body} maxLength={8000} onChange={(e) => setBody(e.target.value)} />
+      <div><Button size="small" disabled={!body.trim() || busy} loading={adding.isLoading || editingState.isLoading} onClick={() => void submit()}>{t(editing === null ? 'agentGit.comment_add' : 'agentGit.comment_save')}</Button>
+      {editing !== null && <Button size="small" disabled={busy} onClick={() => { setEditing(null); setBody(''); }}>{t('agentGit.comment_cancel')}</Button>}</div>
     </Field>}
     {error && <Alert $tone="error">{error}</Alert>}
   </section>;
 }
 
-export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId: string; git?: AgentGitInfo | null; canMerge?: boolean }) {
+interface HistoryProps { agentId: string; git?: AgentGitInfo | null; canMerge?: boolean }
+export function AgentHistoryPanel(props: HistoryProps) {
+  const { cacheIdentity } = useAuth();
+  return <AgentHistoryContent key={`${cacheIdentity}:${props.agentId}`} {...props} />;
+}
+
+function AgentHistoryContent({ agentId, git, canMerge = false }: HistoryProps) {
   const { t, locale } = useT();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, cacheIdentity } = useAuth();
+  const active = useActiveView();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [openPull, opening] = useOpenAgentPullMutation();
-  const forks = useMyAgentForksQuery(undefined, { skip: !isSignedIn });
+  const forks = useMyAgentForksQuery(cacheIdentity, { skip: !isSignedIn });
   const [createFork, creatingFork] = useCreateAgentForkMutation();
   const [deleteFork, deletingFork] = useDeleteAgentForkMutation();
   const [forkId, setForkId] = useState('');
   const [forkBranch, setForkBranch] = useState('main');
-  const forkRefs = useAgentRefsQuery(forkId, { skip: !forkId });
+  const forkRefs = useAgentRefsQuery({ id: forkId, identity: cacheIdentity }, { skip: !forkId });
 
   const [executionOffset, setExecutionOffset] = useState(0);
   useEffect(() => setExecutionOffset(0), [agentId]);
-  const executions = useAgentExecutionsQuery({ id: agentId, offset: executionOffset, limit: 10 }, { pollingInterval: 10_000 });
+  const executions = useAgentExecutionsQuery({ id: agentId, identity: cacheIdentity, offset: executionOffset, limit: 10 }, { pollingInterval: 10_000 });
   const [branch, setBranch] = useState<string | null>(null);
-  const refs = useAgentRefsQuery(agentId);
-  const head = refs.data?.head ?? 'main';
-  const ref = branch ?? head;
-  const commits = useAgentCommitsQuery({ id: agentId, ref, limit: 20 });
-  // A proposal is worth a diff; the deployed branch compared against itself is not.
-  const comparing = ref !== head;
-  const diff = useAgentDiffQuery({ id: agentId, base: head, head: ref }, { skip: !comparing });
+  const [review, setReview] = useState<AgentPull | null>(null);
+  const refs = useAgentRefsQuery({ id: agentId, identity: cacheIdentity });
+  const selection = agentHistorySelection(refs.error ? undefined : refs.currentData, branch, review);
+  const { head, ref, base, commit, baseCommit, valid: validSelection, comparing } = selection;
+  const commits = useAgentCommitsQuery({ id: agentId, identity: cacheIdentity, ref: commit, limit: 20 }, { skip: !validSelection });
+  const diff = useAgentDiffQuery({ id: agentId, identity: cacheIdentity, base: baseCommit, head: commit }, { skip: !comparing });
   const [copied, setCopied] = useState(false);
-  const pulls = useAgentPullsQuery({ id: agentId });
+  const pulls = useAgentPullsQuery({ id: agentId, identity: cacheIdentity });
   const [merge, mergeState] = useMergeAgentPullMutation();
   const [sync, syncState] = useSyncAgentMirrorMutation();
   const [failed, setFailed] = useState<string | null>(null);
   const mirror = git?.mirror ?? null;
 
-  // A node too old to host repositories, or an agent whose repository could not be made: say nothing rather
-  // than show an empty history, which reads as "this agent has never changed".
-  if (refs.isError || commits.isError) return null;
-  const cloneUrl = refs.data?.clone_url ?? commits.data?.clone_url ?? '';
+  const readFailure = (retry: () => unknown) => <Alert role="alert" $tone="error">
+    {t('agentGit.read_failed')} <Button size="small" onClick={() => void retry()}>{t('aincode.retry')}</Button>
+  </Alert>;
+  const refData = refs.error ? undefined : refs.currentData;
+  const commitData = commits.error || !validSelection ? undefined : commits.currentData;
+  const forkData = forks.error ? undefined : forks.currentData;
+  const forkRefData = forkRefs.error ? undefined : forkRefs.currentData;
+  const pullData = pulls.error ? undefined : pulls.currentData;
+  const executionData = executions.error ? undefined : executions.currentData;
+  const diffData = diff.error || !comparing ? undefined : diff.currentData;
+  const cloneUrl = refData?.clone_url ?? commitData?.clone_url ?? '';
+  const sourceValid = !forkId || (!!forkData?.forks.some((fork) => fork.id === forkId && fork.parent === agentId) && !!forkRefData?.branches.some((entry) => entry.name === forkBranch));
+  const actionPending = useRef(false);
+  const actionBusy = opening.isLoading || creatingFork.isLoading || deletingFork.isLoading || mergeState.isLoading || syncState.isLoading;
+  const perform = async <T,>(work: () => Promise<T>, after?: (value: T) => void) => {
+    if (actionPending.current || !active()) return;
+    actionPending.current = true; setFailed(null);
+    try { const value = await work(); if (active()) after?.(value); }
+    catch (error) { if (active()) setFailed(String((error as { data?: { error?: { message?: string } } })?.data?.error?.message ?? error)); }
+    finally { actionPending.current = false; }
+  };
 
   const copy = async () => {
-    try { await navigator.clipboard.writeText(`git clone ${cloneUrl}`); setCopied(true); setTimeout(() => setCopied(false), 1500); }
-    catch { /* a browser that refuses the clipboard still shows the address */ }
+    try { await navigator.clipboard.writeText(`git clone ${cloneUrl}`); if (active()) setCopied(true); }
+    catch { if (active()) setFailed(t('agentPage.copy_failed')); }
   };
 
   return (
@@ -227,7 +214,7 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
           </div>
           {canMerge && (
             <Button size="small" variant="outlined" loading={syncState.isLoading}
-              onClick={() => { setFailed(null); sync(agentId).unwrap().catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>
+              disabled={actionBusy} onClick={() => void perform(() => sync(agentId).unwrap())}>
               {t('agentGit.sync_now')}
             </Button>
           )}
@@ -241,10 +228,14 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
         </Clone>
       )}
 
-      {(refs.data?.branches.length ?? 0) > 1 && (
+      {refs.error && readFailure(() => refs.refetch())}
+      {!refs.error && !refData && <Description role="status">{t('agentGit.loading')}</Description>}
+      {refData && !validSelection && <Alert $tone="warning">{t('agentGit.selection_missing')}</Alert>}
+      {review && <Description role="status">#{review.number} {review.title} · {base} ← {ref}</Description>}
+      {(refData?.branches.length ?? 0) > 0 && (
         <Branches data-testid="agent-branches">
-          {refs.data!.branches.map((b) => (
-            <Branch key={b.name} $on={b.name === ref} onClick={() => setBranch(b.name)} type="button">
+          {refData!.branches.map((b) => (
+            <Branch key={b.name} $on={b.name === ref} disabled={actionBusy} onClick={() => { setReview(null); setBranch(b.name); setTitle(''); setBody(''); }} type="button">
               {b.name}
               {b.name === head
                 ? <small>{t('agentGit.live')}</small>
@@ -256,43 +247,48 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
 
       {comparing && (
         <Alert $tone="info" style={{ marginTop: 14 }} data-testid="agent-branch-note">
-          {t('agentGit.proposal', { branch: ref, head })}
+          {t('agentGit.proposal', { branch: ref, head: base })}
         </Alert>
       )}
 
-      {isSignedIn && <PreviewPanel key={`${agentId}:${ref}`} agentId={agentId} refName={ref} />}
+      {isSignedIn && validSelection && <PreviewPanel key={`${agentId}:${commit}`} agentId={agentId} refName={commit} />}
       {isSignedIn && !mirror && <section style={{ marginTop: 16 }}>
-        <Button loading={creatingFork.isLoading} onClick={() => { setFailed(null); void createFork({ id: agentId, ref }).unwrap().then(({ fork }) => { setForkId(fork.id); setForkBranch('main'); }).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.fork_create')}</Button>
-        <Field><FieldLabel htmlFor="proposal-source">{t('agentGit.fork_source')}</FieldLabel><Select id="proposal-source" value={forkId} onChange={(e) => { setForkId(e.target.value); setForkBranch('main'); }}>
+        <Button loading={creatingFork.isLoading} disabled={actionBusy || !validSelection} onClick={() => void perform(() => createFork({ id: agentId, ref: commit }).unwrap(), ({ fork }) => { setForkId(fork.id); setForkBranch('main'); })}>{t('agentGit.fork_create')}</Button>
+        {forks.error && readFailure(() => forks.refetch())}
+        <Field><FieldLabel htmlFor="proposal-source">{t('agentGit.fork_source')}</FieldLabel><Select id="proposal-source" disabled={actionBusy || !!forks.error || !forkData} value={forkId} onChange={(e) => { setForkId(e.target.value); setForkBranch('main'); }}>
           <option value="">{t('agentGit.fork_current')}</option>
-          {(forks.data?.forks ?? []).filter((fork) => fork.parent === agentId).map((fork) => <option key={fork.id} value={fork.id}>{fork.id}</option>)}
+          {forkId && !forkData?.forks.some((fork) => fork.id === forkId && fork.parent === agentId) && <option value={forkId}>{t('agentGit.selection_missing')}</option>}
+          {(forkData?.forks ?? []).filter((fork) => fork.parent === agentId).map((fork) => <option key={fork.id} value={fork.id}>{fork.id}</option>)}
         </Select></Field>
         {forkId && <>
           <Description>{t('agentGit.fork_help')}</Description>
-          {forkRefs.data?.clone_url && <Clone><code>git clone {forkRefs.data.clone_url}</code></Clone>}
-          <Field><FieldLabel htmlFor="fork-branch">{t('agentGit.fork_branch')}</FieldLabel><Input id="fork-branch" value={forkBranch} onChange={(e) => setForkBranch(e.target.value)} /></Field>
-          <Button loading={deletingFork.isLoading} onClick={() => { setFailed(null); void deleteFork(forkId).unwrap().then(() => setForkId('')).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.fork_delete')}</Button>
+          {forkRefData?.clone_url && <Clone><code>git clone {forkRefData.clone_url}</code></Clone>}
+          <Field><FieldLabel htmlFor="fork-branch">{t('agentGit.fork_branch')}</FieldLabel><Input id="fork-branch" disabled={actionBusy} value={forkBranch} onChange={(e) => setForkBranch(e.target.value)} /></Field>
+          {forkRefs.error && readFailure(() => forkRefs.refetch())}
+          {!sourceValid && <Alert $tone="warning">{t('agentGit.selection_missing')}</Alert>}
+          <Button loading={deletingFork.isLoading} disabled={actionBusy || !forkData?.forks.some((fork) => fork.id === forkId && fork.parent === agentId)} onClick={() => void perform(() => deleteFork(forkId).unwrap(), () => setForkId(''))}>{t('agentGit.fork_delete')}</Button>
         </>}
       </section>}
-      {isSignedIn && (comparing || forkId) && !mirror && <section style={{ marginTop: 16 }}>
-        <Field><FieldLabel htmlFor="proposal-title">{t('agentGit.pull_title')}</FieldLabel><Input id="proposal-title" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} /></Field>
-        <Field><FieldLabel htmlFor="proposal-body">{t('agentGit.pull_body')}</FieldLabel><Input id="proposal-body" as="textarea" value={body} maxLength={4000} onChange={(e) => setBody(e.target.value)} /></Field>
-        <Button disabled={!title.trim() || (!!forkId && !forkBranch.trim())} loading={opening.isLoading} onClick={() => { setFailed(null); void openPull({ id: agentId, title, body, head: forkId ? forkBranch : ref, base: head, ...(forkId ? { headAgent: forkId } : {}) }).unwrap().then(() => { setTitle(''); setBody(''); }).catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>{t('agentGit.pull_create')}</Button>
+      {isSignedIn && !review && (comparing || forkId) && !mirror && <section style={{ marginTop: 16 }}>
+        <Field><FieldLabel htmlFor="proposal-title">{t('agentGit.pull_title')}</FieldLabel><Input id="proposal-title" disabled={actionBusy} value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="proposal-body">{t('agentGit.pull_body')}</FieldLabel><Input id="proposal-body" disabled={actionBusy} as="textarea" value={body} maxLength={4000} onChange={(e) => setBody(e.target.value)} /></Field>
+        <Button disabled={actionBusy || !title.trim() || !validSelection || !sourceValid} loading={opening.isLoading} onClick={() => void perform(() => openPull({ id: agentId, title, body, head: forkId ? forkBranch : ref, base: head, ...(forkId ? { headAgent: forkId } : {}) }).unwrap(), () => { setTitle(''); setBody(''); })}>{t('agentGit.pull_create')}</Button>
       </section>}
-      {(pulls.data?.pulls.length ?? 0) > 0 && (
+      {pulls.error && readFailure(() => pulls.refetch())}
+      {(pullData?.pulls.length ?? 0) > 0 && (
         <Pulls data-testid="agent-pulls">
-          {pulls.data!.pulls.map((p) => (
+          {pullData!.pulls.map((p) => (
             <Pull key={p.number}>
               <div>
                 <strong>#{p.number} {p.title}</strong><span>{t(`agentGit.state_${p.state}`)}</span>
                 <span>{t('agentGit.pull_from', { head: p.headAgent ? `${p.headAgent}/${p.head}` : p.head, base: p.base, who: who(p.author) })}</span>
               </div>
               <div>
-                <Button size="small" variant="text" onClick={() => setBranch(p.headCommit ?? p.head)}>{t('agentGit.pull_review')}</Button>
+                <Button size="small" variant="text" disabled={actionBusy} onClick={() => { setReview(p); setTitle(''); setBody(''); }}>{t('agentGit.pull_review')}</Button>
                 {/* Merging is the deploy, so it is offered only to the people who could have pushed it. */}
-                {canMerge && p.state === 'open' && (
+                {canMerge && !mirror && p.state === 'open' && (
                   <Button size="small" loading={mergeState.isLoading}
-                    onClick={() => { setFailed(null); merge({ id: agentId, number: p.number }).unwrap().catch((e: unknown) => setFailed(String((e as { data?: { error?: { message?: string } } })?.data?.error?.message ?? e))); }}>
+                    disabled={actionBusy} onClick={() => void perform(() => merge({ id: agentId, number: p.number }).unwrap())}>
                     {t('agentGit.pull_merge')}
                   </Button>
                 )}
@@ -304,10 +300,11 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
       )}
       {failed && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="agent-git-error">{failed}</Alert>}
 
-      {executions.data && <section aria-label={t('agentGit.executions')} style={{ marginTop: 20 }}>
+      {executions.error && readFailure(() => executions.refetch())}
+      {executionData && <section aria-label={t('agentGit.executions')} style={{ marginTop: 20 }}>
         <h3>{t('agentGit.executions')}</h3>
         <Commits data-testid="agent-executions">
-          {executions.data.executions.map((execution) => <Commit key={execution.id}>
+          {executionData.executions.map((execution) => <Commit key={execution.id}>
             <strong>{t(`agentGit.execution.${execution.status}`)}</strong>
             <code title={execution.sourceCommit ?? undefined}>{execution.sourceCommit?.slice(0, 8) ?? '—'}</code>
             <span>{execution.actor ? who(execution.actor) : '—'}</span>
@@ -315,16 +312,18 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
             {execution.error && <Why role="status">{execution.error}</Why>}
           </Commit>)}
         </Commits>
-        {executions.data.total === 0 && <Description>{t('agentGit.executions_empty')}</Description>}
+        {executionData.total === 0 && <Description>{t('agentGit.executions_empty')}</Description>}
         <Branches>
-          <Button variant="outlined" disabled={executionOffset === 0} onClick={() => setExecutionOffset((offset) => Math.max(0, offset - 10))}>{t('agentGit.newer')}</Button>
-          <Button variant="outlined" disabled={executionOffset + 10 >= executions.data.total} onClick={() => setExecutionOffset((offset) => offset + 10)}>{t('agentGit.older')}</Button>
+          <Button variant="outlined" disabled={executionOffset === 0 || executions.isFetching} onClick={() => setExecutionOffset((offset) => Math.max(0, offset - 10))}>{t('agentGit.newer')}</Button>
+          <Button variant="outlined" disabled={executionOffset + 10 >= executionData.total || executions.isFetching} onClick={() => setExecutionOffset((offset) => offset + 10)}>{t('agentGit.older')}</Button>
         </Branches>
       </section>}
 
       {isSignedIn && <AgentPreviewHistory agentId={agentId} />}
+      {commits.error && validSelection && readFailure(() => commits.refetch())}
+      {commits.isFetching && !commitData && <Description role="status">{t('agentGit.loading')}</Description>}
       <Commits data-testid="agent-commits">
-        {(commits.data?.commits ?? []).map((c) => (
+        {(commitData?.commits ?? []).map((c) => (
           <Commit key={c.sha}>
             <strong>{c.subject}</strong>
             <span>{who(c.author)}</span>
@@ -333,12 +332,13 @@ export function AgentHistoryPanel({ agentId, git, canMerge = false }: { agentId:
           </Commit>
         ))}
       </Commits>
-      {commits.data && commits.data.commits.length === 0 && <Description>{t('agentGit.empty')}</Description>}
+      {commitData && commitData.commits.length === 0 && <Description>{t('agentGit.empty')}</Description>}
 
-      {comparing && diff.data && (
+      {comparing && diff.error && readFailure(() => diff.refetch())}
+      {comparing && diffData && (
         <>
-          <Diff data-testid="agent-diff">{diff.data.diff || t('agentGit.no_changes')}</Diff>
-          {diff.data.truncated && <Description>{t('agentGit.diff_truncated')}</Description>}
+          <Diff data-testid="agent-diff">{diffData.diff || t('agentGit.no_changes')}</Diff>
+          {diffData.truncated && <Description>{t('agentGit.diff_truncated')}</Description>}
         </>
       )}
     </Box>

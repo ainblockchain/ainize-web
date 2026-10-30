@@ -6,7 +6,8 @@
  * The suggestion is the one a new agent would get from its name (`agentIdFromName`), so old and new agents read alike.
  * One component for both owner panels; the node decides who may set it (owner, write member, operator).
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useActiveView } from '@/hooks/useActiveView';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useClearAgentAliasMutation, useSetAgentAliasMutation } from '@/api/api';
@@ -23,11 +24,14 @@ const AliasRow = styled.div`display: flex; gap: 12px; align-items: center; flex-
 export function AgentAliasControl({ agentId, agentName, alias }: { agentId: string; agentName: string; alias: string | null }) {
   const { t } = useT();
   const navigate = useNavigate();
+  const active = useActiveView();
+  const pending = useRef(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [setAlias, setState] = useSetAgentAliasMutation();
   const [clearAlias, clearState] = useClearAgentAliasMutation();
+  const busy = setState.isLoading || clearState.isLoading;
   const valid = AGENT_ALIAS_PATTERN.test(draft) && draft !== agentId;
 
   const fail = (err: unknown) => {
@@ -36,20 +40,25 @@ export function AgentAliasControl({ agentId, agentName, alias }: { agentId: stri
     setError(e.status === 409 ? t('agentAlias.taken') : e.message ?? (e.status === 404 ? t('agentAlias.unsupported') : e.code));
   };
   const save = async () => {
-    if (!valid) return;
+    if (!valid || pending.current || !active()) return;
+    pending.current = true;
     setError(null);
     try {
       await setAlias({ id: agentId, alias: draft }).unwrap();
+      if (!active()) return;
       setEditing(false);
       navigate(agentPagePath({ id: agentId, alias: draft }), { replace: true });
-    } catch (err) { fail(err); }
+    } catch (err) { if (active()) fail(err); } finally { pending.current = false; }
   };
   const remove = async () => {
+    if (pending.current || !active()) return;
+    pending.current = true;
     setError(null);
     try {
       await clearAlias(agentId).unwrap();
+      if (!active()) return;
       navigate(agentPagePath({ id: agentId }), { replace: true, state: { keepUrl: true } });
-    } catch (err) { fail(err); }
+    } catch (err) { if (active()) fail(err); } finally { pending.current = false; }
   };
 
   return (
@@ -58,7 +67,7 @@ export function AgentAliasControl({ agentId, agentName, alias }: { agentId: stri
         <b>{t('agentAlias.title')}</b>
         <span data-testid="agent-alias-now">{alias ? <Mono>/agent/{alias}</Mono> : t('agentAlias.none')}</span>
         {!editing && (
-          <Button size="small" variant="outlined" onClick={() => { setDraft(aliasSuggestion(agentId, agentName, alias)); setEditing(true); setError(null); }} data-testid="agent-alias-change">
+          <Button size="small" variant="outlined" disabled={busy} onClick={() => { setDraft(aliasSuggestion(agentId, agentName, alias)); setEditing(true); setError(null); }} data-testid="agent-alias-change">
             {alias ? t('agentAlias.change') : t('agentAlias.set')}
           </Button>
         )}
@@ -68,13 +77,13 @@ export function AgentAliasControl({ agentId, agentName, alias }: { agentId: stri
       </AliasRow>
       {editing && (
         <>
-          <Input value={draft} maxLength={40} onChange={(e) => setDraft(e.target.value.toLowerCase())} aria-label={t('agentAlias.title')} data-testid="agent-alias-input" />
+          <Input disabled={busy} value={draft} maxLength={40} onChange={(e) => setDraft(e.target.value.toLowerCase())} aria-label={t('agentAlias.title')} data-testid="agent-alias-input" />
           <AliasRow>
             <span>{t('agentAlias.help', { id: agentId })}</span>
           </AliasRow>
           <AliasRow>
-            <Button size="small" variant="contained" loading={setState.isLoading} disabled={!valid} onClick={() => void save()} data-testid="agent-alias-save">{t('agentAlias.save')}</Button>
-            <Button size="small" variant="text" onClick={() => setEditing(false)}>{t('agentAlias.cancel')}</Button>
+            <Button size="small" variant="contained" loading={setState.isLoading} disabled={!valid || busy} onClick={() => void save()} data-testid="agent-alias-save">{t('agentAlias.save')}</Button>
+            <Button size="small" variant="text" disabled={busy} onClick={() => setEditing(false)}>{t('agentAlias.cancel')}</Button>
           </AliasRow>
         </>
       )}

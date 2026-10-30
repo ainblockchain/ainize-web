@@ -8,7 +8,9 @@
  * The logs are fetched when opened, not on page load: they are the build output and the container's tail (≤ 200
  * lines), read while debugging, and a page every visitor opens has no reason to ask for them.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useActiveView } from '@/hooks/useActiveView';
+import { useAuth } from '@/auth/AuthContext';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useDeleteHostedAgentMutation, useHostedAgentLogsQuery } from '@/api/api';
@@ -40,22 +42,28 @@ const HostedAgentOwnerLogs = styled.pre`
 export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null, canAdminister = true }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean }) {
   const { t } = useT();
   const navigate = useNavigate();
+  const active = useActiveView();
+  const pending = useRef(false);
+  const { cacheIdentity } = useAuth();
   const [logsOpen, setLogsOpen] = useState(false);
-  const logs = useHostedAgentLogsQuery(agentId, { skip: !logsOpen });
-  const lines = parseHostedAgentLogsResponse(logs.data);
+  const logs = useHostedAgentLogsQuery({ id: agentId, identity: cacheIdentity }, { skip: !logsOpen });
+  const lines = parseHostedAgentLogsResponse(logs.currentData);
   const [deleteAgent, deleteState] = useDeleteHostedAgentMutation();
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const remove = async () => {
+    if (pending.current || !active()) return;
     if (!window.confirm(t('agentOwner.delete_confirm', { name: agentName }))) return;
     setDeleteError(null);
+    pending.current = true;
     try {
       await deleteAgent(agentId).unwrap();
-      navigate('/explore?kind=agent');
+      if (active()) navigate('/explore?kind=agent');
     } catch (err) {
+      if (!active()) return;
       const e = hostedAgentApiErrorOf(err);
       setDeleteError(e.message ?? t(`agentCreate.api.${e.code}`));
-    }
+    } finally { pending.current = false; }
   };
 
   return (
@@ -86,7 +94,7 @@ export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibi
       {logsOpen && (
         logs.error
           ? <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.logs_failed', { why: hostedAgentApiErrorOf(logs.error).message ?? String(hostedAgentApiErrorOf(logs.error).status ?? '') })}</Alert>
-          : <HostedAgentOwnerLogs data-testid="hosted-agent-logs">{logs.isLoading ? '…' : lines.length ? lines.join('\n') : t('agentOwner.logs_empty')}</HostedAgentOwnerLogs>
+          : <HostedAgentOwnerLogs data-testid="hosted-agent-logs">{(!logs.currentData && logs.isFetching) ? '…' : lines.length ? lines.join('\n') : t('agentOwner.logs_empty')}</HostedAgentOwnerLogs>
       )}
     </HostedAgentOwnerBox>
   );
