@@ -4,7 +4,6 @@ import type { Dict } from '../index';
 export const aincode: Dict = {
   'nav.aincode': { ko: 'AinCode', en: 'AinCode' },
   'aincode.title': { ko: 'AinCode 세션', en: 'AinCode sessions' },
-  'aincode.lede': { ko: '내 AinCode 세션이 어느 작업 공간에서 어느 저장소를 작업하고 있는지 한눈에 봅니다. 조직 작업 공간의 세션은 조직원과 공유됩니다.', en: 'Which workspace and which repository each of your AinCode sessions works on. Sessions in an organization workspace are shared with its members.' },
   'aincode.workspace.personal': { ko: '개인 작업 공간', en: 'Personal workspace' },
   'aincode.workspace.org': { ko: '{name} 조직 작업 공간', en: '{name} organization workspace' },
   'aincode.workspace.running': { ko: '실행 중', en: 'Running' },

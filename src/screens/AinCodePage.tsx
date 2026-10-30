@@ -10,7 +10,7 @@ import { useAincodeOverviewQuery } from '@/api/aincodeOverview';
 import { relativeTime } from '@/api/projects';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { CenterProgress, Empty, Mono, PageWrapper, SectionTitle } from '@/components/ui/Misc';
+import { CenterProgress, Empty, Mono, PageWrapper } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 
@@ -53,7 +53,6 @@ export default function AinCodePage() {
 
   return (
     <PageWrapper>
-      <SectionTitle>{t('nav.aincode')}</SectionTitle>
       {loading && <div role="status" data-testid="aincode-loading"><CenterProgress /></div>}
       {signedOut && (
         <Empty>
