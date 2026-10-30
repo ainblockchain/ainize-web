@@ -105,6 +105,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   }, [run]);
   const [language, setLanguage] = useState<SnippetLanguage>('python');
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   // Signed in? Then the snippet should be paste-and-run rather than paste-and-go-find-a-key.
   const { data: me } = useMeQuery();
@@ -342,15 +343,19 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             type="button"
             data-testid="models-copy"
             onClick={() => {
-              void navigator.clipboard?.writeText(snippet).then(() => {
+              setCopied(false);
+              setCopyFailed(false);
+              if (!navigator.clipboard) { setCopyFailed(true); return; }
+              void navigator.clipboard.writeText(snippet).then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
-              });
+              }).catch(() => setCopyFailed(true));
             }}
           >
             {t(copied ? 'models.code.copied' : 'models.code.copy')}
           </Button>
         </CodeHead>
+        {copyFailed && <Alert role="alert" $tone="error">{t('models.code.copy_failed')}</Alert>}
         <CodeBlock data-testid="models-snippet">{snippet}</CodeBlock>
         <Description>
           <StyledLink to="/docs/how-to/call-the-model">{t('models.code.docs')}</StyledLink>

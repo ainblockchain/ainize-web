@@ -74,8 +74,8 @@ export const models: Dict = {
 
   'models.key.title': { ko: 'API 키', en: 'API key' },
   'models.key.none': {
-    ko: '키가 있으면 아래 코드에 바로 채워집니다. 지갑으로 로그인한 뒤 발급받으세요 — 개인키는 이 기기를 떠나지 않습니다.',
-    en: 'A key gets written straight into the code below. Sign in with your wallet and create one — your private key never leaves this device.',
+    ko: '로그인 후 API 키를 발급받으세요. 이 탭에서 새로 발급한 키는 아래 코드에 자동으로 채워집니다.',
+    en: 'Sign in to create an API key. A key created in this tab is filled into the code below.',
   },
   'models.key.signin': { ko: '로그인하고 키 발급받기 →', en: 'Sign in and create a key →' },
   'models.key.google': {
@@ -103,6 +103,7 @@ export const models: Dict = {
     en: 'The call you just made, as your program would make it. What you deposit becomes your share of the throughput.',
   },
   'models.code.copy': { ko: '복사', en: 'Copy' },
+  'models.code.copy_failed': { ko: '복사하지 못했습니다. 아래 코드를 선택해 직접 복사해 주세요.', en: 'Could not copy. Select the code below and copy it manually.' },
   'models.code.copied': { ko: '복사됨', en: 'Copied' },
   'models.code.docs': { ko: '한도, 예치, 에러 코드 — 전체 안내', en: 'Limits, deposits and error codes — the full guide' },
 };
