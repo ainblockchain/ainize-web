@@ -4,7 +4,7 @@ import { useTeachPolicyQuery } from '@/api/api';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
-import { Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
+import { PageWrapper, SectionTitle } from '@/components/ui/Misc';
 import { policyLine } from '@/components/chat/teachUtil';
 import { STEP_KEYS } from '@/components/teach/Stepper';
 import { readiness, rowsPerJob } from '@/components/teach/util';
@@ -116,8 +116,6 @@ const Lock = () => (
     <path d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Z" />
   </svg>
 );
-/** One line under the title (O-7): wider than `Description`'s 72ch so the English sentence stays on one line at 944 px. */
-const Intro = styled(Description)`max-width: none; font-size: 15px;`;
 /** The longer story, behind a disclosure (O-7): a native <details> — keyboard-operable, announced as expandable, no script. */
 const How = styled.details`
   margin-top: 20px; font-size: 14px; color: ${(p) => p.theme.color.DARK_GREY};
@@ -150,8 +148,7 @@ export default function TeachPage() {
 
   return (
     <PageWrapper data-testid="teach-entry">
-      <TitleRow><Title>{t('teach.entry.title')}</Title></TitleRow>
-      <Intro>{t('teach.entry.sub')}</Intro>
+      <SectionTitle>{t('train.start')}</SectionTitle>
 
       {!isLoading && ready.text && (
         <Ready $tone={ready.ok ? 'info' : 'warning'} role="status" data-testid="teach-policy">

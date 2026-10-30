@@ -10,7 +10,7 @@ import { groupOverview, misplaced, parseOverview, type AinCodeOverview, type Ain
 import { relativeTime } from '@/api/projects';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { CenterProgress, Description, Empty, Mono, PageWrapper, Title } from '@/components/ui/Misc';
+import { CenterProgress, Empty, Mono, PageWrapper, SectionTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 
@@ -64,8 +64,7 @@ export default function AinCodePage() {
 
   return (
     <PageWrapper>
-      <Title>{t('aincode.title')}</Title>
-      <Description>{t('aincode.lede')}</Description>
+      <SectionTitle>{t('nav.aincode')}</SectionTitle>
       {state.kind === 'loading' && <CenterProgress />}
       {state.kind === 'signedOut' && (
         <Empty>

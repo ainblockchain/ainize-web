@@ -13,7 +13,7 @@ import { AgentListItem } from '@/components/public/AgentListItem';
 import { PatchListItem, PriceUnitNote, TermsLegend } from '@/components/public/PatchListItem';
 import { Shelves } from '@/components/public/Shelves';
 import { Alert } from '@/components/ui/Form';
-import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
+import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, SectionTitle, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { docsFromAgents, matchingSearchIds } from '@/lib/globalSearch';
@@ -46,7 +46,8 @@ const ITEM_LIMIT = 10;
 const CURRENT_STATUS = 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED';
 
 const Filters = styled.div`
-  display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 24px;
+  display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 16px;
+  &:empty { display: none; }
 `;
 const FilterGroup = styled.div`
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -261,12 +262,6 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const listError = fromPublic && !!agentError;
   const mineCount = sharedPage ? sharedPage.items.length : registryMissing ? fallbackRows('mine', allAgents, principals).length : null;
   const mineMore = !!sharedPage?.nextCursor;
-  const scopeName = agentFilter === 'org' ? orgProfile?.name ?? orgList.orgs.find((o) => o.id === orgId)?.name ?? '' : '';
-  /** One line that says what the list is: how many, and whose. It is also where the skip link lands. */
-  const headline = listLoading || (agentFilter === 'org' && !scopeName) ? t('explore.agents.title')
-    : agentFilter === 'org' ? t('explore.agents.count_in', { n: num(agents.length), name: scopeName }, agents.length)
-      : agentFilter === 'mine' ? t('explore.agents.count_mine', { n: num(agents.length) }, agents.length)
-        : t('explore.agents.count_public', { n: num(agents.length) }, agents.length);
   const noOrg = orgView && !orgsLoading && !!myOrgs.currentData && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
@@ -274,13 +269,8 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
 
   return (
     <PageWrapper>
-      <TitleRow>
-        <Title>{kind === 'agent' ? t('explore.title_agent') : t('explore.title')}</Title>
-        {/* Every ordering here is a property of a knowledge (sales, rows, price, freshness of the data). None of
-            them is a property of an agent, so the control goes away rather than offering meaningless options. */}
-        {kind === 'knowledge' && <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} />}
-      </TitleRow>
-      <Intro>{kind === 'agent' ? t('explore.agents.sub') : t('explore.sub')}</Intro>
+      <SectionTitle>{kind === 'agent' ? t('nav.agents') : t('train.knowledge')}</SectionTitle>
+      {kind === 'knowledge' && <TitleRow><SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} /></TitleRow>}
       {q && <Intro>{t('search.query', { q })}</Intro>}
       <Skip href="#explore-results">{t('explore.skip')}</Skip>
 
@@ -359,19 +349,15 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
       {kind === 'knowledge' && <ResultsHead id="explore-results" tabIndex={-1}>{t('explore.results')}</ResultsHead>}
 
       {kind === 'agent' && (
-        <>
-          <ResultBar>
-            <ResultsHead id="explore-results" tabIndex={-1} data-testid="agents-count">{headline}</ResultsHead>
+        <section id="explore-results" tabIndex={-1} aria-label={t('nav.agents')}>
+          {auth.isSignedIn && <ResultBar>
             {/* The doors to make more, beside the list they land in. Each asks for an owner, so signed-in only. */}
-            {auth.isSignedIn && (
               <MakeRow data-testid="agents-make">
                 {orgView && orgProfile && <StyledLink to={`/org/${encodeURIComponent(orgProfile.id)}`} data-testid="agents-org-page">{t('explore.agents.org_manage')} →</StyledLink>}
                 <StyledLink to={orgView && orgId ? `/agent/new?org=${encodeURIComponent(orgId)}` : '/agent/new'}>{t('explore.agents.make.create')} →</StyledLink>
                 <StyledLink to={orgView && orgId ? `/agent/link?org=${encodeURIComponent(orgId)}` : '/agent/link'}>{t('explore.agents.make.link')} →</StyledLink>
               </MakeRow>
-            )}
-          </ResultBar>
-          {!auth.isSignedIn && <ScopeNote data-testid="agents-signin-note">{t('explore.agents.signin_for_scope')}</ScopeNote>}
+          </ResultBar>}
           {orgView && orgsMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
           {listError && <Failure $tone="error" data-testid="agents-error">
             <span>{t('explore.agents.unreachable')}</span>
@@ -397,7 +383,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
               )}
             </>
           )}
-        </>
+        </section>
       )}
 
       {kind === 'knowledge' && error && (
