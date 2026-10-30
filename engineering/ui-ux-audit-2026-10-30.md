@@ -29,6 +29,12 @@ User request: audit all inconsistent UI/UX, mismatched labels and destinations, 
 | U10 | Generic missing-page recovery always sent visitors to knowledge | NotFoundPage.tsx | Home recovery prepared |
 | U11 | Production Train cannot start while serving API is unreachable | Public /train policy warning observed after #141 | Runtime issue unresolved; do not present training as verified |
 
+## Newly identified follow-up findings
+
+- U12: Landing signed-in identity links to `/my-nodes` for wallet sessions and `/models` for SSO/Google, rather than the account/profile destination the label implies. Source: LandingPage.tsx landing-nav-account. Not fixed yet.
+- U13: SignedInLayout and SigningCheckLayout preserve only pathname in the login return link, dropping query/anchor selections. Source: components/base/Layout.tsx. Not fixed yet.
+- U14: Landing demo console links point at a specific ComCom repository; verify its public accessibility before presenting it as a public working example. Source: LandingPage.tsx EXAMPLE_PROJECT. Not verified yet.
+
 ## Route coverage inventory
 
 A row remains pending until the applicable flows and rendered behavior are checked. A passing typecheck or source-only assertion is not full route coverage.
@@ -110,3 +116,5 @@ A row remains pending until the applicable flows and rendered behavior are check
 
 - 2026-10-30: #141 public SHA 3ad89f7a724577b724114da82955a3d68dcf3f70; Train three subsection links and /teach redirect verified; no horizontal overflow at 390 and 320px. Actual training unavailable.
 - Current follow-up: local TypeScript and 31 focused route/search/access checks pass; full server CI and public browser checks not yet run for U04–U10.
+
+- First server deployment attempt for #142 stopped at gen:check before activation because the engineering audit document was in the public docs directory. Move it outside public docs; preserve the last running release and rerun the gate.
