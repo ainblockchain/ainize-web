@@ -2,14 +2,11 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useAuth } from '@/auth/AuthContext';
-import { useAgentsQuery, useCatalogQuery, useModelsQuery, useMyProjectsQuery, useNetworkModelsQuery } from '@/api/api';
-import { networkModelCatalogue, parseNetworkModelsResponse } from '@/api/networkModels';
-import { parseModelsResponse } from '@/api/models';
 import { useT } from '@/i18n';
-import { docsFromAgents, docsFromCatalog, docsFromModels, docsFromProjects, flattenHits, searchDocs, seeAllHref, type SearchDoc, type SearchKind } from '@/lib/globalSearch';
+import { searchHref, seeAllHref, type SearchDoc, type SearchKind } from '@/lib/globalSearch';
+import { useSearchResults } from '@/lib/useSearchResults';
 
 /** The statuses /explore shows by default — a retired knowledge is not what a search box should offer first. */
-const CURRENT_STATUS = 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED';
 
 /**
  * The header's search — huggingface.co's shape: a pill input beside the logo, a dropdown grouped by what the hit
@@ -84,32 +81,16 @@ export function GlobalSearch() {
   const needle = q.trim();
   const debounced = useDebounced(needle, 200);
 
-  const models = useModelsQuery(undefined, { skip: !armed });
-  const network = useNetworkModelsQuery(undefined, { skip: !armed });
-  const agents = useAgentsQuery(undefined, { skip: !armed });
-  const projects = useMyProjectsQuery(undefined, { skip: !armed || !isSignedIn });
-  const catalog = useCatalogQuery({ q: debounced, status: CURRENT_STATUS, limit: 8 }, { skip: !armed || !debounced });
-
-  const localDocs = useMemo<SearchDoc[]>(() => [
-    ...docsFromProjects(projects.data?.projects ?? []),
-    ...docsFromModels(networkModelCatalogue(parseModelsResponse(models.data), parseNetworkModelsResponse(network.data))),
-    ...docsFromAgents(agents.data?.agents ?? []),
-  ], [projects.data, models.data, network.data, agents.data]);
-
-  const groups = useMemo(() => {
-    const local = searchDocs(localDocs, needle, 4);
-    // The node already matched the knowledge rows; they are shown as it ranked them, not re-scored here.
-    const items = debounced === needle ? catalog.data?.items ?? [] : [];
-    if (items.length) local.push({ kind: 'knowledge', hits: docsFromCatalog(items).slice(0, 4).map((d) => ({ ...d, score: 0 })), total: catalog.data?.total ?? items.length });
-    return local;
-  }, [localDocs, needle, debounced, catalog.data]);
+  const result = useSearchResults(debounced, armed);
+  const groups = debounced === needle ? result.groups : [];
 
   const entries = useMemo<Entry[]>(() => groups.flatMap((g) => [
     ...g.hits.map((h): Entry => ({ key: `${g.kind}:${h.id}`, href: h.href, kind: g.kind, hit: h })),
     ...(g.total > g.hits.length ? [{ key: `${g.kind}:more`, href: seeAllHref(g.kind, needle), kind: g.kind, more: { n: g.total } } satisfies Entry] : []),
   ]), [groups, needle]);
 
-  useEffect(() => { setCursor(-1); }, [needle]);
+  const entryKeys = entries.map((entry) => entry.key).join('|');
+  useEffect(() => { setCursor(-1); }, [needle, entryKeys]);
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', onDoc);
@@ -120,12 +101,12 @@ export function GlobalSearch() {
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') { setOpen(false); return; }
     if (!needle) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setCursor((c) => Math.min(c + 1, entries.length - 1)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setCursor((c) => Math.min(c + 1, entries.length)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor((c) => Math.max(c - 1, -1)); }
-    else if (e.key === 'Enter') { e.preventDefault(); go(cursor >= 0 && entries[cursor] ? entries[cursor].href : seeAllHref('knowledge', needle)); }
+    else if (e.key === 'Enter') { e.preventDefault(); go(cursor >= 0 && entries[cursor] ? entries[cursor].href : searchHref(needle)); }
   };
 
-  const loading = !!needle && (catalog.isFetching || models.isLoading || agents.isLoading || debounced !== needle);
+  const loading = !!needle && (result.loading || debounced !== needle);
   const showPanel = open && !!needle;
   let i = -1;
   return (
@@ -134,7 +115,7 @@ export function GlobalSearch() {
         <SearchIcon />
         <Input
           type="search" value={q} placeholder={t('search.placeholder')} aria-label={t('search.label')}
-          role="combobox" aria-expanded={showPanel} aria-controls={listId} aria-autocomplete="list" autoComplete="off"
+          role="combobox" aria-expanded={showPanel} aria-controls={listId} aria-activedescendant={showPanel && cursor >= 0 ? `${listId}-${cursor}` : undefined} aria-autocomplete="list" autoComplete="off"
           onFocus={() => { setArmed(true); setOpen(true); }} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onKeyDown={onKey}
           data-testid="global-search-input"
         />
@@ -145,22 +126,23 @@ export function GlobalSearch() {
             <div key={g.kind} role="group" aria-label={t(`search.kind.${g.kind}`)}>
               <GroupHead><span>{t(`search.kind.${g.kind}`)}</span><span>{g.total}</span></GroupHead>
               {g.hits.map((h) => { i += 1; const on = i === cursor; return (
-                <Row key={h.id} to={h.href} $on={on} role="option" aria-selected={on} onClick={(e) => { e.preventDefault(); go(h.href); }} onMouseEnter={() => setCursor(entries.findIndex((en) => en.hit?.id === h.id && en.kind === g.kind))}>
+                <Row id={`${listId}-${i}`} key={h.id} to={h.href} $on={on} role="option" aria-selected={on} onClick={(e) => { e.preventDefault(); go(h.href); }} onMouseEnter={() => setCursor(entries.findIndex((en) => en.hit?.id === h.id && en.kind === g.kind))}>
                   <span className="t">{h.title}</span>
                   {h.subtitle && <span className="s">{h.subtitle}</span>}
                 </Row>
               ); })}
               {g.total > g.hits.length && (() => { i += 1; const on = i === cursor; const href = seeAllHref(g.kind, needle); return (
-                <More to={href} $on={on} role="option" aria-selected={on} onClick={(e) => { e.preventDefault(); go(href); }}>
+                <More id={`${listId}-${i}`} to={href} $on={on} role="option" aria-selected={on} onClick={(e) => { e.preventDefault(); go(href); }}>
                   {t('search.see_all', { n: g.total, kind: t(`search.kind.${g.kind}`) })} →
                 </More>
               ); })()}
             </div>
           ))}
-          {!groups.length && !loading && <Note>{t('search.empty', { q: needle })}</Note>}
+          {!groups.length && !loading && !result.failures.length && <Note>{t('search.empty', { q: needle })}</Note>}
           {!groups.length && loading && <Note>{t('search.loading')}</Note>}
+          {!!result.failures.length && <Note role="status">{t('search.partial', { kinds: result.failures.map((kind) => t(`search.kind.${kind}`)).join(', ') })}</Note>}
           {!isSignedIn && <Note>{t('search.apps_signin')}</Note>}
-          <More to={seeAllHref('knowledge', needle)} $on={false} onClick={(e) => { e.preventDefault(); go(seeAllHref('knowledge', needle)); }} data-testid="global-search-all">
+          <More id={`${listId}-${entries.length}`} to={searchHref(needle)} $on={cursor === entries.length} role="option" aria-selected={cursor === entries.length} onMouseEnter={() => setCursor(entries.length)} onClick={(e) => { e.preventDefault(); go(searchHref(needle)); }} data-testid="global-search-all">
             {t('search.all', { q: needle })} →
           </More>
         </Panel>

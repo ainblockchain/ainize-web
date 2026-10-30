@@ -383,16 +383,18 @@ function LoadFailed({ id, error, busy, onRetry }: { id: string; error: unknown; 
   );
 }
 
-export default function PatchPage() {
-  const { author = '', patchId = '' } = useParams();
+export default function PatchPage({ author: givenAuthor, patchId: givenId }: { author?: string; patchId?: string } = {}) {
+  const params = useParams();
+  const author = givenAuthor ?? params.author ?? '';
+  const patchId = givenId ?? params.patchId ?? '';
   const { isOwner } = useAuth();
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
-  const { data, isLoading, error, isFetching, refetch } = usePatchQuery(patchId, { pollingInterval: 10_000 });
+  const { currentData: data, isLoading, error, isFetching, refetch } = usePatchQuery(patchId, { skip: !patchId, pollingInterval: 10_000 });
   // `teach.lineage` gates the CREATOR affordances only (§18): the tree, the strip and the open questions are read-only
   // and ship on every node, including the demo cluster where the flag is off.
   const { data: policy } = useTeachPolicyQuery();
-  const { data: issues } = usePatchIssuesQuery({ id: patchId, limit: 1 });
+  const { currentData: issues } = usePatchIssuesQuery({ id: patchId, limit: 1 }, { skip: !patchId });
   /**
    * Item 73: the open tab used to live in `useState`, so "look at the verification results" could not be sent to
    * anyone, a reload came back to Overview, and Back from the third tab ejected the reader to /explore instead of
@@ -411,7 +413,7 @@ export default function PatchPage() {
   // item 249 — the END of the supersede chain, not the next link in it
   const newest = useNewestVersion(data);
 
-  if (isLoading) return <Wrapper><CenterProgress /></Wrapper>;
+  if (isLoading || (isFetching && !data)) return <Wrapper><CenterProgress /></Wrapper>;
   if (!data) {
     if (error && httpStatus(error) !== 404) return <LoadFailed id={patchId} error={error} busy={isFetching} onRetry={() => { void refetch(); }} />;
     return <NotFoundPage message={t('detail.patch.not_found', { id: patchId })} />;

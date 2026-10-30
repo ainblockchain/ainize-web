@@ -5,7 +5,10 @@
  * Pure: the component (`components/ui/GlobalSearch.tsx`) feeds it what the queries returned and draws the groups
  * it gets back. Keeping the ranking here is what lets `test/global-search.test.ts` hold it without a renderer.
  */
+import { projectPath } from './reservedRoutes';
+
 export type SearchKind = 'app' | 'model' | 'agent' | 'knowledge';
+export const searchHref = (query: string): string => `/search?q=${encodeURIComponent(query.trim())}`;
 
 /** The order the groups are drawn in — the order the header's nav lists them. */
 export const SEARCH_KINDS: readonly SearchKind[] = ['app', 'model', 'agent', 'knowledge'];
@@ -88,12 +91,12 @@ export function flattenHits(groups: readonly SearchGroup[]): SearchHit[] {
 
 // ------------------------------------------------------------------ adapters: what the API returned → SearchDoc
 
-export function docsFromProjects(projects: readonly { id: string; org: string; repoName: string; name: string; kind?: string | null; status?: string }[]): SearchDoc[] {
-  return projects.map((p) => ({
+export function docsFromProjects(projects: readonly { id: string; org: string; repoName: string; name: string; sourcePath?: string; kind?: string | null; status?: string }[]): SearchDoc[] {
+  return projects.filter((p) => p.kind === 'nextjs' || p.kind === 'service').map((p) => ({
     kind: 'app', id: p.id, title: p.name || `${p.org}/${p.repoName}`,
     subtitle: `${p.org}/${p.repoName}${p.kind ? ` · ${p.kind}` : ''}`,
-    href: `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}`,
-    keywords: [p.org, p.repoName, p.kind ?? '', p.status ?? ''],
+    href: projectPath(p),
+    keywords: [p.org, p.repoName, p.sourcePath ?? '', p.kind ?? '', p.status ?? ''],
   }));
 }
 

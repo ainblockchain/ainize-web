@@ -329,7 +329,7 @@ export const listing: Dict = {
 export const misc: Dict = {
   'notfound.title': { ko: '404. 페이지를 찾을 수 없습니다', en: '404. Page not found' },
   'notfound.desc': { ko: '주소가 잘못되었거나 페이지가 더 이상 존재하지 않습니다.', en: "Either something went wrong or the page doesn't exist anymore." },
-  'notfound.home': { ko: '지식 둘러보기로 가기', en: 'Go to Explore' },
+  'notfound.home': { ko: '홈으로 가기', en: 'Go home' },
 
   'terms.title': { ko: '이용약관과 개인정보 처리방침', en: 'Terms and Policies' },
   'terms.updated': { ko: '최종 수정: 2026년 8월 31일', en: 'Last updated: August 31, 2026' },

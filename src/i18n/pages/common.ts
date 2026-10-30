@@ -85,6 +85,10 @@ export const common: Dict = {
   'units.verified_by': { ko: '검증 노드 {passed}/{quorum}', en: '{passed}/{quorum} verifiers' },
   // The header's unified search (huggingface-style): one box over apps, models, agents and knowledge.
   'search.placeholder': { ko: '앱·모델·에이전트·지식 검색', en: 'Search apps, models, agents, knowledge' },
+  'search.title': { ko: '검색 결과', en: 'Search results' },
+  'search.query': { ko: '“{q}” 검색 결과', en: 'Results for “{q}”' },
+  'search.prompt': { ko: '상단 검색바에서 앱, 모델, 에이전트와 지식을 검색하세요.', en: 'Use the top search bar to find apps, models, agents and knowledge.' },
+  'search.partial': { ko: '{kinds} 검색 결과를 불러오지 못했습니다. 현재 결과는 일부일 수 있습니다.', en: 'Could not load {kinds} results. The results shown may be incomplete.' },
   'search.label': { ko: '통합 검색', en: 'Search everything' },
   'search.kind.app': { ko: '앱', en: 'Apps' },
   'search.kind.model': { ko: '모델', en: 'Models' },
@@ -93,6 +97,6 @@ export const common: Dict = {
   'search.see_all': { ko: '{kind} 결과 {n}개 모두 보기', en: 'See all {n} {kind}' },
   'search.empty': { ko: '"{q}"에 맞는 항목이 없습니다', en: 'Nothing matches "{q}"' },
   'search.loading': { ko: '검색 중…', en: 'Searching…' },
-  'search.all': { ko: '지식에서 "{q}" 검색', en: 'Search knowledge for "{q}"' },
-  'search.apps_signin': { ko: '앱은 로그인하면 내 프로젝트에서 검색됩니다', en: 'Sign in to search your apps' },
+  'search.all': { ko: '"{q}" 전체 검색 결과 보기', en: 'See all results for "{q}"' },
+  'search.apps_signin': { ko: '로그인하면 내 앱과 조직에서 공유한 앱도 검색합니다', en: 'Sign in to search your apps' },
 };

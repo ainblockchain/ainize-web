@@ -38,6 +38,11 @@ export const projects: Dict = {
 
   // ── /projects/:id
   'projects.page.title': { ko: '프로젝트', en: 'Project' },
+  'projects.page.unavailable': { ko: '프로젝트를 열 수 없습니다', en: 'This project is unavailable' },
+  'projects.page.load_failed': { ko: '프로젝트를 불러오지 못했습니다', en: 'Could not load this project' },
+  'projects.page.signin_check': { ko: '주소가 올바른지 확인하세요. 비공개 프로젝트라면 접근 권한이 있는 계정으로 로그인해야 합니다.', en: 'Check the address. If this is a private project, sign in with an account that has access.' },
+  'projects.page.check_access': { ko: '주소와 프로젝트 접근 권한을 확인하세요. 이 계정으로 볼 수 없거나 삭제된 프로젝트일 수 있습니다.', en: 'Check the address and your access. This project may be unavailable to your account or may have been deleted.' },
+  'projects.page.retry_help': { ko: '서버 응답을 받지 못했습니다. 잠시 후 다시 시도하세요.', en: 'The server did not return the project. Please try again.' },
   'projects.page.not_found': { ko: '이 노드에 그런 프로젝트가 없습니다.', en: 'No such project on this node.' },
   'projects.page.repo': { ko: '리포', en: 'Repository' },
   'projects.page.branch': { ko: '브랜치', en: 'Branch' },
