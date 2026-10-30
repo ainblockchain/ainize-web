@@ -630,8 +630,8 @@ export function ProjectByNamePage() {
     <Empty>{t(unavailable ? (isSignedIn ? 'projects.page.check_access' : 'projects.page.signin_check') : 'projects.page.retry_help')}</Empty>
     <Actions>
       {!isSignedIn && unavailable && <StyledLink to={`/signing?next=${encodeURIComponent(location.pathname + location.search)}`}>{t('projects.runs.sign_in_button')}</StyledLink>}
-      <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('apps.retry')}</Button>
-      <StyledLink to="/apps">{t('apps.all')}</StyledLink>
+      <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('projects.page.retry')}</Button>
+      <StyledLink to="/apps">{t('projects.page.apps')}</StyledLink>
     </Actions>
   </PageWrapper>;
 }
