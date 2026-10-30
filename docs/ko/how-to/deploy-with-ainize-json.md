@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: ea9f442b9406c468c9dc3395890630cc963340b13d47829ae6313fbf3166585a
+source_sha256: 43215e6bb998d33f6b12605a2590be996cac06780ddbe88e2887b85ee6af82e4
 ---
 
 # ainize.json으로 리포 배포하기
@@ -102,8 +102,9 @@ URL은 GitHub 규약을 따르고 주소창에 그대로 남습니다:
 | `/<org>/git/<repo>/tree/<ref>/<dir>` · `/blob/<ref>/<file>` · `/raw/<ref>/<file>` | 폴더 · 파일(실행 가능 파일은 Save 옆 ▶ Run) · 원문 바이트 |
 | `/<org>/git/<repo>/commits/<ref>` · `/commit/<sha>` · `/deployments` | 이력 · 커밋 하나 · ainize 배포 |
 
-같은 `/<org>/git/<repo>`가 git 리모트입니다(`git clone https://aindrive.ainetwork.ai/<org>/git/<repo>`, 또는 AIN SSO
-계정에 등록한 SSH 키로 `ssh://git@aindrive.ainetwork.ai:2222/<org>/<repo>`).
+같은 `/<org>/git/<repo>`가 git 리모트입니다. `git clone https://aindrive.ainetwork.ai/<org>/git/<repo>` 에 로그인 토큰을
+비밀번호로 쓰거나([방법](aindrive-git.md)), 운영자가 git SSH 포트를 열어 둔 곳에서는 AIN SSO 계정에 등록한 SSH 키로
+`git@aindrive.ainetwork.ai:<org>/<repo>` 를 씁니다.
 
 ## push에서 배포까지
 

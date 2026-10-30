@@ -15,6 +15,10 @@
         "title": "Quickstart: code to deployment"
       },
       {
+        "page": "how-to/aindrive-git",
+        "title": "Use AinDrive as your git remote"
+      },
+      {
         "page": "how-to/deploy-nextjs",
         "title": "Deploy a Next.js app"
       },

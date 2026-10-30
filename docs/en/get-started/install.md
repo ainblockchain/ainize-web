@@ -24,7 +24,7 @@ ainize --help
 | | |
 |---|---|
 | `$AINDRIVE_ORG`, `$AINDRIVE_USER` | Your organization's AinDrive and your name. The commands in these pages use them, so the repositories they create are yours. |
-| Git | `https://aindrive.ainetwork.ai/<org>/git/<repo>` clones and pushes with your own AinDrive permission, without a token. A push to a new name creates the repository. |
+| Git | `https://aindrive.ainetwork.ai/<org>/git/<repo>` clones and pushes with your own AinDrive permission, without a token — inside the workspace. From your own machine, sign in once and push over HTTPS: [Use AinDrive as your git remote](../how-to/aindrive-git.md). A push to a new name creates the repository. |
 | `$AINIZE_API` | The Ainize API, signed in as you: projects, deployments and their logs. |
 | `ainize` | The CLI, for calling agents and models. |
 | `curl`, `jq` | For reading the API. |

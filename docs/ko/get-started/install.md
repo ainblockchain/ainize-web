@@ -1,7 +1,7 @@
 ---
-source: en/get-started/install.md
-source_sha256: ea5ded66bd3dc8c2b70addbefd3eaf35974416cbf7f408aa94d928427a123041
 summary: ainize.ai/code의 AinCode는 CLI·Git·AinDrive가 이미 준비된 작업 공간입니다. 설치할 것이 없습니다.
+source: en/get-started/install.md
+source_sha256: ce3d942b5fcbb03da6f94ead7783c30effd8f877a36c544678290b695c56336c
 ---
 
 # AinCode 열기
@@ -26,7 +26,7 @@ ainize --help
 | | |
 |---|---|
 | `$AINDRIVE_ORG`, `$AINDRIVE_USER` | 우리 조직의 AinDrive와 내 이름. 문서의 명령이 이 값을 쓰므로 만들어지는 저장소는 내 것입니다. |
-| Git | `https://aindrive.ainetwork.ai/<org>/git/<repo>`를 토큰 없이 내 AinDrive 권한으로 clone·push 합니다. 새 이름으로 push 하면 저장소가 만들어집니다. |
+| Git | `https://aindrive.ainetwork.ai/<org>/git/<repo>`를 토큰 없이 내 AinDrive 권한으로 clone·push 합니다 — 작업 공간 안에서는요. 내 머신에서는 한 번 로그인하고 HTTPS 로 push 합니다: [AinDrive를 git 리모트로 쓰기](../how-to/aindrive-git.md). 새 이름으로 push 하면 저장소가 만들어집니다. |
 | `$AINIZE_API` | 내 계정으로 로그인된 Ainize API: 프로젝트, 배포, 배포 로그. |
 | `ainize` | 에이전트와 모델을 호출하는 CLI. |
 | `curl`, `jq` | API 응답을 읽는 도구. |

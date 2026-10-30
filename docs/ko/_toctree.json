@@ -15,6 +15,10 @@
         "title": "빠른 시작: 코드에서 배포까지"
       },
       {
+        "page": "how-to/aindrive-git",
+        "title": "AinDrive를 git 리모트로 쓰기"
+      },
+      {
         "page": "how-to/deploy-nextjs",
         "title": "Next.js 앱 배포하기"
       },

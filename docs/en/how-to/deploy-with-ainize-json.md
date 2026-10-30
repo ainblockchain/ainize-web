@@ -104,8 +104,9 @@ URLs follow GitHub's convention and stay in the address bar:
 | `/<org>/git/<repo>/tree/<ref>/<dir>` · `/blob/<ref>/<file>` · `/raw/<ref>/<file>` | folder · file (with ▶ Run next to Save for runnable files) · raw bytes |
 | `/<org>/git/<repo>/commits/<ref>` · `/commit/<sha>` · `/deployments` | history · one commit · ainize deployments |
 
-The same `/<org>/git/<repo>` is the git remote (`git clone https://aindrive.ainetwork.ai/<org>/git/<repo>`, or
-`ssh://git@aindrive.ainetwork.ai:2222/<org>/<repo>` with an SSH key registered in your AIN SSO account).
+The same `/<org>/git/<repo>` is the git remote: `git clone https://aindrive.ainetwork.ai/<org>/git/<repo>` with your
+sign-in token as the password ([how](aindrive-git.md)), or `git@aindrive.ainetwork.ai:<org>/<repo>` over SSH with a key
+registered in your AIN SSO account where the operator exposes the git SSH port.
 
 ## From push to deployment
 
