@@ -74,8 +74,8 @@ export const models: Dict = {
 
   'models.key.title': { ko: 'API 키', en: 'API key' },
   'models.key.none': {
-    ko: '키가 있으면 아래 코드에 바로 채워집니다. 지갑으로 로그인한 뒤 발급받으세요 — 개인키는 이 기기를 떠나지 않습니다.',
-    en: 'A key gets written straight into the code below. Sign in with your wallet and create one — your private key never leaves this device.',
+    ko: '로그인 후 API 키를 발급받으세요. 이 탭에서 새로 발급한 키는 아래 코드에 자동으로 채워집니다.',
+    en: 'Sign in to create an API key. A key created in this tab is filled into the code below.',
   },
   'models.key.signin': { ko: '로그인하고 키 발급받기 →', en: 'Sign in and create a key →' },
   'models.key.google': {
@@ -92,8 +92,8 @@ export const models: Dict = {
   'models.key.creating': { ko: '발급 중…', en: 'Creating…' },
   'models.key.manage': { ko: '내 키 관리 →', en: 'Manage your keys →' },
   'models.key.held': {
-    ko: '이 키는 이 탭에만 보관됩니다. 노드는 해시만 저장하므로 다시 보여줄 수 없습니다 — 지금 안전한 곳에 복사해 두세요.',
-    en: 'This key is held in this tab only. The node stores a hash, so it cannot be shown again — copy it somewhere safe now.',
+    ko: '이 키는 이 탭의 현재 계정에만 보관되며, 로그아웃하거나 계정을 바꾸면 지워집니다. 노드는 해시만 저장하므로 다시 보여줄 수 없습니다 — 지금 안전한 곳에 복사해 두세요.',
+    en: 'This key is held for the current account in this tab and cleared on sign-out or account switch. The node stores a hash, so it cannot be shown again — copy it somewhere safe now.',
   },
   'models.key.forget': { ko: '이 탭에서 지우기', en: 'Forget it in this tab' },
   'models.key.failed': { ko: '키를 발급하지 못했습니다: {why}', en: 'The key could not be created: {why}' },
@@ -103,6 +103,7 @@ export const models: Dict = {
     en: 'The call you just made, as your program would make it. What you deposit becomes your share of the throughput.',
   },
   'models.code.copy': { ko: '복사', en: 'Copy' },
+  'models.code.copy_failed': { ko: '복사하지 못했습니다. 아래 코드를 선택해 직접 복사해 주세요.', en: 'Could not copy. Select the code below and copy it manually.' },
   'models.code.copied': { ko: '복사됨', en: 'Copied' },
   'models.code.docs': { ko: '한도, 예치, 에러 코드 — 전체 안내', en: 'Limits, deposits and error codes — the full guide' },
 };

@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useThroughputQuoteQuery } from '@/api/api';
+import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useThroughputQuoteQuery } from '@/api/api';
 import { parseBillingThroughputResponse } from '@/api/billingThroughput';
 import { useAuth } from '@/auth/AuthContext';
 import type { ModelModality, PublicModelCard } from '@/api/models';
@@ -18,7 +18,7 @@ import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { DECISION_EXAMPLE, MUSIC_TRY, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
 import { readChatStream } from './playgroundStream';
-import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './issuedKeyMemory';
+import { useIssuedKey } from './useIssuedKey';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
 
 const Panel = styled.div`border: 1px solid #e2e4ea; border-radius: 10px; padding: 18px; margin-bottom: 28px;`;
@@ -89,6 +89,11 @@ type RunState =
  * peer's (api/networkModels.ts). `peer` turns off what is this node's alone — its speed and its deposits.
  */
 export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = false }: { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean }) {
+  const { cacheIdentity } = useAuth();
+  return <AccountModelPlayground key={cacheIdentity} model={model} signInNext={signInNext} callModel={callModel} peer={peer} />;
+}
+
+function AccountModelPlayground({ model, signInNext, callModel, peer = false }: { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean }) {
   const modelRef = callModel ?? model.id;
   const { t } = useT();
   // Decision's box holds JSON, not a sentence, so it starts from a worked example rather than empty.
@@ -100,20 +105,15 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
   }, [run]);
   const [language, setLanguage] = useState<SnippetLanguage>('python');
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
-  // Signed in? Then the snippet should be paste-and-run rather than paste-and-go-find-a-key.
-  const { data: me } = useMeQuery();
-  // The node's own session, i.e. a wallet. A Google sign-in sets `google` on the auth context but not this,
-  // and /api/keys answers 401 to it, so it is told apart below instead of being shown the sign-in prompt
-  // again by a page it is already signed in to.
-  const signedIn = !!me?.signedIn;
-  // A Google account holds keys too: this app vouches for it to the node on /api/keys (lib/siteAssertion.ts).
-  const { google, sso } = useAuth();
-  // …and so does an AIN account (AIN SSO): the node keeps its session and issues it keys for its organization.
-  const canHoldKeys = signedIn || !!google || !!sso;
-  const { data: keyList } = useApiKeysQuery(undefined, { skip: !canHoldKeys });
+  // AuthContext includes optimistic sign-out; raw cached /me can still name the old wallet while logout runs.
+  const { google, sso, subject, isSignedIn: canHoldKeys, cacheIdentity } = useAuth();
+  const signedIn = !!subject;
+  const keyQuery = useApiKeysQuery(cacheIdentity, { skip: !canHoldKeys });
+  const keyList = keyQuery.currentData;
   const [createKey, createState] = useCreateApiKeyMutation();
-  const [issuedKey, setIssuedKey] = useState<string | null>(() => recallIssuedKey());
+  const { key: issuedKey, remember, forget } = useIssuedKey(cacheIdentity);
   const [keyName, setKeyName] = useState('');
   const keyLabel = keyName.trim();
   const duplicateKeyName = !!keyLabel && !!keyList?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === keyLabel.toLocaleLowerCase());
@@ -268,13 +268,15 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
         {/* Keys the account already holds. The node keeps only hashes, so the secret itself can't be shown again —
             but the page must not pretend there is nothing: list what exists and point at the account page, and
             make "create" the secondary action ("another"), not a reset to square one. */}
+        {canHoldKeys && keyQuery.isLoading && <Description role="status">{t('me.keys.loading')}</Description>}
+        {canHoldKeys && keyQuery.error && <Alert role="alert" $tone="error">{t('common.error', { message: errorMessage(keyQuery.error) })} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
         {canHoldKeys && !issuedKey && (keyList?.keys.length ?? 0) > 0 && (
           <Description data-testid="models-existing-keys">
             {t('models.key.existing', { n: String(keyList!.keys.filter((k) => !k.disabled).length) })}{' '}
             {keyList!.keys.filter((k) => !k.disabled).slice(0, 3).map((k) => (
               <Mono key={k.prefix} as="span" style={{ marginRight: 8 }}>{k.prefix}…{k.label ? ` (${k.label})` : ''}</Mono>
             ))}
-            <StyledLink to="/account">{t('models.key.manage')}</StyledLink>
+            <StyledLink to="/me">{t('models.key.manage')}</StyledLink>
           </Description>
         )}
         {canHoldKeys && !issuedKey && (
@@ -283,7 +285,7 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
             if (!keyLabel || duplicateKeyName || createState.isLoading) return;
             setKeyError(null);
             void createKey({ label: keyLabel }).unwrap()
-              .then((r) => { rememberIssuedKey(r.api_key); setIssuedKey(r.api_key); setKeyName(''); })
+              .then((r) => { if (remember(r.api_key)) setKeyName(''); })
               .catch((e: unknown) => setKeyError(errorMessage(e)));
           }}>
             <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
@@ -303,10 +305,10 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
             {/* Said out loud: a secret nobody knows is held is a secret held badly. */}
             <Description>{t('models.key.held')}</Description>
             <Row>
-              <Button type="button" variant="text" onClick={() => { forgetIssuedKey(); setIssuedKey(null); }}>
+              <Button type="button" variant="text" onClick={forget}>
                 {t('models.key.forget')}
               </Button>
-              {signedIn && <StyledLink to="/account">{t('models.key.manage')}</StyledLink>}
+              {canHoldKeys && <StyledLink to="/me">{t('models.key.manage')}</StyledLink>}
             </Row>
           </>
         )}
@@ -334,15 +336,19 @@ export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = fals
             type="button"
             data-testid="models-copy"
             onClick={() => {
-              void navigator.clipboard?.writeText(snippet).then(() => {
+              setCopied(false);
+              setCopyFailed(false);
+              if (!navigator.clipboard) { setCopyFailed(true); return; }
+              void navigator.clipboard.writeText(snippet).then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
-              });
+              }).catch(() => setCopyFailed(true));
             }}
           >
             {t(copied ? 'models.code.copied' : 'models.code.copy')}
           </Button>
         </CodeHead>
+        {copyFailed && <Alert role="alert" $tone="error">{t('models.code.copy_failed')}</Alert>}
         <CodeBlock data-testid="models-snippet">{snippet}</CodeBlock>
         <Description>
           <StyledLink to="/docs/how-to/call-the-model">{t('models.code.docs')}</StyledLink>

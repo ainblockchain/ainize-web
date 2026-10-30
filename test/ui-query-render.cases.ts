@@ -15,6 +15,8 @@ import TeachMinePage from '../src/screens/TeachMinePage';
 import SigningPage from '../src/screens/SigningPage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
+import MyPage from '../src/screens/MyPage';
+import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -25,13 +27,13 @@ const makeStore = (preloadedState?: any) => configureStore({
 const stores: ReturnType<typeof makeStore>[] = [];
 afterEach(() => { forgetTeacherKey(); for (const store of stores.splice(0)) store.dispatch(api.util.resetApiState()); });
 type Fixture = { name: string; arg?: unknown; value?: unknown; status?: 'pending' | 'rejected' };
-function render(page: typeof TeachMinePage | typeof SigningPage | typeof AppsPage | typeof SearchPage, fixtures: Fixture[], path = '/train/mine') {
+function render(page: () => any, fixtures: Fixture[], path = '/train/mine') {
   const seed = makeStore(); stores.push(seed);
   seed.dispatch(api.util.upsertQueryEntries(fixtures.map(({ name, value, arg }) => ({ endpointName: name, arg, value })) as any));
   const state = seed.getState();
   const queries = { ...state[api.reducerPath].queries };
   for (const [key, entry] of Object.entries(queries)) {
-    const fixture = fixtures.find((f) => f.name === entry?.endpointName);
+    const fixture = fixtures.find((f) => f.name === entry?.endpointName && JSON.stringify(f.arg) === JSON.stringify(entry?.originalArgs));
     if (fixture?.status) queries[key] = { ...entry, status: fixture.status, error: fixture.status === 'rejected' ? { status: 503, data: 'unavailable' } : undefined } as any;
   }
   const store = makeStore({ [api.reducerPath]: { ...state[api.reducerPath], queries } }); stores.push(store);
@@ -181,4 +183,82 @@ test('search retains partial app matches while reporting the incomplete source',
   assert.match(html, /Storefront/);
   assert.match(html, /role="alert"/);
   assert.match(html, /Try again/);
+});
+
+const accountIdentity = JSON.stringify([null, 'sso:viewer', null, null]);
+const accountOrgs: Fixture = { name: 'myOrgs', arg: accountIdentity, value: { signed_in: true, orgs: [] } };
+const noKeys: Fixture = { name: 'apiKeys', arg: accountIdentity, value: { keys: [] } };
+
+test('account keys do not claim empty during loading or failure and failed refresh preserves the list', () => {
+  for (const status of ['pending', 'rejected'] as const) {
+    const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, value: undefined, status }], '/me');
+    assert.doesNotMatch(html, /No keys yet/);
+    if (status === 'rejected') {
+      assert.match(html, /data-testid="me-keys-error"/);
+      assert.match(html, /Try again/);
+    }
+  }
+  const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, status: 'rejected', value: { keys: [{ prefix: 'fixture-prefix', label: 'Existing account key', issuedAt: 1 }] } }], '/me');
+  assert.match(html, /Existing account key/);
+  assert.match(html, /data-testid="me-keys-error"/);
+  assert.doesNotMatch(html, /No keys yet/);
+  assert.match(render(MyPage, [...appAccount, accountOrgs, noKeys], '/me'), /No keys yet/);
+});
+
+test('an SSO account without a wallet sees an explanation instead of a false empty node list', () => {
+  const html = render(MyPage, [...appAccount, accountOrgs, noKeys], '/me');
+  assert.match(html, /Connect that wallet to see your nodes/);
+  assert.match(html, /href="\/signing\?next=%2Fme&amp;wallet=1"/);
+  assert.doesNotMatch(html, /None yet\. A node appears/);
+});
+
+test('account key, organization and node caches cannot be borrowed from another identity', () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  const current = JSON.stringify([wallet, null, null, null]);
+  const html = render(MyPage, [
+    ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet } },
+    { ...noKeys, arg: 'previous-account', value: { keys: [{ prefix: 'old-key', label: 'Previous secret label', issuedAt: 1 }] } },
+    { ...accountOrgs, arg: 'previous-account', value: { signed_in: true, orgs: [{ id: 'private-org', name: 'Previous private organization' }] } },
+    { name: 'myNodes', arg: 'other-wallet', value: { nodes: [{ address: 'other-wallet', name: 'Previous private node' }] } },
+    { name: 'apiKeys', arg: current, status: 'pending' },
+    { name: 'myOrgs', arg: current, status: 'pending' },
+    { name: 'myNodes', arg: wallet, status: 'pending' },
+  ], '/me');
+  assert.doesNotMatch(html, /Previous secret label|Previous private organization|Previous private node/);
+  assert.doesNotMatch(html, /No keys yet|None yet\. A node appears/);
+});
+
+test('failed wallet node lookup shows recovery while retaining cached current-wallet nodes', () => {
+  const wallet = '0x1111111111111111111111111111111111111111';
+  const current = JSON.stringify([wallet, null, null, null]);
+  const html = render(MyPage, [
+    ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet } },
+    { ...noKeys, arg: current }, { ...accountOrgs, arg: current },
+    { name: 'myNodes', arg: wallet, status: 'rejected', value: { nodes: [{ address: wallet, name: 'Current wallet node' }] } },
+  ], '/me');
+  assert.match(html, /data-testid="me-nodes-error"/);
+  assert.match(html, /Current wallet node/);
+  assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /None yet\. A node appears/);
+});
+
+const Playground = () => createElement(ModelPlaygroundPanel, {
+  model: { id: 'fixture-model', modality: 'decision', name: 'Fixture model' } as any,
+  signInNext: '/models/fixture-model',
+});
+test('model key management goes to the personal account, and list failure has recovery', () => {
+  const html = render(Playground, [...appAccount, { ...noKeys, value: { keys: [{ prefix: 'fixture-prefix', label: 'Existing key' }] } }], '/models/fixture-model');
+  assert.match(html, /href="\/me"[^>]*>Manage your keys/);
+  assert.doesNotMatch(html, /href="\/account"/);
+  const failed = render(Playground, [...appAccount, { ...noKeys, status: 'rejected', value: undefined }], '/models/fixture-model');
+  assert.match(failed, /role="alert"/);
+  assert.match(failed, /Try again/);
+});
+
+
+test('explicit wallet connection links open wallet controls for an already signed-in AIN account', () => {
+  const html = render(SigningPage, appAccount, '/signing?next=%2Fme&wallet=1');
+  assert.match(html, /<details[^>]*open=""[^>]*data-testid="wallet-options"/);
+  assert.match(html, /data-testid="ain-wallet-signin"/);
+  assert.match(html, /data-testid="signin-continue"/);
 });

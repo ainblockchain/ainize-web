@@ -264,7 +264,7 @@ export default function SigningPage() {
         {auth.google && <Alert $tone="info" role="status" data-testid="google-signed-in" style={{ marginTop: 24 }}>{t('op.sign.google.signed_in', { email: auth.google.email })}</Alert>}
         {googleError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.google.err', { reason: googleError })}</Alert>}
 
-        <WalletOptions open={!!setupToken || !!me?.canEnroll || (!auth.ssoConfigured && !auth.googleConfigured)} data-testid="wallet-options">
+        <WalletOptions open={params.get('wallet') === '1' || !!setupToken || !!me?.canEnroll || (!auth.ssoConfigured && !auth.googleConfigured)} data-testid="wallet-options">
           <summary>{t(auth.isSignedIn ? 'op.sign.wallet.connect_option' : 'op.sign.wallet.option')}</summary>
           <ConfirmButton type="button" onClick={() => void signInNative()} disabled={busy} data-testid="ain-wallet-signin">
             {locale === 'ko' ? 'AIN Wallet으로 로그인' : 'Sign in with AIN Wallet'}

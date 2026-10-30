@@ -173,8 +173,9 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
   const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
   const orgView = kind === 'agent' && agentFilter === 'org';
-  const myOrgs = useMyOrgsQuery(undefined, { skip: !scopesOn });
-  const orgList = useMemo(() => parseOrgList(myOrgs.data), [myOrgs.data]);
+  const myOrgs = useMyOrgsQuery(auth.cacheIdentity, { skip: !scopesOn });
+  const orgsLoading = !myOrgs.currentData && (myOrgs.isLoading || myOrgs.isFetching);
+  const orgList = useMemo(() => parseOrgList(myOrgs.currentData), [myOrgs.currentData]);
   const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
   const orgParam = params.get('org');
   const orgId = orgList.orgs.find((o) => o.id === orgParam)?.id ?? orgList.orgs[0]?.id ?? null;
@@ -251,7 +252,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
     const matches = matchingSearchIds(docsFromAgents(scopedAgents), q);
     return scopedAgents.filter((a) => matches.has(a.id));
   }, [scopedAgents, q]);
-  const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? myOrgs.isLoading || orgQuery.isLoading : false;
+  const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? orgsLoading || orgQuery.isLoading : false;
   const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
     : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
   // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
@@ -266,7 +267,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
     : agentFilter === 'org' ? t('explore.agents.count_in', { n: num(agents.length), name: scopeName }, agents.length)
       : agentFilter === 'mine' ? t('explore.agents.count_mine', { n: num(agents.length) }, agents.length)
         : t('explore.agents.count_public', { n: num(agents.length) }, agents.length);
-  const noOrg = orgView && !myOrgs.isLoading && !myOrgs.error && orgList.orgs.length === 0;
+  const noOrg = orgView && !orgsLoading && !!myOrgs.currentData && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
   const reset = () => setPage(1);

@@ -32,7 +32,8 @@ export default function OrgsPage() {
   useTitle(t('orgs.title'));
   const auth = useAuth();
   const location = useLocation();
-  const { data, isLoading, error } = useMyOrgsQuery(undefined, { skip: !auth.isSignedIn });
+  const { currentData: data, isLoading, isFetching, error } = useMyOrgsQuery(auth.cacheIdentity, { skip: !auth.isSignedIn });
+  const waiting = !data && (isLoading || isFetching);
   const list = useMemo(() => parseOrgList(data), [data]);
   const err = error ? orgApiErrorOf(error) : null;
 
@@ -50,11 +51,11 @@ export default function OrgsPage() {
         </Empty>
       )}
 
-      {auth.isSignedIn && isLoading && <CenterProgress />}
+      {auth.isSignedIn && waiting && <CenterProgress />}
       {err && err.status === 404 && <Alert $tone="warning" data-testid="orgs-unsupported">{t('orgs.unsupported')}</Alert>}
       {err && err.status !== 404 && <Alert $tone="error">{t(`org.api.${err.code}`)}</Alert>}
 
-      {auth.isSignedIn && !isLoading && !err && (
+      {auth.isSignedIn && !waiting && !!data && !err && (
         <>
           {list.orgs.length === 0 && <Empty data-testid="orgs-empty">{t('orgs.empty')}</Empty>}
           <OrgList data-testid="orgs-list">
