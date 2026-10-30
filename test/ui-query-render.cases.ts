@@ -23,6 +23,9 @@ import { BASKET_PREFIX, chatStorageOwner } from '../src/lib/teachStore';
 import { loadComposerDraft, loadStack, loadTurns, saveComposerDraft, saveStack, saveTurns } from '../src/components/chat/util';
 import MyAgentsPage from '../src/screens/MyAgentsPage';
 import AinCodePage from '../src/screens/AinCodePage';
+import AgentCreatePage from '../src/screens/AgentCreatePage';
+import AgentLinkPage from '../src/screens/AgentLinkPage';
+import { AgentPage } from '../src/screens/AgentPage';
 import OrgPage from '../src/screens/org/OrgPage';
 import OrgsPage from '../src/screens/org/OrgsPage';
 import OrgSettingsPage from '../src/screens/org/OrgSettingsPage';
@@ -731,4 +734,80 @@ test('chat restores only this account draft and transcript and leaves another ac
       else Reflect.deleteProperty(globalThis, name);
     }
   }
+});
+
+
+const editableHosted = { id: 'chosen', name: 'Chosen private draft', owner: 'sso:viewer', mode: 'prompt', model: 'chat', systemPrompt: 'Private prompt', can_manage: true };
+const editorArg = { id: 'chosen', identity: accountIdentity };
+
+test('agent editors never expose another account cached draft and preserve the full sign-in destination', () => {
+  for (const [Page, endpoint, path] of [[AgentCreatePage, 'hostedAgent', '/agent/chosen/edit'], [AgentLinkPage, 'linkedAgent', '/agent/chosen/link']] as const) {
+    const fixture = { name: endpoint, arg: { ...editorArg, identity: 'other-account' }, value: { agent: editableHosted } };
+    const html = render(Page, [...appAccount, fixture], path, path.replace('/chosen/', '/:id/'));
+    assert.doesNotMatch(html, /Chosen private draft|Private prompt|data-testid="agent-(?:create|link)-form"/);
+    const signed = render(Page, [...signedOut, fixture], path + '?org=studio#section', path.replace('/chosen/', '/:id/'));
+    assert.ok(signed.includes(encodeURIComponent(path + '?org=studio#section')), 'sign-in keeps the editor destination');
+  }
+});
+
+test('agent edit refuses listing-only, denied, mismatched and failed reads with recovery', () => {
+  for (const fixture of [
+    { value: { agent: { ...editableHosted, can_manage: false } } },
+    { value: { agent: { ...editableHosted, id: 'different' } } },
+    { value: { agent: editableHosted }, status: 'rejected' as const },
+  ]) {
+    const html = render(AgentCreatePage, [...appAccount, { name: 'hostedAgent', arg: editorArg, ...fixture }], '/agent/chosen/edit', '/agent/:id/edit');
+    assert.match(html, /agent-edit-unavailable/);
+    assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /agent-create-form|Private prompt/);
+  }
+  const linked = render(AgentLinkPage, [...appAccount, { name: 'linkedAgent', arg: editorArg, value: { agent: { ...privateLinked, id: 'chosen', upstream: null } } }], '/agent/chosen/link', '/agent/:id/link');
+  assert.match(linked, /agent-link-unavailable/);
+  assert.match(linked, /Try again/);
+  assert.doesNotMatch(linked, /agent-link-form/);
+});
+
+test('agent creation respects closed organization requests and failed organization reads', () => {
+  const denied = { status: 'rejected' as const, errorStatus: 403, errorData: { error: { code: 'not_member' }, can_request: false, org: { id: 'studio', name: 'Studio' } } };
+  const fixture = { name: 'org', arg: { id: 'studio', identity: accountIdentity }, ...denied };
+  const html = render(AgentCreatePage, [...appAccount, fixture], '/agent/new?org=studio');
+  assert.match(html, /agent-create-request-access/);
+  assert.doesNotMatch(html, /agent-create-form|<input|<button/);
+  const failed = render(AgentCreatePage, [...appAccount, { ...fixture, errorStatus: 503, errorData: 'unavailable' }], '/agent/new?org=studio');
+  assert.match(failed, /Could not load organization information|Try again/);
+  assert.doesNotMatch(failed, /agent-create-form/);
+});
+
+function renderAgent(fixtures: Fixture[], path = '/agent/chosen') {
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { location: { origin: 'https://ainize.ai' } } });
+  try { return render(AgentPage, fixtures, path, '/agent/:id'); }
+  finally { if (before) Object.defineProperty(globalThis, 'window', before); else Reflect.deleteProperty(globalThis, 'window'); }
+}
+const detailAgent = { id: 'chosen', name: 'Chosen agent', description: 'Only this agent', protocols: [], skills: [], extensions: [], provider: null, documentation_url: null, a2a_url: 'https://ainize.ai/agents/chosen', card_url: 'https://ainize.ai/agents/chosen/card', reachable: true, last_checked: null, error: null, calls: 0, last_call_at: null, node: null };
+
+test('agent detail offers explicit form discovery without unrelated hosted management panels', () => {
+  const html = renderAgent([...appAccount, { name: 'agents', value: { agents: [detailAgent] } }]);
+  assert.match(html, /Chosen agent|Ask agent for an input form/);
+  assert.doesNotMatch(html, /hosted-agent-owner|agent-git-panel|ainft-binding/);
+  const peer = renderAgent([...appAccount, { name: 'agents', value: { agents: [{ ...detailAgent, kind: 'prompt', owner: 'sso:viewer', node: { name: 'Peer', address: 'https://peer.example' } }] } }, { name: 'manageableHostedAgents', arg: accountIdentity, value: { agents: [{ ...editableHosted, can_delete: true }] } }]);
+  assert.doesNotMatch(peer, /hosted-agent-owner|hosted-agent-edit|agent-git-panel/);
+});
+
+test('failed private-agent lookup offers retry, never false not-found or a cached private result', () => {
+  const base: Fixture[] = [...appAccount, { name: 'agents', value: { agents: [] } }];
+  const alias: Fixture = { name: 'agentAlias', arg: { name: 'chosen', identity: accountIdentity }, value: { id: 'chosen' } };
+  const html = renderAgent([...base, { ...alias, status: 'rejected' }]);
+  assert.match(html, /agent-detail-failed/); assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /No agent called|Only this agent/);
+  const hosted = renderAgent([...base, alias, { name: 'hostedAgent', arg: editorArg, value: { agent: editableHosted }, status: 'rejected' }]);
+  assert.match(hosted, /agent-detail-failed/);
+  assert.doesNotMatch(hosted, /Chosen private draft|No agent called/);
+});
+
+test('another account private-agent lookup cache cannot resolve the selected route', () => {
+  const html = renderAgent([...appAccount, { name: 'agents', value: { agents: [] } },
+    { name: 'agentAlias', arg: { name: 'chosen', identity: 'other-account' }, value: { id: 'chosen' } },
+    { name: 'hostedAgent', arg: { id: 'chosen', identity: 'other-account' }, value: { agent: editableHosted } }]);
+  assert.doesNotMatch(html, /Chosen private draft|Private prompt|No agent called/);
 });

@@ -28,6 +28,9 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useAgentAliasQuery, useAgentsQuery, useHostedAgentQuery, useLinkedAgentsQuery, useManageableHostedAgentsQuery } from '@/api/api';
 import { agentOrgIdOf, agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList, agentVisibilityOf, parseManageableHostedAgents } from '@/api/sharedAgents';
+import { useActiveView } from '@/hooks/useActiveView';
+import { parseMyLinkedAgents } from '@/api/myAgents';
+import { agentRequestUrl } from '@/lib/agentRequestUrl';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -149,16 +152,20 @@ const state = (a: AgentSummary) => (a.reachable === true ? 'up' : a.reachable ==
  * another host, and rewriting that to a local path would post somebody else's request to ourselves.
  */
 export function samePath(url: string): string {
-  try {
-    const u = new URL(url, window.location.origin);
-    return /^\/(api|agents)\//.test(u.pathname) ? u.pathname + u.search : url;
-  } catch {
-    return url;
-  }
+  return agentRequestUrl(url, window.location.origin);
 }
+
 const ago = (t: number | null) => (t ? `${Math.max(0, Math.round((Date.now() - t) / 1000))}s ago` : 'never');
 
 export function AgentPage() {
+  const { cacheIdentity } = useAuth();
+  const { id = '' } = useParams();
+  return <AgentDetail key={`${cacheIdentity}:${id}`} />;
+}
+
+function AgentDetail() {
+  const { subject, sso, sitePrincipal, isSignedIn, cacheIdentity, loading: authLoading } = useAuth();
+  const active = useActiveView();
   // `/agent/:idOrAlias` — the segment is the agent's id or its readable alias (ainize-node agent-aliases.ts).
   const { id: param = '' } = useParams();
   const navigate = useNavigate();
@@ -173,29 +180,42 @@ export function AgentPage() {
    * agents are asked: the hosted spec — which the node answers to its owner and, as a listing view, to anyone it is
    * visible to, and with 404 to everyone else — and the linked-agents list. Only asked once the public list has said no.
    */
-  const missed = !isLoading && !listed && !!param;
+  const missed = !authLoading && !isLoading && !listed && !!param;
   // Off the public list the segment may still be an alias: the node names its id (404 for an agent the caller may
   // not see, and on a node without aliases — the segment is then taken as the id, as it always was).
-  const resolved = useAgentAliasQuery(param, { skip: !missed });
-  const resolvedRow = resolved.data as { id?: unknown; alias?: unknown } | undefined;
+  const resolved = useAgentAliasQuery({ name: param, identity: cacheIdentity }, { skip: !missed });
+  const resolvedRow = (resolved.error ? undefined : resolved.currentData) as { id?: unknown; alias?: unknown } | undefined;
+  const notFound = (failure: unknown) => !!failure && typeof failure === 'object' && 'status' in failure && Number(failure.status) === 404;
+  const aliasFailure = (resolved.error && !notFound(resolved.error) ? resolved.error : null) || (resolved.currentData && !resolved.error && !(typeof resolvedRow?.id === 'string' && resolvedRow.id) ? new Error('Unreadable agent alias') : null);
+  const aliasPending = missed && !resolved.currentData && resolved.isFetching;
   const id = typeof resolvedRow?.id === 'string' && resolvedRow.id ? resolvedRow.id : param;
-  const hostedSpec = useHostedAgentQuery(id, { skip: !missed || resolved.isLoading });
-  const linkedList = useLinkedAgentsQuery(undefined, { skip: !missed || resolved.isLoading || hostedSpec.isLoading || !!hostedSpec.data });
+  const hostedSpec = useHostedAgentQuery({ id, identity: cacheIdentity }, { skip: !missed || aliasPending || !!aliasFailure });
+  const hostedPending = missed && !aliasPending && !aliasFailure && !hostedSpec.currentData && hostedSpec.isFetching;
+  const hostedRow = useMemo(() => hostedSpec.error ? null : agentSummaryFromHostedSpecResponse(hostedSpec.currentData, window.location.origin), [hostedSpec.currentData, hostedSpec.error]);
+  const hostedFailure = (hostedSpec.error && !notFound(hostedSpec.error) ? hostedSpec.error : null) || (hostedSpec.currentData && !hostedSpec.error && (!hostedRow?.kind || hostedRow.id !== id) ? new Error('Unreadable agent') : null);
+  const linkedList = useLinkedAgentsQuery(cacheIdentity, { skip: !missed || aliasPending || !!aliasFailure || hostedPending || !!hostedFailure || !!hostedRow });
   const agent = useMemo(() => {
     if (listed) return listed;
-    if (!missed) return null;
-    const found = agentSummaryFromHostedSpecResponse(hostedSpec.data, window.location.origin) ?? agentSummaryFromLinkedList(linkedList.data, id);
-    // the node's answer for THIS segment is fresher than a cached row (an alias just set or changed)
-    return found && agentAliasOf(resolvedRow) && agentAliasOf(resolvedRow) !== agentAliasOf(found) ? { ...found, alias: agentAliasOf(resolvedRow) } : found;
-  }, [listed, missed, hostedSpec.data, linkedList.data, id, resolvedRow]);
-  const lookingFurther = missed && (resolved.isLoading || hostedSpec.isLoading || linkedList.isLoading);
+    if (!missed || aliasFailure || hostedFailure) return null;
+    const found = hostedRow ?? (linkedList.error ? null : agentSummaryFromLinkedList(linkedList.currentData, id));
+    // The response must name the exact id resolved for this route, never a different cached agent.
+    if (!found || found.id !== id) return null;
+    return agentAliasOf(resolvedRow) && agentAliasOf(resolvedRow) !== agentAliasOf(found) ? { ...found, alias: agentAliasOf(resolvedRow) } : found;
+  }, [listed, missed, aliasFailure, hostedFailure, hostedRow, linkedList.currentData, linkedList.error, id, resolvedRow]);
+  const lookingFurther = missed && (aliasPending || hostedPending || (!hostedRow && !aliasFailure && !hostedFailure && !linkedList.currentData && linkedList.isFetching));
+  const lookupFailure = !listed && (aliasFailure || hostedFailure || linkedList.error || (linkedList.currentData && !parseMyLinkedAgents(linkedList.currentData) ? new Error('Unreadable linked agents') : null) || error);
+  const retryLookup = () => {
+    void refetch();
+    if (!resolved.isUninitialized) void resolved.refetch();
+    if (!hostedSpec.isUninitialized) void hostedSpec.refetch();
+    if (!linkedList.isUninitialized) void linkedList.refetch();
+  };
   // Opened by id (or an old alias): show the readable address in the URL bar, without a history entry.
   // `keepUrl`: the owner just removed the alias and was sent to the id — a cached row must not send them back.
   const redirect = (location.state as { keepUrl?: boolean } | null)?.keepUrl ? null : agentPageRedirect(param, agent);
-  useEffect(() => { if (redirect) navigate(redirect, { replace: true }); }, [redirect, navigate]);
+  useEffect(() => { if (redirect) navigate(redirect, { replace: true, state: location.state }); }, [redirect, navigate, location.state]);
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
-  const { subject, sso, sitePrincipal, isSignedIn, cacheIdentity } = useAuth();
   const hosted = agentSummaryHostedFieldsOf(agent);
   const visibility = agentVisibilityOf(agent);
   const orgId = agentOrgIdOf(agent);
@@ -204,12 +224,15 @@ export function AgentPage() {
   const principals = viewerPrincipals(subject, sso?.principal, sitePrincipal);
   const linked = !!agent && isLinkedAgentRow(agent);
   const ownsLinked = linked && isAgentOwnedBy(hosted.owner, principals);
-  const ownsIt = !linked && isHostedAgentOwnedBy(hosted.owner, principals);
+  const localHosted = !!agent && !agent.node && !!hosted.kind && hosted.kind !== 'upstream';
+  const ownsIt = localHosted && isHostedAgentOwnedBy(hosted.owner, principals);
   // An organization member may edit an agent shared with the organization without owning it (ainize-node: `write`
   // members edit; delete and sharing stay with the owner and admins). The manageable list says which.
-  const manageable = useManageableHostedAgentsQuery(cacheIdentity, { skip: !isSignedIn || linked || ownsIt || !agent });
-  const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.currentData, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.currentData, agent?.id]);
-  const managesIt = !linked && !ownsIt && !!managedRow?.canManage;
+  const manageable = useManageableHostedAgentsQuery(cacheIdentity, { skip: !isSignedIn || !localHosted || ownsIt });
+  const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.error ? undefined : manageable.currentData, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.currentData, manageable.error, agent?.id]);
+  const managesIt = localHosted && !ownsIt && !!managedRow?.canManage;
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
+  const linkedNote = (location.state as { linkedNote?: unknown } | null)?.linkedNote;
   const [article, setArticle] = useState('');
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
@@ -222,6 +245,7 @@ export function AgentPage() {
   /** Whether the card takes audio, and the voice note picked to send with the next message. */
   const [takesAudio, setTakesAudio] = useState(false);
   const [audio, setAudio] = useState<{ name: string; mimeType: string; bytesBase64: string } | null>(null);
+  const audioRead = useRef(0);
   const [audioError, setAudioError] = useState<string | null>(null);
   /** Whether the card says the agent streams; `null` until a card has been read. */
   const [streams, setStreams] = useState<boolean | null>(null);
@@ -231,7 +255,8 @@ export function AgentPage() {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
 
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+  const flight = useRef<AbortController | null>(null);
+  useEffect(() => () => { flight.current?.abort(); if (timer.current) clearInterval(timer.current); }, []);
 
 
   // The list carries skill names; the card carries what each one accepts. For an agent on a peer the node
@@ -240,10 +265,11 @@ export function AgentPage() {
   useEffect(() => {
     if (!agent) { setSkills([]); return; }
     let live = true;
+    const controller = new AbortController();
     setSkills([]);
     setTakesAudio(false);
     setStreams(null);
-    fetch(samePath(agent.card_url), { headers: { Accept: 'application/json' } })
+    fetch(samePath(agent.card_url), { signal: controller.signal, headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
       .then((card: { skills?: CardSkill[] } | null) => {
         if (!live) return;
@@ -252,43 +278,38 @@ export function AgentPage() {
         setStreams(cardStreams(card));
       })
       .catch(() => {/* no examples is a fine outcome; the box still works */});
-    return () => { live = false; };
-  }, [agent]);
+    return () => { live = false; controller.abort(); };
+  }, [agent?.card_url]);
 
   const samples = examplesOf(skills);
 
-  /**
-   * Ask the agent what it takes, and let it answer with a form.
-   *
-   * An empty message means "I have nothing for you yet" — this agent replies to that with its own input
-   * surface, so the box the reader types into is the one the AGENT described rather than the one this page
-   * would have guessed. An agent that does not answer with a surface simply leaves `form` null and the
-   * fallback box below is used, which is what every A2A agent that knows nothing about A2UI will do.
-   */
+  // Form discovery invokes the agent too, so it requires an explicit action, never a page-load effect.
   const [form, setForm] = useState<A2UISurfaceData | null>(null);
-  useEffect(() => {
-    if (!agent) { setForm(null); return; }
-    let live = true;
-    setForm(null);
-    fetch(samePath(agent.a2a_url), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send',
-        params: {
+  const [formBusy, setFormBusy] = useState(false);
+  const [formNotice, setFormNotice] = useState<string | null>(null);
+  const requestForm = async () => {
+    if (!agent || flight.current || !active()) return;
+    const controller = new AbortController(); flight.current = controller;
+    setFormBusy(true); setFormNotice(null);
+    try {
+      const response = await fetch(samePath(agent.a2a_url), {
+        method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send', params: {
           message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text: '' }] },
           configuration: { blocking: true, acceptedOutputModes: ['text/plain'] },
-        },
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((b) => {
-        const asked = readSurface(b?.result?.parts ?? []);
-        if (live && asked && isInteractive(asked)) setForm(asked);
-      })
-      .catch(() => {/* no form is a fine outcome; the fallback box works */});
-    return () => { live = false; };
-  }, [agent]);
+        } }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json();
+      if (body?.error) throw new Error(body.error.message ?? 'Agent request failed');
+      if (!body?.result) throw new Error(t('agentPage.live.invalid_response'));
+      if (!active()) return;
+      const asked = readSurface(body?.result?.parts ?? body?.result?.status?.message?.parts ?? []);
+      if (asked && isInteractive(asked)) setForm(asked);
+      else setFormNotice(t('agentPage.live.no_form'));
+    } catch (error) { if (active()) setFormNotice(errorMessage(error)); }
+    finally { if (flight.current === controller) flight.current = null; if (active()) setFormBusy(false); }
+  };
 
   /**
    * Send, and watch it work.
@@ -307,12 +328,14 @@ export function AgentPage() {
    * not been read yet, a refusal to stream is retried once as `message/send` rather than shown as a failure.
    */
   const run = async (message = article) => {
-    if (!agent) return;
+    if (!agent || flight.current || !active()) return;
+    const controller = new AbortController(); flight.current = controller;
     setBusy(true); setResult(null); setSurface(null); setImages([]); setFailed(null); setElapsed(0); setProgress([]);
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
     const at = () => Math.round((Date.now() - started) / 1000);
     const finish = (parts: unknown[]) => {
+      if (!active()) return;
       setSurface(readSurface(parts as never));
       const pictures = a2aImagesOf(parts);
       setImages(pictures);
@@ -322,13 +345,10 @@ export function AgentPage() {
     };
 
     try {
-      // Called as a PATH, not as the absolute URL the node reports. The node knows itself by one address
-      // (`https://ainize.ai`) and a visitor may be on another name for the same site (`www.`) — posting to
-      // the node's spelling from that page is a cross-origin request the browser blocks before any of this
-      // runs. Every address on this list is this app's own, so the path is the part that matters.
+      // Use a local path only for this site's own endpoint; peer URLs keep their original destination.
       const parts = [...(message.trim() ? [{ kind: 'text', text: message }] : []), ...(audio ? [a2aAudioPart(audio.bytesBase64, audio.name, audio.mimeType)] : [])];
       const call = (method: 'message/stream' | 'message/send') => fetch(samePath(agent.a2a_url), {
-        method: 'POST',
+        method: 'POST', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Accept: method === 'message/stream' ? 'text/event-stream, application/json' : 'application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
@@ -345,14 +365,20 @@ export function AgentPage() {
       });
       const method = sendMethod(streams);
       let res = await call(method);
+      if (!active()) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const streamed = (res.headers.get('content-type') ?? '').includes('text/event-stream');
       if (!streamed || !res.body) {
         let body = await res.json().catch(() => null);
+        if (!active()) return;
         if (method === 'message/stream' && isStreamingRefusal(body?.error)) {
           res = await call('message/send');
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           body = await res.json().catch(() => null);
         }
+        if (!active()) return;
+        if (!body?.result && !body?.error) throw new Error(t('agentPage.live.invalid_response'));
         if (body?.error) { setFailed(`${body.error.message} (code ${body.error.code})`); return; }
         finish(body?.result?.parts ?? body?.result?.status?.message?.parts ?? []);
         return;
@@ -364,7 +390,7 @@ export function AgentPage() {
       let answered = false;
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done || !active()) break;
         buffer += decoder.decode(value, { stream: true });
         const { frames, rest } = takeFrames(buffer);
         buffer = rest;
@@ -384,29 +410,30 @@ export function AgentPage() {
           }
         }
       }
-      if (!answered) setFailed((f) => f ?? t('agentPage.live.stream_ended'));
+      if (active() && !answered) setFailed((f) => f ?? t('agentPage.live.stream_ended'));
     } catch (e) {
-      setFailed(errorMessage(e));
+      if (active()) setFailed(errorMessage(e));
     } finally {
       if (timer.current) clearInterval(timer.current);
-      setBusy(false);
-      refetch();
+      if (flight.current === controller) flight.current = null;
+      if (active()) { setBusy(false); void refetch(); }
     }
   };
 
-  if (isLoading || lookingFurther) return <CenterProgress />;
+  if (authLoading || isLoading || lookingFurther) return <CenterProgress />;
 
   if (!agent) {
     return (
       <PageWrapper>
         <TitleRow><Title>Agent</Title></TitleRow>
-        {error && <Alert $tone="error">{errorMessage(error)}</Alert>}
-        <Empty>
+        {lookupFailure ? <Empty role="alert" data-testid="agent-detail-failed">
+          {t('agentPage.read_failed')} <Button size="small" onClick={retryLookup}>{t('aincode.retry')}</Button>
+        </Empty> : <Empty>
           {/* An id that resolves nowhere is not the same as a node with no agents, and used to silently
               become "whichever one is listed first" — a page about an agent the reader never asked for. */}
           No agent called <Mono>{param}</Mono> is listed here. It may have been taken down, or it may be on a node
           this one is not connected to. <Link to="/explore?kind=agent">See the agents →</Link>
-        </Empty>
+        </Empty>}
       </PageWrapper>
     );
   }
@@ -422,6 +449,8 @@ export function AgentPage() {
       <Back to="/explore?kind=agent">← {'All agents'}</Back>
 
       {error && <Alert $tone="error">{errorMessage(error)}</Alert>}
+
+      {typeof linkedNote === 'string' && <Alert role="status" $tone="info">{linkedNote}</Alert>}
 
       {agent.description && <Description>{agent.description}</Description>}
 
@@ -471,8 +500,12 @@ export function AgentPage() {
         */}
       <UrlRow>
         <code>{agent.card_url}</code>
-        <Button size="small" onClick={() => navigator.clipboard?.writeText(agent.card_url)}>Copy</Button>
+        <Button size="small" onClick={async () => {
+          try { await navigator.clipboard.writeText(agent.card_url); if (active()) setCopyNotice(t('agentGit.copied')); }
+          catch { if (active()) setCopyNotice(t('agentPage.copy_failed')); }
+        }}>Copy</Button>
       </UrlRow>
+      {copyNotice && <Small role="status">{copyNotice}</Small>}
       <Small>
         Give this to a workspace to invite the agent ·{' '}
         <ExternalLink href={samePath(agent.card_url)}>open the card</ExternalLink> · Check the card's
@@ -482,13 +515,13 @@ export function AgentPage() {
       {hosted.status === 'building' && <Alert $tone="info" style={{ marginTop: 16 }}>{t('hostedAgent.status.building_help')}</Alert>}
       {hosted.status === 'failed' && <Alert $tone="error" style={{ marginTop: 16 }}>{t(ownsIt ? 'hostedAgent.status.failed_owner' : 'hostedAgent.status.failed_help')}</Alert>}
 
-      {hosted && <AinftBindingPanel agentId={agent.id} />}
-      {hosted && <AinftCompanionPanel agentId={agent.id} />}
+      {localHosted && <AinftBindingPanel agentId={agent.id} />}
+      {localHosted && <AinftCompanionPanel agentId={agent.id} />}
       {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} />}
       {/* The history is shown to anyone who can see the agent, not only to whoever owns it: how an agent
           reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
           node answers 404 to a caller who may not see the agent, and the panel draws nothing in that case. */}
-      {hosted && <AgentHistoryPanel agentId={agent.id} git={(hosted as { git?: AgentGitInfo | null }).git ?? null} canMerge={ownsIt || managesIt} />}
+      {localHosted && <AgentHistoryPanel agentId={agent.id} git={(hosted as { git?: AgentGitInfo | null }).git ?? null} canMerge={ownsIt || managesIt} />}
       {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} />}
 
       {skills.length > 0 && (
@@ -517,12 +550,14 @@ export function AgentPage() {
           * so nothing on this page had to know that this agent wants an article rather than a question. The
           * box below is the fallback for every agent that does not describe its input — which is most of them.
           */}
+        {!form && <Row><Button type="button" size="small" disabled={busy || formBusy} loading={formBusy} onClick={() => void requestForm()}>{t('agentPage.live.request_form')}</Button></Row>}
+        {formNotice && <Alert role="status" $tone="info">{formNotice}</Alert>}
         {form && (
           <Rendered>
             <RenderedLabel>{t('agentPage.live.own_form')}</RenderedLabel>
             <A2UISurface
               surface={form}
-              busy={busy}
+              busy={busy || formBusy}
               onAction={(_name, context) => {
                 const sent = Object.values(context).find((v) => typeof v === 'string' && v.trim());
                 if (typeof sent === 'string') { setArticle(sent); void run(sent); }
@@ -534,7 +569,7 @@ export function AgentPage() {
         {!form && samples.length > 0 && (
           <Row>
             {samples.map((s) => (
-              <Button key={s.label} size="small" variant="outlined" disabled={busy}
+              <Button key={s.label} size="small" variant="outlined" disabled={busy || formBusy}
                 title={s.skill ? `${s.skill}` : undefined} onClick={() => setArticle(s.text)}>
                 {s.label}
               </Button>
@@ -543,7 +578,7 @@ export function AgentPage() {
         )}
         {!form && (
           <Row style={{ display: 'block' }}>
-            <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy}
+            <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy || formBusy}
               placeholder={samples[0] ? t('agentPage.live.example', { text: samples[0].text }) : t('agentPage.live.placeholder')} />
             {/* Only for an agent whose card says it hears audio. Sent inline, so it is capped by what one A2A
                 request may carry — longer recordings go through a workspace that sends links (aindrive). */}
@@ -551,14 +586,16 @@ export function AgentPage() {
               <Small>
                 <label>
                   {t('agentPage.audio.attach')}{' '}
-                  <input type="file" accept="audio/*" disabled={busy} data-testid="agent-audio-input"
+                  <input type="file" accept="audio/*" disabled={busy || formBusy} data-testid="agent-audio-input"
                     onChange={(e) => {
+                      const generation = ++audioRead.current;
                       const f = e.target.files?.[0];
                       setAudioError(null); setAudio(null);
                       if (!f) return;
                       if (f.size > A2A_INLINE_AUDIO_MAX_BYTES) { setAudioError(t('agentPage.audio.too_large', { kb: Math.round(A2A_INLINE_AUDIO_MAX_BYTES / 1024) })); e.target.value = ''; return; }
                       const reader = new FileReader();
                       reader.onload = () => {
+                        if (!active() || generation !== audioRead.current) return;
                         const b64 = String(reader.result ?? '').split(',')[1] ?? '';
                         setAudio({ name: f.name, mimeType: f.type || 'audio/webm', bytesBase64: b64 });
                       };
@@ -572,7 +609,7 @@ export function AgentPage() {
         )}
         <Row>
           {!form && (
-            <Button onClick={() => run()} disabled={busy || (!article.trim() && !audio) || agent.reachable === false}>
+            <Button onClick={() => run()} disabled={busy || formBusy || (!article.trim() && !audio) || agent.reachable === false}>
               {busy ? t('agentPage.live.sending', { s: elapsed }) : t('agentPage.live.send')}
             </Button>
           )}

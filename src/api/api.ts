@@ -211,7 +211,7 @@ export const api = createApi({
     /** Own hosted agents plus the ones shared with an organization where the caller may edit — read through `parseManageableHostedAgents`. */
     manageableHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?manageable=1', providesTags: ['HostedAgent', 'Me', 'Org'] }),
     /** The full stored spec, files included — owner only; anyone else gets 403. */
-    hostedAgent: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'HostedAgent', id }] }),
+    hostedAgent: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/hosted-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'HostedAgent', id }] }),
     createHostedAgent: b.mutation<unknown, HostedAgentSpecInput>({
       query: (body) => ({ url: 'api/hosted-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'HostedAgent'],
     }),
@@ -233,7 +233,7 @@ export const api = createApi({
      */
     myLinkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents?mine=1', providesTags: ['LinkedAgent', 'Me'] }),
     /** The stored record, upstream included — owner only; anyone else gets 403. */
-    linkedAgent: b.query<unknown, string>({ query: (id) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'LinkedAgent', id }] }),
+    linkedAgent: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'LinkedAgent', id }] }),
     createLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
       query: (body) => ({ url: 'api/linked-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'LinkedAgent', 'Org'],
     }),
@@ -317,7 +317,7 @@ export const api = createApi({
      * an agent the caller may not see, and on a node without aliases. Setting and clearing: owner, write member
      * (hosted) or the node operator.
      */
-    agentAlias: b.query<unknown, string>({ query: (name) => `api/agent-aliases/${encodeURIComponent(name)}`, providesTags: ['Agents'] }),
+    agentAlias: b.query<unknown, { name: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ name }) => `api/agent-aliases/${encodeURIComponent(name)}`, providesTags: ['Agents'] }),
     setAgentAlias: b.mutation<unknown, { id: string; alias: string }>({
       query: ({ id, alias }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'PUT', body: { alias } }),
       invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }, 'HostedAgent', 'LinkedAgent'],
@@ -327,7 +327,7 @@ export const api = createApi({
       invalidatesTags: (_r, _e, id) => ['Agents', 'Org', { type: 'HostedAgent', id }, { type: 'LinkedAgent', id }, 'HostedAgent', 'LinkedAgent'],
     }),
     /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
-    linkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
+    linkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
     hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
     /**

@@ -19,7 +19,7 @@
  * Everything that decides — the id rule, the body, the refusal codes — is in `src/api/hostedAgents.ts`, pure and
  * tested; this file is the form around it.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
@@ -31,10 +31,14 @@ import {
   isHostedAgentCodeMode, parseHostedAgentSpecResponse,
   type HostedAgentApiError, type HostedAgentFormDraft, type HostedAgentFormProblem, type HostedAgentMode,
 } from '@/api/hostedAgents';
-import { createWithFreeAgentId } from '@/api/agentIds';
-import { orgApiErrorOf } from '@/api/organizations';
+import { saveHostedAgent } from '@/lib/saveHostedAgent';
+import { viewerPrincipals } from '@/api/linkedAgents';
+import { canEditHostedAgentSpec } from '@/api/hostedAgents';
+import { orgApiErrorOf, parseOrgProfile } from '@/api/organizations';
 import { parseModelsResponse } from '@/api/models';
 import { parseNetworkModelsResponse } from '@/api/networkModels';
+import { useActiveView } from '@/hooks/useActiveView';
+import { signInHref } from '@/lib/uiNavigation';
 import { useAuth } from '@/auth/AuthContext';
 import { SharingFields } from '@/components/agent/SharingFields';
 import { Button } from '@/components/ui/Button';
@@ -48,12 +52,13 @@ import {
 } from './agentCreate/hostedAgentCodeTemplates';
 
 const AgentCreateForm = styled.form`display: flex; flex-direction: column; gap: 24px; margin-top: 8px; max-width: 880px;`;
+const FormFields = styled.fieldset`display: flex; flex-direction: column; gap: 24px; border: 0; margin: 0; padding: 0; min-width: 0;`;
 const AgentCreateSection = styled.section`
   display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; background: #fff;
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
   h2 { margin: 0; font-size: 16px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; }
 `;
-const AgentCreateTwoCol = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;`;
+const AgentCreateTwoCol = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 20px;`;
 const AgentCreateModeTabs = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
 const AgentCreateModeTab = styled.button<{ $on: boolean }>`
   cursor: pointer; font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; text-align: left;
@@ -84,6 +89,14 @@ const emptyHostedAgentDraft = (model: string): HostedAgentFormDraft => ({
 });
 
 export default function AgentCreatePage() {
+  const auth = useAuth();
+  const location = useLocation();
+  return <AgentCreatePageContent key={`${auth.cacheIdentity}:${location.pathname}:${location.search}`} />;
+}
+
+function AgentCreatePageContent() {
+  const active = useActiveView();
+  const pending = useRef(false);
   const { t } = useT();
   const { id: editId } = useParams();
   const editing = !!editId;
@@ -114,8 +127,11 @@ export default function AgentCreatePage() {
   );
 
   // An AIN account (SSO) may own a hosted agent now, so "somebody who can own one" is `principal`, not `subject`.
-  const stored = useHostedAgentQuery(editId ?? '', { skip: !editing || !auth.principal });
-  const storedSpec = useMemo(() => parseHostedAgentSpecResponse(stored.data), [stored.data]);
+  const stored = useHostedAgentQuery({ id: editId ?? '', identity: auth.cacheIdentity }, { skip: !editing || !auth.principal || auth.loading });
+  const storedSpec = useMemo(() => parseHostedAgentSpecResponse(stored.currentData), [stored.currentData]);
+  const editable = !!storedSpec && storedSpec.id === editId && canEditHostedAgentSpec(storedSpec, viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal));
+  const savedId = useRef<string | null>(editId ?? null);
+  const [hasSaved, setHasSaved] = useState(editing);
 
   const [draft, setDraft] = useState<HostedAgentFormDraft>(() => {
     const initial = emptyHostedAgentDraft(prefilledModel);
@@ -136,11 +152,11 @@ export default function AgentCreatePage() {
 
   // The edit form is filled ONCE from the stored spec. Refilling on every refetch would erase what is being typed.
   useEffect(() => {
-    if (editing && storedSpec && loadedFrom !== storedSpec.id) {
+    if (editing && !stored.error && editable && storedSpec && loadedFrom !== storedSpec.id) {
       setDraft(hostedAgentDraftFromSpec(storedSpec));
       setLoadedFrom(storedSpec.id);
     }
-  }, [editing, storedSpec, loadedFrom]);
+  }, [editing, storedSpec, stored.error, editable, loadedFrom]);
 
   // No model chosen and none prefilled: the first answering chat model is the sensible default.
   useEffect(() => {
@@ -154,7 +170,7 @@ export default function AgentCreatePage() {
   const problemFor = (field: HostedAgentFormProblem['field']) => (showProblems ? problems.find((p) => p.field === field) : undefined);
   const set = <K extends keyof HostedAgentFormDraft>(key: K, value: HostedAgentFormDraft[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
-  const setName = (name: string) => setDraft((d) => ({ ...d, name, id: editing || idTouched ? d.id : hostedAgentIdFromName(name) }));
+  const setName = (name: string) => setDraft((d) => ({ ...d, name, id: hasSaved || idTouched ? d.id : hostedAgentIdFromName(name) }));
 
   /** Switching mode swaps in that mode's template — but only over a template nobody has edited yet. */
   const setMode = (mode: HostedAgentMode) => setDraft((d) => ({
@@ -164,6 +180,7 @@ export default function AgentCreatePage() {
   }));
 
   const submit = async () => {
+    if (pending.current || !active() || (editing && (stored.error || !editable))) return;
     setShowProblems(true);
     setApiError(null);
     setSecretFailures([]);
@@ -174,32 +191,27 @@ export default function AgentCreatePage() {
       target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return;
     }
+    pending.current = true;
     setSaving(true);
     try {
-      let body = hostedAgentSpecInputFromDraft(draft);
-      try {
-        if (editing) await updateAgent(body).unwrap();
-        else if (idTouched) await createAgent(body).unwrap();
-        else {
-          // A suggested id that is taken becomes `-2`, `-3`… — never a timestamp. A typed one goes back to the person.
-          body = await createWithFreeAgentId(body, (b) => createAgent(b).unwrap(), (e) => hostedAgentApiErrorOf(e).code === 'id_taken');
-          const accepted = body.id;
-          setDraft((d) => ({ ...d, id: accepted }));
-        }
-      } catch (err) {
-        const e = hostedAgentApiErrorOf(err);
-        if (e.code === 'docker_unavailable') setDockerUnavailable(true);
-        setApiError(e);
-        return;
-      }
-      const failed: string[] = [];
-      for (const s of hostedAgentSecretsToSend(draft)) {
-        try { await setSecret({ id: body.id, name: s.name, value: s.value }).unwrap(); } catch { failed.push(s.name); }
-      }
-      if (failed.length) { setSecretFailures(failed); return; }
-      navigate(`/agent/${encodeURIComponent(body.id)}`);
+      const result = await saveHostedAgent({
+        body: hostedAgentSpecInputFromDraft(draft), savedId: savedId.current, suggestedId: !idTouched,
+        secrets: hostedAgentSecretsToSend(draft), active,
+        create: (body) => createAgent(body).unwrap(), update: (body) => updateAgent(body).unwrap(),
+        setSecret: (secret) => setSecret(secret).unwrap(),
+        onSaved: (id) => { savedId.current = id; setHasSaved(true); setDraft((d) => ({ ...d, id })); },
+      });
+      if (!result || !active()) return;
+      if (result.failed.length) { setSecretFailures(result.failed); return; }
+      navigate(`/agent/${encodeURIComponent(result.id)}`);
+    } catch (err) {
+      if (!active()) return;
+      const error = hostedAgentApiErrorOf(err);
+      if (error.code === 'docker_unavailable') setDockerUnavailable(true);
+      setApiError(error);
     } finally {
-      setSaving(false);
+      pending.current = false;
+      if (active()) setSaving(false);
     }
   };
 
@@ -208,13 +220,12 @@ export default function AgentCreatePage() {
   if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   if (!auth.principal) {
-    const next = `${location.pathname}${location.search}`;
     return (
       <PageWrapper>
         <TitleRow><Title>{editing ? t('agentCreate.title_edit') : t('agentCreate.title')}</Title></TitleRow>
         <Empty data-testid="agent-create-signin">
           <Description style={{ margin: '0 auto 16px' }}>{t('agentCreate.signin.body')}</Description>
-          <StyledLink to={`/signing?next=${encodeURIComponent(next)}`}>{t('agentCreate.signin.cta')}</StyledLink>
+          <StyledLink to={signInHref(location)}>{t('agentCreate.signin.cta')}</StyledLink>
         </Empty>
       </PageWrapper>
     );
@@ -228,33 +239,41 @@ export default function AgentCreatePage() {
       <Empty data-testid="agent-create-request-access">
         <h3>{t('org.not_member.title')}</h3>
         <Description>{t('org.not_member.body', { name: orgError.org?.name ?? requestedOrg })}</Description>
-        {requested ? <Description role="status">{t('org.not_member.requested')}</Description> : <>
+        {requested ? <Description role="status">{t('org.not_member.requested')}</Description> : orgError.can_request ? <>
           <Input value={requestMessage} maxLength={500} placeholder={t('org.not_member.message')} onChange={(e) => setRequestMessage(e.target.value)} />
           <Button type="button" loading={requestState.isLoading} onClick={() => {
-            setJoinError(null);
-            void requestJoin({ id: requestedOrg, message: requestMessage }).unwrap().catch((error: unknown) => setJoinError(t(`org.api.${orgApiErrorOf(error).code}`)));
+            if (pending.current) return;
+            pending.current = true; setJoinError(null);
+            void requestJoin({ id: requestedOrg, message: requestMessage }).unwrap().catch((error: unknown) => { if (active()) setJoinError(t(`org.api.${orgApiErrorOf(error).code}`)); }).finally(() => { pending.current = false; });
           }}>{t('org.not_member.request')}</Button>
-        </>}
+        </> : null}
         {joinError && <Alert $tone="error">{joinError}</Alert>}
         <StyledLink to={`/org/${encodeURIComponent(requestedOrg)}`}>{t('orgs.title')}</StyledLink>
       </Empty>
     </PageWrapper>;
   }
 
-  if (editing && stored.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (editing && (stored.error || !storedSpec)) {
+  if (!editing && requestedOrg && (orgQuery.error || !parseOrgProfile(orgQuery.currentData))) return <PageWrapper>
+    <Empty role="alert">{t('org.read_failed')} <Button type="button" disabled={orgQuery.isFetching} onClick={() => void orgQuery.refetch()}>{t('aincode.retry')}</Button></Empty>
+  </PageWrapper>;
+
+  if (editing && !stored.currentData && stored.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (editing && (stored.error || !editable)) {
     const e = stored.error ? hostedAgentApiErrorOf(stored.error) : null;
-    const key = e?.code === 'forbidden' ? 'agentCreate.edit.forbidden' : e?.code === 'not_found' ? 'agentCreate.edit.not_found' : 'agentCreate.edit.unreadable';
+    const key = e?.code === 'forbidden' || (storedSpec && !editable) ? 'agentCreate.edit.forbidden' : e?.code === 'not_found' ? 'agentCreate.edit.not_found' : 'agentCreate.edit.unreadable';
     return (
       <PageWrapper>
         <TitleRow><Title>{t('agentCreate.title_edit')}</Title></TitleRow>
         <Empty data-testid="agent-edit-unavailable">
           {t(key, { id: editId ?? '' })}{' '}
+          <Button type="button" size="small" disabled={stored.isFetching} onClick={() => void stored.refetch()}>{t('aincode.retry')}</Button>{' '}
           <StyledLink to={`/agent/${encodeURIComponent(editId ?? '')}`}>{t('agentCreate.edit.back')}</StyledLink>
         </Empty>
       </PageWrapper>
     );
   }
+
+  if (editing && loadedFrom !== editId) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   const code = isHostedAgentCodeMode(draft.mode);
   const selectedModel = modelOptions.find((m) => m.id === draft.model);
@@ -265,6 +284,7 @@ export default function AgentCreatePage() {
       <Description>{t('agentCreate.lede')}</Description>
 
       <AgentCreateForm onSubmit={(e) => { e.preventDefault(); void submit(); }} noValidate data-testid="agent-create-form">
+        <FormFields disabled={saving}>
         <AgentCreateSection>
           <h2>{t('agentCreate.section.identity')}</h2>
           <AgentCreateTwoCol>
@@ -276,11 +296,11 @@ export default function AgentCreatePage() {
             <Field>
               <FieldLabel htmlFor="agent-create-id">{t('agentCreate.field.id')}</FieldLabel>
               <Input
-                id="agent-create-id" value={draft.id} maxLength={40} readOnly={editing} disabled={editing} data-testid="agent-create-id"
+                id="agent-create-id" value={draft.id} maxLength={40} readOnly={hasSaved} disabled={hasSaved} data-testid="agent-create-id"
                 onChange={(e) => { setIdTouched(true); set('id', e.target.value.toLowerCase()); }}
               />
               <HelperText $error={!!problemFor('id')}>
-                {problemFor('id') ? t(problemFor('id')!.key) : editing ? t('agentCreate.field.id_fixed') : t('agentCreate.field.id_help', { id: draft.id || 'my-agent' })}
+                {problemFor('id') ? t(problemFor('id')!.key) : hasSaved ? t('agentCreate.field.id_fixed') : t('agentCreate.field.id_help', { id: draft.id || 'my-agent' })}
               </HelperText>
             </Field>
           </AgentCreateTwoCol>
@@ -494,10 +514,11 @@ export default function AgentCreatePage() {
 
         <AgentCreateActions>
           <Button type="submit" variant="contained" size="large" loading={saving} data-testid="agent-create-submit">
-            {editing ? t('agentCreate.save') : t('agentCreate.submit')}
+            {hasSaved ? t('agentCreate.save') : t('agentCreate.submit')}
           </Button>
           <Button type="button" variant="text" onClick={() => navigate(-1)}>{t('agentCreate.cancel')}</Button>
         </AgentCreateActions>
+      </FormFields>
       </AgentCreateForm>
     </PageWrapper>
   );

@@ -40,6 +40,7 @@ export const linkedAgents: Dict = {
   'agentLink.submit': { ko: '연결', en: 'Link it' },
   'agentLink.submit_edit': { ko: '저장', en: 'Save' },
   'agentLink.submitting': { ko: '카드를 확인하는 중…', en: 'Checking the card…' },
+  'agentLink.done.unknown': { ko: '{name}을(를) 저장했습니다. 연결 상태는 아직 확인되지 않았습니다.', en: '{name} was saved. Its connection has not been confirmed yet.' },
   'agentLink.done.reachable': { ko: '{name}이(가) 연결됐습니다 — 카드가 답했습니다.', en: '{name} is linked — its card answered.' },
   'agentLink.done.unreachable': {
     ko: '{name}이(가) 연결됐지만 지금은 카드가 답하지 않습니다 ({why}). 에이전트가 올라오면 카탈로그가 알아챕니다.',

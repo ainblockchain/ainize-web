@@ -12,7 +12,7 @@ import { AGENT_VISIBILITIES, defaultOrgIdFor, orgVisibilityAvailable, type Agent
 import { Field, FieldLabel, HelperText, Select } from '@/components/ui/Form';
 import { useT } from '@/i18n';
 
-const SharingRow = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;`;
+const SharingRow = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 20px;`;
 
 export interface SharingFieldsProps {
   visibility: AgentVisibility;

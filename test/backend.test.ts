@@ -72,8 +72,7 @@ test('src/pages is not resurrected — Next would read it as a second router', (
 test('the live test posts to the origin the reader is on, not the one the node calls itself', () => {
   const page = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8');
   assert.match(page, /fetch\(samePath\(/, 'an absolute node address from a www. page is a cross-origin POST');
-  // and the rewrite is limited to this app's own prefixes: an agent on another host must keep its host
-  assert.match(page, /\^\\\/\(api\|agents\)\\\//, 'samePath only relativises /api and /agents');
+  assert.ok(page.includes('agentRequestUrl(url, window.location.origin)'), 'destination policy is shared with its behavior tests');
 });
 
 test('the live test offers the AGENT\'s examples, not one agent\'s job hard-coded into the page', () => {

@@ -290,10 +290,16 @@ export function hostedAgentSecretsToSend(draft: HostedAgentFormDraft): { name: s
 
 /** `GET /api/hosted-agents/:id` for the owner: the stored spec plus which secrets have a value. */
 export interface HostedAgentSpecView extends HostedAgentSpecInput {
+  canManage: boolean | null;
   owner: string | null;
   version: number | null;
   status: HostedAgentBuildStatus | null;
   secrets: { name: string; set: boolean }[];
+}
+
+/** Explicit denial wins over ownership; older nodes can fall back to their exact owner identity. */
+export function canEditHostedAgentSpec(spec: HostedAgentSpecView, principals: readonly string[]): boolean {
+  return spec.canManage === true || (spec.canManage !== false && isHostedAgentOwnedBy(spec.owner, principals));
 }
 
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
@@ -326,6 +332,7 @@ export function parseHostedAgentSpecResponse(raw: unknown): HostedAgentSpecView 
   // A name listed in `secretNames` but absent from `secrets` is a secret with no value yet, not one that vanished.
   for (const name of strList(inner.secretNames)) if (!secrets.some((s) => s.name === name)) secrets.push({ name, set: false });
   return {
+    canManage: typeof inner.can_manage === 'boolean' ? inner.can_manage : null,
     id,
     name: str(inner.name, id),
     description: str(inner.description),
