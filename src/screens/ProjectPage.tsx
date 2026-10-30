@@ -35,6 +35,7 @@ import {
 } from '@/api/projects';
 import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
 import { useAuth } from '@/auth/AuthContext';
+import { useActiveView } from '@/hooks/useActiveView';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
@@ -105,7 +106,7 @@ function StatusDot({ status }: { status: DeploymentStatus | ProjectStatus }) {
 /** The log: text, re-read every two seconds while the deployment is queued or building. */
 function LogView({ deployment, onText }: { deployment: Deployment; onText?: (text: string) => void }) {
   const { t } = useT();
-  const { currentData: data, isLoading, isFetching, error, refetch } = useDeploymentLogQuery(deployment.id, { pollingInterval: isLive(deployment.status) ? 2000 : 0 });
+  const { currentData: data, isLoading, isFetching, error, refetch } = useDeploymentLogQuery({ id: deployment.id, identity: useAuth().cacheIdentity }, { pollingInterval: isLive(deployment.status) ? 2000 : 0 });
   useEffect(() => { onText?.(error ? '' : data ?? ''); }, [data, error, onText]);
   if (error) return <Alert $tone="error">{t('projects.logs.failed')} <Button onClick={() => void refetch()} loading={isFetching}>{t('projects.page.retry')}</Button></Alert>;
   if (isLoading || (isFetching && data === undefined)) return <Log>{t('projects.logs.loading')}</Log>;
@@ -130,19 +131,19 @@ const RunLine = styled.div<{ $err: boolean }>`
  */
 function RuntimeLogView({ project }: { project: Project }) {
   const { t } = useT();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, cacheIdentity } = useAuth();
   const [tail, setTail] = useState<number>(RUNTIME_LOG_DEFAULT_TAIL);
   const [follow, setFollow] = useState(true);
   const allowed = isSignedIn && !!project.canOperate;
-  const q = useProjectRuntimeLogsQuery({ id: project.id, tail }, { skip: !allowed, pollingInterval: follow ? RUNTIME_LOG_POLL_MS : 0, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true });
+  const q = useProjectRuntimeLogsQuery({ id: project.id, tail, identity: cacheIdentity }, { skip: !allowed, pollingInterval: follow ? RUNTIME_LOG_POLL_MS : 0, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true });
   const box = useRef<HTMLPreElement>(null);
   const stick = useRef(true);
-  useEffect(() => { const el = box.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [q.data]);
+  useEffect(() => { const el = box.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [q.currentData]);
   if (!isSignedIn) {
     return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(window.location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
   }
   if (!project.canOperate) return <Panel><Help>{t('projects.logs.not_member', { org: project.org })}</Help></Panel>;
-  const data = q.data;
+  const data = q.error ? undefined : q.currentData;
   const problem = q.error ? runtimeLogProblemOf(q.error) : null;
   return (
     <>
@@ -158,7 +159,7 @@ function RuntimeLogView({ project }: { project: Project }) {
       </FilterRow>
       <Help>{t('projects.logs.runtime_hint')}</Help>
       {problem && <Alert $tone={problem === 'not_running' ? 'info' : 'error'}>{t(`projects.logs.${problem}`, { org: project.org })}</Alert>}
-      {q.isLoading && !data ? <CenterProgress /> : data && (
+      {q.isFetching && !data ? <CenterProgress /> : data && (
         <Log ref={box} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}>
           {data.truncated && <RunLine $err={false}><span className="ts">…</span>{t('projects.logs.truncated')}</RunLine>}
           {data.lines.length === 0 ? t('projects.logs.runtime_empty') : data.lines.map((l, i) => (
@@ -259,13 +260,14 @@ function InputField({ name, spec, value, onChange, models }: { name: string; spe
 
 function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; draft: RunDraft; setDraft: (d: RunDraft) => void; onStarted: (runId: string) => void }) {
   const { t } = useT();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, cacheIdentity } = useAuth();
   const location = useLocation();
+  const active = useActiveView();
   const [run, { isLoading }] = useRunProjectMutation();
   const [err, setErr] = useState<string | null>(null);
   const modelsQuery = useModelsQuery();
   const models = useMemo(() => parseModelsResponse(modelsQuery.data).filter((m) => m.available !== false).map((m) => m.id), [modelsQuery.data]);
-  const sourceQuery = useProjectSourceQuery({ id: project.id, target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}) }, {
+  const sourceQuery = useProjectSourceQuery({ id: project.id, identity: cacheIdentity, target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}) }, {
     skip: !isSignedIn || !project.canOperate || (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)),
     refetchOnMountOrArgChange: true,
   });
@@ -292,7 +294,7 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
       env: parseEnvLines(draft.env),
       ...(draft.timeoutMs ? { timeoutMs: Number(draft.timeoutMs) * 1000 } : {}),
     };
-    try { const r = await run({ id: project.id, body }).unwrap(); onStarted(r.runId ?? r.deploymentId); }
+    try { const r = await run({ id: project.id, body }).unwrap(); if (active()) onStarted(r.runId ?? r.deploymentId); }
     catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
   };
   if (!isSignedIn) {
@@ -353,8 +355,15 @@ const TABS: Tab[] = ['deployments', 'runs', 'logs', 'settings'];
  * folder projects), the row that picks which one this console shows — drawn under the breadcrumb.
  */
 export function ProjectConsole({ project: initial, switcher }: { project: Project; switcher?: ReactNode }) {
+  const { cacheIdentity } = useAuth();
+  return <ProjectConsoleContent key={`${cacheIdentity}:${initial.id}`} project={initial} switcher={switcher} />;
+}
+
+function ProjectConsoleContent({ project: initial, switcher }: { project: Project; switcher?: ReactNode }) {
   const { t } = useT();
+  const { cacheIdentity } = useAuth();
   const navigate = useNavigate();
+  const active = useActiveView();
   const [sp, setSp] = useSearchParams();
   const tab: Tab = (TABS as string[]).includes(sp.get('tab') ?? '') ? (sp.get('tab') as Tab) : 'deployments';
   const setTab = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); if (id === 'deployments') n.delete('tab'); else n.set('tab', id); n.delete('open'); return n; });
@@ -362,18 +371,18 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const setOpen = (id: string | null) => setSp((prev) => { const n = new URLSearchParams(prev); if (id) n.set('open', id); else n.delete('open'); return n; });
 
   const live = isLive(initial.status);
-  const projectQ = useProjectQuery(initial.id, { pollingInterval: live ? 2000 : 15_000 });
+  const projectQ = useProjectQuery({ id: initial.id, identity: cacheIdentity }, { pollingInterval: live ? 2000 : 15_000 });
   const p = projectQ.currentData ?? initial;
-  const deployments = useProjectDeploymentsQuery(p.id, { pollingInterval: live ? 2000 : 15_000 });
+  const deployments = useProjectDeploymentsQuery({ id: p.id, identity: cacheIdentity }, { pollingInterval: live ? 2000 : 15_000 });
   const kind = p.kind ?? p.manifest?.kind ?? null;
   const isScript = isScriptProject(p);
-  const runs = useProjectRunsQuery(p.id, { skip: !isScript, pollingInterval: tab === 'runs' ? 2000 : 0 });
+  const runs = useProjectRunsQuery({ id: p.id, identity: cacheIdentity }, { skip: !isScript, pollingInterval: tab === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
-  const newest = deployments.data?.deployments[0]?.status;
+  const newest = deployments.currentData?.deployments[0]?.status;
   useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
 
-  const rows = deployments.currentData?.deployments ?? [];
-  const runRows = runs.currentData?.runs ?? [];
+  const rows = deployments.error ? [] : deployments.currentData?.deployments ?? [];
+  const runRows = runs.error ? [] : runs.currentData?.runs ?? [];
   const visitUrl = activeProjectUrl(p, rows);
   const latest = rows[0];
 
@@ -404,7 +413,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const redeployLatest = async () => {
     if (!latest) return;
     setHeadErr(null);
-    try { const r = await redeploy({ deploymentId: latest.id, projectId: p.id }).unwrap(); openDeployment(r.deploymentId); }
+    try { const r = await redeploy({ deploymentId: latest.id, projectId: p.id }).unwrap(); if (active()) openDeployment(r.deploymentId); }
     catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
   };
 
@@ -424,7 +433,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const del = async () => {
     if (!window.confirm(t('projects.page.delete_confirm', { name: p.name }))) return;
     setError(null);
-    try { await remove(p.id).unwrap(); navigate('/me/projects', { replace: true }); }
+    try { await remove(p.id).unwrap(); if (active()) navigate('/me/projects', { replace: true }); }
     catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
   };
   const doRotate = async () => {
@@ -447,6 +456,8 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
     { id: 'logs', label: t('projects.tabs.logs') },
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
+
+  if (projectQ.isError) return <PageWrapper><Alert role="alert" $tone="error">{t('projects.page.load_failed')} <Button loading={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button></Alert></PageWrapper>;
 
   return (
     <PageWrapper $wide>
@@ -495,7 +506,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
             <Spacer />
             <Meta>{t('projects.filters.count', { n: filtered.length })}</Meta>
           </FilterRow>
-          {deployments.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert> : deployments.isLoading ? <CenterProgress /> : shown.length === 0
+          {deployments.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert> : (!deployments.currentData && deployments.isFetching) ? <CenterProgress /> : shown.length === 0
             ? <Empty>{rows.length === 0 ? t('projects.page.no_deployments', { branch: p.branch }) : t('projects.filters.none')}</Empty>
             : <Rows>{shown.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} />)}</Rows>}
           {pageCount > 1 && <Pagination page={page} pageCount={pageCount} onChange={setPage} />}
@@ -507,7 +518,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         <TabBody>
           <RunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
           <SubTitle>{t('projects.runs.history')}</SubTitle>
-          {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : runs.isLoading ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
+          {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : (!runs.currentData && runs.isFetching) ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
             : <Rows>{runRows.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRunAgain={runAgain} />)}</Rows>}
         </TabBody>
       )}
@@ -520,7 +531,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
               <Button size="small" variant={logView === 'build' ? 'contained' : undefined} aria-pressed={logView === 'build'} onClick={() => setLogView('build')}>{t('projects.logs.build')}</Button>
             </FilterRow>
           )}
-          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deployments.isError || runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (isScript) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : deployments.isLoading || runs.isLoading ? <CenterProgress /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
+          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deployments.isError || runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (isScript) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (!deployments.currentData && deployments.isFetching) || (!runs.currentData && runs.isFetching) ? <CenterProgress /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
             <>
               <FilterRow>
                 <StatusDot status={latestAny.status} />
@@ -608,24 +619,33 @@ const withSearch = (path: string, search: string) => {
 export function ProjectByNamePage() {
   const { org = '', repo = '' } = useParams();
   const { t } = useT();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, cacheIdentity } = useAuth();
   const location = useLocation();
   useTitle(`${org}/${repo}`);
   const reserved = isReservedFirstSegment(org);
   const knowledge = isKnowledgeAuthor(org);
-  const q = useProjectByNameQuery({ org, repo }, { skip: reserved || knowledge });
+  const q = useProjectByNameQuery({ org, repo, identity: cacheIdentity }, { skip: reserved || knowledge });
   // A monorepo's folder projects share this address: the organization's list names them (the ones this viewer may see).
-  const orgQ = useOrgProjectsQuery(org, { skip: reserved || knowledge || !q.currentData });
+  const orgQ = useOrgProjectsQuery({ org, identity: cacheIdentity }, { skip: reserved || knowledge || !q.currentData });
   const [sp, setSp] = useSearchParams();
   if (reserved) return <NotFoundPage />;
   if (knowledge) return <PatchPage author={org} patchId={repo} />;
   if (q.isLoading || (q.isFetching && !q.currentData)) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (q.currentData) {
-    const all = repoProjects(q.currentData, orgQ.currentData?.projects ?? []);
-    const selected = selectRepoProject(all, sp.get('project'));
+  if (q.currentData && !q.error) {
+    const folder = sp.get('project');
+    if (folder && !orgQ.currentData && orgQ.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+    const validProjects = Array.isArray(orgQ.currentData?.projects);
+    if (folder && (orgQ.isError || !validProjects)) return <PageWrapper><Alert role="alert" $tone="error">{t('projects.page.load_failed')} <Button loading={orgQ.isFetching} onClick={() => void orgQ.refetch()}>{t('projects.page.retry')}</Button></Alert></PageWrapper>;
+    const all = repoProjects(q.currentData, !orgQ.error && validProjects ? orgQ.currentData!.projects : []);
+    const selected = selectRepoProject(all, folder);
+    if (!selected) return <PageWrapper>
+      <Crumbs><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span><span className="sep">/</span><span>{folder}</span></Crumbs>
+      <Empty data-testid="project-selection-unavailable">{t('projects.page.folder_unavailable', { folder: folder ?? '' })}</Empty>
+      <Actions><Button loading={orgQ.isFetching} onClick={() => void orgQ.refetch()}>{t('projects.page.retry')}</Button><StyledLink to={projectPath(q.currentData)}>{t('projects.page.repository')}</StyledLink></Actions>
+    </PageWrapper>;
     const pick = (id: string) => setSp(() => { const n = new URLSearchParams(); const folder = all.find((p) => p.id === id)?.sourcePath; if (folder) n.set('project', folder); return n; });
     const switcher = all.length > 1 ? <RepoDeployments projects={all} selected={selected.id} onPick={pick} /> : undefined;
-    return <ProjectConsole key={selected.id} project={selected} switcher={switcher} />;
+    return <ProjectConsole key={`${cacheIdentity}:${selected.id}`} project={selected} switcher={switcher} />;
   }
   const why = projectApiErrorOf(q.error);
   const unavailable = why.status === 404 || why.status === 401 || why.status === 403;
@@ -649,10 +669,10 @@ export default function ProjectPage() {
   const { t } = useT();
   const { id = '' } = useParams();
   const location = useLocation();
-  const q = useProjectQuery(id);
-  if (q.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  const q = useProjectQuery({ id, identity: useAuth().cacheIdentity });
+  if (!q.currentData && q.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
   // A folder project's page is its repository's, with it selected (`?project=<folder>`); other parameters ride along.
-  if (q.data) return <Navigate to={withSearch(projectPath(q.data), location.search)} replace />;
+  if (q.currentData && !q.error) return <Navigate to={withSearch(projectPath(q.currentData), location.search)} replace />;
   const why = projectApiErrorOf(q.error);
-  return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty></PageWrapper>;
+  return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty><Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></PageWrapper>;
 }

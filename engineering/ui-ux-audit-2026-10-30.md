@@ -81,7 +81,7 @@ A row remains pending until the applicable flows and rendered behavior are check
 | `/me/agents` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/projects/new` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/projects/:id` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
-| `/me/projects` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
+| `/me/projects` | Partial: current-account, failed/malformed/empty render fixtures | Deploy, live navigation and mobile remain |
 | `/org` | Partial: malformed membership-list recovery render fixture passes | Deploy, live navigation and mobile remain |
 | `/org/new` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/org/join/:token` | Partial: outage vs expiry, stale token exclusion, retry rendering checked | Server mutation fixture, deployment and mobile remain |
@@ -96,8 +96,8 @@ A row remains pending until the applicable flows and rendered behavior are check
 | `/account` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/drive` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 | `/drive/*` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
-| `/:org` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
-| `/:org/:repo` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
+| `/:org` | Partial: incomplete-list recovery and active Visit fixtures | Deploy, live destinations, member states and mobile remain |
+| `/:org/:repo` | Partial: exact folder selection, permission/error and account fixtures | Server mutations, deploy, navigation and mobile remain |
 | `*` | Pending | Route target, visible actions, auth/empty/error states, back/deep links, mobile |
 
 ## Cross-route checks still required
@@ -312,3 +312,13 @@ Validation so far: typecheck and 44 focused navigation, project action, translat
 - U58: organization mutation controls lacked a shared pending guard and some failures (notably group deletion with the editor closed) had no visible output. Added a synchronous per-panel guard, disabled relevant controls during requests, pending/success/error feedback, and ignored outcomes after leaving the view. Revoking a newly generated invite clears its copyable link. General/billing background refreshes no longer overwrite unsaved input. These async UI paths still need controlled client/server interaction checks; SSR does not execute clicks.
 - U59: on the deployed Members tab at **320×740**, document width was 320 and table width 238, but names/email wrapped into one or two characters per line. Saved baseline `ui-compact-verification/org-members-mobile-320-before-20261031.png`. Mobile tables now lay out each row as labelled fields with the first value spanning the row; desktop table layout remains. This also covers billing keys/calls and audit rows. Post-change **320px/390px visual verification remains pending**; no before-fix screenshot is claimed as an after-fix result.
 - Read-only browser actions only: navigated organization/settings tabs and clicked the broken New group control (which made no API mutation). No organization, group, member, invite or payment setting was changed. Temporary viewport override was reset. Typecheck/generated-file/render regression checks are run locally; full ainize CI/build and deployment remain blocked by the missing SSH control socket.
+
+
+### Project selection, account state and recovery — continuation
+
+- U60: an explicit `?project=worker` silently selected the root project while the organization list was loading, failed, or did not contain that folder. Wait for the exact folder inventory, show failure/retry for an unreadable list, and show unavailable/retry plus an explicit repository recovery link for an absent folder. Never substitute root permissions, run controls or history for an explicitly requested folder.
+- U61: project, source, deployment/run history, logs, environment, domains and organization repository queries reused account-independent cache entries. Scope these reads to the full current identity, use currentData, and immediately expire unused entries. Project console and creation state remount on account/resource changes; completed creation/run/redeploy/delete requests cannot navigate a departed view or start the AIN Drive handoff there. This does not prove every asynchronous settings mutation is covered.
+- U62: My projects treated failures as empty, partial repository failures could appear complete, and malformed list envelopes could crash rendering. Show recovery rather than empty/complete claims. A signed-in nonmember gets organization navigation instead of another login loop. Hide failed profile/drive metadata and hide cached project controls after a failed permission refresh. Environment denial takes precedence over cached writer data; domain denial hides old hostnames and disables changes, with retry. Deployment monitoring failures now expose retry.
+- U63: organization repository Visit links used the last successful deployment even when a different deployment was active after rollback. Reuse the active-deployment URL contract; only expose a verified active URL, keeping the project console link when active deployment details are unavailable. Existing non-script Run-tab recovery was inspected and already handled; no additional change was needed there.
+- Local evidence: **23 focused top-level tests**, including **53 executed component-render scenarios**, pass. Fixtures cover exact folder selection and absence, list loading/error/malformed envelopes, old-account exclusion, revoked project/environment/domain controls, partial organization lists and active-vs-historical Visit destinations. Typecheck, generated-file and whitespace checks also passed. No production run, deploy, secret, domain or project mutation was performed. Full ainize CI/build, controlled client mutations, deployment and post-change desktop/mobile remain pending; the SSH control socket is still absent.
+- AinCode follow-up e8c2ceb also removes the remaining section heading and unused introduction translation. Public pre-change inspection still showed an AinCode heading; no post-change public deployment claim is made.

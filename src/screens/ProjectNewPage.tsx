@@ -18,6 +18,7 @@ import { connectParamsOf, connectRepoOnAindrive, projectApiErrorOf, repoLabelOf,
 import { signInHref } from '@/lib/uiNavigation';
 import { projectPath } from '@/lib/reservedRoutes';
 import { useAuth } from '@/auth/AuthContext';
+import { useActiveView } from '@/hooks/useActiveView';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -34,12 +35,19 @@ const SecretRow = styled.div`display: flex; gap: 10px; align-items: center; flex
 const Label = styled.span`font-weight: 700; font-size: 13px; min-width: 110px;`;
 
 export default function ProjectNewPage() {
+  const { cacheIdentity } = useAuth();
+  const { search } = useLocation();
+  return <ProjectNewContent key={`${cacheIdentity}:${search}`} />;
+}
+
+function ProjectNewContent() {
   const { t } = useT();
   useTitle(t('projects.new.title'));
   const { isSignedIn, loading } = useAuth();
   const location = useLocation();
   const { search } = location;
   const navigate = useNavigate();
+  const active = useActiveView();
   const params = useMemo(() => connectParamsOf(search), [search]);
   const [repo, setRepo] = useState(params.repo ?? '');
   const [branch, setBranch] = useState('main');
@@ -77,6 +85,7 @@ export default function ProjectNewPage() {
       setError(t('projects.new.failed', { why: why.message ?? t(`projects.api.${why.code}`) }));
       return;
     }
+    if (!active()) return;
     setCreated(project);
     if (params.driveId) {
       setConnect('working');

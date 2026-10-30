@@ -87,7 +87,7 @@ test('requests: list, PUT with { value } and ?redeploy=1 only when asked, DELETE
   assert.deepEqual(secretDeleteRequest('p', 'X', true), { url: 'api/projects/p/secrets/X?redeploy=1', method: 'DELETE' });
   // the RTK endpoints are built from these, with the readers below as transformResponse
   const api = read('api/api.ts');
-  assert.match(api, /projectSecrets: b\.query<ProjectSecretsResponse, string>\(\{ query: \(id\) => secretsListUrl\(id\), transformResponse: parseProjectSecretsResponse/);
+  assert.match(api, /projectSecrets: b\.query<ProjectSecretsResponse, \{ id: string; identity: string \}>\(\{ keepUnusedDataFor: 0, query: \(\{ id \}\) => secretsListUrl\(id\), transformResponse: parseProjectSecretsResponse/);
   assert.match(api, /secretPutRequest\(id, name, value, redeploy\), transformResponse: parseSecretSaved/);
   assert.match(api, /secretDeleteRequest\(id, name, redeploy\), transformResponse: parseSecretRemoved/);
 });
@@ -146,6 +146,10 @@ test('the node\'s refusals map to codes, and the section knows whom it is talkin
   assert.equal(envAccessOf({ error: { status: 404, data: { error: { code: 'not_found', message: '' } } } }), 'hidden', 'outsiders, and an older node without the route');
   assert.equal(envAccessOf({ error: { status: 503, data: { error: { code: 'secrets_off', message: '' } } } }), 'off');
   assert.equal(envAccessOf({ error: { status: 'FETCH_ERROR' } }), 'error');
+  const stale = { secrets: [{ name: 'PREVIOUS_SECRET' }], declared: [], missing: [] };
+  assert.equal(envAccessOf({ data: stale, error: { status: 403, data: { error: { code: 'not_writer' } } } }), 'reader');
+  assert.equal(envAccessOf({ data: stale, error: { status: 401 } }), 'hidden');
+  assert.equal(envAccessOf({ data: stale, error: { status: 'FETCH_ERROR' } }), 'error');
 });
 
 test('every string the section and its banner render exists in English and in Korean', () => {

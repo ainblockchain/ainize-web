@@ -1,3 +1,4 @@
+import { organizations } from '../src/i18n/pages/organizations';
 /**
  * The project pages' contract with aindrive (aindrive#206) and with the node (ainize-node docs/PROJECTS.md), held
  * still where it can be: the hand-off query string, the one-time secret's return trip, the node's error shape, and
@@ -67,7 +68,7 @@ test('every string the project pages render exists in English and in Korean', ()
   const keys = [...sources.matchAll(/\bt\('([a-zA-Z0-9_.]+)'/g)].map((m) => m[1]!);
   assert.ok(keys.length > 20, 'the pages are translated through t()');
   for (const key of keys) {
-    const e = projects[key];
+    const e = projects[key] ?? organizations[key];
     assert.ok(e, `missing i18n key ${key}`);
     assert.ok(e.en.trim() && e.ko.trim(), `${key} needs both languages`);
     assert.ok(/[가-힣]/.test(e.ko) || e.ko === e.en, `${key}.ko is not Korean`);
@@ -93,7 +94,7 @@ test('every link to a project is the pretty URL /<org>/<repo> (a monorepo folder
   for (const file of ['screens/ProjectNewPage.tsx', 'screens/MyProjectsPage.tsx', 'screens/ProjectPage.tsx', 'screens/OrgRepositoriesPage.tsx']) {
     assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} still builds a /projects/<id> link`);
   }
-  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{withSearch\(projectPath\(q\.data\), location\.search\)\}/, '/projects/:id forwards to the pretty URL');
+  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{withSearch\(projectPath\(q\.currentData\), location\.search\)\}/, '/projects/:id forwards to the pretty URL');
   assert.match(read('screens/ProjectPage.tsx'), /<Link to=\{orgPath\(p\.org\)\}>\{p\.org\}<\/Link>/, 'the breadcrumb\'s org links to /<org>');
 });
 
@@ -119,14 +120,14 @@ test('a monorepo folder project is its own row; its page is the repository\'s, s
   const docs = { ...base, id: 'prj_docs', name: 'aindrive-docs', updatedAt: 30, sourcePath: 'docs' } as unknown as Project;
   const all = repoProjects(root, [indexer, other, root, docs]);
   assert.deepEqual(all.map((p) => p.id), ['prj_root', 'prj_docs', 'prj_idx'], 'other repositories are left out');
-  assert.equal(selectRepoProject(all, null).id, 'prj_root', 'no parameter: the root, as the page always was');
-  assert.equal(selectRepoProject(all, 'indexer').id, 'prj_idx');
-  assert.equal(selectRepoProject(all, 'nope').id, 'prj_root');
+  assert.equal(selectRepoProject(all, null)?.id, 'prj_root', 'no parameter: the root, as the page always was');
+  assert.equal(selectRepoProject(all, 'indexer')?.id, 'prj_idx');
+  assert.equal(selectRepoProject(all, 'nope'), undefined, 'an unavailable folder never selects a different project');
   assert.deepEqual(repoProjects(root, [root]).map((p) => p.id), ['prj_root'], 'no folder projects: no switcher');
   assert.equal(repoProjectLabel(indexer), 'aindrive/indexer');
   const page = read('screens/ProjectPage.tsx');
   assert.match(page, /const switcher = all\.length > 1 \? <RepoDeployments/, 'the switcher only when the repository has folder projects');
-  assert.match(page, /<ProjectConsole key=\{selected\.id\} project=\{selected\} switcher=\{switcher\} \/>/);
+  assert.match(page, /<ProjectConsole key=\{`\$\{cacheIdentity\}:\$\{selected\.id\}`\} project=\{selected\} switcher=\{switcher\} \/>/);
 });
 
 test('the Run panel: answers fall back to defaults, required blanks are named, env lines are parsed, times are relative', () => {

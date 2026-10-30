@@ -77,10 +77,11 @@ function ValueInput({ id, value, onChange, autoFocus }: { id: string; value: str
 export function DeployWatch({ queued, onOpen }: { queued: Queued; onOpen?: (deploymentId: string) => void }) {
   const { t } = useT();
   const [done, setDone] = useState(false);
-  const q = useDeploymentQuery(queued.deploymentId, { pollingInterval: done ? 0 : 2000 });
-  const d = q.data;
+  const q = useDeploymentQuery({ id: queued.deploymentId, identity: useAuth().cacheIdentity }, { pollingInterval: done ? 0 : 2000 });
+  const d = q.currentData;
   const status = d?.status ?? queued.status;
   useEffect(() => { if (status === 'ready' || status === 'error') setDone(true); }, [status]);
+  if (q.error) return <Alert role="alert" $tone="error">{t('projects.page.history_failed')} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>;
   return (
     <Alert $tone={status === 'error' ? 'error' : status === 'ready' ? 'success' : 'info'} aria-live="polite">
       <Actions>
@@ -246,10 +247,10 @@ function BulkPaste({ project, existing, redeploy, onSaved }: { project: Project;
 
 /** The list query, shared by the section and the page's "missing" banner (RTK Query dedupes the request). */
 export function useProjectEnv(project: Project) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, cacheIdentity } = useAuth();
   const skip = !isSignedIn || !project.canOperate;
-  const q = useProjectSecretsQuery(project.id, { skip });
-  return { q, access: envAccessOf({ skip, isLoading: q.isLoading, data: q.data, error: q.error }) };
+  const q = useProjectSecretsQuery({ id: project.id, identity: cacheIdentity }, { skip });
+  return { q, access: envAccessOf({ skip, isLoading: !q.currentData && q.isFetching, data: q.currentData, error: q.error }) };
 }
 
 export default function ProjectEnvVars({ project, onOpenDeployment }: { project: Project; onOpenDeployment?: (deploymentId: string) => void }) {
@@ -264,8 +265,8 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
   const [queued, setQueued] = useState<Queued | null>(null);
   const [redeployNow, redeploying] = useRedeployMutation();
   const [redeployErr, setRedeployErr] = useState<string | null>(null);
-  const rows = useMemo(() => (q.data ? envRowsOf(q.data) : []), [q.data]);
-  const existing = useMemo(() => q.data?.secrets.map((s) => s.name) ?? [], [q.data]);
+  const rows = useMemo(() => (q.currentData ? envRowsOf(q.currentData) : []), [q.currentData]);
+  const existing = useMemo(() => q.currentData?.secrets.map((s) => s.name) ?? [], [q.currentData]);
 
   if (access === 'hidden') return null;
 
@@ -288,7 +289,7 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
 
       {access === 'loading' && <Help>{t('projects.env.loading')}</Help>}
       {access === 'off' && <Alert $tone="info">{t('projects.env.err.secrets_off')}</Alert>}
-      {access === 'error' && <Alert $tone="error">{errorText(t, q.error)}</Alert>}
+      {access === 'error' && <Alert role="alert" $tone="error">{errorText(t, q.error)} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>}
 
       {access === 'reader' && (
         <>
@@ -301,7 +302,7 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
         </>
       )}
 
-      {access === 'writer' && q.data && (
+      {access === 'writer' && q.currentData && (
         <>
           {rows.length === 0 ? <Help>{t('projects.env.empty')}</Help> : (
             <List aria-label={t('projects.env.title')}>
@@ -334,7 +335,7 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
 export function MissingEnvBanner({ project, onGo }: { project: Project; onGo: () => void }) {
   const { t } = useT();
   const { q, access } = useProjectEnv(project);
-  const missing = access === 'writer' ? q.data?.missing ?? [] : [];
+  const missing = access === 'writer' ? q.currentData?.missing ?? [] : [];
   if (!missing.length) return null;
   return (
     <Alert $tone="warning" role="status" style={{ margin: '8px 0' }}>

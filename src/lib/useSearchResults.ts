@@ -12,7 +12,7 @@ export function useSearchResults(query: string, enabled: boolean, perKind = 4) {
   const models = useModelsQuery(undefined, { skip: !active });
   const network = useNetworkModelsQuery(undefined, { skip: !active });
   const agents = useAgentsQuery(undefined, { skip: !active });
-  const apps = useAccessibleAppsQuery({ principal: auth.principal ?? '', orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] }, { skip: !active || !auth.isSignedIn });
+  const apps = useAccessibleAppsQuery({ principal: auth.cacheIdentity, orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] }, { skip: !active || !auth.isSignedIn });
   const catalog = useCatalogQuery({ q: query.trim(), status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: perKind }, { skip: !active });
   const groups = useMemo(() => {
     if (!active) return [];

@@ -45,7 +45,7 @@ export default function AppsPage() {
   const auth = useAuth();
   const [params] = useSearchParams();
   const q = (params.get('q') ?? '').trim();
-  const apps = useAccessibleAppsQuery({ principal: auth.principal ?? '', orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] },
+  const apps = useAccessibleAppsQuery({ principal: auth.cacheIdentity, orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] },
     { skip: !auth.isSignedIn, pollingInterval: 15_000, refetchOnMountOrArgChange: true });
   const rows = appProjects(apps.currentData?.projects ?? [], q);
   const partial = apps.isError || !!apps.currentData?.failedSources?.length;
@@ -79,7 +79,7 @@ function AppCard({ project: p }: { project: Project }) {
   const { t } = useT();
   const knownUrl = activeProjectUrl(p);
   const needsHistory = !knownUrl && !!(p.activeDeploymentId || p.activeCommit);
-  const history = useProjectDeploymentsQuery(p.id, { skip: !needsHistory, pollingInterval: needsHistory ? 15_000 : 0, refetchOnMountOrArgChange: true });
+  const history = useProjectDeploymentsQuery({ id: p.id, identity: useAuth().cacheIdentity }, { skip: !needsHistory, pollingInterval: needsHistory ? 15_000 : 0, refetchOnMountOrArgChange: true });
   const url = activeProjectUrl(p, history.currentData?.deployments ?? []);
   return (
     <Card>

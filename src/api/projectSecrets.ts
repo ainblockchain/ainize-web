@@ -233,7 +233,6 @@ export function secretApiErrorOf(err: unknown): SecretApiError {
 export type EnvAccess = 'loading' | 'writer' | 'reader' | 'off' | 'hidden' | 'error';
 export function envAccessOf(q: { skip?: boolean; isLoading?: boolean; data?: unknown; error?: unknown }): EnvAccess {
   if (q.skip) return 'hidden';
-  if (q.data) return 'writer';
   if (q.error) {
     const e = secretApiErrorOf(q.error);
     if (e.code === 'not_writer' || e.code === 'forbidden') return 'reader';
@@ -241,5 +240,6 @@ export function envAccessOf(q: { skip?: boolean; isLoading?: boolean; data?: unk
     if (e.code === 'not_found' || e.code === 'not_signed_in') return 'hidden';
     return 'error';
   }
+  if (q.data) return 'writer';
   return 'loading';
 }

@@ -25,6 +25,12 @@ import OrgsPage from '../src/screens/org/OrgsPage';
 import OrgSettingsPage from '../src/screens/org/OrgSettingsPage';
 import OrgJoinPage from '../src/screens/org/OrgJoinPage';
 import ExplorePage from '../src/screens/ExplorePage';
+import MyProjectsPage from '../src/screens/MyProjectsPage';
+import { ProjectByNamePage, ProjectConsole } from '../src/screens/ProjectPage';
+import OrgRepositoriesPage from '../src/screens/OrgRepositoriesPage';
+import ProjectEnvVars from '../src/components/ProjectEnvVars';
+import ProjectDomains from '../src/components/ProjectDomains';
+import type { Deployment, Project } from '../src/api/projects';
 import { SignOutNotice } from '../src/components/ui/SignOutNotice';
 import { Header } from '../src/components/ui/Header';
 import MyPage from '../src/screens/MyPage';
@@ -145,7 +151,7 @@ const appAccount: Fixture[] = [
   ...signedOut.filter((f) => f.name !== 'me'),
   { name: 'me', value: { sso: { sub: 'viewer', principal: 'sso:viewer', orgs: [{ id: 'studio', slug: 'studio' }] } } },
 ];
-const appsArg = { principal: 'sso:viewer', orgs: ['studio'] };
+const appsArg = { principal: JSON.stringify([null, 'sso:viewer', null, null]), orgs: ['studio'] };
 const webApp = { id: 'web', name: 'Storefront', org: 'studio', repoName: 'mono', sourcePath: 'packages/web', kind: 'nextjs', branch: 'main', status: 'ready', updatedAt: Date.now(), lastDeployment: { id: 'newest', status: 'ready', outputUrl: 'https://newest.example.test' }, activeDeploymentId: 'previous' };
 const appsFixture = (projects: unknown[], failedSources: string[] = []): Fixture => ({ name: 'accessibleApps', arg: appsArg, value: { projects, failedSources } });
 
@@ -163,7 +169,7 @@ test('Apps shows only app kinds and preserves the selected monorepo folder', () 
 });
 
 test('App Open uses the active deployment after rollback, not the newest successful build', () => {
-  const html = render(AppsPage, [...appAccount, appsFixture([webApp]), { name: 'projectDeployments', arg: 'web', value: { deployments: [{ id: 'previous', status: 'ready', outputUrl: 'https://active.example.test' }] } }], '/apps');
+  const html = render(AppsPage, [...appAccount, appsFixture([webApp]), { name: 'projectDeployments', arg: { id: 'web', identity: appsArg.principal }, value: { deployments: [{ id: 'previous', status: 'ready', outputUrl: 'https://active.example.test' }] } }], '/apps');
   assert.match(html, /href="https:\/\/active.example.test"/);
   assert.doesNotMatch(html, /href="https:\/\/newest.example.test"/);
 });
@@ -550,4 +556,110 @@ test('an explicit organization agent URL does not fall back to a different organ
   assert.doesNotMatch(html, /href="\/agent\/new\?org=studio"|href="\/org\/studio"/);
   assert.match(html, /data-testid="agents-scope-error"/);
   assert.match(html, /Try again/);
+});
+
+const rootProject = { id: 'root-project', org: 'studio', repoName: 'mono', repo: 'https://aindrive.ainetwork.ai/studio/git/mono', name: 'Root-only project', branch: 'main', kind: 'service', status: 'ready', sourcePath: '', canOperate: true, canManage: true, createdAt: 1, updatedAt: 1 } as Project;
+const folderProject = { ...rootProject, id: 'folder-project', sourcePath: 'worker', name: 'Selected worker project' };
+const projectArg = { id: rootProject.id, identity: accountIdentity };
+const byName: Fixture = { name: 'projectByName', arg: { org: 'studio', repo: 'mono', identity: accountIdentity }, value: rootProject };
+
+test('explicit folder selection waits for its list and never renders the root on failure or absence', () => {
+  const orgArg = { org: 'studio', identity: accountIdentity };
+  for (const fixture of [
+    { name: 'orgProjects', arg: orgArg, status: 'pending' as const },
+    { name: 'orgProjects', arg: orgArg, status: 'rejected' as const },
+    { name: 'orgProjects', arg: orgArg, value: { org: 'studio', projects: [rootProject] } },
+  ]) {
+    const html = render(ProjectByNamePage, [...appAccount, byName, fixture], '/studio/mono?project=worker', '/:org/:repo');
+    assert.doesNotMatch(html, /Root-only project|Rotate webhook secret/);
+    if (fixture.status !== 'pending') assert.match(html, /Try again/);
+    if (!fixture.status) assert.match(html, /data-testid="project-selection-unavailable"/);
+  }
+});
+
+test('folder selection reads and displays the selected project rather than root permissions and history', () => {
+  const html = render(ProjectByNamePage, [...appAccount, byName,
+    { name: 'orgProjects', arg: { org: 'studio', identity: accountIdentity }, value: { org: 'studio', projects: [rootProject, folderProject] } },
+    { name: 'project', arg: { id: folderProject.id, identity: accountIdentity }, value: folderProject },
+    { name: 'projectDeployments', arg: { id: folderProject.id, identity: accountIdentity }, value: { deployments: [] } },
+  ], '/studio/mono?project=worker', '/:org/:repo');
+  assert.match(html, /Selected worker project/);
+  assert.doesNotMatch(html, /Root-only project/);
+});
+
+test('My projects distinguishes failed reads from empty and excludes another account cache', () => {
+  for (const fixture of [{ name: 'myProjects', arg: accountIdentity, status: 'rejected' as const }, { name: 'myProjects', arg: accountIdentity, value: {} }]) {
+    const html = render(MyProjectsPage, [...appAccount, fixture], '/me/projects');
+    assert.match(html, /role="alert"/); assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /No projects yet/);
+  }
+  const old = render(MyProjectsPage, [...appAccount, { name: 'myProjects', arg: 'former-account', value: { projects: [{ ...rootProject, repoName: 'former-private-repo' }] } }], '/me/projects');
+  assert.doesNotMatch(old, /former-private-repo|No projects yet/);
+});
+
+test('failed project permission refresh hides cached management controls', () => {
+  const Page = () => createElement(ProjectConsole, { project: rootProject });
+  const html = render(Page, [...appAccount, { name: 'project', arg: projectArg, value: rootProject, status: 'rejected', errorStatus: 403 }], '/studio/mono?tab=settings');
+  assert.match(html, /role="alert"/); assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /Root-only project|Rotate webhook secret|domains.hostname/);
+});
+
+test('environment variable and domain denial cannot leave cached private editors active', () => {
+  const Env = () => createElement(ProjectEnvVars, { project: rootProject });
+  const env = render(Env, [...appAccount, { name: 'projectSecrets', arg: projectArg, value: { secrets: [{ name: 'PREVIOUS_SECRET' }], declared: [], missing: [] }, status: 'rejected', errorStatus: 403, errorData: { error: { code: 'not_writer' } } }], '/studio/mono?tab=settings');
+  assert.doesNotMatch(env, /PREVIOUS_SECRET/);
+  const failed = render(Env, [...appAccount, { name: 'projectSecrets', arg: projectArg, status: 'rejected' }], '/studio/mono?tab=settings');
+  assert.match(failed, /Try again/);
+  const Domains = () => createElement(ProjectDomains, { projectId: rootProject.id });
+  const domains = render(Domains, [...appAccount, { name: 'projectDomains', arg: projectArg, value: { domains: [{ hostname: 'former-private.example', status: 'ready' }] }, status: 'rejected', errorStatus: 403 }], '/studio/mono?tab=settings');
+  assert.doesNotMatch(domains, /former-private.example/);
+  assert.match(domains, /Try again/);
+  assert.match(domains, /<button[^>]*disabled=""/);
+});
+
+test('repository-list failures preserve known project rows without claiming the list is empty or complete', () => {
+  const arg = { org: 'studio', identity: accountIdentity };
+  for (const projects of [[], [rootProject]]) {
+    const html = render(OrgRepositoriesPage, [...appAccount,
+      { name: 'orgProjects', arg, value: { org: 'studio', projects } },
+      { name: 'orgRepositories', arg, status: 'rejected' },
+    ], '/studio', '/:org');
+    assert.match(html, /Could not load repositories/); assert.match(html, /Try again/);
+    if (projects.length) assert.match(html, /href="\/studio\/mono"/);
+    assert.doesNotMatch(html, /No repositories/);
+  }
+});
+
+test('organization Visit links only use the active deployment, never an unrelated successful build', () => {
+  const arg = { org: 'studio', identity: accountIdentity };
+  const lastDeployment = { id: 'latest-build', sha: 'latest', status: 'ready', outputUrl: 'https://latest-build.example', createdAt: 1 } as Deployment;
+  for (const activeDeploymentId of ['latest-build', 'rolled-back-build']) {
+    const html = render(OrgRepositoriesPage, [...appAccount,
+      { name: 'orgProjects', arg, value: { org: 'studio', projects: [{ ...rootProject, activeDeploymentId, lastDeployment }] } },
+      { name: 'orgRepositories', arg, value: { repositories: [] } },
+    ], '/studio', '/:org');
+    assert.match(html, /href="\/studio\/mono"/, 'the project console is always reachable');
+    if (activeDeploymentId === lastDeployment.id) assert.match(html, /href="https:\/\/latest-build.example"/);
+    else assert.doesNotMatch(html, /href="https:\/\/latest-build.example"/);
+  }
+});
+
+test('malformed project and repository lists show recovery instead of an empty list or another folder', () => {
+  const arg = { org: 'studio', identity: accountIdentity };
+  const folder = render(ProjectByNamePage, [...appAccount, byName,
+    { name: 'orgProjects', arg, value: { org: 'studio', projects: {} } },
+  ], '/studio/mono?project=worker', '/:org/:repo');
+  assert.match(folder, /Try again/);
+  assert.doesNotMatch(folder, /Root-only project|project-selection-unavailable/);
+  for (const fixture of [
+    { name: 'orgProjects', arg, value: { org: 'studio', projects: {} } },
+    { name: 'orgRepositories', arg, value: { repositories: {} } },
+  ]) {
+    const html = render(OrgRepositoriesPage, [...appAccount,
+      { name: 'orgProjects', arg, value: { org: 'studio', projects: [] } },
+      fixture,
+    ], '/studio', '/:org');
+    assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /No repositories/);
+  }
 });

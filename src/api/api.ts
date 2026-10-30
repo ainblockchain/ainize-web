@@ -160,40 +160,42 @@ export const api = createApi({
      * polls it while a deployment is queued or building.
      */
     accessibleApps: b.query<AccessibleAppsResponse, { principal: string; orgs: string[] }>({
+      keepUnusedDataFor: 0,
       queryFn: ({ orgs }, _api, _extra, baseQuery) => loadAccessibleApps(orgs, async (url) => baseQuery(url)),
       providesTags: ['Project', 'Me', 'Org'],
     }),
-    myProjects: b.query<ProjectsResponse, void>({ query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
-    project: b.query<Project, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
+    myProjects: b.query<ProjectsResponse, string>({ keepUnusedDataFor: 0, query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
+    project: b.query<Project, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id }] }),
     createProject: b.mutation<ProjectCreated, ProjectCreateInput>({ query: (body) => ({ url: 'api/projects', method: 'POST', body }), invalidatesTags: ['Project'] }),
     deleteProject: b.mutation<{ ok: true; id: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Project'] }),
-    projectDeployments: b.query<DeploymentsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/deployments`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
+    projectDeployments: b.query<DeploymentsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/deployments`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id }] }),
     /** `/<org>/<repo>` → the project (public). */
-    projectByName: b.query<Project, { org: string; repo: string }>({ query: ({ org, repo }) => `api/projects/by-name${toQuery({ org, repo })}`, providesTags: (r) => (r ? [{ type: 'Project', id: r.id }] : ['Project']) }),
+    projectByName: b.query<Project, { org: string; repo: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ org, repo }) => `api/projects/by-name${toQuery({ org, repo })}`, providesTags: (r) => (r ? [{ type: 'Project', id: r.id }] : ['Project']) }),
     /** `/<org>` — the slug's projects, and the drive's repositories as aindrive lists them (through the node). */
-    orgProjects: b.query<OrgProjectsResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/projects`, providesTags: ['Project'] }),
-    orgRepositories: b.query<OrgRepositoriesResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/repositories` }),
-    projectSource: b.query<ProjectSource, { id: string; target: 'head' | 'commit' | 'deployed'; sha?: string }>({
+    orgProjects: b.query<OrgProjectsResponse, { org: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ org }) => `api/orgs/${encodeURIComponent(org)}/projects`, providesTags: ['Project'] }),
+    orgRepositories: b.query<OrgRepositoriesResponse, { org: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ org }) => `api/orgs/${encodeURIComponent(org)}/repositories` }),
+    projectSource: b.query<ProjectSource, { id: string; identity: string; target: 'head' | 'commit' | 'deployed'; sha?: string }>({
+      keepUnusedDataFor: 0,
       query: ({ id, target, sha }) => ({ url: `api/projects/${encodeURIComponent(id)}/source`, params: { target, ...(sha ? { sha } : {}) } }),
       providesTags: (_r, _e, { id }) => [{ type: 'Project', id }],
     }),
-    projectRuns: b.query<RunsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/runs` }] }),
+    projectRuns: b.query<RunsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/runs` }] }),
     runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
     redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
     syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
     rotateProjectSecret: b.mutation<RotatedSecret, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/rotate-secret`, method: 'PATCH' }) }),
-    projectDomains: b.query<AppDomainsResponse, string>({ query: id => `api/projects/${encodeURIComponent(id)}/domains`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/domains` }] }),
+    projectDomains: b.query<AppDomainsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/domains`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/domains` }] }),
     addProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains`, method: 'POST', body: { hostname } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
     renameAppDomain: b.mutation<AppDomain, { id: string; label: string }>({ query: ({ id, label }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/default`, method: 'PATCH', body: { label } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }, { type: 'Project', id: a.id }] }),
     checkProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}/check`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
     removeProjectDomain: b.mutation<void, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
-    deployment: b.query<Deployment, string>({ query: (id) => `api/deployments/${encodeURIComponent(id)}` }),
+    deployment: b.query<Deployment, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/deployments/${encodeURIComponent(id)}` }),
     /**
      * The project's environment variables (src/api/projectSecrets.ts): names only — values are write-only. A write
      * with `redeploy` asks the node to deploy the newest commit again, so the project's view refreshes too.
      */
-    projectSecrets: b.query<ProjectSecretsResponse, string>({ query: (id) => secretsListUrl(id), transformResponse: parseProjectSecretsResponse, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/secrets` }] }),
+    projectSecrets: b.query<ProjectSecretsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => secretsListUrl(id), transformResponse: parseProjectSecretsResponse, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/secrets` }] }),
     setProjectSecret: b.mutation<SecretSaved, { id: string; name: string; value: string; redeploy?: boolean }>({
       query: ({ id, name, value, redeploy }) => secretPutRequest(id, name, value, redeploy), transformResponse: parseSecretSaved,
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
@@ -203,8 +205,8 @@ export const api = createApi({
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
     }),
     /** The running service's own stdout/stderr, on the node or its deployment peer (src/api/runtimeLogs.ts). Owner/members only. */
-    projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: parseRuntimeLogs, keepUnusedDataFor: 0 }),
-    deploymentLog: b.query<string, string>({ query: (id) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
+    projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number; identity: string }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: parseRuntimeLogs, keepUnusedDataFor: 0 }),
+    deploymentLog: b.query<string, { id: string; identity: string }>({ query: ({ id }) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
     myHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
     /** Own hosted agents plus the ones shared with an organization where the caller may edit — read through `parseManageableHostedAgents`. */
     manageableHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?manageable=1', providesTags: ['HostedAgent', 'Me', 'Org'] }),
