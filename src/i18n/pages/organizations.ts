@@ -9,6 +9,7 @@ export const organizations: Dict = {
   // ── shared
   'orgs.mine': { ko: '내 조직', en: 'My organizations' },
   'orgs.retry': { ko: '다시 불러오기', en: 'Try again' },
+  'org.read_failed': { ko: '조직 정보를 불러오지 못했습니다. 다시 시도해 주세요.', en: 'Could not load organization information. Try again.' },
   'org.nav': { ko: '조직', en: 'Organizations' },
   'org.role.read': { ko: '읽기', en: 'Read' },
   'org.role.contributor': { ko: '기여자', en: 'Contributor' },
@@ -155,6 +156,7 @@ export const organizations: Dict = {
   'orgSettings.billing.keys': { ko: '조직의 API 키', en: 'The organization’s API keys' },
   'orgSettings.billing.keys_help': { ko: '멤버가 연결된 AIN SSO 조직({orgs})용으로 발급한 키. 연결된 조직이 없으면 비어 있습니다 — 일반 탭에서 연결합니다.', en: 'Keys members made for the linked AIN SSO organizations ({orgs}). Empty when none is linked — link one on the General tab.' },
   'orgSettings.billing.keys_empty': { ko: '조직 키가 없습니다.', en: 'No organization keys.' },
+  'orgSettings.billing.keys_unavailable': { ko: '현재 노드에서는 조직 키 목록을 조회할 수 없습니다.', en: 'Organization keys cannot be listed on this node.' },
   'orgSettings.billing.key_owner': { ko: '소유자', en: 'Owner' },
   'orgSettings.billing.key_label': { ko: '라벨', en: 'Label' },
   'orgSettings.billing.key_issued': { ko: '발급', en: 'Issued' },
@@ -165,6 +167,7 @@ export const organizations: Dict = {
   'orgSettings.billing.never': { ko: '없음', en: 'never' },
   'orgSettings.billing.cap': { ko: '지출 한도 (크레딧)', en: 'Spend cap (credits)' },
   'orgSettings.billing.cap_help': { ko: '비워 두면 한도 없음. 지금은 기록만 됩니다.', en: 'Empty = no cap. Recorded only, for now.' },
+  'orgSettings.billing.cap_invalid': { ko: '0 이상의 정수를 입력하거나, 한도를 없애려면 비워 주세요.', en: 'Enter a non-negative whole number, or leave empty to remove the cap.' },
   'orgSettings.security.lede': { ko: '로그인은 이 노드의 AIN SSO 가 맡습니다 — 여기서는 그것이 이 조직에 어떻게 적용되는지 보고, 누가 무엇을 바꿨는지 읽습니다.', en: 'Sign-in is this node’s AIN SSO — here you see how it applies to this organization, and read who changed what.' },
   'orgSettings.security.sso': { ko: 'AIN SSO', en: 'AIN SSO' },
   'orgSettings.security.sso_on': { ko: '켜짐 · 발급자 {issuer}', en: 'On · issuer {issuer}' },

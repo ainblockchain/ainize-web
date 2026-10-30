@@ -21,7 +21,7 @@ import type {
 import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
-import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
+import type { OrgCreateInput, OrgUpdateInput, OrgRole, OrgReadScope } from './organizations';
 import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
 import { currentTeacherKey } from '@/lib/teacherKey';
 import { createTeacherFetch, SIGN_MARKER, DATASET_SHA_HEADER } from '@/lib/teacherFetch';
@@ -247,7 +247,7 @@ export const api = createApi({
      * for the same reason as the agents above: a node from before organizations answers 404 for all of these.
      */
     myOrgs: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/orgs', providesTags: ['Org', 'Me'] }),
-    org: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
+    org: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
     createOrg: b.mutation<unknown, OrgCreateInput>({ query: (body) => ({ url: 'api/orgs', method: 'POST', body }), invalidatesTags: ['Org'] }),
     updateOrg: b.mutation<unknown, { id: string; patch: OrgUpdateInput }>({
       query: ({ id, patch }) => ({ url: `api/orgs/${encodeURIComponent(id)}`, method: 'PUT', body: patch }), invalidatesTags: (_r, _e, a) => ['Org', { type: 'Org', id: a.id }],
@@ -265,7 +265,7 @@ export const api = createApi({
     requestJoinOrg: b.mutation<unknown, { id: string; message: string }>({
       query: ({ id, message }) => ({ url: `api/orgs/${encodeURIComponent(id)}/join`, method: 'POST', body: { message } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
-    orgRequests: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/requests`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/requests` }] }),
+    orgRequests: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/requests`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id: `${id}/requests` }] }),
     approveOrgRequest: b.mutation<unknown, { id: string; principal: string; role: OrgRole }>({
       query: ({ id, principal, role }) => ({ url: `api/orgs/${encodeURIComponent(id)}/requests/${encodeURIComponent(principal)}/approve`, method: 'POST', body: { role } }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/requests` }],
@@ -274,7 +274,7 @@ export const api = createApi({
       query: ({ id, principal }) => ({ url: `api/orgs/${encodeURIComponent(id)}/requests/${encodeURIComponent(principal)}`, method: 'DELETE' }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/requests` }],
     }),
-    orgInvites: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/invites`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/invites` }] }),
+    orgInvites: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/invites`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id: `${id}/invites` }] }),
     createOrgInvite: b.mutation<unknown, { id: string; role: OrgRole; email: string | null; ttlHours: number }>({
       query: ({ id, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/invites`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/invites` }],
     }),
@@ -293,15 +293,16 @@ export const api = createApi({
     deleteOrgGroup: b.mutation<unknown, { id: string; groupId: string }>({
       query: ({ id, groupId }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupId)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
-    orgAudit: b.query<unknown, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/orgs/${encodeURIComponent(id)}/audit?limit=${limit ?? 200}`, providesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }] }),
-    orgBilling: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/billing`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
-    orgSecurity: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/security`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
+    orgAudit: b.query<unknown, OrgReadScope & { limit?: number }>({ keepUnusedDataFor: 0, query: ({ id, limit }) => `api/orgs/${encodeURIComponent(id)}/audit?limit=${limit ?? 200}`, providesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }] }),
+    orgBilling: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/billing`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
+    orgSecurity: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/security`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
     /**
      * The shared-agent registry (ainize-node `feat/shared-agent-registry`, contract 1.0): the agents the caller may
      * see, by scope. Typed `unknown` and read through `src/api/sharedAgents.ts`; an older node answers 404 and the
      * page falls back to `agents`. `org` narrows `shared_with_org` to one organization.
      */
-    sharedAgents: b.query<unknown, { scope: AgentListScope; q?: string; org?: string; limit?: number }>({
+    sharedAgents: b.query<unknown, { identity: string; scope: AgentListScope; q?: string; org?: string; limit?: number }>({
+      keepUnusedDataFor: 0,
       query: ({ scope, q, org, limit }) => `api/shared-agents${toQuery({ scope, q, org, limit })}`, providesTags: ['Agents', 'HostedAgent', 'LinkedAgent'],
     }),
     /** Who may see one agent — owner or node operator. Applies to hosted and linked agents alike. */

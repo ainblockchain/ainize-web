@@ -1,3 +1,4 @@
+import { useAuth } from '@/auth/AuthContext';
 /**
  * `/<org>` — an organization's repositories, the counterpart of the aindrive drive folder `repositories/`
  * (`https://aindrive.ainetwork.ai/d/<driveId>?path=repositories`), laid out like a GitHub organization page: the
@@ -50,13 +51,14 @@ const Action = styled(Link)`
 export default function OrgRepositoriesPage() {
   const { t } = useT();
   const { org = '' } = useParams();
+  const auth = useAuth();
   const reserved = isReservedFirstSegment(org);
   const projectsQ = useOrgProjectsQuery(org, { skip: reserved, pollingInterval: 15_000 });
   const reposQ = useOrgRepositoriesQuery(org, { skip: reserved });
-  const orgQ = useOrgQuery(org, { skip: reserved });
+  const orgQ = useOrgQuery({ id: org, identity: auth.cacheIdentity }, { skip: reserved });
   const meQ = useMeQuery();
   const signedIn = !!(meQ.data?.signedIn || meQ.data?.sso || meQ.data?.site);
-  const profile = parseOrgProfile(orgQ.data);
+  const profile = parseOrgProfile(orgQ.currentData);
   useTitle(profile?.name ?? org);
   if (reserved) return <NotFoundPage />;
   if (projectsQ.isLoading && !projectsQ.data) return <PageWrapper><CenterProgress /></PageWrapper>;

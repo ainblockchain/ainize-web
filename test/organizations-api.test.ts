@@ -8,10 +8,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ORG_RESERVED_IDS, agentSummaryFromOrgAgent, emailDomain, isOrgIdValid, myMembership, orgApiErrorOf, orgCreateInputFromDraft, orgFormProblems, orgIdFromName, parseOrgBilling,
-  parseOrgInvite, parseOrgList, parseOrgProfile, parseOrgSecurity, roleAtLeast, type OrgFormDraft,
+  orgSpendCap, parseOrgInvite, parseOrgList, parseOrgProfile, parseOrgSecurity, roleAtLeast, type OrgFormDraft,
 } from '../src/api/organizations';
 
 const draft = (over: Partial<OrgFormDraft> = {}): OrgFormDraft => ({ id: 'comcom', name: 'ComCom', description: '', readme: '', claimDomain: true, domainRole: 'write', ...over });
+
+test('only a blank spend cap removes the limit; malformed numbers are rejected rather than coerced', () => {
+  assert.equal(orgSpendCap('  '), null);
+  assert.equal(orgSpendCap('0'), 0);
+  assert.equal(orgSpendCap(' 200 '), 200);
+  for (const invalid of ['oops', '-1', '1.5', 'Infinity', 'NaN', '9007199254740992']) assert.equal(orgSpendCap(invalid), undefined);
+});
+
+test('failed-shaped organization responses cannot become empty billing or SSO-off views', () => {
+  for (const raw of [undefined, {}, { error: 'unavailable' }]) {
+    assert.equal(parseOrgBilling(raw), null);
+    assert.equal(parseOrgSecurity(raw), null);
+  }
+});
 
 test('the id rule is the node’s, and the words under /org/ are pages, not ids', () => {
   assert.ok(isOrgIdValid('comcom'));

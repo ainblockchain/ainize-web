@@ -20,6 +20,11 @@ import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
 import MyAgentsPage from '../src/screens/MyAgentsPage';
 import AinCodePage from '../src/screens/AinCodePage';
+import OrgPage from '../src/screens/org/OrgPage';
+import OrgsPage from '../src/screens/org/OrgsPage';
+import OrgSettingsPage from '../src/screens/org/OrgSettingsPage';
+import OrgJoinPage from '../src/screens/org/OrgJoinPage';
+import ExplorePage from '../src/screens/ExplorePage';
 import { SignOutNotice } from '../src/components/ui/SignOutNotice';
 import { Header } from '../src/components/ui/Header';
 import MyPage from '../src/screens/MyPage';
@@ -33,7 +38,7 @@ const makeStore = (preloadedState?: any) => configureStore({
 });
 const stores: ReturnType<typeof makeStore>[] = [];
 afterEach(() => { forgetTeacherKey(); for (const store of stores.splice(0)) store.dispatch(api.util.resetApiState()); });
-type Fixture = { name: string; arg?: unknown; value?: unknown; status?: 'pending' | 'rejected'; errorStatus?: number };
+type Fixture = { name: string; arg?: unknown; value?: unknown; status?: 'pending' | 'rejected'; errorStatus?: number; errorData?: unknown };
 function render(page: () => any, fixtures: Fixture[], path = '/train/mine', route?: string) {
   const seed = makeStore(); stores.push(seed);
   seed.dispatch(api.util.upsertQueryEntries(fixtures.map(({ name, value, arg }) => ({ endpointName: name, arg, value })) as any));
@@ -41,7 +46,7 @@ function render(page: () => any, fixtures: Fixture[], path = '/train/mine', rout
   const queries = { ...state[api.reducerPath].queries };
   for (const [key, entry] of Object.entries(queries)) {
     const fixture = fixtures.find((f) => f.name === entry?.endpointName && JSON.stringify(f.arg) === JSON.stringify(entry?.originalArgs));
-    if (fixture?.status) queries[key] = { ...entry, status: fixture.status, error: fixture.status === 'rejected' ? { status: fixture.errorStatus ?? 503, data: 'unavailable' } : undefined } as any;
+    if (fixture?.status) queries[key] = { ...entry, status: fixture.status, error: fixture.status === 'rejected' ? { status: fixture.errorStatus ?? 503, data: fixture.errorData ?? 'unavailable' } : undefined } as any;
   }
   const store = makeStore({ [api.reducerPath]: { ...state[api.reducerPath], queries } }); stores.push(store);
   return renderToStaticMarkup(createElement(Provider, { store, children:
@@ -446,4 +451,103 @@ test('AinCode hides another account session cache and shows sign-in only when si
     assert.doesNotMatch(denied, /Current account session|href="\/signing/);
     assert.match(denied, /Try again/);
   }
+});
+
+const orgScope = { id: 'studio', identity: accountIdentity };
+const studio = { id: 'studio', name: 'Current studio', my_role: 'admin', members: [], agents: [], groups: [], domains: [], sso_org_ids: [] };
+const orgFixture: Fixture = { name: 'org', arg: orgScope, value: { org: studio } };
+const settings = (tab: string, fixtures: Fixture[]) => render(OrgSettingsPage, [...appAccount, orgFixture, ...fixtures], `/org/studio/settings?tab=${tab}`, '/org/:id/settings');
+
+test('organization settings use the selected tab and current account role', () => {
+  assert.match(settings('general', []), /data-testid="org-settings-general"/);
+  assert.match(settings('groups', []), /data-testid="org-settings-groups"/);
+  const denied = render(OrgSettingsPage, [...appAccount, { ...orgFixture, value: { org: { ...studio, my_role: 'read' } } }], '/org/studio/settings?tab=members', '/org/:id/settings');
+  assert.match(denied, /data-testid="org-settings-denied"/);
+  assert.doesNotMatch(denied, /data-testid="org-settings-members"/);
+  const writer = render(OrgSettingsPage, [...appAccount, { ...orgFixture, value: { org: { ...studio, my_role: 'write' } } }], '/org/studio/settings?tab=billing', '/org/:id/settings');
+  assert.match(writer, /data-testid="org-settings-tab-denied"/);
+  assert.doesNotMatch(writer, /data-testid="org-settings-billing"|data-testid="org-settings-groups"/);
+});
+
+test('organization request and invite failures cannot claim there are no pending items', () => {
+  for (const status of ['pending', 'rejected'] as const) {
+    const html = settings('members', ['orgRequests', 'orgInvites'].map(name => ({ name, arg: orgScope, status })));
+    assert.doesNotMatch(html, /No pending requests|No open invite/);
+    assert.match(html, status === 'pending' ? /data-testid="org-read-loading"/ : /data-testid="org-read-error"/);
+  }
+  const empty = settings('members', [{ name: 'orgRequests', arg: orgScope, value: { requests: [] } }, { name: 'orgInvites', arg: orgScope, value: { invites: [] } }]);
+  assert.match(empty, /No pending requests/);
+  assert.doesNotMatch(empty, /data-testid="org-read-error"/);
+  const malformed = settings('members', [{ name: 'orgRequests', arg: orgScope, value: { requests: [{}] } }, { name: 'orgInvites', arg: orgScope, value: { invites: [{}] } }]);
+  assert.match(malformed, /data-testid="org-read-error"/);
+  assert.doesNotMatch(malformed, /No pending requests|No open invite/);
+});
+
+test('billing and security failed or malformed responses offer retry instead of endless loading', () => {
+  for (const [tab, name] of [['billing', 'orgBilling'], ['security', 'orgSecurity']]) {
+    for (const fixture of [{ name, arg: orgScope, status: 'rejected' as const }, { name, arg: orgScope, value: {} }]) {
+      const html = settings(tab, [fixture]);
+      assert.match(html, /data-testid="org-read-error"/);
+      assert.match(html, /Try again/);
+      assert.doesNotMatch(html, /data-testid="org-read-loading"/);
+    }
+  }
+});
+
+test('organization audit failures are separate from a successfully loaded security panel', () => {
+  const html = settings('security', [
+    { name: 'orgSecurity', arg: orgScope, value: { sso: { configured: true }, admins: [], domains: [] } },
+    { name: 'orgAudit', arg: { ...orgScope, limit: 50 }, status: 'rejected' },
+  ]);
+  assert.match(html, /data-testid="org-settings-security"/);
+  assert.match(html, /data-testid="org-read-error"/);
+  assert.doesNotMatch(html, /No audit/);
+});
+
+test('organization details and settings never show another account cached profile', () => {
+  const old = { ...orgFixture, arg: { ...orgScope, identity: 'other-account' }, value: { org: { ...studio, name: 'Former account secret organization' } } };
+  for (const [Page, path, route] of [[OrgPage, '/org/studio', '/org/:id'], [OrgSettingsPage, '/org/studio/settings', '/org/:id/settings']] as const) {
+    const html = render(Page, [...appAccount, old], path, route);
+    assert.doesNotMatch(html, /Former account secret organization|data-testid="org-settings-general"|data-testid="org-agents-empty"/);
+  }
+  const signedOutSettings = render(OrgSettingsPage, [...signedOut, old], '/org/studio/settings?tab=members#pending', '/org/:id/settings');
+  assert.match(signedOutSettings, /href="\/signing\?next=%2Forg%2Fstudio%2Fsettings%3Ftab%3Dmembers%23pending"/);
+  assert.doesNotMatch(signedOutSettings, /not found/i);
+});
+
+test('join requests are only offered when the server allows them', () => {
+  for (const can_request of [false, true]) {
+    const html = render(OrgPage, [...appAccount, { name: 'org', arg: orgScope, status: 'rejected', errorStatus: 403, errorData: { error: { code: 'not_member' }, org: studio, can_request } }], '/org/studio', '/org/:id');
+    assert.match(html, /data-testid="org-not-member"/);
+    assert.equal(html.includes('data-testid="org-request-join"'), can_request);
+  }
+});
+
+test('invite outages are retryable and do not render a stale acceptance button or claim expiry', () => {
+  const peek = { org: { id: 'studio', name: 'Current studio' }, role: 'read' };
+  const unavailable = render(OrgJoinPage, [...appAccount, { name: 'peekOrgInvite', arg: 'fixture-invite', value: peek, status: 'rejected' }], '/org/join/fixture-invite', '/org/join/:token');
+  assert.match(unavailable, /Try again/);
+  assert.doesNotMatch(unavailable, /data-testid="org-join-invalid"|data-testid="org-join-accept"/);
+  const absent = render(OrgJoinPage, [...appAccount, { name: 'peekOrgInvite', arg: 'fixture-invite', status: 'rejected', errorStatus: 404 }], '/org/join/fixture-invite', '/org/join/:token');
+  assert.match(absent, /data-testid="org-join-invalid"/);
+  const otherToken = render(OrgJoinPage, [...appAccount, { name: 'peekOrgInvite', arg: 'old-invite', value: peek }], '/org/join/new-invite', '/org/join/:token');
+  assert.doesNotMatch(otherToken, /Current studio|data-testid="org-join-accept"/);
+});
+
+test('malformed organization lists offer recovery rather than claiming no memberships', () => {
+  const html = render(OrgsPage, [...appAccount, { name: 'myOrgs', arg: accountIdentity, value: {} }], '/org');
+  assert.match(html, /data-testid="org-read-error"/);
+  assert.doesNotMatch(html, /data-testid="orgs-empty"/);
+});
+
+test('an explicit organization agent URL does not fall back to a different organization', () => {
+  const html = render(ExplorePage, [...appAccount,
+    { name: 'myOrgs', arg: accountIdentity, value: { orgs: [studio], signed_in: true } }, orgFixture,
+    { name: 'org', arg: { id: 'requested-org', identity: accountIdentity }, status: 'rejected', errorStatus: 403 },
+    { name: 'agents', value: { agents: [] } },
+  ], '/explore?kind=agent&agents=org&org=requested-org');
+  assert.match(html, /href="\/agent\/new\?org=requested-org"/);
+  assert.doesNotMatch(html, /href="\/agent\/new\?org=studio"|href="\/org\/studio"/);
+  assert.match(html, /data-testid="agents-scope-error"/);
+  assert.match(html, /Try again/);
 });

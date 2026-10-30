@@ -95,7 +95,7 @@ export default function AgentCreatePage() {
   useTitle(editing ? t('agentCreate.title_edit') : t('agentCreate.title'));
 
   const requestedOrg = params.get('org') ?? '';
-  const orgQuery = useOrgQuery(requestedOrg, { skip: !requestedOrg || !auth.principal });
+  const orgQuery = useOrgQuery({ id: requestedOrg, identity: auth.cacheIdentity }, { skip: !requestedOrg || !auth.principal });
   const orgError = orgQuery.error ? orgApiErrorOf(orgQuery.error) : null;
   const [requestJoin, requestState] = useRequestJoinOrgMutation();
   const [requestMessage, setRequestMessage] = useState('');
@@ -220,7 +220,7 @@ export default function AgentCreatePage() {
     );
   }
 
-  if (!editing && requestedOrg && orgQuery.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!editing && requestedOrg && (!orgQuery.currentData && orgQuery.isFetching)) return <PageWrapper><CenterProgress /></PageWrapper>;
   if (!editing && orgError?.code === 'not_member') {
     const requested = orgError.requested || requestState.isSuccess;
     return <PageWrapper>

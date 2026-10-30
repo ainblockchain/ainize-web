@@ -13,7 +13,7 @@
  * they come back.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
   useAddOrgMemberMutation, useApproveOrgRequestMutation, useCreateOrgGroupMutation, useCreateOrgInviteMutation, useDeleteOrgGroupMutation, useDeleteOrgMutation,
@@ -21,7 +21,7 @@ import {
   useRevokeOrgInviteMutation, useSetOrgMemberRoleMutation, useUpdateOrgGroupMutation, useUpdateOrgMutation,
 } from '@/api/api';
 import {
-  ORG_ROLES, emailDomain, orgApiErrorOf, parseOrgAudit, parseOrgBilling, parseOrgInvite, parseOrgInvites, parseOrgProfile, parseOrgRequests, parseOrgSecurity, roleAtLeast,
+  ORG_ROLES, emailDomain, orgApiErrorOf, orgSpendCap, parseOrgAudit, parseOrgBilling, parseOrgInvite, parseOrgInvites, parseOrgProfile, parseOrgRequests, parseOrgSecurity, roleAtLeast,
   type OrgGroupView, type OrgProfile, type OrgRole,
 } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
@@ -30,6 +30,8 @@ import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select, SelectFi
 import { CenterProgress, CopyButton, Description, Empty, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { OrgReadStatus } from './OrgReadStatus';
+import { useActiveView } from '@/hooks/useActiveView';
 
 const Panel = styled.section`
   display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; background: #fff; margin-top: 16px;
@@ -51,26 +53,47 @@ const Danger = styled(Panel)`border-color: #e8b4b4;`;
 type Tab = 'general' | 'members' | 'groups' | 'billing' | 'security';
 const TABS: Tab[] = ['general', 'members', 'groups', 'billing', 'security'];
 const when = (ts: number | null | undefined) => (ts ? new Date(ts).toLocaleString() : '—');
+const completeList = (raw: unknown, field: string, parsed: unknown[]) => {
+  const rows = (raw as Record<string, unknown> | null | undefined)?.[field];
+  return Array.isArray(rows) && rows.length === parsed.length;
+};
 
 export default function OrgSettingsPage() {
   const { id = '' } = useParams<{ id: string }>();
+  const auth = useAuth();
+  return <OrgSettingsContent key={`${auth.cacheIdentity}:${id}`} />;
+}
+
+function OrgSettingsContent() {
+  const { id = '' } = useParams<{ id: string }>();
   const { t } = useT();
   const auth = useAuth();
+  const location = useLocation();
   const [search, setSearch] = useSearchParams();
   const tab: Tab = TABS.includes(search.get('tab') as Tab) ? (search.get('tab') as Tab) : 'general';
-  const { data, isLoading, error } = useOrgQuery(id, { skip: !auth.isSignedIn });
+  const query = useOrgQuery({ id, identity: auth.cacheIdentity }, { skip: !auth.isSignedIn || auth.loading });
+  const { currentData: data, isFetching, error } = query;
   const org = useMemo(() => parseOrgProfile(data), [data]);
   useTitle(org ? t('orgSettings.title', { name: org.name }) : t('org.settings'));
 
-  if (auth.loading || isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (auth.loading || (!data && isFetching)) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!auth.isSignedIn) return <PageWrapper><Empty>{t('orgs.signin')} <StyledLink to={`/signing?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`}>{t('orgs.signin.cta')}</StyledLink></Empty></PageWrapper>;
   if (error || !org) {
     const e = error ? orgApiErrorOf(error) : null;
-    return <PageWrapper><TitleRow><Title>{t('org.settings')}</Title></TitleRow><Empty>{e ? t(`org.api.${e.code}`) : t('org.not_found')} <StyledLink to="/org">{t('orgs.title')}</StyledLink></Empty></PageWrapper>;
+    return <PageWrapper><TitleRow><Title>{t('org.settings')}</Title></TitleRow><Empty>{e?.status === 404 ? t('org.not_found') : <OrgReadStatus query={query} valid={!!org} />} <StyledLink to="/org">{t('orgs.title')}</StyledLink></Empty></PageWrapper>;
   }
   const admin = roleAtLeast(org.my_role, 'admin');
   const write = roleAtLeast(org.my_role, 'write');
   if (!write) return <PageWrapper><TitleRow><Title>{org.name}</Title></TitleRow><Empty data-testid="org-settings-denied">{t('orgSettings.admin_only')} <StyledLink to={`/org/${encodeURIComponent(org.id)}`}>{org.name}</StyledLink></Empty></PageWrapper>;
   const visible = admin ? TABS : (['groups'] as Tab[]);
+  if (search.has('tab') && !visible.includes(tab)) return (
+    <PageWrapper>
+      <TitleRow><Title>{t('orgSettings.title', { name: org.name })}</Title></TitleRow>
+      <Row><StyledLink to={`/org/${encodeURIComponent(org.id)}`}>← {org.name}</StyledLink></Row>
+      <Tabs value={tab} onChange={(v) => setSearch({ tab: v })} tabs={visible.map((k) => ({ id: k, label: t(`orgSettings.tab.${k}`) }))} />
+      <Empty data-testid="org-settings-tab-denied">{t('orgSettings.admin_only')}</Empty>
+    </PageWrapper>
+  );
   const current: Tab = visible.includes(tab) ? tab : visible[0];
 
   return (
@@ -100,6 +123,7 @@ function GeneralTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
   const { sso } = useAuth();
   const navigate = useNavigate();
+  const active = useActiveView();
   const [update, updateState] = useUpdateOrgMutation();
   const [remove] = useDeleteOrgMutation();
   const { error, setError, capture } = useApiError();
@@ -123,7 +147,7 @@ function GeneralTab({ org }: { org: OrgProfile }) {
   const destroy = async () => {
     if (!window.confirm(t('orgSettings.general.delete_confirm', { name: org.name }))) return;
     setError(null);
-    try { await remove(org.id).unwrap(); navigate('/org'); } catch (e) { capture(e); }
+    try { await remove(org.id).unwrap(); if (active()) navigate('/org'); } catch (e) { if (active()) capture(e); }
   };
 
   return (
@@ -180,6 +204,7 @@ function RoleSelect({ value, onChange, disabled, testId }: { value: OrgRole; onC
 
 function MembersTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
+  const { cacheIdentity } = useAuth();
   const { error, setError, capture } = useApiError();
   const [setRole] = useSetOrgMemberRoleMutation();
   const [removeMember] = useRemoveOrgMemberMutation();
@@ -188,8 +213,14 @@ function MembersTab({ org }: { org: OrgProfile }) {
   const [reject] = useRejectOrgRequestMutation();
   const [makeInvite, inviteState] = useCreateOrgInviteMutation();
   const [revoke] = useRevokeOrgInviteMutation();
-  const requests = parseOrgRequests(useOrgRequestsQuery(org.id).data);
-  const invites = parseOrgInvites(useOrgInvitesQuery(org.id).data);
+  const requestsQuery = useOrgRequestsQuery({ id: org.id, identity: cacheIdentity });
+  const invitesQuery = useOrgInvitesQuery({ id: org.id, identity: cacheIdentity });
+  const parsedRequests = parseOrgRequests(requestsQuery.currentData);
+  const parsedInvites = parseOrgInvites(invitesQuery.currentData);
+  const requestsValid = completeList(requestsQuery.currentData, 'requests', parsedRequests);
+  const invitesValid = completeList(invitesQuery.currentData, 'invites', parsedInvites);
+  const requests = requestsQuery.isError || !requestsValid ? [] : parsedRequests;
+  const invites = invitesQuery.isError || !invitesValid ? [] : parsedInvites;
   const [q, setQ] = useState('');
   const [newPrincipal, setNewPrincipal] = useState('');
   const [newRole, setNewRole] = useState<OrgRole>('read');
@@ -232,7 +263,8 @@ function MembersTab({ org }: { org: OrgProfile }) {
 
       <Panel data-testid="org-settings-requests">
         <h3>{t('orgSettings.requests.title')}</h3>
-        {requests.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.requests.empty')}</Description>}
+        <OrgReadStatus query={requestsQuery} valid={requestsValid} />
+        {requestsValid && !requestsQuery.isError && requests.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.requests.empty')}</Description>}
         {requests.map((r) => (
           <Row key={r.principal} data-testid={`org-request-${r.principal}`}>
             <span>{r.name ?? r.email ?? r.principal}{r.message && <em style={{ color: '#777' }}> — {r.message}</em>}</span>
@@ -263,7 +295,8 @@ function MembersTab({ org }: { org: OrgProfile }) {
           </Alert>
         )}
         <SubTitle $mt={4} style={{ fontSize: 14 }}>{t('orgSettings.invites.open')}</SubTitle>
-        {invites.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.invites.empty')}</Description>}
+        <OrgReadStatus query={invitesQuery} valid={invitesValid} />
+        {invitesValid && !invitesQuery.isError && invites.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.invites.empty')}</Description>}
         {invites.map((i) => (
           <Row key={i.token_prefix}>
             <Mono>{i.token_prefix}…</Mono><Chip>{t(`org.role.${i.role}`)}</Chip>{i.email && <span>{i.email}</span>}
@@ -343,7 +376,9 @@ function GroupsTab({ org }: { org: OrgProfile }) {
 
 function BillingTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
-  const { data, isLoading } = useOrgBillingQuery(org.id, { pollingInterval: 30_000 });
+  const { cacheIdentity } = useAuth();
+  const query = useOrgBillingQuery({ id: org.id, identity: cacheIdentity }, { pollingInterval: 30_000 });
+  const { currentData: data } = query;
   const billing = useMemo(() => parseOrgBilling(data), [data]);
   const [update, updateState] = useUpdateOrgMutation();
   const { error, setError, capture } = useApiError();
@@ -351,9 +386,11 @@ function BillingTab({ org }: { org: OrgProfile }) {
   useEffect(() => { setCap(org.spend_cap_credits === null ? '' : String(org.spend_cap_credits)); }, [org.spend_cap_credits]);
   const saveCap = async () => {
     setError(null);
-    try { await update({ id: org.id, patch: { spendCapCredits: cap.trim() === '' ? null : Math.max(0, Math.floor(Number(cap))) } }).unwrap(); } catch (e) { capture(e); }
+    const value = orgSpendCap(cap);
+    if (value === undefined) { setError(t('orgSettings.billing.cap_invalid')); return; }
+    try { await update({ id: org.id, patch: { spendCapCredits: value } }).unwrap(); } catch (e) { capture(e); }
   };
-  if (isLoading || !billing) return <CenterProgress />;
+  if (query.isError || !billing) return <OrgReadStatus query={query} valid={!!billing} />;
   const max = Math.max(1, ...billing.agents.map((a) => a.total));
   return (
     <>
@@ -370,7 +407,7 @@ function BillingTab({ org }: { org: OrgProfile }) {
       <Panel>
         <h3>{t('orgSettings.billing.keys')}</h3>
         <Description style={{ margin: 0 }}>{t('orgSettings.billing.keys_help', { orgs: billing.sso_org_ids.join(', ') || t('orgSettings.security.none') })}</Description>
-        {billing.keys.length === 0 ? <Description style={{ margin: 0 }}>{t('orgSettings.billing.keys_empty')}</Description> : (
+        {!billing.keys_available ? <Alert $tone="info">{t('orgSettings.billing.keys_unavailable')}</Alert> : billing.keys.length === 0 ? <Description style={{ margin: 0 }}>{t('orgSettings.billing.keys_empty')}</Description> : (
           <Table>
             <thead><tr><th>{t('orgSettings.billing.key_owner')}</th><th>{t('orgSettings.billing.key_label')}</th><th>{t('orgSettings.billing.key_issued')}</th><th /></tr></thead>
             <tbody>{billing.keys.map((k) => (
@@ -407,11 +444,16 @@ function Bar({ pct, label }: { pct: number; label: ReactNode }) {
 
 function SecurityTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
-  const { data, isLoading } = useOrgSecurityQuery(org.id);
+  const { cacheIdentity } = useAuth();
+  const query = useOrgSecurityQuery({ id: org.id, identity: cacheIdentity });
+  const { currentData: data } = query;
   const security = useMemo(() => parseOrgSecurity(data), [data]);
   const [limit, setLimit] = useState(50);
-  const audit = parseOrgAudit(useOrgAuditQuery({ id: org.id, limit }).data);
-  if (isLoading || !security) return <CenterProgress />;
+  const auditQuery = useOrgAuditQuery({ id: org.id, identity: cacheIdentity, limit });
+  const parsedAudit = parseOrgAudit(auditQuery.currentData);
+  const auditValid = completeList(auditQuery.currentData, 'audit', parsedAudit);
+  const audit = auditQuery.isError || !auditValid ? [] : parsedAudit;
+  if (query.isError || !security) return <OrgReadStatus query={query} valid={!!security} />;
   return (
     <>
       <Panel data-testid="org-settings-security">
@@ -432,7 +474,9 @@ function SecurityTab({ org }: { org: OrgProfile }) {
       <Panel data-testid="org-settings-audit">
         <h3>{t('orgSettings.security.audit')}</h3>
         <Description style={{ margin: 0 }}>{t('orgSettings.security.audit_lede')}</Description>
-        {audit.length === 0 ? <Description style={{ margin: 0 }}>{t('orgSettings.security.audit_empty')}</Description> : (
+        <OrgReadStatus query={auditQuery} valid={auditValid} />
+        {auditValid && !auditQuery.isError && audit.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.security.audit_empty')}</Description>}
+        {audit.length > 0 && (
           <Table>
             <thead><tr><th>{t('orgSettings.security.when')}</th><th>{t('orgSettings.security.actor')}</th><th>{t('orgSettings.security.action')}</th><th>{t('orgSettings.security.target')}</th></tr></thead>
             <tbody>{audit.map((e) => (
@@ -440,7 +484,7 @@ function SecurityTab({ org }: { org: OrgProfile }) {
             ))}</tbody>
           </Table>
         )}
-        {audit.length >= limit && <Row><Button size="small" variant="text" onClick={() => setLimit(Math.min(1000, limit * 2))}>{t('orgSettings.security.audit_more')}</Button></Row>}
+        {audit.length >= limit && limit < 1000 && <Row><Button size="small" variant="text" disabled={auditQuery.isFetching} onClick={() => setLimit(Math.min(1000, limit * 2))}>{t('orgSettings.security.audit_more')}</Button></Row>}
       </Panel>
     </>
   );

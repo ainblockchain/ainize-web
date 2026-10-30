@@ -12,6 +12,9 @@ import { agentOrgIdOf, agentVisibilityOf, type AgentVisibility } from './sharedA
 import type { AgentSummary } from './types';
 import { agentAliasOf } from './agentIds';
 
+/** Browser cache ownership; identity is not sent as authorization. */
+export interface OrgReadScope { id: string; identity: string }
+
 export const ORG_ROLES = ['read', 'contributor', 'write', 'admin'] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 const RANK: Record<OrgRole, number> = { read: 0, contributor: 1, write: 2, admin: 3 };
@@ -63,6 +66,14 @@ export function orgCreateInputFromDraft(draft: OrgFormDraft, domain: string | nu
 
 export interface OrgUpdateInput {
   name?: string; description?: string; readme?: string; domains?: string[]; domainRole?: OrgRole; ssoOrgIds?: string[]; spendCapCredits?: number | null;
+}
+
+/** Blank explicitly removes a cap; malformed text must never be serialized as null. */
+export function orgSpendCap(value: string): number | null | undefined {
+  const text = value.trim();
+  if (!text) return null;
+  const cap = Number(text);
+  return /^\d+$/.test(text) && Number.isSafeInteger(cap) ? cap : undefined;
 }
 
 /** Roles in rank order, as the node ranks them (`roleAtLeast`). */
@@ -194,7 +205,7 @@ export interface OrgBillingView {
 }
 export function parseOrgBilling(raw: unknown): OrgBillingView | null {
   const r = obj(raw);
-  if (!r) return null;
+  if (!r || !Array.isArray(r.keys) || !Array.isArray(r.agents)) return null;
   return {
     spend_cap_credits: num(r.spend_cap_credits), sso_org_ids: strs(r.sso_org_ids), keys_available: r.keys_available === true, spend_metered: r.spend_metered === true,
     agent_calls_total: num(r.agent_calls_total) ?? 0,
@@ -209,7 +220,7 @@ export interface OrgSecurityView {
 }
 export function parseOrgSecurity(raw: unknown): OrgSecurityView | null {
   const r = obj(raw);
-  if (!r) return null;
+  if (!r || !obj(r.sso) || !Array.isArray(r.admins) || !Array.isArray(r.domains)) return null;
   const sso = obj(r.sso);
   const via = obj(r.members_by_via) ?? {};
   return {

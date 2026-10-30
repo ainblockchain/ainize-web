@@ -16,6 +16,7 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { OrgReadStatus } from './OrgReadStatus';
 
 const OrgList = styled.ul`list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px;`;
 const OrgItem = styled.li`
@@ -32,9 +33,12 @@ export default function OrgsPage() {
   useTitle(t('orgs.title'));
   const auth = useAuth();
   const location = useLocation();
-  const { currentData: data, isLoading, isFetching, error } = useMyOrgsQuery(auth.cacheIdentity, { skip: !auth.isSignedIn });
+  const query = useMyOrgsQuery(auth.cacheIdentity, { skip: !auth.isSignedIn || auth.loading });
+  const { currentData: data, isLoading, isFetching, error } = query;
   const waiting = !data && (isLoading || isFetching);
   const list = useMemo(() => parseOrgList(data), [data]);
+  const rawOrgs = (data as { orgs?: unknown } | undefined)?.orgs;
+  const valid = Array.isArray(rawOrgs) && rawOrgs.length === list.orgs.length;
   const err = error ? orgApiErrorOf(error) : null;
 
   if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
@@ -53,9 +57,9 @@ export default function OrgsPage() {
 
       {auth.isSignedIn && waiting && <CenterProgress />}
       {err && err.status === 404 && <Alert $tone="warning" data-testid="orgs-unsupported">{t('orgs.unsupported')}</Alert>}
-      {err && err.status !== 404 && <Alert $tone="error">{t(`org.api.${err.code}`)}</Alert>}
+      {auth.isSignedIn && !waiting && err?.status !== 404 && <OrgReadStatus query={query} valid={valid} />}
 
-      {auth.isSignedIn && !waiting && !!data && !err && (
+      {auth.isSignedIn && !waiting && valid && !err && (
         <>
           {list.orgs.length === 0 && <Empty data-testid="orgs-empty">{t('orgs.empty')}</Empty>}
           <OrgList data-testid="orgs-list">

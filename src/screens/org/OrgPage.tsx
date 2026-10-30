@@ -21,6 +21,7 @@ import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, Tabs
 import { viewerPrincipals } from '@/api/linkedAgents';
 import { useLocale, useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { OrgReadStatus } from './OrgReadStatus';
 
 const OrgHeader = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;`;
 const OrgChip = styled.span<{ $tone?: 'lock' | 'muted' }>`
@@ -43,11 +44,18 @@ const Actions = styled.div`display: flex; gap: 12px; flex-wrap: wrap; margin: 16
 
 export default function OrgPage() {
   const { id = '' } = useParams<{ id: string }>();
+  const auth = useAuth();
+  return <OrgPageContent key={`${auth.cacheIdentity}:${id}`} />;
+}
+
+function OrgPageContent() {
+  const { id = '' } = useParams<{ id: string }>();
   const { t } = useT();
   const { locale } = useLocale();
   const location = useLocation();
   const auth = useAuth();
-  const { data, isLoading, error } = useOrgQuery(id, { skip: !auth.isSignedIn, pollingInterval: 60_000 });
+  const query = useOrgQuery({ id, identity: auth.cacheIdentity }, { skip: !auth.isSignedIn || auth.loading, pollingInterval: 60_000 });
+  const { currentData: data, isFetching, error } = query;
   const org = useMemo(() => parseOrgProfile(data), [data]);
   const err = error ? orgApiErrorOf(error) : null;
   useTitle(org?.name ?? err?.org?.name ?? t('orgs.title'));
@@ -57,7 +65,7 @@ export default function OrgPage() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const readme = useMemo(() => (org?.readme ? parseDoc(org.readme).blocks : []), [org?.readme]);
 
-  if (auth.loading || (auth.isSignedIn && isLoading)) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (auth.loading || (auth.isSignedIn && !data && isFetching)) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   if (!auth.isSignedIn) {
     return (
@@ -65,7 +73,7 @@ export default function OrgPage() {
         <TitleRow><Title>{t('orgs.title')}</Title></TitleRow>
         <Empty data-testid="org-signin">
           <Description style={{ margin: '0 auto 16px' }}>{t('orgs.signin')}</Description>
-          <StyledLink to={`/signing?next=${encodeURIComponent(location.pathname)}`}>{t('orgs.signin.cta')}</StyledLink>
+          <StyledLink to={`/signing?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`}>{t('orgs.signin.cta')}</StyledLink>
         </Empty>
       </PageWrapper>
     );
@@ -86,12 +94,12 @@ export default function OrgPage() {
           <Description style={{ margin: '0 auto 16px' }}>{t('org.not_member.body', { name: err.org?.name ?? id })}</Description>
           {requested ? (
             <Description data-testid="org-requested">{t('org.not_member.requested')}</Description>
-          ) : (
+          ) : err.can_request ? (
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
               <Input value={message} maxLength={500} placeholder={t('org.not_member.message')} onChange={(e) => setMessage(e.target.value)} style={{ maxWidth: 320 }} data-testid="org-request-message" />
               <Button variant="contained" loading={requestState.isLoading} onClick={() => void ask()} data-testid="org-request-join">{t('org.not_member.request')}</Button>
             </div>
-          )}
+          ) : null}
           {requestError && <Alert $tone="error" style={{ marginTop: 12 }}>{requestError}</Alert>}
         </Empty>
       </PageWrapper>
@@ -102,7 +110,7 @@ export default function OrgPage() {
     return (
       <PageWrapper>
         <TitleRow><Title>{t('orgs.title')}</Title></TitleRow>
-        <Empty data-testid="org-unavailable">{err ? (err.status === 404 ? t('org.not_found') : t(`org.api.${err.code}`)) : t('org.not_found')} <StyledLink to="/org">{t('orgs.title')}</StyledLink></Empty>
+        <Empty data-testid="org-unavailable">{err?.status === 404 ? t('org.not_found') : <OrgReadStatus query={query} valid={!!org} />} <StyledLink to="/org">{t('orgs.title')}</StyledLink></Empty>
       </PageWrapper>
     );
   }

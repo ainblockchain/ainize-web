@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useMyOrgsQuery, useOrgQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
 import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgList, parseOrgProfile } from '@/api/organizations';
 import {
-  AGENT_LIST_FILTERS, agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsErrorCode, sharedAgentsUnsupported,
+  AGENT_LIST_FILTERS, agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsUnsupported,
   type AgentListFilter,
 } from '@/api/sharedAgents';
 import { viewerPrincipals } from '@/api/linkedAgents';
@@ -169,19 +169,19 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   // for every kind of sign-in (the registry's org scope answers only an AIN SSO session, for one organization).
   // Fetched whenever a signed-in person is on the agents tab, not only when the chip is picked: every chip carries its count.
   const scopesOn = kind === 'agent' && auth.isSignedIn;
-  const shared = useSharedAgentsQuery({ scope: scopeForFilter('mine'), limit: 200 }, { skip: !scopesOn, pollingInterval: 60_000 });
-  const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.data), [shared.data]);
+  const shared = useSharedAgentsQuery({ identity: auth.cacheIdentity, scope: scopeForFilter('mine'), limit: 200 }, { skip: !scopesOn, pollingInterval: 60_000 });
+  const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.currentData), [shared.currentData]);
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
-  const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
   const orgView = kind === 'agent' && agentFilter === 'org';
   const myOrgs = useMyOrgsQuery(auth.cacheIdentity, { skip: !scopesOn });
   const orgsLoading = !myOrgs.currentData && (myOrgs.isLoading || myOrgs.isFetching);
   const orgList = useMemo(() => parseOrgList(myOrgs.currentData), [myOrgs.currentData]);
   const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
   const orgParam = params.get('org');
-  const orgId = orgList.orgs.find((o) => o.id === orgParam)?.id ?? orgList.orgs[0]?.id ?? null;
-  const orgQuery = useOrgQuery(orgId ?? '', { skip: !orgView || !orgId, pollingInterval: 60_000 });
-  const orgProfile = useMemo(() => parseOrgProfile(orgQuery.data), [orgQuery.data]);
+  // An explicit organization URL must never silently select a different membership.
+  const orgId = orgParam || orgList.orgs[0]?.id || null;
+  const orgQuery = useOrgQuery({ id: orgId ?? '', identity: auth.cacheIdentity }, { skip: !orgView || !orgId, pollingInterval: 60_000 });
+  const orgProfile = useMemo(() => parseOrgProfile(orgQuery.currentData), [orgQuery.currentData]);
   const setOrg = (id: string) => {
     const next = new URLSearchParams(params);
     next.set('agents', 'org');
@@ -253,7 +253,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
     const matches = matchingSearchIds(docsFromAgents(scopedAgents), q);
     return scopedAgents.filter((a) => matches.has(a.id));
   }, [scopedAgents, q]);
-  const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? orgsLoading || orgQuery.isLoading : false;
+  const scopedLoading = agentFilter === 'mine' ? !shared.currentData && shared.isFetching : agentFilter === 'org' ? orgsLoading || (!orgQuery.currentData && orgQuery.isFetching) : false;
   const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
     : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
   // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
@@ -363,12 +363,16 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
             <span>{t('explore.agents.unreachable')}</span>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(agentError)}</code></details>
           </Failure>}
-          {scopedError && registryRefused !== 'auth_required' && <Failure $tone="error" data-testid="agents-scope-error">
+          {scopedError && <Failure $tone="error" data-testid="agents-scope-error">
             <span>{t('explore.agents.unreachable')}</span>
+            <Retry type="button" onClick={() => {
+              if (agentFilter === 'mine') void shared.refetch();
+              else { void myOrgs.refetch(); if (orgId) void orgQuery.refetch(); }
+            }}>{t('orgs.retry')}</Retry>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(scopedError)}</code></details>
           </Failure>}
           {listLoading && <ListSkeleton />}
-          {!listLoading && !listError && (
+          {!listLoading && !listError && !scopedError && (
             <>
               {/* Keyed by node and id: two nodes may each run a `donga-desk`, and one key for both re-used one row's state for the other. */}
               <div>{agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}</div>
