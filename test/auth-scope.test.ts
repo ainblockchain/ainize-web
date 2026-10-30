@@ -28,7 +28,7 @@ test('the route guards ask who owns the node, not who is signed in', () => {
   // and not the owner must NOT be — /signing would send them straight back and the two would trade the tab for
   // ever — so it renders a panel instead.
   assert.ok(layout.includes('if (!isOwner) return <Layout><NotYourNode /></Layout>;'), 'SigningCheckLayout must answer a non-owner, not redirect one');
-  assert.ok(layout.includes('if (!isSignedIn) return <Navigate to={`/signing'), 'and must still send a signed-out visitor somewhere they can act');
+  assert.ok(layout.includes('if (!isSignedIn) return <Navigate to={signInHref(location)}'), 'and must still send a signed-out visitor somewhere they can act');
   // The landing page sends only the node's runner to the dashboard. Bouncing every connected wallet there is the
   // old assumption in the most visible place there is.
   assert.ok(layout.includes('if (!loading && isOwner) return <Navigate to="/dashboard"'), 'FullScreenLayout');

@@ -82,11 +82,11 @@ test('every string the project pages render exists in English and in Korean', ()
 
 test('/projects/new keeps its own sign-in gate so the hand-off query string survives the trip to /signing', () => {
   const app = read('App.tsx');
-  assert.match(app, /path="\/projects\/new" element=\{<Layout><ProjectNewPage \/><\/Layout>\}/, 'not behind SignedInLayout, which drops the query string');
+  assert.match(app, /path="\/projects\/new" element=\{<Layout><ProjectNewPage \/><\/Layout>\}/, 'the hand-off keeps its own sign-in gate');
   // reading a project is public now (ainize-node docs/PROJECTS.md "Who sees what"): the old address forwards without a gate
   assert.match(app, /path="\/projects\/:id" element=\{<Layout><ProjectPage \/><\/Layout>\}/);
   const page = read('screens/ProjectNewPage.tsx');
-  assert.match(page, /\/signing\?next=\$\{encodeURIComponent\(`\$\{pathname\}\$\{search\}`\)\}/);
+  assert.ok(page.includes('to={signInHref(location)}'), 'the shared return-link helper preserves query and anchor');
 });
 
 test('every link to a project is the pretty URL /<org>/<repo> (a monorepo folder\'s project excepted, projectPath); nothing builds /projects/<id> by hand', () => {

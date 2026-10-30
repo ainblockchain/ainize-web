@@ -6,6 +6,7 @@ import { useMyOrgsQuery, useInfoQuery } from '@/api/api';
 import { useLocale, useT } from '@/i18n';
 import { parseOrgList } from '@/api/organizations';
 import { shortAddr } from '@/utils/format';
+import { navigationSection, signInHref } from '@/lib/uiNavigation';
 import { GlobalSearch } from './GlobalSearch';
 
 /** Ported from ainize-web components/ui/Header.js — white bar, 81px, subtle shadow, purple hover; original Ainize logo. */
@@ -131,7 +132,8 @@ export function Header() {
   const ain = info?.ledger.kind === 'ain';
   /** Finding 72 — /chat?teach=1 IS the teach flow's conversational door, so the Teach item is the one lit there. */
   const location = useLocation();
-  const teaching = location.pathname.startsWith('/train') || location.pathname.startsWith('/teach') || (location.pathname === '/explore' && new URLSearchParams(location.search).get('kind') !== 'agent') || (location.pathname.startsWith('/chat') && new URLSearchParams(location.search).get('teach') === '1');
+  const section = navigationSection(location.pathname, location.search);
+  const teaching = section === 'train';
   return (
     <Wrapper>
       {process.env.NODE_ENV !== "production" && <DevBadge>Development Mode</DevBadge>}
@@ -146,11 +148,11 @@ export function Header() {
           {/* A node sells two kinds of thing and only one of them had a way in. The agents were behind a chip
               inside a page titled "Explore knowledge", so somebody who came here to host an agent read the
               whole site and concluded it was a knowledge marketplace. */}
-          <NavPlain to="/explore?kind=agent" data-testid="nav-agents" $active={location.pathname === "/explore" && !teaching} aria-current={location.pathname === "/explore" && !teaching ? "page" : undefined}>{t('nav.agents')}</NavPlain>
+          <NavPlain to="/explore?kind=agent" data-testid="nav-agents" $active={section === "agents"} aria-current={section === "agents" ? "page" : undefined}>{t('nav.agents')}</NavPlain>
           {/* What the network's nodes serve over the LLM API, and a place to press it. It was documentation three levels
               down, which is not where somebody arriving to see what this can do will find it. */}
           <NavItem to="/models" data-testid="nav-models">{t('nav.models')}</NavItem>
-          <NavItem to="/apps" data-testid="nav-apps">{t('nav.apps')}</NavItem>
+          <NavPlain to="/apps" data-testid="nav-apps" $active={section === "apps"} aria-current={section === "apps" ? "page" : undefined}>{t('nav.apps')}</NavPlain>
           <NavPlain to="/train" data-testid="nav-train" $active={teaching} aria-current={teaching ? 'page' : undefined}>{t('nav.train')}</NavPlain>
           {/* Where each AinCode session runs and what it works on — a member once worked for hours in the personal
               workspace on an organization project without noticing. */}
@@ -162,7 +164,7 @@ export function Header() {
           {isOwner && <NavItem to="/dashboard">{t('nav.dashboard')}</NavItem>}
           {/* With the page you are on as `next`: without it every sign-in — Google's above all, whose default is "/" —
               ended on the landing page instead of where the person was. */}
-          {!isSignedIn && <NavItem to={location.pathname === '/signing' ? '/signing' : `/signing?next=${encodeURIComponent(location.pathname + location.search)}`}>{t('nav.signin')}</NavItem>}
+          {!isSignedIn && <NavItem to={location.pathname === '/signing' ? '/signing' : signInHref(location)}>{t('nav.signin')}</NavItem>}
           {isSignedIn && (
             <div ref={ref} style={{ position: 'relative' }}>
               {/* YOUR address, not the node's. The button said the NODE's name and the row under it showed the

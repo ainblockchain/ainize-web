@@ -305,7 +305,7 @@ export default function LandingPage() {
             {auth.isSignedIn && <NavLink to="/org" data-testid="landing-nav-my-orgs">{t('orgs.mine')}</NavLink>}
             <NavLink to="/docs" data-testid="landing-nav-docs">{t('nav.docs')}</NavLink>
             {auth.isSignedIn && signedInAs
-              ? <NavMuted to={auth.subject ? '/my-nodes' : '/models'} data-testid="landing-nav-account" title={auth.subject ?? auth.sso?.email ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>
+              ? <NavMuted to="/me" data-testid="landing-nav-account" title={auth.subject ?? auth.sso?.email ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>
               : <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>}
           </NavLinks>
           <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>

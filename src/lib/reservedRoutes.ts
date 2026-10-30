@@ -20,7 +20,9 @@ const set = new Set(RESERVED_FIRST_SEGMENTS.map((s) => s.toLowerCase()));
 
 /** May this first segment be an organization slug (`/<org>`, `/<org>/<repo>`)? */
 export function isReservedFirstSegment(segment: string): boolean {
-  const s = decodeURIComponent(segment).toLowerCase();
+  let s: string;
+  try { s = decodeURIComponent(segment).toLowerCase(); }
+  catch { return true; }
   return !s || s.startsWith('.') || s.startsWith('_') || set.has(s);
 }
 

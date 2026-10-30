@@ -38,6 +38,9 @@ export const projects: Dict = {
 
   // ── /projects/:id
   'projects.page.title': { ko: '프로젝트', en: 'Project' },
+  'projects.page.history_failed': { ko: '기록을 불러오지 못했습니다. 다시 시도하세요.', en: 'Could not load the history. Please try again.' },
+  'projects.logs.failed': { ko: '로그를 불러오지 못했습니다.', en: 'Could not load the log.' },
+  'projects.logs.loading': { ko: '로그를 불러오는 중…', en: 'Loading the log…' },
   'projects.page.retry': { ko: '다시 시도', en: 'Try again' },
   'projects.page.apps': { ko: '앱 목록', en: 'Browse apps' },
   'projects.page.unavailable': { ko: '프로젝트를 열 수 없습니다', en: 'This project is unavailable' },
