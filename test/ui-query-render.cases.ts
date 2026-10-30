@@ -441,7 +441,9 @@ test('AinCode hides another account session cache and shows sign-in only when si
   const anonymous = render(AinCodePage, [...signedOut, previous], '/aincode');
   assert.doesNotMatch(anonymous, /Current account session/);
   assert.match(anonymous, /href="\/signing\?next=%2Faincode"/);
-  const denied = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: codeOverview, status: 'rejected', errorStatus: 401 }], '/aincode');
-  assert.doesNotMatch(denied, /Current account session|href="\/signing/);
-  assert.match(denied, /Try again/);
+  for (const errorStatus of [401, 403]) {
+    const denied = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: codeOverview, status: 'rejected', errorStatus }], '/aincode');
+    assert.doesNotMatch(denied, /Current account session|href="\/signing/);
+    assert.match(denied, /Try again/);
+  }
 });

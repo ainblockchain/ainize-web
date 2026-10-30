@@ -42,7 +42,7 @@ export default function AinCodePage() {
   const auth = useAuth();
   useTitle(t('aincode.title'));
   const query = useAincodeOverviewQuery(auth.cacheIdentity, { skip: auth.loading || !auth.isSignedIn });
-  const unauthorized = query.isError && query.error && 'status' in query.error && query.error.status === 401;
+  const unauthorized = query.isError && query.error && 'status' in query.error && [401, 403].includes(Number(query.error.status));
   const signedOut = !auth.loading && !auth.isSignedIn;
   const data = auth.isSignedIn && !unauthorized ? query.currentData : undefined;
   const loading = auth.loading || (auth.isSignedIn && !data && query.isFetching);
