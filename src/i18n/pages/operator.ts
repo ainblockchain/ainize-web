@@ -944,6 +944,7 @@ export const operatorAccount: Dict = {
   'op.account.chain.note': { ko: '앱과 거래 규칙을 준비합니다. 자동 스테이킹은 하지 않으며 체인 수수료가 발생할 수 있습니다.', en: 'Prepares the app and market rules without automatic staking. Chain fees may apply.' },
   'op.account.chain.verified': { ko: '현재 체인의 거래 규칙을 확인했습니다.', en: 'The current chain’s market rules are verified.' },
   'op.account.chain.required': { ko: '현재 거래 규칙이 확인되지 않았습니다.', en: 'The current market rules are not verified.' },
+  'op.account.chain.running': { ko: '저장된 설정 요청이 아직 실행 중으로 기록되어 있습니다. 새 요청을 보내지 말고 상태를 확인하세요.', en: 'The saved setup request is still running in the journal. Inspect its status; do not start another request.' },
   'op.account.chain.unconfirmed': { ko: '저장된 요청의 완료를 확인하지 못했습니다. 상태를 다시 확인하세요.', en: 'Completion of the saved request is unconfirmed. Refresh its status.' },
   'op.account.chain.retry': { ko: '준비 다시 시도', en: 'Retry setup' },
   'op.account.chain.refresh': { ko: '상태 확인', en: 'Refresh status' },

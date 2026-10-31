@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-337 operations on 280 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+347 operations on 288 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -401,8 +401,8 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/auth/device/{code}/approve`](#post-apiauthdevicecodeapprove) | none | Approve it: one wallet signature (eip191) over the message the node issued, from the address that is signed in |
 | `POST` | [`/api/auth/device/{code}/claim`](#post-apiauthdevicecodeclaim) | none | The CLI collecting its session — single use, and needs the poll secret it never printed |
 | `POST` | [`/api/my/nodes/heartbeat`](#post-apimynodesheartbeat) | none | Report a linked node online using its dedicated node-link Bearer token |
-| `DELETE` | [`/api/my/nodes/{address}`](#delete-apimynodesaddress) | none | Disconnect one node from the signed-in wallet without stopping its process |
-| `GET` | [`/api/my/nodes`](#get-apimynodes) | none | Nodes linked to the signed-in wallet, including this node when operated by that wallet |
+| `DELETE` | [`/api/my/nodes/{address}`](#delete-apimynodesaddress) | none | Disconnect the reviewed node link from an AIN account or wallet without stopping its process |
+| `GET` | [`/api/my/nodes`](#get-apimynodes) | none | Nodes linked to the signed-in AIN account or wallet, including this node when operated by that account |
 | `GET` | [`/api/auth/bindings`](#get-apiauthbindings) | none | Every key that acts as you, and which one is acting now |
 | `DELETE` | [`/api/auth/bindings/{delegate}`](#delete-apiauthbindingsdelegate) | none | End one, and the sessions it collected |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | none | Log out |
@@ -417,7 +417,17 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/runtime/complete`](#post-apiruntimecomplete) | operator | Raw completion on the serving model (try the model) |
 | `POST` | [`/api/peers`](#post-apipeers) | operator | Add a peer |
 | `DELETE` | [`/api/peers`](#delete-apipeers) | operator | Remove a peer |
-| `POST` | [`/api/chain/setup`](#post-apichainsetup) | operator | Create the knowledge app on the AIN chain, set market rules, stake (AIN ledger only) |
+| `GET` | [`/api/chain/setup`](#get-apichainsetup) | operator | Inspect current market rules and the latest durable reviewed setup request without writing to the chain |
+| `POST` | [`/api/chain/setup`](#post-apichainsetup) | operator | Legacy unreviewed setup is disabled |
+| `GET` | [`/api/me/wallet/send-history`](#get-apimewalletsend-history) | operator | List this node’s retained manual transfers, newest first, without broadcasting or chain queries |
+| `GET` | [`/api/me/wallet/send-requests`](#get-apimewalletsend-requests) | operator | Read the latest manual AIN transfer and reconcile only its exact finalized transaction |
+| `POST` | [`/api/me/wallet/send-requests`](#post-apimewalletsend-requests) | operator | Prepare an exact reviewed AIN transfer without broadcasting |
+| `GET` | [`/api/me/wallet/send-requests/{id}`](#get-apimewalletsend-requestsid) | operator | Read a retained manual transfer by request ID |
+| `POST` | [`/api/me/wallet/send-requests/{id}/submit`](#post-apimewalletsend-requestsidsubmit) | operator | Explicitly submit the operator’s saved prepared transfer once |
+| `POST` | [`/api/me/wallet/send-requests/{id}/cancel`](#post-apimewalletsend-requestsidcancel) | operator | Cancel only a prepared manual transfer, atomically against submission |
+| `POST` | [`/api/me/wallet/send`](#post-apimewalletsend) | operator | Deprecated unreviewed send; refuses to broadcast |
+| `GET` | [`/api/chain/setup/requests/{id}`](#get-apichainsetuprequestsid) | operator | Read the exact retained setup request without executing it |
+| `POST` | [`/api/chain/setup/requests`](#post-apichainsetuprequests) | operator | Prepare the reviewed app and rules without automatic staking, retaining the request and outcome |
 | `GET` | [`/api/drive/changes`](#get-apidrivechanges) | none | Change history of a drive file (aindrive Willow store) |
 
 **P2P** — node-to-node protocol
@@ -4337,9 +4347,9 @@ The same list every product reads from every origin — hosted agents, linked ag
 | Name | In | Type | Required | Default | Description |
 |---|---|---|---|---|---|
 | `scope` | `query` | `"mine"` \| `"shared_with_me"` \| `"shared_with_org"` \| `"public"` | yes |   |   |
-| `q` | `query` | `string` |   |   | case-insensitive substring over name and description |
+| `q` | `query` | `string` |   |   | case-insensitive terms across agent ID, name, description, registry issuer and skill names/descriptions; applied before pagination |
 | `org` | `query` | `string` |   |   | restrict to this organization; the caller must be a member |
-| `cursor` | `query` | `string` |   |   | the `nextCursor` of the previous page |
+| `cursor` | `query` | `string` |   |   | opaque nextCursor or previousCursor for this caller, scope, query, limit and unchanged ordered list; omit for the first page. A changed list returns 409 cursor_expired; legacy numeric cursors return 400. |
 | `limit` | `query` | `integer` |   | `50` |   |
 
 **Responses**
@@ -4350,6 +4360,7 @@ The same list every product reads from every origin — hosted agents, linked ag
 | `400` | malformed query |   |
 | `401` | auth_required | [`ContractError`](./schemas.md#contracterror) |
 | `403` | forbidden (not a member, or no SSO session for an organization listing) | [`ContractError`](./schemas.md#contracterror) |
+| `409` | cursor_expired: restart from the first page after a list or selection change |   |
 | `429` | rate_limited |   |
 | `503` | temporary_failure |   |
 
@@ -8186,7 +8197,7 @@ This credential only updates node status. It is not an account session. Fields: 
 
 ### `DELETE /api/my/nodes/{address}`
 
-Disconnect one node from the signed-in wallet without stopping its process
+Disconnect the reviewed node link from an AIN account or wallet without stopping its process
 
 **Auth** — none
 
@@ -8196,17 +8207,27 @@ Disconnect one node from the signed-in wallet without stopping its process
 |---|---|---|---|
 | `address` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected_revision` | `string` | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ok | `object` |
+| `200` | receipt: ok, address, revision | `object` |
+| `400` | missing or malformed reviewed revision |   |
 | `401` | not signed in |   |
-| `404` | not a node linked to this wallet |   |
+| `404` | not a node linked to this account |   |
+| `409` | connection changed; review the current list |   |
 
 ### `GET /api/my/nodes`
 
-Nodes linked to the signed-in wallet, including this node when operated by that wallet
+Nodes linked to the signed-in AIN account or wallet, including this node when operated by that account
+
+Includes owner and hub_address. Linked rows include an opaque revision required for DELETE; intrinsic operator rows have revision:null and cannot be unlinked. Heartbeats report status, not the node agent inventory.
 
 **Auth** — none
 
@@ -8469,9 +8490,9 @@ Remove a peer
 |---|---|---|
 | `200` | ok | `object` |
 
-### `POST /api/chain/setup`
+### `GET /api/chain/setup`
 
-Create the knowledge app on the AIN chain, set market rules, stake (AIN ledger only)
+Inspect current market rules and the latest durable reviewed setup request without writing to the chain
 
 **Auth** — operator
 
@@ -8479,7 +8500,186 @@ Create the knowledge app on the AIN chain, set market rules, stake (AIN ledger o
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | result | `object` |
+| `200` | version, capabilities {exact_request_status:true, reviewed_selection:true}, context {node, provider, chain_id, app}, verification {valid, errors} or null, read_error, operation or null | `object` |
+
+### `POST /api/chain/setup`
+
+Legacy unreviewed setup is disabled
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `409` | Use the reviewed setup requests protocol; no funding or automatic staking. |
+
+### `GET /api/me/wallet/send-history`
+
+List this node’s retained manual transfers, newest first, without broadcasting or chain queries
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default | Description |
+|---|---|---|---|---|
+| `cursor` | `query` | `string` |   | Opaque next_cursor from the previous page; bound to this node. |
+| `limit` | `query` | `integer` | `20` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | version, context, echoed cursor, public items, next_cursor. Saved states; open an exact request ID to reconcile its chain outcome. | `object` |
+
+### `GET /api/me/wallet/send-requests`
+
+Read the latest manual AIN transfer and reconcile only its exact finalized transaction
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | version, current context, public operation or null, read_error; never returns a signed payload | `object` |
+
+### `POST /api/me/wallet/send-requests`
+
+Prepare an exact reviewed AIN transfer without broadcasting
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `request_id` | `string` | yes |   |
+| `expected` | `object` | yes | Exact node, rpc_url, chain_id and gas_price from GET send-requests |
+| `to` | `string` | yes |   |
+| `amount` | `string` | yes | Positive decimal with up to six fractional places and exact SDK numeric round-trip; no coercion |
+| `memo` | `string` |   | Optional node-record note, included in replay identity; never part of the on-chain transaction (at most 200 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Saved prepared operation, including known tx_hash. Replays are read-only; another unresolved request returns 409. | `object` |
+
+### `GET /api/me/wallet/send-requests/{id}`
+
+Read a retained manual transfer by request ID
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Same versioned public status; no rebroadcast | `object` |
+
+### `POST /api/me/wallet/send-requests/{id}/submit`
+
+Explicitly submit the operator’s saved prepared transfer once
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Saved outcome; submitted is NOT proof of success. Only exact finalized successful execution becomes confirmed. | `object` |
+
+### `POST /api/me/wallet/send-requests/{id}/cancel`
+
+Cancel only a prepared manual transfer, atomically against submission
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Current saved outcome. A submitted transfer cannot be cancelled. | `object` |
+
+### `POST /api/me/wallet/send`
+
+Deprecated unreviewed send; refuses to broadcast
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `409` | Use the reviewed prepare / submit protocol, or the account UI. |
+
+### `GET /api/chain/setup/requests/{id}`
+
+Read the exact retained setup request without executing it
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Versioned setup status with exact operation and current verification. capabilities.exact_request_status is true. | `object` |
+| `404` | Unknown request on this node; never substitutes latest. |   |
+| `409` | Saved request belongs to a different chain configuration. |   |
+
+### `POST /api/chain/setup/requests`
+
+Prepare the reviewed app and rules without automatic staking, retaining the request and outcome
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected_request` | `string,null` | yes | Exact latest reviewed setup request ID, or null when none. Checked atomically before creating a request. |
+| `request_id` | `string` | yes |   |
+| `expected` | `object` | yes |   |
+| `expected.node` | `string` | yes |   |
+| `expected.provider` | `string` | yes |   |
+| `expected.chain_id` | `integer` | yes |   |
+| `expected.app` | `object` | yes |   |
+| `retry_of` | `string` |   | Exact terminal unconfirmed request deliberately being retried |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | same status shape as GET /api/chain/setup; operation state running, verified or unconfirmed. A 200 response alone does not prove completion. | `object` |
+| `400` | invalid reviewed request |   |
+| `409` | context changed, request conflict or unresolved running request |   |
+| `503` | preflight inspection unavailable; request not started |   |
 
 ### `GET /api/drive/changes`
 

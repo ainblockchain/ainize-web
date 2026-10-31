@@ -57,7 +57,8 @@ export function ChainSetupResult({ value }: { value: ChainSetupStatus }) {
   return <div data-testid="chain-setup-result">
     {value.verification?.valid ? <Alert $tone="success" role="status">{t('op.account.chain.verified')}</Alert>
       : value.read_error ? <Alert $tone="warning" role="alert">{t('op.account.chain.error.read')}</Alert>
-      : <Muted>{t(op ? 'op.account.chain.unconfirmed' : 'op.account.chain.required')}</Muted>}
+      : <Muted>{t('op.account.chain.required')}</Muted>}
+    {op && op.state !== 'verified' && <Alert $tone="warning" role="status">{t(op.state === 'running' ? 'op.account.chain.running' : 'op.account.chain.unconfirmed')}</Alert>}
     {(op || !!value.verification?.errors.length) && <details style={{ marginTop: 6 }}><summary>{t('op.account.chain.details')}</summary>
     {op && <div style={{ marginTop: 6 }}>
       <Muted>{t('op.account.chain.request')} <Mono>{op.id}</Mono></Muted>

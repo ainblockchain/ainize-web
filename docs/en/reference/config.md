@@ -9,7 +9,7 @@ summary: Every key of a node config.json, its type, its default and the rules it
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-core/src/config-schema.ts` and `ainize-core/src/config.ts` and `ainize-core/src/types.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-All 155 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
+All 156 keys a node config accepts, the environment variables that override them, and the file `ainize init` writes.
 
 ## How to read this page
 
@@ -126,6 +126,7 @@ Money is a decimal string everywhere in this product, never a JSON number: `"0.1
 | `teach.trainer.runtime` | one of 'docker', 'local' | unset | Where the gradient trainer runs: 'docker' (default — `docker exec` into `container`) or 'local' (spawn `python` as a subprocess on the node host, for a serving user with no docker access). |
 | `teach.trainer.python` | a string | unset | Interpreter for local mode (default 'python3'). |
 | `teach.trainer.cwd` | a string | unset | Working dir for local mode; if unset, the node's `runtime.repo`. |
+| `teach.trainer.modelDir` | a string | unset | Model weights/tokenizer directory for local mode; unset keeps the trainer's own default. |
 | `teach.trainer.microBatch` | a number | unset | The two knobs that decide peak GPU memory. Unset, both are derived from the question count — and both derivations give the LARGEST value to the LARGEST lesson, which is backwards: they raise the pressure exactly on the runs that take hours to reach the point of failing, and the failure lands at the first training step, after the whole baseline probe. |
 | `teach.trainer.maxContrast` | a number | unset | Contrast pairs. Unset = ceil(rows/2) capped at 64. Fewer pairs means less protection for unrelated answers. |
 | `teach.locality` | an object (set its keys one at a time) |   | Locality gate: fixed prompts whose greedy answers must stay identical for at least `minSame` of them. |

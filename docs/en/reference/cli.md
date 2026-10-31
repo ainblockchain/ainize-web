@@ -9,7 +9,7 @@ summary: Every `ainize` command, argument and option, generated from the CLI's o
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-cli/src/main.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-Every command the `ainize` CLI accepts — 32 top-level commands, 104 of them runnable — with the arguments, options, defaults and examples each one declares.
+Every command the `ainize` CLI accepts — 32 top-level commands, 109 of them runnable — with the arguments, options, defaults and examples each one declares.
 
 ## How to read this page
 
@@ -62,11 +62,11 @@ These are accepted by every command.
 | [`ainize ledger`](#ainize-ledger) | Inspect the ledger |
 | [`ainize branch`](#ainize-branch) | Knowledge branches (parallel, possibly contradictory patch sets) |
 | [`ainize route`](#ainize-route) | Gateway routing: which track and which nodes serve a request context |
-| [`ainize wallet`](#ainize-wallet) | Balance, sales, royalties and pending payouts of this node |
+| [`ainize wallet`](#ainize-wallet) | Node wallet balance and reviewed manual transfers |
 | [`ainize purchases`](#ainize-purchases) | Knowledge this node bought: what, from whom, for how much, and whether it is loaded |
 | [`ainize payouts`](#ainize-payouts) | Royalty transfers this node owes creators and data providers (AIN ledger) |
 | [`ainize drive`](#ainize-drive) | aindrive: files & change history of this node |
-| [`ainize chain`](#ainize-chain) | Local AIN blockchain (docker) for the ain ledger |
+| [`ainize chain`](#ainize-chain) | AIN chain tools and reviewed node setup |
 
 ## `ainize init`
 
@@ -2124,12 +2124,17 @@ ainize route market=KRX freshness=daily --partial
 ainize wallet <subcommand>
 ```
 
-Balance, sales, royalties and pending payouts of this node
+Node wallet balance and reviewed manual transfers
 
 **Subcommands**
 
 - `ainize wallet show` — Balance, sales, royalties and pending payouts
-- `ainize wallet send` — Send AIN from this node's wallet to another address
+- `ainize wallet prepare` — Save a reviewed AIN transfer without submitting it
+- `ainize wallet send` — Prepare, review and submit one AIN transfer
+- `ainize wallet submit` — Review and explicitly submit a saved prepared transfer
+- `ainize wallet cancel` — Cancel preparation only; submitted transfers cannot be cancelled
+- `ainize wallet status` — Read the exact retained transfer or latest request; never sends
+- `ainize wallet history` — List saved manual transfers, newest first; never sends
 
 ### `ainize wallet show`
 
@@ -2141,30 +2146,95 @@ Balance, sales, royalties and pending payouts
 
 This is the default subcommand: `ainize wallet` runs it without naming `show`.
 
+### `ainize wallet prepare`
+
+```bash
+ainize wallet prepare <address> <amount> [options]
+```
+
+Save a reviewed AIN transfer without submitting it
+
+**Arguments**
+
+- **`<address>`** (`string`, required) — recipient AIN address
+- **`<amount>`** (`string`, required) — exact positive AIN decimal, up to six places; never rounded
+
+**Options**
+
+- **`--memo`** (`string`) — a note retained on the node, not on the chain (max 200 characters)
+- **`--request-id`** (`string`) — 32 lowercase hex characters; retain for recovery, never reuse for another intent
+
 ### `ainize wallet send`
 
 ```bash
 ainize wallet send <address> <amount> [options]
 ```
 
-Send AIN from this node's wallet to another address
+Prepare, review and submit one AIN transfer
 
 **Arguments**
 
-- **`<address>`** (`string`, required) — where the money goes (0x… AIN address)
-- **`<amount>`** (`number`, required) — how much, in AIN
+- **`<address>`** (`string`, required) — recipient AIN address
+- **`<amount>`** (`string`, required) — exact positive AIN decimal, up to six places; never rounded
 
 **Options**
 
-- **`--memo`** (`string`) — a note for this node's own log (it does not travel with the transfer)
-- **`--yes`, `-y`** (`boolean`, default `false`) — skip the confirmation
+- **`--memo`** (`string`) — a note retained on the node, not on the chain (max 200 characters)
+- **`--request-id`** (`string`) — 32 lowercase hex characters; retain for recovery, never reuse for another intent
+- **`--yes`, `-y`** (`boolean`, default `false`) — authorize the reviewed transfer without an interactive prompt
 
-**Examples**
+### `ainize wallet submit`
 
 ```bash
-# move 25 AIN of earnings to your own wallet
-ainize wallet send 0xabc… 25
+ainize wallet submit <requestId> [options]
 ```
+
+Review and explicitly submit a saved prepared transfer
+
+**Arguments**
+
+- **`<requestId>`** (`string`, required) — exact retained transfer request ID
+
+**Options**
+
+- **`--yes`, `-y`** (`boolean`, default `false`) — authorize the reviewed transfer without an interactive prompt
+
+### `ainize wallet cancel`
+
+```bash
+ainize wallet cancel <requestId>
+```
+
+Cancel preparation only; submitted transfers cannot be cancelled
+
+**Arguments**
+
+- **`<requestId>`** (`string`, required) — exact retained transfer request ID
+
+### `ainize wallet status`
+
+```bash
+ainize wallet status [requestId]
+```
+
+Read the exact retained transfer or latest request; never sends
+
+**Arguments**
+
+- **`[requestId]`** (`string`) — exact request ID; omitted reads the latest
+
+### `ainize wallet history`
+
+```bash
+ainize wallet history [options]
+```
+
+List saved manual transfers, newest first; never sends
+
+**Options**
+
+- **`--cursor`** (`string`) — unchanged next_cursor from the preceding history page
+- **`--limit`** (`number`, default `20`) — page size from 1 to 50
 
 ## `ainize purchases`
 
@@ -2316,7 +2386,7 @@ One-time browser pairing of the drive folder (interactive)
 ainize chain <subcommand>
 ```
 
-Local AIN blockchain (docker) for the ain ledger
+AIN chain tools and reviewed node setup
 
 **Subcommands** — one of them is required
 
@@ -2324,7 +2394,7 @@ Local AIN blockchain (docker) for the ain ledger
 - `ainize chain down` — Remove the local chain container
 - `ainize chain status` — Chain health and last block
 - `ainize chain fund` — Transfer AIN from the local genesis account (local chain only)
-- `ainize chain setup` — Register the knowledge app + market rules on-chain (funds the node identity first on a local chain)
+- `ainize chain setup` — Inspect or review knowledge app and market-rule setup on the selected running node
 
 ### `ainize chain up`
 
@@ -2381,8 +2451,12 @@ Transfer AIN from the local genesis account (local chain only)
 ainize chain setup [options]
 ```
 
-Register the knowledge app + market rules on-chain (funds the node identity first on a local chain)
+Inspect or review knowledge app and market-rule setup on the selected running node
 
 **Options**
 
-- **`--fund`** (`number`) — AIN to fund the node identity with
+- **`--status`** (`boolean`, default `false`) — read setup status only; never fund, stake or set rules
+- **`--request-id`** (`string`) — exact 32-hex request ID; with --status reads that saved request
+- **`--retry-of`** (`string`) — explicitly retry this terminal unconfirmed request with a new ID
+- **`--yes`, `-y`** (`boolean`, default `false`) — authorize the reviewed setup without an interactive prompt
+- **`--fund`** (`number`) — removed: use chain fund separately

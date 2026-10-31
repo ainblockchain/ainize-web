@@ -96,6 +96,8 @@ One agent in the cross-product registry shape (ain-integration contract 1.0). Id
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `total` | `integer` |   | matching authorized agents across all pages (at least 0) |
+| `previousCursor` | `string` \| `null` |   | opaque previous-page cursor; null means the first page (omit cursor) |
 | `contract` | `string` | yes |   |
 | `asOf` | `string (date-time)` | yes | when permissions were evaluated for this page |
 | `nextCursor` | `string` \| `null` | yes |   |

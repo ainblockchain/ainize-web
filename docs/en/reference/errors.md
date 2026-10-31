@@ -24,6 +24,7 @@ Where the message begins with a lower-case word and a colon — `dataset_not_fou
 | `ChatCancelledError` | `499` | `cancelled`, `charged` |
 | `Error` whose message matches `/shared runtime busy/` | `503` and the header `retry-after: 30` | `busy` |
 | `TeachError` | the error's own status | `(err.details ?? {})` |
+| `ChainSetupError`, `WalletSendError` | the error's own status |   |
 | `HttpError` | the error's own status | `err.body` |
 | `PayoutError` | the error's own status |   |
 | `z.ZodError` | `400` | `issues` |
@@ -188,9 +189,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 187 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 220 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 115 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 116 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -312,11 +313,20 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `400` | contributor.signer must be an AIN address | `../ainize-core/src/catalog.ts` |
 | `400` | contributors must be an array | `../ainize-core/src/catalog.ts` |
 | `400` | duplicate contributor address: \<c.address> | `../ainize-core/src/catalog.ts` |
+| `400` | history cursor belongs to another node or is invalid | `src/wallet-send-operations.ts` |
+| `400` | history limit must be an integer from 1 to 50 | `src/wallet-send-operations.ts` |
+| `400` | invalid send request identifier | `src/wallet-send-operations.ts` |
+| `400` | invalid transfer history cursor | `src/wallet-send-operations.ts` |
 | `400` | invalid_actor | `src/run-actor.ts` |
 | `400` | invalid_request | `src/agent-archive-operations.ts`, `src/server.ts` |
+| `400` | memo must be at most 200 characters | `src/wallet-send-operations.ts` |
 | `400` | model_not_served | `src/server.ts` |
 | `400` | node address required | `src/api.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
+| `400` | recipient is this node’s own address | `src/wallet-send-operations.ts` |
+| `400` | request identifier must be 32 lowercase hex characters | `src/chain-setup-operations.ts` |
+| `400` | request_id, reviewed chain, recipient and an exact positive decimal amount (up to six places) are required | `src/wallet-send-operations.ts` |
+| `400` | reviewed chain context, expected_request and request_id are required | `src/chain-setup-operations.ts` |
 | `400` | this is the node's own key: it owns what this node published, and revoking it would only stop the node acting for itself | `src/api.ts` |
 | `400` | unsupported contributor proof: … | `../ainize-core/src/catalog.ts` |
 | `400` | unsupported contributor role: … | `../ainize-core/src/catalog.ts` |
@@ -339,6 +349,7 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `403` | not_allowed | `src/agent-archive-routes.ts` |
 | `403` | only the author of \<entry.anchor.id> may place its body here | `src/api.ts` |
 | `403` | only the branch owner can add patches | `src/market.ts` |
+| `403` | only the operator who reviewed this request can submit it | `src/wallet-send-operations.ts` |
 | `403` | only the owner of \<name> (\<b.owner>) can archive it | `src/market.ts` |
 | `403` | only the owner of \<name> (\<b.owner>) can set what it costs | `src/market.ts` |
 | `403` | prove possession of the node key before requesting a node link | `src/api.ts` |
@@ -348,23 +359,37 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `404` | not_found | `src/agent-archive-routes.ts` |
 | `404` | patch not found | `src/api.ts` |
 | `404` | payout \<id> not found | `src/payouts.ts` |
+| `404` | send request not found | `src/wallet-send-operations.ts` |
+| `404` | setup request not found on this node | `src/chain-setup-operations.ts` |
 | `409` | \<name> is curated by \<b.owner>, not by this node | `src/api.ts` |
 | `409` | \<name> is free to follow: it has no curation fee | `src/api.ts` |
+| `409` | a setup request is unresolved; inspect its status before another attempt | `src/chain-setup-operations.ts` |
 | `409` | active_version_missing | `src/agent-archive-restore.ts` |
+| `409` | another send is unresolved; inspect or cancel it before preparing another | `src/wallet-send-operations.ts` |
 | `409` | archive_context_changed | `src/agent-archive-routes.ts` |
 | `409` | archive_operation_conflict | `src/agent-archive-operations.ts` |
 | `409` | archive_operation_pending | `src/agent-archive-operations.ts` |
 | `409` | archive_target_changed | `src/agent-archive-routes.ts` |
+| `409` | chain configuration changed; refresh | `src/chain-setup-operations.ts` |
 | `409` | export_required | `src/agent-archive-routes.ts` |
 | `409` | id_taken | `src/agent-archive-restore.ts` |
+| `409` | insufficient AIN balance; fees may require additional funds | `src/wallet-send-operations.ts` |
+| `409` | local development credit cannot be sent on the AIN chain | `src/api.ts` |
 | `409` | node link was revoked or replaced | `src/api.ts` |
 | `409` | not sold here; gateway is … | `src/api.ts` |
 | `409` | patch body not present on this node | `src/api.ts` |
 | `409` | payout \<id> is already paid (\<row.tx_hash>) | `src/payouts.ts` |
 | `409` | project_binding_conflict | `src/agent-archive-restore.ts` |
 | `409` | project_environment_required | `src/agent-archive-restore.ts` |
+| `409` | request identifier belongs to another chain | `src/chain-setup-operations.ts` |
+| `409` | reviewed setup required; use GET /api/chain/setup and POST /api/chain/setup/requests. Automatic funding and staking are not part of setup. | `src/api.ts` |
+| `409` | saved setup request belongs to another chain configuration | `src/chain-setup-operations.ts` |
+| `409` | send request identifier belongs to another intent | `src/wallet-send-operations.ts` |
+| `409` | setup receipt changed; inspect the stored request | `src/chain-setup-operations.ts` |
 | `409` | state_exists | `src/agent-archive-restore.ts` |
 | `409` | this payout was already sent (\<row.tx_hash>) | `src/payouts.ts` |
+| `409` | transfer review is required: prepare /api/me/wallet/send-requests, inspect the receipt, then explicitly submit its ID; use /account in the web UI | `src/api.ts` |
+| `409` | wallet chain context changed; inspect the retained request | `src/wallet-send-operations.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
 | `423` | patch not listed yet (verification \<e.passed>/\<e.quorum>) | `src/api.ts` |
 | `429` | archive_operation_capacity | `src/agent-archive-operations.ts` |
@@ -373,11 +398,20 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `501` | docker_unavailable | `src/server.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
 | `502` | restore_cleanup_failed | `src/agent-archive-restore.ts` |
+| `503` | active chain connection could not be inspected | `src/chain-setup-operations.ts` |
 | `503` | archive_operation_unavailable | `src/agent-archive-operations.ts` |
+| `503` | chain could not be inspected; setup was not started | `src/chain-setup-operations.ts` |
 | `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
+| `503` | recipient could not be normalized | `src/wallet-send-operations.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
 | `503` | runtime_restore_\<code>: \<detail> | `src/market.ts`, `src/runtime-restoration.ts`, `src/verifier.ts` |
 | `503` | seller file unavailable; no payment accepted | `src/api.ts` |
+| `503` | send request history is unavailable | `src/wallet-send-operations.ts` |
+| `503` | setup request history is unavailable | `src/chain-setup-operations.ts` |
 | `503` | Stored inference journal is invalid; preserve it for operator reconciliation | `src/api.ts` |
 | `503` | the \<modality> backend stopped accepting work before this request started | `src/modality-gate.ts` |
 | `503` | the patch hook could not be reached (ENGRAM_HOOK=1?) | `src/api.ts` |
+| `503` | transfer history contains an invalid record | `src/wallet-send-operations.ts` |
+| `503` | wallet balance could not be inspected | `src/wallet-send-operations.ts` |
+| `503` | wallet chain context is unavailable | `src/wallet-send-operations.ts` |
+| `503` | wallet could not prepare a transaction | `src/wallet-send-operations.ts` |
