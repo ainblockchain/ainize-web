@@ -1863,3 +1863,14 @@ test('published management values are readable and copyable without draft save c
   assert.ok(description); assert.match(description, /readonly=""/i); assert.doesNotMatch(description, /disabled=""/);
   assert.doesNotMatch(html, />Save benchmark<|data-testid="announce"/);
 });
+
+
+test('published price and retirement controls respect stored retirement and bound reason inputs', () => {
+  const p = manageFixture(); p.status = 'VERIFIED';
+  const active = renderManage([...accessAuth, { ...manageRead(), value: p }, ...manageAux]);
+  assert.match(active, /data-testid="price-save"/); assert.match(active, /data-testid="takedown"/);
+  const reason = active.match(/<input[^>]*data-testid="price-reason"[^>]*>/)?.[0];
+  assert.ok(reason); assert.match(reason, /maxLength="500"/i);
+  const retired = renderManage([...accessAuth, { ...manageRead(), value: { ...p, retired_at: 100, retire_reason: 'No longer offered', sellable: false } }, ...manageAux]);
+  assert.match(retired, /No longer offered/); assert.doesNotMatch(retired, /data-testid="price-save"|data-testid="takedown"/);
+});

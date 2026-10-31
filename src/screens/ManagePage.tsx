@@ -1,3 +1,5 @@
+import { changeManagedPrice, retireManagedKnowledge, deleteManagedDraft, ManageLifecycleError } from '@/lib/manageLifecycle';
+import type { PatchDetail } from '@/api/types';
 import { ManageDraftConflict } from '@/components/operator/ManageDraftConflict';
 import { manageDraftEditor, receiveManageDraft, draftDirty, draftConflicts, resolveDraftGroup, saveManageDraft, ManageDraftError, type ManageDraftEditor, type ManageDraftValues, type DraftGroup } from '@/lib/manageDraft';
 import { useActiveView } from '@/hooks/useActiveView';
@@ -10,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAnnounceMutation, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery,
+  errorMessage, useAnnounceMutation, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery, useMeQuery,
   useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -69,6 +71,7 @@ function ManageView() {
   const { author = '', patchId = '' } = useParams();
   const navigate = useNavigate();
   const auth = useAuth();
+  const meQuery = useMeQuery();
   const { roles, address, cacheIdentity } = auth;
   const active = useActiveView();
   const current = () => active() && auth.isCurrentAccount();
@@ -115,7 +118,7 @@ function ManageView() {
     setEditor({ ...form, draft: { ...form.draft, ...values } }); setError(null); setNotice(null); setDraftFeedback(null);
   };
   const [reason, setReason] = useState('');
-  const [confirmMode, setConfirmMode] = useState(false);
+  const [confirmMode, setConfirmMode] = useState<PatchDetail | null>(null);
   /**
    * Item 150 + finding 32: publishing is the permanent, public, paid act, and it used to be one unguarded click
    * whenever it happened to retire nothing. Every publish crosses this sheet now; the typed id below is kept only
@@ -132,11 +135,12 @@ function ManageView() {
     return () => clearInterval(id);
   }, [verifyStart]);
   /** Item 148: the author's own takedown of a PUBLISHED knowledge — the exit `patch forget` was mistaken for. */
-  const [downMode, setDownMode] = useState(false);
+  const [downMode, setDownMode] = useState<PatchDetail | null>(null);
   const [downText, setDownText] = useState('');
   const [downReason, setDownReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lifecycleFeedback, setLifecycleFeedback] = useState<{ section: 'price' | 'retire'; message: string; tone: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     if (p && !busy && !patch.isFetching) setEditor(previous => receiveManageDraft(previous, p.anchor));
@@ -199,7 +203,7 @@ function ManageView() {
       if (finished && current() && ok) setNotice(ok);
     } catch (err) {
       if (current()) {
-        const message = err instanceof ManageDraftError ? t(err.code === 'benchmark' ? `op.benchmark.issue.${err.benchmarkIssue}` : `op.manage.draft.error.${err.code}`) : err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err);
+        const message = err instanceof ManageLifecycleError ? t(`op.manage.lifecycle.${err.code}`) : err instanceof ManageDraftError ? t(err.code === 'benchmark' ? `op.benchmark.issue.${err.benchmarkIssue}` : `op.manage.draft.error.${err.code}`) : err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err);
         if (onError) onError(message); else setError(message);
       }
     }
@@ -207,9 +211,11 @@ function ManageView() {
   };
 
   if (patch.isFetching && !patch.currentData) return <PageWrapper><CenterProgress /></PageWrapper>;
+  const failedAction = error || (draftFeedback?.tone === 'error' ? draftFeedback.message : null) || (lifecycleFeedback?.tone === 'error' ? lifecycleFeedback.message : null);
   const missing = patch.isError && patch.error && 'status' in patch.error && patch.error.status === 404;
-  if (missing || p && !managementMatchesAuthor(p, author)) return <PageWrapper><Title>{t('op.manage.notfound')}</Title><Description>{t(missing ? 'op.manage.notfound.desc' : 'op.manage.route_mismatch')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description></PageWrapper>;
-  if (!p || !form) return <PageWrapper><QueryError error={patch.error} what={t('op.knowledge')} onRetry={() => void patch.refetch()} retrying={patch.isFetching} /></PageWrapper>;
+  if (missing && busy) return <PageWrapper><CenterProgress /><Description role="status">{t('op.manage.lifecycle.checking')}</Description></PageWrapper>;
+  if (missing || p && !managementMatchesAuthor(p, author)) return <PageWrapper>{busy && <CenterProgress />}{failedAction && <Alert role="alert" $tone="error">{failedAction}</Alert>}<Title>{t('op.manage.notfound')}</Title><Description>{t(missing ? 'op.manage.notfound.desc' : 'op.manage.route_mismatch')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description></PageWrapper>;
+  if (!p || !form) return <PageWrapper>{failedAction && <Alert role="alert" $tone="error">{failedAction}</Alert>}<QueryError error={patch.error} what={t('op.knowledge')} onRetry={() => void patch.refetch()} retrying={patch.isFetching} /></PageWrapper>;
   if (!p.owned) {
     return (
       <PageWrapper>
@@ -689,7 +695,7 @@ function ManageView() {
       {!isDraft && (
         <>
           <SubTitle $mt={56}>{t('op.manage.price.title')}</SubTitle>
-          {p.status === 'RETIRED' ? <Muted>{t('op.manage.price.retired')}</Muted> : (
+          {p.status === 'RETIRED' || p.retired_at != null ? <Muted>{t('op.manage.price.retired')}</Muted> : (
             <Stack $gap={12} style={{ maxWidth: 560 }}>
               <Muted>{t('op.manage.price.desc', { price: money.fmt(a.price, a.currency) })}</Muted>
               {(p.price_history?.length ?? 0) > 0 && (
@@ -698,13 +704,16 @@ function ManageView() {
                 })}</Muted>
               )}
               <Row $gap={12} $wrap>
-                <TextField label={t('op.manage.price.field', { currency: money.unit(a.currency) })} value={newPrice} onChange={(e) => setNewPrice(e.target.value)} data-testid="price-field" style={{ maxWidth: 220 }} />
-                <TextField label={t('op.manage.price.reason')} value={priceReason} onChange={(e) => setPriceReason(e.target.value)} data-testid="price-reason" />
+                <TextField label={t('op.manage.price.field', { currency: money.unit(a.currency) })} value={newPrice} onChange={(e) => { setNewPrice(e.target.value); setLifecycleFeedback(null); }} data-testid="price-field" style={{ maxWidth: 220 }} />
+                <TextField label={t('op.manage.price.reason')} value={priceReason} maxLength={500} onChange={(e) => { setPriceReason(e.target.value); setLifecycleFeedback(null); }} data-testid="price-reason" />
               </Row>
               <Row>
                 <Button color="secondary" data-testid="price-save" disabled={!/^\d+(\.\d+)?$/.test(newPrice.trim()) || newPrice.trim() === a.price}
                   loading={setPriceState.isLoading} loadingText={t('op.manage.price.working')}
-                  onClick={() => run(async stillCurrent => { await setPrice({ id: a.id, price: newPrice.trim(), reason: priceReason.trim() || undefined }).unwrap(); if (stillCurrent()) { setNewPrice(''); setPriceReason(''); } }, t('op.manage.price.done'))}>
+                  onClick={() => { setLifecycleFeedback(null); void run(async stillCurrent => {
+                    const result = await changeManagedPrice(p, newPrice, priceReason, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: (price, reason) => setPrice({ id: a.id, price, reason }).unwrap() });
+                    if (result && stillCurrent()) { setNewPrice(''); setPriceReason(''); setLifecycleFeedback({ section: 'price', tone: 'success', message: t('op.manage.price.done') }); }
+                  }, undefined, message => setLifecycleFeedback({ section: 'price', tone: 'error', message })); }}>
                   {t('op.manage.price.button')}
                 </Button>
               </Row>
@@ -713,10 +722,12 @@ function ManageView() {
         </>
       )}
 
+      {lifecycleFeedback?.section === 'price' && <Alert role={lifecycleFeedback.tone === 'error' ? 'alert' : 'status'} $tone={lifecycleFeedback.tone} style={{ marginTop: 12 }}>{lifecycleFeedback.message}</Alert>}
+
       <SubTitle $mt={56}>{isDraft ? t('op.manage.delete.title') : t('op.manage.takedown.title')}</SubTitle>
       {!isDraft ? (
         <>
-          {p.status === 'RETIRED' ? (
+          {p.status === 'RETIRED' || p.retired_at != null ? (
             <DeleteDesc data-testid="retired-note">
               {t('op.manage.takedown.already', { when: p.retired_at ? dateTime(p.retired_at) : '—' })}
               {p.retire_reason ? ` ${t('op.manage.takedown.already.reason', { reason: p.retire_reason })}` : ''}
@@ -724,22 +735,26 @@ function ManageView() {
           ) : !downMode ? (
             <>
               <DeleteDesc>{t('op.manage.delete.sealed')} {t('op.manage.takedown.desc')}</DeleteDesc>
-              <Button color="secondary" data-testid="takedown" onClick={() => { setDownText(''); setDownReason(''); setDownMode(true); }}>{t('op.manage.takedown.button')}</Button>
+              <Button color="secondary" data-testid="takedown" onClick={() => { setDownText(''); setDownReason(''); setDownMode(p); setLifecycleFeedback(null); setError(null); }}>{t('op.manage.takedown.button')}</Button>
             </>
           ) : (
             <Stack $gap={16} style={{ maxWidth: 560 }}>
               <DeleteDesc style={{ margin: 0 }}>{t('op.manage.takedown.desc')}</DeleteDesc>
               {paidSales(p) === null ? <Muted>{t('op.manage.sales_unknown')}</Muted> : paidSales(p)! > 0 && <Muted>{t('op.manage.takedown.sales', { n: paidSales(p)! })}</Muted>}
-              <TextField label={t('op.manage.takedown.reason')} placeholder={t('op.manage.takedown.reason.ph')} value={downReason} onChange={(e) => setDownReason(e.target.value)} data-testid="takedown-reason" />
+              <TextField label={t('op.manage.takedown.reason')} placeholder={t('op.manage.takedown.reason.ph')} value={downReason} maxLength={500} onChange={(e) => { setDownReason(e.target.value); setLifecycleFeedback(null); }} data-testid="takedown-reason" />
               <TextField label={t('op.manage.takedown.type', { id: a.id })} value={downText} onChange={(e) => setDownText(e.target.value)} data-testid="takedown-type" />
               <Row $gap={12}>
                 <Button variant="contained" color="secondary" disabled={downText.trim() !== a.id} loading={retireState.isLoading} loadingText={t('op.manage.takedown.working')}
                   data-testid="takedown-confirm"
-                  onClick={() => run(async stillCurrent => { await retire({ id: a.id, reason: downReason.trim() || undefined }).unwrap(); if (stillCurrent()) setDownMode(false); }, t('op.manage.takedown.done'))}>{t('op.manage.takedown.confirm')}</Button>
-                <Button variant="text" color="default" onClick={() => setDownMode(false)}>{t('op.manage.takedown.cancel')}</Button>
+                  onClick={() => { setLifecycleFeedback(null); void run(async stillCurrent => {
+                    const result = await retireManagedKnowledge(downMode, downText, downReason, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: reason => retire({ id: downMode.anchor.id, reason }).unwrap() });
+                    if (result && stillCurrent()) { setDownMode(null); setLifecycleFeedback({ section: 'retire', tone: 'success', message: t('op.manage.takedown.done') }); }
+                  }, undefined, message => setLifecycleFeedback({ section: 'retire', tone: 'error', message })); }}>{t('op.manage.takedown.confirm')}</Button>
+                <Button variant="text" color="default" onClick={() => setDownMode(null)}>{t('op.manage.takedown.cancel')}</Button>
               </Row>
             </Stack>
           )}
+          {lifecycleFeedback?.section === 'retire' && <Alert role={lifecycleFeedback.tone === 'error' ? 'alert' : 'status'} $tone={lifecycleFeedback.tone} style={{ marginTop: 12 }}>{lifecycleFeedback.message}</Alert>}
           <DevBox style={{ marginTop: 24 }}>
             <Muted style={{ display: 'block', marginBottom: 6 }}>{t('op.manage.dev.forget')}</Muted>
             <MonoBox>ainize patch forget {a.id}</MonoBox>
@@ -748,11 +763,12 @@ function ManageView() {
       ) : (
         <>
           <DeleteDesc>{t('op.manage.delete.desc')}</DeleteDesc>
-          <Button color="secondary" onClick={() => setConfirmMode(true)} data-testid="delete-draft">{t('op.manage.delete.button')}</Button>
+          <Button color="secondary" onClick={() => { setConfirmMode(p); setError(null); }} data-testid="delete-draft">{t('op.manage.delete.button')}</Button>
           {/* Finding 32 (other half): a local, unpublished, unpaid draft demanded its full id typed out — more
               friction than the permanent, public, paid publish above it. A plain confirmation is the right weight. */}
           {confirmMode && (
-            <Sheet title={t('op.manage.delete.sheet.title', { name: a.name || a.id })} onClose={() => setConfirmMode(false)} width={520} testId="delete-sheet">
+            <Sheet title={t('op.manage.delete.sheet.title', { name: confirmMode.anchor.name || confirmMode.anchor.id })} onClose={() => setConfirmMode(null)} width={520} testId="delete-sheet">
+              <Mono>{confirmMode.anchor.id}</Mono>
               <Consequences>
                 <li>{t('op.manage.delete.why.local')}</li>
                 <li>{t('op.manage.delete.why.file')}</li>
@@ -760,10 +776,13 @@ function ManageView() {
               </Consequences>
               {error && <Alert $tone="error" role="alert">{error}</Alert>}
               <SheetFooter>
-                <Button variant="text" color="default" onClick={() => setConfirmMode(false)}>{t('op.manage.delete.cancel')}</Button>
+                <Button variant="text" color="default" onClick={() => setConfirmMode(null)}>{t('op.manage.delete.cancel')}</Button>
                 <Button variant="contained" color="secondary" loading={delState.isLoading} loadingText={t('op.manage.delete.deleting')}
                   data-testid="delete-confirm"
-                  onClick={() => run(async stillCurrent => { await del(a.id).unwrap(); if (stillCurrent()) navigate('/dashboard'); })}>{t('op.manage.delete.confirm')}</Button>
+                  onClick={() => run(async stillCurrent => {
+                    const result = await deleteManagedDraft(confirmMode, auth.subject, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: () => del(confirmMode.anchor.id).unwrap(), readAccess: () => meQuery.refetch().unwrap() });
+                    if (result && stillCurrent()) navigate('/dashboard');
+                  })}>{t('op.manage.delete.confirm')}</Button>
               </SheetFooter>
             </Sheet>
           )}

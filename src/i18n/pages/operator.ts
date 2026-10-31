@@ -297,6 +297,15 @@ export const operatorDash: Dict = {
 };
 
 export const operatorManage: Dict = {
+  'op.manage.lifecycle.checking': { ko: '요청 결과를 확인하고 있습니다.', en: 'Checking the result of your request.' },
+  'op.manage.lifecycle.price': { ko: '가격은 0 이상의 숫자로 입력해 주세요.', en: 'Enter a non-negative decimal price.' },
+  'op.manage.lifecycle.reason': { ko: '사유는 500자 이내로 입력해 주세요.', en: 'Keep the reason within 500 characters.' },
+  'op.manage.lifecycle.confirm': { ko: '선택한 지식의 ID를 정확히 입력해 주세요.', en: 'Enter the exact selected knowledge id.' },
+  'op.manage.lifecycle.read': { ko: '선택한 지식의 현재 관리 정보를 확인하지 못해 요청하지 않았습니다.', en: 'Could not confirm the selected knowledge; no change was sent.' },
+  'op.manage.lifecycle.changed': { ko: '확인한 이후 자료 또는 가격이 변경됐습니다. 현재 내용을 검토한 뒤 다시 시도해 주세요. 확인 창이 열려 있다면 닫고 다시 열어 주세요.', en: 'The knowledge or price changed after you reviewed it. Check its current values before trying again; close and reopen any confirmation dialog.' },
+  'op.manage.lifecycle.state': { ko: '이 지식의 현재 상태에서는 요청한 작업을 할 수 없습니다.', en: 'This action is unavailable in the knowledge’s current state.' },
+  'op.manage.lifecycle.unconfirmed': { ko: '요청한 변경이 완료됐는지 확인하지 못했습니다. 다시 요청하기 전에 현재 상태를 확인해 주세요.', en: 'Could not confirm the requested change. Check the current state before retrying.' },
+  'op.manage.lifecycle.access': { ko: '현재 운영 권한을 확인하지 못해 삭제 완료로 표시하지 않았습니다. 로그인 상태를 확인한 뒤 목록을 다시 불러와 주세요.', en: 'Could not confirm current operator access, so deletion is not confirmed. Check your login and reload the list.' },
   'op.manage.draft.price_label': { ko: '가격', en: 'Price' },
   'op.manage.draft.empty_value': { ko: '(빈 값)', en: '(empty)' },
   'op.manage.draft.conflict': { ko: '편집한 항목이 다른 곳에서 변경됐습니다. 아래 현재 서버 값과 비교한 뒤 선택해 주세요.', en: 'Fields you edited changed elsewhere. Review their current server values below before choosing.' },
