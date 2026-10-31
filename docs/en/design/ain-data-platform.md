@@ -1,56 +1,60 @@
 ---
-title: "Design (draft): AIN Store — a web3 Firestore"
-summary: Status — awaiting approval. A Firestore replacement where AIN Blockchain carries the authority (rules, triggers, the ordered write log and a commitment to the database), AinDrive holds the documents and the log archive, the per-project SQLite is the only index, AIN SSO is the identity behind every permission, and ainize Runs execute triggers under that identity.
+title: "Design: AIN Store — a web3 Firestore"
+summary: Status — approved 2026-10-31. A Firestore replacement where AIN Blockchain carries the authority (rules, triggers, an O(log n) Merkle Mountain Range over every write, and a state root), AinDrive holds the documents and the write records, the per-project SQLite is the only index, AIN SSO is the identity behind every permission, and ainize Runs execute triggers under that identity.
 ---
 
-# Design (draft): AIN Store — a web3 Firestore
+# Design: AIN Store — a web3 Firestore
 
-**Status: awaiting approval (2026-10-31).**
+**Status: approved 2026-10-31.**
 
 AIN Store is the database apps on ainize use in place of Firestore. It keeps what made Firestore easy: documents and collections, queries, realtime listeners, security rules and triggers. The difference is where the authority lives. Firestore's rules and triggers run inside Google, and you trust Google to apply them. In AIN Store they run in **AIN Blockchain consensus**: every node checks every write against the rules, and every trigger fires from a finalized transaction. Nobody, the operator included, can skip a rule or bypass a trigger unnoticed.
 
 | Part | Role | Firestore equivalent |
 | --- | --- | --- |
-| AIN Blockchain | **Authority**: rules (`.rule`), triggers (`.function`), the **ordered write log** (bounded), and one **commitment** to the database's current state | Security rules, function triggers, the commit order Google keeps internally |
-| AinDrive | **Document bodies and files** stored under their hash, plus the **log archive** | Document contents, Cloud Storage |
-| Store (per project) | **SQLite: the only index.** Built by replaying the chain log and AinDrive bodies; answers gets, queries and realtime | Firestore's storage and indexes |
+| AIN Blockchain | **Authority**: rules (`.rule`), triggers (`.function`), a consensus-maintained **Merkle Mountain Range** over every write (O(log n) state), and the database's **state root** | Security rules, function triggers, the commit order Google keeps internally |
+| AinDrive | **Document bodies and files** stored under their hash, plus the **write records** | Document contents, Cloud Storage |
+| Store (per project) | **SQLite: the only index.** Built by replaying the write records and AinDrive bodies; answers gets, queries and realtime | Firestore's storage and indexes |
 | AIN SSO | **Identity and roles** for users, orgs and services; delegations to sessions, agents and Runs | Firebase Auth, custom claims |
 | ainize Runs | **Executes triggers** under a scoped identity issued by SSO | Cloud Functions |
 
 ## Principles
 
 1. **Index once.** Looking up a document by id or field is the database's job, and SQLite already does it. The chain never stores a per-document copy of that index; it stores what only a chain can give.
-2. **The chain orders and authorizes every write.** Each write is a log entry on chain, checked by consensus rules and able to fire triggers. The order of the log is the order of the database.
-3. **The database is a deterministic function of the log.** Replaying the log, with bodies from AinDrive, rebuilds the same SQLite, so the Store holds no authority of its own.
-4. **One commitment, not one entry per document.** The Store publishes the Merkle root of its current state. Any document can be proven against it, and anyone can recompute it by replay.
+2. **The chain orders and authorizes every write.** Each write is a transaction on chain, checked by consensus rules and able to fire triggers. Chain order is the order of the database.
+3. **The database is a deterministic function of the write records.** Replaying them, with bodies from AinDrive, rebuilds the same SQLite, so the Store holds no authority of its own.
+4. **On-chain index grows as log₂ n.** Consensus folds every write into a Merkle Mountain Range: at most ⌊log₂ n⌋ + 1 peaks after n writes. Every write ever made, and every document's current state, can be proven with an O(log n) path. Nothing is garbage-collected away.
 5. **One identity end to end.** The SSO account that signs a write is the `auth` its rules see. The trigger that write fires runs with permissions derived from that account or from the app's own account, never wider.
 
 ## Data model
 
 ```text
-chain    /apps/<app>/log/<collection>/<key>   = { id, op, base, h }   write log, oldest entries garbage-collected
-         /apps/<app>/log/<collection>/.rule   write rule (consensus) + state rule { gc_max_siblings, max_bytes }
-         /apps/<app>/log/<collection>/$key/.function   trigger → ainize Runs
-         /apps/<app>/commit                   = { upTo, root, segment }   one value, overwritten
+chain    /apps/<app>/writes/<collection>/$key            write slot: { id, op, base, h }; erased in the same transaction
+         /apps/<app>/writes/<collection>/.rule           write rule (consensus)
+         /apps/<app>/writes/<collection>/$key/.function  _storeAppend (native) + trigger → ainize Runs
+         /apps/<app>/store/mmr                         = { n, peaks: [≤ ⌊log₂ n⌋ + 1 hashes] }   consensus-maintained
+         /apps/<app>/store/state                       = { upTo, root }   state root posted by the Store
 AinDrive <org drive>/store/<app>/objects/<sha256>     document body (JSON) or file bytes
-         <org drive>/store/<app>/log/<segment>        archived log entries, in chain order
+         <org drive>/store/<app>/writes/<segment>     every write record, in MMR order (the leaves)
 Store    SQLite: documents (collection, id, version, hash, data) + declared indexes
+         sparse Merkle tree over (collection, id) → (version, hash)
 ```
 
-- **Log entries:** `{ id, op: "set" | "merge" | "delete", base: <version it was written against>, h: <body hash> }`, about 400 bytes. `<key>` is a time-ordered push id, so the chain's state rule (`gc_max_siblings`, for example 1,000) drops the oldest entries automatically. Chain state per collection is bounded whatever the number of documents.
-- **Bodies:** JSON on AinDrive under its sha256. The log entry carries only the hash.
-- **Applying the log:** the Store tails finalized log entries in chain order, fetches each body, and applies it to SQLite. An entry whose `base` is not the document's current version is rejected the same way on every replay; that is optimistic concurrency, decided by log order.
-- **Commitment:** every N entries or minutes, the Store builds a Merkle root over `(collection, id, version, hash)`, which are the rows SQLite already holds. It overwrites `/apps/<app>/commit` with the root, the last log position it covers, and the AinDrive log segment it archived.
-- **History:** nodes keep bounded history, so the Store archives log entries to AinDrive segments before the chain garbage-collects them. Archive plus bodies is the complete original. A lost Store is rebuilt from it, and its rebuilt root must equal the committed one.
-- **Private collections:** document ids in log entries are HMACs under an org key; bodies stay behind AinDrive permissions.
-- **Public collections:** game scores and NFT metadata may put the value itself in the log entry and keep a small public mirror on chain for other apps to read.
+- **Write records:** `{ id, op: "set" | "merge" | "delete", base: <version it was written against>, h: <body hash> }`. A write sets its slot; the slot's rule checks it; then a new native function, `_storeAppend`, hashes the record together with the transaction hash into a leaf, merges it into the app's MMR peaks, and erases the slot. All of that happens in the same transaction. The chain keeps only `n` and the peaks: 20 peaks cover a million writes, 30 cover a billion.
+- **Why an MMR:** appending costs O(log n) hash merges, and the peaks commit to every record ever written, in order. A record's inclusion proof is its O(log n) Merkle path from the archived leaves to a peak. Because consensus computes the peaks, the Store cannot drop, reorder or alter a past write without every proof against the chain failing.
+- **Bodies:** JSON on AinDrive under its sha256. The write record carries only the hash.
+- **Applying writes:** the Store follows finalized writes in chain order, fetches each body, and applies it to SQLite. A write whose `base` is not the document's current version is rejected the same way on every replay; that is optimistic concurrency, decided by chain order.
+- **State root:** SQLite holds the current documents; the Store also keeps a sparse Merkle tree over `(collection, id) → (version, hash)`. Every N writes or minutes it posts `/apps/<app>/store/state = { upTo: <MMR position>, root }`, one value overwritten. Proving a document's current state is an O(log n) path to that root. Anyone can recompute the root by replaying the leaves up to `upTo`, and every leaf is provable against the MMR.
+- **History:** the leaves (write records) are archived on AinDrive in MMR order. Leaves plus bodies are the complete original. A lost Store is rebuilt from them, and its rebuilt roots must equal the MMR peaks and the posted state root.
+- **Private collections:** document ids in write records are HMACs under an org key; bodies stay behind AinDrive permissions.
+- **Public collections:** game scores and NFT metadata may put the value itself in the write record and keep a small public mirror on chain for other apps to read.
 
 ## Write path
 
 ```text
 SDK ─► Store ─► AinDrive: put body → sha256
-               └► chain tx: SET_VALUE /apps/<app>/log/<col>/<key> = { id, op, base, h }   (signed by the user's session key)
+               └► chain tx: SET_VALUE /apps/<app>/writes/<col>/<key> = { id, op, base, h }   (signed by the user's session key)
                      ├ .rule checks auth (SSO account, org role) and the entry's shape   — consensus
+                     ├ _storeAppend folds it into the MMR peaks, erases the slot      — consensus
                      ├ .function → ainize Runs (trigger)
                      └ finalized → Store applies it to SQLite → realtime listeners
 ```
@@ -62,14 +66,14 @@ SDK ─► Store ─► AinDrive: put body → sha256
 
 **What rules can check.**
 - **Enforced by consensus:** who is writing (SSO account, org, role, session expiry), what is written (shape, sizes, allowed ops), and the collection's limits.
-- **Enforced on replay:** conditions on the document's existing contents, such as "only the owner may edit". The chain does not hold per-document state, so these rules run deterministically when the log is applied. A violation is rejected identically on every replay, and anyone can check it by replaying.
+- **Enforced on replay:** conditions on the document's existing contents, such as "only the owner may edit". The chain does not hold per-document state, so these rules run deterministically when writes are applied. A violation is rejected identically on every replay, and anyone can check it by replaying.
 - A collection that needs such a condition enforced by consensus can opt in to a small per-document field on chain, for example the owner.
 
 ## Read path
 
-- **Gets, queries, realtime:** all served by the Store's SQLite: `where`, `orderBy`, `limit`, cursors and `onSnapshot`. It is the one index, kept current by the log.
-- **Verification:** the SDK can ask for a Merkle proof with any document and check it against `/apps/<app>/commit`. It also checks the body's hash.
-- **Read permission:** the log holds hashes, not contents. Bodies are protected by AinDrive permissions under SSO roles and shares, and the Store applies each collection's `read` rule to queries and listeners.
+- **Gets, queries, realtime:** all served by the Store's SQLite: `where`, `orderBy`, `limit`, cursors and `onSnapshot`. It is the one index, kept current by the write records.
+- **Verification:** the SDK can ask for two O(log n) proofs with any document: one that its current version is in the state root at `/apps/<app>/store/state`, and one that the write that produced it is in the chain's MMR. It also checks the body's hash.
+- **Read permission:** write records hold hashes, not contents. Bodies are protected by AinDrive permissions under SSO roles and shares, and the Store applies each collection's `read` rule to queries and listeners.
 
 ## Permissions through AIN SSO
 
@@ -85,7 +89,7 @@ SDK ─► Store ─► AinDrive: put body → sha256
 ### Rules
 
 ```text
-/apps/donga/log/articles/.rule.write:
+/apps/donga/writes/articles/.rule.write:
   getValue('/apps/ain_sso/sessions/' + auth.addr + '/org') === 'org_donga'
   && ['editor','admin'].includes(getValue('/apps/ain_sso/orgs/org_donga/members/'
        + getValue('/apps/ain_sso/sessions/' + auth.addr + '/addr')))
@@ -104,7 +108,7 @@ finalized tx ─► chain .function (REST, whitelisted URL) ─► ainize node
    Run's writes go through the same chain rules
 ```
 
-- **Declaring a trigger:** `ainize.json` declares, per trigger, the paths it may write and the AinDrive objects it may read. For example: `"on-article": { "type": "ain", "path": "/apps/donga/log/articles/$key", "as": "app", "writes": ["/apps/donga/log/translations"] }`.
+- **Declaring a trigger:** `ainize.json` declares, per trigger, the paths it may write and the AinDrive objects it may read. For example: `"on-article": { "type": "ain", "path": "/apps/donga/writes/articles/$key", "as": "app", "writes": ["/apps/donga/writes/translations"] }`.
 - **Running as the app (`as: "app"`):** the Run acts as the project's own SSO service account, owned by the org. Its permission is the declared scope, limited to the roles the org grants that account.
 - **Running as the caller (`as: "caller"`):** the Run acts for the account that signed the triggering transaction. It can never do more than that user could.
 - **Verified events:** the node checks the event against the chain before running anything. The per-trigger URL token stays only as rate-limit protection.
@@ -113,25 +117,26 @@ finalized tx ─► chain .function (REST, whitelisted URL) ─► ainize node
 
 ## Capacity and cost
 
-Chain state is now bounded by the log window, not by the number of documents.
+Chain state grows with log₂ of the number of writes, not with the number of documents.
 
-| Project | Documents (measured 2026-10-31) | Write rate | Chain state |
+| Project | Documents (measured 2026-10-31) | Writes | Chain state |
 | --- | --- | --- | --- |
-| Donga Science | 214,566 | About 440 new articles in October 2026, each with a translation and an evaluation | Log window 1,000 entries per collection × about 400 B ≈ 0.4 MB per collection, plus one commit value |
-| Baby Shark | 8,669 top-level | Low | Under 0.5 MB |
-| a2a orchestrator | About 6,000 | Low | Under 0.5 MB |
+| Donga Science | 214,566 | About 440 new articles in October 2026, each with a translation and an evaluation | MMR over all past writes: ⌊log₂ n⌋ + 1 ≤ 20 peaks while n < 1M, about 4 KB; plus one state root |
+| Baby Shark | 8,669 top-level | Low | Under 4 KB |
+| a2a orchestrator | About 6,000 | Low | Under 4 KB |
 
-- With per-document entries Donga would have needed about 64 MB; with the log it needs well under 5 MB. The budget increase approved for Donga covers it with a wide margin.
-- **Per-app budgets** (decision D2) remain the isolation mechanism. The chain's existing state rule `max_bytes` caps each log path as well.
+- Per-document entries would have needed about 64 MB for Donga. The MMR needs about 4 KB, and only about 6 KB at a billion writes.
+- The write slot is erased in the same transaction, so write records never accumulate on chain. The records themselves (about 100 B each; Donga writes about 15k per 30 days, about 1.5 MB a month) are stored on AinDrive.
+- **Per-app budgets** (decision D2) remain the isolation mechanism.
 - **Writes:** one transaction per write or batch, acknowledged at finality (a few seconds) behind the SDK's pending state.
 - **Reads** never touch the chain.
-- **Monitoring:** every 5 minutes, check per-app budget use, log lag (the Store's applied position against the chain), archive lag (it must stay ahead of garbage collection), and trigger failures. Alert AIN Teams #comcom at 70% and 85%.
+- **Monitoring:** every 5 minutes, check per-app budget use, apply lag (the Store's position against the MMR's `n`), archive completeness (every leaf up to `n` is on AinDrive), state-root lag, and trigger failures. Alert AIN Teams #comcom at 70% and 85%.
 
 ## Moving off Firebase
 
 | Firebase | AIN Store |
 | --- | --- |
-| Firestore documents and collections | SQLite in the Store, bodies on AinDrive, writes as chain log entries |
+| Firestore documents and collections | SQLite in the Store, bodies on AinDrive, writes as chain transactions |
 | Queries, `onSnapshot` | Store queries and SSE listeners |
 | Security rules | Chain `.rule`, with SSO roles through `/apps/ain_sso` |
 | Cloud Functions triggers | Chain `.function` to ainize Runs, with SSO delegations |
@@ -161,16 +166,16 @@ Today a triggered Run runs with the key of whoever last pushed the project, whic
 
 ## Build order
 
-1. Chain: per-app budgets, deletions always accepted, the REST whitelist entry for ainize.
+1. Chain: the `_storeAppend` native function (MMR append and slot erase), per-app budgets, deletions always accepted, the REST whitelist entry for ainize.
 2. SSO: publish the directory (`/apps/ain_sso` orgs, members, sessions); session keys at sign-in.
-3. Store: SDK, log tailer and deterministic apply, SQLite indexes, commitment and proofs, AinDrive bodies and log archive, SSE, rule helpers.
+3. Store: SDK, write follower and deterministic apply, SQLite indexes, sparse Merkle state root and proofs, AinDrive bodies and leaf archive, SSE, rule helpers.
 4. Runs: verified events, delegations, `as` and `writes`, on-chain install.
 5. Migrate Baby Shark, then nft-server, then Donga Science with one week of dual-run, then the orchestrator.
 
-## Decisions for approval
+## Decisions (approved 2026-10-31)
 
-- **D1. No per-document index on chain.** The chain holds rules, triggers, a bounded write log and one commitment; SQLite is the only index; AinDrive holds bodies and the log archive.
+- **D1. On-chain index is O(log n).** A consensus-maintained Merkle Mountain Range over every write, through a new native function `_storeAppend`, plus a state root. SQLite is the only query index; AinDrive holds bodies and the write records. This is a mainnet consensus change.
 - **D2. Per-app state budgets** set by governance replace the shared free pool, and deletions are always accepted. This is a mainnet consensus change. Donga's increase is approved.
 - **D3. SSO publishes orgs, members and sessions on chain, and users sign with SSO-issued session keys.**
 - **D4. Runs execute `as: "app"` (default) or `as: "caller"`, scoped by SSO resource delegations to declared paths.**
-- **D5. Data-dependent rules run on deterministic replay by default, and opt in to consensus with a per-document field.**
+- **D5. Data-dependent rules run on deterministic replay by default. A later option: verify them in consensus by having the transaction carry the document's O(log n) state proof.**

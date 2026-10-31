@@ -203,11 +203,11 @@
     ]
   },
   {
-    "group": "설계 (검토 중)",
+    "group": "설계",
     "pages": [
       {
         "page": "design/ain-data-platform",
-        "title": "설계 (검토 중): AIN Store"
+        "title": "설계: AIN Store"
       }
     ]
   }
