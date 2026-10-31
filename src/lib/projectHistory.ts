@@ -38,6 +38,10 @@ function readHistory(raw: unknown, projectId: string, key: 'runs' | 'deployments
 
 export const readProjectRunHistory = (raw: unknown, projectId: string) => readHistory(raw, projectId, 'runs');
 export const readProjectDeploymentHistory = (raw: unknown, projectId: string) => readHistory(raw, projectId, 'deployments');
+export function readProjectDeployment(raw: unknown, projectId: string, deploymentId: string): Deployment | null {
+  const row = readProjectDeploymentHistory({ deployments: [raw] }, projectId)?.[0];
+  return row?.id === deploymentId ? row : null;
+}
 export const deploymentLogHref = (id: string) => `/api/deployments/${encodeURIComponent(id)}/log`;
 
 /** Header redeploy means the project's latest deployment attempt, never the first arbitrary response row. */

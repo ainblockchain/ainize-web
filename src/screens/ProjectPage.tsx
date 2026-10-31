@@ -33,7 +33,7 @@ import {
   aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, invalidInputs, projectInputValue, projectRunEnvIssues, projectRunTimeout, isModelInput, missingInputs, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
   type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
-import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
+import { logTime, readRuntimeLogs, runtimeLogProblemOf, runtimeLogsMatchDeployment, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
 import { useAuth } from '@/auth/AuthContext';
 import { useActiveView } from '@/hooks/useActiveView';
 import { Button } from '@/components/ui/Button';
@@ -134,7 +134,7 @@ const RunLine = styled.div<{ $err: boolean }>`
  * Owner and organization members only; "Follow" asks again every few seconds and keeps the view at the bottom unless
  * the reader scrolled up.
  */
-function RuntimeLogView({ project }: { project: Project }) {
+export function RuntimeLogView({ project, onRefreshProject }: { project: Project; onRefreshProject?: () => void }) {
   const { t } = useT();
   const { isSignedIn, cacheIdentity } = useAuth();
   const [tail, setTail] = useState<number>(RUNTIME_LOG_DEFAULT_TAIL);
@@ -148,21 +148,25 @@ function RuntimeLogView({ project }: { project: Project }) {
     return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(window.location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
   }
   if (!project.canOperate) return <Panel><Help>{t('projects.logs.not_member', { org: project.org })}</Help></Panel>;
-  const data = q.error ? undefined : q.currentData;
-  const problem = q.error ? runtimeLogProblemOf(q.error) : null;
+  const read = q.error ? null : readRuntimeLogs(q.currentData, { id: project.id, tail });
+  const changed = !!read && !runtimeLogsMatchDeployment(read, project);
+  const data = changed ? null : read;
+  const problem = q.error ? runtimeLogProblemOf(q.error) : !q.isFetching && !read ? 'unavailable' : null;
+  const refresh = () => { stick.current = true; onRefreshProject?.(); void q.refetch(); };
   return (
     <>
       <FilterRow>
-        {data && <Meta>{t(data.placement === 'peer' ? 'projects.logs.placement_peer' : 'projects.logs.placement_local')} · <Mono title={data.sha}>{shortSha(data.sha)}</Mono> · {t('projects.logs.updated', { time: new Date(data.fetchedAt).toLocaleTimeString(undefined, { hour12: false }) })}</Meta>}
+        {data && <Meta>{t(data.placement === 'peer' ? 'projects.logs.placement_peer' : 'projects.logs.placement_local')} · <Mono title={data.deploymentId}>{data.deploymentId}</Mono> · <Mono title={data.sha}>{shortSha(data.sha)}</Mono> · {t('projects.logs.updated', { time: new Date(data.fetchedAt).toLocaleTimeString(undefined, { hour12: false }) })}</Meta>}
         <Spacer />
         <Checkbox label={t('projects.logs.follow')} checked={follow} onChange={(e) => { setFollow(e.target.checked); stick.current = true; }} />
         <Select aria-label={t('projects.logs.tail')} value={String(tail)} onChange={(e) => setTail(Number(e.target.value))}>
           {RUNTIME_LOG_TAILS.map((n) => <option key={n} value={n}>{n}</option>)}
         </Select>
-        <Button size="small" loading={q.isFetching} onClick={() => { stick.current = true; void q.refetch(); }}>{t('projects.logs.refresh')}</Button>
+        <Button size="small" loading={q.isFetching} onClick={refresh}>{t('projects.logs.refresh')}</Button>
         <Button size="small" onClick={() => download(`${project.org}-${project.repoName}-runtime.log`, runtimeLogsText(data?.lines ?? []))} disabled={!data?.lines.length}>{t('projects.logs.download')}</Button>
       </FilterRow>
       <Help>{t('projects.logs.runtime_hint')}</Help>
+      {changed && <Alert role="alert" $tone="info">{t('projects.logs.deployment_changed')}</Alert>}
       {problem && <Alert $tone={problem === 'not_running' ? 'info' : 'error'}>{t(`projects.logs.${problem}`, { org: project.org })}</Alert>}
       {q.isFetching && !data ? <CenterProgress /> : data && (
         <Log ref={box} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}>
@@ -578,7 +582,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
               <Button size="small" variant={logView === 'build' ? 'contained' : undefined} aria-pressed={logView === 'build'} onClick={() => setLogView('build')}>{t('projects.logs.build')}</Button>
             </FilterRow>
           )}
-          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deploymentsFailed || runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (readRuns) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (deploymentRead === null && deployments.isFetching) || (runRead === null && runs.isFetching) ? <CenterProgress /> : (
+          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} onRefreshProject={() => void projectQ.refetch()} /> : deploymentsFailed || runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (readRuns) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (deploymentRead === null && deployments.isFetching) || (runRead === null && runs.isFetching) ? <CenterProgress /> : (
             <>
               <FilterRow>
                 <Select aria-label={t('projects.logs.record')} value={logId} onChange={e => setLogRecord(e.target.value)}>

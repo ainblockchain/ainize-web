@@ -12,11 +12,15 @@ import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useDeleteProjectSecretMutation, useDeploymentQuery, useProjectSecretsQuery, useRedeployMutation, useSetProjectSecretMutation } from '@/api/api';
 import {
-  envAccessOf, envRowsOf, parseDotEnv, planBulk, saveSecretsSequentially, secretApiErrorOf, secretNameProblem, secretValueProblem, SECRET_VALUE_MAX,
+  declaredSecretNames, envAccessOf, envRowsOf, parseDotEnv, planBulk, readProjectSecretsResponse, saveSecretsSequentially, secretApiErrorOf, secretNameProblem, secretValueProblem, SECRET_VALUE_MAX,
   type BulkPlanRow, type EnvRow,
 } from '@/api/projectSecrets';
 import { relativeTime, statusToneOf, type Project, type Queued } from '@/api/projects';
 import { useAuth } from '@/auth/AuthContext';
+import { useActiveView } from '@/hooks/useActiveView';
+import { createProjectEnvWork, type ProjectEnvWork } from '@/lib/projectEnvWork';
+import { deploymentLogHref, readProjectDeployment } from '@/lib/projectHistory';
+import { projectRunReceipt } from '@/lib/projectRun';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Textarea } from '@/components/ui/Form';
 import { ExternalLink, Mono } from '@/components/ui/Misc';
@@ -74,21 +78,25 @@ function ValueInput({ id, value, onChange, autoFocus }: { id: string; value: str
 }
 
 /** A deployment a save started, followed until it is ready or failed. */
-export function DeployWatch({ queued, onOpen }: { queued: Queued; onOpen?: (deploymentId: string) => void }) {
+export function DeployWatch({ projectId, queued, onOpen }: { projectId: string; queued: Queued; onOpen?: (deploymentId: string) => void }) {
   const { t } = useT();
   const [done, setDone] = useState(false);
-  const q = useDeploymentQuery({ id: queued.deploymentId, identity: useAuth().cacheIdentity }, { pollingInterval: done ? 0 : 2000 });
-  const d = q.currentData;
+  const accepted = projectRunReceipt(queued);
+  const q = useDeploymentQuery({ id: queued.deploymentId, identity: useAuth().cacheIdentity }, { skip: !accepted, pollingInterval: done ? 0 : 2000 });
+  const read = q.error ? null : readProjectDeployment(q.currentData, projectId, queued.deploymentId);
+  const d = read?.trigger === 'redeploy' ? read : null;
   const status = d?.status ?? queued.status;
-  useEffect(() => { if (status === 'ready' || status === 'error') setDone(true); }, [status]);
-  if (q.error) return <Alert role="alert" $tone="error">{t('projects.page.history_failed')} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>;
+  useEffect(() => { if (d?.status === 'ready' || d?.status === 'error') setDone(true); }, [d?.status]);
+  if (!accepted) return <Alert role="alert" $tone="warning">{t('projects.env.deploy.unconfirmed')}</Alert>;
+  if (q.error || !q.isFetching && !d || q.currentData !== undefined && !d) return <Alert role="alert" $tone="error">{t('projects.page.history_failed')} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>;
   return (
     <Alert $tone={status === 'error' ? 'error' : status === 'ready' ? 'success' : 'info'} aria-live="polite">
       <Actions>
         <Badge $tone={statusToneOf(status)}>{t(`projects.status.${status}`)}</Badge>
+        <Mono>{queued.deploymentId}</Mono>
         <span>{t(`projects.env.deploy.${status}`)}</span>
         <Spacer />
-        {d?.logUrl && <ExternalLink href={d.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>}
+        {d && <ExternalLink href={deploymentLogHref(d.id)} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>}
         {onOpen && <Button size="small" variant="text" onClick={() => onOpen(queued.deploymentId)}>{t('projects.env.deploy.open')}</Button>}
       </Actions>
       {d?.error && <Help>{d.error}</Help>}
@@ -96,7 +104,7 @@ export function DeployWatch({ queued, onOpen }: { queued: Queued; onOpen?: (depl
   );
 }
 
-function EnvItem({ row, project, redeploy, onSaved }: { row: EnvRow; project: Project; redeploy: boolean; onSaved: (q: Queued | null) => void }) {
+function EnvItem({ row, project, redeploy, work, onSaved }: { row: EnvRow; project: Project; redeploy: boolean; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
   const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
@@ -105,15 +113,17 @@ function EnvItem({ row, project, redeploy, onSaved }: { row: EnvRow; project: Pr
   const [del, deleting] = useDeleteProjectSecretMutation();
   const problem = secretValueProblem(value);
   const save = async () => {
+    if (work.blocked()) return;
     setErr(null);
     if (problem) return;
-    try { const r = await put({ id: project.id, name: row.name, value, redeploy }).unwrap(); setEditing(false); setValue(''); onSaved(r.redeploy); }
+    try { const r = await work.run(() => put({ id: project.id, name: row.name, value, redeploy }).unwrap()); if (!r) return; setEditing(false); setValue(''); onSaved(r.redeploy); }
     catch (e) { setErr(errorText(t, e)); }
   };
   const remove = async () => {
+    if (work.blocked()) return;
     if (!window.confirm(t('projects.env.remove_confirm', { name: row.name }))) return;
     setErr(null);
-    try { const r = await del({ id: project.id, name: row.name, redeploy }).unwrap(); onSaved(r.redeploy); }
+    try { const r = await work.run(() => del({ id: project.id, name: row.name, redeploy }).unwrap()); if (!r) return; onSaved(r.redeploy); }
     catch (e) { setErr(errorText(t, e)); }
   };
   return (
@@ -145,7 +155,7 @@ function EnvItem({ row, project, redeploy, onSaved }: { row: EnvRow; project: Pr
   );
 }
 
-function AddForm({ project, existing, redeploy, onSaved }: { project: Project; existing: string[]; redeploy: boolean; onSaved: (q: Queued | null) => void }) {
+function AddForm({ project, existing, redeploy, work, onSaved }: { project: Project; existing: string[]; redeploy: boolean; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
   const { t } = useT();
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
@@ -157,9 +167,10 @@ function AddForm({ project, existing, redeploy, onSaved }: { project: Project; e
   const valueProblem = secretValueProblem(value);
   const replaces = !nameProblem && existing.includes(trimmed);
   const submit = async () => {
+    if (work.blocked()) return;
     setTouched(true); setErr(null);
     if (nameProblem || valueProblem) return;
-    try { const r = await put({ id: project.id, name: trimmed, value, redeploy }).unwrap(); setName(''); setValue(''); setTouched(false); onSaved(r.redeploy); }
+    try { const r = await work.run(() => put({ id: project.id, name: trimmed, value, redeploy }).unwrap()); if (!r) return; setName(''); setValue(''); setTouched(false); onSaved(r.redeploy); }
     catch (e) { setErr(errorText(t, e)); }
   };
   return (
@@ -185,7 +196,7 @@ function AddForm({ project, existing, redeploy, onSaved }: { project: Project; e
   );
 }
 
-function BulkPaste({ project, existing, redeploy, onSaved }: { project: Project; existing: string[]; redeploy: boolean; onSaved: (q: Queued | null) => void }) {
+function BulkPaste({ project, existing, redeploy, work, onSaved }: { project: Project; existing: string[]; redeploy: boolean; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
   const { t } = useT();
   const [text, setText] = useState('');
   const [plan, setPlan] = useState<{ rows: BulkPlanRow[]; skipped: ReturnType<typeof parseDotEnv>['skipped'] } | null>(null);
@@ -195,12 +206,17 @@ function BulkPaste({ project, existing, redeploy, onSaved }: { project: Project;
   const valid = plan?.rows.filter((r) => r.action !== 'invalid') ?? [];
   const preview = () => { const p = parseDotEnv(text); setPlan({ rows: planBulk(p.entries, existing), skipped: p.skipped }); setResult(null); };
   const saveAll = async () => {
-    if (!valid.length) return;
+    if (!valid.length || work.blocked()) return;
     setResult(null); setProgress({ done: 0, total: valid.length });
-    const r = await saveSecretsSequentially(valid, (name, value, rd) => put({ id: project.id, name, value, redeploy: rd }).unwrap(), {
-      redeployLast: redeploy, onProgress: (done, total) => setProgress({ done, total }),
+    const r = await work.run(async () => {
+      const result = await saveSecretsSequentially(valid, (name, value, rd) => put({ id: project.id, name, value, redeploy: rd }).unwrap(), {
+        redeployLast: redeploy, onProgress: (done, total) => setProgress({ done, total }), isActive: work.active,
+      });
+      if (result.failed) work.report(result.failed.error);
+      return result;
     });
     setProgress(null);
+    if (!r) return;
     setResult({ ok: r.saved.length, failed: r.failed ? `${r.failed.name}: ${errorText(t, r.failed.error)}` : null });
     if (!r.failed) { setText(''); setPlan(null); }
     else setPlan((p) => p && { ...p, rows: p.rows.filter((row) => !r.saved.some((s) => s.name === row.name)) });
@@ -250,12 +266,34 @@ export function useProjectEnv(project: Project) {
   const { isSignedIn, cacheIdentity } = useAuth();
   const skip = !isSignedIn || !project.canOperate;
   const q = useProjectSecretsQuery({ id: project.id, identity: cacheIdentity }, { skip });
-  return { q, access: envAccessOf({ skip, isLoading: !q.currentData && q.isFetching, data: q.currentData, error: q.error }) };
+  const data = useMemo(() => q.error ? null : readProjectSecretsResponse(q.currentData), [q.error, q.currentData]);
+  return { q, data, access: envAccessOf({ skip, isLoading: !q.currentData && q.isFetching, data: q.currentData, error: q.error }) };
 }
 
-export default function ProjectEnvVars({ project, onOpenDeployment }: { project: Project; onOpenDeployment?: (deploymentId: string) => void }) {
+export default function ProjectEnvVars(props: { project: Project; onOpenDeployment?: (deploymentId: string) => void }) {
+  const { cacheIdentity } = useAuth();
+  return <ProjectEnvVarsContent key={`${cacheIdentity}:${props.project.id}`} {...props} />;
+}
+
+function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project; onOpenDeployment?: (deploymentId: string) => void }) {
   const { t } = useT();
-  const { q, access } = useProjectEnv(project);
+  const { q, data, access } = useProjectEnv(project);
+  const active = useActiveView();
+  const [controller] = useState(createProjectEnvWork);
+  const [busy, setBusy] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  async function runWork<T>(task: () => Promise<T>): Promise<T | undefined> {
+    if (!active() || access !== 'writer' || controller.blocked()) return undefined;
+    setBusy(true);
+    try {
+      const result = await controller.run(task);
+      return active() ? result : undefined;
+    } finally {
+      if (active()) { setBusy(false); setUncertain(controller.uncertain()); }
+    }
+  }
+  const work: ProjectEnvWork = { run: runWork, report: controller.report, active, blocked: controller.blocked };
+
   const kind = project.kind ?? project.manifest?.kind ?? null;
   // A script reads its env when it runs; a deployed app only when it is deployed again.
   const deploys = kind !== 'script' && !!project.lastDeploymentId;
@@ -265,23 +303,31 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
   const [queued, setQueued] = useState<Queued | null>(null);
   const [redeployNow, redeploying] = useRedeployMutation();
   const [redeployErr, setRedeployErr] = useState<string | null>(null);
-  const rows = useMemo(() => (q.currentData ? envRowsOf(q.currentData) : []), [q.currentData]);
-  const existing = useMemo(() => q.currentData?.secrets.map((s) => s.name) ?? [], [q.currentData]);
+  const rows = useMemo(() => (data ? envRowsOf(data) : []), [data]);
+  const existing = useMemo(() => data?.secrets.map((s) => s.name) ?? [], [data]);
 
   if (access === 'hidden') return null;
 
   const onSaved = (r: Queued | null) => {
+    if (!active()) return;
     setRedeployErr(null);
-    if (r) { setQueued(r); setPending(false); } else if (deploys) setPending(true);
+    if (r) { setQueued(r); setPending(false); } else if (deploys) { setQueued(null); setPending(true); }
   };
   const doRedeploy = async () => {
     if (!project.lastDeploymentId) return;
     setRedeployErr(null);
-    try { const r = await redeployNow({ deploymentId: project.lastDeploymentId, projectId: project.id }).unwrap(); setQueued(r); setPending(false); }
-    catch (e) { setRedeployErr(errorText(t, e)); }
+    try {
+      const r = await work.run(async () => {
+        const response = await redeployNow({ deploymentId: project.lastDeploymentId!, projectId: project.id }).unwrap();
+        if (!projectRunReceipt(response) || response.deploymentId === project.lastDeploymentId) throw new Error('unconfirmed_secret_mutation');
+        return response;
+      });
+      if (r) { setQueued(r); setPending(false); }
+    }
+    catch (e) { if (active()) setRedeployErr(errorText(t, e)); }
   };
 
-  const declared = project.manifest?.secrets ?? [];
+  const declared = project.manifest ? declaredSecretNames(project.manifest.secrets ?? []) : null;
   return (
     <Section id={ENV_SECTION_ID} aria-labelledby="env-title">
       <h2 id="env-title">{t('projects.env.title')}</h2>
@@ -289,32 +335,34 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
 
       {access === 'loading' && <Help>{t('projects.env.loading')}</Help>}
       {access === 'off' && <Alert $tone="info">{t('projects.env.err.secrets_off')}</Alert>}
-      {access === 'error' && <Alert role="alert" $tone="error">{errorText(t, q.error)} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>}
+      {access === 'error' && <Alert role="alert" $tone="error">{t('projects.env.load_failed')} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>}
 
       {access === 'reader' && (
         <>
           <Alert $tone="info">{t('projects.env.reader')}</Alert>
-          {declared.length === 0 ? <Help>{t('projects.env.reader_none')}</Help> : (
+          {declared === null ? <Help>{t('projects.env.declarations_unknown')}</Help> : declared.length === 0 ? <Help>{t('projects.env.reader_none')}</Help> : (
             <List aria-label={t('projects.env.title')}>
-              {declared.map((n) => <Item key={n}><ItemHead><Name>{n}</Name><Masked>••••••</Masked><Meta>{t('projects.env.declared')}</Meta></ItemHead></Item>)}
+              {declared.map((n) => <Item key={n}><ItemHead><Name>{n}</Name><Meta>{t('projects.env.declared')}</Meta><Meta>{t('projects.env.set_unknown')}</Meta></ItemHead></Item>)}
             </List>
           )}
         </>
       )}
 
-      {access === 'writer' && q.currentData && (
+      {uncertain && <Alert role="alert" $tone="warning">{t('projects.env.unconfirmed')} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>}
+      {access === 'writer' && data && (
         <>
+          <fieldset disabled={busy || uncertain} aria-busy={busy} style={{ border: 0, margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {rows.length === 0 ? <Help>{t('projects.env.empty')}</Help> : (
             <List aria-label={t('projects.env.title')}>
-              {rows.map((r) => <EnvItem key={r.name} row={r} project={project} redeploy={redeploy} onSaved={onSaved} />)}
+              {rows.map((r) => <EnvItem key={r.name} row={r} project={project} redeploy={redeploy} work={work} onSaved={onSaved} />)}
             </List>
           )}
-          <AddForm project={project} existing={existing} redeploy={redeploy} onSaved={onSaved} />
-          <BulkPaste project={project} existing={existing} redeploy={redeploy} onSaved={onSaved} />
+          <AddForm project={project} existing={existing} redeploy={redeploy} work={work} onSaved={onSaved} />
+          <BulkPaste project={project} existing={existing} redeploy={redeploy} work={work} onSaved={onSaved} />
           {deploys
             ? <Checkbox label={t('projects.env.redeploy_after')} checked={redeployAfter} onChange={(e) => setRedeployAfter(e.target.checked)} />
             : <Help>{kind === 'script' ? t('projects.env.script_note') : t('projects.env.no_deployment_note')}</Help>}
-          {pending && !queued && (
+          {pending && !queued && !uncertain && (
             <Alert $tone="warning">
               <Actions>
                 <span>{t('projects.env.pending')}</span>
@@ -323,8 +371,9 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
               </Actions>
             </Alert>
           )}
+          </fieldset>
           {redeployErr && <Alert $tone="error">{redeployErr}</Alert>}
-          {queued && <DeployWatch key={queued.deploymentId} queued={queued} onOpen={onOpenDeployment} />}
+          {queued && !uncertain && <DeployWatch key={queued.deploymentId} projectId={project.id} queued={queued} onOpen={onOpenDeployment} />}
         </>
       )}
     </Section>
@@ -334,8 +383,8 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
 /** The page's banner: declared variables nobody has set. Shown only to whoever can set them. */
 export function MissingEnvBanner({ project, onGo }: { project: Project; onGo: () => void }) {
   const { t } = useT();
-  const { q, access } = useProjectEnv(project);
-  const missing = access === 'writer' ? q.currentData?.missing ?? [] : [];
+  const { data, access } = useProjectEnv(project);
+  const missing = access === 'writer' ? data?.missing ?? [] : [];
   if (!missing.length) return null;
   return (
     <Alert $tone="warning" role="status" style={{ margin: '8px 0' }}>

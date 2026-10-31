@@ -7,17 +7,42 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { logTime, parseRuntimeLogs, runtimeLogProblemOf, runtimeLogsText, runtimeLogsUrl } from '../src/api/runtimeLogs.ts';
+import { logTime, parseRuntimeLogs, readRuntimeLogs, runtimeLogsMatchDeployment, runtimeLogProblemOf, runtimeLogsText, runtimeLogsUrl } from '../src/api/runtimeLogs.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
 
-test('the node\'s answer is parsed; malformed lines are dropped, unknown streams are stdout', () => {
-  const r = parseRuntimeLogs({ projectId: 'prj_x', deploymentId: 'dep_x', sha: 'a'.repeat(40), placement: 'peer', tail: 200, fetchedAt: 5, truncated: true,
-    lines: [{ ts: '2026-01-01T00:00:01Z', stream: 'stdout', text: 'ready' }, { ts: null, stream: 'stderr', text: 'warn' }, { text: 42 }, null, { stream: 'other', text: 'x' }] });
-  assert.equal(r.placement, 'peer');
-  assert.equal(r.truncated, true);
-  assert.deepEqual(r.lines.map((l) => `${l.stream}:${l.text}`), ['stdout:ready', 'stderr:warn', 'stdout:x']);
-  assert.deepEqual(parseRuntimeLogs(null).lines, []);
-  assert.equal(parseRuntimeLogs({ placement: 'elsewhere' }).placement, 'local');
+const runtimeFixture = () => ({ projectId: 'prj_x', deploymentId: 'dep_x', sha: 'a'.repeat(40), placement: 'peer', tail: 200, fetchedAt: 5, truncated: true,
+  lines: [{ ts: '2026-01-01T00:00:01.123456789Z', stream: 'stdout', text: 'ready' }, { ts: null, stream: 'stderr', text: 'warn' }] });
+
+test('runtime evidence preserves the supplied placement, fetch time and streams without inventing fields', () => {
+  const raw = runtimeFixture();
+  const parsed = parseRuntimeLogs(raw, { id: 'prj_x', tail: 200 });
+  assert.deepEqual(parsed, raw);
+  assert.notEqual(parsed.lines, raw.lines);
+  assert.deepEqual(parseRuntimeLogs({ ...raw, lines: [] }).lines, [], 'only a valid empty result means no output');
+});
+
+test('malformed runtime evidence is unavailable rather than a fresh empty local log', () => {
+  for (const raw of [null, {}, [], ...[
+    { placement: 'elsewhere' }, { fetchedAt: undefined }, { fetchedAt: NaN }, { fetchedAt: -1 }, { truncated: undefined },
+    { tail: 200.5 }, { tail: 1001 }, { sha: '' }, { sha: 'a'.repeat(41) }, { deploymentId: ' ' }, { projectId: '' },
+    { lines: null }, { lines: [null] }, { lines: [{ ts: null, stream: 'other', text: 'x' }] },
+    { lines: [{ ts: null, stream: 'stdout', text: 42 }] }, { lines: [{ ts: 'not a time', stream: 'stderr', text: 'x' }] },
+    { tail: 1 }, { lines: [{ ts: null, stream: 'stdout', text: 'x'.repeat(8193) }] },
+  ].map(patch => ({ ...runtimeFixture(), ...patch }))]) {
+    assert.equal(readRuntimeLogs(raw), null);
+    assert.throws(() => parseRuntimeLogs(raw), /invalid_runtime_logs/);
+  }
+});
+
+test('runtime logs bind project, requested line count and known active deployment identity', () => {
+  const raw = runtimeFixture();
+  assert.equal(readRuntimeLogs(raw, { id: 'another-project', tail: 200 }), null);
+  assert.equal(readRuntimeLogs(raw, { id: 'prj_x', tail: 500 }), null);
+  const logs = parseRuntimeLogs(raw);
+  assert.equal(runtimeLogsMatchDeployment(logs, { activeDeploymentId: 'dep_x', activeCommit: raw.sha }), true);
+  assert.equal(runtimeLogsMatchDeployment(logs, { activeDeploymentId: 'dep_other' }), false);
+  assert.equal(runtimeLogsMatchDeployment(logs, { activeCommit: 'b'.repeat(40) }), false);
+  assert.equal(runtimeLogsMatchDeployment(logs, {}), true, 'older projects without active identity still use project-scoped endpoint evidence');
 });
 
 test('download text and times', () => {

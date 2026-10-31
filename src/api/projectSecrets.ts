@@ -33,33 +33,50 @@ export interface ProjectSecretsResponse { secrets: ProjectSecret[]; declared: st
 export interface SecretSaved { name: string; updatedAt: number | null; created: boolean; redeploy: Queued | null }
 export interface SecretRemoved { ok: boolean; name: string; redeploy: Queued | null }
 
-const names = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const names = (v: unknown): v is string[] => Array.isArray(v) && v.length <= SECRETS_MAX
+  && v.every(n => typeof n === 'string' && SECRET_NAME.test(n)) && new Set(v).size === v.length;
+export const declaredSecretNames = (raw: unknown): string[] | null => names(raw) ? [...raw] : null;
 const queuedOf = (v: unknown): Queued | null => {
-  const q = v as { deploymentId?: unknown; status?: unknown } | null | undefined;
-  return q && typeof q.deploymentId === 'string' ? { deploymentId: q.deploymentId, status: (typeof q.status === 'string' ? q.status : 'queued') as Queued['status'] } : null;
+  if (v === null) return null;
+  if (!object(v) || typeof v.deploymentId !== 'string' || !v.deploymentId.trim() || v.deploymentId !== v.deploymentId.trim()
+    || v.status !== 'queued' && v.status !== 'building') throw new Error('unconfirmed_secret_mutation');
+  return { deploymentId: v.deploymentId, status: v.status };
 };
-const timeOf = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/** `GET …/secrets`, read defensively: rows without a name are dropped, the list comes back sorted by name. */
+/** A malformed or contradictory snapshot cannot become an empty editable project. Never copy secret values. */
+export function readProjectSecretsResponse(raw: unknown): ProjectSecretsResponse | null {
+  if (!object(raw) || !Array.isArray(raw.secrets) || raw.secrets.length > SECRETS_MAX || !names(raw.declared)) return null;
+  const seen = new Set<string>();
+  const secrets: ProjectSecret[] = [];
+  for (const row of raw.secrets) {
+    if (!object(row) || typeof row.name !== 'string' || !SECRET_NAME.test(row.name) || seen.has(row.name)
+      || row.updatedAt !== null && (typeof row.updatedAt !== 'number' || !Number.isFinite(row.updatedAt) || row.updatedAt < 0)) return null;
+    seen.add(row.name);
+    secrets.push({ name: row.name, updatedAt: row.updatedAt as number | null });
+  }
+  const missing = raw.declared.filter(n => !seen.has(n));
+  // Older nodes may omit the derived field; a supplied field must agree with the complete names snapshot.
+  if (raw.missing !== undefined && (!names(raw.missing) || raw.missing.length !== missing.length || raw.missing.some(n => !missing.includes(n)))) return null;
+  return { secrets: secrets.sort((a, b) => a.name.localeCompare(b.name)), declared: [...raw.declared], missing };
+}
+
 export function parseProjectSecretsResponse(raw: unknown): ProjectSecretsResponse {
-  const r = (raw ?? {}) as { secrets?: unknown; declared?: unknown; missing?: unknown };
-  const secrets = (Array.isArray(r.secrets) ? r.secrets : [])
-    .map((s) => s as { name?: unknown; updatedAt?: unknown })
-    .filter((s) => typeof s?.name === 'string')
-    .map((s) => ({ name: s.name as string, updatedAt: timeOf(s.updatedAt) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const declared = names(r.declared);
-  // An older answer without `missing` still gets one: declared and not set.
-  const missing = Array.isArray(r.missing) ? names(r.missing) : declared.filter((n) => !secrets.some((s) => s.name === n));
-  return { secrets, declared, missing };
+  const result = readProjectSecretsResponse(raw);
+  if (!result) throw new Error('invalid_project_secrets');
+  return result;
 }
-export function parseSecretSaved(raw: unknown): SecretSaved {
-  const r = (raw ?? {}) as { name?: unknown; updatedAt?: unknown; created?: unknown; redeploy?: unknown };
-  return { name: typeof r.name === 'string' ? r.name : '', updatedAt: timeOf(r.updatedAt), created: r.created === true, redeploy: queuedOf(r.redeploy) };
+type SecretExpected = { name: string; redeploy?: boolean };
+export function parseSecretSaved(raw: unknown, expected?: SecretExpected): SecretSaved {
+  if (!object(raw) || typeof raw.name !== 'string' || !SECRET_NAME.test(raw.name) || typeof raw.created !== 'boolean'
+    || typeof raw.updatedAt !== 'number' || !Number.isFinite(raw.updatedAt) || raw.updatedAt < 0
+    || expected && (raw.name !== expected.name || !expected.redeploy && raw.redeploy !== null)) throw new Error('unconfirmed_secret_mutation');
+  return { name: raw.name, updatedAt: raw.updatedAt, created: raw.created, redeploy: queuedOf(raw.redeploy) };
 }
-export function parseSecretRemoved(raw: unknown): SecretRemoved {
-  const r = (raw ?? {}) as { ok?: unknown; name?: unknown; redeploy?: unknown };
-  return { ok: r.ok !== false, name: typeof r.name === 'string' ? r.name : '', redeploy: queuedOf(r.redeploy) };
+export function parseSecretRemoved(raw: unknown, expected?: SecretExpected): SecretRemoved {
+  if (!object(raw) || raw.ok !== true || typeof raw.name !== 'string' || !SECRET_NAME.test(raw.name)
+    || expected && (raw.name !== expected.name || !expected.redeploy && raw.redeploy !== null)) throw new Error('unconfirmed_secret_mutation');
+  return { ok: true, name: raw.name, redeploy: queuedOf(raw.redeploy) };
 }
 
 /** One row of the table: a variable that is set, or one ainize.json declares and nobody has set. */
@@ -176,7 +193,7 @@ export interface BulkSaveResult { saved: SecretSaved[]; failed: { name: string; 
 export async function saveSecretsSequentially(
   rows: readonly { name: string; value: string }[],
   put: (name: string, value: string, redeploy: boolean) => Promise<SecretSaved>,
-  opts: { redeployLast?: boolean; onProgress?: (done: number, total: number) => void } = {},
+  opts: { redeployLast?: boolean; onProgress?: (done: number, total: number) => void; isActive?: () => boolean } = {},
 ): Promise<BulkSaveResult> {
   const saved: SecretSaved[] = [];
   let redeploy: Queued | null = null;
@@ -184,7 +201,8 @@ export async function saveSecretsSequentially(
     const r = rows[i]!;
     const last = i === rows.length - 1;
     try {
-      const s = await put(r.name, r.value, !!opts.redeployLast && last);
+      if (opts.isActive && !opts.isActive()) throw new Error('environment_view_left');
+      const s = parseSecretSaved(await put(r.name, r.value, !!opts.redeployLast && last), { name: r.name, redeploy: !!opts.redeployLast && last });
       saved.push(s);
       if (s.redeploy) redeploy = s.redeploy;
     } catch (error) {
@@ -240,6 +258,6 @@ export function envAccessOf(q: { skip?: boolean; isLoading?: boolean; data?: unk
     if (e.code === 'not_found' || e.code === 'not_signed_in') return 'hidden';
     return 'error';
   }
-  if (q.data) return 'writer';
-  return 'loading';
+  if (q.data !== undefined) return readProjectSecretsResponse(q.data) ? 'writer' : 'error';
+  return q.isLoading ? 'loading' : 'error';
 }

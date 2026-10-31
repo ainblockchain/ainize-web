@@ -36,24 +36,39 @@ export const runtimeLogsUrl = (id: string, tail: number) => `api/projects/${enco
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
-/** The node's answer, with anything malformed dropped rather than rendered. */
-export function parseRuntimeLogs(raw: unknown): RuntimeLogs {
-  const r = (raw ?? {}) as Record<string, unknown>;
-  const lines = Array.isArray(r.lines) ? r.lines : [];
-  return {
-    projectId: str(r.projectId),
-    deploymentId: str(r.deploymentId),
-    sha: str(r.sha),
-    placement: r.placement === 'peer' ? 'peer' : 'local',
-    tail: typeof r.tail === 'number' ? r.tail : RUNTIME_LOG_DEFAULT_TAIL,
-    fetchedAt: typeof r.fetchedAt === 'number' ? r.fetchedAt : Date.now(),
-    truncated: r.truncated === true,
-    lines: lines.flatMap((l): RuntimeLogLine[] => {
-      const x = (l ?? {}) as Record<string, unknown>;
-      if (typeof x.text !== 'string') return [];
-      return [{ ts: typeof x.ts === 'string' ? x.ts : null, stream: x.stream === 'stderr' ? 'stderr' : 'stdout', text: x.text }];
-    }),
-  };
+const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v === v.trim();
+
+/** Unknown placement, timestamps or omitted lines are unavailable evidence, not a fresh empty local log. */
+export function readRuntimeLogs(raw: unknown, expected?: { id: string; tail: number }): RuntimeLogs | null {
+  if (!object(raw) || !id(raw.projectId) || !id(raw.deploymentId)
+    || typeof raw.sha !== 'string' || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(raw.sha)
+    || !['local', 'peer'].includes(typeof raw.placement === 'string' ? raw.placement : '')
+    || typeof raw.tail !== 'number' || !Number.isInteger(raw.tail) || raw.tail < 1 || raw.tail > 1000
+    || typeof raw.fetchedAt !== 'number' || !Number.isFinite(raw.fetchedAt) || raw.fetchedAt < 0
+    || typeof raw.truncated !== 'boolean' || !Array.isArray(raw.lines) || raw.lines.length > raw.tail
+    || expected && (raw.projectId !== expected.id || raw.tail !== expected.tail)) return null;
+  const lines: RuntimeLogLine[] = [];
+  for (const row of raw.lines) {
+    if (!object(row) || typeof row.text !== 'string' || row.text.length > 8192
+      || row.stream !== 'stdout' && row.stream !== 'stderr'
+      || row.ts !== null && (typeof row.ts !== 'string' || row.ts.length > 64 || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,9})?Z$/.test(row.ts) || !Number.isFinite(Date.parse(row.ts)))) return null;
+    lines.push({ ts: row.ts as string | null, stream: row.stream, text: row.text });
+  }
+  return { projectId: raw.projectId, deploymentId: raw.deploymentId, sha: raw.sha, placement: raw.placement as 'local' | 'peer',
+    tail: raw.tail, fetchedAt: raw.fetchedAt, truncated: raw.truncated, lines };
+}
+
+export function parseRuntimeLogs(raw: unknown, expected?: { id: string; tail: number }): RuntimeLogs {
+  const result = readRuntimeLogs(raw, expected);
+  if (!result) throw new Error('invalid_runtime_logs');
+  return result;
+}
+
+/** A response from a different active version must not be labelled as this version's current output. */
+export function runtimeLogsMatchDeployment(logs: RuntimeLogs, project: { activeDeploymentId?: string | null; activeCommit?: string | null }): boolean {
+  return (!project.activeDeploymentId || logs.deploymentId === project.activeDeploymentId)
+    && (!project.activeCommit || logs.sha === project.activeCommit);
 }
 
 /** `HH:MM:SS` in the viewer's time zone; the full instant is the line's title. */

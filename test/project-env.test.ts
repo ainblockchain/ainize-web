@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  envAccessOf, envRowsOf, isReservedSecretName, parseDotEnv, parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, planBulk,
+  envAccessOf, envRowsOf, isReservedSecretName, parseDotEnv, parseProjectSecretsResponse, readProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, planBulk,
   saveSecretsSequentially, secretApiErrorOf, secretDeleteRequest, secretNameProblem, secretPutRequest, secretsListUrl, secretValueProblem,
   SECRET_ERROR_CODES, type SecretSaved,
 } from '../src/api/projectSecrets.ts';
@@ -88,19 +88,37 @@ test('requests: list, PUT with { value } and ?redeploy=1 only when asked, DELETE
   // the RTK endpoints are built from these, with the readers below as transformResponse
   const api = read('api/api.ts');
   assert.match(api, /projectSecrets: b\.query<ProjectSecretsResponse, \{ id: string; identity: string \}>\(\{ keepUnusedDataFor: 0, query: \(\{ id \}\) => secretsListUrl\(id\), transformResponse: parseProjectSecretsResponse/);
-  assert.match(api, /secretPutRequest\(id, name, value, redeploy\), transformResponse: parseSecretSaved/);
-  assert.match(api, /secretDeleteRequest\(id, name, redeploy\), transformResponse: parseSecretRemoved/);
+  assert.match(api, /secretPutRequest\(id, name, value, redeploy\), transformResponse: \(raw, _meta, arg\) => parseSecretSaved\(raw, arg\)/);
+  assert.match(api, /secretDeleteRequest\(id, name, redeploy\), transformResponse: \(raw, _meta, arg\) => parseSecretRemoved\(raw, arg\)/);
 });
 
-test('answers: the list is read defensively and never carries a value; rows put the missing first', () => {
+test('a complete environment snapshot is sorted and sanitized without copying values', () => {
   const r = parseProjectSecretsResponse({
-    secrets: [{ name: 'ZED', updatedAt: 5 }, { name: 'ALPHA', updatedAt: 'later', value: 'leak?' }, { nope: true }],
-    declared: ['ALPHA', 'DB_URL', 7], missing: ['DB_URL'],
+    secrets: [{ name: 'ZED', updatedAt: 5 }, { name: 'ALPHA', updatedAt: null, value: 'must not be copied' }],
+    declared: ['ALPHA', 'DB_URL'], missing: ['DB_URL'],
   });
   assert.deepEqual(r, { secrets: [{ name: 'ALPHA', updatedAt: null }, { name: 'ZED', updatedAt: 5 }], declared: ['ALPHA', 'DB_URL'], missing: ['DB_URL'] });
-  assert.deepEqual(parseProjectSecretsResponse({ secrets: [{ name: 'A', updatedAt: 1 }], declared: ['A', 'B'] }).missing, ['B'], 'an answer without `missing` gets one');
-  assert.deepEqual(parseProjectSecretsResponse(null), { secrets: [], declared: [], missing: [] });
+  assert.deepEqual(parseProjectSecretsResponse({ secrets: [{ name: 'A', updatedAt: 1 }], declared: ['A', 'B'] }).missing, ['B'], 'an omitted derived field can be calculated from the complete names snapshot');
   assert.deepEqual(envRowsOf(r).map((x) => [x.name, x.set, x.declared]), [['DB_URL', false, true], ['ALPHA', true, true], ['ZED', true, false]]);
+});
+
+test('incomplete, duplicate and contradictory environment snapshots cannot enable an empty editor', () => {
+  const base = { secrets: [{ name: 'A', updatedAt: 1 }], declared: ['A', 'B'], missing: ['B'] };
+  for (const raw of [null, {}, [], { secrets: [] }, ...[
+    { secrets: [null] }, { secrets: [{ name: 'A' }] }, { secrets: [{ name: 'A', updatedAt: 'later' }] },
+    { secrets: [base.secrets[0], base.secrets[0]] }, { secrets: [{ name: 'bad name', updatedAt: 1 }] },
+    { declared: ['A', 'A'] }, { declared: ['A', 7] }, { missing: [] }, { missing: ['A'] }, { missing: ['B', 'B'] },
+    { missing: ['B', 'OTHER'] }, { missing: null },
+  ].map(patch => ({ ...base, ...patch }))]) {
+    assert.equal(readProjectSecretsResponse(raw), null);
+    assert.throws(() => parseProjectSecretsResponse(raw), /invalid_project_secrets/);
+    assert.equal(envAccessOf({ data: raw }), 'error');
+  }
+  assert.equal(envAccessOf({}), 'error', 'a completed absent response cannot spin indefinitely');
+  assert.equal(envAccessOf({ isLoading: true }), 'loading');
+});
+
+test('environment mutation receipts retain current fields', () => {
   assert.deepEqual(parseSecretSaved({ name: 'A', updatedAt: 9, created: true, redeploy: { deploymentId: 'dep_1', status: 'queued' } }), { name: 'A', updatedAt: 9, created: true, redeploy: { deploymentId: 'dep_1', status: 'queued' } });
   assert.deepEqual(parseSecretSaved({ name: 'A', updatedAt: 9, created: false, redeploy: null }).redeploy, null);
   assert.deepEqual(parseSecretRemoved({ ok: true, name: 'A', redeploy: { deploymentId: 'dep_2', status: 'queued' } }), { ok: true, name: 'A', redeploy: { deploymentId: 'dep_2', status: 'queued' } });
@@ -175,4 +193,38 @@ test('the console mounts the section in Settings and the missing banner above th
   const page = read('screens/ProjectPage.tsx');
   assert.match(page, /<MissingEnvBanner project=\{p\} onGo=\{goToEnv\} \/>/);
   assert.match(page, /<ProjectEnvVars project=\{p\} onOpenDeployment=\{openDeployment\} \/>/);
+});
+
+test('save/delete receipts must name the chosen variable and explicitly acknowledge the requested action', () => {
+  const saved = { name: 'TOKEN', updatedAt: 1, created: false, redeploy: null };
+  const removed = { name: 'TOKEN', ok: true, redeploy: null };
+  assert.deepEqual(parseSecretSaved(saved, { name: 'TOKEN' }), saved);
+  assert.deepEqual(parseSecretRemoved(removed, { name: 'TOKEN' }), removed);
+  for (const raw of [null, {}, { ...saved, name: 'OTHER' }, { ...saved, created: undefined }, { ...saved, updatedAt: null },
+    { ...saved, updatedAt: NaN }, { ...saved, redeploy: undefined }, { ...saved, redeploy: { deploymentId: 'dep', status: 'ready' } }]) {
+    assert.throws(() => parseSecretSaved(raw, { name: 'TOKEN', redeploy: true }), /unconfirmed_secret_mutation/);
+  }
+  for (const raw of [null, {}, { ...removed, name: 'OTHER' }, { ...removed, ok: false }, { ...removed, ok: undefined }, { ...removed, redeploy: undefined }]) {
+    assert.throws(() => parseSecretRemoved(raw, { name: 'TOKEN' }), /unconfirmed_secret_mutation/);
+  }
+  assert.throws(() => parseSecretSaved({ ...saved, redeploy: { deploymentId: 'unexpected', status: 'queued' } }, { name: 'TOKEN', redeploy: false }), /unconfirmed/);
+  assert.throws(() => parseSecretRemoved({ ...removed, redeploy: { deploymentId: 'unexpected', status: 'queued' } }, { name: 'TOKEN', redeploy: false }), /unconfirmed/);
+});
+
+test('bulk saving stops on the exact uncertain variable and never counts a mismatched receipt as saved', async () => {
+  const calls: string[] = [];
+  const r = await saveSecretsSequentially([{ name: 'A', value: 'a' }, { name: 'B', value: 'b' }, { name: 'C', value: 'c' }], async name => {
+    calls.push(name); return { name: name === 'B' ? 'WRONG' : name, updatedAt: 1, created: true, redeploy: null };
+  }, { redeployLast: true });
+  assert.deepEqual(calls, ['A', 'B']); assert.deepEqual(r.saved.map(s => s.name), ['A']);
+  assert.equal(r.failed?.name, 'B'); assert.equal(r.redeploy, null);
+});
+
+test('leaving a project/account during bulk save prevents subsequent writes under a different context', async () => {
+  let active = true;
+  const calls: string[] = [];
+  const r = await saveSecretsSequentially([{ name: 'A', value: 'a' }, { name: 'B', value: 'b' }], async name => {
+    calls.push(name); active = false; return { name, updatedAt: 1, created: true, redeploy: null };
+  }, { isActive: () => active, redeployLast: true });
+  assert.deepEqual(calls, ['A']); assert.equal(r.failed?.name, 'B'); assert.equal(r.redeploy, null);
 });

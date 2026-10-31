@@ -74,9 +74,9 @@ import OrgJoinPage from '../src/screens/org/OrgJoinPage';
 import OrgCreatePage from '../src/screens/org/OrgCreatePage';
 import ExplorePage from '../src/screens/ExplorePage';
 import MyProjectsPage from '../src/screens/MyProjectsPage';
-import { ProjectByNamePage, ProjectConsole, ProjectRunInput, ProjectRunPanel } from '../src/screens/ProjectPage';
+import { ProjectByNamePage, ProjectConsole, ProjectRunInput, ProjectRunPanel, RuntimeLogView } from '../src/screens/ProjectPage';
 import OrgRepositoriesPage from '../src/screens/OrgRepositoriesPage';
-import ProjectEnvVars from '../src/components/ProjectEnvVars';
+import ProjectEnvVars, { DeployWatch, MissingEnvBanner } from '../src/components/ProjectEnvVars';
 import ProjectDomains from '../src/components/ProjectDomains';
 import type { Deployment, Project } from '../src/api/projects';
 import { SignOutNotice } from '../src/components/ui/SignOutNotice';
@@ -3070,4 +3070,125 @@ test('App Open cannot reuse cached active history after failure or accept malfor
     assert.doesNotMatch(html, /href="https:\/\/cached-active.example\/"/);
     assert.match(html, /Try again/);
   }
+});
+
+const runtimeLogFixture = { projectId: rootProject.id, deploymentId: 'active-build', sha: 'a'.repeat(40), placement: 'peer', tail: 200,
+  fetchedAt: 1, truncated: false, lines: [{ ts: null, stream: 'stdout', text: 'current running app output' }] };
+const runtimeArg = { ...projectArg, tail: 200 };
+const runtimeProject = { ...rootProject, activeDeploymentId: 'active-build', activeCommit: 'a'.repeat(40) };
+
+test('runtime logs display validated placement, version and text from the selected project', () => {
+  const Page = () => createElement(RuntimeLogView, { project: runtimeProject });
+  const html = render(Page, [...appAccount, { name: 'projectRuntimeLogs', arg: runtimeArg, value: runtimeLogFixture }]);
+  assert.match(html, /running on a deployment peer/); assert.match(html, /active-build/);
+  assert.match(html, /current running app output/); assert.doesNotMatch(html, /No output yet/);
+});
+
+test('malformed or foreign runtime reads cannot look like an empty local log or enable downloads', () => {
+  const Page = () => createElement(RuntimeLogView, { project: runtimeProject });
+  for (const value of [{}, { ...runtimeLogFixture, projectId: 'other' }, { ...runtimeLogFixture, placement: 'unknown' },
+    { ...runtimeLogFixture, tail: 500 }, { ...runtimeLogFixture, lines: [null] }]) {
+    const html = render(Page, [...appAccount, { name: 'projectRuntimeLogs', arg: runtimeArg, value }]);
+    assert.match(html, /did not return its logs/);
+    assert.doesNotMatch(html, /current running app output|No output yet|running on this node|running on a deployment peer/);
+    assert.match(html, /<button[^>]*disabled[^>]*>Download<\/button>/);
+  }
+});
+
+test('runtime logs from another deployment version offer refresh and never display that output', () => {
+  const Page = () => createElement(RuntimeLogView, { project: runtimeProject });
+  for (const patch of [{ deploymentId: 'old-build' }, { sha: 'b'.repeat(40) }]) {
+    const html = render(Page, [...appAccount, { name: 'projectRuntimeLogs', arg: runtimeArg, value: { ...runtimeLogFixture, ...patch } }]);
+    assert.match(html, /different deployment version/); assert.match(html, /Refresh/);
+    assert.doesNotMatch(html, /current running app output|No output yet/);
+    assert.match(html, /<button[^>]*disabled[^>]*>Download<\/button>/);
+  }
+});
+
+test('failed runtime refresh cannot reuse cached output and validated empty logs remain distinct', () => {
+  const Page = () => createElement(RuntimeLogView, { project: runtimeProject });
+  const failed = render(Page, [...appAccount, { name: 'projectRuntimeLogs', arg: runtimeArg, value: runtimeLogFixture, status: 'rejected' }]);
+  assert.match(failed, /did not return its logs/); assert.doesNotMatch(failed, /current running app output|No output yet/);
+  const empty = render(Page, [...appAccount, { name: 'projectRuntimeLogs', arg: runtimeArg, value: { ...runtimeLogFixture, lines: [] } }]);
+  assert.match(empty, /No output yet/); assert.doesNotMatch(empty, /did not return its logs/);
+});
+
+test('malformed environment reads show recovery without an editable empty list or missing-variable claim', () => {
+  const Page = () => createElement(ProjectEnvVars, { project: rootProject });
+  const Banner = () => createElement(MissingEnvBanner, { project: rootProject, onGo() {} });
+  for (const value of [{}, { secrets: [null], declared: [], missing: [] }, { secrets: [{ name: 'A', updatedAt: 1 }], declared: ['A'], missing: ['A'] }]) {
+    const fixtures: Fixture[] = [...appAccount, { name: 'projectSecrets', arg: projectArg, value }];
+    const html = render(Page, fixtures);
+    assert.match(html, /Could not confirm the environment variable list/); assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /id="env-new-name"|id="env-new-value"/);
+    assert.equal(render(Banner, fixtures), '');
+  }
+});
+
+test('valid environment evidence preserves missing names and masks saved values', () => {
+  const value = { secrets: [{ name: 'ALREADY_SET', updatedAt: 1, value: 'must-not-leak' }], declared: ['ALREADY_SET', 'REQUIRED_KEY'], missing: ['REQUIRED_KEY'] };
+  const Page = () => createElement(ProjectEnvVars, { project: rootProject });
+  const fixtures: Fixture[] = [...appAccount, { name: 'projectSecrets', arg: projectArg, value }];
+  const html = render(Page, fixtures);
+  assert.match(html, /ALREADY_SET|REQUIRED_KEY/); assert.match(html, /id="env-new-name"/);
+  assert.doesNotMatch(html, /must-not-leak/);
+  const Banner = () => createElement(MissingEnvBanner, { project: rootProject, onGo() {} });
+  const banner = render(Banner, fixtures);
+  assert.match(banner, /REQUIRED_KEY/); assert.doesNotMatch(banner, /ALREADY_SET|must-not-leak/);
+});
+
+const watchedReceipt = { deploymentId: 'watched-build', status: 'queued' as const };
+test('deployment observer rejects foreign, wrong-id, run and malformed completion evidence', () => {
+  const Page = () => createElement(DeployWatch, { projectId: rootProject.id, queued: watchedReceipt });
+  const good = { ...deploymentFixture('watched-build'), trigger: 'redeploy' };
+  const wrongKind = { ...good, trigger: 'push' };
+  for (const value of [{}, wrongKind, { ...good, id: 'other-build' }, { ...good, projectId: 'other-project' }, { ...good, trigger: 'run' }, { ...good, status: 'unknown' }]) {
+    const html = render(Page, [...appAccount, { name: 'deployment', arg: { id: 'watched-build', identity: accountIdentity }, value }]);
+    assert.match(html, /Could not load the history/);
+    assert.doesNotMatch(html, /This deployment completed|app runs with the new values|href="https:\/\/wrong/);
+  }
+});
+
+test('deployment observer reports only its matching build and uses its own raw log link', () => {
+  const Page = () => createElement(DeployWatch, { projectId: rootProject.id, queued: watchedReceipt });
+  const html = render(Page, [...appAccount, { name: 'deployment', arg: { id: 'watched-build', identity: accountIdentity }, value: { ...deploymentFixture('watched-build'), trigger: 'redeploy' } }]);
+  assert.match(html, /This deployment completed/);
+  assert.match(html, /href="\/api\/deployments\/watched-build\/log"/);
+  assert.doesNotMatch(html, /wrong\.example|app runs with the new values/);
+});
+
+test('failed deployment observation hides cached completion and an invalid receipt cannot claim success', () => {
+  const Page = () => createElement(DeployWatch, { projectId: rootProject.id, queued: watchedReceipt });
+  const failed = render(Page, [...appAccount, { name: 'deployment', arg: { id: 'watched-build', identity: accountIdentity }, value: { ...deploymentFixture('watched-build'), trigger: 'redeploy' }, status: 'rejected' }]);
+  assert.match(failed, /Could not load the history/); assert.doesNotMatch(failed, /This deployment completed/);
+  const BadReceipt = () => createElement(DeployWatch, { projectId: rootProject.id, queued: { deploymentId: 'watched-build', status: 'ready' } as any });
+  const invalid = render(BadReceipt, appAccount);
+  assert.match(invalid, /Could not confirm the redeploy request/); assert.doesNotMatch(invalid, /This deployment completed/);
+});
+
+test('read-only environment declarations never imply that a hidden value has actually been set', () => {
+  const project = { ...rootProject, manifest: { kind: 'service', inputs: {}, examples: [], secrets: ['DECLARED_ONLY'] } } as Project;
+  const Page = () => createElement(ProjectEnvVars, { project });
+  const html = render(Page, [...appAccount, { name: 'projectSecrets', arg: projectArg, status: 'rejected', errorStatus: 403, errorData: { error: { code: 'not_writer' } } }]);
+  assert.match(html, /DECLARED_ONLY/); assert.match(html, /Set status is private/);
+  assert.doesNotMatch(html, /••••••|env-new-name/);
+});
+
+test('absent or malformed read-only declarations are unknown rather than an empty manifest', () => {
+  for (const manifest of [undefined, { kind: 'service', secrets: {} }]) {
+    const project = { ...rootProject, manifest } as Project;
+    const Page = () => createElement(ProjectEnvVars, { project });
+    const html = render(Page, [...appAccount, { name: 'projectSecrets', arg: projectArg, status: 'rejected', errorStatus: 403, errorData: { error: { code: 'not_writer' } } }]);
+    assert.match(html, /declarations are not available yet/);
+    assert.doesNotMatch(html, /declares no environment variables|env-new-name/);
+  }
+});
+
+test('runtime permission states never expose cached log content', () => {
+  const SignedOutPage = () => createElement(RuntimeLogView, { project: runtimeProject });
+  const out = render(SignedOutPage, signedOut);
+  assert.match(out, /Sign in to see the runtime logs/); assert.doesNotMatch(out, /Download|No output yet/);
+  const DeniedPage = () => createElement(RuntimeLogView, { project: { ...runtimeProject, canOperate: false } });
+  const denied = render(DeniedPage, [...appAccount, { name: 'projectRuntimeLogs', arg: runtimeArg, value: runtimeLogFixture }]);
+  assert.match(denied, /Only a member/); assert.doesNotMatch(denied, /current running app output|Download/);
 });

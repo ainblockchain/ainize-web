@@ -209,15 +209,15 @@ export const api = createApi({
      */
     projectSecrets: b.query<ProjectSecretsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => secretsListUrl(id), transformResponse: parseProjectSecretsResponse, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/secrets` }] }),
     setProjectSecret: b.mutation<SecretSaved, { id: string; name: string; value: string; redeploy?: boolean }>({
-      query: ({ id, name, value, redeploy }) => secretPutRequest(id, name, value, redeploy), transformResponse: parseSecretSaved,
+      query: ({ id, name, value, redeploy }) => secretPutRequest(id, name, value, redeploy), transformResponse: (raw, _meta, arg) => parseSecretSaved(raw, arg),
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
     }),
     deleteProjectSecret: b.mutation<SecretRemoved, { id: string; name: string; redeploy?: boolean }>({
-      query: ({ id, name, redeploy }) => secretDeleteRequest(id, name, redeploy), transformResponse: parseSecretRemoved,
+      query: ({ id, name, redeploy }) => secretDeleteRequest(id, name, redeploy), transformResponse: (raw, _meta, arg) => parseSecretRemoved(raw, arg),
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
     }),
     /** The running service's own stdout/stderr, on the node or its deployment peer (src/api/runtimeLogs.ts). Owner/members only. */
-    projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number; identity: string }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: parseRuntimeLogs, keepUnusedDataFor: 0 }),
+    projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number; identity: string }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: (raw, _meta, arg) => parseRuntimeLogs(raw, arg), keepUnusedDataFor: 0 }),
     deploymentLog: b.query<string, { id: string; identity: string }>({ query: ({ id }) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
     myHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
     /** Own hosted agents plus the ones shared with an organization where the caller may edit — read through `parseManageableHostedAgents`. */
