@@ -204,5 +204,14 @@
         "title": "Error codes"
       }
     ]
+  },
+  {
+    "group": "Design (draft)",
+    "pages": [
+      {
+        "page": "design/ain-data-platform",
+        "title": "Design (draft): AIN Store"
+      }
+    ]
   }
 ]

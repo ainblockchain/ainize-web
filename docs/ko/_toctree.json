@@ -201,5 +201,14 @@
         "untranslated": true
       }
     ]
+  },
+  {
+    "group": "설계 (검토 중)",
+    "pages": [
+      {
+        "page": "design/ain-data-platform",
+        "title": "설계 (검토 중): AIN Store"
+      }
+    ]
   }
 ]
