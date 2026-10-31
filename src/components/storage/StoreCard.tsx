@@ -5,10 +5,10 @@
  * **Open in Storage →** (the store's own page) and **Disconnect** (with the redeploy that removes the env, followed
  * until it is ready).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useDisconnectStoreMutation, useRevealStoreEnvMutation } from '@/api/api';
-import { connectionStringOf, maskEnvValue, type RevealedEnv, type Store } from '@/api/projectStorage';
+import { connectionStringOf, maskEnvValue, unwrapUncached, type RevealedEnv, type Store } from '@/api/projectStorage';
 import { type Project, type Queued } from '@/api/projects';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox } from '@/components/ui/Form';
@@ -19,6 +19,23 @@ import { Actions, Card, Chip, EnvChip, EnvChips, Help, KindChip, Meta, Name, Pre
 
 /** How long revealed values stay on the screen. */
 export const REVEAL_VISIBLE_MS = 60_000;
+
+/**
+ * Show values, held by the calling component alone. The mutation's own copy leaves the Redux store as soon as it
+ * arrives (`unwrapUncached`); the shown copy goes on Hide, after `REVEAL_VISIBLE_MS`, on unmount, and when the
+ * store's credentials rotate (the values shown would be the old ones).
+ */
+export function useRevealedEnv(store: Pick<Store, 'id' | 'credentialsVersion'>, projectId?: string) {
+  const [reveal, revealing] = useRevealStoreEnvMutation();
+  const [revealed, setRevealed] = useState<RevealedEnv | null>(null);
+  const reset = useRef(revealing.reset);
+  reset.current = revealing.reset;
+  const hide = useCallback(() => { setRevealed(null); reset.current(); }, []);
+  useEffect(() => () => reset.current(), []);
+  useEffect(() => { hide(); }, [store.id, store.credentialsVersion, hide]);
+  const show = async () => { setRevealed(await unwrapUncached(reveal(projectId ? { sid: store.id, projectId } : { sid: store.id }))); };
+  return { revealed, show, hide, isLoading: revealing.isLoading };
+}
 
 /** The revealed set: each secret-bearing value masked, the whole `.env.local` behind one Copy. */
 export function RevealedEnvView({ revealed, kind, onHide }: { revealed: RevealedEnv; kind: Store['kind']; onHide: () => void }) {
@@ -66,9 +83,8 @@ export default function StoreCard({ store, project, binding, envPrefix, database
 }) {
   const { t } = useT();
   const navigate = useNavigate();
-  const [reveal, revealing] = useRevealStoreEnvMutation();
+  const { revealed, show: reveal, hide, isLoading: revealing } = useRevealedEnv(store, project?.id);
   const [disconnect, disconnecting] = useDisconnectStoreMutation();
-  const [revealed, setRevealed] = useState<RevealedEnv | null>(null);
   const [redeploy, setRedeploy] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const names = envNames ?? store.connectionNames;
@@ -76,14 +92,14 @@ export default function StoreCard({ store, project, binding, envPrefix, database
 
   const show = async () => {
     setErr(null);
-    try { setRevealed(await reveal({ sid: store.id, projectId: project?.id }).unwrap()); }
+    try { await reveal(); }
     catch (e) { setErr(storageErrorText(t, e)); }
   };
   const remove = async () => {
     if (!project) return;
     if (!window.confirm(t('storage.disconnect.confirm', { name: store.name, project: `${project.org}/${project.repoName}` }))) return;
     setErr(null);
-    try { const r = await disconnect({ sid: store.id, projectId: project.id, redeploy: deploys && redeploy }).unwrap(); onDisconnected?.(r.redeploy); }
+    try { const r = await disconnect({ sid: store.id, projectId: project.id, orgId: store.orgId || null, redeploy: deploys && redeploy }).unwrap(); onDisconnected?.(r.redeploy); }
     catch (e) { setErr(storageErrorText(t, e)); }
   };
 
@@ -112,10 +128,10 @@ export default function StoreCard({ store, project, binding, envPrefix, database
           <EnvChips aria-label={t('storage.card.env_names')}>{names.map((n) => <EnvChip key={n}>{n}</EnvChip>)}</EnvChips>
         </div>
       )}
-      {revealed && <RevealedEnvView revealed={revealed} kind={store.kind} onHide={() => setRevealed(null)} />}
+      {revealed && <RevealedEnvView revealed={revealed} kind={store.kind} onHide={hide} />}
       {err && <Alert $tone="error">{err}</Alert>}
       <Actions>
-        {canManage && !revealed && <Button size="small" loading={revealing.isLoading} onClick={show} disabled={store.status !== 'ready' && store.status !== 'stopped'} title={t('storage.env.reveal_help')}>{t('storage.env.show')}</Button>}
+        {canManage && !revealed && <Button size="small" loading={revealing} onClick={show} disabled={store.status !== 'ready' && store.status !== 'stopped'} title={t('storage.env.reveal_help')}>{t('storage.env.show')}</Button>}
         <Button size="small" variant="text" onClick={() => navigate(storePath(store.orgId, store.id))}>{t('storage.card.open')}</Button>
         <Spacer />
         {canManage && project && (

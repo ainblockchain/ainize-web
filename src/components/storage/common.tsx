@@ -4,10 +4,21 @@
  * how a node refusal becomes a sentence (`storage.err.<code>`, with the node's own text appended where it says more
  * than the code — a SQL error, a list of connected projects).
  */
+import { useEffect } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { storageApiErrorOf, storeStatusTone, type StatusTone, type StoreKind, type StoreStatus } from '@/api/projectStorage';
 import { Mono } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+
+/**
+ * Forget a mutation hook's argument once the call has settled. Beyond the Redux entry (`unwrapUncached`), RTK's hook
+ * holds the started call — `originalArgs` included — in React state until `reset()` or unmount; for the backup target
+ * that argument is an AinDrive token, and the panel stays open. Not while loading, so the button keeps its spinner.
+ */
+export function useForgetMutationArgs(m: { isLoading: boolean; originalArgs?: unknown; reset: () => void }): void {
+  const { isLoading, originalArgs, reset } = m;
+  useEffect(() => { if (!isLoading && originalArgs !== undefined) reset(); }, [isLoading, originalArgs, reset]);
+}
 
 export const Panel = styled.section`
   min-width: 0; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 10px; background: #fff; padding: 16px; margin: 12px 0 20px;

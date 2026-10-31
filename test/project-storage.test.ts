@@ -17,7 +17,9 @@ import {
   parseRotateResult, parseRows, parseStore, parseStoreDetail, parseStoreLogs, parseStores, parseTables, projectStorageUrl, QUERY_MAX_BYTES, restoreCopyNameOf, ROWS_MAX,
   storageAccessOf, storageApiErrorOf, STORAGE_ERROR_CODES, STORAGE_MAX, STORE_ENGINES, STORE_KINDS, STORE_NAME, STORE_STATUSES, storeEnvPrefixOf, storeIsBusy, storeNameProblem,
   storeObjectDownloadUrl, storeObjectsUrl, storeRowsUrl, storeStatusTone, storeUrl, driveBackupUrl, type Store,
+  attachedProjectStoragePath, defaultStoreChoiceOf, deployOrderOf, firstOfKindFlags, objectPagesAfter, objectPagesNext, objectPagesPrev, objectPagesStart, wouldBeFirstOfKind,
 } from '../src/api/projectStorage.ts';
+import { orgApiErrorOf } from '../src/api/organizations.ts';
 import { envRowsOf, parseProjectSecretsResponse, secretApiErrorOf } from '../src/api/projectSecrets.ts';
 import { storage } from '../src/i18n/pages/storage.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
@@ -104,7 +106,8 @@ test('the project\'s view: declared bindings, connected stores, missing ones der
     declared: ['db', { name: 'files', kind: 'blob', env: 'FILES', required: false }, { name: 'cache', kind: 'redis' }, 'Bad Name'],
     missing: [], optionalMissing: ['files'], orgStores: [{ id: 'st_x', name: 'x', kind: 'blob', engine: 'minio', status: 'ready' }], orgId: 'org_1', canManage: true,
   });
-  assert.equal(full.attached.length, 1); assert.deepEqual(full.attached[0]!.envNames, ['DATABASE_URL', 'DB_DATABASE_URL']);
+  assert.equal(full.attached.length, 1);
+  assert.deepEqual(full.attached[0]!.envNames, envNamesOf('postgres', 'DB', true), 'the names follow the deploy order, not the answer\'s envNames');
   assert.deepEqual(full.declared, [
     { name: 'db', kind: null, env: null, required: true },
     { name: 'files', kind: 'blob', env: 'FILES', required: false },
@@ -403,4 +406,115 @@ test('the how-to is in both languages and both tables of contents', () => {
     assert.match(table, /\| `storage` \|/, `${lang}: the key table has storage`);
     assert.match(table, /\| `release` \|/, `${lang}: the key table has release`);
   }
+});
+
+// ------------------------------------------------------------------------------------------------ review fixes (10-31)
+
+test('first of a kind follows the deploy order (ainize-node bindingsFor): ainize.json order, then undeclared by connection', () => {
+  const declared = [{ name: 'files' }, { name: 'main' }, { name: 'analytics' }];
+  const order = deployOrderOf([{ binding: 'extra' }, { binding: 'analytics' }, { binding: 'later' }, { binding: 'main' }], declared).map((b) => b.binding);
+  assert.deepEqual(order, ['main', 'analytics', 'extra', 'later']);
+  const flags = firstOfKindFlags([{ binding: 'analytics', kind: 'postgres' }, { binding: 'main', kind: 'postgres' }, { binding: 'files', kind: 'blob' }, { binding: 'extra', kind: 'blob' }], declared);
+  assert.deepEqual(Object.fromEntries(flags), { files: true, main: true, analytics: false, extra: false }, 'main is first though analytics was connected before it');
+
+  const pg = (id: string, name: string) => ({ ...STORE, id, name });
+  const r = parseProjectStorage({
+    // a node that computes each attachment alone sends the bare names for both — the page does not repeat that
+    attached: [
+      { store: pg('st_aaaaaaaaaaaaaaaa', 'analytics-db'), binding: 'analytics', envPrefix: 'ANALYTICS', database: 'app', envNames: envNamesOf('postgres', 'ANALYTICS', true) },
+      { store: pg('st_bbbbbbbbbbbbbbbb', 'main-db'), binding: 'main', envPrefix: 'MAIN', database: 'app', envNames: envNamesOf('postgres', 'MAIN', true) },
+    ],
+    declared: ['main', 'analytics'],
+  });
+  const byBinding = Object.fromEntries(r.attached.map((a) => [a.binding, a.envNames]));
+  assert.deepEqual(byBinding.main, envNamesOf('postgres', 'MAIN', true), 'the first declared postgres gets DATABASE_URL / PG*');
+  assert.deepEqual(byBinding.analytics, envNamesOf('postgres', 'ANALYTICS', false), 'the second one only its prefixed names');
+  assert.ok(!byBinding.analytics!.includes('DATABASE_URL'));
+  assert.deepEqual(r.attached.map((a) => a.binding), ['analytics', 'main'], 'the list keeps the node\'s order; only the names follow the deploy\'s');
+});
+
+test('Connect\'s preview: first of its kind by ainize.json order, not by what happens to be connected', () => {
+  const attached = [{ binding: 'analytics', store: { kind: 'postgres' as const } }];
+  const declared = [{ name: 'main' }, { name: 'analytics' }];
+  assert.equal(wouldBeFirstOfKind({ binding: 'main', kind: 'postgres' }, attached, declared), true, 'main comes first in ainize.json, so it takes the bare names');
+  assert.equal(wouldBeFirstOfKind({ binding: 'extra', kind: 'postgres' }, attached, declared), false, 'an undeclared one goes after every declared one');
+  assert.equal(wouldBeFirstOfKind({ binding: 'extra', kind: 'blob' }, attached, declared), true, 'the first blob, whatever postgres is there');
+  assert.equal(wouldBeFirstOfKind({ binding: 'analytics', kind: 'postgres' }, attached, []), true, 'its own earlier entry does not count against it');
+  const dialog = src('components/storage/ConnectStoreDialog.tsx');
+  assert.match(dialog, /const firstOfKind = wouldBeFirstOfKind\(\{ binding: effectiveBinding, kind: effectiveKind \}, attached, declared\);/);
+  assert.match(src('components/storage/ProjectStorage.tsx'), /<ConnectStoreDialog [^\n]*declared=\{data\.declared\}/);
+});
+
+test('Connect preselects a ready store, and its button waits for one', () => {
+  const stores = [
+    { id: 'st_1', name: 'db', status: 'provisioning' as const },
+    { id: 'st_2', name: 'other', status: 'ready' as const },
+    { id: 'st_3', name: 'third', status: 'ready' as const },
+  ];
+  assert.equal(defaultStoreChoiceOf(stores, 'db'), 'st_2', 'the binding\'s namesake is not ready: the first ready one');
+  assert.equal(defaultStoreChoiceOf(stores, 'third'), 'st_3', 'the ready namesake');
+  assert.equal(defaultStoreChoiceOf(stores, null), 'st_2');
+  assert.equal(defaultStoreChoiceOf([{ id: 'st_1', name: 'db', status: 'stopped' }], 'db'), '', 'nothing ready: nothing chosen');
+  const dialog = src('components/storage/ConnectStoreDialog.tsx');
+  assert.match(dialog, /useState<string>\(defaultStoreChoiceOf\(candidates, binding\?\.name \?\? null\)\)/);
+  assert.match(dialog, /\(mode === 'existing' && chosen\?\.status !== 'ready'\)\}>/, 'a store that is not ready cannot be connected (409 store_not_ready)');
+  assert.match(dialog, /\{!chosen && <option value="">—<\/option>\}/);
+});
+
+test('?tab=storage on a project without storage opens Deployments, not a blank page', () => {
+  const page = src('screens/ProjectPage.tsx');
+  assert.match(page, /const asked: Tab = \(TABS as string\[\]\)\.includes\(sp\.get\('tab'\) \?\? ''\)/);
+  assert.match(page, /const tab: Tab = asked === 'storage' && !hasStorage \? 'deployments' : asked;/);
+  assert.ok(page.indexOf('const tab: Tab = asked') > page.indexOf('const hasStorage = '), 'decided once the kind is known');
+  assert.ok(!/\btab === /.test(page.slice(0, page.indexOf('const tab: Tab = asked'))), 'nothing reads the tab before the fallback');
+});
+
+test('a store\'s connected projects link by id — /projects/:id forwards to a monorepo folder\'s own console', () => {
+  assert.equal(attachedProjectStoragePath('p 1/x'), '/projects/p%201%2Fx?tab=storage');
+  const page = src('screens/org/StorePage.tsx');
+  assert.match(page, /<StyledLink to=\{attachedProjectStoragePath\(a\.projectId\)\}>/);
+  assert.doesNotMatch(page, /projectPath\(/);
+  assert.match(src('screens/ProjectPage.tsx'), /<Navigate to=\{withSearch\(projectPath\(q\.data\), location\.search\)\} replace \/>/, '/projects/:id keeps ?tab= when it forwards');
+});
+
+test('the Blob listing pages back as well as forward', () => {
+  let p = objectPagesStart();
+  assert.equal(objectPagesAfter(p), undefined);
+  assert.deepEqual(objectPagesPrev(p), p, 'no page before the first');
+  p = objectPagesNext(p, 'k100');
+  p = objectPagesNext(p, 'k200');
+  assert.equal(objectPagesAfter(p), 'k200'); assert.equal(p.trail.length, 3);
+  p = objectPagesPrev(p);
+  assert.equal(objectPagesAfter(p), 'k100', 'Previous opens the page before with its own cursor');
+  assert.equal(objectPagesAfter(objectPagesPrev(p)), undefined);
+  const browser = src('components/storage/StoreDataBrowser.tsx');
+  assert.match(browser, /setPages\(objectPagesPrev\)/);
+  assert.match(browser, /setPages\(objectPagesStart\(\)\)/);
+  assert.match(browser, /setPages\(\(p\) => objectPagesNext\(p, next\)\)/);
+  assert.match(browser, /const go = \(p: string\) => \{ setPrefix\(p\); setPages\(objectPagesStart\(\)\); \};/, 'a new prefix starts on its first page');
+});
+
+test('accessibility: the chosen table is announced, the extensions are one labelled group', () => {
+  assert.match(src('components/storage/StoreDataBrowser.tsx'), /<TableBtn [^>]*aria-pressed=\{current\?\.schema === tb\.schema && current\?\.name === tb\.name\}/);
+  const tab = src('screens/org/storage/StorageTab.tsx');
+  assert.match(tab, /<Field role="group" aria-labelledby="create-store-extensions">\n\s*<FieldLabel as="span" id="create-store-extensions">/);
+});
+
+test('connect / disconnect refetch the one organization\'s store list, not every Org query', () => {
+  const api = src('api/api.ts');
+  const block = (name: string) => api.slice(api.indexOf(`\n    ${name}: b.mutation<`), api.indexOf('\n    }),', api.indexOf(`\n    ${name}: b.mutation<`)));
+  for (const name of ['connectStore', 'disconnectStore']) {
+    assert.doesNotMatch(block(name), /'Org'(?! as const)/, `${name} does not invalidate the bare 'Org' tag`);
+    assert.match(block(name), /\.\.\.orgStoresTags\(a\.orgId\)/, name);
+    assert.match(block(name), /orgId: string \| null/, name);
+  }
+  assert.match(api, /const orgStoresTags = \(orgId: string \| null\) => \(orgId \? \[\{ type: 'Org' as const, id: `\$\{orgId\}\/stores` \}\] : \[\]\);/);
+  assert.match(block('connectStore'), /orgId: _o, \.\.\.body/, 'orgId is not sent to the node');
+});
+
+test('deleting an organization that still has stores says so (409 has_stores)', () => {
+  const e = orgApiErrorOf({ status: 409, data: { error: { code: 'has_stores', message: 'delete the organization\'s 2 store(s) first' }, stores: [{ id: 'st_1', name: 'db' }] } });
+  assert.equal(e.code, 'has_stores');
+  const s = organizations['org.api.has_stores'];
+  assert.ok(s && /[가-힣]/.test(s.ko) && /store/i.test(s.en));
 });

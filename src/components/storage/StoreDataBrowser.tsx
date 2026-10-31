@@ -1,14 +1,18 @@
 /**
  * The store page's Data tab — Vercel's data browser: for Postgres, the tables of a database down the side, the rows
  * of the chosen one as a grid (50 a page, ordered by a column), and a read-only SQL box (one statement, `app_ro`,
- * ten seconds, 200 rows); for Blob, the bucket's objects under a prefix with breadcrumbs and a Download per object.
+ * ten seconds, 200 rows); for Blob, the bucket's objects under a prefix with breadcrumbs, a Download per object, and
+ * Previous / Next / First page over the node's `after` cursor (the cursors already passed are kept to go back).
  *
  * Everything here needs the write role (the node refuses `read` 403); the component is told whether it has it and
  * says so instead of asking.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useStoreObjectsQuery, useStoreQueryMutation, useStoreRowsQuery, useStoreTablesQuery } from '@/api/api';
-import { bytesLabel, DEFAULT_DATABASE, QUERY_MAX_BYTES, QUERY_TIMEOUT_S, ROWS_MAX, storeObjectDownloadUrl, type QueryResult, type StoreDetail, type StoreRows } from '@/api/projectStorage';
+import {
+  bytesLabel, DEFAULT_DATABASE, objectPagesAfter, objectPagesNext, objectPagesPrev, objectPagesStart, QUERY_MAX_BYTES, QUERY_TIMEOUT_S, ROWS_MAX, storeObjectDownloadUrl,
+  type ObjectPages, type QueryResult, type StoreDetail, type StoreRows,
+} from '@/api/projectStorage';
 import { Button } from '@/components/ui/Button';
 import { Alert, Field, FieldLabel, Select, Textarea } from '@/components/ui/Form';
 import { ExternalLink, Mono, Pagination } from '@/components/ui/Misc';
@@ -93,7 +97,7 @@ function PostgresBrowser({ store }: { store: StoreDetail }) {
           <Split>
             <Side aria-label={t('storage.data.tables')}>
               {tables.data.tables.map((tb) => (
-                <TableBtn key={`${tb.schema}.${tb.name}`} $active={current?.schema === tb.schema && current?.name === tb.name} onClick={() => { setPicked({ schema: tb.schema, name: tb.name }); setPage(1); setOrder(null); }} title={`${tb.schema}.${tb.name} · ${bytesLabel(tb.bytes)}`}>
+                <TableBtn key={`${tb.schema}.${tb.name}`} type="button" $active={current?.schema === tb.schema && current?.name === tb.name} aria-pressed={current?.schema === tb.schema && current?.name === tb.name} onClick={() => { setPicked({ schema: tb.schema, name: tb.name }); setPage(1); setOrder(null); }} title={`${tb.schema}.${tb.name} · ${bytesLabel(tb.bytes)}`}>
                   <span className="n">{tb.schema === 'public' ? tb.name : `${tb.schema}.${tb.name}`}</span>
                   <span className="c">{tb.rows ?? '—'}</span>
                 </TableBtn>
@@ -143,10 +147,12 @@ function PostgresBrowser({ store }: { store: StoreDetail }) {
 function BlobBrowser({ store }: { store: StoreDetail }) {
   const { t } = useT();
   const [prefix, setPrefix] = useState('');
-  const [after, setAfter] = useState<string | undefined>(undefined);
+  const [pages, setPages] = useState<ObjectPages>(objectPagesStart);
+  const after = objectPagesAfter(pages);
   const q = useStoreObjectsQuery({ sid: store.id, prefix: prefix || undefined, after, limit: 200 }, { skip: store.status !== 'ready' });
   const crumbs = useMemo(() => prefix.split('/').filter(Boolean), [prefix]);
-  const go = (p: string) => { setPrefix(p); setAfter(undefined); };
+  const go = (p: string) => { setPrefix(p); setPages(objectPagesStart()); };
+  const pageNo = pages.trail.length;
   if (store.status !== 'ready') return <Alert $tone="info">{t('storage.data.not_ready', { status: t(`storage.status.${store.status}`) })}</Alert>;
   return (
     <Panel>
@@ -181,7 +187,14 @@ function BlobBrowser({ store }: { store: StoreDetail }) {
           </Table>
         </TableWrapper>
       )}
-      {q.data?.next && <Actions><Button size="small" onClick={() => setAfter(q.data!.next!)}>{t('storage.data.more')}</Button></Actions>}
+      {(pageNo > 1 || q.data?.next) && (
+        <Actions role="group" aria-label={t('storage.data.pages')}>
+          {pageNo > 2 && <Button size="small" variant="text" onClick={() => setPages(objectPagesStart())}>{t('storage.data.first_page')}</Button>}
+          {pageNo > 1 && <Button size="small" onClick={() => setPages(objectPagesPrev)}>{t('storage.data.prev')}</Button>}
+          <Meta aria-live="polite">{t('storage.data.page_n', { n: pageNo })}</Meta>
+          {q.data?.next && <Button size="small" onClick={() => { const next = q.data?.next; if (next) setPages((p) => objectPagesNext(p, next)); }}>{t('storage.data.more')}</Button>}
+        </Actions>
+      )}
     </Panel>
   );
 }

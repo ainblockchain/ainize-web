@@ -179,7 +179,11 @@ export const storage: Dict = {
   'storage.data.size': { ko: '크기', en: 'Size' },
   'storage.data.modified': { ko: '수정', en: 'Modified' },
   'storage.data.download': { ko: '내려받기', en: 'Download' },
-  'storage.data.more': { ko: '더 보기', en: 'More' },
+  'storage.data.more': { ko: '다음 페이지 →', en: 'Next page →' },
+  'storage.data.prev': { ko: '← 이전 페이지', en: '← Previous page' },
+  'storage.data.first_page': { ko: '첫 페이지', en: 'First page' },
+  'storage.data.page_n': { ko: '{n}쪽', en: 'Page {n}' },
+  'storage.data.pages': { ko: '객체 목록 페이지', en: 'Object list pages' },
   'storage.data.write_only': { ko: '데이터 브라우저는 조직의 쓰기 권한 멤버부터 쓸 수 있습니다.', en: 'The data browser takes the organization\'s write role.' },
 
   'storage.backups.title': { ko: '백업', en: 'Backups' },

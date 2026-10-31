@@ -120,7 +120,7 @@ export default function ProjectStorage({ project, onOpenDeployment }: { project:
         </Actions>
       )}
       {canManage && connecting !== null && (
-        <ConnectStoreDialog project={project} orgId={data.orgId} binding={connecting === 'free' ? null : connecting} orgStores={data.orgStores} attached={data.attached} onDone={onDone} onClose={() => setConnecting(null)} />
+        <ConnectStoreDialog project={project} orgId={data.orgId} binding={connecting === 'free' ? null : connecting} declared={data.declared} orgStores={data.orgStores} attached={data.attached} onDone={onDone} onClose={() => setConnecting(null)} />
       )}
       {note && <Alert $tone="warning">{note}</Alert>}
       {queued && <DeployWatch key={queued.deploymentId} queued={queued} onOpen={onOpenDeployment} />}

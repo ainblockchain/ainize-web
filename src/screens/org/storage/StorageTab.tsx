@@ -19,13 +19,13 @@ import { useNavigate } from 'react-router';
 import { useClearOrgBackupTargetMutation, useCreateStoreMutation, useOrgStoresQuery, useSetOrgBackupTargetMutation } from '@/api/api';
 import { roleAtLeast, type OrgProfile } from '@/api/organizations';
 import {
-  BACKUP_TZ, bytesLabel, defaultEngineOf, driveBackupUrl, engineKindOf, storageApiErrorOf, STORE_ENGINES, STORE_KINDS, storeIsBusy, storeNameProblem,
+  BACKUP_TZ, bytesLabel, defaultEngineOf, driveBackupUrl, engineKindOf, storageApiErrorOf, STORE_ENGINES, STORE_KINDS, storeIsBusy, storeNameProblem, unwrapUncached,
   type OrgStoresResponse, type Store, type StoreEngine, type StoreKind,
 } from '@/api/projectStorage';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select } from '@/components/ui/Form';
 import { ExternalLink, Mono, StyledLink } from '@/components/ui/Misc';
-import { Actions, Card, Cards, Chip, Dialog, Grid, Help, KindChip, Meta, Name, Panel, Row, Spacer, StatusChip, StatusDot, storageErrorText, when } from '@/components/storage/common';
+import { Actions, Card, Cards, Chip, Dialog, Grid, Help, KindChip, Meta, Name, Panel, Row, Spacer, StatusChip, StatusDot, storageErrorText, useForgetMutationArgs, when } from '@/components/storage/common';
 import { useT } from '@/i18n';
 import { storePath } from '@/lib/reservedRoutes';
 
@@ -142,8 +142,8 @@ function CreateStoreDialog({ orgId, data, onClose }: { orgId: string; data: OrgS
         </Field>
       </Grid>
       {extensionsOffered.length > 0 && (
-        <Field>
-          <FieldLabel>{t('storage.create.extensions')}</FieldLabel>
+        <Field role="group" aria-labelledby="create-store-extensions">
+          <FieldLabel as="span" id="create-store-extensions">{t('storage.create.extensions')}</FieldLabel>
           <Row>{extensionsOffered.map((x) => <Checkbox key={x} label={<Mono>{x}</Mono>} checked={extensions.includes(x)} onChange={(e) => setExtensions((cur) => (e.target.checked ? [...cur, x] : cur.filter((y) => y !== x)))} />)}</Row>
         </Field>
       )}
@@ -160,6 +160,7 @@ function BackupTargetPanel({ orgId, data, admin }: { orgId: string; data: OrgSto
   const { t } = useT();
   const target = data.backupDrive;
   const [setTarget, setting] = useSetOrgBackupTargetMutation();
+  useForgetMutationArgs(setting);
   const [clearTarget, clearing] = useClearOrgBackupTargetMutation();
   const [driveId, setDriveId] = useState(target.driveId ?? target.defaultDriveId ?? '');
   const [token, setToken] = useState('');
@@ -169,7 +170,8 @@ function BackupTargetPanel({ orgId, data, admin }: { orgId: string; data: OrgSto
   useEffect(() => { setEditing(!target.configured); setDriveId(target.driveId ?? target.defaultDriveId ?? ''); }, [target.configured, target.driveId, target.defaultDriveId]);
   const save = async () => {
     setErr(null); setNote(null);
-    try { const r = await setTarget({ orgId, driveId: driveId.trim(), token: token.trim() }).unwrap(); setToken(''); setNote(t('storage.org.target_saved', { drive: r.driveId })); }
+    // the AinDrive token: out of the Redux store as soon as the node answers, and out of the hook (useForgetMutationArgs)
+    try { const r = await unwrapUncached(setTarget({ orgId, driveId: driveId.trim(), token: token.trim() })); setToken(''); setNote(t('storage.org.target_saved', { drive: r.driveId })); }
     catch (e) { setErr(storageErrorText(t, e)); }
   };
   const clear = async () => {

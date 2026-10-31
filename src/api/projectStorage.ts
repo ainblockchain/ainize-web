@@ -329,8 +329,12 @@ export function parseProjectStorage(raw: unknown): ProjectStorageResponse {
     if (!o || !store) return [];
     const binding = str(o.binding, store.name);
     const envPrefix = str(o.envPrefix, storeEnvPrefixOf(binding));
-    return [{ store, binding, envPrefix, database: str(o.database, DEFAULT_DATABASE), envNames: Array.isArray(o.envNames) ? strings(o.envNames) : envNamesOf(store.kind, envPrefix, true) }];
+    return [{ store, binding, envPrefix, database: str(o.database, DEFAULT_DATABASE), envNames: [] as string[] }];
   });
+  // The names come from the deploy's order, not from the answer: a node that computes each attachment's `envNames`
+  // alone counts every store as the first of its kind, and only the first one gets the bare DATABASE_URL / S3_*.
+  const firsts = firstOfKindFlags(attached.map((a) => ({ binding: a.binding, kind: a.store.kind })), declared);
+  for (const a of attached) a.envNames = envNamesOf(a.store.kind, a.envPrefix, firsts.get(a.binding) === true);
   const connected = new Set(attached.map((a) => a.binding));
   // An older answer without `missing` still gets one: declared, required, and not connected.
   const missing = Array.isArray(r.missing) ? strings(r.missing) : declared.filter((d) => d.required && !connected.has(d.name)).map((d) => d.name);
@@ -501,6 +505,59 @@ export function envNamesOf(kind: StoreKind, prefix: string, first: boolean): str
   }
   return out;
 }
+
+/**
+ * The order a deployment binds its stores in (ainize-node project-storage-manager.ts `bindingsFor`): the bindings
+ * ainize.json declares, in its order, then the connected-but-undeclared ones in connection order.
+ */
+export function deployOrderOf<T extends { binding: string }>(bindings: readonly T[], declared: readonly Pick<DeclaredBinding, 'name'>[]): T[] {
+  const at = (b: string) => { const i = declared.findIndex((d) => d.name === b); return i < 0 ? declared.length : i; };
+  return bindings.map((b, i) => ({ b, i })).sort((x, y) => at(x.b.binding) - at(y.b.binding) || x.i - y.i).map((x) => x.b);
+}
+
+/** binding → whether it is the first of its kind in deploy order, i.e. also gets the unprefixed names (`storesEnv`). */
+export function firstOfKindFlags(bindings: readonly { binding: string; kind: StoreKind }[], declared: readonly Pick<DeclaredBinding, 'name'>[]): Map<string, boolean> {
+  const seen = new Set<StoreKind>();
+  const out = new Map<string, boolean>();
+  for (const b of deployOrderOf(bindings, declared)) { out.set(b.binding, !seen.has(b.kind)); seen.add(b.kind); }
+  return out;
+}
+
+/** Whether a binding about to be connected would be the first of its kind — Connect's preview of the names it gets. */
+export function wouldBeFirstOfKind(next: { binding: string; kind: StoreKind }, attached: readonly { binding: string; store: Pick<Store, 'kind'> }[], declared: readonly Pick<DeclaredBinding, 'name'>[]): boolean {
+  const all = [...attached.filter((a) => a.binding !== next.binding).map((a) => ({ binding: a.binding, kind: a.store.kind })), next];
+  return firstOfKindFlags(all, declared).get(next.binding) === true;
+}
+
+/** Connect's preselected store: the one named like the binding if it is ready, else the first ready one, else none. */
+export function defaultStoreChoiceOf(candidates: readonly Pick<OrgStoreSummary, 'id' | 'name' | 'status'>[], bindingName: string | null): string {
+  const ready = candidates.filter((s) => s.status === 'ready');
+  return (ready.find((s) => s.name === bindingName) ?? ready[0])?.id ?? '';
+}
+
+/**
+ * Await a started mutation and take it out of the Redux store — for a reveal (its answer holds passwords) and the
+ * backup target (its argument holds an AinDrive token). RTK Query keeps a mutation's `data` and `originalArgs` in
+ * `state.api.mutations` until its hook unmounts or is reset, and the project's Storage tab stays mounted while it is
+ * open, so the entry is removed the moment the answer arrives, or the refusal. The started promise's own `reset()`
+ * is the one that works here: the hook's `reset` is bound to the render before the trigger and would do nothing.
+ */
+export async function unwrapUncached<T>(started: { unwrap(): Promise<T>; reset(): void }): Promise<T> {
+  try { return await started.unwrap(); } finally { started.reset(); }
+}
+
+/**
+ * The Storage tab of an attached project, by its id: `/projects/:id` forwards to the right page with the query kept,
+ * a monorepo folder's project included (the store's attachment rows carry no folder, so `projectPath` cannot be built).
+ */
+export const attachedProjectStoragePath = (projectId: string) => `/projects/${encodeURIComponent(projectId)}?tab=storage`;
+
+/** The Blob listing's pages: `trail` holds the cursor each page was opened with, so Previous and First page work. */
+export interface ObjectPages { trail: (string | undefined)[] }
+export const objectPagesStart = (): ObjectPages => ({ trail: [undefined] });
+export const objectPagesAfter = (p: ObjectPages): string | undefined => p.trail[p.trail.length - 1];
+export const objectPagesNext = (p: ObjectPages, next: string): ObjectPages => ({ trail: [...p.trail, next] });
+export const objectPagesPrev = (p: ObjectPages): ObjectPages => (p.trail.length > 1 ? { trail: p.trail.slice(0, -1) } : p);
 
 /** `.env.local` text, quoted as ainize-node `renderDotenv` does: plain URL-safe values bare, anything else double-quoted with `\` `"` and newlines escaped. */
 export function dotenvOf(env: Record<string, string>): string {

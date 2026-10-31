@@ -17,11 +17,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  useConnectStoreMutation, useDeleteStoreMutation, useMyProjectsQuery, useOrgProjectsQuery, useOrgQuery, useOrgStoresQuery, useRevealStoreEnvMutation, useRotateStoreMutation, useStoreActionMutation, useStoreLogsQuery,
+  useConnectStoreMutation, useDeleteStoreMutation, useMyProjectsQuery, useOrgProjectsQuery, useOrgQuery, useOrgStoresQuery, useRotateStoreMutation, useStoreActionMutation, useStoreLogsQuery,
   useStoreQuery, useUpdateStoreMutation,
 } from '@/api/api';
 import { parseOrgProfile, roleAtLeast, type OrgRole } from '@/api/organizations';
-import { bytesLabel, storeIsBusy, storeNameProblem, type RevealedEnv, type StoreDetail } from '@/api/projectStorage';
+import { attachedProjectStoragePath, bytesLabel, storeIsBusy, storeNameProblem, type StoreDetail } from '@/api/projectStorage';
 import { relativeTime, type Project } from '@/api/projects';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -29,10 +29,10 @@ import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select } from '@
 import { CenterProgress, CopyButton, Empty, KeyValue, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import StoreBackups from '@/components/storage/StoreBackups';
 import StoreDataBrowser from '@/components/storage/StoreDataBrowser';
-import { RevealedEnvView } from '@/components/storage/StoreCard';
+import { RevealedEnvView, useRevealedEnv } from '@/components/storage/StoreCard';
 import { Actions, Chip, DangerPanel, EnvChip, EnvChips, Grid, Help, KindChip, Meta, Panel, Pre, Row, Spacer, StatusChip, storageErrorText, when } from '@/components/storage/common';
 import { useT } from '@/i18n';
-import { projectPath, storePath } from '@/lib/reservedRoutes';
+import { storePath } from '@/lib/reservedRoutes';
 import { useTitle } from '@/utils/useTitle';
 
 type Tab = 'overview' | 'data' | 'backups' | 'settings';
@@ -94,8 +94,7 @@ function OverviewTab({ store, orgId, role }: { store: StoreDetail; orgId: string
   const write = roleAtLeast(role, 'write');
   const admin = roleAtLeast(role, 'admin');
   const [action, acting] = useStoreActionMutation();
-  const [reveal, revealing] = useRevealStoreEnvMutation();
-  const [revealed, setRevealed] = useState<RevealedEnv | null>(null);
+  const { revealed, show: reveal, hide, isLoading: revealing } = useRevealedEnv(store);
   const [err, setErr] = useState<string | null>(null);
   const act = async (fn: () => Promise<unknown>) => { setErr(null); try { await fn(); } catch (e) { setErr(storageErrorText(t, e)); } };
   return (
@@ -118,9 +117,9 @@ function OverviewTab({ store, orgId, role }: { store: StoreDetail; orgId: string
         <Actions>
           {admin && store.status === 'ready' && <Button size="small" color="secondary" loading={acting.isLoading} onClick={() => { if (window.confirm(t('storage.overview.stop_confirm', { name: store.name }))) void act(() => action({ sid: store.id, orgId, action: 'stop' }).unwrap()); }}>{t('storage.overview.stop')}</Button>}
           {admin && store.status === 'stopped' && <Button size="small" variant="contained" loading={acting.isLoading} onClick={() => void act(() => action({ sid: store.id, orgId, action: 'start' }).unwrap())}>{t('storage.overview.start')}</Button>}
-          {write && !revealed && <Button size="small" loading={revealing.isLoading} disabled={store.status !== 'ready' && store.status !== 'stopped'} onClick={() => void act(async () => setRevealed(await reveal({ sid: store.id }).unwrap()))} title={t('storage.env.reveal_help')}>{t('storage.env.show')}</Button>}
+          {write && !revealed && <Button size="small" loading={revealing} disabled={store.status !== 'ready' && store.status !== 'stopped'} onClick={() => void act(reveal)} title={t('storage.env.reveal_help')}>{t('storage.env.show')}</Button>}
         </Actions>
-        {revealed && <RevealedEnvView revealed={revealed} kind={store.kind} onHide={() => setRevealed(null)} />}
+        {revealed && <RevealedEnvView revealed={revealed} kind={store.kind} onHide={hide} />}
         <div>
           <Meta>{t('storage.card.env_names')}</Meta>
           <EnvChips style={{ marginTop: 6 }}>{store.connectionNames.map((n) => <EnvChip key={n}>{n}</EnvChip>)}</EnvChips>
@@ -133,7 +132,7 @@ function OverviewTab({ store, orgId, role }: { store: StoreDetail; orgId: string
             {store.attachments.map((a) => (
               <li key={a.projectId}>
                 <Row>
-                  {a.org && a.repoName ? <StyledLink to={`${projectPath({ org: a.org, repoName: a.repoName })}?tab=storage`}><Mono>{a.org}/{a.repoName}</Mono></StyledLink> : <Mono>{a.projectId}</Mono>}
+                  <StyledLink to={attachedProjectStoragePath(a.projectId)}><Mono>{a.org && a.repoName ? `${a.org}/${a.repoName}` : a.projectId}</Mono></StyledLink>
                   <Chip $tone="muted">{t('storage.card.binding')} <Mono>{a.binding}</Mono></Chip>
                   <Chip $tone="muted"><Mono>{a.envPrefix}_*</Mono></Chip>
                   {store.kind === 'postgres' && <Chip $tone="muted">db <Mono>{a.database}</Mono></Chip>}
@@ -174,7 +173,7 @@ function ConnectProjectForm({ store, orgId }: { store: StoreDetail; orgId: strin
     if (!chosen) return;
     setErr(null); setDone(null);
     try {
-      const r = await connect({ sid: store.id, projectId: chosen.id, binding: binding.trim() || undefined, redeploy: redeploy && !!chosen.lastDeploymentId }).unwrap();
+      const r = await connect({ sid: store.id, projectId: chosen.id, orgId, binding: binding.trim() || undefined, redeploy: redeploy && !!chosen.lastDeploymentId }).unwrap();
       setDone(t('storage.overview.connected', { project: `${chosen.org}/${chosen.repoName}`, names: r.envNames.slice(0, 3).join(', ') }));
       setProjectId(''); setBinding('');
     } catch (e) { setErr(storageErrorText(t, e)); }

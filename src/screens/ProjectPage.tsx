@@ -356,7 +356,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const { t } = useT();
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
-  const tab: Tab = (TABS as string[]).includes(sp.get('tab') ?? '') ? (sp.get('tab') as Tab) : 'deployments';
+  const asked: Tab = (TABS as string[]).includes(sp.get('tab') ?? '') ? (sp.get('tab') as Tab) : 'deployments';
   const setTab = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); if (id === 'deployments') n.delete('tab'); else n.set('tab', id); n.delete('open'); return n; }, { replace: true });
   const open = sp.get('open');
   const setOpen = (id: string | null) => setSp((prev) => { const n = new URLSearchParams(prev); if (id) n.set('open', id); else n.delete('open'); return n; }, { replace: true });
@@ -365,7 +365,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const projectQ = useProjectQuery(initial.id, { pollingInterval: live ? 2000 : 15_000 });
   const p = projectQ.data ?? initial;
   const deployments = useProjectDeploymentsQuery(p.id, { pollingInterval: live ? 2000 : 15_000 });
-  const runs = useProjectRunsQuery(p.id, { pollingInterval: tab === 'runs' ? 2000 : 0 });
+  const runs = useProjectRunsQuery(p.id, { pollingInterval: asked === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
   const newest = deployments.data?.deployments[0]?.status;
   useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
@@ -374,6 +374,8 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const runRows = runs.data?.runs ?? [];
   const kind = p.kind ?? p.manifest?.kind ?? null;
   const hasStorage = kind === 'nextjs' || kind === 'service';
+  // `?tab=storage` on a script or agent: there is no such tab to select, so the console opens on Deployments
+  const tab: Tab = asked === 'storage' && !hasStorage ? 'deployments' : asked;
   const isScript = kind === 'script' || kind === null;
   const lastReady = rows.find((d) => d.status === 'ready' && d.outputUrl);
   const latest = rows[0];

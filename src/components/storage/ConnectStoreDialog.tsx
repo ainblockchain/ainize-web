@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useConnectStoreMutation, useCreateStoreMutation, useStoreQuery } from '@/api/api';
 import {
-  databaseNameProblem, DEFAULT_DATABASE, defaultEngineOf, engineKindOf, envNamesOf, envPrefixProblem, STORE_ENGINES, STORE_KINDS, storeEnvPrefixOf, storeNameProblem,
+  databaseNameProblem, DEFAULT_DATABASE, defaultEngineOf, defaultStoreChoiceOf, engineKindOf, envNamesOf, envPrefixProblem, STORE_ENGINES, STORE_KINDS, storeEnvPrefixOf, storeNameProblem, wouldBeFirstOfKind,
   type AttachedStore, type DeclaredBinding, type OrgStoreSummary, type StoreEngine, type StoreKind,
 } from '@/api/projectStorage';
 import type { Project, Queued } from '@/api/projects';
@@ -22,11 +22,13 @@ import { Actions, Dialog, EnvChip, EnvChips, Grid, Help, KindChip, Meta, Row, Sp
 
 type Mode = 'existing' | 'new';
 
-export default function ConnectStoreDialog({ project, orgId, binding, orgStores, attached, onDone, onClose }: {
+export default function ConnectStoreDialog({ project, orgId, binding, declared, orgStores, attached, onDone, onClose }: {
   project: Project;
   orgId: string | null;
   /** The ainize.json entry being connected, or null for a free connection (the binding is named here). */
   binding: DeclaredBinding | null;
+  /** Everything ainize.json declares, in its order — which binding is the first of its kind follows it (`storesEnv`). */
+  declared: DeclaredBinding[];
   orgStores: OrgStoreSummary[];
   attached: AttachedStore[];
   onDone: (q: Queued | null) => void;
@@ -36,7 +38,7 @@ export default function ConnectStoreDialog({ project, orgId, binding, orgStores,
   const fixedKind = binding?.kind ?? null;
   const candidates = useMemo(() => orgStores.filter((s) => (!fixedKind || s.kind === fixedKind) && !attached.some((a) => a.store.id === s.id)), [orgStores, fixedKind, attached]);
   const [mode, setMode] = useState<Mode>(candidates.length ? 'existing' : 'new');
-  const [storeId, setStoreId] = useState<string>(candidates.find((s) => s.name === binding?.name)?.id ?? candidates[0]?.id ?? '');
+  const [storeId, setStoreId] = useState<string>(defaultStoreChoiceOf(candidates, binding?.name ?? null));
   const [kind, setKind] = useState<StoreKind>(fixedKind ?? 'postgres');
   const [newName, setNewName] = useState(binding?.name ?? '');
   const [engine, setEngine] = useState<StoreEngine>(defaultEngineOf(fixedKind ?? 'postgres'));
@@ -54,7 +56,7 @@ export default function ConnectStoreDialog({ project, orgId, binding, orgStores,
   const effectiveKind: StoreKind = mode === 'existing' ? (chosen?.kind ?? kind) : fixedKind ?? engineKindOf(engine);
   const effectiveBinding = (binding?.name ?? bindingName.trim()) || (mode === 'existing' ? chosen?.name ?? '' : newName.trim());
   const effectivePrefix = prefix.trim() || storeEnvPrefixOf(effectiveBinding || 'store');
-  const firstOfKind = !attached.some((a) => a.store.kind === effectiveKind);
+  const firstOfKind = wouldBeFirstOfKind({ binding: effectiveBinding, kind: effectiveKind }, attached, declared);
   const preview = effectiveBinding ? envNamesOf(effectiveKind, effectivePrefix, firstOfKind) : [];
   const nameProblem = mode === 'new' ? storeNameProblem(newName.trim()) : null;
   const bindingProblem = binding ? null : storeNameProblem(effectiveBinding);
@@ -65,7 +67,7 @@ export default function ConnectStoreDialog({ project, orgId, binding, orgStores,
 
   const attach = async (sid: string) => {
     const r = await connect({
-      sid, projectId: project.id, binding: effectiveBinding, envPrefix: prefix.trim() || undefined,
+      sid, projectId: project.id, orgId, binding: effectiveBinding, envPrefix: prefix.trim() || undefined,
       database: effectiveKind === 'postgres' && database.trim() !== DEFAULT_DATABASE ? database.trim() : undefined, redeploy: deploys && redeploy,
     }).unwrap();
     onDone(r.redeploy);
@@ -106,6 +108,7 @@ export default function ConnectStoreDialog({ project, orgId, binding, orgStores,
         <Field>
           <FieldLabel htmlFor="connect-store">{t('storage.connect.pick')}</FieldLabel>
           <Select id="connect-store" value={storeId} onChange={(e) => setStoreId(e.target.value)}>
+            {!chosen && <option value="">—</option>}
             {candidates.map((s) => <option key={s.id} value={s.id} disabled={s.status !== 'ready'}>{s.name} — {t(`storage.kind.${s.kind}`)}{s.status !== 'ready' ? ` (${t(`storage.status.${s.status}`)})` : ''}</option>)}
           </Select>
           {chosen && <Row><StatusDot status={chosen.status} /><Meta>{t(`storage.status.${chosen.status}`)}</Meta></Row>}
@@ -166,7 +169,7 @@ export default function ConnectStoreDialog({ project, orgId, binding, orgStores,
       {pendingStoreId && <Alert $tone="info" aria-live="polite">{t('storage.connect.creating', { name: newName.trim() })} <Mono>{pending.data?.status ?? '…'}</Mono></Alert>}
       {err && <Alert $tone="error">{err}</Alert>}
       <Actions>
-        <Button variant="contained" size="small" loading={busy} onClick={() => void submit()} disabled={!effectiveBinding || !!nameProblem || !!bindingProblem || !!prefixProblem || !!dbProblem || (mode === 'existing' && !chosen)}>
+        <Button variant="contained" size="small" loading={busy} onClick={() => void submit()} disabled={!effectiveBinding || !!nameProblem || !!bindingProblem || !!prefixProblem || !!dbProblem || (mode === 'existing' && chosen?.status !== 'ready')}>
           {mode === 'new' ? t('storage.connect.create_and_connect') : t('storage.connect')}
         </Button>
         {deploys ? <Checkbox label={t('storage.connect.redeploy')} checked={redeploy} onChange={(e) => setRedeploy(e.target.checked)} /> : <Help>{t('storage.connect.no_deployment')}</Help>}

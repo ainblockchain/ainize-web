@@ -101,6 +101,9 @@ const toQuery = (params: Record<string, unknown>) => {
   return s ? `?${s}` : '';
 };
 
+/** The one organization's store list (`orgStores`) — not the bare 'Org' tag, which would refetch every organization query. */
+const orgStoresTags = (orgId: string | null) => (orgId ? [{ type: 'Org' as const, id: `${orgId}/stores` }] : []);
+
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
@@ -249,15 +252,18 @@ export const api = createApi({
       query: ({ sid, confirm, skipFinalBackup }) => ({ url: storeUrl(sid), method: 'DELETE', body: { confirm, ...(skipFinalBackup ? { skipFinalBackup } : {}) } }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Org', id: `${a.orgId}/stores` }],
     }),
-    connectStore: b.mutation<AttachResult, { sid: string; projectId: string; binding?: string; envPrefix?: string; database?: string; redeploy?: boolean }>({
-      query: ({ sid, redeploy, ...body }) => ({ url: `${storeUrl(sid, 'attachments')}${redeploy ? '?redeploy=1' : ''}`, method: 'POST', body }), transformResponse: parseAttachResult,
-      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Project', id: `${a.projectId}/storage` }, { type: 'Project', id: `${a.projectId}/secrets` }, 'Org', ...(a.redeploy ? [{ type: 'Project' as const, id: a.projectId }] : [])],
+    connectStore: b.mutation<AttachResult, { sid: string; projectId: string; /** the store's organization: only its store list is refetched */ orgId: string | null; binding?: string; envPrefix?: string; database?: string; redeploy?: boolean }>({
+      query: ({ sid, redeploy, orgId: _o, ...body }) => ({ url: `${storeUrl(sid, 'attachments')}${redeploy ? '?redeploy=1' : ''}`, method: 'POST', body }), transformResponse: parseAttachResult,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Project', id: `${a.projectId}/storage` }, { type: 'Project', id: `${a.projectId}/secrets` }, ...orgStoresTags(a.orgId), ...(a.redeploy ? [{ type: 'Project' as const, id: a.projectId }] : [])],
     }),
-    disconnectStore: b.mutation<DetachResult, { sid: string; projectId: string; redeploy?: boolean }>({
+    disconnectStore: b.mutation<DetachResult, { sid: string; projectId: string; orgId: string | null; redeploy?: boolean }>({
       query: ({ sid, projectId, redeploy }) => ({ url: `${storeUrl(sid, `attachments/${encodeURIComponent(projectId)}`)}${redeploy ? '?redeploy=1' : ''}`, method: 'DELETE' }), transformResponse: parseDetachResult,
-      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Project', id: `${a.projectId}/storage` }, { type: 'Project', id: `${a.projectId}/secrets` }, 'Org', ...(a.redeploy ? [{ type: 'Project' as const, id: a.projectId }] : [])],
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Project', id: `${a.projectId}/storage` }, { type: 'Project', id: `${a.projectId}/secrets` }, ...orgStoresTags(a.orgId), ...(a.redeploy ? [{ type: 'Project' as const, id: a.projectId }] : [])],
     }),
-    /** A mutation on purpose: every reveal is logged by the node and the values must never sit in the query cache. */
+    /**
+     * A mutation on purpose: every reveal is logged by the node and the values must never sit in the query cache.
+     * A mutation's answer still sits in `state.api.mutations` until it is reset — callers go through `unwrapUncached`.
+     */
     revealStoreEnv: b.mutation<RevealedEnv, { sid: string; projectId?: string }>({
       query: ({ sid, projectId }) => ({ url: storeUrl(sid, 'reveal'), method: 'POST', body: projectId ? { projectId } : {} }), transformResponse: parseRevealed,
     }),
