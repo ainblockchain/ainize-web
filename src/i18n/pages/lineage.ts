@@ -153,6 +153,7 @@ export const lineageTree: Dict = {
   'detail.apply.error.not_loaded': { ko: '현재 이 지식의 적용 기록이 없어 제거하지 않았습니다. 최신 적용 상태를 확인하세요.', en: 'This knowledge has no current load record, so no removal was performed. Check the latest load status.' },
   'detail.apply.error.order': { ko: '현재 적용 순서가 이 지식에 필요한 선행 지식 순서와 맞지 않습니다. 기존 적용 기록을 검토하세요.', en: 'The recorded order does not match this knowledge’s required base order. Review the existing load records.' },
   'detail.apply.error.restore': { ko: '이전 상태를 복원하는 데 필요한 파일이 없어 제거하지 않았습니다. 노드의 파일과 적용 기록을 확인하세요.', en: 'A file needed to restore the previous state is missing, so removal was not performed. Check the node’s files and load records.' },
+  'detail.apply.error.recovery': { ko: '이전 모델 작업의 복구가 아직 확인되지 않았습니다. 복구가 끝난 뒤 적용 상태를 다시 확인하세요.', en: 'Restoration after the previous model operation is not yet confirmed. Check the load status again once recovery completes.' },
   'detail.apply.error.unconfirmed': { ko: '요청 결과와 현재 적용 기록이 일치하는지 확인하지 못했습니다. 작업 상태를 다시 확인하세요.', en: 'The operation result could not be confirmed against current load records. Check the original operation again.' },
   'detail.operation.title': { ko: '모델 작업 상태', en: 'Model operation status' },
   'detail.operation.load': { ko: '적용', en: 'Load' },

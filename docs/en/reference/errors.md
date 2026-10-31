@@ -178,7 +178,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 167 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 168 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 113 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -347,6 +347,7 @@ A further 113 throw sites build their message at the time (a validator's own wor
 | `502` | restore_cleanup_failed | `src/agent-archive-restore.ts` |
 | `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
+| `503` | runtime_restore_\<code>: \<detail> | `src/market.ts`, `src/runtime-restoration.ts`, `src/verifier.ts` |
 | `503` | seller file unavailable; no payment accepted | `src/api.ts` |
 | `503` | Stored inference journal is invalid; preserve it for operator reconciliation | `src/api.ts` |
 | `503` | the \<modality> backend stopped accepting work before this request started | `src/modality-gate.ts` |

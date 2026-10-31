@@ -104,4 +104,8 @@ test('execution-time guards distinguish refused removal, changed plans, order co
     assert.equal(runtimeGuardFailure({ status: 500, data: { error: `${prefix}: details` } }), null);
   }
   assert.equal(runtimeGuardFailure({ status: 409, data: { error: 'unrelated failure' } }), null);
+  for (const prefix of ['runtime_restore_pending', 'runtime_restore_snapshot', 'runtime_restore_failed']) {
+    assert.equal(runtimeGuardFailure({ status: 503, data: { error: `${prefix}: details` } }), 'recovery');
+    assert.equal(runtimeGuardFailure({ status: 500, data: { error: `${prefix}: details` } }), null);
+  }
 });

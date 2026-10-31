@@ -33,11 +33,13 @@ export function runtimeRefusal(error: unknown, kind: 'needs_base' | 'has_depende
 }
 export const runtimeBaseMismatch = (error: unknown) => object(error) && error.status === 409 && object(error.data)
   && typeof error.data.error === 'string' && error.data.error.startsWith('base_mismatch:');
-export function runtimeGuardFailure(error: unknown): 'not_loaded' | 'changed' | 'order' | 'restore' | null {
-  if (!object(error) || error.status !== 409 || !object(error.data) || typeof error.data.error !== 'string') return null;
+export function runtimeGuardFailure(error: unknown): 'not_loaded' | 'changed' | 'order' | 'restore' | 'recovery' | null {
+  if (!object(error) || !object(error.data) || typeof error.data.error !== 'string') return null;
   const colon = error.data.error.indexOf(':');
   if (colon < 1) return null;
   const prefix = error.data.error.slice(0, colon);
+  if (error.status === 503 && ['runtime_restore_pending', 'runtime_restore_snapshot', 'runtime_restore_failed'].includes(prefix)) return 'recovery';
+  if (error.status !== 409) return null;
   if (prefix === 'not_loaded') return 'not_loaded';
   if (['runtime_plan_changed', 'base_artifact_changed', 'runtime_artifact_changed', 'runtime_stack_changed', 'runtime_stack_ambiguous'].includes(prefix)) return 'changed';
   if (prefix === 'runtime_base_order') return 'order';
