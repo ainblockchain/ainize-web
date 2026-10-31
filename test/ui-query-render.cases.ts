@@ -3886,11 +3886,14 @@ test('Google-only My Nodes explicitly offers supported sign-in without a redirec
   assert.doesNotMatch(html, /data-testid="mynodes-empty"|>Disconnect</);
 });
 
+const sendContextFixture = { node: walletAddress, rpc_url: 'https://mainnet-api.ainetwork.ai/json-rpc', chain_id: 1, gas_price: 0 };
+const sendStatusFixture = { version: 1, context: sendContextFixture, operation: null, read_error: null };
 const setupContextFixture = { node: walletAddress, provider: 'https://mainnet-api.ainetwork.ai', chain_id: 1, app: '/apps/knowledge' };
 const setupStatusFixture = { version: 1 as const, context: setupContextFixture, verification: { valid: false, errors: ['Missing rule'] }, read_error: null, operation: null };
 const chainAccountFixtures = (): Fixture[] => [...accountWalletFixtures().map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), signedIn: true, isOwner: true } }
   : f.name === 'info' ? { ...f, value: { ...(f.value as any), node: { ...(f.value as any).node, chain_id: 1 }, ledger: { kind: 'ain', records: 0, provider: 'https://mainnet-api.ainetwork.ai', app: '/apps/knowledge' } } } : f),
-  { name: 'chainSetupStatus', arg: { identity: accountIdentity, context: setupContextFixture }, value: setupStatusFixture }];
+  { name: 'chainSetupStatus', arg: { identity: accountIdentity, context: setupContextFixture }, value: setupStatusFixture },
+  { name: 'walletSendStatus', arg: { identity: accountIdentity, context: sendContextFixture }, value: sendStatusFixture }];
 test('account identity failure and malformed roles cannot retain a cached wallet or write buttons', () => {
   for (const patch of [{ status: 'rejected' as const }, { value: { address: walletAddress, name: 'Broken', roles: null } }]) {
     const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'me' ? { ...f, ...patch } : f), '/account');
@@ -3976,5 +3979,43 @@ test('old servers, failed refreshes and foreign setup records cannot expose a le
   for (const patch of [{ status: 'rejected' as const, errorStatus: 404 }, { value: { ...setupStatusFixture, context: { ...setupContextFixture, chain_id: 0 } } }, { value: { created: true } }]) {
     const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, ...patch } : f), '/account');
     assert.match(html, /query-retry/); assert.doesNotMatch(html, />Set up app on chain<|chain-setup-panel|market rules are verified/);
+  }
+});
+
+const savedSendOperation = (state: string) => ({ version: 1, id: 'd'.repeat(32), context: sendContextFixture, actor: walletAddress, to: recipientAddress, amount: '0.125', currency: 'AIN', tx_hash: '0x' + 'e'.repeat(64), state, created_at: 1, updated_at: 2 });
+test('wallet send reviews exact recipient, decimal and chain before a separately labelled irreversible action', () => {
+  const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'walletSendStatus' ? { ...f, value: { ...sendStatusFixture, operation: savedSendOperation('prepared') } } : f), '/account');
+  assert.match(html, /send-prepared/); assert.match(html, /0.125 AIN/); assert.match(html, new RegExp(recipientAddress));
+  assert.match(html, /Send reviewed amount/); assert.match(html, /Cancel prepared transfer/); assert.match(html, /It has not been submitted/);
+  assert.match(html, /Chain ID 1/); assert.match(html, /mainnet-api.ainetwork.ai\/json-rpc/);
+  assert.doesNotMatch(html, /send-review|send-to|>Sent\.</);
+});
+test('pending transfers remain visible through wallet read failures and cannot expose another send', () => {
+  const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'walletSendStatus' ? { ...f, value: { ...sendStatusFixture, operation: savedSendOperation('submitted'), read_error: 'offline' } } : f.name === 'wallet' ? { ...f, status: 'rejected' as const } : f), '/account');
+  assert.match(html, /send-submitted/); assert.match(html, /Check transfer status/); assert.match(html, /outcome is unconfirmed/);
+  assert.doesNotMatch(html, /send-go|send-review|send-to|finalized successfully/);
+});
+test('confirmed, rejected and cancelled transfer outcomes are distinct and retain a readable receipt', () => {
+  for (const [state, text] of [['confirmed', 'finalized successfully'], ['rejected', 'execution failure'], ['cancelled', 'cancelled without submission']]) {
+    const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'walletSendStatus' ? { ...f, value: { ...sendStatusFixture, operation: savedSendOperation(state) } } : f), '/account');
+    assert.match(html, new RegExp('send-' + state)); assert.match(html, new RegExp(text)); assert.match(html, /Transaction details/); assert.match(html, /send-review/);
+    assert.doesNotMatch(html, /send-go/); if (state !== 'confirmed') assert.doesNotMatch(html, /finalized successfully/);
+  }
+});
+test('unsupported servers, malformed and former-account send receipts never expose a legacy Send button', () => {
+  for (const patch of [{ status: 'rejected' as const, errorStatus: 404 }, { value: { ...sendStatusFixture, operation: { ...savedSendOperation('confirmed'), amount: null } } }, { value: { ...sendStatusFixture, context: { ...sendContextFixture, node: recipientAddress } } }]) {
+    const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'walletSendStatus' ? { ...f, ...patch } : f), '/account');
+    assert.match(html, /query-retry/); assert.doesNotMatch(html, /send-go|send-review|send-confirmed/);
+  }
+});
+test('send confirmation belongs to the reviewing operator, not the node wallet address', () => {
+  const subject = '0x' + 'c'.repeat(40), identity = JSON.stringify([subject, 'sso:viewer', null, null]);
+  for (const actor of [subject, walletAddress]) {
+    const fixtures = chainAccountFixtures().map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), subject } }
+      : { ...f, ...(f.arg && typeof f.arg === 'object' && 'identity' in f.arg ? { arg: { ...f.arg, identity } } : {}), ...(f.name === 'walletSendStatus' ? { value: { ...sendStatusFixture, operation: { ...savedSendOperation('prepared'), actor } } } : {}) });
+    const html = render(AccountPage, fixtures, '/account');
+    const button = html.match(/<button[^>]*data-testid="send-go"[^>]*>/)?.[0]; assert.ok(button);
+    assert.equal(/disabled/.test(button), actor !== subject);
+    if (actor !== subject) assert.match(html, /Another operator prepared this transfer/);
   }
 });

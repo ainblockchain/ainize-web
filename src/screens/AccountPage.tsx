@@ -1,3 +1,4 @@
+import { AccountWalletSend } from '@/components/operator/AccountWalletSend';
 import { AccountChainSetup } from '@/components/operator/AccountChainSetup';
 import { AccountOwners, AccountBindings } from '@/components/operator/AccountAccess';
 import { AccountPeers } from '@/components/operator/AccountPeers';
@@ -10,16 +11,15 @@ import { useAuth } from '@/auth/AuthContext';
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import {
-  errorMessage, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
-  useSettingsQuery, useWalletQuery, useWalletSendMutation,
+  useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
+  useSettingsQuery, useWalletQuery,
 } from '@/api/api';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
-import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
-import { DevBox, MonoBox, Muted, Pre, QueryError, Row, Stack, Tip, useElapsed, useMoney } from '@/components/operator/common';
+import { DevBox, MonoBox, Muted, Pre, QueryError, Stack, Tip, useElapsed, useMoney } from '@/components/operator/common';
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
 import { networkKindOf } from '@/utils/useNetwork';
 
@@ -90,16 +90,7 @@ function AccountView({ me }: { me: AccountNode }) {
   const [salesShown, setSalesShown] = useState(PAGE);
   const [royShown, setRoyShown] = useState(PAGE);
   const [owedShown, setOwedShown] = useState(PAGE);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  /** Item 320: the only outward money action in the product. */
-  const [walletSend, sendState] = useWalletSendMutation();
-  const [sendTo, setSendTo] = useState('');
-  const [sendAmount, setSendAmount] = useState('');
   const saved = settings.currentData?.settings;
-
-  const run = async (fn: () => Promise<unknown>, ok?: string) => { setError(null); setNotice(null); try { await fn(); if (ok) setNotice(ok); } catch (err) { setError(errorMessage(err)); } };
 
   const walletView = !wallet.isError ? accountWallet(wallet.currentData, me?.address ?? '') : null;
   const currency = accountBalanceCurrency(walletView, info) ?? '';
@@ -155,8 +146,6 @@ function AccountView({ me }: { me: AccountNode }) {
     <PageWrapper>
       <Title>{t('op.account.title')}</Title>
       <Description>{t('op.account.desc')}</Description>
-      {error && <Alert $tone="error" style={{ marginTop: 16 }}>{error}</Alert>}
-      {notice && <Alert $tone="success" style={{ marginTop: 16 }}>{notice}</Alert>}
 
       {/* ------------------------------------------------------------ identity */}
       <SubTitle $mt={48}>{t('op.account.identity')}</SubTitle>
@@ -189,6 +178,7 @@ function AccountView({ me }: { me: AccountNode }) {
       <SubTitle $mt={56}>{t('op.account.wallet')}</SubTitle>
       {info && <Description>{isAin ? t('op.account.wallet.desc.ain') : t('op.account.wallet.desc.credit')}</Description>}
       {info && chainReady && !infoQuery.isFetching && <AccountChainSetup info={info} />}
+      {info && chainReady && !infoQuery.isFetching && <AccountWalletSend info={info} canPrepare={currency === 'AIN' && !!walletView && !wallet.isFetching} />}
       {wallet.isFetching && !wallet.currentData ? <CenterProgress /> : !walletView || !saleSplit ? <QueryError error={wallet.error} what={t('op.account.wallet')} onRetry={() => void wallet.refetch()} retrying={wallet.isFetching} /> : (
         <>
           <Balance title={netNote}>{walletView.balance === null || !currency ? '—' : num(walletView.balance)}<span>{money.unit(currency)}</span></Balance>
@@ -201,24 +191,7 @@ function AccountView({ me }: { me: AccountNode }) {
               {t('op.account.wallet.shared_out', { gross: money.revenue(g.grossTotal, g.currency), shared: money.revenue(g.sharedTotal, g.currency), net: money.revenue(g.netTotal, g.currency) })}
             </Muted>
           ))}
-          {/* Item 320: a balance with no action beside it. Earnings could leave this node only as purchases made
-              through it — no send, no withdraw, no way to pay a collaborator. */}
-          {chainReady && currency === 'AIN' && auth.isOwner && !infoQuery.isFetching && !wallet.isFetching ? (
-            <div style={{ marginTop: 16 }} data-testid="wallet-send">
-              <strong style={{ fontSize: 14 }}>{t('op.account.send.title')}</strong>
-              <Muted style={{ display: 'block', marginTop: 4 }}>{t('op.account.send.desc')}</Muted>
-              <Row $gap={12} $wrap style={{ marginTop: 8, maxWidth: 620 }}>
-                <TextField label={t('op.account.send.to')} value={sendTo} onChange={(e) => setSendTo(e.target.value)} data-testid="send-to" />
-                <TextField label={t('op.account.send.amount', { currency: money.unit(currency) })} value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} data-testid="send-amount" style={{ maxWidth: 200 }} />
-                <Button size="small" color="secondary" data-testid="send-go"
-                  disabled={!/^0x[0-9a-fA-F]{40}$/.test(sendTo.trim()) || !(Number(sendAmount) > 0)}
-                  loading={sendState.isLoading} loadingText={t('op.account.send.working')}
-                  onClick={() => run(async () => { await walletSend({ to: sendTo.trim(), amount: Number(sendAmount) }).unwrap(); setSendTo(''); setSendAmount(''); }, t('op.account.send.done'))}>
-                  {t('op.account.send.button')}
-                </Button>
-              </Row>
-            </div>
-          ) : currency && info?.ledger.kind === 'local' ? (
+          {currency && info?.ledger.kind === 'local' ? (
             <Muted style={{ display: 'block', marginTop: 12 }} data-testid="wallet-local-note">
               {t('op.account.send.local')} <StyledLink to="/terms">{t('op.account.send.local_terms')}</StyledLink>
             </Muted>

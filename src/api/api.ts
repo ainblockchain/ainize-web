@@ -512,8 +512,14 @@ export const api = createApi({
       query: ({ id, price, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/price`, method: 'POST', body: { price, reason } }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     /** Item 320: money that has been earned can leave the node — the only outward money verb there is. */
-    walletSend: b.mutation<{ to: string; amount: number; tx_hash: string; balance: number | null; currency: string }, { to: string; amount: number; memo?: string }>({
-      query: (body) => ({ url: 'api/me/wallet/send', method: 'POST', body }), invalidatesTags: ['Me', 'Events'] }),
+    walletSendStatus: b.query<unknown, { identity: string; context: import('../lib/accountWalletSend').WalletSendContext }>({
+      query: () => 'api/me/wallet/send-requests', keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger'],
+    }),
+    prepareWalletSend: b.mutation<unknown, { request_id: string; expected: import('../lib/accountWalletSend').WalletSendContext; to: string; amount: string }>({
+      query: body => ({ url: 'api/me/wallet/send-requests', method: 'POST', body }),
+    }),
+    submitWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/submit`, method: 'POST' }), invalidatesTags: ['Me', 'Ledger', 'Events'] }),
+    cancelWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/cancel`, method: 'POST' }) }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     /** Item 270 / design §12.4 — `bundle` buys the bases this knowledge needs underneath it too, deepest first,
      * one settlement each. */
@@ -709,7 +715,7 @@ export const {
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useApproveAccountDeviceMutation, useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
-  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
+  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendStatusQuery, usePrepareWalletSendMutation, useSubmitWalletSendMutation, useCancelWalletSendMutation,
   useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useChainSetupStatusQuery, useReviewedChainSetupMutation, useDriveActionMutation,
