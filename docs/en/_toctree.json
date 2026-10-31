@@ -25,6 +25,10 @@
       {
         "page": "how-to/deploy-with-ainize-json",
         "title": "ainize.json reference"
+      },
+      {
+        "page": "how-to/managed-storage",
+        "title": "Give a project a database and file storage"
       }
     ]
   },

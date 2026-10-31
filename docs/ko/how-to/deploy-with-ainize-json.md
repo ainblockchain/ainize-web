@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 43215e6bb998d33f6b12605a2590be996cac06780ddbe88e2887b85ee6af82e4
+source_sha256: 70085e13e4e13c79f307cfeeb4e9922ec5aa410209b7e8d677ce62ffb9c1ef22
 ---
 
 # ainize.json으로 리포 배포하기
@@ -43,6 +43,8 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `port` | `nextjs`, `service` | 컨테이너가 듣는 포트. Next.js 기본 3000. |
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — 공개될 에이전트 카드의 항목. |
+| `storage` | `nextjs`, `service` | 코드가 기대하는 조직의 관리형 스토어 — `["db"]` 또는 `[{ "name": "db", "kind": "postgres", "env": "MAIN", "required": true }]`, 최대 4개. 프로젝트의 Storage 탭에서 각각을 스토어에 연결하면, 배포 때 앱이 `DATABASE_URL`, `S3_ENDPOINT` … 를 받습니다. 연결되지 않은 `required` 항목이 있으면 빌드 전에 배포가 실패합니다. [프로젝트에 데이터베이스와 파일 저장소 연결하기](./managed-storage.md) 참고. |
+| `release` | `nextjs`, `service` | 새 컨테이너가 트래픽을 받기 전에 빌드된 이미지에서 실행하는 명령 — 마이그레이션: `{ "command": ["pnpm", "db:migrate"], "target"?, "entrypoint"?, "timeoutSeconds"?, "when"? }`. 0이 아닌 종료 코드면 배포가 실패하고 이전 배포가 계속 서비스합니다. |
 
 **`ainize.json`이 없는** 리포는 Next.js 앱(`package.json`의 `next` 의존성)일 때만 배포되고, 그 외는 `error: no
 ainize.json`으로 끝납니다. 파일이 계약입니다 — 그 기본값 하나 말고는 아무것도 추측하지 않습니다.
