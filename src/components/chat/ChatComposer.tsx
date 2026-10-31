@@ -82,11 +82,12 @@ export interface ChatComposerProps {
   disabledReason?: string;
   /** A question the visitor arrived with (SC-12 *Teach this on top* → `/chat/<id>?teach=1&q=…`). Never sent on its own. */
   prefill?: string;
+  onDraftChange?: (text: string) => void;
   /** Finding 61 — a question the send failed on comes BACK into the box (bumped nonce = a new failure). */
   restore?: { text: string; nonce: number };
 }
 
-export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinking, samples, samplesGloss, onSend, onClear, canClear, footer, disabledReason, prefill, restore }: ChatComposerProps) {
+export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinking, samples, samplesGloss, onSend, onClear, canClear, footer, disabledReason, prefill, restore, onDraftChange }: ChatComposerProps) {
   const { t } = useT();
   const [text, setText] = useState(prefill ?? '');
   const [showAll, setShowAll] = useState(false);
@@ -120,6 +121,8 @@ export function ChatComposer({ disabled, busy, mode, onMode, thinking, onThinkin
     ref.current?.focus();
   }, [busy, disabled]);
   useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current); }, []);
+
+  useEffect(() => { onDraftChange?.(text); }, [text, onDraftChange]);
 
   const submit = () => {
     // D2: send exactly what is in the box. This knowledge is trained on prompts that END WITH A SPACE

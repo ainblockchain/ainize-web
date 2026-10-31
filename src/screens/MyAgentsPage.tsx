@@ -1,22 +1,15 @@
 import { AgentArchivePanel } from './agent/AgentArchivePanel';
-/**
- * The agents that belong to the person — built on a model here, or linked by address — with the doors to make more.
- *
- * `/me/agents`, behind sign-in only: an AIN account with no wallet owns linked agents, so ownership of this page is
- * "signed in", not "has an address". The list is the public catalogue (`GET /api/agents`) filtered by `owner`
- * against every principal the viewer is (`viewerPrincipals`) — one source of truth for "what is on this node",
- * and the same rows AIN Teams reads when it offers agents to import. What is not here is not there either, and the
- * page says so.
- *
- * Hosted agents also come from `GET /api/hosted-agents?manageable=1`: the person's own (whatever their visibility —
- * an `org` or `private` one is not in the public catalogue) and the ones shared with an organization where they may
- * edit. `can_manage` / `can_delete` decide the buttons, the node's rule: edit = owner or a `write` member, delete =
- * owner or an organization admin.
- */
-import { useMemo, useState } from 'react';
+/** Own and manageable agents, including private linked records outside the public catalogue. */
+import { useMemo, useRef, useState } from 'react';
+import { createLinkedAgentRemoval, LinkedAgentRemovalError } from '@/lib/linkedAgentRemoval';
+import { useActiveView } from '@/hooks/useActiveView';
+import { AgentDeletionError, createHostedAgentDeletion, isAgentCleanupPending } from '@/lib/hostedAgentDeletion';
 import styled from 'styled-components';
-import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery } from '@/api/api';
-import { agentsOwnedBy, isAgentOwnedBy, isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
+import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery, useMyLinkedAgentsQuery, useLazyHostedAgentQuery, useLazyLinkedAgentQuery } from '@/api/api';
+import { isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
+import { myAgentRows, parseMyLinkedAgents } from '@/api/myAgents';
+import { signInHref } from '@/lib/uiNavigation';
+import { useLocation } from 'react-router';
 import { agentListKey, parseManageableHostedAgents, visibilityBadgeOf } from '@/api/sharedAgents';
 import { agentPagePath } from '@/api/agentIds';
 import type { AgentSummary } from '@/api/types';
@@ -31,7 +24,7 @@ const MyAgentsActions = styled.div`display: flex; gap: 12px; flex-wrap: wrap; ma
 const MyAgentsList = styled.ul`list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px;`;
 const MyAgentsItem = styled.li`
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 10px; padding: 16px 18px; background: #fff;
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere;
 `;
 const MyAgentsHead = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap;`;
 const MyAgentsName = styled.span`font-weight: 700; font-size: 15px;`;
@@ -40,56 +33,83 @@ const MyAgentsChip = styled.span<{ $tone?: 'ok' | 'warn' | 'muted' }>`
   background: ${(p) => (p.$tone === 'ok' ? '#e8f6ec' : p.$tone === 'warn' ? '#fdeeee' : '#f1f2f5')};
   color: ${(p) => (p.$tone === 'ok' ? '#227a3c' : p.$tone === 'warn' ? '#a33030' : '#555')};
 `;
-const MyAgentsRow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13px;`;
+const MyAgentsRow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13px; min-width: 0; & > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }`;
 
 export default function MyAgentsPage() {
+  const auth = useAuth();
+  const location = useLocation();
+  const { t } = useT();
+  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!auth.isSignedIn) return <PageWrapper><Empty><StyledLink to={signInHref(location)}>{t('nav.signin')}</StyledLink></Empty></PageWrapper>;
+  return <MyAgentsContent key={auth.cacheIdentity} />;
+}
+function MyAgentsContent() {
   const { t } = useT();
   useTitle(t('myAgents.title'));
-  const { subject, sso, sitePrincipal } = useAuth();
+  const { subject, sso, sitePrincipal, cacheIdentity, principal, isCurrentAccount } = useAuth();
   const principals = useMemo(() => viewerPrincipals(subject, sso?.principal, sitePrincipal), [subject, sso?.principal, sitePrincipal]);
-  const { data, isLoading } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
-  const manageable = useManageableHostedAgentsQuery(undefined, { pollingInterval: 30_000 });
-  const rows = useMemo(() => {
-    const managed = parseManageableHostedAgents(manageable.data, window.location.origin) ?? [];
-    const out: { agent: AgentSummary; canEdit: boolean; canDelete: boolean; shared: boolean }[] = managed.map((m) => {
-      // the catalogue row, when there is one, carries what the spec does not (reachability, calls)
-      const listed = (data?.agents ?? []).find((a) => a.id === m.agent.id && !a.node);
-      return { agent: listed ? { ...listed, visibility: m.agent.visibility, org_id: m.agent.org_id } : m.agent, canEdit: m.canManage, canDelete: m.canDelete, shared: !isAgentOwnedBy(m.agent.owner, principals) };
-    });
-    for (const agent of agentsOwnedBy(data?.agents ?? [], principals)) {
-      if (!out.some((r) => r.agent.id === agent.id)) out.push({ agent, canEdit: true, canDelete: true, shared: false });
-    }
-    return out;
-  }, [data, manageable.data, principals]);
+  const catalogue = useAgentsQuery(undefined, { pollingInterval: 30_000 });
+  const manageable = useManageableHostedAgentsQuery(cacheIdentity, { pollingInterval: 30_000 });
+  const linked = useMyLinkedAgentsQuery(cacheIdentity, { pollingInterval: 30_000 });
+  const managed = useMemo(() => parseManageableHostedAgents(manageable.currentData, typeof window === 'undefined' ? '' : window.location.origin), [manageable.currentData]);
+  const ownLinked = useMemo(() => parseMyLinkedAgents(linked.currentData), [linked.currentData]);
+  const rows = useMemo(() => myAgentRows(catalogue.currentData?.agents ?? [], managed ?? [], ownLinked ?? [], principals), [catalogue.currentData, managed, ownLinked, principals]);
+  const queries = [catalogue, manageable, linked];
+  const loading = queries.some(q => !q.currentData && q.isFetching);
+  const failed = queries.some(q => q.isError) || (manageable.isSuccess && !managed) || (linked.isSuccess && !ownLinked);
+  const complete = queries.every(q => q.isSuccess) && !!managed && !!ownLinked;
+  const reload = () => Promise.allSettled(queries.map(q => q.refetch()));
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteLinked] = useDeleteLinkedAgentMutation();
   const [deleteHosted] = useDeleteHostedAgentMutation();
+  const [readHosted] = useLazyHostedAgentQuery();
+  const [readLinked] = useLazyLinkedAgentQuery();
+  const linkedRemoval = useRef(createLinkedAgentRemoval()).current;
+  const active = useActiveView();
+  const pending = useRef(false);
+  const deletion = useRef(createHostedAgentDeletion()).current;
   const [error, setError] = useState<string | null>(null);
 
   const remove = async (agent: AgentSummary) => {
-    if (!window.confirm(t('myAgents.delete_confirm', { name: agent.name }))) return;
-    setError(null);
+    if (pending.current || deletion.blocked() || linkedRemoval.blocked() || !active() || !isCurrentAccount()) return;
+    if (deletion.pendingId() && (isLinkedAgentRow(agent) || deletion.pendingId() !== agent.id)) return;
+    pending.current = true;
+    setDeleting(agent.id); setError(null);
     try {
-      if (isLinkedAgentRow(agent)) await deleteLinked(agent.id).unwrap();
-      else await deleteHosted(agent.id).unwrap();
+      if (isLinkedAgentRow(agent)) await linkedRemoval.run({ id: agent.id, owner: agent.owner }, principal, {
+        read: () => readLinked({ id: agent.id, identity: cacheIdentity }, false).unwrap(),
+        confirm: review => window.confirm(t('linkedOwner.delete_confirm', { name: review.name, id: review.id })),
+        send: request => deleteLinked(request).unwrap(), current: () => active() && isCurrentAccount(),
+      });
+      else {
+        await deletion.run({ id: agent.id, name: agent.name, owner: agent.owner }, principal, {
+          read: () => readHosted({ id: agent.id, identity: cacheIdentity }, false).unwrap(),
+          confirm: review => window.confirm(t('agentOwner.delete_review_confirm', { name: review.name, id: review.id })),
+          send: request => deleteHosted(request).unwrap(), active: () => active() && isCurrentAccount(),
+        });
+      }
     } catch (err) {
+      if (!active()) return;
       const e = linkedAgentApiErrorOf(err);
-      setError(t('myAgents.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
-    }
+      setError(linkedRemoval.uncertain() ? t('linkedOwner.delete_unknown') : err instanceof LinkedAgentRemovalError
+        ? t(err.reason === 'unsupported' ? 'linkedOwner.delete_unsupported' : 'linkedOwner.delete_changed') : deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
+        : err instanceof AgentDeletionError ? t(err.reason === 'unsupported' ? 'agentOwner.delete_unsupported' : 'agentOwner.delete_changed') : t('myAgents.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
+    } finally { pending.current = false; if (active()) setDeleting(null); }
   };
 
   return (
     <PageWrapper>
       <TitleRow><Title>{t('myAgents.title')}</Title></TitleRow>
-      <Description>{t('myAgents.lede')}</Description>
       <MyAgentsActions>
         <StyledLink to="/agent/link" data-testid="my-agents-link">{t('myAgents.link')} →</StyledLink>
         <StyledLink to="/agent/new" data-testid="my-agents-create">{t('myAgents.create')} →</StyledLink>
         <StyledLink to="/org" data-testid="my-agents-orgs">{t('org.nav')} →</StyledLink>
       </MyAgentsActions>
 
-      {error && <Alert $tone="error">{error}</Alert>}
-      {isLoading && <CenterProgress />}
-      {!isLoading && rows.length === 0 && <Empty data-testid="my-agents-empty">{t('myAgents.empty')}</Empty>}
+      {error && <Alert $tone="error" role="alert">{error}</Alert>}
+      {loading && <div role="status" data-testid="my-agents-loading"><CenterProgress /></div>}
+      {failed && <Alert $tone="error" role="alert" data-testid="my-agents-load-error">{t('myAgents.load_failed')} <Button size="small" disabled={queries.some(q => q.isFetching)} onClick={() => void reload()}>{t('offline.retry')}</Button></Alert>}
+      {!loading && complete && !failed && rows.length === 0 && <Empty data-testid="my-agents-empty">{t('myAgents.empty')}</Empty>}
 
       <MyAgentsList data-testid="my-agents-list">
         {rows.map(({ agent, canEdit, canDelete, shared }) => {
@@ -107,6 +127,7 @@ export default function MyAgentsPage() {
                 </MyAgentsChip>
               </MyAgentsHead>
               {agent.description && <Description style={{ margin: 0 }}>{agent.description}</Description>}
+              {!!agent.deletion_requested_at && <Alert $tone="error" role="status">{t('agentOwner.delete_pending')}</Alert>}
               <MyAgentsRow>
                 <span>{t('myAgents.address')}:</span>
                 <Mono>{agent.a2a_url}</Mono>
@@ -114,9 +135,9 @@ export default function MyAgentsPage() {
               </MyAgentsRow>
               <MyAgentsRow>
                 <StyledLink to={agentPagePath(agent)}>{t('myAgents.open')}</StyledLink>
-                {canEdit && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
+                {canEdit && !agent.deletion_requested_at && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
                 <ExternalLink href={agent.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
-                {canDelete && <Button size="small" variant="text" color="secondary" onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t('myAgents.delete')}</Button>}
+                {canDelete && <Button size="small" variant="text" color="secondary" disabled={!!deleting || deletion.blocked() || linkedRemoval.blocked() || !!deletion.pendingId() && (linked || deletion.pendingId() !== agent.id)} loading={deleting === agent.id} onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t(linked ? 'linkedOwner.delete' : agent.deletion_requested_at || deletion.pendingId() === agent.id ? 'agentOwner.delete_resume' : 'myAgents.delete')}</Button>}
               </MyAgentsRow>
             </MyAgentsItem>
           );
@@ -124,7 +145,6 @@ export default function MyAgentsPage() {
       </MyAgentsList>
 
       <AgentArchivePanel />
-      <Description style={{ marginTop: 24 }}>{t('myAgents.teams_hint')}</Description>
     </PageWrapper>
   );
 }

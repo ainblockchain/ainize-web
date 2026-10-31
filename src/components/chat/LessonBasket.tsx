@@ -74,6 +74,7 @@ export interface LessonBasketProps {
   onRemove: (id: string) => void;
   onBuildsOn: (v: boolean) => void;
   onTrain: () => void;
+  blockedReason?: string;
   onOpenMine: () => void;
   /** "Teaching as {name} · {short}" when this browser already has a key */
   keyLabel?: string;
@@ -82,7 +83,7 @@ export interface LessonBasketProps {
 }
 
 /** §5.5 / v2 §5.9 — the corrections collected for the current knowledge stack; persists in localStorage across reloads. */
-export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], onBase, expanded, onToggle, onRemove, onBuildsOn, onTrain, onOpenMine, keyLabel, nodeName }: LessonBasketProps) {
+export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], onBase, expanded, onToggle, onRemove, onBuildsOn, onTrain, blockedReason, onOpenMine, keyLabel, nodeName }: LessonBasketProps) {
   const { t } = useT();
   const [viewing, setViewing] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -92,7 +93,7 @@ export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], 
   /** the design's string is "{n} questions"; one question is the only case where that reads wrong */
   const heading = n === 1 ? t('teach.basket.title_one') : t('teach.basket.title_ds', { n });
   const pol = policyLine(policy, t);
-  const canTrain = n > 0 && pol.ok;
+  const canTrain = n > 0 && pol.ok && !blockedReason;
   const rows: TeachDatasetRow[] = basket.facts.map((f, i) => ({
     index: i, line: i + 1, status: 'ok',
     prompt: f.prompt, answer: f.answer, ...(f.alt_prompt ? { alt_prompt: f.alt_prompt } : {}),
@@ -192,6 +193,7 @@ export function LessonBasket({ basket, policy, stackNames, baseCandidates = [], 
             </BaseRow>
           )}
           {n >= max && <Alert $tone="info">{t('teach.drawer.v_full', { n: max })}</Alert>}
+          {blockedReason && <Alert $tone="warning">{blockedReason}</Alert>}
           <Button variant="contained" fullWidth disabled={!canTrain} onClick={onTrain} data-testid="train-lesson">{t('teach.basket.train_ds', { n })}</Button>
           {keyLabel && <KeyChip title={t('teach.key.address')}>{keyLabel}</KeyChip>}
         </>

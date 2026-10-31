@@ -1,3 +1,4 @@
+import { AgentActionBoundary, useAgentActions } from '@/components/agent/AgentActionBoundary';
 /**
  * What the person who LINKED an agent can do to it: change its address or name, and unlink it.
  *
@@ -5,10 +6,13 @@
  * principals. Like the hosted panel, the check is for the page, not for safety — every route behind these buttons
  * is owner-only on the node. There are no logs: the node forwards to the agent, it does not run it.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useActiveView } from '@/hooks/useActiveView';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
-import { useDeleteLinkedAgentMutation } from '@/api/api';
+import { useDeleteLinkedAgentMutation, useLazyLinkedAgentQuery } from '@/api/api';
+import { useAuth } from '@/auth/AuthContext';
+import { createLinkedAgentRemoval, LinkedAgentRemovalError } from '@/lib/linkedAgentRemoval';
 import { linkedAgentApiErrorOf } from '@/api/linkedAgents';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -24,21 +28,40 @@ const LinkedAgentOwnerBox = styled.div`
 `;
 const LinkedAgentOwnerRow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;`;
 
-export function LinkedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null }) {
+function LinkedAgentOwnerPanelContent({ agentId, agentName, owner = null, alias = null, visibility = null, orgId = null, removalBlocked = false, onRemovalStateChange }: { agentId: string; agentName: string; owner?: string | null; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; removalBlocked?: boolean; onRemovalStateChange?: (state: 'pending' | 'unconfirmed' | 'complete' | null) => void }) {
   const { t } = useT();
   const navigate = useNavigate();
-  const [unlink, state] = useDeleteLinkedAgentMutation();
+  const active = useActiveView();
+  const actions = useAgentActions();
+  const auth = useAuth();
+  const removal = useRef(createLinkedAgentRemoval()).current;
+  const [busy, setBusy] = useState(false);
+  const [read] = useLazyLinkedAgentQuery();
+  const [unlink] = useDeleteLinkedAgentMutation();
   const [error, setError] = useState<string | null>(null);
 
   const remove = async () => {
-    if (!window.confirm(t('linkedOwner.delete_confirm', { name: agentName }))) return;
-    setError(null);
+    if (removalBlocked || removal.blocked() || !active() || !auth.isCurrentAccount()) return;
+    const lease = actions.scope.begin('unlink', agentId);
+    if (!lease) return;
+    setError(null); setBusy(true);
     try {
-      await unlink(agentId).unwrap();
-      navigate('/me/agents');
+      const done = await removal.run({ id: agentId, owner }, auth.principal, {
+        read: () => read({ id: agentId, identity: auth.cacheIdentity }, false).unwrap(),
+        confirm: review => window.confirm(t('linkedOwner.delete_confirm', { name: review.name, id: review.id })),
+        send: request => { onRemovalStateChange?.('pending'); return unlink(request).unwrap(); }, current: () => active() && auth.isCurrentAccount(),
+      });
+      if (done) navigate('/me/agents');
     } catch (err) {
+      if (!active() || !auth.isCurrentAccount()) return;
       const e = linkedAgentApiErrorOf(err);
-      setError(e.message ?? t(`agentLink.api.${e.code}`));
+      setError(removal.uncertain() ? t('linkedOwner.delete_unknown') : err instanceof LinkedAgentRemovalError
+        ? t(err.reason === 'unsupported' ? 'linkedOwner.delete_unsupported' : 'linkedOwner.delete_changed')
+        : t('agentOwner.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
+    } finally {
+      lease.finish(removal.uncertain() ? 'unconfirmed' : removal.confirmed() ? 'complete' : null);
+      onRemovalStateChange?.(removal.uncertain() ? 'unconfirmed' : removal.confirmed() ? 'complete' : null);
+      if (active()) setBusy(false);
     }
   };
 
@@ -46,15 +69,23 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, alias = null, visibi
     <LinkedAgentOwnerBox data-testid="linked-agent-owner">
       <h3>{t('agentOwner.title')}</h3>
       <Description>{t('linkedOwner.lede')}</Description>
+      <fieldset disabled={removalBlocked || busy || removal.uncertain()} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <LinkedAgentOwnerRow>
-        <StyledLink to={`/agent/${encodeURIComponent(agentId)}/link`} data-testid="linked-agent-edit">{t('linkedOwner.edit')}</StyledLink>
-        <Button size="small" variant="text" color="secondary" loading={state.isLoading} onClick={() => void remove()} data-testid="linked-agent-unlink">
+        {!actions.blocked && !removalBlocked && !busy && !removal.uncertain() && <StyledLink to={`/agent/${encodeURIComponent(agentId)}/link`} data-testid="linked-agent-edit">{t('linkedOwner.edit')}</StyledLink>}
+        <Button size="small" variant="text" color="secondary" loading={busy} disabled={!actions.scope.canStart('unlink', agentId) || removalBlocked || removal.blocked()} onClick={() => void remove()} data-testid="linked-agent-unlink">
           {t('linkedOwner.delete')}
         </Button>
       </LinkedAgentOwnerRow>
-      {error && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: error })}</Alert>}
-      <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
-      <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />
+      <AgentAliasControl kind="linked" owner={owner} agentId={agentId} agentName={agentName} alias={alias} />
+      <AgentVisibilityControl kind="linked" owner={owner} agentId={agentId} visibility={visibility} orgId={orgId} />
+      </fieldset>
+      {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}
+      {removal.uncertain() && <StyledLink to="/me/agents">{t('myAgents.title')}</StyledLink>}
     </LinkedAgentOwnerBox>
   );
+}
+
+export function LinkedAgentOwnerPanel(props: Parameters<typeof LinkedAgentOwnerPanelContent>[0]) {
+  const { cacheIdentity } = useAuth();
+  return <AgentActionBoundary key={JSON.stringify([cacheIdentity, props.agentId])}><LinkedAgentOwnerPanelContent {...props} /></AgentActionBoundary>;
 }

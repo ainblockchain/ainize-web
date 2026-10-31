@@ -69,21 +69,21 @@ export function matchSampleEach(entries: CatalogEntry[], prompt: string): Record
 const TURNS_KEY = 'ainize.chat.turns';
 /** Keep the tail of a long conversation rather than refusing to store it: a browser quota is a few hundred KB. */
 const TURNS_MAX = 12;
-export function loadTurns<T>(): T[] {
+export function loadTurns<T>(owner: string): T[] {
   try {
-    const raw = sessionStorage.getItem(TURNS_KEY);
+    const raw = sessionStorage.getItem(`${TURNS_KEY}:${encodeURIComponent(owner)}`);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     return Array.isArray(parsed) ? (parsed as T[]) : [];
   } catch { return []; }
 }
-export function saveTurns<T extends { status: string }>(turns: T[]): void {
+export function saveTurns<T extends { status: string }>(turns: T[], owner: string): void {
   const keep = turns.filter((t) => t.status !== 'pending').slice(-TURNS_MAX);
   try {
-    if (keep.length === 0) { sessionStorage.removeItem(TURNS_KEY); return; }
-    sessionStorage.setItem(TURNS_KEY, JSON.stringify(keep));
+    if (keep.length === 0) { sessionStorage.removeItem(`${TURNS_KEY}:${encodeURIComponent(owner)}`); return; }
+    sessionStorage.setItem(`${TURNS_KEY}:${encodeURIComponent(owner)}`, JSON.stringify(keep));
   } catch {
     // Out of room (a long conversation with raw answers): keep the last few rather than losing the lot.
-    try { sessionStorage.setItem(TURNS_KEY, JSON.stringify(keep.slice(-3))); } catch { /* storage unavailable */ }
+    try { sessionStorage.setItem(`${TURNS_KEY}:${encodeURIComponent(owner)}`, JSON.stringify(keep.slice(-3))); } catch { /* storage unavailable */ }
   }
 }
 
@@ -105,13 +105,13 @@ export function selectionPath(ids: string[]): string { return `/chat/${ids.map((
  */
 export const STACK_KEY = 'ainize.chat.stack';
 /** Only a SET is remembered: landing on one knowledge (which is where every card links) must not erase the last one. */
-export function saveStack(ids: string[]): void {
+export function saveStack(ids: string[], owner: string): void {
   if (ids.length < 2) return;
-  try { localStorage.setItem(STACK_KEY, JSON.stringify(ids.slice(0, MAX_CHAT_PATCHES))); } catch { /* storage unavailable (a private window): the set simply is not remembered */ }
+  try { localStorage.setItem(`${STACK_KEY}:${encodeURIComponent(owner)}`, JSON.stringify(ids.slice(0, MAX_CHAT_PATCHES))); } catch { /* storage unavailable (a private window): the set simply is not remembered */ }
 }
-export function loadStack(): string[] {
+export function loadStack(owner: string): string[] {
   try {
-    const raw = localStorage.getItem(STACK_KEY);
+    const raw = localStorage.getItem(`${STACK_KEY}:${encodeURIComponent(owner)}`);
     const ids = raw ? (JSON.parse(raw) as unknown) : null;
     return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string' && !!x).slice(0, MAX_CHAT_PATCHES) : [];
   } catch { return []; }
@@ -208,4 +208,20 @@ export function lockJobKind(label: string | undefined, mineJobId?: string | null
 export function lockOwnerLabel(owner: string): string {
   const m = /^pid:(\d+)$/.exec(owner);
   return m ? m[1] : owner;
+}
+
+/** Unsent composer text follows this account/key, including the first-key handoff. */
+export function loadComposerDraft(owner: string): string {
+  try { return sessionStorage.getItem(`ainize.chat.composer:${encodeURIComponent(owner)}`) ?? ''; } catch { return ''; }
+}
+export function saveComposerDraft(text: string, owner: string): void {
+  try {
+    const key = `ainize.chat.composer:${encodeURIComponent(owner)}`;
+    if (text) sessionStorage.setItem(key, text); else sessionStorage.removeItem(key);
+  } catch { /* the current component still retains the draft */ }
+}
+/** Earlier transcripts are unowned; export is explicit, never an automatic chat context. */
+export function legacyTurns(): unknown[] {
+  try { const value: unknown = JSON.parse(sessionStorage.getItem(TURNS_KEY) ?? 'null'); return Array.isArray(value) ? value : []; }
+  catch { return []; }
 }

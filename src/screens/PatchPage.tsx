@@ -1,9 +1,18 @@
-import { verificationCount } from '@ainize/core/browser';
+import { usePurchaseReview } from '@/components/detail/PurchaseReview';
+import { CollectKnowledge } from '@/components/detail/CollectKnowledge';
+import { purchaseResult, purchaseQuoteTotals } from '@/lib/purchaseResult';
+import { purchaseRows } from '@/lib/purchaseView';
+import { BenchmarkCoverage } from '@/components/detail/BenchmarkCoverage';
+import { AttestationCount } from '@/components/detail/AttestationCount';
+import { VerificationAction } from '@/components/detail/VerificationAction';
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
+import { verificationCount } from '@/lib/verificationView';
+import { currentModelRuns, latestVerificationScore } from '@/lib/verificationScore';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
+  errorMessage, useBenchmarkQuery, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
   usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, usePatchSignalsQuery, useTeachPolicyQuery,
 } from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, LineageRef, PatchDetail, PurchaseResult, TreeResponse } from '@/api/types';
@@ -16,7 +25,7 @@ import { useT } from '@/i18n';
 import { sourceKind } from '@/components/teach/util';
 import { selectionPath } from '@/components/chat/util';
 import { useTitle } from '@/utils/useTitle';
-import { benchmarkFormats, bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
+import { benchmarkFormats, bytes, dateTime, num, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
 import { FamilyTree } from '@/components/detail/FamilyTree';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { OpenQuestions } from '@/components/detail/OpenQuestions';
@@ -309,22 +318,17 @@ function useNarrow(px: number): boolean {
   return on;
 }
 
-type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
+type Score = { text: string; pct: number | null; tested: number | null; before: string | null; attestation?: Attestation };
 
 /** Accuracy shown in the header comes only from attestations that ran the real model — never from integrity-only checks. */
 function scoreOf(d: CatalogEntry): Score {
-  const real = d.attestations.filter((a) => a.passed && isExecuted(a.verified_on));
-  if (!real.length) return { text: '—', pct: null, tested: null, before: null };
-  const s = real[real.length - 1].score;
-  const raw = s.free_generation ?? s.free_generation_vllm ?? s.chat_60;
-  // `before` is the same verifier's pre_apply run — the half of the measurement that says whether the model
-  // already knew these answers. Without it "100%" is not evidence of anything.
-  return { text: scoreText(s), pct: pct(raw), tested: denominator(raw), before: preApplyText(s) };
+  const measured = latestVerificationScore(d);
+  return measured ? { ...measured, text: measured.raw } : { text: '—', pct: null, tested: null, before: null };
 }
 
 /** Executed verifications that did NOT pass — the half of the record the headline score cannot show (item 250). */
 function failedRuns(d: CatalogEntry): Attestation[] {
-  return d.attestations.filter((a) => !a.passed && isExecuted(a.verified_on));
+  return currentModelRuns(d).filter(a => !a.passed);
 }
 
 /**
@@ -518,7 +522,7 @@ export default function PatchPage({ author: givenAuthor, patchId: givenId }: { a
               {/* Item 146: the numerator is clamped to the quorum — `3/2` is not a fraction a reader can use —
                   and the extra independent attestations are stated instead of being folded into the ratio. */}
               {t('detail.patch.verified_executed', { passed: verificationCount(data).shown, quorum: data.quorum })}{data.sellable ? ` · ${term('verified')}` : ''}
-              {data.passed > data.quorum && <> · {t('detail.patch.extra_n', { n: data.passed - data.quorum })}</>}
+              {verificationCount(data).extra > 0 && <> · {t('detail.patch.extra_n', { n: verificationCount(data).extra })}</>}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
               {data.self_checks > 0 && <> · {t('detail.patch.self_n', { n: data.self_checks })}</>}
             </Quorum>
@@ -566,9 +570,10 @@ export default function PatchPage({ author: givenAuthor, patchId: givenId }: { a
               </StatValue>
               <StatName title={`${t('detail.stat.accuracy_help')} (${tech('accuracy')})`}>{term('accuracy')}</StatName>
               {score.pct !== null && <StatNote>{score.before ? t('detail.stat.before_after_note', { pct: score.pct }) : score.text}</StatNote>}
+              {score.attestation && <StatNote data-testid="score-source">{t('detail.stat.score_source', { who: score.attestation.verifier_name ?? shortAddr(score.attestation.verifier), when: dateTime(score.attestation.created_at) })}</StatNote>}
             </Stat>
             <Stat><StatValue>{num(a.rows)}</StatValue><StatName title={`${help('rows')} (${tech('rows')})`}>{t('detail.stat.entries')}</StatName></Stat>
-            <Stat><StatValue>{num(a.benchmark.queries)}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
+            <Stat><StatValue>{num(benchmarkQuestionCount(a.benchmark.queries))}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
             <Stat><StatValue>{bytes(a.size_bytes)}</StatValue><StatName>{t('detail.stat.size')}</StatName></Stat>
             <Stat><StatValue>{f.priceLabel(a.price, a.currency)}</StatValue><StatName>{t('detail.stat.price')}</StatName>{Number(a.price) > 0 && <StatNote>{f.priceNote(a.currency)}</StatNote>}</Stat>
             {/* Item 30: two large AIN numbers side by side invited reading the seller's takings as the price. The
@@ -599,7 +604,7 @@ export default function PatchPage({ author: givenAuthor, patchId: givenId }: { a
               )}
               <Section>
                 <H3>{t('detail.missing.title', { n: issues?.total ?? 0 })}</H3>
-                <OpenQuestions id={a.id} totalQuestions={a.benchmark.queries} canBuildOn={canBuildOn} />
+                <OpenQuestions id={a.id} totalQuestions={benchmarkQuestionCount(a.benchmark.queries)} canBuildOn={canBuildOn} />
               </Section>
             </>
           )}
@@ -619,9 +624,9 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
   const a = d.anchor;
   const failed = failedRuns(d);
   // How many verifiers actually ran the model, and how many of those reported a side-effect measurement.
-  const executedAtts = d.attestations.filter((at) => isExecuted(at.verified_on));
+  const executedAtts = currentModelRuns(d);
   const executedCount = executedAtts.length;
-  const sideMeasured = executedAtts.filter((at) => at.collateral_nat !== undefined && at.collateral_nat !== null).length;
+  const sideMeasured = executedAtts.filter((at) => typeof at.collateral_nat === 'number' && Number.isFinite(at.collateral_nat) && at.collateral_nat >= 0).length;
   return (
     <>
       <Section>
@@ -632,9 +637,7 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
         {score.pct !== null && (
           <div style={{ marginTop: 16, maxWidth: 360 }}>
             <ScoreBar pct={score.pct} />
-            <Quorum>{score.tested !== null && score.tested < a.benchmark.queries
-              ? t('detail.ov.accuracy_line', { score: `${score.pct}%`, tested: num(score.tested), facts: num(a.benchmark.queries) })
-              : t('detail.ov.accuracy_line_all', { score: `${score.pct}%`, facts: num(a.benchmark.queries) })}</Quorum>
+            <Quorum><BenchmarkCoverage score={score.pct} tested={score.tested} questions={a.benchmark.queries} /></Quorum>
             {/* the baseline the same verifier measured before loading the knowledge — the other half of the claim */}
             {score.before && <Quorum as="div" data-testid="ov-before-after" style={{ display: 'block', marginTop: 2 }}>{t('detail.ov.before_after', { before: score.before, after: score.text })}</Quorum>}
           </div>
@@ -723,7 +726,7 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
         <Note>{t('detail.ov.benchmark_note')}</Note>
         <KeyValue style={{ marginTop: 0 }}>
           <dt title="benchmark.schema">{t('detail.ov.subject')}</dt><dd><StyledLink to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{a.benchmark.schema}</StyledLink></dd>
-          <dt title={tech('facts')}>{term('facts')}</dt><dd>{t('units.facts', { n: num(a.benchmark.queries) })}</dd>
+          <dt title={tech('facts')}>{term('facts')}</dt><dd>{t('units.facts', { n: num(benchmarkQuestionCount(a.benchmark.queries)) })}</dd>
           <dt>{t('detail.ov.formats')}</dt><dd>{benchmarkFormats(a.benchmark.format).join(', ') || '—'}</dd>
           {/* Finding 55: "Threshold set" read as "checked", while the Verification tab said "not reported" for every
               verifier. The row now says which of the two it is, and links to the evidence. */}
@@ -863,21 +866,15 @@ function BaseRate() {
   );
 }
 
-function Verification({ d }: { d: PatchDetail }) {
+export function Verification({ d }: { d: PatchDetail }) {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const bound = d.anchor.benchmark.collateral_bound_nat;
-  // `self_checks` is the number of the author's own attestations this node EXCLUDED (0 when a dev node counts them).
-  const self = (at: Attestation) => d.self_checks > 0 && at.verifier.toLowerCase() === d.anchor.author.toLowerCase();
-  // How many DISTINCT model servers produced the counted attestations (item 329). Attestations written before the
-  // fingerprint existed count as one unknown machine each — that can understate independence, never overstate it.
-  const machines = (d.executors?.length ?? 0) + (d.executors_unknown ?? 0);
-  const sharedEngine = (d.executors?.length ?? 0) > 0 && machines < d.passed;
+  // Show known server fingerprints separately from legacy records whose independence is unknown.
+  const tally = verificationCount(d);
+  const machines = tally.total !== null && Array.isArray(d.executors) ? new Set(d.executors).size : 0;
+  const sharedEngine = machines > 0 && tally.total !== null && tally.total < d.passed;
   const failing = d.attestations.filter((at) => !at.passed && at.failures?.length);
-  // Item 330 — while a challenge is open, a record written BEFORE it answers nothing. It stays here, shown for what
-  // it is, instead of quietly filling the second quorum slot with the very attestation its own author disputed.
-  const challengedAt = d.open_challenge?.created_at ?? 0;
-  const stale = (at: Attestation) => challengedAt > 0 && at.created_at <= challengedAt;
   // Item 179 — a knowledge trained on top of another is only meaningful with that other underneath. A verifier that
   // does not hold the base measures the child's OWN questions and nothing else, and the tick must say so.
   const bases = [...new Set([...(d.anchor.base?.stack ?? []).map((b) => b.patch_id), ...(d.anchor.parents ?? [])])];
@@ -893,6 +890,7 @@ function Verification({ d }: { d: PatchDetail }) {
   }).find(Boolean) ?? null;
   return (
     <Section style={{ padding: 0 }}>
+      <VerificationAction detail={d} />
       <SummaryRow>
         <div title={tech('verified')}><span className="k">{t('detail.ver.summary_executed')}</span><span className="v">{verificationCount(d).fraction}</span></div>
         {/* Item 329: "2/2 independent" was two signatures; two verifier processes on ONE vLLM look identical to two
@@ -953,9 +951,7 @@ function Verification({ d }: { d: PatchDetail }) {
                         : t('verifier.work_none')}
                     </TableData>
                     {/* Item 146: an attestation by the author is shown but marked as not counting; item 127: no deposit column, because no deposit exists. */}
-                    <TableData $color={self(at) || stale(at) ? '#8a4b00' : undefined} title={stale(at) ? t('verifier.stale_help') : `${help('signedResult')} (${tech('signedResult')})`}>
-                      {self(at) ? t('detail.ver.counts_self') : stale(at) ? t('verifier.stale') : t('detail.ver.counts_yes')}
-                    </TableData>
+                    <TableData title={`${help('signedResult')} (${tech('signedResult')})`}><AttestationCount entry={d} attestation={at} /></TableData>
                     <TableData $color={at.passed ? '#44a45f' : '#e6173e'} $weight={600}>{at.passed ? t('detail.pass') : t('detail.fail')}</TableData>
                     <TableData $align="right" $padding="0 32px 0 8px" title={dateTime(at.created_at)}>{f.ago(at.created_at)}</TableData>
                   </TableRow>
@@ -982,7 +978,7 @@ function Verification({ d }: { d: PatchDetail }) {
         </FailureBlock>
       ))}
       <div style={{ padding: '16px 32px 20px' }}>
-        <Note title={tech('verified')}><b>{term('verified')}</b> — {t('detail.ver.explain_count', { passed: d.passed, quorum: d.quorum, integrity: d.integrity_checks })}</Note>
+        <Note title={tech('verified')}><b>{term('verified')}</b> — {t('detail.ver.explain_count', { passed: verificationCount(d).shown, quorum: d.quorum, integrity: d.integrity_checks })}</Note>
         {machines > 0 && d.passed > 1 && <Note style={sharedEngine ? { color: '#8a4b00' } : undefined}>{t('detail.ver.executors_shared', { passed: d.passed, n: machines })}</Note>}
         {!!d.executors_unknown && <Note>{t('detail.ver.executors_unknown', { n: d.executors_unknown })}</Note>}
         {!!d.no_baseline && <Note>{t('detail.ver.no_baseline', { n: d.no_baseline })}</Note>}
@@ -1270,47 +1266,34 @@ function VisitorBuy({ id, gw, priceText }: { id: string; gw: string; priceText: 
  * for — loading the knowledge into the model — and a second payment is a separate, confirmed act that says what it
  * costs and what it overwrites. A free re-download would need a node-side route; nothing here promises one.
  */
-function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
-  d: PatchDetail; priceText: string; runtimeReady: boolean; onBuyAgain: () => void; buying: boolean;
+function PaidFor({ d, runtimeReady, onBuyAgain, buying, ready }: {
+  d: PatchDetail; runtimeReady: boolean; onBuyAgain: () => void; buying: boolean; ready: boolean;
 }) {
   const { t } = useT();
   const f = useDetailFormat();
-  const [again, setAgain] = useState(false);
-  const [collect, collectState] = useCollectMutation();
-  const { data: purchases } = useMyPurchasesQuery();
+  const auth = useAuth();
+  const purchases = useMyPurchasesQuery({ identity: auth.cacheIdentity }, { skip: auth.loading || !auth.isOwner });
+  const rows = !purchases.isError && auth.isOwner ? purchaseRows(purchases.currentData) : null;
   const { data: info } = useInfoQuery();
-  const row = purchases?.items.find((x) => x.patch_id === d.anchor.id);
+  const row = rows?.find((x) => x.patch_id === d.anchor.id);
+  const payment = row?.payment;
   // SC-15 — the knowledge just bought may be an add-on: loading it means loading what it was trained on top of.
   const chain = useLoadChain((id) => d.quote?.requires.find((r) => r.id === id)?.name || (id === d.anchor.id ? d.anchor.name : id) || id);
   return (
     <div data-testid="buy-paid">
       <Alert $tone="success">{t('detail.buy.purchased', { applied: d.applied ? t('detail.buy.purchased_applied') : '', stored: d.has_body ? t('detail.buy.stored_yes') : t('detail.buy.stored_no') })}</Alert>
-      {row && (
-        <Note style={{ margin: '8px 0 0' }} title={dateTime(row.created_at)}>
-          {t('detail.buy.paid_when', { amount: f.priceLabel(row.amount, d.anchor.currency), when: f.ago(row.created_at), tx: shortHash(row.tx_hash, 16) })}
-          {txLookup(info, row.tx_hash) && <> <ExternalLink href={txLookup(info, row.tx_hash)!} target="_blank" rel="noopener noreferrer">{t('detail.buy.tx_link')} →</ExternalLink></>}
+      {payment ? (
+        <Note style={{ margin: '8px 0 0' }} title={dateTime(payment.created_at)}>
+          {payment.evidence === 'free' ? t('op.dash.purchases.scheme.free') : t(payment.evidence === 'purchase' ? 'op.dash.purchases.recordedPayment' : 'detail.buy.paid_when', { amount: `${payment.amount} ${payment.currency}`, when: f.ago(payment.created_at), tx: shortHash(payment.tx_hash, 16) })}
+          {payment.scheme === 'ain-transfer' && txLookup(info, payment.tx_hash) && <> <ExternalLink href={txLookup(info, payment.tx_hash)!} target="_blank" rel="noopener noreferrer">{t('detail.buy.tx_link')} →</ExternalLink></>}
         </Note>
-      )}
-      {/* Item 273: the body is gone but the payment is not. The seller re-issues the manifest against the
-          settlement it already recorded, so getting it back is free — it used to say the opposite. */}
-      {!d.has_body && (
-        <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-paid-gone">
-          {t('detail.buy.paid_gone')}
-          <Actions>
-            <Button
-              variant="contained" loading={collectState.isLoading} loadingText={t('detail.buy.collecting')}
-              onClick={() => { void collect(d.anchor.id); }} data-testid="buy-collect"
-            >{t('detail.buy.collect')}</Button>
-          </Actions>
-        </Alert>
-      )}
-      {collectState.error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(collectState.error)}</Alert>}
-      {collectState.data && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="buy-collected">{t('detail.buy.collected', { amount: f.priceLabel(collectState.data.amount, d.anchor.currency), tx: shortHash(collectState.data.tx_hash, 16) })}</Alert>}
+      ) : <Note>{t('op.dash.purchases.paymentUnknown')}</Note>}
+      <CollectKnowledge target={d.anchor} hasBody={d.has_body} />
       <Actions>
         {d.has_body && !d.applied && (
           <Button
             variant="contained" disabled={!runtimeReady} loading={chain.busy} loadingText={t('detail.buy.paid_loading')}
-            onClick={() => { void chain.load(d.anchor.id); }} data-testid="buy-paid-load"
+            onClick={() => { void chain.load(d.anchor); }} data-testid="buy-paid-load"
           >{t('detail.buy.paid_load')}</Button>
         )}
         {d.applied && <Quorum>{t('detail.buy.paid_loaded')}</Quorum>}
@@ -1320,26 +1303,20 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
       {chain.error && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="apply-error">{chain.error}</Alert>}
       {chain.notice && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="apply-order">{chain.notice}</Alert>}
       {chain.dialog}
-      {!again
-        ? <Actions><TextBtn type="button" onClick={() => setAgain(true)} data-testid="buy-again-open">{t('detail.buy.again_open')}</TextBtn></Actions>
-        : (
-          <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-again-confirm">
-            <b>{t('detail.buy.again_title')}</b> {t('detail.buy.again_body', { id: d.anchor.id, price: priceText })}
-            <Actions>
-              <Button color="secondary" loading={buying} loadingText={t('detail.buy.paying')} onClick={onBuyAgain} data-testid="buy-again-pay">{t('detail.buy.again_confirm', { price: priceText })}</Button>
-              <TextBtn type="button" onClick={() => setAgain(false)}>{t('common.cancel')}</TextBtn>
-            </Actions>
-          </Alert>
-        )}
+      <Actions><Button variant="text" disabled={buying || !ready} onClick={onBuyAgain} data-testid="buy-again-open">{t('detail.purchaseReview.again')}</Button></Actions>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------- 구매 */
-function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
+function Buy(props: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
+  const auth = useAuth();
+  return <BuyView key={JSON.stringify([auth.cacheIdentity, auth.address, props.d.anchor.id, props.d.anchor.patch_sha256])} {...props} />;
+}
+function BuyView({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
-  const [buy, { data: result, isLoading, error, reset }] = useBuyMutation();
+  const purchase = usePurchaseReview(d.anchor);
   /**
    * Item 275: `gateway_url` is frozen into the anchor and stops resolving the moment the seller changes its port,
    * so what a visitor is told to call is the address the node says answers TODAY; the record's is shown only when
@@ -1374,7 +1351,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const canBuy = d.sellable && !d.owned && !d.purchased;
   const { data: info } = useInfoQuery();
   const runtimeReady = info?.runtime.available === true;
-  const priceText = f.priceLabel(a.price, a.currency);
+  const priceText = `${a.price} ${a.currency}`;
   const note = f.priceNote(a.currency);
   const mine = scoreOf(d);
   /**
@@ -1384,7 +1361,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const quote = d.quote;
   const needs = quote?.requires ?? [];
   const missing = needs.filter((r) => !r.licensed && !r.mine);
-  const totalText = quote ? f.priceLabel(quote.total, quote.currency) : priceText;
+  const totalText = quote ? purchaseQuoteTotals(quote) ?? t('detail.buy.amountUnknown') : priceText;
   /**
    * Item 283: the buyer of a child had to work out for themselves whether the base was a second purchase. When the
    * child's blob already carries every address of a declared origin, this says so by name — and only when the node's
@@ -1402,8 +1379,9 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
    * ALREADY holds — a purchase of this node's own, or something it published — and how much of this knowledge is
    * the same rows. It is not a refusal: the newer rows win when both are loaded, which is what the note says.
    */
-  const { data: purchased } = useMyPurchasesQuery(undefined, { skip: !isOperator });
-  const held = new Set((purchased?.items ?? []).map((x) => x.patch_id));
+  const auth = useAuth();
+  const purchased = useMyPurchasesQuery({ identity: auth.cacheIdentity }, { skip: auth.loading || !isOperator });
+  const held = new Set((!purchased.isError && isOperator ? purchaseRows(purchased.currentData) ?? [] : []).filter(x => x.currentFile).map(x => x.patch_id));
   const ownedOverlap = d.conflicts
     .filter((c) => held.has(c.patch_id) && c.overlap_rows > 0)
     .sort((x, y) => y.overlap_rows - x.overlap_rows);
@@ -1555,7 +1533,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         <H3>{isOperator ? t('detail.buy.from_node') : t('detail.buy.visitor_title')}</H3>
         {isOperator && d.owned && <P>{t('detail.buy.owned')}<StyledLink to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.buy.owned_manage')}</StyledLink></P>}
         {isOperator && !d.owned && d.purchased && (
-          <PaidFor d={d} priceText={priceText} runtimeReady={runtimeReady} buying={isLoading} onBuyAgain={() => { reset(); void buy({ id: a.id, again: true }); }} />
+          <PaidFor d={d} runtimeReady={runtimeReady} buying={purchase.busy} ready={purchase.ready} onBuyAgain={() => purchase.launch(true)} />
         )}
         {/* Item 3: why it cannot be bought is public — a visitor used to be shown the price and no reason at all. */}
         {!d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
@@ -1578,15 +1556,8 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
           <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             {/* Item 4: on a replaced version the loud control is the link to the successor; paying for the old one
                 stays possible, but as an outlined button that says which version the money buys. */}
-            <Button
-              variant={superseded ? 'outlined' : 'contained'} loading={isLoading} loadingText={t('detail.buy.paying')}
-              onClick={() => { reset(); void buy({ id: a.id, bundle: missing.length > 0 }); }} title={help('autoPay')} data-testid="buy-button"
-            >
-              {/* The button says what leaves the wallet: the family total when a base has to come with it. */}
-              {missing.length > 0 ? t('detail.buy.button_family', { price: totalText, n: missing.length + 1 })
-                : superseded ? t('detail.buy.button_old', { price: priceText })
-                : t('detail.buy.button', { price: priceText })}
-            </Button>
+            <Button variant={superseded ? 'outlined' : 'contained'} disabled={!purchase.ready || purchase.busy}
+              onClick={() => purchase.launch(false)} data-testid="buy-button">{t('detail.purchaseReview.title')}</Button>
             {superseded && head && <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{t('detail.buy.old_open')} →</StyledLink>}
             <Quorum>{a.currency === 'AIN' ? t('detail.buy.pays_from_ain') : t('detail.buy.pays_from_credit')}{note && <> · {note}</>}</Quorum>
             {/* Item 351: what a purchase publishes about the buyer, said before the button and not after it. */}
@@ -1596,21 +1567,23 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
             )}
           </div>
         )}
-        {error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(error)}</Alert>}
-        {result && <PurchaseTimeline r={result} d={d} />}
+        {purchase.submitted && <Button variant="text" onClick={() => purchase.launch(false)}>{t('detail.purchaseReview.inspect')}</Button>}
+        {purchase.dialog}
         <Note style={{ margin: '16px 0 0' }}>{term('apply')}: {help('apply')} {term('remove')}: {help('remove')}</Note>
       </Section>
     </>
   );
 }
 
-function PurchaseTimeline({ r, d }: { r: PurchaseResult; d: PatchDetail }) {
+export function PurchaseTimeline({ r: raw, d }: { r: PurchaseResult; d: PatchDetail }) {
   const { t } = useT();
   const f = useDetailFormat();
   const { data: info } = useInfoQuery();
-  const currency = d.anchor.currency;
+  const auth = useAuth();
+  const r = purchaseResult(raw, d.anchor.id, d.anchor.patch_sha256, auth.address);
+  if (!r) return <Alert $tone="warning" role="alert">{t('detail.buy.resultUnknown')}</Alert>;
   const machines = (d.executors?.length ?? 0) + (d.executors_unknown ?? 0);
-  const url = txLookup(info, r.tx_hash);
+  const url = r.scheme === 'ain-transfer' ? txLookup(info, r.tx_hash) : null;
   /**
    * Item 354 — this step was a green "verification confirmed" at the moment of payment, while the terms say
    * verification is best-effort, nothing is escrowed, and Verified does not promise the knowledge is correct. It
@@ -1624,8 +1597,8 @@ function PurchaseTimeline({ r, d }: { r: PurchaseResult; d: PatchDetail }) {
   };
   return (
     <>
-      <Alert $tone="success" style={{ marginTop: 16 }}>
-        {t('detail.buy.done', { id: r.patch_id, amount: f.priceLabel(r.amount, currency), tx: shortHash(r.tx_hash, 18) })} <Mono style={{ fontSize: 11, opacity: 0.8 }}>({r.scheme})</Mono>
+      <Alert $tone="info" style={{ marginTop: 16 }}>
+        {t('detail.buy.reported', { id: r.patch_id, amount: r.totals?.map(v => `${v.amount} ${v.currency}`).join(' + ') || t('detail.buy.noCharge'), tx: shortHash(r.tx_hash, 18) })} <Mono style={{ fontSize: 11, opacity: 0.8 }}>({r.scheme})</Mono>
         {url && <> <ExternalLink href={url} target="_blank" rel="noopener noreferrer" data-testid="buy-tx-link">{t('detail.buy.tx_link')} →</ExternalLink></>}
       </Alert>
       <Timeline>

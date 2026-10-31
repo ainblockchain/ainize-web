@@ -5,12 +5,12 @@
  * is worse than no snippet at all: it is a promise the site made, discovered broken in somebody's editor with
  * nothing to compare against.
  *
- * Every value that varies — the model, the node's URL, the prompt just typed — is interpolated, which means
- * every one of them is an escaping question. They all go through `JSON.stringify`, because a JSON string literal
- * is also a valid Python literal, a valid TypeScript literal and a valid single-argument shell word once quoted.
- * Hand-rolled escaping is how a prompt containing a quote ships a syntax error.
+ * The selected model, prompt and media belong to this request. Python/TypeScript literals and shell arguments
+ * use their own encoders; invalid input cannot silently become the introductory example.
  */
 import type { ModelModality } from '@/api/models';
+import { DECISION_EXAMPLE, MUSIC_TRY, CHAT_TRY, IMAGE_TRY, playgroundInitialPrompt, playgroundBody } from './modelPlaygroundInput';
+export { DECISION_EXAMPLE, MUSIC_TRY, SNIPPET_SAMPLE_PROMPT } from './modelPlaygroundInput';
 
 export const SNIPPET_LANGUAGES = ['python', 'typescript', 'curl'] as const;
 export type SnippetLanguage = (typeof SNIPPET_LANGUAGES)[number];
@@ -26,40 +26,17 @@ export interface SnippetOptions {
    * paste and run — which is the whole difference between a quickstart that works and one that needs a detour.
    */
   apiKey?: string;
+  audioFileName?: string;
 }
 
 /** Obviously a placeholder, so nobody copies it and wonders why it 401s. */
 const KEY_PLACEHOLDER = 'ainize-sk-...';
 
 /**
- * What the decision playground's box holds before anyone types, and what its snippet asks when the box does not
- * parse. One situation, one question of each of the three types — the whole shape of a decision request in a
+ * The decision playground's initial example, visible before anyone types. One situation, one question of each of the three types — the whole shape of a decision request in a
  * dozen lines. The playground imports it from here so the code on screen and the code copied are the same request.
  */
-export const DECISION_EXAMPLE = `{
-  "state": "The payment webhook is failing and customers cannot check out.",
-  "questions": {
-    "team":    { "type": "choice", "instructions": "Who should handle this?", "criteria": { "billing": "Payments or invoices", "technical": "Bugs or outages" } },
-    "severity":{ "type": "score",  "instructions": "How severe is it?",       "criteria": ["low", "medium", "high"] },
-    "outage":  { "type": "noul",   "instructions": "Is a service down?" }
-  }
-}`;
-
-/**
- * The decision request the snippet should carry: the JSON in the box when it parses to a state and questions, the
- * example otherwise. A half-typed body must not become a half-typed snippet.
- */
-function decisionRequestOf(o: SnippetOptions): { state: unknown; questions: Record<string, unknown> } {
-  for (const text of [o.prompt, DECISION_EXAMPLE]) {
-    try {
-      const parsed = JSON.parse(text ?? '') as { state?: unknown; questions?: unknown };
-      if (parsed && typeof parsed === 'object' && parsed.state !== undefined && parsed.questions && typeof parsed.questions === 'object' && !Array.isArray(parsed.questions) && Object.keys(parsed.questions).length) {
-        return { state: parsed.state, questions: parsed.questions as Record<string, unknown> };
-      }
-    } catch { /* not this one */ }
-  }
-  throw new Error('DECISION_EXAMPLE is not a decision request');
-}
+function decisionRequestOf(o: SnippetOptions) { return playgroundBody('decision', o.model, o.prompt ?? DECISION_EXAMPLE) as import('./modelPlaygroundInput').DecisionInput; }
 
 /**
  * A JSON value as a Python literal. JSON strings, numbers, arrays and objects already are Python; `true`, `false`
@@ -88,13 +65,12 @@ function jsLiteral(value: unknown, indent = 0): string {
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>);
     if (!entries.length) return '{}';
-    return `{\n${entries.map(([k, v]) => `${pad}${/^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${jsLiteral(v, indent + 1)}`).join(',\n')},\n${close}}`;
+    return `{\n${entries.map(([k, v]) => `${pad}${k === '__proto__' ? `[${JSON.stringify(k)}]` : /^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${jsLiteral(v, indent + 1)}`).join(',\n')},\n${close}}`;
   }
   return JSON.stringify(value) ?? 'null';
 }
 
 /** A JSON body inside single quotes for a shell: the one character that cannot be in there is escaped. */
-const shellJson = (value: unknown): string => JSON.stringify(value).replace(/'/g, `'\\''`);
 
 /**
  * What the snippet asks when the playground's box is still empty.
@@ -103,12 +79,7 @@ const shellJson = (value: unknown): string => JSON.stringify(value).replace(/'/g
  * nothing to answer, and the copied code "works" by printing nothing — which reads as the call being broken.
  * A real question gets a real reply, so the first paste proves the key, the URL and the model all at once.
  */
-export const SNIPPET_SAMPLE_PROMPT = { chat: 'Hello! Introduce yourself in one sentence.', image: 'a lighthouse at sunset, photo', music: 'calm lo-fi piano, soft rain' } as const;
-const promptOf = (o: SnippetOptions): string =>
-  (o.prompt?.trim() ? o.prompt : o.modality === 'image' ? SNIPPET_SAMPLE_PROMPT.image : o.modality === 'music' ? SNIPPET_SAMPLE_PROMPT.music : SNIPPET_SAMPLE_PROMPT.chat);
-
-/** What the playground and the snippet ask a music model for besides the prompt: a short instrumental. */
-export const MUSIC_TRY = { instrumental: true, duration: 30, response_format: 'mp3' } as const;
+const promptOf = (o: SnippetOptions): string => o.prompt ?? playgroundInitialPrompt(o.modality);
 
 /** A literal that is valid in all three languages. */
 const lit = (value: string): string => JSON.stringify(value);
@@ -123,7 +94,9 @@ function python(o: SnippetOptions): string {
   const key = lit(o.apiKey || KEY_PLACEHOLDER);
   const head = `# pip install ainize\nimport ainize\n\nclient = ainize.connect(${url}, api_key=${key})\n\n`;
   if (o.modality === 'decision') {
-    const { state, questions } = decisionRequestOf(o);
+    const request = decisionRequestOf(o);
+    const { state, questions } = request;
+    if (Object.keys(request).some(k => !['model', 'state', 'questions'].includes(k))) return `${head}out = client.post("/systemone", cast_to=dict, body=${pythonLiteral({ model: o.model, ...request })})\nprint(out["answers"])\n`;
     return `${head}out = client.decide(\n    ${model},\n    state=${pythonLiteral(state, 1)},\n    questions=${pythonLiteral(questions, 1)},\n)\nprint(out.answers)\n`;
   }
   if (o.modality === 'embedding') return `${head}out = client.embeddings.create(model=${model}, input=${prompt})\nprint(out.data[0].embedding)\n`;
@@ -131,12 +104,12 @@ function python(o: SnippetOptions): string {
   // OpenAI's client has no music call; its generic post() reaches the node's /v1/audio/music with the same key.
   if (o.modality === 'music') return `${head}import httpx\n\nsong = client.post("/audio/music", cast_to=httpx.Response, body={\n    "model": ${model},\n    "prompt": ${prompt},\n    "instrumental": True,\n    "duration": ${MUSIC_TRY.duration},\n    "response_format": "mp3",\n}, options={"timeout": 300})\nopen("out.mp3", "wb").write(song.content)\n`;
   if (o.modality === 'transcription') {
-    return `${head}with open("audio.flac", "rb") as f:\n    print(client.audio.transcriptions.create(model=${model}, file=f).text)\n`;
+    return `${head}with open(${lit(o.audioFileName ?? "audio.flac")}, "rb") as f:\n    print(client.audio.transcriptions.create(model=${model}, file=f).text)\n`;
   }
   if (o.modality === 'image') {
-    return `${head}import base64\n\nout = client.images.generate(model=${model}, prompt=${prompt}, size="512x512")\nopen("out.png", "wb").write(base64.b64decode(out.data[0].b64_json))\n`;
+    return `${head}import base64\n\nout = client.images.generate(model=${model}, prompt=${prompt}, size="512x512", n=1, response_format="b64_json", extra_body={"steps": ${IMAGE_TRY.steps}})\nopen("out.png", "wb").write(base64.b64decode(out.data[0].b64_json))\n`;
   }
-  return `${head}out = client.chat.completions.create(\n    model=${model},\n    messages=[{"role": "user", "content": ${prompt}}],\n)\nprint(out.choices[0].message.content)\n`;
+  return `${head}out = client.chat.completions.create(\n    model=${model},\n    messages=[{"role": "user", "content": ${prompt}}],\n    max_tokens=${CHAT_TRY.max_tokens},\n)\nprint(out.choices[0].message.content)\n`;
 }
 
 function typescript(o: SnippetOptions): string {
@@ -146,49 +119,35 @@ function typescript(o: SnippetOptions): string {
   const key = lit(o.apiKey || KEY_PLACEHOLDER);
   const head = `// npm install @ainize/sdk\nimport { connectAinize } from '@ainize/sdk';\n\nconst client = await connectAinize(${url}, { apiKey: ${key} });\n\n`;
   if (o.modality === 'decision') {
-    const { state, questions } = decisionRequestOf(o);
+    const request = decisionRequestOf(o);
+    const { state, questions } = request;
+    if (Object.keys(request).some(k => !['model', 'state', 'questions'].includes(k))) return `${head}const out = await client.post<{ answers: Record<string, unknown> }>('/systemone', { body: ${jsLiteral({ model: o.model, ...request }, 1)} });\nconsole.log(out.answers);\n`;
     return `${head}const out = await client.decide({\n  model: ${model},\n  state: ${jsLiteral(state, 1)},\n  questions: ${jsLiteral(questions, 1)},\n});\nconsole.log(out.answers);\n`;
   }
   if (o.modality === 'embedding') return `${head}const out = await client.embeddings.create({ model: ${model}, input: ${prompt} });\nconsole.log(out.data[0].embedding);\n`;
   if (o.modality === 'speech') return `${head}import { writeFile } from 'node:fs/promises';\nconst audio = await client.audio.speech.create({ model: ${model}, input: ${prompt}, voice: 'default' });\nawait writeFile('out.mp3', Buffer.from(await audio.arrayBuffer()));\n`;
   if (o.modality === 'music') return `${head}import { writeFile } from 'node:fs/promises';\nconst song = await client.post<Response>('/audio/music', {\n  body: { model: ${model}, prompt: ${prompt}, instrumental: true, duration: ${MUSIC_TRY.duration}, response_format: 'mp3' },\n  __binaryResponse: true,\n  timeout: 300_000,\n});\nawait writeFile('out.mp3', Buffer.from(await song.arrayBuffer()));\n`;
   if (o.modality === 'transcription') {
-    return `${head}const text = await client.audio.transcriptions.create({\n  model: ${model},\n  file: await fetch('audio.flac').then((r) => r.blob()),\n});\nconsole.log(text.text);\n`;
+    return `${head}import { createReadStream } from 'node:fs';\nconst text = await client.audio.transcriptions.create({\n  model: ${model},\n  file: createReadStream(${lit(o.audioFileName ?? 'audio.flac')}),\n});\nconsole.log(text.text);\n`;
   }
   if (o.modality === 'image') {
-    return `${head}const out = await client.images.generate({ model: ${model}, prompt: ${prompt}, size: '512x512' });\nconst png = Buffer.from(out.data[0].b64_json, 'base64');\n`;
+    return `${head}const out = await client.post<{ data: Array<{ b64_json: string }> }>('/images/generations', { body: { model: ${model}, prompt: ${prompt}, size: '512x512', n: 1, response_format: 'b64_json', steps: ${IMAGE_TRY.steps} } });\nconst png = Buffer.from(out.data[0].b64_json, 'base64');\n`;
   }
-  return `${head}const out = await client.chat.completions.create({\n  model: ${model},\n  messages: [{ role: 'user', content: ${prompt} }],\n});\nconsole.log(out.choices[0].message.content);\n`;
+  return `${head}const out = await client.chat.completions.create({\n  model: ${model},\n  messages: [{ role: 'user', content: ${prompt} }],\n  max_tokens: ${CHAT_TRY.max_tokens},\n});\nconsole.log(out.choices[0].message.content);\n`;
 }
 
 function curl(o: SnippetOptions): string {
-  const model = lit(o.model);
-  const prompt = lit(promptOf(o));
-  const bearer = o.apiKey || KEY_PLACEHOLDER;
-  const key = '';
-  if (o.modality === 'decision') {
-    // Not an OpenAI endpoint: a decision model answers only at /v1/systemone.
-    const { state, questions } = decisionRequestOf(o);
-    return `${key}curl ${v1(o.nodeUrl, 'systemone')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d '${shellJson({ model: o.model, state, questions })}'\n`;
-  }
-  if (o.modality === 'embedding' || o.modality === 'speech' || o.modality === 'music') {
-    const path = o.modality === 'embedding' ? 'embeddings' : o.modality === 'speech' ? 'audio/speech' : 'audio/music';
-    const body = JSON.stringify(o.modality === 'music' ? { model: o.model, prompt: promptOf(o), ...MUSIC_TRY }
-      : { model: o.model, input: promptOf(o), ...(o.modality === 'speech' ? { voice: 'default' } : {}) });
-    const quoted = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
-    return `curl ${quoted(v1(o.nodeUrl, path))} -H ${quoted(`Authorization: Bearer ${bearer}`)} -H 'Content-Type: application/json' -d ${quoted(body)}${o.modality === 'embedding' ? '' : ' --output out.mp3'}\n`;
-  }
-  if (o.modality === 'transcription') {
-    // Multipart, not JSON: an audio upload has a file in it, and a JSON content type would be rejected.
-    return `${key}curl ${v1(o.nodeUrl, 'audio/transcriptions')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -F model=${model} \\\n  -F file=@audio.flac\n`;
-  }
-  if (o.modality === 'image') {
-    return `${key}curl ${v1(o.nodeUrl, 'images/generations')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": ${model}, "prompt": ${prompt}, "size": "512x512"}'\n`;
-  }
-  return `${key}curl ${v1(o.nodeUrl, 'chat/completions')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": ${model}, "messages": [{"role": "user", "content": ${prompt}}]}'\n`;
+  const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
+  const file = (o.audioFileName ?? 'audio.flac').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const header = `-H ${quote(`Authorization: Bearer ${o.apiKey || KEY_PLACEHOLDER}`)}`;
+  if (o.modality === 'transcription') return `curl ${quote(v1(o.nodeUrl, 'audio/transcriptions'))} ${header} --form-string ${quote(`model=${o.model}`)} -F ${quote(`file=@"${file}"`)}\n`;
+  const paths = { chat: 'chat/completions', decision: 'systemone', image: 'images/generations', embedding: 'embeddings', speech: 'audio/speech', music: 'audio/music' };
+  const body = playgroundBody(o.modality, o.model, promptOf(o));
+  return `curl ${quote(v1(o.nodeUrl, paths[o.modality]))} ${header} -H 'Content-Type: application/json' -d ${quote(JSON.stringify(body))}${['speech', 'music'].includes(o.modality) ? ' --output out.mp3' : ''}\n`;
 }
 
 export function modelsPageCodeSnippet(o: SnippetOptions): string {
+  if (o.modality !== 'transcription') playgroundBody(o.modality, o.model, promptOf(o));
   if (o.language === 'python') return python(o);
   if (o.language === 'typescript') return typescript(o);
   return curl(o);

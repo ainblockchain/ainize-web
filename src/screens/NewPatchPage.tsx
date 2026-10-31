@@ -1,15 +1,19 @@
+import { createDraftJournal } from '@/lib/draftJournal';
+import { createNewPatchTask, patchIdForDraft, requestNewPatch } from '@/lib/newPatchSubmission';
+import { useActiveView } from '@/hooks/useActiveView';
+import { DEFAULT_BENCHMARK_TEXT, emptyNewPatchDraft, hasNewPatchEdits, newPatchDraftKey, newPatchFromSource, readNewPatchDraft, type NewPatchDraft } from '@/lib/newPatchDraft';
+import { benchmarkEditorSamples, editBenchmarkDraft, readBenchmarkDraft, type BenchmarkDraft as Bench, type BenchmarkSampleDraft as Sample } from '@/lib/benchmarkEditor';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { api, errorMessage, useBranchesQuery, useCatalogQuery, useCreatePatchMutation, useInfoQuery } from '@/api/api';
-import type { PatchAnchor } from '@/api/types';
+import { api, errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, usePatchQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, SelectField, TextArea, TextField } from '@/components/ui/Form';
-import { Description, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
+import { CenterProgress, Description, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { DevBox, Muted, Row, Stack, Tip, useMoney } from '@/components/operator/common';
 
 const Form = styled.form`display: flex; flex-direction: column; gap: 24px; max-width: 760px;`;
@@ -17,9 +21,12 @@ const Textarea = styled.textarea`
   width: 100%; min-height: 200px; padding: 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; line-height: 1.5; resize: vertical;
   &:focus { outline: none; border-color: #8b3eeb; }
 `;
-const SampleRow = styled.div`display: grid; grid-template-columns: 1fr 160px auto; gap: 12px; align-items: end;`;
+const SampleRow = styled.div`display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 160px) auto; gap: 12px; align-items: end;
+  & > * { min-width: 0; }
+  @media (max-width: 600px) { grid-template-columns: minmax(0, 1fr); }
+`;
 const Choice = styled.div`
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 16px;
 `;
 const ChoiceCard = styled.label<{ $active: boolean }>`
   display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid ${(p) => (p.$active ? p.theme.color.PRIMARY : p.theme.color.LIGHT_GREY)}; background: ${(p) => (p.$active ? '#faf7ff' : '#fff')}; cursor: pointer;
@@ -41,14 +48,12 @@ const Hint = styled.div<{ $tone?: 'info' | 'warning' }>`
 const Bar = styled.div`width: 100%; height: 8px; border-radius: 4px; background: #e7e0f3; overflow: hidden;`;
 const BarFill = styled.div<{ $pct: number }>`height: 100%; width: ${(p) => Math.max(0, Math.min(100, p.$pct))}%; background: ${(p) => p.theme.color.PRIMARY}; transition: width 0.2s linear;`;
 
-interface Sample { prompt: string; expect: string }
-interface Bench { schema: string; queries: number; format: string[]; collateral_bound_nat?: number; samples: Sample[]; [k: string]: unknown }
 /**
  * Item 165: `collateral_bound_nat` used to sit here at 0.1 — a public technical claim the form chose and the
  * publisher never saw, looser than the 0.08 the product's own reference uses. It is a real, optional field now,
  * and an unset limit is published as unset.
  */
-const DEFAULT_BENCH: Bench = { schema: '', queries: 0, format: ['template'], samples: [{ prompt: '', expect: '' }] };
+const DEFAULT_BENCH: Bench = { schema: '', queries: 0, format: ['template'], samples: [] };
 
 /** The five identifiers the teach publish sheet offers, plus this node's own terms and a free-text escape (item 161). */
 const LICENSES = ['CC-BY-4.0', 'CC-BY-SA-4.0', 'CC0-1.0', 'ODC-By-1.0', 'Proprietary'] as const;
@@ -68,81 +73,64 @@ const LICENSE_LABEL: Record<string, string> = {
 const DESCRIPTION_MAX = 1000;
 const DESCRIPTION_COUNT_FROM = 700;
 
-const DRAFT_KEY = 'ainize.new-patch.form';
-interface FormDraft {
-  name: string; id: string; description: string; modelId: string; priceV: string; license: string;
-  parents: string; branch: string; topic: string; asOf?: string; benchText: string; source: 'upload' | 'path'; path: string;
-}
-const readDraft = (): FormDraft | null => {
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    return raw ? JSON.parse(raw) as FormDraft : null;
-  } catch { return null; }
+const readDraft = (key: string) => {
+  try { return readNewPatchDraft(sessionStorage.getItem(key)); } catch { return null; }
 };
 
-/**
- * How many memory entries the picked .npz actually holds (item 165). A .npz is a zip of .npy members: read the
- * central directory from the tail, find `addrs.npy`, and parse the shape out of its numpy header. Everything is a
- * ranged read, so a 300 MB file costs two small slices. Anything unexpected (a deflated member, zip64, a file that
- * is not an npz) returns null and the form claims nothing.
- */
-async function npzRows(file: File): Promise<number | null> {
-  try {
-    const tailLen = Math.min(file.size, 66_000);
-    const tail = new DataView(await file.slice(file.size - tailLen, file.size).arrayBuffer());
-    let eocd = -1;
-    for (let i = tail.byteLength - 22; i >= 0; i--) if (tail.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
-    if (eocd < 0) return null;
-    const cdSize = tail.getUint32(eocd + 12, true);
-    const cdOffset = tail.getUint32(eocd + 16, true);
-    if (cdOffset === 0xffffffff || cdSize === 0xffffffff) return null;      // zip64 — not worth parsing here
-    const cd = new DataView(await file.slice(cdOffset, cdOffset + cdSize).arrayBuffer());
-    for (let p = 0; p + 46 <= cd.byteLength && cd.getUint32(p, true) === 0x02014b50;) {
-      const method = cd.getUint16(p + 10, true);
-      const nameLen = cd.getUint16(p + 28, true);
-      const extraLen = cd.getUint16(p + 30, true);
-      const commentLen = cd.getUint16(p + 32, true);
-      const localOffset = cd.getUint32(p + 42, true);
-      const name = new TextDecoder().decode(new Uint8Array(cd.buffer, p + 46, nameLen));
-      if (name === 'addrs.npy') {
-        if (method !== 0) return null;                                      // compressed member — cannot slice it
-        const lh = new DataView(await file.slice(localOffset, localOffset + 30).arrayBuffer());
-        if (lh.getUint32(0, true) !== 0x04034b50) return null;
-        const head = localOffset + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
-        // latin1 is windows-1252 in the Encoding standard, so the magic byte 0x93 decodes to a curly quote, not
-        // U+0093 — match the five letters after it rather than the byte.
-        const npy = new TextDecoder('latin1').decode(await file.slice(head, head + 256).arrayBuffer());
-        if (npy.slice(1, 6) !== 'NUMPY') return null;
-        const shape = /'shape':\s*\((\d+)/.exec(npy);
-        return shape ? Number(shape[1]) : null;
-      }
-      p += 46 + nameLen + extraLen + commentLen;
-    }
-    return null;
-  } catch { return null; }
+export default function NewPatchPage() {
+  const auth = useAuth();
+  const [sp] = useSearchParams();
+  const from = sp.get('from');
+  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  return <NewPatchSource key={JSON.stringify([auth.cacheIdentity, from])} from={from} identity={auth.cacheIdentity} />;
 }
 
-export default function NewPatchPage() {
+function NewPatchSource({ from, identity }: { from: string | null; identity: string }) {
+  const { t } = useT();
+  useTitle(t('op.new.title'));
+  const query = usePatchQuery(from ?? '', { skip: from === null });
+  const source = useMemo(() => !query.isError && from !== null ? newPatchFromSource(query.currentData, from) : null, [query.currentData, query.isError, from]);
+  // A later refresh must never replace or unmount the editor the person has started using.
+  const [accepted, setAccepted] = useState<NewPatchDraft | null>(source);
+  useEffect(() => { if (!accepted && source) setAccepted(source); }, [accepted, source]);
+  const initial = accepted ?? source;
+  if (from !== null && !initial) {
+    if (query.isFetching) return <PageWrapper><div role="status" data-testid="new-patch-source-loading"><CenterProgress /></div></PageWrapper>;
+    const missing = query.error && 'status' in query.error && query.error.status === 404;
+    return <PageWrapper><Alert role="alert" $tone="error" data-testid="new-patch-source-error">
+      {t(missing ? 'op.new.from.missing' : 'op.new.from.failed', { id: from })}{' '}
+      <Button type="button" variant="text" size="small" onClick={() => void query.refetch()}>{t('op.error.retry')}</Button>
+    </Alert></PageWrapper>;
+  }
+  return <NewPatchForm initial={initial} draftKey={newPatchDraftKey(identity, from)} from={from} />;
+}
+
+function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | null; draftKey: string; from: string | null }) {
   const { t, term, help, tech } = useT();
   useTitle(t('op.new.title'));
   const money = useMoney();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { address } = useAuth();
+  const auth = useAuth();
+  const active = useActiveView();
+  const isCurrent = () => active() && auth.isCurrentAccount();
+  const [saveTask] = useState(createNewPatchTask);
+  useEffect(() => () => saveTask.abandon(), [saveTask]);
   const { data: info } = useInfoQuery();
   const catalog = useCatalogQuery({ limit: 200 });
   /** Item 169(c): the tracks that actually exist, so a typed name is checked against them before publishing. */
   const tracks = useBranchesQuery();
   const currency = info?.currency ?? 'CREDIT';
-  const [create, state] = useCreatePatchMutation();
 
   // Item 95: everything typed here survives a refresh (sessionStorage, this tab only) — a 300 MB upload is minutes
   // long and the form used to be thrown away by a stray navigation.
-  const [saved] = useState(readDraft);
+  const [restored] = useState(() => readDraft(draftKey));
+  const [baseline] = useState(() => emptyNewPatchDraft(info?.runtime.model ?? undefined));
+  const [saved] = useState(() => ({ ...(initial ?? baseline), ...restored }));
   const [name, setName] = useState(saved?.name ?? '');
   const [id, setId] = useState(saved?.id ?? '');
   const [description, setDescription] = useState(saved?.description ?? '');
-  const [modelId, setModelId] = useState(saved?.modelId ?? info?.runtime.model ?? 'Qwen3.8-Flash-Next');
+  const [modelId, setModelId] = useState(saved.modelId);
   const [priceV, setPriceV] = useState(saved?.priceV ?? '0.1');
   const [licenseChoice, setLicenseChoice] = useState(() => (!saved?.license ? '' : LICENSES.includes(saved.license as typeof LICENSES[number]) ? saved.license : 'other'));
   const [licenseOther, setLicenseOther] = useState(() => (saved?.license && !LICENSES.includes(saved.license as typeof LICENSES[number]) ? saved.license : ''));
@@ -151,96 +139,53 @@ export default function NewPatchPage() {
   /** Item 267 — the day the DATA is true of, which until now lived only in whatever name the publisher typed. */
   const [asOf, setAsOf] = useState(saved?.asOf ?? '');
   const [topic, setTopic] = useState(saved?.topic ?? '');
-  // benchmark: `bench` is the source of truth for the plain fields; `benchText` is the developer JSON view kept in sync both ways.
-  const [bench, setBench] = useState<Bench>(() => {
-    if (!saved?.benchText) return DEFAULT_BENCH;
-    try { return { ...DEFAULT_BENCH, ...JSON.parse(saved.benchText) as Bench }; } catch { return DEFAULT_BENCH; }
-  });
-  const [benchText, setBenchText] = useState(saved?.benchText ?? JSON.stringify(DEFAULT_BENCH, null, 2));
+  // Raw JSON is authoritative: invalid text stays recoverable and cannot be overwritten by stale plain fields.
+  const [benchText, setBenchText] = useState(saved?.benchText ?? DEFAULT_BENCHMARK_TEXT);
+  const benchRead = useMemo(() => readBenchmarkDraft(benchText), [benchText]);
+  const bench = benchRead.value ?? DEFAULT_BENCH;
+  const queryCount = typeof bench.queries === 'number' ? bench.queries : bench.queries.length;
   const [benchError, setBenchError] = useState<string | null>(null);
   const [source, setSource] = useState<'upload' | 'path'>(saved?.source ?? 'upload');
   const [file, setFile] = useState<File | null>(null);
-  const [fileRows, setFileRows] = useState<number | null>(null);
   const [path, setPath] = useState(saved?.path ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(saved ? t('op.new.draft.restored') : null);   // item 95: the form survived a refresh
+  const [notice, setNotice] = useState<string | null>(restored ? t('op.new.draft.restored') : initial ? t('op.new.from.notice', { id: from! }) : null);   // item 95: the form survived a refresh
   // upload progress (measured from XHR upload events, never guessed)
   const [sent, setSent] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
   const [phase, setPhase] = useState<'idle' | 'sending' | 'server'>('idle');
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   const startedAt = useRef(0);
-
-  /**
-   * Item 157 — a REJECTED knowledge is a dead end: its id is burned, its record is permanent, and the only way
-   * forward is a corrected version that declares it as a parent. The manage page sends the publisher here with
-   * `?from=<id>`, and this fills the form from that anchor once — name, description, price, model, benchmark,
-   * track and topic — with a fresh id suggested and the rejected one already in Origins, so the lineage and the
-   * work survive the rejection. Only ever applied to an untouched form: a restored draft (item 95) wins.
-   */
-  const [sp] = useSearchParams();
-  const from = sp.get('from');
-  const prefilled = useRef(false);
-  useEffect(() => {
-    if (prefilled.current || saved || !from) return;
-    const e = catalog.data?.items.find((x) => x.anchor.id === from);
-    if (!e) return;
-    prefilled.current = true;
-    const a = e.anchor;
-    setName(a.name ?? '');
-    setId(`${a.id}-v2`.slice(0, 64));
-    setDescription(a.description ?? '');
-    setModelId(a.model.id_M);
-    setPriceV(a.price);
-    setParents(a.id);
-    setBranch(a.branch ?? '');
-    setTopic(a.topic_path ?? '');
-    setAsOf((a as { as_of?: string }).as_of ?? '');
-    const b: Bench = {
-      schema: a.benchmark.schema, queries: a.benchmark.queries,
-      format: a.benchmark.format ?? [], collateral_bound_nat: a.benchmark.collateral_bound_nat,
-      samples: (a.benchmark.samples ?? []).slice(0, 3).map((x) => ({ prompt: x.prompt, expect: x.expect })),
-    };
-    setBench(b);
-    setBenchText(JSON.stringify(b, null, 2));
-    setNotice(t('op.new.from.notice', { id: a.id }));
-  }, [from, saved, catalog.data, t]);
 
   const license = licenseChoice === 'other' ? licenseOther : licenseChoice;
 
   // Only a form somebody has actually started is kept: an untouched visit must not greet the next one with a
   // "we brought back what you typed" notice over an empty page.
-  const started = !!(name || id || description || parents || branch || topic || asOf || path || license || bench.schema || bench.queries || bench.samples.some((x) => x.prompt || x.expect) || priceV !== '0.1');
+  const started = hasNewPatchEdits({ name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path }, baseline);
+  const [draftJournal] = useState(() => createDraftJournal(() => sessionStorage, draftKey));
+  const [draftSaved, setDraftSaved] = useState<boolean | null>(null);
+  const draft: NewPatchDraft = { name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path };
+  const draftText = started ? JSON.stringify(draft) : null;
+  const latestDraft = useRef(draftText); latestDraft.current = draftText;
+  useEffect(() => { setDraftSaved(draftJournal.save(draftText)); }, [draftJournal, draftText]);
   useEffect(() => {
-    const draft: FormDraft = { name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path };
-    const timer = setTimeout(() => {
-      try { if (started) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); else sessionStorage.removeItem(DRAFT_KEY); } catch { /* private mode — the form still works */ }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [started, name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path]);
+    const flush = () => { draftJournal.save(latestDraft.current); };
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, [draftJournal]);
+  const completeDraft = () => { draftJournal.complete(); };
 
   const updateBench = (patch: Partial<Bench>) => {
-    const next: Bench = { ...bench, ...patch };
-    const filled = next.samples.filter((s) => s.prompt).length;
-    if (!next.queries || next.queries < filled) next.queries = filled;
-    if (next.collateral_bound_nat === undefined) delete next.collateral_bound_nat;
-    setBench(next); setBenchText(JSON.stringify(next, null, 2)); setBenchError(null);
+    if (!benchRead.value) return;
+    setBenchText(JSON.stringify(editBenchmarkDraft(benchRead.value, patch), null, 2)); setBenchError(null);
   };
-  const onJson = (text: string) => {
-    setBenchText(text);
-    try {
-      const parsed = JSON.parse(text) as Partial<Bench>;
-      const samples = Array.isArray(parsed.samples) ? parsed.samples.map((s) => ({ prompt: String(s.prompt ?? ''), expect: String(s.expect ?? '') })) : [];
-      setBench({ ...DEFAULT_BENCH, ...parsed, schema: String(parsed.schema ?? ''), queries: Number(parsed.queries ?? 0) || 0, samples: samples.length ? samples : [{ prompt: '', expect: '' }] });
-      setBenchError(null);
-    } catch (e) { setBenchError(t('op.manage.bench.invalid', { message: (e as Error).message })); }
-  };
-  const samples = bench.samples;
+  const onJson = (text: string) => { setBenchText(text); setBenchError(null); };
+  const samples = benchmarkEditorSamples(bench);
   const setSamples = (next: Sample[]) => updateBench({ samples: next });
 
   const nf = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 6 });
-  const slugPreview = (id || name).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  const slugPreview = patchIdForDraft(id, name);
   const mb = (bytes: number) => (bytes / 1e6).toFixed(1);
 
   const items = useMemo(() => catalog.data?.items ?? [], [catalog.data]);
@@ -287,44 +232,30 @@ export default function NewPatchPage() {
     return left > 90 ? t('op.new.upload.eta.min', { n: Math.ceil(left / 60) }) : t('op.new.upload.eta.sec', { n: Math.max(1, Math.round(left)) });
   };
 
-  const pickFile = (f: File | null) => {
-    setFile(f); setFileRows(null);
-    if (f) void npzRows(f).then(setFileRows);
-  };
+  const pickFile = (f: File | null) => setFile(f);
 
-  const clearDraft = () => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* nothing to clear */ } };
+  const clearDraft = () => { setDraftSaved(draftJournal.save(null)); };
   const startOver = () => {
+    if (saveTask.pending()) return;
     clearDraft();
-    setName(''); setId(''); setDescription(''); setPriceV('0.1'); setLicenseChoice(''); setLicenseOther('');
-    setParents(''); setBranch(''); setTopic(''); setPath(''); pickFile(null);
-    setBench(DEFAULT_BENCH); setBenchText(JSON.stringify(DEFAULT_BENCH, null, 2)); setBenchError(null);
-    setNotice(null); setError(null);
+    const reset = initial ?? baseline;
+    setName(reset.name); setId(reset.id); setDescription(reset.description); setPriceV(reset.priceV);
+    setLicenseChoice(!reset.license ? '' : LICENSES.includes(reset.license as typeof LICENSES[number]) ? reset.license : 'other');
+    setLicenseOther(reset.license);
+    setParents(reset.parents); setBranch(reset.branch); setTopic(reset.topic); setAsOf(reset.asOf);
+    setModelId(reset.modelId); setSource(reset.source); setPath(reset.path); pickFile(null);
+    setBenchText(reset.benchText); setBenchError(null);
+    setNotice(initial ? t('op.new.from.notice', { id: from! }) : null); setError(null);
   };
-
-  /** POST /api/patches with the bytes, reporting real progress and abortable — RTK Query cannot do either (item 95). */
-  const uploadWithProgress = (fd: FormData) => new Promise<{ anchor: PatchAnchor }>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr;
-    xhr.open('POST', '/api/patches');
-    xhr.withCredentials = true;
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable) { setSent(e.loaded); setTotalBytes(e.total); if (e.loaded >= e.total) setPhase('server'); } };
-    xhr.onload = () => {
-      let body: unknown = null;
-      try { body = JSON.parse(xhr.responseText) as unknown; } catch { /* an error page, not JSON */ }
-      if (xhr.status >= 200 && xhr.status < 300) resolve(body as { anchor: PatchAnchor });
-      else reject({ status: xhr.status, data: body ?? { error: `request failed (${xhr.status})` } });
-    };
-    xhr.onerror = () => reject({ status: 0, data: { error: t('op.new.err.network') } });
-    xhr.onabort = () => reject({ aborted: true });
-    xhr.send(fd);
-  });
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null); setNotice(null);
-    let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(benchText); } catch (err) { setError(t('op.new.err.json', { message: (err as Error).message })); return; }
-    if (!parsed.schema) { setError(t('op.new.err.schema')); return; }
+    if (saveTask.pending() || !isCurrent()) return;
+    setError(null); setNotice(null); setUncertain(false);
+    if (name.trim().length < 2 || !modelId.trim() || !/^[a-z0-9][a-z0-9._-]{1,63}$/.test(slugPreview)) { setError(t('op.new.err.fields')); return; }
+    const benchmark = readBenchmarkDraft(benchText, true);
+    if (!benchmark.value) { setBenchError(t(`op.benchmark.issue.${benchmark.issue}`)); setError(t(`op.benchmark.issue.${benchmark.issue}`)); return; }
+    const parsed = benchmark.value;
     if (source === 'upload' && !file) { setError(t('op.new.err.file')); return; }
     if (source === 'path' && !path.trim()) { setError(t('op.new.err.path')); return; }
     const fd = new FormData();
@@ -340,20 +271,27 @@ export default function NewPatchPage() {
     if (asOf.trim()) fd.set('as_of', asOf.trim());
     fd.set('benchmark', JSON.stringify(parsed));
     if (source === 'upload' && file) fd.set('file', file); else fd.set('path', path.trim());
-    setSubmitting(true);
-    setSent(0); setTotalBytes(file?.size ?? 0); startedAt.current = Date.now();
-    setPhase(source === 'upload' ? 'sending' : 'server');
-    try {
-      const res = source === 'upload' ? await uploadWithProgress(fd) : await create(fd).unwrap();
-      if (source === 'upload') dispatch(api.util.invalidateTags(['Catalog', 'Me']));
-      clearDraft();
-      navigate(`/project/${address ?? res.anchor.author}/${res.anchor.id}`);
-    } catch (err) {
-      if ((err as { aborted?: boolean }).aborted) setNotice(t('op.new.upload.cancelled'));
-      else setError(errorMessage(err));
-    } finally {
-      setSubmitting(false); setPhase('idle'); xhrRef.current = null;
-    }
+    await saveTask.run({ id: slugPreview, name: name.trim(), modelId: modelId.trim(), author: auth.address }, {
+      active: isCurrent,
+      send: progress => requestNewPatch(fd, progress),
+      progress: ({ sent, total }) => { setSent(sent); setTotalBytes(total); if (sent >= total) setPhase('server'); },
+      emit: result => {
+        if (result.phase === 'saving') {
+          setSubmitting(true); setSent(0); setTotalBytes(file?.size ?? 0); startedAt.current = Date.now();
+          setPhase(source === 'upload' ? 'sending' : 'server'); return;
+        }
+        setSubmitting(false); setPhase('idle');
+        if (result.phase === 'saved') {
+          dispatch(api.util.invalidateTags(['Catalog', 'Me']));
+          completeDraft(); navigate(result.destination);
+        } else if (result.phase === 'uncertain') {
+          setUncertain(true); setError(t(`op.new.result.${result.reason}`));
+          dispatch(api.util.invalidateTags(['Catalog', 'Me']));
+        } else {
+          setError(errorMessage(result.error));
+        }
+      },
+    });
   };
 
   const pct = totalBytes ? Math.floor((sent / totalBytes) * 100) : 0;
@@ -364,7 +302,8 @@ export default function NewPatchPage() {
       <TitleRow><Title>{t('op.new.title')}</Title></TitleRow>
       <Description title={tech('patch')}>{t('op.new.desc')}</Description>
 
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={onSubmit} aria-busy={submitting}>
+        <fieldset disabled={submitting} style={{ display: 'contents' }}>
         {notice && (
           <Alert $tone="info" data-testid="new-notice">
             {notice}{' '}
@@ -449,23 +388,14 @@ export default function NewPatchPage() {
 
         <SubTitle $mt={24}>{t('op.new.sec.bench')}</SubTitle>
         <Description>{t('op.new.bench.desc')}</Description>
+        <fieldset disabled={!benchRead.value} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <FormRow>
           <TextField label={<Tip tech="benchmark.schema">{t('op.new.schema')}</Tip>} placeholder="krx-ticker-codes" value={bench.schema} onChange={(e) => updateBench({ schema: e.target.value })} required helper={t('op.new.schema.helper')} />
-          <TextField label={<Tip tech={tech('facts')}>{term('facts')}</Tip>} type="number" min={0} step={1} value={bench.queries} onChange={(e) => updateBench({ queries: Math.max(0, Number(e.target.value) || 0) })} helper={t('op.new.queries.helper')} />
+          <TextField label={<Tip tech={tech('facts')}>{term('facts')}</Tip>} type="number" min={0} step={1} value={queryCount} readOnly={Array.isArray(bench.queries)} onChange={(e) => updateBench({ queries: Number(e.target.value) })} helper={t(Array.isArray(bench.queries) ? (bench.samples === undefined ? 'op.benchmark.inline_count' : 'op.benchmark.inline_count_json') : 'op.new.queries.helper')} />
         </FormRow>
-        {fileRows !== null && (
-          <Hint data-testid="new-facts-check" $tone={bench.queries > fileRows ? 'warning' : 'info'}>
-            {bench.queries > fileRows ? (
-              <>
-                <span>{t('op.new.queries.over', { q: nf(bench.queries), rows: nf(fileRows) })}</span>
-                <Button type="button" size="small" variant="text" onClick={() => updateBench({ queries: fileRows })}>{t('op.new.queries.use_rows', { rows: nf(fileRows) })}</Button>
-              </>
-            ) : <span>{t('op.new.queries.rows', { rows: nf(fileRows) })}</span>}
-          </Hint>
-        )}
         <FormRow>
           <TextField label={<Tip tech="benchmark.collateral_bound_nat">{t('op.new.collateral')}</Tip>} type="number" min={0} step="0.01" placeholder="0.08" data-testid="new-collateral"
-            value={bench.collateral_bound_nat ?? ''} onChange={(e) => updateBench({ collateral_bound_nat: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })}
+            value={bench.collateral_bound_nat ?? ''} onChange={(e) => updateBench({ collateral_bound_nat: e.target.value === '' ? undefined : Number(e.target.value) })}
             helper={t('op.new.collateral.helper')} />
         </FormRow>
         <Stack $gap={10}>
@@ -474,15 +404,16 @@ export default function NewPatchPage() {
             <SampleRow key={i}>
               <TextField label={i === 0 ? t('op.new.sample.prompt') : undefined} placeholder={t('op.new.sample.prompt.ph')} value={s.prompt} onChange={(e) => setSamples(samples.map((x, j) => (j === i ? { ...x, prompt: e.target.value } : x)))} />
               <TextField label={i === 0 ? t('op.new.sample.expect') : undefined} placeholder="087600" value={s.expect} onChange={(e) => setSamples(samples.map((x, j) => (j === i ? { ...x, expect: e.target.value } : x)))} />
-              <Button type="button" size="small" variant="text" color="default" disabled={samples.length === 1} onClick={() => setSamples(samples.filter((_, j) => j !== i))}>{t('op.remove')}</Button>
+              <Button type="button" size="small" variant="text" color="default" onClick={() => setSamples(samples.filter((_, j) => j !== i))}>{t('op.remove')}</Button>
             </SampleRow>
           ))}
           <div><Button type="button" size="small" variant="text" onClick={() => setSamples([...samples, { prompt: '', expect: '' }])}>{t('op.new.sample.add')}</Button></div>
         </Stack>
+        </fieldset>
         <DevBox style={{ marginTop: 0 }}>
           <Muted style={{ display: 'block', marginBottom: 8 }}>{t('op.new.bench.json')}</Muted>
-          <Textarea value={benchText} onChange={(e) => onJson(e.target.value)} spellCheck={false} />
-          {benchError && <Alert $tone="warning" style={{ marginTop: 8 }}>{benchError}</Alert>}
+          <Textarea aria-label={t('op.new.bench.json')} value={benchText} onChange={(e) => onJson(e.target.value)} spellCheck={false} />
+          {(benchRead.issue || benchError) && <Alert role="alert" data-testid="benchmark-editor-error" $tone="warning" style={{ marginTop: 8 }}>{benchRead.issue ? t(`op.benchmark.issue.${benchRead.issue}`) : benchError}</Alert>}
         </DevBox>
 
         <SubTitle $mt={24}>{t('op.new.sec.file')}</SubTitle>
@@ -501,12 +432,12 @@ export default function NewPatchPage() {
         </Choice>
         <DevBox style={{ marginTop: 0 }}><Muted>{t('op.new.dev.npz')}</Muted></DevBox>
 
-        {error && <Alert $tone="error">{error}</Alert>}
+        </fieldset>
+        {error && <Alert $tone="error" role="alert">{error}{uncertain && <>{' '}<StyledLink to="/dashboard">{t('op.new.result.check')}</StyledLink></>}</Alert>}
         {submitting && source === 'upload' && file && (
           <Stack $gap={8} data-testid="upload-progress">
             <Row $gap={12} $justify="space-between">
               <strong style={{ fontSize: 14 }}>{t('op.new.uploading', { name: file.name })}</strong>
-              <Button type="button" size="small" variant="text" color="default" onClick={() => xhrRef.current?.abort()}>{t('op.new.upload.cancel')}</Button>
             </Row>
             <Bar role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t('op.new.uploading', { name: file.name })}><BarFill $pct={pct} /></Bar>
             <Muted data-testid="upload-numbers">
@@ -517,9 +448,9 @@ export default function NewPatchPage() {
           </Stack>
         )}
         <Row $gap={16}>
-          <Button type="submit" variant="contained" size="large" loading={submitting || state.isLoading} loadingText={t('op.new.submitting')}>{t('op.new.submit')}</Button>
-          <Button type="button" variant="text" color="default" onClick={() => navigate('/dashboard')}>{t('common.cancel')}</Button>
-          <Muted>{t('op.new.draft.kept')}</Muted>
+          <Button type="submit" variant="contained" size="large" loading={submitting} loadingText={t('op.new.submitting')}>{t('op.new.submit')}</Button>
+          <Button type="button" variant="text" color="default" onClick={() => submitting ? saveTask.cancel() : navigate('/dashboard')}>{t(submitting ? 'op.new.upload.cancel' : 'common.cancel')}</Button>
+          <Muted role="status" data-testid="new-draft-storage">{t(draftSaved === null ? 'op.new.draft.saving' : draftSaved ? 'op.new.draft.kept' : 'op.new.draft.failed')}</Muted>
         </Row>
       </Form>
     </PageWrapper>

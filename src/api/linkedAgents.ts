@@ -76,6 +76,7 @@ export interface LinkedAgentView {
   card_url: string;
   /** Only the owner's read (`GET /api/linked-agents/:id`) carries it; the catalogue never does. */
   upstream: string | null;
+  editRevision: string | null;
   /** Set on register and change: did the upstream answer with a card just now? */
   reachable: boolean | null;
   error: string | null;
@@ -91,13 +92,17 @@ export function parseLinkedAgentResponse(body: unknown): LinkedAgentView | null 
   if (!agent || typeof agent !== 'object') return null;
   const id = str(agent.id); const name = str(agent.name); const a2a = str(agent.a2a_url); const card = str(agent.card_url);
   if (!id || !name || !a2a || !card) return null;
+  const editRevision = typeof agent.edit_revision === 'string' && /^[a-f0-9]{64}$/.test(agent.edit_revision) ? agent.edit_revision : null;
+  const visibility = agentVisibilityOf(agent), orgId = agentOrgIdOf(agent);
+  if (editRevision && (!str(agent.owner) || !str(agent.upstream) || !visibility || (visibility === 'org' ? !orgId : orgId !== null))) return null;
   return {
     id, name, description: str(agent.description) ?? '', owner: str(agent.owner) ?? '', a2a_url: a2a, card_url: card,
     upstream: str(agent.upstream),
+    editRevision,
     reachable: typeof agent.reachable === 'boolean' ? agent.reachable : null,
     error: str(agent.error),
-    visibility: agentVisibilityOf(agent),
-    orgId: agentOrgIdOf(agent),
+    visibility,
+    orgId,
   };
 }
 
@@ -107,11 +112,11 @@ export function linkedAgentDraftFromView(view: LinkedAgentView): LinkedAgentForm
 
 export type LinkedAgentApiErrorCode =
   | 'not_signed_in' | 'invalid_request' | 'upstream_not_public' | 'name_required' | 'id_taken' | 'limit_reached'
-  | 'not_owner' | 'not_found' | 'unreachable' | 'unknown';
+  | 'not_owner' | 'not_found' | 'review_required' | 'review_changed' | 'sharing_denied' | 'unreachable' | 'unknown';
 
 export interface LinkedAgentApiError { status: number | null; code: LinkedAgentApiErrorCode; message: string | null }
 
-const KNOWN: readonly LinkedAgentApiErrorCode[] = ['not_signed_in', 'invalid_request', 'upstream_not_public', 'name_required', 'id_taken', 'limit_reached', 'not_owner', 'not_found'];
+const KNOWN: readonly LinkedAgentApiErrorCode[] = ['not_signed_in', 'invalid_request', 'upstream_not_public', 'name_required', 'id_taken', 'limit_reached', 'not_owner', 'not_found', 'review_required', 'review_changed', 'sharing_denied'];
 
 /**
  * An RTK Query error into something a page can switch on. A newer node says `{ error: { code, message } }`; an older
@@ -135,7 +140,8 @@ function fromStatus(status: number | null): LinkedAgentApiErrorCode {
   if (status === 401) return 'not_signed_in';
   if (status === 403) return 'not_owner';
   if (status === 404) return 'not_found';
-  if (status === 409) return 'id_taken';
+  // A generic conflict is not proof that the id is taken: callers may otherwise retry under another id.
+  if (status === 409) return 'unknown';
   if (status === 429) return 'limit_reached';
   if (status === 400) return 'invalid_request';
   return status === null ? 'unreachable' : 'unknown';
@@ -173,4 +179,13 @@ export function agentsOwnedBy(agents: readonly AgentSummary[], principals: reado
 /** A linked agent is a proxied upstream with an owner; a config agent is the same shape with none. */
 export function isLinkedAgentRow(agent: Pick<AgentSummary, 'kind' | 'owner' | 'node'>): boolean {
   return (agent.kind ?? 'upstream') === 'upstream' && !!agent.owner && !agent.node;
+}
+
+/** A successful HTTP response is not confirmation unless it describes the submitted settings and account. */
+export function linkedAgentSaveMatches(view: LinkedAgentView | null, input: LinkedAgentInput, principal: string | null, previousRevision?: string | null): boolean {
+  return !!view && !!principal && view.owner === principal && view.id === input.id
+    && !!view.editRevision && view.editRevision !== previousRevision
+    && view.upstream === input.upstream && view.visibility === (input.visibility ?? 'public')
+    && view.orgId === (input.visibility === 'org' ? input.orgId : null)
+    && (!input.name || view.name === input.name) && (!input.description || view.description === input.description);
 }

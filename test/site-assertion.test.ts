@@ -37,8 +37,8 @@ test('nothing is vouched for without a session, a valid cookie, or the secret', 
 });
 
 test('it carries on keys, agents and who-am-I — and nowhere a wallet signature guards', () => {
-  for (const p of ['/api/keys', '/api/keys/abc', '/api/auth/me', '/api/hosted-agents', '/api/hosted-agents/x/secrets/K',
+  for (const p of ['/api/keys', '/api/keys/abc', '/api/key-operations/abc', '/api/key-operations/abc/cancel', '/api/auth/me', '/api/hosted-agents', '/api/hosted-agents/x/secrets/K',
     '/api/linked-agents', '/api/linked-agents/x', '/api/shared-agents', '/api/shared-agents/x/visibility']) assert.ok(vouchesFor(p), p);
-  for (const p of ['/api/keysx', '/api/hosted-agentsx', '/api/auth/me/x', '/api/auth/wallet', '/api/auth/owners', '/api/orgs',
+  for (const p of ['/api/keysx', '/api/key-operationsx', '/api/hosted-agentsx', '/api/auth/me/x', '/api/auth/wallet', '/api/auth/owners', '/api/orgs',
     '/api/patches', '/api/publish', '/agents/x', '/api/']) assert.ok(!vouchesFor(p), p);
 });

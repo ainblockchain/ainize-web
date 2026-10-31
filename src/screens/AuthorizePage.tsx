@@ -5,6 +5,10 @@ import { errorMessage, useApproveAccountDeviceMutation, useApproveDeviceMutation
 import { connect, discoverWallets, personalSign, WalletError, type DiscoveredWallet } from '@/lib/ethWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
+import { useActiveView } from '@/hooks/useActiveView';
+import { createNodeActionTask } from '@/lib/accountNodeActions';
+import { approveReviewedDevice, deviceApprovedFor, selectedDeviceCode, readDeviceRequest, sameDeviceRequest, DeviceApprovalError } from '@/lib/deviceApproval';
+import type { DeviceRequest } from '@/api/types';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
 import { Button } from '@/components/ui/Button';
@@ -27,37 +31,48 @@ const Label = styled.span`font-size: 13px; color: ${(p) => p.theme.color.GREY}; 
 export default function AuthorizePage() {
   const [params] = useSearchParams();
   const auth = useAuth();
-  return <DeviceApproval key={`${params.get('code') ?? ''}:${auth.cacheIdentity}`} />;
+  return <DeviceApproval key={`${selectedDeviceCode(params) ?? 'invalid'}:${auth.cacheIdentity}`} />;
 }
 
 function DeviceApproval() {
   const { t } = useT();
   useTitle(t('op.authorize.title'));
   const [params] = useSearchParams();
-  const code = params.get('code') ?? '';
+  const code = selectedDeviceCode(params) ?? '';
   const auth = useAuth();
-  const { currentData: data, isLoading, isFetching, error, refetch } = useDeviceRequestQuery(code, { skip: !code });
-  const [approveAccount, accountState] = useApproveAccountDeviceMutation();
-  const [approveDevice, approveState] = useApproveDeviceMutation();
+  const { currentData, isLoading, isFetching, error, refetch } = useDeviceRequestQuery(code, { skip: !code, refetchOnMountOrArgChange: true });
+  const active = useActiveView();
+  const [task] = useState(createNodeActionTask), [busy, setBusy] = useState(false), [attempted, setAttempted] = useState(false);
+  const [reviewed, setReviewed] = useState<DeviceRequest | null>(null), [receipt, setReceipt] = useState<DeviceRequest | null>(null);
+  const current = () => active() && auth.isCurrentAccount();
+  useEffect(() => () => task.abandon(), [task]);
+  const incoming = !error ? readDeviceRequest(currentData) : null;
+  const mismatched = !!(attempted && reviewed && incoming && !sameDeviceRequest(reviewed, incoming));
+  const data = receipt ?? (mismatched ? reviewed : incoming) ?? (attempted ? reviewed : null);
+  const [approveAccount] = useApproveAccountDeviceMutation();
+  const [approveDevice] = useApproveDeviceMutation();
   const [wallets, setWallets] = useState<DiscoveredWallet[] | null>(null);
   const [walletIndex, setWalletIndex] = useState(0);
-  const [outcome, setOutcome] = useState<'approved' | 'rejected' | null>(null);
+  const [dismissed, setDismissed] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const accountMode = !!auth.sso || (auth.ssoConfigured && !auth.subject);
+  const actor = auth.sso?.principal ?? auth.subject ?? '';
   const loginHref = `/api/auth/sso/start?next=${encodeURIComponent(`/authorize?code=${encodeURIComponent(code)}`)}`;
   const redirected = useRef(false);
   useEffect(() => {
-    if (!auth.loading && accountMode && !auth.sso && data?.status === 'pending' && !redirected.current) {
+    if (!auth.loading && accountMode && !auth.sso && data?.status === 'pending' && !isFetching && !error && !dismissed && !redirected.current) {
       redirected.current = true;
       window.location.replace(loginHref);
     }
-  }, [auth.loading, accountMode, auth.sso, data?.status, loginHref]);
+  }, [auth.loading, accountMode, auth.sso, data?.status, isFetching, error, dismissed, loginHref]);
   useEffect(() => { if (accountMode || !auth.subject) return; let live = true; void discoverWallets().then((w) => { if (live) setWallets(w); }); return () => { live = false; }; }, [accountMode, auth.subject]);
 
   if (!code) return <PageWrapper><Title>{t('op.authorize.title')}</Title><Alert $tone="error">{t('op.authorize.no_code')}</Alert></PageWrapper>;
   if (isLoading || (!data && isFetching) || auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (error && !('status' in error && error.status === 404)) return <PageWrapper><Title>{t('op.authorize.title')}</Title><QueryError error={error} what={t('op.authorize.title')} onRetry={() => void refetch()} retrying={isFetching} /></PageWrapper>;
-  if (error || !data) return <PageWrapper><Title>{t('op.authorize.title')}</Title><Alert $tone="error">{t('op.authorize.unknown')}</Alert></PageWrapper>;
+  if (!attempted && !receipt && error && !('status' in error && error.status === 404)) return <PageWrapper><Title>{t('op.authorize.title')}</Title><QueryError error={error} what={t('op.authorize.title')} onRetry={() => void refetch()} retrying={isFetching} /></PageWrapper>;
+  if ((!attempted && !receipt && error) || (!data && !currentData)) return <PageWrapper><Title>{t('op.authorize.title')}</Title><Alert $tone="error">{t('op.authorize.unknown')}</Alert></PageWrapper>;
+
+  if (!data || mismatched) return <PageWrapper><Title>{t('op.authorize.title')}</Title><QueryError error={error} what={t('op.authorize.title')} onRetry={() => void refetch()} retrying={isFetching} /></PageWrapper>;
 
   /**
    * Which of the two things is asking.
@@ -73,46 +88,52 @@ function DeviceApproval() {
   const k = data.kind === 'node' ? 'node' : 'cli';
   const tt = (key: string) => t(`op.authorize.${k}.${key}`);
 
-  const approve = async () => {
-    setLocalError(null);
+  const refresh = async () => {
     try {
-      if (auth.sso) {
-        await approveAccount({ code }).unwrap();
-        setOutcome('approved');
-        void refetch();
-        return;
-      }
-      const w = wallets?.[walletIndex];
-      if (!w) throw new WalletError('no_extension');
-      const address = await connect(w.provider);
-      if (address.toLowerCase() !== auth.subject?.toLowerCase()) throw new Error(t('op.authorize.wallet_mismatch'));
-      // Signed exactly as shown, and the wallet's answer is recovered here against the same string before it is
-      // sent — the node will check it against its stored copy, so a mismatch has to surface now, not as a 401.
-      const signature = await personalSign(w.provider, data.message, address);
-      await approveDevice({ code, signature }).unwrap();
-      setOutcome('approved');
-      void refetch();
+      const result = readDeviceRequest(await refetch().unwrap());
+      if (!current()) return;
+      if (!result || reviewed && !sameDeviceRequest(reviewed, result)) throw new DeviceApprovalError('changed');
+      if (deviceApprovedFor(result, actor)) { setReceipt(result); setLocalError(null); }
+    } catch (e) { if (current()) setLocalError(t('op.authorize.error.read')); }
+  };
+  const approve = async () => {
+    if (!data || busy || task.pending() || attempted || isFetching || !current()) return;
+    const wallet = wallets?.[walletIndex];
+    setBusy(true); setLocalError(null); setReviewed(data);
+    try {
+      const result = await task.run(current, current => approveReviewedDevice(data, actor, {
+        current, read: () => refetch().unwrap(), attempting: () => setAttempted(true),
+        ...(auth.sso ? {} : { prove: async (message: string) => {
+          if (!wallet) throw new WalletError('no_extension');
+          const address = await connect(wallet.provider);
+          if (!current()) throw new DeviceApprovalError('changed');
+          if (address.toLowerCase() !== actor.toLowerCase()) throw new Error(t('op.authorize.wallet_mismatch'));
+          return personalSign(wallet.provider, message, address);
+        } }),
+        write: (expected, signature) => auth.sso ? approveAccount({ code, expected }).unwrap() : approveDevice({ code, signature: signature! }).unwrap(),
+      }));
+      if (result && current()) setReceipt(result);
     } catch (e) {
-      setLocalError(e instanceof WalletError ? t(`op.sign.wallet.err_${e.message}`) : errorMessage(e));
-    }
+      if (current()) setLocalError(e instanceof DeviceApprovalError ? t(`op.authorize.error.${e.code}`) : e instanceof WalletError ? t(`op.sign.wallet.err_${e.message}`) : errorMessage(e));
+    } finally { if (current()) setBusy(false); }
   };
 
-  if (outcome === 'approved') {
+  if (receipt || deviceApprovedFor(data, actor)) {
     return (
       <PageWrapper>
         <Title>{tt('title')}</Title>
         <Panel>
           <Alert $tone="success" data-testid="authorize-done">{tt('done')}</Alert>
-          {/* Where the person actually wanted to go. What they just approved was most often a NODE asking to
-              belong to them, and the page that shows that is the list of their nodes — the account page shows
-              keys, which is the other half and not the half they came for. */}
-          <Muted>{accountMode ? t('op.authorize.account.done_end') : t('op.authorize.done_end')} <Link to="/my-nodes">{t('op.mynodes.title')} →</Link>{' · '}<Link to={accountMode ? "/me" : "/account"}>{t('nav.account')} →</Link></Muted>
+          <Muted>{accountMode ? t('op.authorize.account.done_end') : t('op.authorize.done_end')}{' '}
+            {k === 'node' && <><Link to="/my-nodes">{t('op.mynodes.title')} →</Link>{' · '}</>}
+            <Link to={accountMode ? '/me' : '/account'}>{t('nav.account')} →</Link>
+          </Muted>
         </Panel>
       </PageWrapper>
     );
   }
-  if (outcome === 'rejected') {
-    return <PageWrapper><Title>{tt('title')}</Title><Panel><Alert $tone="info" data-testid="authorize-rejected">{tt('rejected')}</Alert></Panel></PageWrapper>;
+  if (dismissed) {
+    return <PageWrapper><Title>{tt('title')}</Title><Panel><Alert $tone="info" data-testid="authorize-dismissed">{t('op.authorize.dismissed')}</Alert></Panel></PageWrapper>;
   }
   // A request that is over is not a button that fails: each of these is a different thing to do next, and saying
   // which is the difference between "run it again" and "you already did this".
@@ -129,7 +150,7 @@ function DeviceApproval() {
               the terminal printed, and `0x04…cb55` is not comparable to anything. */}
           <dt>{tt('key')}</dt><dd><Mono>{data.delegate}</Mono></dd>
           {data.label && <><dt>{t('op.authorize.label')}</dt><dd>“{data.label}”<Label>{tt('label_hint')}</Label></dd></>}
-          <dt>{t('op.authorize.node')}</dt><dd>{data.name} <Mono>{data.node.slice(0, 10)}…{data.node.slice(-4)}</Mono></dd>
+          <dt>{t('op.authorize.node')}</dt><dd>{data.name} <Mono>{data.node}</Mono></dd>
           <dt>{t('op.authorize.until')}</dt><dd>{accountMode && k === 'cli' ? t('op.authorize.account.until') : dateTime(data.expires)}</dd>
         </KeyValue>
 
@@ -139,17 +160,18 @@ function DeviceApproval() {
         {accountMode && !auth.sso && <Alert $tone="info" data-testid="authorize-login"><a href={loginHref}>{t('op.authorize.account.signin')}</a></Alert>}
 
         {!accountMode && !auth.subject && <Alert $tone="info" style={{ marginTop: 18 }}><Link to={`/signing?wallet=1&next=${encodeURIComponent(`/authorize?code=${code}`)}`}>{t('op.authorize.signin_first')}</Link></Alert>}
-        {!accountMode && wallets && wallets.length > 1 && <select aria-label={t('op.sign.wallet.pick')} value={walletIndex} onChange={e => setWalletIndex(Number(e.target.value))}>{wallets.map((w, i) => <option key={w.info.uuid} value={i}>{w.info.name}</option>)}</select>}
+        {!accountMode && wallets && wallets.length > 1 && <select disabled={busy || attempted} aria-label={t('op.sign.wallet.pick')} value={walletIndex} onChange={e => setWalletIndex(Number(e.target.value))}>{wallets.map((w, i) => <option key={w.info.uuid} value={i}>{w.info.name}</option>)}</select>}
         {!accountMode && wallets !== null && wallets.length === 0 && <Alert $tone="error" style={{ marginTop: 18 }}>{t('op.sign.wallet.err_no_extension')}</Alert>}
         {localError && <Alert $tone="error" role="alert" style={{ marginTop: 18 }}>{localError}</Alert>}
 
+        {attempted && busy && <Alert $tone="info" role="status">{t('op.authorize.account.busy')}</Alert>}
+        {attempted && !busy && <Alert $tone="warning" role="status" data-testid="authorize-unconfirmed">{t('op.authorize.error.unconfirmed')}</Alert>}
         <Row>
-          <Button onClick={() => void approve()} disabled={accountMode ? !auth.sso || accountState.isLoading : !auth.subject || approveState.isLoading || !wallets?.length} data-testid="authorize-approve">
-            {accountMode ? t(accountState.isLoading ? 'op.authorize.account.busy' : `op.authorize.account.${k}.approve`) : approveState.isLoading ? t('op.authorize.busy') : tt('approve')}
-          </Button>
-          {/* Rejecting writes nothing: the request simply runs out. Saying so is better than a button that looks
-              like it revokes something. */}
-          <Button variant="text" onClick={() => setOutcome('rejected')} data-testid="authorize-reject">{t('op.authorize.reject')}</Button>
+          {!attempted && <Button onClick={() => void approve()} disabled={busy || isFetching || !actor || (accountMode ? !auth.sso : !auth.subject || !wallets?.length)} data-testid="authorize-approve">
+            {busy ? t('op.authorize.account.busy') : accountMode ? t(`op.authorize.account.${k}.approve`) : tt('approve')}
+          </Button>}
+          {attempted && <Button variant="text" disabled={busy || isFetching} onClick={() => void refresh()} data-testid="authorize-refresh">{t('op.authorize.refresh')}</Button>}
+          {!attempted && <Button variant="text" disabled={busy} onClick={() => { if (!task.pending()) setDismissed(true); }} data-testid="authorize-dismiss">{t('op.authorize.dismiss')}</Button>}
         </Row>
       </Panel>
     </PageWrapper>

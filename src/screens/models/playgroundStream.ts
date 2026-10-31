@@ -1,58 +1,65 @@
-/**
- * Reads a streamed chat answer for the playground, so the reader sees it being written instead of a spinner.
- *
- * Two doors send it, and both speak OpenAI's server-sent events: `/api/chat` (this node's model — its frames carry
- * `ainize_mode`, and a closing `event: ainize.result` frame holds the whole envelope) and `/api/peer-chat` (another
- * node's model, its frames piped through untouched). Only `delta.content` and the reasoning a thinking model writes
- * first are read; a frame this build does not know is skipped, never thrown on.
- */
-export type StreamedAnswer = { text: string; reasoning: string };
-
-export async function readChatStream(res: Response, onUpdate: (answer: StreamedAnswer) => void): Promise<StreamedAnswer> {
-  const answer: StreamedAnswer = { text: '', reasoning: '' };
-  if (!res.body) return answer;
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+/** Read one selected chat result. EOF alone never proves a completed answer. */
+export type StreamedAnswer = { text: string; reasoning: string; partial: boolean };
+export async function readChatStream(res: Response, onUpdate: (answer: StreamedAnswer) => void, expectedModel?: string): Promise<StreamedAnswer> {
+  const answer: StreamedAnswer = { text: '', reasoning: '', partial: true };
+  if (!res.body) throw new Error('stream_incomplete');
+  const reader = res.body.getReader(), decoder = new TextDecoder();
+  let buffer = '', completed = false, truncated = false, reason: string | null = null;
   const take = (frame: string) => {
-    let event = 'message';
-    const data: string[] = [];
+    let event = 'message'; const data: string[] = [];
     for (const line of frame.split('\n')) {
       if (line.startsWith('event:')) event = line.slice(6).trim();
       else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
     }
-    const payload = data.join('\n');
-    if (!payload || payload === '[DONE]') return;
-    let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(payload) as Record<string, unknown>; } catch { return; }
-    if (event === 'error' || parsed.error) {
-      const error = parsed.error as { message?: string } | undefined;
-      throw new Error(error?.message ?? 'the stream was interrupted');
+    const payload = data.join('\n'); if (!payload) return;
+    if (payload === '[DONE]') { completed = true; return; }
+    let parsed: any;
+    try { parsed = JSON.parse(payload); } catch { throw new Error('stream_invalid'); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('stream_invalid');
+    if (event === 'error' || parsed.error) throw new Error('stream_incomplete');
+    if (parsed.ainize_mode !== undefined && parsed.ainize_mode !== 'base') return;
+    if (event === 'ainize.result') {
+      if (expectedModel && (parsed.model !== expectedModel || parsed.base?.model !== expectedModel)) throw new Error('stream_model');
+      if (!parsed.base || typeof parsed.base.content !== 'string') throw new Error('stream_invalid');
+      if (expectedModel && !['stop', 'length', 'content_filter'].includes(parsed.base.finish_reason)) throw new Error('stream_invalid');
+      // The local runtime may trim a degenerate answer after streaming. Its final, guarded result is authoritative.
+      answer.text = parsed.base.content;
+      if (typeof parsed.base.reasoning === 'string') answer.reasoning = parsed.base.reasoning;
+      if (parsed.base.finish_reason) reason = parsed.base.finish_reason;
+      truncated = parsed.base.truncated === true;
+      onUpdate({ ...answer });
+      return;
     }
     if (event !== 'message') return;
-    // Compare mode streams a patched answer beside the base one; the playground asks for the base answer only.
-    if (parsed.ainize_mode !== undefined && parsed.ainize_mode !== 'base') return;
-    const delta = (parsed.choices as { delta?: { content?: unknown; reasoning_content?: unknown; reasoning?: unknown } }[] | undefined)?.[0]?.delta;
-    if (!delta) return;
-    const content = typeof delta.content === 'string' ? delta.content : '';
-    const reasoning = typeof delta.reasoning_content === 'string' ? delta.reasoning_content : typeof delta.reasoning === 'string' ? delta.reasoning : '';
-    if (!content && !reasoning) return;
-    answer.text += content;
-    answer.reasoning += reasoning;
-    onUpdate({ ...answer });
-  };
-  for (;;) {
-    const { value, done } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    buffer = buffer.replace(/\r\n/g, '\n');
-    let cut: number;
-    while ((cut = buffer.indexOf('\n\n')) !== -1) {
-      take(buffer.slice(0, cut));
-      buffer = buffer.slice(cut + 2);
+    if (expectedModel && parsed.model !== expectedModel) throw new Error('stream_model');
+    if (!Array.isArray(parsed.choices)) throw new Error('stream_invalid');
+    for (const choice of parsed.choices) {
+      if (choice.index !== 0 || !choice.delta || typeof choice.delta !== 'object' || Array.isArray(choice.delta)) throw new Error('stream_invalid');
+      for (const field of ['content', 'reasoning_content', 'reasoning']) if (choice.delta[field] != null && typeof choice.delta[field] !== 'string') throw new Error('stream_invalid');
+      if (choice.finish_reason != null) {
+        if (!['stop', 'length', 'content_filter'].includes(choice.finish_reason)) throw new Error('stream_invalid');
+        reason = choice.finish_reason;
+      }
+      answer.text += choice.delta.content ?? '';
+      answer.reasoning += choice.delta.reasoning_content ?? choice.delta.reasoning ?? '';
+      if (answer.text.length + answer.reasoning.length > 8 * 1024 * 1024) throw new Error('stream_invalid');
+      onUpdate({ ...answer });
     }
-    if (done) break;
-  }
-  if (buffer.trim()) take(buffer);
-  // A model that leaves blank lines ahead of its answer (Qwen3 does) reads as a gap; the non-streamed path trims too.
-  return { text: answer.text.trim(), reasoning: answer.reasoning.trim() };
+  };
+  try {
+    while (!completed) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      if (buffer.length > 1024 * 1024) throw new Error('stream_invalid');
+      let boundary: RegExpExecArray | null;
+      while (!completed && (boundary = /\r?\n\r?\n/.exec(buffer))) {
+        take(buffer.slice(0, boundary.index).replace(/\r\n/g, '\n'));
+        buffer = buffer.slice(boundary.index + boundary[0].length);
+      }
+      if (done) { if (buffer.trim() && !completed) take(buffer.replace(/\r\n/g, '\n')); break; }
+    }
+    if (!completed || !reason) throw new Error('stream_incomplete');
+    if (!answer.text.trim() && !answer.reasoning.trim()) throw new Error('stream_invalid');
+    return { text: answer.text.trim(), reasoning: answer.reasoning.trim(), partial: truncated || reason !== 'stop' || !answer.text.trim() };
+  } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
 }

@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useAccessibleAppsQuery, useProjectDeploymentsQuery } from '@/api/api';
 import { relativeTime, type Project } from '@/api/projects';
 import { activeProjectUrl } from '@/lib/projectActions';
+import { readProjectDeploymentHistory } from '@/lib/projectHistory';
 import { Alert } from '@/components/ui/Form';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -45,7 +46,7 @@ export default function AppsPage() {
   const auth = useAuth();
   const [params] = useSearchParams();
   const q = (params.get('q') ?? '').trim();
-  const apps = useAccessibleAppsQuery({ principal: auth.principal ?? '', orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] },
+  const apps = useAccessibleAppsQuery({ principal: auth.cacheIdentity, orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] },
     { skip: !auth.isSignedIn, pollingInterval: 15_000, refetchOnMountOrArgChange: true });
   const rows = appProjects(apps.currentData?.projects ?? [], q);
   const partial = apps.isError || !!apps.currentData?.failedSources?.length;
@@ -79,8 +80,10 @@ function AppCard({ project: p }: { project: Project }) {
   const { t } = useT();
   const knownUrl = activeProjectUrl(p);
   const needsHistory = !knownUrl && !!(p.activeDeploymentId || p.activeCommit);
-  const history = useProjectDeploymentsQuery(p.id, { skip: !needsHistory, pollingInterval: needsHistory ? 15_000 : 0, refetchOnMountOrArgChange: true });
-  const url = activeProjectUrl(p, history.currentData?.deployments ?? []);
+  const history = useProjectDeploymentsQuery({ id: p.id, identity: useAuth().cacheIdentity }, { skip: !needsHistory, pollingInterval: needsHistory ? 15_000 : 0, refetchOnMountOrArgChange: true });
+  const rows = history.isError ? null : readProjectDeploymentHistory(history.currentData, p.id);
+  const failed = needsHistory && (history.isError || !history.isFetching && rows === null);
+  const url = needsHistory ? rows && activeProjectUrl(p, rows) : knownUrl;
   return (
     <Card>
       <Meta><span>{p.kind === 'nextjs' ? 'Next.js' : t('apps.service')}</span><Status $status={p.status}>{t(`projects.status.${p.status}`)}</Status></Meta>
@@ -89,7 +92,8 @@ function AppCard({ project: p }: { project: Project }) {
       <p>{p.branch} · {relativeTime(p.updatedAt)}</p>
       <footer><StyledLink to={projectPath(p)}>{t('apps.project')}</StyledLink>
         {url && <a href={url} target="_blank" rel="noreferrer">{t('apps.open')} ↗</a>}
-        {history.isError && <span>{t('apps.url_failed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
+        {failed && <span>{t('apps.url_failed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
+        {!url && needsHistory && !failed && !history.isFetching && <span role="status">{t('projects.page.output_unconfirmed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
       </footer>
     </Card>
   );

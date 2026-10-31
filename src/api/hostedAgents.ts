@@ -82,9 +82,36 @@ export function isHostedAgentOwnedBy(owner: string | null | undefined, subject: 
  * An older node ignores `?model=` and returns everything, and a row without a `model` field cannot be said to be
  * built on anything. Both would otherwise land on the model page as "built on this model".
  */
-export function agentsBuiltOnModel(agents: AgentSummary[] | null | undefined, modelId: string): AgentSummary[] {
+/** A malformed list cannot establish an empty model page or be passed into an agent card. */
+export function readModelAgentList(raw: unknown): AgentSummary[] | null {
+  const rows = (raw as { agents?: unknown } | null)?.agents;
+  if (!Array.isArray(rows)) return null;
+  const text = (value: unknown) => typeof value === 'string' && value.length > 0;
+  const optionalText = (value: unknown) => value == null || typeof value === 'string';
+  const strings = (value: unknown) => Array.isArray(value) && value.every(v => typeof v === 'string');
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || !text(row.id) || !text(row.name) || !text(row.a2a_url) || !text(row.card_url)
+      || !Array.isArray(row.skills) || !row.skills.every((skill: unknown) => !!skill && typeof skill === 'object' && text((skill as { id?: unknown }).id) && text((skill as { name?: unknown }).name))
+      || !strings(row.protocols) || !strings(row.extensions) || !optionalText(row.model) || !optionalText(row.description) || !optionalText(row.provider)
+      || (row.node != null && (!text(row.node.address) || !text(row.node.name)))) return null;
+    const identity = JSON.stringify([row.node?.address ?? null, row.id]);
+    if (seen.has(identity)) return null;
+    seen.add(identity);
+  }
+  return rows as AgentSummary[];
+}
+
+export function agentsBuiltOnModel(agents: AgentSummary[] | null | undefined, modelId: string, self?: string | null): AgentSummary[] {
   if (!Array.isArray(agents)) return [];
-  return agents.filter((a) => agentSummaryHostedFieldsOf(a).model === modelId);
+  const split = (ref: string) => { const hit = /^(.+)@(0x[0-9a-f]{40})$/i.exec(ref); return hit ? { model: hit[1], node: hit[2].toLowerCase() } : { model: ref, node: null }; };
+  const requested = split(modelId);
+  return agents.filter(a => {
+    const ref = agentSummaryHostedFieldsOf(a).model;
+    if (!ref) return false;
+    const actual = split(ref);
+    return actual.model === requested.model && (!requested.node || (actual.node ?? a.node?.address?.toLowerCase() ?? self?.toLowerCase()) === requested.node);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────── the spec, as the form sends it
@@ -290,10 +317,16 @@ export function hostedAgentSecretsToSend(draft: HostedAgentFormDraft): { name: s
 
 /** `GET /api/hosted-agents/:id` for the owner: the stored spec plus which secrets have a value. */
 export interface HostedAgentSpecView extends HostedAgentSpecInput {
+  canManage: boolean | null;
   owner: string | null;
   version: number | null;
   status: HostedAgentBuildStatus | null;
   secrets: { name: string; set: boolean }[];
+}
+
+/** Explicit denial wins over ownership; older nodes can fall back to their exact owner identity. */
+export function canEditHostedAgentSpec(spec: HostedAgentSpecView, principals: readonly string[]): boolean {
+  return spec.canManage === true || (spec.canManage !== false && isHostedAgentOwnedBy(spec.owner, principals));
 }
 
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
@@ -326,6 +359,7 @@ export function parseHostedAgentSpecResponse(raw: unknown): HostedAgentSpecView 
   // A name listed in `secretNames` but absent from `secrets` is a secret with no value yet, not one that vanished.
   for (const name of strList(inner.secretNames)) if (!secrets.some((s) => s.name === name)) secrets.push({ name, set: false });
   return {
+    canManage: typeof inner.can_manage === 'boolean' ? inner.can_manage : null,
     id,
     name: str(inner.name, id),
     description: str(inner.description),
@@ -393,10 +427,10 @@ export function parseHostedAgentLogsResponse(raw: unknown): string[] {
 /** The refusals the hosted-agent routes name, plus `unknown` for anything this build has not heard of. */
 export type HostedAgentApiErrorCode =
   | 'invalid_request' | 'not_signed_in' | 'forbidden' | 'not_found' | 'id_taken' | 'limit_reached'
-  | 'docker_unavailable' | 'model_not_served' | 'offline' | 'unknown';
+  | 'docker_unavailable' | 'model_not_served' | 'project_environment_required' | 'offline' | 'unknown';
 
 const KNOWN_ERROR_CODES: readonly HostedAgentApiErrorCode[] = [
-  'invalid_request', 'not_signed_in', 'forbidden', 'not_found', 'id_taken', 'limit_reached', 'docker_unavailable', 'model_not_served',
+  'invalid_request', 'not_signed_in', 'forbidden', 'not_found', 'id_taken', 'limit_reached', 'docker_unavailable', 'model_not_served', 'project_environment_required',
 ];
 
 export interface HostedAgentApiError {
@@ -410,8 +444,8 @@ export interface HostedAgentApiError {
 /**
  * One shape for every way a hosted-agent call can fail.
  *
- * The code comes from the body when the node names one, and otherwise from the status — an older node or a proxy
- * that only says "409" still means the id is taken. `offline` is a request that got no answer at all.
+ * Named refusals take precedence over status guesses. A bare conflict cannot establish that an address is
+ * taken: restore, provenance and deletion conflicts also use 409. `offline` means no answer was received.
  */
 export function hostedAgentApiErrorOf(err: unknown): HostedAgentApiError {
   const e = (err ?? {}) as { status?: unknown; originalStatus?: unknown; data?: unknown; error?: unknown };
@@ -425,6 +459,7 @@ export function hostedAgentApiErrorOf(err: unknown): HostedAgentApiError {
       named = typeof inner.code === 'string' ? inner.code : null;
       message = typeof inner.message === 'string' ? inner.message : null;
     } else if (typeof body.error === 'string') {
+      named = oneOf(KNOWN_ERROR_CODES, body.error);
       message = body.error;
     }
     if (!message && typeof body.message === 'string') message = body.message;
@@ -432,8 +467,9 @@ export function hostedAgentApiErrorOf(err: unknown): HostedAgentApiError {
   if (!message && typeof e.error === 'string') message = e.error;
   const known = oneOf(KNOWN_ERROR_CODES, named);
   if (known) return { status, code: known, message };
+  if (named) return { status, code: 'unknown', message };
   const byStatus: Record<number, HostedAgentApiErrorCode> = {
-    400: 'invalid_request', 401: 'not_signed_in', 403: 'forbidden', 404: 'not_found', 409: 'id_taken', 429: 'limit_reached', 501: 'docker_unavailable',
+    400: 'invalid_request', 401: 'not_signed_in', 403: 'forbidden', 404: 'not_found', 429: 'limit_reached', 501: 'docker_unavailable',
   };
   if (status === null) return { status, code: e.status === 'FETCH_ERROR' ? 'offline' : 'unknown', message };
   return { status, code: byStatus[status] ?? 'unknown', message };

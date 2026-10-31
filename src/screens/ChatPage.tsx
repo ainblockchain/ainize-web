@@ -1,3 +1,4 @@
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -8,7 +9,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { ChatComposer } from '@/components/chat/ChatComposer';
 import { KnowledgePicker } from '@/components/chat/KnowledgePicker';
 import { TurnView, type Turn } from '@/components/chat/TurnView';
-import { MAX_HISTORY, answerHits, loadStack, loadTurns, matchSampleAny, matchSampleEach, parseSelection, saveStack, saveTurns, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
+import { MAX_HISTORY, answerHits, legacyTurns, loadComposerDraft, saveComposerDraft, loadStack, loadTurns, matchSampleAny, matchSampleEach, parseSelection, saveStack, saveTurns, selectionPath, useSince, useTicker, MAX_CHAT_PATCHES, type ChatModeKind, type ChatQueueView } from '@/components/chat/util';
 import { TeachDrawer } from '@/components/chat/TeachDrawer';
 import { toCandidate } from '@/components/chat/BasePicker';
 import { LessonBasket } from '@/components/chat/LessonBasket';
@@ -23,10 +24,13 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
-import { bannerDismissed, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
+import { clipboardUrl } from '@/lib/clipboard';
+import { captureTeacherKey, createTeacherKey, currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
+import { acceptBasketDraft, bannerDismissed, chatStorageOwner, legacyBaskets, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
 import type { PreflightFact } from '@/api/types';
 import { num } from '@/utils/format';
+import { downloadText } from '@/components/chat/teachUtil';
 import { LiveSources } from '@/components/chat/LiveSources';
 
 /* ---------------------------------------------------------------- layout */
@@ -193,10 +197,67 @@ function buildHistory(prior: Turn[], text: string, column: 'base' | 'patched'): 
   return capped;
 }
 
-type SheetKind = 'credit' | 'preflight' | 'publish' | 'keep' | null;
+type SheetKind = 'preflight' | 'publish' | 'keep' | null;
 
 /* ---------------------------------------------------------------- page */
+type ChatHandoff = { owner: string; basket: Basket; turns: Turn[]; text: string; preflight: boolean };
+type CreditDraft = { ids: string[]; basket: Basket; turns: Turn[]; text: string };
+
 export default function ChatPage() {
+  const { cacheIdentity, loading } = useAuth();
+  if (loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  return <ChatAccount key={cacheIdentity} account={cacheIdentity} />;
+}
+
+function ChatAccount({ account }: { account: string }) {
+  const teacherIdentity = useTeacherIdentity();
+  const owner = chatStorageOwner(account, teacherIdentity);
+  const { t } = useT();
+  const [credit, setCredit] = useState<(CreditDraft & { createdOwner: string }) | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [handoff, setHandoff] = useState<ChatHandoff | null>(null);
+  const [revision, setRevision] = useState(0);
+  const consumeHandoff = useCallback(() => setHandoff(null), []);
+  const beginCredit = (draft: CreditDraft) => {
+    const key = createTeacherKey();
+    const createdOwner = chatStorageOwner(account, key.address);
+    saveBasket(draft.ids, draft.basket, createdOwner);
+    saveTurns(draft.turns, createdOwner);
+    saveComposerDraft(draft.text, createdOwner);
+    setHandoff({ owner: createdOwner, basket: draft.basket, turns: draft.turns, text: draft.text, preflight: false });
+    setRevision((n) => n + 1);
+    setCredit({ ...draft, createdOwner }); setConflict(false);
+  };
+  const finishCredit = (key: TeacherKey, keepExisting = false) => {
+    if (!credit || currentTeacherKey()?.address.toLowerCase() !== key.address.toLowerCase()) return;
+    const target = chatStorageOwner(account, key.address);
+    const accepted = acceptBasketDraft(credit.ids, credit.basket, target, keepExisting ? 'keep-saved' : target === credit.createdOwner ? 'new-key' : 'import-key');
+    if (accepted.conflict) { setConflict(true); return; }
+    const basket = accepted.basket;
+    const savedTurns = loadTurns<Turn>(target);
+    const turns = keepExisting || savedTurns.length ? savedTurns : credit.turns;
+    if (!keepExisting && !savedTurns.length) saveTurns(turns, target);
+    const text = loadComposerDraft(target) || (keepExisting ? '' : credit.text);
+    saveComposerDraft(text, target);
+    setHandoff({ owner: target, basket, turns, text, preflight: !keepExisting });
+    setRevision((n) => n + 1);
+    setCredit(null); setConflict(false);
+  };
+  return <>
+    <ChatContent key={`${owner}:${revision}`} owner={owner}
+      handoff={handoff?.owner === owner ? handoff : undefined} onHandoffConsumed={consumeHandoff} onNeedKey={beginCredit} />
+    {credit && <CreditSheet onDone={(key) => finishCredit(key)} onClose={() => { setCredit(null); setConflict(false); }}>
+      {conflict && <Alert role="alert" $tone="warning">
+        <p>{t('chat.draft.conflict')}</p>
+        <Button onClick={() => downloadText('lesson-draft.jsonl', credit.basket.facts.map(({ prompt, answer, alt_prompt }) => JSON.stringify({ prompt, answer, ...(alt_prompt ? { alt_prompt } : {}) })).join('\n'))}>{t('chat.draft.download')}</Button>
+        <Button onClick={() => { const key = currentTeacherKey(); if (key) finishCredit(key, true); }}>{t('chat.draft.use_saved')}</Button>
+      </Alert>}
+    </CreditSheet>}
+  </>;
+}
+
+function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: string; handoff?: ChatHandoff; onHandoffConsumed: () => void; onNeedKey: (draft: CreditDraft) => void }) {
+  useEffect(() => { if (handoff) onHandoffConsumed(); }, [handoff, onHandoffConsumed]);
   const teacherIdentity = useTeacherIdentity();
   const { t, help, tech, term, audience, locale } = useT();
   useTitle(t('chat.title'));
@@ -253,15 +314,13 @@ export default function ChatPage() {
    * would answer a question nobody asked.
    */
   const unselectable = useMemo(() => {
-    if (!data) return null;                               // still loading — absence is not yet evidence
+    if (!data || error) return null;                       // a failed list is not evidence of absence
     const missing = routeIds.filter((id) => !pickable.some((e) => e.anchor.id === id));
     if (!missing.length) return null;
     const row = (data.elsewhere ?? []).find((e) => e.patch_id === missing[0]);
     return { id: missing[0], name: row?.name ?? null, reason: row?.reason ?? null, status: row?.status ?? null, buyable: !!row?.buyable };
-  }, [data, routeIds, pickable]);
-  useEffect(() => { setMissingId(unselectable?.id ?? null); }, [unselectable]);
+  }, [data, error, routeIds, pickable]);
   const runtimeOff = !!data && !data.runtime.available;
-  const userCleared = useRef(false);
   /** Navigate to a selection path while keeping the teach-mode query params (?teach / ?lesson / ?mine). */
   const go = useCallback((path: string, replace = false) => navigate({ pathname: path, search: location.search }, { replace }), [navigate, location.search]);
 
@@ -273,12 +332,15 @@ export default function ChatPage() {
    * said "No questions yet", throwing away (to the eye) answers bought with scarce free tries. Every turn carries
    * the knowledge it was asked with instead, and the transcript marks where that changed.
    */
-  const [turns, setTurns] = useState<Turn[]>(() => loadTurns<Turn>());
+  const [initialComposerDraft] = useState(() => handoff?.text ?? loadComposerDraft(owner));
+  const composerDraft = useRef(initialComposerDraft);
+  const rememberComposer = useCallback((text: string) => { composerDraft.current = text; saveComposerDraft(text, owner); }, [owner]);
+  const [turns, setTurns] = useState<Turn[]>(() => handoff?.turns ?? loadTurns<Turn>(owner));
   /**
    * Finding 67 — and it survives leaving the page. The only route to the price is the head's *Details →*; the
    * transcript that persuaded the visitor used to die on that click, together with the free tries it cost.
    */
-  useEffect(() => { saveTurns(turns); }, [turns]);
+  useEffect(() => { saveTurns(turns, owner); }, [turns, owner]);
   /** undefined = not asked yet; null = unlimited (operator); number = remaining free tries */
   const [quota, setQuota] = useState<number | null | undefined>(undefined);
   const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
@@ -304,7 +366,6 @@ export default function ChatPage() {
    *
    * It is derived, not stored, so it cannot drift out of step with the selection the way a setState would.
    */
-  const [missingId, setMissingId] = useState<string | null>(null);
   /** Optimistic selection: the route update is a React transition, so the checkboxes flip from this state first. */
   const [pendingIds, setPendingIds] = useState<string[] | null>(null);
   useEffect(() => { setPendingIds(null); }, [patchId]);
@@ -329,7 +390,9 @@ export default function ChatPage() {
   }, [setSearchParams]);
   const [teacherKey, setTeacherKey] = useState<TeacherKey | null>(() => currentTeacherKey());
   useEffect(() => onTeacherKeyChange(() => { setTeacherKey(currentTeacherKey()); }), []);
-  const [basket, setBasket] = useState<Basket>(() => loadBasket(parseSelection(patchId)));
+  const [olderDrafts] = useState(() => legacyBaskets());
+  const [olderTurns] = useState(() => legacyTurns());
+  const [basket, setBasket] = useState<Basket>(() => handoff?.basket ?? loadBasket(parseSelection(patchId), owner));
   /**
    * Finding 14 — the lesson FOLLOWS the selection. Loading `loadBasket(selectedIds)` on every change swapped the
    * panel for a different, empty record the moment a knowledge was ticked, and the correction being written looked
@@ -339,15 +402,15 @@ export default function ChatPage() {
   const basketStack = useRef<string[]>(parseSelection(patchId));
   const [stranded, setStranded] = useState<{ ids: string[]; facts: number }[]>([]);
   useEffect(() => {
-    if (!data) return;   // the route's ids are not resolved against this node's catalog yet
+    if (!data || error || unselectable) return;   // don't move a draft to an incomplete selection
     const from = basketStack.current;
     basketStack.current = selectedIds;
-    if (stackKey(from) !== selectionKey) setBasket(carryBasket(from, selectedIds));
-    const next = strandedBaskets(selectedIds);
+    if (stackKey(from) !== selectionKey) setBasket(carryBasket(from, selectedIds, owner));
+    const next = strandedBaskets(selectedIds, owner);
     setStranded((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
-  }, [selectionKey, data, basket, selectedIds]);
-  const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(selectedIds, next); return next; }); }, [selectedIds]);
-  const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || loadBasket(parseSelection(patchId)).facts.length > 0);
+  }, [owner, selectionKey, data, error, unselectable, basket, selectedIds]);
+  const updateBasket = useCallback((fn: (b: Basket) => Basket) => { setBasket((prev) => { const next = fn(prev); saveBasket(routeIds, next, owner); return next; }); }, [routeIds, owner]);
+  const [basketOpen, setBasketOpen] = useState<boolean>(() => teachParam || (handoff?.basket ?? loadBasket(parseSelection(patchId), owner)).facts.length > 0);
   /** the basket panel — scrolled into view on ?teach=1 and after "Add to lesson" so the visitor sees where the correction went */
   const basketRef = useRef<HTMLDivElement>(null);
   const [basketNudge, setBasketNudge] = useState(0);
@@ -366,33 +429,26 @@ export default function ChatPage() {
   const [improveFull, setImproveFull] = useState<{ n: number; max: number } | null>(null);
   /** Finding 38 — corrections the queued lesson did not take, still in the basket, counted by reason. */
   const [keptBack, setKeptBack] = useState<{ n: number; known: number; overlap: number; invalid: number; in_base: number } | null>(null);
-  const [sheet, setSheet] = useState<SheetKind>(null);
+  const [sheet, setSheet] = useState<SheetKind>(handoff?.preflight ? 'preflight' : null);
   const [sheetJob, setSheetJob] = useState<TeachJob | null>(null);
-  const [cardJobId, setCardJobId] = useState<string | null>(() => lessonParam ?? loadJobs()[0]?.id ?? null);
-  const [cardHidden, setCardHidden] = useState(false);
+  const [card, setCard] = useState<{ owner: string; id: string | null; hidden: boolean }>(() => ({ owner: teacherIdentity, id: lessonParam ?? loadJobs(teacherIdentity)[0]?.id ?? null, hidden: false }));
+  const cardJobId = lessonParam ?? (card.owner === teacherIdentity ? card.id : loadJobs(teacherIdentity)[0]?.id ?? null);
+  const cardHidden = !lessonParam && card.owner === teacherIdentity && card.hidden;
+  const setCardJobId = useCallback((id: string | null) => setCard({ owner: teacherIdentity, id, hidden: false }), [teacherIdentity]);
+  const setCardHidden = useCallback((hidden: boolean) => setCard((prev) => ({ owner: teacherIdentity, id: prev.owner === teacherIdentity ? prev.id : lessonParam ?? loadJobs(teacherIdentity)[0]?.id ?? null, hidden })), [teacherIdentity, lessonParam]);
   const [bannerOff, setBannerOff] = useState<boolean>(() => bannerDismissed());
-  useEffect(() => { if (lessonParam) { setCardJobId(lessonParam); setCardHidden(false); } }, [lessonParam]);
+  useEffect(() => { if (lessonParam) setCardJobId(lessonParam); }, [lessonParam, setCardJobId]);
   useEffect(() => { if (teachParam && policy) { setBasketOpen(true); setBasketNudge((n) => n + 1); } }, [teachParam, !!policy]);   // eslint-disable-line react-hooks/exhaustive-deps
   const showBanner = teachOn && (teachParam || !bannerOff);
 
-  // Preselect from the route; fall back to the first testable knowledge (and remember what the route asked for).
-  // Ids the route names but this node cannot test are dropped from the address (and reported once).
-  useEffect(() => {
-    if (!data || items.length === 0) return;
-    const missing = routeIds.filter((id) => !selectedIds.includes(id));
-    if (missing.length > 0) {
-      setMissingId(missing.join(', '));
-      go(selectedIds.length ? selectionPath(selectedIds) : '/chat', true);
-      return;
-    }
-    if (selectedIds.length === 0 && !userCleared.current) go(selectionPath([items[0].anchor.id]), true);
-  }, [data, items, routeIds, selectedIds, go]);
+  // The URL is the selection, including an empty stack. Loading a catalog or creating a key must not
+  // choose an arbitrary first item or undo the visitor's explicit plain-model choice.
 
   // Abort any in-flight request when leaving the page. `alive` guards the refreshes that outlive the page: a
   // request aborted by this cleanup settles one microtask later, and RTK Query's refetch() throws
   // ("Cannot refetch a query that has not been started yet") once the hook's own cleanup has run.
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; inflight.current?.abort(); }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; inflight.current?.abort(); }; }, []);
   const refreshPatches = useCallback(() => { if (alive.current) void refetch(); }, [refetch]);
 
   const lastStatus = turns[turns.length - 1]?.status;
@@ -437,7 +493,7 @@ export default function ChatPage() {
   const send = useCallback(async (text: string, opts?: { mode?: ChatModeKind; thinking?: boolean; replaceId?: string }) => {
     // An empty selection is allowed while teaching: you are correcting the model itself, and a node with an empty
     // catalog has nothing to pick. There is no "with knowledge" side then, so the turn is base-only.
-    if ((selectedIds.length === 0 && !teachOn) || busy || exhausted) return;
+    if (!data || error || unselectable || (selectedIds.length === 0 && !teachOn) || busy || exhausted) return;
     const ids = selectedIds;
     const useMode: ChatModeKind = selectedIds.length === 0 ? 'base' : (opts?.mode ?? mode);
     const useThinking = opts?.thinking ?? thinking;
@@ -479,6 +535,7 @@ export default function ChatPage() {
     const lockPeek = setTimeout(refreshPatches, 800);
     try {
       const res = await request.unwrap();
+      if (!alive.current) return;
       setQuota(res.remaining_quota);
       if (res.quota_limit !== undefined) setQuotaLimit(res.quota_limit);
       if (res.remaining_quota !== null && res.remaining_quota <= 0) setExhausted(true);
@@ -486,6 +543,7 @@ export default function ChatPage() {
       measured.current.set(stackKey(ids) + (useMode === 'compare' ? '|c' : ''), Date.now() - startedAt);
       setTurns((prev) => prev.map((x) => (x.id === id ? { ...x, status: 'done', response: res, baseHit: answerHits(res.base?.content, sample?.expect) } : x)));
     } catch (err) {
+      if (!alive.current) return;
       const e = err as { status?: number | string; name?: string; data?: { quota_reset?: number | null; quota_scope?: string; quota_limit?: number } } | undefined;
       const quotaHit = e?.status === 429;
       if (quotaHit) {
@@ -511,7 +569,7 @@ export default function ChatPage() {
       if (inflight.current === request) inflight.current = null;
       refreshPatches();   // lock released (or still queued) — refresh the banner without waiting for the poll
     }
-  }, [selectedIds, selectedList, selectionKey, busy, exhausted, teachOn, mode, thinking, turns, sendChat, refreshPatches, t]);
+  }, [data, error, unselectable, selectedIds, selectedList, selectionKey, busy, exhausted, teachOn, mode, thinking, turns, sendChat, refreshPatches, t]);
 
   /**
    * D3 — "Stop waiting". While the request is still queued the node drops it before touching the model and no free
@@ -535,11 +593,8 @@ export default function ChatPage() {
   /** "Clear conversation" empties the whole transcript — every turn is in one list now, whatever was loaded for it. */
   const clear = useCallback(() => setTurns([]), []);
   const toggle = useCallback((id: string) => {
-    setMissingId(null);
-    userCleared.current = false;
     const cur = shownIds;
     const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_CHAT_PATCHES ? cur : [...cur, id];
-    if (next.length === 0) userCleared.current = true;
     setPendingIds(next);
     go(next.length ? selectionPath(next) : '/chat');
   }, [shownIds, go]);
@@ -556,11 +611,11 @@ export default function ChatPage() {
     setPendingIds(cur);
     go(selectionPath(cur));
   }, [shownIds, go]);
-  const clearSelection = useCallback(() => { userCleared.current = true; setMissingId(null); setPendingIds([]); go('/chat'); }, [go]);
+  const clearSelection = useCallback(() => { setPendingIds([]); go('/chat'); }, [go]);
   /** Load a whole stack at once — how the "corrections saved under another selection" note takes you back to them. */
   const showStack = useCallback((ids: string[]) => {
     if (ids.length === 0) { clearSelection(); return; }
-    setMissingId(null); userCleared.current = false; setPendingIds(ids); go(selectionPath(ids));
+    setPendingIds(ids); go(selectionPath(ids));
   }, [clearSelection, go]);
   /** Selected knowledge whose benchmark format has no chat form — the live test asks through the chat template. */
   const templateOnly = useMemo(() => selectedList.filter((e) => { const f = e.anchor.benchmark.format ?? []; return f.length > 0 && !f.includes('chat') && !f.includes('natural'); }), [selectedList]);
@@ -604,7 +659,11 @@ export default function ChatPage() {
       : b.facts.length >= factsPerJob ? b : { ...b, facts: [...b.facts, { ...c, id: newCorrectionId(), added_at: Date.now() }] }));
     setDrawer(null); setBasketOpen(true); setBasketNudge((n) => n + 1);
   }, [updateBasket, factsPerJob, drawer?.editId]);
-  const onTrain = useCallback(() => { setSheet(teacherKey ? 'preflight' : 'credit'); }, [teacherKey]);
+  const onTrain = () => {
+    if (!data || error || unselectable) return;
+    if (teacherKey) setSheet('preflight');
+    else onNeedKey({ ids: routeIds, basket, turns, text: composerDraft.current });
+  };
   /**
    * Finding 38 — queueing used to empty the whole basket, including every correction the pre-flight REFUSED to
    * train. A visitor who taught four things and had three skipped watched all four disappear, and the rejected one
@@ -612,19 +671,20 @@ export default function ChatPage() {
    * lesson are taken out; the rest stay where they are, with one line saying how many and why.
    */
   const onQueued = useCallback((job: TeachJob, left: { id: string; status: PreflightFact['status'] }[] = []) => {
-    rememberJob({ id: job.id, name: job.name, created_at: job.created_at });
+    if (!alive.current || job.contributor.address.toLowerCase() !== teacherIdentity || (currentTeacherKey()?.address.toLowerCase() ?? '') !== teacherIdentity) return;
+    rememberJob({ id: job.id, name: job.name, created_at: job.created_at }, teacherIdentity);
     const keep = new Set(left.map((x) => x.id));
     const facts = basket.facts.filter((f) => keep.has(f.id));
     if (facts.length) {
       const next: Basket = { facts, builds_on: basket.builds_on, ...(basket.base ? { base: basket.base } : {}) };
-      saveBasket(selectedIds, next); setBasket(next);
+      saveBasket(selectedIds, next, owner); setBasket(next);
       const count = (status: PreflightFact['status']) => left.filter((x) => x.status === status).length;
       setKeptBack({ n: facts.length, known: count('already_known'), overlap: count('overlaps_listing'), invalid: count('invalid'), in_base: count('in_base') });
     } else {
-      clearBasket(selectedIds); setBasket({ facts: [], builds_on: false }); setKeptBack(null);
+      clearBasket(selectedIds, owner); setBasket({ facts: [], builds_on: false }); setKeptBack(null);
     }
     setSheet(null); setCardJobId(job.id); setCardHidden(false); setParam('lesson', job.id);
-  }, [selectedIds, setParam, basket.facts, basket.builds_on, basket.base]);
+  }, [owner, teacherIdentity, selectedIds, setParam, setCardJobId, setCardHidden, basket.facts, basket.builds_on, basket.base]);
   /**
    * Finding 43 — "Try it now" is the payoff of the whole flow, and it used to tick a checkbox and stop: the taught
    * question was not put in the box, not asked and not added to the sample chips, so the primary green button on a
@@ -633,8 +693,10 @@ export default function ChatPage() {
    */
   const onTry = useCallback(async (job: TeachJob) => {
     const id = job.draft_id ?? job.patch_id; if (!id) return;
-    await refetch();   // the draft must be in `lessons` before the route names it (otherwise it is dropped as untestable)
-    userCleared.current = false;
+    const identity = captureTeacherKey();
+    const result = await refetch();   // only navigate after this identity's draft list has loaded
+    try { identity.assertCurrent(); } catch { return; }
+    if (!alive.current || result.error) return;
     const next = selectedIds.includes(id) ? selectedIds : selectedIds.length >= MAX_CHAT_PATCHES ? [...selectedIds.slice(0, MAX_CHAT_PATCHES - 1), id] : [...selectedIds, id];
     const ask = job.facts[0]?.prompt ?? '';
     const search = `?lesson=${encodeURIComponent(job.id)}${ask ? `&q=${encodeURIComponent(ask)}` : ''}`;
@@ -682,7 +744,7 @@ export default function ChatPage() {
     }
   }, [basket.facts, updateBasket, factsPerJob]);
   const openSheet = useCallback((kind: SheetKind, job: TeachJob | null) => { setSheetJob(job); setSheet(kind); }, []);
-  const hideCard = useCallback(() => { setCardHidden(true); setParam('lesson', null); }, [setParam]);
+  const hideCard = useCallback(() => { setCardHidden(true); setParam('lesson', null); }, [setParam, setCardHidden]);
   const closeMine = useCallback(() => setParam('mine', null), [setParam]);
 
   /**
@@ -690,32 +752,21 @@ export default function ChatPage() {
    * smallest thing that makes it an object a person can pass on: one button that copies the link to this exact
    * set, in this exact order. (`ainize use a b c`, the CLI half, is item 216 on the node's side.)
    */
-  const [copied, setCopied] = useState(false);
+  const shareLink = unselectable ? '' : typeof window === 'undefined' ? selectionPath(selectedIds) : clipboardUrl(selectionPath(selectedIds), window.location.origin);
+  const linkCopy = useClipboardCopy(shareLink);
   /**
    * Finding 218 — the other half of "a set you can pass on": one you can come BACK to. Every set of two or more is
    * remembered as it is loaded, and when the visitor lands on a single knowledge with a different set remembered,
    * the head offers it back in one click, in the order it was loaded.
    */
-  useEffect(() => { if (data) saveStack(selectedIds); }, [selectionKey, data]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const [lastStack, setLastStack] = useState<string[]>(() => loadStack());
-  useEffect(() => { setLastStack(loadStack()); }, [patchId]);
+  useEffect(() => { if (data && !error && !unselectable) saveStack(selectedIds, owner); }, [owner, selectionKey, data, error, unselectable]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [lastStack, setLastStack] = useState<string[]>(() => loadStack(owner));
+  useEffect(() => { setLastStack(loadStack(owner)); }, [patchId, owner]);
   const restorable = useMemo(() => {
     if (!data || lastStack.length < 2 || stackKey(lastStack) === selectionKey) return null;
     const rows = lastStack.map((id) => pickable.find((e) => e.anchor.id === id)).filter((e): e is NonNullable<typeof e> => !!e);
     return rows.length === lastStack.length ? rows : null;
   }, [data, lastStack, selectionKey, pickable]);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
-  const copyLink = useCallback(() => {
-    const url = `${window.location.origin}${selectionPath(selectedIds)}`;
-    const done = () => {
-      setCopied(true);
-      if (copyTimer.current) clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setCopied(false), 2500);
-    };
-    // clipboard access can be refused (an insecure origin, a denied permission): fall back to a selectable prompt
-    navigator.clipboard?.writeText(url).then(done).catch(() => window.prompt(t('chat.head.copy'), url));
-  }, [selectedIds, t]);
   const patchHref = (e: { anchor: { author: string; id: string } }) => `/${encodeURIComponent(e.anchor.author)}/${encodeURIComponent(e.anchor.id)}`;
   /** "25 AIN" / "Free" for one knowledge, in the reader's locale. */
   const priceOf = useCallback((e: typeof selectedList[number]) => {
@@ -729,12 +780,6 @@ export default function ChatPage() {
    * had no total, so the visitor who liked the combination added 25 + 0.1 + 10 by hand. Currencies are summed
    * separately: this node may list some knowledge in AIN and some in node credit, and adding those is not a price.
    */
-  /** Does any pair of the ticked knowledge share memory entries? Then their fact counts cannot be added (finding 63). */
-  const stackOverlaps = useMemo(
-    () => (data?.overlaps ?? []).some((o) => selectedIds.includes(o.a) && selectedIds.includes(o.b)),
-    [data?.overlaps, selectedIds],
-  );
-  const factsKnown = selectedList.every((e) => typeof e.anchor.benchmark.queries === 'number');
   const stackPrice = useMemo(() => {
     const by = new Map<string, number>();
     for (const e of selectedList) { const p = priceOf(e); if (p) by.set(p.currency, (by.get(p.currency) ?? 0) + p.n); }
@@ -770,8 +815,10 @@ export default function ChatPage() {
       : exhausted || quota <= 0 ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short')
         : quotaLimit ? t('chat.quota.left_of', { n: quota, limit: quotaLimit }) : t('chat.quota.left', { n: quota });
 
-  const composerDisabled = (selectedIds.length === 0 && !teachOn) || runtimeOff || outOfTries;
-  const disabledReason = selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : outOfTries ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short') : undefined;
+  const selectionProblem = unselectable ? t(`chat.picker.route_${unselectable.reason ?? 'unknown'}`, { id: unselectable.id, name: unselectable.name ?? unselectable.id, status: unselectable.status ?? '' }) : undefined;
+  const composerDisabled = !data || !!error || !!unselectable || (selectedIds.length === 0 && !teachOn) || runtimeOff || outOfTries;
+  const selectionBlocked = selectionProblem ?? (error ? t('common.error', { message: errorMessage(error) }) : !data ? t('common.loading') : undefined);
+  const disabledReason = selectionBlocked ?? (selectedIds.length === 0 && !teachOn ? t('chat.input.pick_first') : runtimeOff ? t('chat.runtime.off') : outOfTries ? t(quotaScope ? 'chat.quota.none_network' : 'chat.quota.none_short') : undefined);
   const keyLabel = !teacherKey ? undefined
     : teacherKey.name ? t('teach.key.chip', { name: teacherKey.name, short: shortKey(teacherKey.address) })
       : t('teach.key.chip_anon', { short: shortKey(teacherKey.address) });
@@ -815,7 +862,7 @@ export default function ChatPage() {
       <LessonBasket basket={basket} policy={policy} stackNames={selectedList.map((e) => e.anchor.name)} expanded={basketOpen} onToggle={() => setBasketOpen((v) => !v)}
         baseCandidates={baseCandidates} onBase={(id) => updateBasket((b) => ({ ...b, base: id }))}
         onRemove={(id) => updateBasket((b) => ({ ...b, facts: b.facts.filter((f) => f.id !== id) }))} onBuildsOn={(v) => updateBasket((b) => ({ ...b, builds_on: v }))}
-        onTrain={onTrain} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} nodeName={info?.node.name} />
+        onTrain={onTrain} blockedReason={selectionBlocked} onOpenMine={() => setParam('mine', '1')} keyLabel={keyLabel} nodeName={info?.node.name} />
     </div>
   );
 
@@ -837,9 +884,13 @@ export default function ChatPage() {
       </TitleRow>
       <Description>{teachDoor ? t('chat.subtitle_teach', { model: data?.runtime.model ?? info?.node.model ?? t('chat.model_unknown') }) : t('chat.subtitle')}</Description>
       <LiveSources />
+      {(olderDrafts.length > 0 || olderTurns.length > 0) && <Alert $tone="info" data-testid="legacy-draft-recovery">
+        {t('chat.draft.legacy', { n: olderDrafts.length, turns: olderTurns.length })}{' '}
+        <Button onClick={() => downloadText('ainize-older-drafts.json', JSON.stringify({ baskets: olderDrafts, turns: olderTurns }, null, 2))}>{t('chat.draft.legacy_download')}</Button>
+      </Alert>}
 
       {!data && isFetching && <CenterProgress />}
-      {!!error && !data && <Alert $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })}</Alert>}
+      {!!error && <Alert role="alert" $tone="error" style={{ marginTop: 24 }}>{t('common.error', { message: errorMessage(error) })} <Button loading={isFetching} onClick={() => void refetch()}>{t('chat.picker.retry')}</Button></Alert>}
 
       {data && (
         <>
@@ -849,7 +900,7 @@ export default function ChatPage() {
               <button type="button" className="x" onClick={() => { dismissBanner(); setBannerOff(true); if (teachParam) setParam('teach', null); }}>{t('chat.banner.dismiss')}</button>
             </TeachBanner>
           )}
-          {unselectable && <Alert $tone="warning" style={{ marginTop: 16 }}>{t(`chat.picker.route_${unselectable.reason ?? 'unknown'}`, { id: unselectable.id, name: unselectable.name ?? unselectable.id, status: unselectable.status ?? '' })}</Alert>}
+          {unselectable && <Alert role="alert" $tone="warning" style={{ marginTop: 16 }}>{selectionProblem} <Button loading={isFetching} onClick={() => void refetch()}>{t('chat.picker.retry')}</Button></Alert>}
           <Grid>
             <Side>
               {/* The basket heads the column when this node teaches (§5.5: the visitor must see it without scrolling past every knowledge card); a node that does not accept lessons shows the "does not accept" line under the picker instead. */}
@@ -876,7 +927,7 @@ export default function ChatPage() {
                   <MainHead>
                     <h2>{selected.anchor.name}</h2>
                     <StatusChip status={selected.status} />
-                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selected.anchor.benchmark.queries) }, selected.anchor.benchmark.queries)}</small>
+                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(benchmarkQuestionCount(selected.anchor.benchmark.queries)) }, benchmarkQuestionCount(selected.anchor.benchmark.queries) ?? undefined)}</small>
                     {/* Finding 228 — a retired version is pickable here; say what replaces it before the visitor
                         spends a free try, or a purchase, on a version the newer one already covers. */}
                     {selected.superseded_by?.[0] && (
@@ -895,20 +946,6 @@ export default function ChatPage() {
                 <>
                   <MainHead>
                     <h2 title={t('chat.head.multi_help')}>{t('chat.head.multi', { n: selectedList.length })}</h2>
-                    {/* Finding 63 — the head used to SUM the fact counts across knowledge the picker had just
-                        called 88% identical: three KRX versions of 2,761 facts sharing 241,992 of ~270,053 memory
-                        entries were advertised as "8,283 facts", three times the truth, next to the alert saying
-                        so. Where any two of them overlap the total is not a total; the biggest of them is what can
-                        honestly be claimed. (A knowledge registered without a count still renders the dash rather
-                        than a made-up number.) */}
-                    <small title={`${help('facts')} (${tech('facts')})`}>
-                      {factsKnown
-                        ? (stackOverlaps
-                          ? t('chat.head.facts_each', { n: num(Math.max(...selectedList.map((e) => e.anchor.benchmark.queries))) })
-                          // finding 88 — the count decides "1 fact" vs "1 facts"; it was never passed here
-                          : t('units.facts', { n: num(selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)) }, selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)))
-                        : t('units.facts', { n: num(null) })}
-                    </small>
                     <small style={{ marginLeft: 'auto' }}>{t('chat.head.multi_help')}</small>
                   </MainHead>
                   <HeadList aria-label={t('chat.head.multi', { n: selectedList.length })}>
@@ -917,6 +954,7 @@ export default function ChatPage() {
                         <b>{i + 1}</b>
                         <StyledLink to={patchHref(e)} title={t('common.details')}>{e.anchor.name}</StyledLink>
                         <StatusChip status={e.status} />
+                        <small>{t('units.facts', { n: num(benchmarkQuestionCount(e.anchor.benchmark.queries)) }, benchmarkQuestionCount(e.anchor.benchmark.queries) ?? undefined)}</small>
                         {/* Finding 228 — two of the three pickable items on this node are replaced versions. */}
                         {e.superseded_by?.[0] && <Replaced title={t('chat.head.replaced_help')}>{t('chat.head.replaced', { id: e.superseded_by[0] })}</Replaced>}
                       </li>
@@ -930,8 +968,9 @@ export default function ChatPage() {
               {(selectedList.length > 1 || restorable) && (
                 <HeadActions data-testid="chat-stack-actions">
                   {selectedList.length > 1 && (
-                    <button type="button" onClick={copyLink} data-testid="chat-copy-link">{copied ? t('chat.head.copied') : t('chat.head.copy')}</button>
+                    <button type="button" disabled={linkCopy.disabled} aria-busy={linkCopy.phase === 'copying'} aria-live="polite" onClick={() => void linkCopy.copy()} data-testid="chat-copy-link">{t(linkCopy.phase === 'copied' ? 'chat.head.copied' : linkCopy.phase === 'copying' ? 'common.copying' : 'chat.head.copy')}</button>
                   )}
+                  {linkCopy.phase === 'failed' && <span role="alert">{t('common.copy_failed')} <input readOnly value={shareLink} aria-label={t('chat.head.copy')} onFocus={event => event.currentTarget.select()} style={{ width: 'min(100%, 360px)', minWidth: 0 }} /></span>}
                   {selectedList.length > 1 && stackPrice.length > 0 && (
                     <span title={t('chat.head.own_help')}>{t('chat.head.own', { n: selectedList.length, price: stackPrice.join(' + ') })}</span>
                   )}
@@ -1008,7 +1047,7 @@ export default function ChatPage() {
                 mode={mode} onMode={setMode} thinking={thinking} onThinking={setThinking}
                 samples={samples} samplesGloss={samplesGloss}
                 onSend={(text) => { void send(text); }} onClear={clear} canClear={turns.length > 0}
-                footer={quotaOffer || quotaText} prefill={askParam} restore={restore}
+                footer={quotaOffer || quotaText} prefill={askParam ?? initialComposerDraft} onDraftChange={rememberComposer} restore={restore}
               />
             </Main>
           </Grid>
@@ -1029,8 +1068,7 @@ export default function ChatPage() {
           labels={drawer.editId ? { title: t('chat.improve.title'), sub: t('chat.improve.sub'), add: t('chat.improve.save') } : undefined}
           onAdd={addCorrection} onClose={() => setDrawer(null)} />
       )}
-      {sheet === 'credit' && <CreditSheet onDone={(k) => { setTeacherKey(k); setSheet('preflight'); }} onClose={() => setSheet(null)} />}
-      {sheet === 'preflight' && policy && (
+      {sheet === 'preflight' && policy && !selectionBlocked && (
         <PreflightSheet patchIds={selectedIds} basket={basket} policy={policy} baseCandidates={baseCandidates} onBasket={updateBasket} contributorName={teacherKey?.name} onQueued={onQueued} onClose={() => setSheet(null)} />
       )}
       {sheet === 'publish' && sheetJob && sheetJob.contributor.address.toLowerCase() === teacherIdentity && policy && teacherKey && (

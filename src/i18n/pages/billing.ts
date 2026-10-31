@@ -9,11 +9,34 @@
 import type { Dict } from '../index';
 
 export const billing: Dict = {
+  'billing.checking': { ko: '노드의 적립 기록을 확인하고 있습니다.', en: 'Checking the node’s credit record.' },
+  'billing.check': { ko: '다시 확인', en: 'Check again' },
+  'billing.new': { ko: '확인 완료 · 새 예치 준비', en: 'Acknowledged · prepare another deposit' },
+  'billing.pending.title': { ko: '진행 중인 예치', en: 'Deposit record' },
+  'billing.pending.from': { ko: '보내는 계정', en: 'Sender' },
+  'billing.recover.wallet': { ko: '거래 확인에는 브라우저 지갑이 필요합니다. 예치에 사용한 지갑에서 확인해 주세요.', en: 'Inspecting the transfer requires a browser wallet. Use the wallet that sent this deposit.' },
+  'billing.recover.hash': { ko: '거래번호', en: 'Transaction hash' },
+  'billing.recover.help': { ko: '지갑에서 이 전송의 거래번호를 찾아 입력하세요. 표시된 체인으로 지갑을 전환하면 계정·수량·받는 주소·전송 순서를 읽어서 대조합니다. 새 전송은 하지 않습니다.', en: 'Find this transfer in your wallet and enter its hash. Switch the wallet to the displayed chain to compare the sender, amount, recipient and nonce. This check does not send a transaction.' },
+  'billing.recover.check': { ko: '{name}에서 거래 확인', en: 'Inspect transaction with {name}' },
+  'billing.err.transaction': { ko: '이 거래가 저장된 예치와 일치하는지 확인하지 못했습니다. 거래번호와 지갑의 체인을 확인해 주세요.', en: 'Could not match this transaction to the saved deposit. Check its hash and the wallet network.' },
+  'billing.err.token': { ko: '이 링크의 토큰을 지원하지 않습니다. 사용할 토큰을 선택해 주세요.', en: 'The token in this link is not supported. Choose a token.' },
+  'billing.err.models': { ko: '모델 목록을 확인하지 못했습니다.', en: 'Could not verify the model list.' },
+  'billing.err.response': { ko: '선택한 모델과 현재 계정의 예치 정보를 확인하지 못했습니다.', en: 'Could not verify the deposit information for this model and account.' },
+  'billing.err.access': { ko: '로그인한 지갑 또는 노드가 바뀌었습니다. 정보를 다시 확인해 주세요.', en: 'The signed-in wallet or node changed. Check the information again.' },
+  'billing.err.configuration': { ko: '예치 조건이 바뀌었거나 확인되지 않았습니다. 다시 확인한 뒤 진행해 주세요.', en: 'The deposit details changed or could not be verified. Review them again.' },
+  'billing.err.departed': { ko: '계정 또는 선택이 바뀌어 전송을 중단했습니다.', en: 'The account or selection changed, so submission stopped.' },
+  'billing.err.storage': { ko: '이 브라우저에서 예치 기록을 안전하게 저장하거나 읽을 수 없습니다. 중복 전송을 막기 위해 예치를 중단했습니다.', en: 'This browser cannot safely save or read the deposit record. Depositing is disabled to avoid duplicate transfers.' },
+  'billing.err.pending': { ko: '진행 중인 예치가 있습니다. 기존 거래부터 확인해 주세요.', en: 'A deposit is already in progress. Inspect the existing transfer first.' },
+  'billing.err.send_unconfirmed': { ko: '전송 결과를 확인하지 못했습니다. 다시 보내지 말고 지갑의 거래 내역을 확인해 주세요. 기록은 이 브라우저에 남아 있습니다.', en: 'The transfer outcome is unconfirmed. Check your wallet history before sending again. The record is retained in this browser.' },
+  'billing.err.unconfirmed': { ko: '결과를 확인하지 못했습니다. 저장된 예치 기록과 지갑 내역을 먼저 확인해 주세요.', en: 'The outcome could not be confirmed. Inspect the saved deposit and wallet history first.' },
   'billing.title': { ko: '속도 올리기', en: 'Speed up' },
   'billing.lede': {
     ko: '지금 이 모델에서 기대할 수 있는 속도와, sAIN이나 AIN을 예치하면 얼마가 되는지를 보여줍니다. 예치는 보낸 주소로 적립되고 그 주소의 가중치가 됩니다.',
     en: 'What speed you can expect from this model now, and what depositing sAIN or AIN would raise it to. A deposit is credited to the address that sends it and becomes that address’s weight.',
   },
+  'billing.model_pick': { ko: '모델 선택', en: 'Choose a model' },
+  'billing.model_unconfirmed': { ko: '확인되지 않음', en: 'not confirmed' },
+  'billing.model_missing': { ko: '선택한 대화 모델을 이 노드에서 확인하지 못했습니다. 목록에서 모델을 선택해 주세요.', en: 'The selected chat model could not be confirmed on this node. Choose a model from the list.' },
   'billing.model': { ko: '모델', en: 'Model' },
   'billing.no_models': { ko: '이 노드가 서빙하는 대화 모델이 없습니다.', en: 'This node serves no chat model.' },
 
@@ -76,12 +99,12 @@ export const billing: Dict = {
   },
   'billing.deposit.sent': { ko: '보냈습니다:', en: 'Sent:' },
   'billing.deposit.waiting': {
-    ko: '블록 확인 {n}개를 기다립니다 ({wait}). 10초마다 확인합니다…',
-    en: 'Waiting for {n} confirmations ({wait}). Checking every 10 s…',
+    ko: '아직 노드 적립이 확인되지 않았습니다. 정상 전송은 블록 확인 {n}개 후 적립됩니다 (예상 {wait}). 10초마다 다시 확인합니다.',
+    en: 'No node credit confirmed yet. A valid transfer needs {n} confirmations (about {wait}). Checking every 10 s.',
   },
-  'billing.deposit.waiting_unknown': { ko: '블록 확인 {n}개를 기다립니다. 10초마다 확인합니다…', en: 'Waiting for {n} confirmations. Checking every 10 s…' },
-  'billing.deposit.credited': { ko: '{n} sAIN 적립됨 — 위의 숫자가 갱신되었습니다.', en: 'Credited {n} sAIN — the numbers above are updated.' },
-  'billing.deposit.credited_plain': { ko: '적립됨 — 위의 숫자가 갱신되었습니다.', en: 'Credited — the numbers above are updated.' },
+  'billing.deposit.waiting_unknown': { ko: '아직 노드 적립이 확인되지 않았습니다. 정상 전송에는 블록 확인 {n}개가 필요합니다. 10초마다 다시 확인합니다.', en: 'No node credit confirmed yet. A valid transfer needs {n} confirmations. Checking every 10 s.' },
+  'billing.deposit.credited': { ko: '노드에서 {n} sAIN 적립을 확인했습니다.', en: 'The node confirms a credit of {n} sAIN.' },
+  'billing.deposit.credited_plain': { ko: '노드에서 적립을 확인했습니다.', en: 'The node confirms this credit.' },
 
   'billing.manual.title': { ko: '직접 보내기', en: 'Send it yourself' },
   'billing.manual.no_wallet': {

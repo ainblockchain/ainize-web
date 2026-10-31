@@ -14,6 +14,7 @@ export type ProjectStatus = 'idle' | DeploymentStatus;
 export interface ManifestInput { description?: string; type?: 'string' | 'choice' | 'boolean' | 'number'; required?: boolean; options?: string[]; default?: string | number | boolean }
 /** A named preset of inputs (`examples` in ainize.json) — one click in the Run panel. */
 export interface ManifestExample { name: string; description?: string; inputs: Record<string, string | number | boolean> }
+export interface ManifestRun { entry: string; name?: string; description?: string; runtime?: string; inputs?: Record<string, ManifestInput>; examples?: ManifestExample[] }
 /** What the newest deployment read out of the repo's `ainize.json` (the node snapshots it; no clone on the page). */
 export interface ProjectManifest {
   kind: ProjectKind;
@@ -28,6 +29,7 @@ export interface ProjectManifest {
   secrets?: string[];
   inputs: Record<string, ManifestInput>;
   examples: ManifestExample[];
+  run?: ManifestRun[];
   detected: 'ainize.json' | 'package.json';
 }
 
@@ -40,6 +42,7 @@ export interface ProjectSource { repoId: string; target: 'head' | 'commit' | 'de
  * rotate) and `canOperate` (run, redeploy) say what the signed-in caller may do here.
  */
 export interface Project {
+  deletionRequestedAt?: number;
   id: string;
   org: string;
   repoName: string;
@@ -152,6 +155,8 @@ export interface Deployment {
   error?: string;
   logUrl: string;
   outputUrl?: string;
+  outputState?: 'current' | 'artifact' | 'historical' | 'unconfirmed';
+  visitUrl?: string;
 }
 
 export interface ProjectsResponse { projects: Project[] }
@@ -164,56 +169,89 @@ export interface OrgRepositoriesResponse { org: string; known: boolean; driveId:
 /** `POST /api/projects/:id/runs`. */
 export interface RunInput { target?: 'head' | 'commit' | 'deployed'; sha?: string; entry?: string; inputs?: Record<string, string | number | boolean>; env?: Record<string, string>; timeoutMs?: number }
 export interface Queued { deploymentId: string; status: DeploymentStatus; runId?: string }
+export interface Redeployed extends Queued { projectId: string; redeployOf: string; sha: string }
 export interface RotatedSecret { id: string; webhookSecret: string; hookUrl: string }
 
 /**
- * The `/<org>` page shows the drive's repositories beside the projects bound here, one row per repo: a project row
+ * The `/<org>` page shows the drive's repositories beside the projects bound here, one row per project (including same-folder branches): a project row
  * when the repo is bound (its status, its page), a plain row ("not deployed yet · push to deploy") when aindrive has
  * it and this node does not. Matched by name, case-insensitively; a project whose repo aindrive no longer lists
  * still shows (it is still deployed here).
  */
 export interface OrgRepoRow { name: string; project: Project | null; repo: OrgRepository | null }
 export function mergeOrgRepos(projects: Project[], repos: OrgRepository[]): OrgRepoRow[] {
-  const rows = new Map<string, OrgRepoRow>();
-  for (const r of repos) rows.set(r.name.toLowerCase(), { name: r.name, project: null, repo: r });
-  // A monorepo folder's project is its own row, `<repo>/<folder>` — never the repository's row, which is the root's.
+  const repositories = new Map(repos.map(r => [r.name.toLowerCase(), r]));
+  const seen = new Set<string>(), rows: OrgRepoRow[] = [], roots = new Set<string>();
   for (const p of projects) {
-    const name = p.sourcePath ? `${p.repoName}/${p.sourcePath}` : p.repoName;
-    const k = name.toLowerCase();
-    const row = rows.get(k);
-    if (row) { if (!row.project) row.project = p; }
-    else rows.set(k, { name, project: p, repo: null });
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    const key = p.repoName.toLowerCase();
+    if (!p.sourcePath) roots.add(key);
+    rows.push({ name: p.sourcePath ? `${p.repoName}/${p.sourcePath}` : repositories.get(key)?.name ?? p.repoName,
+      project: p, repo: !p.sourcePath ? repositories.get(key) ?? null : null });
   }
+  for (const [key, repo] of repositories) if (!roots.has(key)) rows.push({ name: repo.name, project: null, repo });
   const when = (r: OrgRepoRow) => Math.max(r.project?.updatedAt ?? 0, r.repo?.updatedAt ?? 0);
-  return [...rows.values()].sort((a, b) => when(b) - when(a) || a.name.localeCompare(b.name));
+  return rows.sort((a, b) => when(b) - when(a) || a.name.localeCompare(b.name) || (a.project?.branch ?? '').localeCompare(b.project?.branch ?? '') || (a.project?.id ?? '').localeCompare(b.project?.id ?? ''));
 }
 
 /** The one-line inputs form: a manifest input's answer as text, from the person's answer or the input's default. */
 export function inputAnswers(inputs: Record<string, ManifestInput>, answers: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, spec] of Object.entries(inputs)) {
-    const v = answers[name];
-    if (v !== undefined && v !== '') out[name] = v;
-    else if (spec.default !== undefined) out[name] = String(spec.default);
+    const v = Object.hasOwn(answers, name) ? answers[name] : undefined;
+    const value = v !== undefined ? v : spec.default !== undefined ? String(spec.default) : undefined;
+    if (value !== undefined) Object.defineProperty(out, name, { value, enumerable: true, writable: true, configurable: true });
   }
   return out;
 }
 /** Which required inputs are still blank. */
 export function missingInputs(inputs: Record<string, ManifestInput>, answers: Record<string, string>): string[] {
   const filled = inputAnswers(inputs, answers);
-  return Object.entries(inputs).filter(([name, spec]) => spec.required && !(name in filled)).map(([name]) => name);
+  return Object.entries(inputs).filter(([name, spec]) => spec.required && (!Object.hasOwn(filled, name) || !filled[name].trim())).map(([name]) => name);
 }
-/** The input a model picker should drive: a `choice` or a `string` whose name says "model", without its own options. */
-export const isModelInput = (name: string, spec: ManifestInput): boolean => /model/i.test(name) && !spec.options?.length && (spec.type ?? 'string') !== 'boolean' && (spec.type ?? 'string') !== 'number';
+/** The input that may offer model suggestions: a `choice` or a `string` whose name says "model", without its own options. */
+export const isModelInput = (name: string, spec: ManifestInput): boolean => /^(?:[a-z0-9]+_)*model(?:_id|_name)?$/i.test(name) && !spec.options?.length && (spec.type ?? 'string') !== 'boolean' && (spec.type ?? 'string') !== 'number';
+
+/** Defaults are actual displayed values; explicitly cleared values never silently restore them. */
+export const projectInputValue = (spec: ManifestInput, answer: string | undefined): string => answer ?? (spec.default === undefined ? '' : String(spec.default));
+const projectNumber = (value: string): boolean => /^-?(?:\d+|\d*\.\d+)(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(Number(value));
+export function invalidInputs(inputs: Record<string, ManifestInput>, answers: Record<string, string>): string[] {
+  return Object.entries(inputs).filter(([name, spec]) => {
+    const value = projectInputValue(spec, Object.hasOwn(answers, name) ? answers[name] : undefined);
+    if (!value) return false; // Required blanks are reported separately.
+    if (spec.options?.length && !spec.options.includes(value)) return true;
+    if (spec.type === 'boolean') return value !== 'true' && value !== 'false';
+    if (spec.type === 'number') return !projectNumber(value);
+    return false;
+  }).map(([name]) => name);
+}
 
 /** The Run panel's extra env: `KEY=value` lines → env; a line without `=` or with a bad name is skipped. */
 export function parseEnvLines(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of text.split('\n')) {
     const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
-    if (m) out[m[1]!] = m[2]!.trim();
+    if (m) Object.defineProperty(out, m[1]!, { value: m[2]!.trim(), enumerable: true, writable: true, configurable: true });
   }
   return out;
+}
+
+/** Line numbers that would otherwise be silently ignored or overwrite an earlier assignment. */
+export function projectRunEnvIssues(text: string): number[] {
+  const seen = new Set<string>(), invalid: number[] = [];
+  text.split('\n').forEach((line, i) => {
+    if (!line.trim() || line.trimStart().startsWith('#')) return;
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+    if (!match || seen.has(match[1])) invalid.push(i + 1);
+    if (match) seen.add(match[1]);
+  });
+  return invalid;
+}
+export function projectRunTimeout(seconds: string): number | null | undefined {
+  if (!seconds.trim()) return undefined;
+  const n = Number(seconds);
+  return projectNumber(seconds) && n >= 1 && n <= 300 && Number.isSafeInteger(n * 1000) ? n * 1000 : null;
 }
 
 /** "3 minutes ago" — the console's relative times; the exact time stays in the title. */
@@ -255,34 +293,57 @@ export function projectApiErrorOf(err: unknown): ProjectApiError {
  * &returnTo=<drive page url>`. `returnTo` is honoured only on aindrive's own origin (or a path of this app) — a
  * redirect target from a query string is otherwise an open door to anywhere.
  */
-export interface ConnectParams { repo: string | null; driveId: string | null; returnTo: string | null }
+export interface ConnectParams { repo: string | null; driveId: string | null; returnTo: string | null; branch: string; invalid: boolean }
 
 export function connectParamsOf(search: string, aindriveOrigin = AINDRIVE_URL): ConnectParams {
   const q = new URLSearchParams(search);
   const repo = q.get('repo')?.trim() || null;
   const driveId = q.get('driveId')?.trim() || null;
   const raw = q.get('returnTo')?.trim() || null;
+  const branch = q.get('branch') ?? 'main';
+  let invalid = ['repo', 'driveId', 'returnTo', 'branch'].some(key => q.getAll(key).length > 1);
   let returnTo: string | null = null;
-  if (raw) {
+  if (raw && !/[\u0000-\u001f\u007f\\]/.test(raw)) {
     if (raw.startsWith('/') && !raw.startsWith('//')) returnTo = raw;
     else {
-      try { const u = new URL(raw); if (u.origin === aindriveOrigin) returnTo = u.href; } catch { /* not a URL */ }
+      try { const u = new URL(raw); if (u.origin === new URL(aindriveOrigin).origin && !u.username && !u.password) returnTo = u.href; } catch { /* not a URL */ }
     }
   }
-  return { repo, driveId, returnTo };
+  if (driveId) {
+    try { invalid ||= !/^[A-Za-z0-9_-]{1,200}$/.test(driveId) || !repo || new URL(repo).origin !== new URL(aindriveOrigin).origin || !repoUrlLooksRight(repo); }
+    catch { invalid = true; }
+  }
+  return { repo, driveId, returnTo, branch, invalid };
 }
 
-/** Is this an aindrive git URL the node will accept? (`/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`, https.) */
-export function repoUrlLooksRight(repo: string): boolean {
+/** Compare creation receipts using the node's URL spelling, without silently discarding URL selectors. */
+export function projectRepoRef(input: string): { url: string; org: string; repoName: string } | null {
   try {
-    const u = new URL(repo);
-    if (u.username || u.password) return false;
-    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(u.hostname))) return false;
-    const segs = u.pathname.split('/').filter(Boolean);
-    const at = segs.indexOf('git');
-    return at >= 1 && at < segs.length - 1;
-  } catch { return false; }
+    const raw = input.trim();
+    if (/[\u0000-\u0020\u007f\\]/.test(raw)) return null;
+    const u = new URL(raw);
+    if (u.username || u.password || u.search || u.hash) return null;
+    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) return null;
+    // Inspect the spelling before URL() can remove literal/encoded dot segments.
+    const rawPath = raw.slice(raw.indexOf('://') + 3).replace(/^[^/]+/, '');
+    const segs = rawPath.replace(/\/$/, '').split('/').slice(1).map(decodeURIComponent);
+    if (segs.some(s => !s || s === '.' || s === '..' || /[/\\\u0000-\u001f\u007f]/.test(s))) return null;
+    const drive = segs[0] === 'api' && segs[1] === 'drives' && segs[3] === 'git';
+    const at = drive ? 3 : 1;
+    if (segs[at] !== 'git' || segs.length <= at + 1) return null;
+    let after = segs.slice(at + 1);
+    // Only the documented friendly legacy alias has an implied folder. A browser file/tree URL is not a repo.
+    if (!drive && after.length === 2 && after[0] === 'repositories') after = after.slice(1);
+    if (!drive && after.length !== 1) return null;
+    const org = segs[at - 1]!;
+    const repoName = after[after.length - 1]!.replace(/\.git$/, '');
+    if (!/^[A-Za-z0-9._-]+$/.test(org) || !/^[A-Za-z0-9._-]+$/.test(repoName) || repoName === '.' || repoName === '..' || repoName.endsWith('.git')) return null;
+    const path = [...segs.slice(0, at), 'git', ...after.slice(0, -1), repoName].map(encodeURIComponent).join('/');
+    return { url: `${u.origin}/${path}`, org, repoName };
+  } catch { return null; }
 }
+
+export const repoUrlLooksRight = (repo: string): boolean => projectRepoRef(repo) !== null;
 
 /** The repo's org/name as the node will read them — for the page's heading before the node has answered. */
 export function repoLabelOf(repo: string): string {
@@ -295,27 +356,48 @@ export function repoLabelOf(repo: string): string {
   } catch { return repo; }
 }
 
-/**
- * Hand the one-time secret to aindrive, which stores it beside the repo's hook: `POST
- * /api/drives/<driveId>/git-connect { repo, projectId, webhookSecret }` with the person's aindrive session
- * (`credentials: include`; aindrive answers CORS for this app's origin). The result says whether aindrive took it —
- * when it did not, the page shows the secret so the person can paste it, because it will never be shown again.
- */
-export async function connectRepoOnAindrive(input: { driveId: string; repo: string; projectId: string; webhookSecret: string }, opts: { aindriveUrl?: string; fetchImpl?: typeof fetch } = {}): Promise<{ ok: true } | { ok: false; status: number | null; message: string }> {
+/** Drive clone URLs identify working copies; preserve the folder in drive-id URLs instead of using the node's canonical URL. */
+export function projectDriveRepoPath(repo: string, driveId: string): string | null {
+  if (!projectRepoRef(repo)) return null;
+  const segs = new URL(repo).pathname.replace(/\/$/, '').split('/').slice(1).map(decodeURIComponent);
+  if (segs[0] === 'api' && segs[1] === 'drives') {
+    return segs[2] === driveId ? segs.slice(4).join('/').replace(/\.git$/, '').normalize('NFC') : null;
+  }
+  const path = segs.slice(2).join('/').replace(/\.git$/, '');
+  return (path.startsWith('repositories/') ? path : `repositories/${path}`).normalize('NFC');
+}
+
+/** Hand off the one-time secret with an empty-binding expectation; only an exact Drive receipt proves storage. */
+export type ProjectConnectResult = { ok: true; repoPath: string } | { ok: false; status: number | null; message: string };
+export async function connectRepoOnAindrive(input: { driveId: string; repo: string; projectId: string; webhookSecret: string }, opts: { aindriveUrl?: string; fetchImpl?: typeof fetch; signal?: AbortSignal } = {}): Promise<ProjectConnectResult> {
   const base = (opts.aindriveUrl ?? AINDRIVE_URL).replace(/\/+$/, '');
   const f = opts.fetchImpl ?? fetch;
+  const expectedPath = projectDriveRepoPath(input.repo, input.driveId);
+  if (!expectedPath) return { ok: false, status: null, message: 'The repository does not identify this drive target.' };
+  const ctrl = new AbortController();
+  const cancel = () => ctrl.abort();
+  if (opts.signal?.aborted) cancel(); else opts.signal?.addEventListener('abort', cancel, { once: true });
+  const timer = setTimeout(cancel, 15_000);
   try {
+    if (ctrl.signal.aborted) throw new Error('cancelled');
     const res = await f(`${base}/api/drives/${encodeURIComponent(input.driveId)}/git-connect`, {
-      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ repo: input.repo, projectId: input.projectId, webhookSecret: input.webhookSecret }),
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, signal: ctrl.signal,
+      body: JSON.stringify({ repoUrl: input.repo, projectId: input.projectId, webhookSecret: input.webhookSecret, expectedProjectId: null }),
     });
-    if (res.ok) return { ok: true };
-    let message = `aindrive answered ${res.status}`;
-    try { const j = (await res.json()) as { error?: { message?: string } | string; message?: string }; message = (typeof j.error === 'object' ? j.error?.message : j.error) ?? j.message ?? message; } catch { /* no body */ }
-    return { ok: false, status: res.status, message };
-  } catch (e) {
-    return { ok: false, status: null, message: (e as Error).message };
-  }
+    const j: unknown = await res.json().catch(() => null);
+    if (res.ok) {
+      const r = j as Record<string, unknown> | null;
+      if (r?.ok === true && r.projectId === input.projectId && r.driveId === input.driveId && r.repoUrl === input.repo
+        && r.repo === expectedPath && !r.repo.startsWith('/')
+        && !/[\\\u0000-\u001f\u007f]/.test(r.repo) && r.repo.split('/').every(s => s && s !== '.' && s !== '..')) return { ok: true, repoPath: r.repo };
+      return { ok: false, status: res.status, message: 'The repository binding could not be confirmed.' };
+    }
+    const r = j as { error?: { message?: unknown } | string; message?: unknown } | null;
+    const message = (typeof r?.error === 'object' ? r.error?.message : r?.error) ?? r?.message;
+    return { ok: false, status: res.status, message: typeof message === 'string' ? message : `aindrive answered ${res.status}` };
+  } catch {
+    return { ok: false, status: null, message: 'The repository binding could not be confirmed.' };
+  } finally { clearTimeout(timer); opts.signal?.removeEventListener('abort', cancel); }
 }
 
 export const statusToneOf = (s: ProjectStatus | DeploymentStatus): 'ok' | 'warn' | 'busy' | 'muted' =>

@@ -15,9 +15,18 @@ on its model's page, and linking back to that model.
 
 1. Open [Models](/models) and pick a chat model. Only chat models can carry an agent — the agent talks to its model
    as a conversation.
-2. Press **Create agent based on this model**. If you are not signed in with a wallet you sign in first and come
-   straight back; an agent has an owner, and the owner is an address.
-3. The form opens with the model already chosen.
+2. Press **Create agent based on this model**. If you are not signed in, sign in and return to the same selected
+   model. An AIN account or wallet session can own an agent.
+3. The form opens with the model and its provider already chosen.
+
+New selections save the provider address with the model, so losing that provider does not redirect the agent
+to a different node. A missing selection remains visible instead of changing to the first model in the list.
+The form rechecks new model/media registrations before saving. A registered local model can be configured
+while temporarily down, but saving does not prove the agent can answer.
+
+Older agents may have a bare model id. The editor labels this **automatic node selection** and preserves it
+for unrelated edits. Select an entry with a node address to pin that agent to one provider. Existing missing
+model/media settings remain visible; the server may reject a save if it no longer serves that configuration.
 
 ## Choose a mode
 

@@ -1,6 +1,9 @@
+import { useAuth } from '@/auth/AuthContext';
+import { PurchaseReviewLauncher } from '@/components/detail/PurchaseReview';
+import { RequestKnowledge } from './RequestKnowledge';
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useBuyMutation, useRequestPatchMutation } from '@/api/api';
 import type { CatalogEntry, ChatLock, ChatOverlap, ElsewhereRow, RuntimeStatus } from '@/api/types';
 import { useT } from '@/i18n';
 import { StatusChip } from '@/components/ui/Misc';
@@ -114,6 +117,8 @@ export interface KnowledgePickerProps {
 }
 
 export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsMine = false, selectedIds, onToggle, onReorder, onClear, mineJobId, applied = [], overlaps = [], lessons = [], dirty = [], elsewhere = [], operator = false }: KnowledgePickerProps) {
+  const auth = useAuth();
+  const [purchaseSelection, setPurchaseSelection] = useState<{ id: string; author: string; nonce: number; identity: string; node: string | null } | null>(null);
   const { t, term, help, tech, locale } = useT();
   const kind = lockKind(lock, lockIsMine);
   // the banner's clock ticks every second instead of freezing until the next 20 s poll
@@ -185,10 +190,9 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
   }, [items, lessons, selectedIds, q]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const priceLabel = (e: CatalogEntry) => {
-    const n = Number(e.anchor.price);
-    if (!n) return t('common.free');
+    if (!/[1-9]/.test(e.anchor.price)) return t('common.free');
     const unit = e.anchor.currency === 'CREDIT' ? term('credit') : e.anchor.currency === 'AIN' ? 'AIN' : e.anchor.currency;
-    return `${n.toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US', { maximumFractionDigits: 6 })} ${unit}`;
+    return `${e.anchor.price} ${unit}`;
   };
   const priceNote = (e: CatalogEntry) => (e.anchor.currency === 'CREDIT' ? t('price.credit_note') : e.anchor.currency === 'AIN' ? t('price.ain_note') : e.anchor.currency);
 
@@ -223,7 +227,7 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
             <Name>{a.name}</Name>
             <Id>{a.author_name ?? shortAddr(a.author)}/{a.id}</Id>
             <MetaRow>
-              <span title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(a.benchmark.queries) }, a.benchmark.queries)}</span>
+              <span title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(benchmarkQuestionCount(a.benchmark.queries)) }, benchmarkQuestionCount(a.benchmark.queries) ?? undefined)}</span>
               <Accuracy $known={!!acc} title={acc ? `${help('accuracy')} (${tech('accuracy')})` : t('chat.picker.not_scored_help')}>
                 {acc ? (acc.pct !== null ? t('chat.picker.accuracy', { pct: acc.pct }) : t('chat.picker.accuracy_raw', { score: acc.raw })) : t('chat.picker.not_scored')}
               </Accuracy>
@@ -375,48 +379,39 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
         <>
           <Section>{t('chat.picker.elsewhere')}</Section>
           <Hint>{t('chat.picker.elsewhere_help')}</Hint>
-          <List>{elsewhere.map((e) => <ElsewhereItem key={e.patch_id} row={e} operator={operator} />)}</List>
+          <List>{elsewhere.map((e) => <ElsewhereItem key={e.patch_id} row={e} operator={operator} onPurchase={() => setPurchaseSelection(previous => ({ id: e.patch_id, author: e.author, identity: auth.cacheIdentity, node: auth.address, nonce: (previous?.nonce ?? 0) + 1 }))} />)}</List>
         </>
       )}
+      {purchaseSelection && purchaseSelection.identity === auth.cacheIdentity && purchaseSelection.node === auth.address && <PurchaseReviewLauncher selection={purchaseSelection} />}
     </Panel>
   );
 }
 
 /** One knowledge that cannot be tested here: what it costs, who sells it, and the one thing the reader can do. */
-function ElsewhereItem({ row, operator }: { row: ElsewhereRow; operator: boolean }) {
-  const { t, term, locale } = useT();
-  const [buy, buyState] = useBuyMutation();
-  const [request, reqState] = useRequestPatchMutation();
-  const [asked, setAsked] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const price = Number(row.price)
-    ? `${Number(row.price).toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US', { maximumFractionDigits: 6 })} ${row.currency === 'CREDIT' ? term('credit') : row.currency}`
-    : t('common.free');
-  const asks = asked ?? row.requests;
+function ElsewhereItem({ row, operator, onPurchase }: { row: ElsewhereRow; operator: boolean; onPurchase: () => void }) {
+  const { t } = useT();
+  const price = /[1-9]/.test(row.price) ? `${row.price} ${row.currency}` : t('common.free');
   return (
     <li>
-      <Row $active={false} $disabled as="div" data-testid="picker-elsewhere" data-patch={row.patch_id}>
+      <Row $active={false} $disabled as="div" style={{ opacity: 1, cursor: 'default' }} data-testid="picker-elsewhere" data-patch={row.patch_id}>
         <span aria-hidden style={{ width: 18 }} />
         <Body>
           <Name>{row.name}</Name>
           <Id>{row.author_name ?? shortAddr(row.author)}/{row.patch_id}</Id>
           <MetaRow>
-            <span>{t('units.facts', { n: num(row.queries) }, row.queries)}</span>
+            <span>{t('units.facts', { n: num(benchmarkQuestionCount(row.queries)) }, benchmarkQuestionCount(row.queries) ?? undefined)}</span>
             <Price>{price}</Price>
             <StatusChip status={row.status} />
           </MetaRow>
           <PriceNote>{t(`chat.picker.why.${row.reason}`)}</PriceNote>
-          {asks > 0 && <PriceNote data-testid="picker-requests">{t('chat.picker.asked', { n: asks }, asks)}</PriceNote>}
+          {operator && Number.isSafeInteger(row.requests) && row.requests > 0 && <PriceNote data-testid="picker-requests">{t('chat.picker.asked', { n: row.requests }, row.requests)}</PriceNote>}
           <ChipRow>
             {operator
-              ? <SmallButton type="button" disabled={!row.buyable || buyState.isLoading} onClick={() => { setError(null); buy({ id: row.patch_id }).unwrap().catch((e) => setError(errorMessage(e))); }}>
-                {buyState.isLoading ? t('chat.picker.buying') : t('chat.picker.buy', { price })}
+              ? <SmallButton type="button" disabled={!row.buyable} onClick={onPurchase}>
+                {t('detail.purchaseReview.title')}
               </SmallButton>
-              : <SmallButton type="button" disabled={reqState.isLoading || asked !== null} onClick={() => { setError(null); request(row.patch_id).unwrap().then((r) => setAsked(r.requests)).catch((e) => setError(errorMessage(e))); }}>
-                {asked !== null ? t('chat.picker.asked_done') : t('chat.picker.ask')}
-              </SmallButton>}
+              : <RequestKnowledge id={row.patch_id} author={row.author} requests={row.requests} />}
           </ChipRow>
-          {error && <PriceNote role="alert">{error}</PriceNote>}
         </Body>
       </Row>
     </li>

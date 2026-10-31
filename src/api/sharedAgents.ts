@@ -1,3 +1,4 @@
+import type { AgentSharingReview } from '@/lib/agentSharing';
 /**
  * Shared agents — who may see an agent, and the registry that says so.
  *
@@ -178,7 +179,7 @@ export interface AgentRef {
   updatedAt: string | null;
 }
 
-export interface SharedAgentsPage { items: { ref: AgentRef; canInvoke: boolean }[]; nextCursor: string | null; asOf: string | null }
+export interface SharedAgentsPage { items: { ref: AgentRef; canInvoke: boolean }[]; nextCursor: string | null; asOf: string | null; total: number | null; previousCursor?: string | null }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
@@ -228,16 +229,26 @@ export function parseAgentRef(raw: unknown): AgentRef | null {
 }
 
 /** `GET /api/shared-agents` → the page, or `null` when the body is not one (an older node's 404 page, a proxy error). */
-export function parseSharedAgentsResponse(raw: unknown): SharedAgentsPage | null {
+export function parseSharedAgentsResponse(raw: unknown, cursor?: string): SharedAgentsPage | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  if (!Array.isArray(r.items)) return null;
-  const items: SharedAgentsPage['items'] = [];
+  if (r.contract !== '1.0' || !Array.isArray(r.items) || typeof r.asOf !== 'string' || !Number.isFinite(Date.parse(r.asOf))
+    || r.nextCursor !== null && (typeof r.nextCursor !== 'string' || !/^[A-Za-z0-9._~+/=-]{1,512}$/.test(r.nextCursor))
+    || r.previousCursor !== undefined && r.previousCursor !== null && (typeof r.previousCursor !== 'string' || !/^[A-Za-z0-9._~+/=-]{1,512}$/.test(r.previousCursor))
+    || r.total !== undefined && (typeof r.total !== 'number' || !Number.isSafeInteger(r.total) || r.total < r.items.length)) return null;
+  const items: SharedAgentsPage['items'] = [], seen = new Set<string>();
   for (const it of r.items) {
-    const ref = parseAgentRef((it as { ref?: unknown } | null)?.ref);
-    if (ref) items.push({ ref, canInvoke: (it as { canInvoke?: unknown }).canInvoke !== false });
+    const value = it as { ref?: Record<string, unknown>; canInvoke?: unknown } | null;
+    const ref = parseAgentRef(value?.ref);
+    if (!ref || !ref.registryIssuer || typeof value?.canInvoke !== 'boolean' || !oneOf(AGENT_REF_STATUSES, value.ref?.status)) return null;
+    const key = `${ref.registryIssuer}#${ref.agentId}`;
+    if (seen.has(key)) return null;
+    seen.add(key); items.push({ ref, canInvoke: value.canInvoke });
   }
-  return { items, nextCursor: str(r.nextCursor), asOf: str(r.asOf) };
+  if (r.nextCursor && !items.length || cursor && (!items.length || r.nextCursor === cursor || r.previousCursor === cursor)) return null;
+  if (!cursor && r.previousCursor || r.nextCursor && r.nextCursor === r.previousCursor) return null;
+  if (!cursor && typeof r.total === 'number' && (r.nextCursor ? r.total <= items.length : r.total !== items.length)) return null;
+  return { items, nextCursor: r.nextCursor as string | null, asOf: r.asOf, total: typeof r.total === 'number' ? r.total : null, ...(r.previousCursor !== undefined ? { previousCursor: r.previousCursor as string | null } : {}) };
 }
 
 /** `releaseId` → the row's `kind`: a linked or config agent is an upstream the node forwards to; a hosted one's mode is not in the ref. */
@@ -336,10 +347,11 @@ export function sharedAgentsErrorCode(err: unknown): string | null {
  * The public list, when the registry is unavailable and the chip asks for more than "everyone's".
  *
  * `mine` can be answered from `/api/agents` by owner, as `/me/agents` does. `org` cannot — an older node has no
- * organizations — so the fallback is the public list and the page says the node does not know about organizations.
+ * organizations — so it has no safe substitute rows. The page must explain the unavailable scope.
  */
 export function fallbackRows(filter: AgentListFilter, agents: readonly AgentSummary[], principals: readonly string[]): AgentSummary[] {
-  if (filter !== 'mine') return [...agents];
+  if (filter === 'org') return [];
+  if (filter === 'all') return [...agents];
   return agents.filter((a) => {
     const o = a.owner;
     if (!o) return false;
@@ -348,7 +360,7 @@ export function fallbackRows(filter: AgentListFilter, agents: readonly AgentSumm
 }
 
 /** `PUT /api/shared-agents/:id/visibility` body. */
-export interface AgentVisibilityInput { id: string; visibility: AgentVisibility; orgId?: string | null }
+export interface AgentVisibilityInput { id: string; visibility: AgentVisibility; orgId: string | null; expected: AgentSharingReview }
 
 // ─────────────────────────────────────────────────────────────── agents the caller may manage
 
@@ -367,7 +379,8 @@ export function parseManageableHostedAgents(raw: unknown, origin: string): Manag
   const out: ManageableAgent[] = [];
   for (const a of agents as Record<string, unknown>[]) {
     const agent = agentSummaryFromHostedSpecResponse(a, origin);
-    if (agent) out.push({ agent, canManage: a.can_manage === true, canDelete: a.can_delete === true, updatedBy: str(a.updated_by) });
+    if (!agent) return null;
+    out.push({ agent, canManage: a.can_manage === true, canDelete: a.can_delete === true, updatedBy: str(a.updated_by) });
   }
   return out;
 }
@@ -414,6 +427,7 @@ export function agentSummaryFromHostedSpecResponse(raw: unknown, origin: string)
     kind: mode,
     owner: typeof inner.owner === 'string' ? foldOwner(inner.owner) : null,
     status: oneOf(['building', 'ready', 'failed'] as const, inner.status),
+    deletion_requested_at: typeof inner.deletion_requested_at === 'number' && Number.isFinite(inner.deletion_requested_at) && inner.deletion_requested_at > 0 ? inner.deletion_requested_at : null,
     visibility: agentVisibilityOf(inner),
     org_id: agentOrgIdOf(inner),
     alias: agentAliasOf(inner),

@@ -91,7 +91,9 @@ export async function relayToNode(req: Request, path: string, opts: { service?: 
 export function nodeRoutes(prefix: string, opts: { service?: boolean } = {}) {
   const handler = async (req: Request, ctx: { params: Promise<{ path?: string[] }> }) => {
     const { path } = await ctx.params;
-    return relayToNode(req, `${prefix}/${(path ?? []).join('/')}`, opts);
+    // Next already decoded each captured segment. Re-encode it independently: `qa%2Fprefix` is one
+    // benchmark id, not two routes, and a literal `?`/`#` in an id must not rewrite the upstream query.
+    return relayToNode(req, `${prefix}/${(path ?? []).map(part => encodeURIComponent(part)).join('/')}`, opts);
   };
   return { GET: handler, POST: handler, PUT: handler, PATCH: handler, DELETE: handler, OPTIONS: handler };
 }

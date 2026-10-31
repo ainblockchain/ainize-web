@@ -138,6 +138,13 @@ export const landing: Dict = {
 };
 
 export const listing: Dict = {
+  'explore.selection.invalid': { ko: '목록의 선택 조건을 확인할 수 없습니다. 조건을 초기화해 다시 선택해 주세요.', en: 'This list selection is invalid. Reset the filters and choose again.' },
+  'explore.selection.reset': { ko: '선택 초기화', en: 'Reset selection' },
+  'explore.selection.signin': { ko: '선택한 에이전트 목록을 보려면 로그인하세요.', en: 'Sign in to view the selected agent list.' },
+  'explore.selection.org': { ko: '위에서 에이전트를 볼 조직을 선택하세요.', en: 'Choose an organization above to view its agents.' },
+  'explore.selection.page_missing': { ko: '선택한 페이지에는 결과가 없습니다.', en: 'There are no results on the selected page.' },
+  'explore.selection.first_page': { ko: '첫 페이지로', en: 'Go to first page' },
+
   // sort
   'explore.sort.popular': { ko: '인기순', en: 'Most popular' },
   'explore.sort.latest': { ko: '등록순', en: 'Newest' },
@@ -165,7 +172,7 @@ export const listing: Dict = {
   'price.ain_note.local_chain': { ko: 'AIN = AI Network 토큰 · 이 노드는 로컬 개발 체인에 붙어 있어 실제 가치가 없습니다', en: 'AIN = AI Network token · this node is attached to a local development chain, so it has no market value' },
   'price.ain_note.testnet': { ko: 'AIN = AI Network 토큰 · 테스트넷이라 실제 가치가 없습니다', en: 'AIN = AI Network token · this is a test network, so it has no market value' },
   'price.ain_note.mainnet': { ko: 'AIN = AI Network 메인넷 토큰', en: 'AIN = AI Network token, on the mainnet' },
-  'price.ain_note.unknown': { ko: 'AIN = AI Network 토큰 · 이 노드는 어느 체인에 붙어 있는지 밝히지 않았습니다', en: 'AIN = AI Network token · this node does not say which chain it is attached to' },
+  'price.ain_note.unknown': { ko: 'AIN = AI Network 토큰 · 이 노드의 네트워크 종류를 확인하지 못했습니다', en: 'AIN = AI Network token · this node’s network type could not be verified' },
   'explore.filter.track': { ko: '트랙', en: 'Track' },
   'explore.filter.show': { ko: '표시', en: 'Show' },
   'explore.filter.current': { ko: '최신 버전만', en: 'Current only' },
@@ -244,11 +251,13 @@ export const listing: Dict = {
   'bench.stats': { ko: '지식 {total}개 · 현재 버전 {listed}개 · 문제 묶음 {sets}개 · 대상 모델: {models}', en: '{total} knowledge · {listed} current version(s) · {sets} question set(s) · models: {models}' },
   // Finding 24: the four items here carry three different benchmark_hashes, so the old promise ("scored with the
   // same question set, so it can be compared") was not true of the list it sat above.
-  'bench.explain': { ko: '점수는 같은 문제 묶음 안에서만 비교할 수 있습니다. 아래는 검증에 쓰인 문제 묶음별로 묶어 놓았습니다 — 묶음이 다르면 시험이 다른 것이라 점수를 나란히 비교할 수 없습니다. 내용이 겹치면 더 새로운 검증 완료 지식이 이전 것을 대체합니다("최신 버전 있음").', en: 'Scores are comparable only within one question set. The list below is grouped by the question set the verifiers used — a different set is a different exam, and those numbers cannot be lined up against each other. When contents overlap, the newer verified knowledge replaces the older one ("Newer version available").' },
+  'bench.explain': { ko: '등록된 문제 묶음·질문 수·질문 형식별로 표시합니다. 실제 채점 결과는 각 지식에서 확인하세요.', en: 'Grouped by declared question set, count and format. Open a knowledge item for its reported test results.' },
+  'bench.group.unknown': { ko: '문제 묶음 미확인', en: 'Question set unconfirmed' },
+  'bench.group.unknown_note': { ko: '같은 시험인지 확인할 식별자가 없습니다.', en: 'No question-set identifier is available for comparison.' },
   'bench.group.title': { ko: '문제 묶음 · {format} · 질문 {n}개', en: 'Question set · {format} · {n} questions' },
   'bench.group.title_noformat': { ko: '문제 묶음 · 질문 {n}개', en: 'Question set · {n} questions' },
-  'bench.group.note': { ko: '이 {n}개는 같은 문제 묶음으로 채점돼 서로 비교할 수 있습니다.', en: 'These {n} were scored on this same question set, so they can be compared with each other.' },
-  'bench.group.alone': { ko: '이 문제 묶음으로 채점된 지식은 이것뿐이라 비교 대상이 없습니다.', en: 'The only knowledge scored on this question set — nothing here to compare it with.' },
+  'bench.group.note': { ko: '같은 문제 묶음을 참조하는 지식 {n}개입니다.', en: '{n} knowledge items reference this question set.' },
+  'bench.group.alone': { ko: '이 문제 묶음을 참조하는 지식은 1개입니다.', en: 'One knowledge item references this question set.' },
   // Finding 74 — the page whose whole job is "which of these should I buy?" rendered the same prose cards as
   // /explore, so four prices, three accuracies and four sizes were never adjacent. Inside one question set they
   // are a table; these are its columns.
@@ -256,7 +265,7 @@ export const listing: Dict = {
   'bench.col.status': { ko: '판매 상태', en: 'Listing' },
   'bench.col.accuracy': { ko: '정답률', en: 'Accuracy' },
   'bench.col.verified': { ko: '독립 검증', en: 'Verifiers' },
-  'bench.col.facts': { ko: '담긴 사실', en: 'Facts' },
+  'bench.col.facts': { ko: '등록 질문', en: 'Declared questions' },
   'bench.col.rows': { ko: '기억 항목', en: 'Memory entries' },
   'bench.col.size': { ko: '크기', en: 'Size' },
   'bench.col.downloads': { ko: '내려받기', en: 'Downloads' },
@@ -268,16 +277,16 @@ export const listing: Dict = {
   // Finding 80 — the words this list is made of, defined ON the page instead of only inside hover `title`
   // attributes that no phone and no keyboard could ever reach. One line per list, never one per card.
   'explore.legend.verified': { ko: '다른 모델 서버가 실제 모델에 넣어 채점했습니다', en: 'other model servers loaded it into the real model and scored it' },
-  'explore.legend.facts': { ko: '이 지식이 답할 수 있는 질문 수', en: 'how many questions it can answer' },
+  'explore.legend.facts': { ko: '게시자가 등록한 질문 수', en: 'question count declared by the publisher' },
   'explore.legend.rows': { ko: '모델 기억에서 바뀌는 항목 수', en: 'how many entries it changes in the model’s memory' },
   'explore.legend.accuracy': { ko: '지식을 넣은 모델이 검증 질문을 맞힌 비율', en: 'the share of the benchmark questions the model got right with it loaded' },
   'explore.legend.livetest': { ko: '사기 전에 넣기 전·후 답을 무료로 비교', en: 'compare the before and after answers, free, before you buy' },
 
   // list item
-  'item.verified_by': { ko: '검증 완료 (독립 검증 {passed}/{quorum})', en: 'Verified ({passed}/{quorum} independent verifiers)' },
+  'item.verified_by': { ko: '검증 완료 (정족수 {passed}/{quorum})', en: 'Verified (quorum {passed}/{quorum})' },
   'item.verified_extra': { ko: '(+{n}건 더)', en: '(+{n} more)' },
-  'item.verified_challenged': { ko: '검증 {passed}/{quorum} — 이의 제기됨, 재검증 대기', en: 'Verified {passed}/{quorum} — challenged, re-verification pending' },
-  'item.verifying_by': { ko: '검증 중 (독립 검증 {passed}/{quorum})', en: 'Verifying ({passed}/{quorum} independent verifiers)' },
+  'item.verified_challenged': { ko: '정족수 {passed}/{quorum} — 이의 제기됨, 재검증 대기', en: 'Quorum {passed}/{quorum} — challenged, re-verification pending' },
+  'item.verifying_by': { ko: '검증 중 (정족수 {passed}/{quorum})', en: 'Verifying (quorum {passed}/{quorum})' },
   'item.integrity_only': { ko: '무결성만 확인 {n}', en: 'integrity-only checks: {n}' },
   'item.integrity_help': { ko: '파일이 손상되지 않았는지만 확인한 검증입니다. 정답률을 재지 않았으므로 검증 완료 수에 넣지 않습니다.', en: 'Checked only that the file is intact — no accuracy was measured, so it does not count toward verification.' },
   'item.accuracy': { ko: '정답률 {pct}%', en: '{pct}% accuracy' },

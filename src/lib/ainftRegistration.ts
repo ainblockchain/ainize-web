@@ -30,6 +30,10 @@ export interface AinftTokenRow {
 }
 const addressOk = (s: unknown): s is string => typeof s === 'string' && /^0x[0-9a-f]{40}$/i.test(s);
 
+export class AinftOperationInactiveError extends Error {
+  constructor() { super('The registration view or account changed. Reopen registration to continue.'); }
+}
+
 /** The existing metadata host normalizes token IDs as numbers. Keep new IDs exact in that API. */
 export function createNativeAinftTokenId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(6));
@@ -43,15 +47,20 @@ export function stableJson(value: unknown): string {
 }
 
 export class AinftFactoryClient {
-  constructor(readonly chainId: AinftChain, private readonly wallet: AinftWallet, private readonly http: typeof fetch = (input, init) => fetch(input, init)) {}
+  constructor(readonly chainId: AinftChain, private readonly wallet: AinftWallet, private readonly http: typeof fetch = (input, init) => fetch(input, init), private readonly isCurrent: () => boolean = () => true) {}
+
+  assertCurrent() { if (!this.isCurrent()) throw new AinftOperationInactiveError(); }
 
   async checkWallet(address: string) {
+    this.assertCurrent();
     const [current, network] = await Promise.all([this.wallet.getAddress(), this.wallet.getNetwork()]);
+    this.assertCurrent();
     if (!addressOk(current) || current.toLowerCase() !== address.toLowerCase()) throw new Error('The AIN wallet account changed. Switch back to the registration account.');
     if (network.chainId !== this.chainId) throw new Error(`Switch the AIN wallet to ${AINFT_NETWORKS[this.chainId].name}.`);
   }
 
   async request(path: string, body?: Record<string, unknown>, signedPath?: string, allowEmptyData = false): Promise<any> {
+    this.assertCurrent();
     const method = body ? 'POST' : 'GET';
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (signedPath && body) {
@@ -60,6 +69,7 @@ export class AinftFactoryClient {
       headers['X-AINFT-Date'] = String(timestamp);
       headers.Authorization = `AINFT ${await this.wallet.signMessage(message)}`;
     }
+    this.assertCurrent();
     const response = await this.http(`${AINFT_NETWORKS[this.chainId].factory}${path}`, {
       method, headers, cache: 'no-store', ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(20000),
     });
@@ -91,6 +101,7 @@ export class AinftFactoryClient {
     await this.checkWallet(state.address);
     const message = stableJson({ address: state.address, timestamp: Date.now() });
     const signature = await this.wallet.signMessage(message);
+    this.assertCurrent();
     return this.request('/nft/native/register', { signature, message, ainftObjectId: state.objectId }, undefined, true);
   }
 
@@ -110,20 +121,30 @@ export class AinftFactoryClient {
   }
 }
 
+export function isAinftRegistration(value: unknown): value is AinftRegistration {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const state = value as AinftRegistration;
+  return addressOk(state.address) && (state.objectId === null || addressOk(state.objectId))
+    && (state.tokenOwner === undefined || addressOk(state.tokenOwner))
+    && typeof state.agentId === 'string' && /^[a-z0-9][a-z0-9-]{0,39}$/.test(state.agentId)
+    && typeof state.tokenId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(state.tokenId)
+    && (state.chainId === 0 || state.chainId === 1) && ['new', 'collection', 'mint', 'metadata', 'indexed'].includes(state.stage)
+    && !!state.transactions && typeof state.transactions === 'object' && !Array.isArray(state.transactions)
+    && Object.entries(state.transactions).every(([key, hash]) => ['collection', 'mint', 'metadata'].includes(key) && typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash))
+    && (state.pending === null || ['collection', 'mint', 'metadata'].includes(state.pending));
+}
+
 /** Save BEFORE prompting the signer. An unknown outcome is reconciled, never blindly resubmitted. */
 export async function registerAgentAsAinft(client: AinftFactoryClient, state: AinftRegistration,
   metadata: Record<string, unknown>, save: (state: AinftRegistration) => void): Promise<AinftRegistration> {
-  if (!addressOk(state.address) || (state.objectId !== null && !addressOk(state.objectId))
-    || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(state.agentId) || !/^[A-Za-z0-9_-]{1,128}$/.test(state.tokenId)
-    || state.chainId !== client.chainId || !['new', 'collection', 'mint', 'metadata', 'indexed'].includes(state.stage)
-    || (state.pending !== null && !['collection', 'mint', 'metadata'].includes(state.pending))) throw new Error('Invalid registration state');
+  if (!isAinftRegistration(state) || state.chainId !== client.chainId) throw new Error('Invalid registration state');
   let next = structuredClone(state);
   const persist = () => save(structuredClone(next));
   const submit = async (kind: 'collection' | 'mint' | 'metadata', tx: unknown) => {
     try { next.transactions[kind] = await client.submit(next, tx); persist(); }
     catch (error) {
       // A decline proves no transaction was submitted. A closed window or network error does not.
-      if (error === '[sendTx] user declined' || (error && typeof error === 'object' && 'code' in error && error.code === 4001)) {
+      if (error instanceof AinftOperationInactiveError || error === '[sendTx] user declined' || (error && typeof error === 'object' && 'code' in error && error.code === 4001)) {
         next.pending = null;
         if (kind === 'collection') next.objectId = null;
         persist();
@@ -158,6 +179,7 @@ export async function registerAgentAsAinft(client: AinftFactoryClient, state: Ai
   if (next.stage === 'indexed') throw new Error('Published metadata changed. Refresh the binding before updating it.');
   if (next.stage === 'new') {
     const created = await client.request('/nft/native', { address: next.address, name: 'Ainize Agents', symbol: 'AINAGENT' }, '/nft/native');
+    client.assertCurrent();
     if (!addressOk(created.ainftObjectId)) throw new Error('Factory returned an invalid collection ID');
     next.objectId = created.ainftObjectId;
     next.pending = 'collection'; persist();
@@ -168,6 +190,7 @@ export async function registerAgentAsAinft(client: AinftFactoryClient, state: Ai
   }
   if (next.stage === 'collection') {
     const tx = await client.request(`/nft/native/${next.objectId}/mint`, { address: next.address, toAddress: next.address, tokenId: next.tokenId }, `/native/${next.objectId}/mint`);
+    client.assertCurrent();
     next.pending = 'mint'; persist();
     await submit('mint', tx);
     if (!await client.token(next.objectId!, next.tokenId)) throw new Error('Token confirmation is pending. Refresh registration later.');
@@ -179,6 +202,7 @@ export async function registerAgentAsAinft(client: AinftFactoryClient, state: Ai
     next.tokenOwner = token.owner;
     const merged = { ...(token.metadata ?? {}), ...metadata };
     const tx = await client.request('/nft/native/metadata', { ainftObjectId: next.objectId, tokenId: next.tokenId, metadata: merged, userAddress: next.address });
+    client.assertCurrent();
     next.pending = 'metadata'; persist();
     await submit('metadata', tx);
     next.pending = null; next.stage = 'metadata'; persist();

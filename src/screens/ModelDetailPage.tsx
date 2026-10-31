@@ -13,15 +13,17 @@
  * Three ways this page can have nothing to show, each said as itself (see `modelDetailViewState`): the node does
  * not serve this id, the node is older than the model routes, or the node is not answering at all.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useAgentsByModelQuery, useModelDetailQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery } from '@/api/api';
-import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse, pickNetworkModelProvider } from '@/api/networkModels';
-import { parseBillingThroughputResponse } from '@/api/billingThroughput';
-import { agentsBuiltOnModel } from '@/api/hostedAgents';
+import { useAgentsByModelQuery, useModelDetailQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery } from '@/api/api';
+import { networkModelCatalogue, networkModelHref, networkProviderLabel, readNetworkModelsResponse, selectNetworkModel } from '@/api/networkModels';
+import { billingView } from '@/lib/billingView';
+import { confirmModelTarget } from '@/api/modelTarget';
+import { agentsBuiltOnModel, readModelAgentList } from '@/api/hostedAgents';
+import { agentListKey } from '@/api/sharedAgents';
 import { harnessForModel } from '@/api/modelHarness';
-import { modelDetailViewState, parseModelsResponse } from '@/api/models';
+import { modelDetailViewState, modelsFetchState, readModelsResponse } from '@/api/models';
 import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
 import { Button } from '@/components/ui/Button';
@@ -72,6 +74,7 @@ const ModelDetailProviders = styled.div`
   span { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: ${(p) => p.theme.color.GREY}; margin-right: 4px; }
 `;
 const ModelDetailProvider = styled(Link)<{ $selected: boolean }>`
+  max-width: 100%; overflow-wrap: anywhere;
   font-size: 13px; padding: 4px 12px; border-radius: 999px; text-decoration: none;
   border: 1px solid ${(p) => (p.$selected ? p.theme.color.PRIMARY : '#e2e4ea')};
   background: ${(p) => (p.$selected ? p.theme.color.PALE_GREY : '#fff')};
@@ -88,38 +91,56 @@ export default function ModelDetailPage() {
   const detail = useModelDetailQuery(id, { skip: !id, pollingInterval: 15_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   // Same arguments as the playground's, so the two share one request (and one poll). Busy/idle changes by the
   // second, so it is re-read; 15 s is often enough to see a queue form without polling a page nobody watches.
-  const throughputQuery = useThroughputQuoteQuery({ model: id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN }, { skip: !id, pollingInterval: 15_000 });
+  const throughputQuery = useThroughputQuoteQuery({ model: id, identity: auth.cacheIdentity, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN }, { skip: !id, pollingInterval: 15_000 });
   const list = useModelsQuery(undefined, { pollingInterval: 15_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   const ownView = modelDetailViewState({
     id,
-    detail: detail.data, detailError: detail.error as never, detailLoading: detail.isLoading,
-    list: list.data, listError: list.error as never, listLoading: list.isLoading,
+    detail: detail.currentData, detailError: detail.error as never, detailLoading: detail.isLoading,
+    list: list.currentData, listError: list.error as never, listLoading: list.isLoading,
   });
   // The model as the network has it: which nodes serve this id, and which one this page drives (`?node=`).
   const [params] = useSearchParams();
-  const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000 });
-  const netModel = useMemo(
-    () => networkModelCatalogue(parseModelsResponse(list.data), parseNetworkModelsResponse(network.data)).find((m) => m.id === id) ?? null,
-    [list.data, network.data, id],
-  );
-  const provider = netModel ? pickNetworkModelProvider(netModel, params.get('node')) : null;
+  const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
+  const ownRead = !list.isError ? readModelsResponse(list.currentData) : null;
+  const networkRead = !network.isError ? readNetworkModelsResponse(network.currentData, auth.address) : null;
+  const catalogue = networkModelCatalogue(ownRead?.models ?? (ownView.kind === 'ok' ? [ownView.model] : []), networkRead?.models ?? [], auth.address);
+  const selectedNode = params.get('node'), selectedModality = params.get('modality');
+  const selection = selectNetworkModel(catalogue, id, selectedNode, selectedModality);
+  const netModel = selection.kind === 'ok' ? selection.model : null;
+  const provider = selection.kind === 'ok' ? selection.provider : null;
   const onPeer = !!provider && !provider.local;
-  // Served only by another node: the page still exists, it just describes that node's model.
-  const view = ownView.kind === 'ok' || ownView.kind === 'loading'
-    ? (ownView.kind === 'loading' && netModel ? { kind: 'ok' as const, model: { id, modality: netModel.modality, available: provider?.available ?? true, agents: null } } : ownView)
-    : netModel && provider
-      ? { kind: 'ok' as const, model: { id, modality: netModel.modality, available: provider.available, agents: null } }
-      : network.isLoading ? { kind: 'loading' as const } : ownView;
+  // A pinned provider is never replaced by a local/default provider, including during failed refreshes.
+  const view = selection.kind === 'ambiguous' ? { kind: 'ambiguous' as const }
+    : provider && netModel ? provider.local
+      ? ownView.kind === 'ok' ? ownView.model.modality !== netModel.modality ? { kind: 'ambiguous' as const }
+        : { ...ownView, model: { ...ownView.model, available: ownView.model.available && provider.available,
+          availabilityKnown: ownView.model.availabilityKnown !== false && provider.availabilityKnown !== false } } : ownView
+      : { kind: 'ok' as const, model: { id, modality: netModel.modality, available: provider.available, availabilityKnown: provider.availabilityKnown, agents: null } }
+    : network.isLoading || ownView.kind === 'loading' ? { kind: 'loading' as const }
+    : selectedNode !== null || selectedModality !== null ? { kind: 'provider_missing' as const }
+    : !networkRead && modelsFetchState(network.error as never) !== 'outdated'
+      ? { kind: network.isError ? 'offline' as const : 'invalid' as const } : ownView.kind === 'ok' ? { kind: 'invalid' as const } : ownView;
   const served = view.kind === 'ok';
+  // Direct links without a provider resolve once and become explicit before Run is enabled.
+  const targetResolved = selectedNode !== null && selectedModality !== null;
+  const providerIdentityKnown = !!provider?.node.address && (!provider.local || provider.node.address.toLowerCase() === auth.address?.toLowerCase());
+  const targetReady = targetResolved && providerIdentityKnown;
+  useEffect(() => {
+    if (served && netModel && provider && !targetResolved) navigate(networkModelHref(netModel, provider), { replace: true });
+  }, [served, id, provider?.ref, netModel?.modality, targetResolved, navigate]);
+  const refreshModels = () => { void detail.refetch(); void list.refetch(); void network.refetch(); if (!auth.address) void auth.refresh(); };
   const agentsQuery = useAgentsByModelQuery(id, { skip: !served, pollingInterval: 60_000 });
-  const agents = useMemo(() => agentsBuiltOnModel(agentsQuery.data?.agents, id), [agentsQuery.data, id]);
+  const agentList = useMemo(() => agentsQuery.isError ? null : readModelAgentList(agentsQuery.currentData), [agentsQuery.currentData, agentsQuery.isError]);
+  const agents = useMemo(() => agentsBuiltOnModel(agentList, provider?.ref ?? id, auth.address ?? (provider?.local ? provider.node.address : null)), [agentList, id, provider?.ref, provider?.local, provider?.node.address, auth.address]);
+  const agentsFailed = !agentsQuery.isFetching && agentList === null;
 
   const here = `/models/${encodeURIComponent(id)}`;
-  const createPath = `/agent/new?model=${encodeURIComponent(id)}`;
+  const createPath = `/agent/new?model=${encodeURIComponent(provider?.ref ?? id)}`;
 
-  /** Signed in with a wallet → the form. Otherwise → the wallet sign-in, which returns to the form. */
+  /** Sign-in returns to the form with this exact provider selected. */
   const startCreate = () => {
-    if (auth.subject) navigate(createPath);
+    if (!served || !targetReady || !view.model.available) return;
+    if (auth.isSignedIn) navigate(createPath);
     else navigate(`/signing?next=${encodeURIComponent(createPath)}`);
   };
 
@@ -128,6 +149,9 @@ export default function ModelDetailPage() {
   if (view.kind !== 'ok') {
     const [title, body] = view.kind === 'offline'
       ? ['models.offline.title', 'models.offline.body']
+      : view.kind === 'provider_missing' ? ['modelDetail.provider_missing.title', 'modelDetail.provider_missing.body']
+      : view.kind === 'ambiguous' ? ['modelDetail.ambiguous.title', 'modelDetail.ambiguous.body']
+      : view.kind === 'invalid' ? ['models.list.invalid', 'models.list.incomplete']
       : view.kind === 'outdated'
         ? ['models.outdated.title', 'models.outdated.body']
         : ['modelDetail.not_served.title', 'modelDetail.not_served.body'];
@@ -138,6 +162,8 @@ export default function ModelDetailPage() {
         <Empty data-testid={`model-detail-${view.kind}`}>
           <SubTitle $mt={0}>{t(title)}</SubTitle>
           <Description style={{ margin: '12px auto 0' }}>{t(body, { id })}</Description>
+          {selectedNode !== null && <Mono style={{ overflowWrap: 'anywhere' }}>{selectedNode}</Mono>}
+          <Button type="button" disabled={detail.isFetching || list.isFetching || network.isFetching} onClick={refreshModels}>{t('models.offline.retry')}</Button>
         </Empty>
       </PageWrapper>
     );
@@ -146,24 +172,27 @@ export default function ModelDetailPage() {
   const { model } = view;
   const isChat = model.modality === 'chat';
   const harness = harnessForModel(model.id);
-  const speed = modelSpeedFactOf(parseBillingThroughputResponse(throughputQuery.data));
+  const speed = modelSpeedFactOf(throughputQuery.isError || auth.loading ? null : billingView(throughputQuery.currentData, id, auth.subject));
 
   return (
     <PageWrapper>
       <TitleRow><Title data-testid="model-detail-title">{model.id}</Title></TitleRow>
       <ModelDetailBack to="/models">← {t('modelDetail.back')}</ModelDetailBack>
 
+      {!network.isLoading && !networkRead && modelsFetchState(network.error as never) !== 'outdated' && <Alert role="alert">
+        {t('models.list.incomplete')}{' '}<Button size="small" disabled={network.isFetching} onClick={() => void network.refetch()}>{t('models.offline.retry')}</Button>
+      </Alert>}
       <ModelDetailFacts>
         <div><dt>{t('modelDetail.fact.id')}</dt><dd><Mono>{model.id}</Mono></dd></div>
         <div><dt>{t('modelDetail.fact.modality')}</dt><dd>{t(`models.modality.${model.modality}`)}</dd></div>
         <div>
           <dt>{t('modelDetail.fact.status')}</dt>
-          <dd><ModelDetailDot $up={model.available} />{t(model.available ? 'models.available' : 'models.unavailable')}</dd>
+          <dd><ModelDetailDot $up={model.available} />{t(!model.available ? model.availabilityKnown === false ? 'models.status_unknown' : 'models.unavailable' : onPeer ? 'models.advertised' : 'models.available')}</dd>
         </div>
         <div>
           <dt>{t('modelDetail.fact.agents')}</dt>
-          {/* The node's count when it gave one; an older node did not, and a 0 would read as "nobody built on it". */}
-          <dd>{model.agents !== null ? model.agents : agentsQuery.data ? agents.length : '—'}</dd>
+          {/* Count the list actually shown for this provider, not another provider's or an old public-only total. */}
+          <dd data-testid="model-agent-count">{!onPeer && agentList !== null ? agents.length : '—'}</dd>
         </div>
         {/* Speed is a fact about the model, so it sits with the other facts — and says whether it is busy, which is
             the only time a deposit changes anything. An older node without /api/throughput shows no cell. */}
@@ -192,7 +221,7 @@ export default function ModelDetailPage() {
           {netModel.providers.map((p) => (
             <ModelDetailProvider
               key={p.node.address}
-              to={`/models/${encodeURIComponent(id)}?node=${p.node.address}`}
+              to={networkModelHref(netModel, p)}
               $selected={p === provider}
               title={p.node.address}
               data-testid={`model-provider-${p.node.address}`}
@@ -206,10 +235,10 @@ export default function ModelDetailPage() {
       {/* An agent is built on a model its node runs itself, so only this node's own model offers it. */}
       {isChat && !onPeer && (
         <ModelDetailCreateRow>
-          <Button variant="contained" size="large" data-testid="model-create-agent" onClick={startCreate}>
+          <Button variant="contained" size="large" data-testid="model-create-agent" disabled={!targetReady || !model.available} onClick={startCreate}>
             {t('modelDetail.create')}
           </Button>
-          <ModelDetailSmall>{auth.subject ? t('modelDetail.create_help') : t('modelDetail.create_signin')}</ModelDetailSmall>
+          <ModelDetailSmall>{auth.isSignedIn ? t('modelDetail.create_help') : t('modelDetail.create_signin')}</ModelDetailSmall>
         </ModelDetailCreateRow>
       )}
 
@@ -238,11 +267,17 @@ export default function ModelDetailPage() {
         </ModelDetailHarness>
       )}
 
+      {!providerIdentityKnown && <Alert role="alert">{t('agentCreate.field.model_node_unknown')} <Button size="small" onClick={refreshModels}>{t('models.offline.retry')}</Button></Alert>}
       <ModelPlaygroundPanel
-        key={`${model.id}:${provider?.ref ?? ''}`}
+        key={`${model.id}:${model.modality}:${provider?.local ? 'local' : provider?.ref ?? ''}`}
         model={model}
-        signInNext={onPeer && provider ? `${here}?node=${provider.node.address}` : here}
-        callModel={onPeer && provider ? provider.ref : model.id}
+        signInNext={netModel && provider ? networkModelHref(netModel, provider) : here}
+        targetReady={targetReady}
+        confirmTarget={async (current) => {
+          if (!provider || !netModel || !targetReady) throw new Error('model_unavailable');
+          await confirmModelTarget(model, provider, () => provider.local ? list.refetch().unwrap() : network.refetch().unwrap(), current);
+        }}
+        callModel={provider?.ref}
         peer={onPeer}
       />
 
@@ -251,14 +286,14 @@ export default function ModelDetailPage() {
       <Description>{t('modelDetail.agents.lede')}</Description>
       <ModelDetailAgents data-testid="model-agents">
         {agentsQuery.isLoading && <CenterProgress />}
-        {agentsQuery.error && <Alert $tone="error">{t('modelDetail.agents.failed', { why: errorMessage(agentsQuery.error) })}</Alert>}
-        {!agentsQuery.isLoading && !agentsQuery.error && agents.length === 0 && (
+        {agentsFailed && <Alert role="alert" $tone="error">{t('modelDetail.agents.unreadable')} <Button size="small" onClick={() => void agentsQuery.refetch()}>{t('models.offline.retry')}</Button></Alert>}
+        {!agentsQuery.isFetching && agentList !== null && agents.length === 0 && (
           <Empty data-testid="model-agents-empty">
             {t('modelDetail.agents.empty')}
-            {isChat && <> <Button size="small" variant="text" onClick={startCreate}>{t('modelDetail.agents.empty_cta')}</Button></>}
+            {isChat && <> <Button size="small" variant="text" disabled={!targetReady || !model.available} onClick={startCreate}>{t('modelDetail.agents.empty_cta')}</Button></>}
           </Empty>
         )}
-        {agents.map((a) => <AgentListItem key={a.id} agent={a} />)}
+        {agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}
       </ModelDetailAgents>
       </>}
     </PageWrapper>

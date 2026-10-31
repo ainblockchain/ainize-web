@@ -9,7 +9,7 @@ summary: The reusable request and response shapes of the node HTTP API
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-The 33 named shapes the [HTTP API](./http-api.md) refers to.
+The 36 named shapes the [HTTP API](./http-api.md) refers to.
 
 ## How to read this page
 
@@ -18,6 +18,9 @@ Fields are listed with their full path, so a nested field appears as its own row
 
 | Schema | What it is |
 |---|---|
+| [`HostedAgentDeletionReview`](#hostedagentdeletionreview) | Copy the complete delete_review from an authorized fresh hosted-agent GET. Binds the registration, acting account, node, revision and optional cleanup operation. Contains no private prompt, files or secrets. |
+| [`AgentAliasReview`](#agentaliasreview) |   |
+| [`AgentAliasMutationResult`](#agentaliasmutationresult) |   |
 | [`OwnerRef`](#ownerref) | Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in. |
 | [`AgentRef`](#agentref) | One agent in the cross-product registry shape (ain-integration contract 1.0). Identity is `registryIssuer + agentId`; a change to the definition is a new `releaseId`. |
 | [`AgentListResponse`](#agentlistresponse) |   |
@@ -51,6 +54,46 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`TeachDatasetRow`](#teachdatasetrow) | One SOURCE row, accepted or not. `line` is the 1-based logical row in the uploaded file (a quoted CSV newline is one row, not two); `index` is the position in the dataset, null when the row was not accepted. |
 | [`TeachDatasetRef`](#teachdatasetref) | What a lesson was trained from. A lesson taught before datasets existed renders `{id: null, source: "derived"}` and still publishes and pays out. |
 | [`TeachPolicy`](#teachpolicy) |   |
+
+## `HostedAgentDeletionReview`
+
+Copy the complete delete_review from an authorized fresh hosted-agent GET. Binds the registration, acting account, node, revision and optional cleanup operation. Contains no private prompt, files or secrets.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes |   |
+| `name` | `string` | yes |   |
+| `owner` | `string` | yes |   |
+| `generation` | `string` | yes |   |
+| `version` | `integer` | yes | (at least 1) |
+| `actor` | `string` | yes |   |
+| `registry` | `string` | yes |   |
+| `revision` | `string` | yes |   |
+| `cleanupId` | `string,null` | yes |   |
+
+## `AgentAliasReview`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes |   |
+| `kind` | `"config"` \| `"hosted"` \| `"linked"` | yes |   |
+| `owner` | `string` | yes |   |
+| `actor` | `string` | yes |   |
+| `registry` | `string` | yes |   |
+| `alias` | `string,null` | yes |   |
+| `state` | `"none"` \| `"active"` \| `"unverified"` | yes | unverified is an inactive legacy record, not a working address. An authorized manager can explicitly bind it to the reviewed registration or remove it. Old bound aliases never follow a new registration with the same id. |
+| `revision` | `string` | yes | Opaque revision of the registration/configuration and stored alias; copy the entire review unchanged. |
+
+## `AgentAliasMutationResult`
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | `string` | yes |
+| `alias` | `string,null` | yes |
+| `review` | [`AgentAliasReview`](#agentaliasreview) | yes |
+| `applied` | `object` | yes |
+| `applied.expected` | [`AgentAliasReview`](#agentaliasreview) | yes |
+| `applied.alias` | `string,null` | yes |
 
 ## `OwnerRef`
 
@@ -96,6 +139,8 @@ One agent in the cross-product registry shape (ain-integration contract 1.0). Id
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `total` | `integer` |   | matching authorized agents across all pages (at least 0) |
+| `previousCursor` | `string` \| `null` |   | opaque previous-page cursor; null means the first page (omit cursor) |
 | `contract` | `string` | yes |   |
 | `asOf` | `string (date-time)` | yes | when permissions were evaluated for this page |
 | `nextCursor` | `string` \| `null` | yes |   |

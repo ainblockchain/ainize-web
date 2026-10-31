@@ -7,6 +7,7 @@ import { useLocale, useT } from '@/i18n';
 import { parseOrgList } from '@/api/organizations';
 import { shortAddr } from '@/utils/format';
 import { navigationSection, signInHref } from '@/lib/uiNavigation';
+import { SignOutNotice } from './SignOutNotice';
 import { GlobalSearch } from './GlobalSearch';
 
 /** Ported from ainize-web components/ui/Header.js — white bar, 81px, subtle shadow, purple hover; original Ainize logo. */
@@ -111,7 +112,7 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, isOwner, subject, google, sso, name, address, signOut, cacheIdentity } = useAuth();
+  const { isSignedIn, isOwner, subject, google, sso, name, address, signOut, cacheIdentity, signingOut, signOutFailed } = useAuth();
   // A Google-only or AIN-only session has no address to show, so it shows the account instead.
   const whoFull = subject ? subject : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';
   // An email shows its name part only; the menu under the button repeats the whole address.
@@ -164,7 +165,7 @@ export function Header() {
           {isOwner && <NavItem to="/dashboard">{t('nav.dashboard')}</NavItem>}
           {/* With the page you are on as `next`: without it every sign-in — Google's above all, whose default is "/" —
               ended on the landing page instead of where the person was. */}
-          {!isSignedIn && <NavItem to={location.pathname === '/signing' ? '/signing' : signInHref(location)}>{t('nav.signin')}</NavItem>}
+          {!isSignedIn && !signingOut && <NavItem to={location.pathname === '/signing' ? '/signing' : signInHref(location)}>{t('nav.signin')}</NavItem>}
           {isSignedIn && (
             <div ref={ref} style={{ position: 'relative' }}>
               {/* YOUR address, not the node's. The button said the NODE's name and the row under it showed the
@@ -195,8 +196,8 @@ export function Header() {
                     operator who cannot find the log cannot see that anything is wrong. */}
                 {/* Signed in is enough: a person can own nodes elsewhere and none here, and this is the page
                     that tells them so. Gating it on owning THIS node is what hid it from exactly them. */}
-                {/* …but it asks the node by address, and a Google-only session has none to ask with. */}
-                {subject && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/my-nodes'); }}>{t('op.mynodes.title')}</MenuItem>}
+                {/* Wallet and AIN account sessions can both manage node inventory. */}
+                {(subject || sso) && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/my-nodes'); }}>{t('op.mynodes.title')}</MenuItem>}
                 {isOwner && <MenuItem role="menuitem" onClick={() => { setOpen(false); navigate('/logs'); }}>{t('nav.logs')}</MenuItem>}
                 <MenuItem role="menuitem" onClick={() => {
                   setOpen(false);
@@ -211,6 +212,7 @@ export function Header() {
         </Nav>
         <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
       </Content>
+      <SignOutNotice failed={signOutFailed} pending={signingOut} retry={() => void signOut()} />
     </Wrapper>
   );
 }

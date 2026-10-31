@@ -6,20 +6,28 @@
  * same `data-testid`s — rather than being rewritten beside the list. The rule it was built on still holds: the
  * snippet is built from the state the playground just used, so the code copied is the call made.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useThroughputQuoteQuery } from '@/api/api';
-import { parseBillingThroughputResponse } from '@/api/billingThroughput';
+import { useApiKeyCreation } from '@/hooks/useApiKeyCreation';
+import { KeyCreationNotice } from '@/components/KeyCreationNotice';
+import { errorMessage, useApiKeysQuery, useThroughputQuoteQuery } from '@/api/api';
+import { billingView } from '@/lib/billingView';
 import { useAuth } from '@/auth/AuthContext';
-import type { ModelModality, PublicModelCard } from '@/api/models';
+import type { PublicModelCard } from '@/api/models';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input, Textarea, TextField } from '@/components/ui/Form';
 import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { DECISION_EXAMPLE, MUSIC_TRY, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
+import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
+import { useActiveView } from '@/hooks/useActiveView';
+import { callPlayground, createPlaygroundTask, playgroundJson, playgroundTargetMatches } from './playgroundCall';
+import { decisionInput, playgroundBody, playgroundInitialPrompt, playgroundNeedsKey, PlaygroundInputError } from './modelPlaygroundInput';
 import { readChatStream } from './playgroundStream';
+import { apiKeyContext, apiKeyId, apiKeySnapshot, confirmApiKeyForCall } from '@/api/apiKeyEvidence';
+import { issuedKeyScope, recallIssuedKey } from './issuedKeyMemory';
 import { useIssuedKey } from './useIssuedKey';
-import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
+import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedPriorityOfferOf } from './modelSpeedHints';
 
 const Panel = styled.div`border: 1px solid #e2e4ea; border-radius: 10px; padding: 18px; margin-bottom: 28px;`;
 const Row = styled.div`display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px;`;
@@ -52,7 +60,7 @@ const BarPct = styled.span`text-align: right; color: #6b7280;`;
  */
 
 /** The decision box is JSON the visitor types; a bad body is a message, not a thrown stack. This marks that case. */
-const DECISION_BAD_JSON = 'decision:bad-json';
+
 
 const Tabs = styled.div`display: flex; flex-wrap: wrap; min-width: 0; gap: 6px; margin-bottom: 10px;`;
 const Tab = styled.button<{ $on: boolean }>`
@@ -74,167 +82,185 @@ type RunState =
   | { kind: 'idle' }
   | { kind: 'running' }
   /** `streaming` while the answer is still arriving; `reasoning` is what a thinking model wrote first, if anything. */
-  | { kind: 'text'; text: string; remaining: number | null; reasoning?: string; streaming?: boolean }
+  | { kind: 'text'; text: string; remaining: number | null; reasoning?: string; streaming?: boolean; partial?: boolean }
   | { kind: 'image'; dataUrl: string; remaining: number | null }
   | { kind: 'decision'; answers: Record<string, unknown>; remaining: number | null }
   | { kind: 'audio'; url: string }
-  | { kind: 'failed'; why: string };
+  | { kind: 'failed'; why: string; text?: string; reasoning?: string };
 
 /**
  * `signInNext` is where the sign-in link returns to — the page this panel sits on, so signing in for a key does
  * not drop the reader back on a different model.
  */
 /**
- * `callModel` is what the calls and the snippet name: the bare id for this node's own model, `id@0x<node>` for a
- * peer's (api/networkModels.ts). `peer` turns off what is this node's alone — its speed and its deposits.
+ * `callModel` pins both local and peer models to `id@0x<node>`. Local chat validates the
+ * pin before using the local-only chat route. `peer` turns off this node's speed/deposit hints.
  */
-export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = false }: { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean }) {
-  const { cacheIdentity } = useAuth();
-  return <AccountModelPlayground key={cacheIdentity} model={model} signInNext={signInNext} callModel={callModel} peer={peer} />;
+interface PlaygroundProps { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean; targetReady?: boolean; confirmTarget?: (current: () => boolean) => Promise<void> }
+export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = false, targetReady = false, confirmTarget }: PlaygroundProps) {
+  const { cacheIdentity, address } = useAuth();
+  return <AccountModelPlayground key={JSON.stringify([cacheIdentity, address, model.id, model.modality, peer ? callModel : 'local', peer])} model={model} signInNext={signInNext} callModel={callModel} peer={peer} targetReady={targetReady && playgroundTargetMatches(model.id, callModel ?? '', peer, address)} confirmTarget={confirmTarget} />;
 }
 
-function AccountModelPlayground({ model, signInNext, callModel, peer = false }: { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean }) {
+function AccountModelPlayground({ model, signInNext, callModel, peer = false, targetReady, confirmTarget }: PlaygroundProps) {
   const modelRef = callModel ?? model.id;
   const { t } = useT();
-  // Decision's box holds JSON, not a sentence, so it starts from a worked example rather than empty.
-  const [prompt, setPrompt] = useState(() => (model.modality === 'decision' ? DECISION_EXAMPLE : ''));
+  // Show the same initial sample that the code uses; clearing it is invalid rather than a silent fallback.
+  const [prompt, setPrompt] = useState(() => playgroundInitialPrompt(model.modality));
   const [audio, setAudio] = useState<File | null>(null);
   const [run, setRun] = useState<RunState>({ kind: 'idle' });
   useEffect(() => {
     if (run.kind === 'audio') return () => URL.revokeObjectURL(run.url);
   }, [run]);
   const [language, setLanguage] = useState<SnippetLanguage>('python');
-  const [copied, setCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
 
   // AuthContext includes optimistic sign-out; raw cached /me can still name the old wallet while logout runs.
-  const { google, sso, subject, isSignedIn: canHoldKeys, cacheIdentity } = useAuth();
+  const auth = useAuth(), active = useActiveView();
+  const { google, sso, subject, isSignedIn: canHoldKeys, cacheIdentity } = auth;
+  const [task] = useState(createPlaygroundTask);
+  useEffect(() => () => task.cancel(), [task]);
+  useEffect(() => {
+    if (!model.available || !targetReady) {
+      task.cancel();
+      setRun(previous => previous.kind === 'running' || previous.kind === 'text' && previous.streaming
+        ? { kind: 'failed', why: t('models.try.error.target_changed'), ...(previous.kind === 'text' ? { text: previous.text, reasoning: previous.reasoning } : {}) } : previous);
+    }
+  }, [model.available, targetReady, task, t]);
+  const current = () => active() && !auth.loading && !auth.signingOut && (!canHoldKeys || auth.isCurrentAccount());
   const signedIn = !!subject;
-  const keyQuery = useApiKeysQuery(cacheIdentity, { skip: !canHoldKeys });
-  const keyList = keyQuery.currentData;
-  const [createKey, createState] = useCreateApiKeyMutation();
-  const { key: issuedKey, remember, forget } = useIssuedKey(cacheIdentity);
+  const keyBusy = useRef(false);
+  const keyActor = apiKeyContext(auth.address, auth.principal);
+  const keyContext = issuedKeyScope(cacheIdentity, auth.address);
+  const keyQuery = useApiKeysQuery(keyContext, { skip: !canHoldKeys || !keyContext, refetchOnMountOrArgChange: true, pollingInterval: 60_000 });
+  const keyList = apiKeySnapshot(keyQuery.currentData, keyActor);
+  const invalidKeys = keyQuery.currentData !== undefined && !keyList;
+  const keysReady = !!keyList && !keyQuery.isFetching && !keyQuery.isError && !!keyContext;
+  const { key: issuedKey, usableKey, state: heldState, forget } = useIssuedKey(cacheIdentity, auth.address, keyActor, keysReady ? keyQuery.currentData : undefined, keyQuery.startedTimeStamp);
   const [keyName, setKeyName] = useState('');
   const keyLabel = keyName.trim();
   const duplicateKeyName = !!keyLabel && !!keyList?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === keyLabel.toLocaleLowerCase());
-  const [keyError, setKeyError] = useState<string | null>(null);
+  const creation = useApiKeyCreation({ context: keyActor, scope: keyContext, current, accountCurrent: auth.isCurrentAccount, busy: keyBusy, loadKeys: () => keyQuery.refetch().unwrap() });
+  useEffect(() => {
+    if (creation.operation?.receipt && creation.operation.label === keyLabel) setKeyName('');
+  }, [creation.operation?.receipt, keyLabel]);
+
+  const refreshKeys = async () => { await auth.refresh(); if (current()) await keyQuery.refetch(); };
 
   // The model's speed and whether it is busy — read faster while a request of ours is waiting, since that is when
   // "paid work is ahead of you" is worth saying. Chat only: a deposit buys the language model's queue.
   // A peer's speed and deposits are its own, not this node's: nothing here can quote them.
   const isChat = model.modality === 'chat' && !peer;
   const throughputQuery = useThroughputQuoteQuery(
-    { model: model.id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN },
+    { model: model.id, identity: cacheIdentity, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN },
     { skip: !isChat, pollingInterval: run.kind === 'running' ? 2_000 : 15_000 },
   );
-  const throughput = parseBillingThroughputResponse(throughputQuery.data);
-  const speed = modelSpeedFactOf(throughput);
+  const throughput = throughputQuery.isError || !isChat ? null : billingView(throughputQuery.currentData, model.id, subject);
   const offer = modelSpeedPriorityOfferOf(throughput);
 
-  const snippet = useMemo(() => modelsPageCodeSnippet({
-    language, modality: model.modality, model: modelRef, nodeUrl: nodeUrlFromBrowser(), prompt,
-    apiKey: issuedKey ?? undefined,
-  }), [language, model, prompt, issuedKey]);
-
+  let inputError: string | null = null;
+  try { if (model.modality !== 'transcription') playgroundBody(model.modality, modelRef, prompt); }
+  catch (e) { inputError = t(`models.try.input.${e instanceof PlaygroundInputError ? e.code : 'prompt'}`); }
+  const needsKey = playgroundNeedsKey(model.modality);
+  const fileValid = !!audio && audio.size > 0 && audio.size <= 10 * 1024 * 1024;
+  const snippet = useMemo(() => {
+    if (!targetReady) return '';
+    try { return modelsPageCodeSnippet({ language, modality: model.modality, model: modelRef, nodeUrl: nodeUrlFromBrowser(), prompt,
+      apiKey: usableKey ?? undefined, audioFileName: audio?.name }); }
+    catch { return ''; }
+  }, [language, model.modality, modelRef, prompt, usableKey, audio, targetReady]);
+  const copy = useClipboardCopy(snippet);
   const busy = run.kind === 'running' || (run.kind === 'text' && !!run.streaming);
+  const changePrompt = (value: string) => { if (!task.busy()) { setPrompt(value); setRun({ kind: 'idle' }); } };
 
   async function press() {
+    if (!current() || task.busy() || !targetReady || !confirmTarget || !model.available || inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)) return;
     setRun({ kind: 'running' });
     try {
-      const res = await callFreeTier(model, modelRef, peer, prompt, audio, issuedKey);
-      if (!res.ok) {
-        const body = await res.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
-        setRun({ kind: 'failed', why: body?.error?.code === 'backend_unavailable' ? t('models.try.unavailable') : (body?.error?.message ?? String(res.status)) });
-        return;
-      }
-      // A chat answer comes as it is written; a node that still answers in one piece is read the old way below.
-      if (model.modality === 'chat' && /text\/event-stream/i.test(res.headers.get('content-type') ?? '')) {
-        const done = await readChatStream(res, ({ text, reasoning }) => setRun({ kind: 'text', text, reasoning, remaining: null, streaming: true }));
-        setRun({ kind: 'text', text: done.text, reasoning: done.reasoning, remaining: null });
-        return;
-      }
-      if (model.modality === 'speech' || model.modality === 'music') {
-        setRun({ kind: 'audio', url: URL.createObjectURL(await res.blob()) });
-        return;
-      }
-      const body = await res.json() as Record<string, unknown>;
-      const remaining = typeof body.remaining_free_tries === 'number' ? body.remaining_free_tries : null;
-      if (model.modality === 'image') {
-        const b64 = (body.data as { b64_json?: string }[] | undefined)?.[0]?.b64_json;
-        setRun(b64 ? { kind: 'image', dataUrl: `data:image/png;base64,${b64}`, remaining } : { kind: 'failed', why: 'no image' });
-        return;
-      }
-      if (model.modality === 'decision') {
-        const answers = (body.answers && typeof body.answers === 'object' ? body.answers : {}) as Record<string, unknown>;
-        setRun({ kind: 'decision', answers, remaining });
-        return;
-      }
-      setRun({ kind: 'text', text: answerText(model.modality, body), remaining });
+      await task.run(current, async (signal, live) => {
+        if (needsKey && usableKey) {
+          await confirmApiKeyForCall(usableKey, keyActor, () => keyQuery.refetch().unwrap(), () => live() && recallIssuedKey(keyContext) === usableKey);
+        }
+        await confirmTarget(live);
+        if (!live()) return;
+        const res = await callPlayground({ model, modelRef, peer, localNode: auth.address, prompt, audio, apiKey: usableKey }, signal);
+        if (!live()) { await res.body?.cancel(); return; }
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error?.code === 'backend_unavailable' ? 'model_unavailable' : 'request_failed');
+        }
+        const expectedModel = model.id;
+        if (model.modality === 'chat' && /text\/event-stream/i.test(res.headers.get('content-type') ?? '')) {
+          const done = await readChatStream(res, ({ text, reasoning }) => { if (live()) setRun({ kind: 'text', text, reasoning, remaining: null, streaming: true }); }, expectedModel);
+          if (live()) setRun({ kind: 'text', ...done, remaining: null });
+          return;
+        }
+        if (model.modality === 'speech' || model.modality === 'music') {
+          if (!/^(audio\/|application\/octet-stream)/i.test(res.headers.get('content-type') ?? '')) throw new Error('response');
+          const blob = await res.blob(); if (!live()) return;
+          if (!blob.size) throw new Error('response');
+          setRun({ kind: 'audio', url: URL.createObjectURL(blob) }); return;
+        }
+        const body = await res.json(); if (!live()) return;
+        const result = playgroundJson(model.modality, body, expectedModel, model.modality === 'decision' ? decisionInput(prompt).questions : {});
+        setRun({ ...result, remaining: null });
+      });
     } catch (error) {
-      // A JSON the visitor mistyped is the one error with a plain-language cause worth naming; the rest keep their text.
-      const why = error instanceof Error && error.message === DECISION_BAD_JSON
-        ? t('models.try.decisionInvalid')
-        : (error instanceof Error ? error.message : String(error));
-      setRun({ kind: 'failed', why });
+      if (current()) {
+        const code = error instanceof Error ? error.name === 'AbortError' ? 'cancelled' : error.message : 'response';
+        const known = ['stream_incomplete', 'stream_invalid', 'stream_model', 'request_failed', 'model_unavailable', 'key_unavailable', 'cancelled', 'response'].includes(code) ? code : 'response';
+        setRun(previous => ({ kind: 'failed', why: t(`models.try.error.${known}`), ...(previous.kind === 'text' ? { text: previous.text, reasoning: previous.reasoning } : {}) }));
+      }
     }
   }
 
   return (
     <>
-      {model.available && (
+      {(
         <>
           <SubTitle>{t('models.try.title')}</SubTitle>
           <Panel>
+            {!model.available && <Description role="status">{t(model.availabilityKnown === false ? 'models.status_unknown' : 'models.try.unavailable')}</Description>}
             {model.modality === 'transcription' ? (
-              <input type="file" accept="audio/*" data-testid="models-audio" onChange={(e) => setAudio(e.target.files?.[0] ?? null)} />
+              <input type="file" accept="audio/*" aria-label={t('models.try.audio')} disabled={busy} data-testid="models-audio" onChange={(e) => { setAudio(e.target.files?.[0] ?? null); setRun({ kind: 'idle' }); }} />
             ) : model.modality === 'decision' ? (
               <Textarea
-                value={prompt}
+                value={prompt} disabled={busy}
                 data-testid="models-prompt"
                 rows={14}
                 spellCheck={false}
                 style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13 }}
                 aria-label={t('models.try.decisionPrompt')}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => changePrompt(e.target.value)}
               />
             ) : (
               <Input
-                value={prompt}
+                value={prompt} disabled={busy}
                 data-testid="models-prompt"
-                placeholder={t('models.try.prompt')}
-                onChange={(e) => setPrompt(e.target.value)}
+                aria-label={t('models.try.prompt')} placeholder={t('models.try.prompt')}
+                onChange={(e) => changePrompt(e.target.value)}
               />
             )}
+            {inputError && <Alert role="alert">{inputError}</Alert>}
+            {model.modality === 'transcription' && audio && !fileValid && <Alert role="alert">{t('models.try.input.file')}</Alert>}
+            {needsKey && !usableKey && <Description data-testid="models-key-required">{t('models.try.input.key')}</Description>}
             <Row>
               <Button
                 type="button"
                 data-testid="models-run"
-                disabled={busy || (model.modality === 'transcription' ? !audio : !prompt.trim())}
+                disabled={auth.loading || !model.available || !targetReady || !confirmTarget || busy || !!inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)}
                 onClick={() => { void press(); }}
               >
                 {busy ? t('models.try.running') : t('models.try.run')}
               </Button>
+              {busy && <Button type="button" onClick={() => { task.cancel(); setRun(previous => ({ kind: 'failed', why: t('models.try.error.cancelled'), ...(previous.kind === 'text' ? { text: previous.text, reasoning: previous.reasoning } : {}) })); }}>{t('models.try.cancel')}</Button>}
             </Row>
 
-            {/* Waiting behind paid work: the one moment the free tier is slow, and the moment a deposit is felt. */}
-            {isChat && run.kind === 'running' && speed?.busy && (
-              <Alert $tone="info" data-testid="models-waiting">
-                {t('billing.try.waiting')}
-                {offer && (
-                  <> {t('billing.try.offer', { amount: offer.amount, after: offer.afterBusyTokS, now: offer.nowBusyTokS })}{' '}
-                    <StyledLink to={modelSpeedBillingHref(model.id, offer.amount)} data-testid="models-waiting-billing">{t('billing.cta.deposit')}</StyledLink></>
-                )}
-              </Alert>
-            )}
             {run.kind === 'text' && !!run.reasoning && (
               <Reasoning data-testid="models-answer-reasoning" aria-label={t('models.try.reasoning')}>{run.reasoning}</Reasoning>
             )}
             {run.kind === 'text' && (run.text || !run.streaming) && <Answer data-testid="models-answer" aria-busy={!!run.streaming}>{run.text}</Answer>}
-            {/* What the answer ran at, so the reader has a number to compare with when the node is busy. */}
-            {isChat && run.kind === 'text' && !run.streaming && speed && (
-              <Description data-testid="models-answer-speed">{t(speed.busy ? 'billing.try.after_busy' : 'billing.try.after_idle', { tokS: speed.tokS })}</Description>
-            )}
-            {run.kind === 'image' && <AnswerImage data-testid="models-answer-image" src={run.dataUrl} alt={prompt} />}
+            {run.kind === 'text' && !run.streaming && run.partial && <Alert $tone="warning">{t('models.try.partial')}</Alert>}
+            {run.kind === 'image' && <AnswerImage data-testid="models-answer-image" src={run.dataUrl} alt={prompt} onError={() => setRun(current => current.kind === 'image' && current.dataUrl === run.dataUrl ? { kind: 'failed', why: t('models.try.error.response') } : current)} />}
             {run.kind === 'decision' && (
               <Decisions data-testid="models-answer-decision">
                 {Object.entries(run.answers).map(([qid, answer]) => (
@@ -242,11 +268,11 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
                 ))}
               </Decisions>
             )}
-            {run.kind === 'audio' && <audio controls src={run.url} aria-label={model.modality === 'music' ? 'Generated music' : 'Generated speech'} />}
-            {run.kind === 'failed' && <Alert>{t('models.try.failed', { why: run.why })}</Alert>}
-            {(run.kind === 'text' || run.kind === 'image' || run.kind === 'decision') && run.remaining !== null && (
-              <Description>{t('models.try.free', { n: String(run.remaining) })}</Description>
-            )}
+            {run.kind === 'audio' && <audio controls src={run.url} onError={() => setRun(current => current.kind === 'audio' && current.url === run.url ? { kind: 'failed', why: t('models.try.error.response') } : current)} aria-label={model.modality === 'music' ? 'Generated music' : 'Generated speech'} />}
+            {run.kind === 'failed' && <>
+              {(run.text || run.reasoning) && <><Description>{t('models.try.partial')}</Description><Answer>{run.text || run.reasoning}</Answer></>}
+              <Alert role="alert">{t('models.try.failed', { why: run.why })}</Alert>
+            </>}
           </Panel>
         </>
       )}
@@ -269,39 +295,41 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             but the page must not pretend there is nothing: list what exists and point at the account page, and
             make "create" the secondary action ("another"), not a reset to square one. */}
         {canHoldKeys && keyQuery.isLoading && <Description role="status">{t('me.keys.loading')}</Description>}
-        {canHoldKeys && keyQuery.error && <Alert role="alert" $tone="error">{t('common.error', { message: errorMessage(keyQuery.error) })} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
+        {canHoldKeys && invalidKeys && <Alert role="alert" $tone="error">{t('me.keys.invalid')} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
+        {canHoldKeys && keyQuery.error && <Alert role="alert" $tone="error">{t('common.error', { message: errorMessage(keyQuery.error) })} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
         {canHoldKeys && !issuedKey && (keyList?.keys.length ?? 0) > 0 && (
           <Description data-testid="models-existing-keys">
             {t('models.key.existing', { n: String(keyList!.keys.filter((k) => !k.disabled).length) })}{' '}
             {keyList!.keys.filter((k) => !k.disabled).slice(0, 3).map((k) => (
-              <Mono key={k.prefix} as="span" style={{ marginRight: 8 }}>{k.prefix}…{k.label ? ` (${k.label})` : ''}</Mono>
+              <Mono key={apiKeyId(k)} as="span" style={{ marginRight: 8 }}>{k.prefix}…{k.label ? ` (${k.label})` : ''}</Mono>
             ))}
             <StyledLink to="/me">{t('models.key.manage')}</StyledLink>
           </Description>
         )}
+        {canHoldKeys && <KeyCreationNotice action={creation} />}
         {canHoldKeys && !issuedKey && (
           <form onSubmit={(event) => {
             event.preventDefault();
-            if (!keyLabel || duplicateKeyName || createState.isLoading) return;
-            setKeyError(null);
-            void createKey({ label: keyLabel }).unwrap()
-              .then((r) => { if (remember(r.api_key)) setKeyName(''); })
-              .catch((e: unknown) => setKeyError(errorMessage(e)));
+            if (!current() || keyBusy.current || !keysReady || !creation.ready || creation.operation || issuedKey || !keyLabel || duplicateKeyName) return;
+            void creation.start(keyLabel, null);
           }}>
             <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
               helper={duplicateKeyName ? t('me.keys.name_duplicate') : t('me.keys.name_hint')} error={duplicateKeyName}
               data-testid="models-key-name" value={keyName} onChange={(event) => setKeyName(event.target.value)}
-              maxLength={60} required disabled={createState.isLoading} />
+              maxLength={60} required disabled={creation.running || !!creation.operation} />
             <Row>
-              <Button type="submit" data-testid="models-create-key" disabled={createState.isLoading || !keyLabel || duplicateKeyName}>
-                {createState.isLoading ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
+              <Button type="submit" data-testid="models-create-key" disabled={!keysReady || !creation.ready || creation.running || !!creation.operation || !keyLabel || duplicateKeyName}>
+                {creation.running ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
               </Button>
+              <StyledLink to="/me">{t('models.key.manage')}</StyledLink>
             </Row>
           </form>
         )}
+        {heldState === 'revoked' && <Description role="status">{t('me.keys.held.revoked')}</Description>}
         {issuedKey && (
           <>
-            <Mono data-testid="models-issued-key">{issuedKey}</Mono>
+            {heldState && heldState !== 'ready' && <Description role="status">{t(`me.keys.held.${heldState}`)} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Description>}
+            <Mono data-testid="models-issued-key" style={{ display: 'block', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{issuedKey}</Mono>
             {/* Said out loud: a secret nobody knows is held is a secret held badly. */}
             <Description>{t('models.key.held')}</Description>
             <Row>
@@ -312,7 +340,6 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             </Row>
           </>
         )}
-        {keyError && <Alert>{t('models.key.failed', { why: keyError })}</Alert>}
         {/* A deposit applies to exactly the calls a key makes, so this is where it is said — with this visitor's
             own busy-time number, not a general "faster". */}
         {isChat && offer && (
@@ -335,21 +362,14 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
           <Button
             type="button"
             data-testid="models-copy"
-            onClick={() => {
-              setCopied(false);
-              setCopyFailed(false);
-              if (!navigator.clipboard) { setCopyFailed(true); return; }
-              void navigator.clipboard.writeText(snippet).then(() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }).catch(() => setCopyFailed(true));
-            }}
+            disabled={copy.disabled || !snippet} aria-busy={copy.phase === 'copying'}
+            onClick={() => void copy.copy()}
           >
-            {t(copied ? 'models.code.copied' : 'models.code.copy')}
+            {t(copy.phase === 'copied' ? 'models.code.copied' : copy.phase === 'copying' ? 'common.copying' : 'models.code.copy')}
           </Button>
         </CodeHead>
-        {copyFailed && <Alert role="alert" $tone="error">{t('models.code.copy_failed')}</Alert>}
-        <CodeBlock data-testid="models-snippet">{snippet}</CodeBlock>
+        {copy.phase === 'failed' && <Alert role="alert" $tone="error">{t('models.code.copy_failed')}</Alert>}
+        <CodeBlock data-testid="models-snippet">{snippet || inputError}</CodeBlock>
         <Description>
           <StyledLink to="/docs/how-to/call-the-model">{t('models.code.docs')}</StyledLink>
         </Description>
@@ -358,58 +378,10 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   );
 }
 
-/** The free-tier route for this modality. Not `/v1`: that needs a key, and this page has no visitor to sign in. */
-function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, prompt: string, audio: File | null, apiKey: string | null): Promise<Response> {
-  if (model.modality === 'embedding' || model.modality === 'speech') {
-    if (!apiKey) throw new Error('Create an API key below to try this model.');
-    const path = model.modality === 'embedding' ? 'embeddings' : 'audio/speech';
-    return fetch(`/v1/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: modelRef, input: prompt, ...(model.modality === 'speech' ? { voice: 'default' } : {}) }) });
-  }
-  if (model.modality === 'music') {
-    // No free tier: like speech, a song is generated with the visitor's own key. 30 s instrumental is the quick try.
-    if (!apiKey) throw new Error('Create an API key below to try this model.');
-    return fetch('/v1/audio/music', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: modelRef, ...MUSIC_TRY, prompt }) });
-  }
-  if (model.modality === 'transcription') {
-    const form = new FormData();
-    form.set('model', modelRef);
-    if (audio) form.set('file', audio);
-    return fetch('/api/transcribe', { method: 'POST', body: form, credentials: 'include' });
-  }
-  if (model.modality === 'image') {
-    return fetch('/api/image', {
-      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: modelRef, prompt, size: '512x512' }),
-    });
-  }
-  // A decision model takes a situation and a set of questions, not a prompt — the box holds the JSON for it, so it
-  // is parsed here and the model id is written in. A mistyped body is surfaced as a failed run, not thrown raw.
-  if (model.modality === 'decision') {
-    let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(prompt) as Record<string, unknown>; }
-    catch { throw new Error(DECISION_BAD_JSON); }
-    return fetch('/api/decide', {
-      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...parsed, model: modelRef }),
-    });
-  }
-  // Another node's chat model has no runtime here — only its completion, through the node's peer door.
-  if (peer) {
-    return fetch('/api/peer-chat', {
-      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: modelRef, messages: [{ role: 'user', content: prompt }], stream: true }),
-    });
-  }
-  return fetch('/api/chat', {
-    method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ patch_ids: [], mode: 'base', messages: [{ role: 'user', content: prompt }], stream: true }),
-  });
-}
-
 type TFn = (key: string, vars?: Record<string, string | number>) => string;
 
-/** A decimal that may be 0–1 or already a percent, shown as a percent either way. */
-const asPercent = (v: number): number => Math.round((v <= 1 ? v * 100 : v));
+/** Validated probabilities use the documented 0–1 scale. */
+const asPercent = (v: number): number => Math.round(v * 100);
 
 /**
  * One question's answer, read defensively — the shapes come off the node and an older or newer backend may send
@@ -421,7 +393,7 @@ function DecisionAnswer({ qid, answer, t }: { qid: string; answer: unknown; t: T
   const type = a.type;
   const probs = (a.probabilities && typeof a.probabilities === 'object' ? a.probabilities : {}) as Record<string, number>;
   const legend = (a.legend && typeof a.legend === 'object' ? a.legend : null) as Record<string, string> | null;
-  const confidence = typeof a.confidence === 'number' ? a.confidence : null;
+  const confidence = typeof a.confidence === 'number' && Number.isFinite(a.confidence) && a.confidence >= 0 && a.confidence <= 1 ? a.confidence : null;
 
   let pick: string;
   if (type === 'choice') {
@@ -437,7 +409,7 @@ function DecisionAnswer({ qid, answer, t }: { qid: string; answer: unknown; t: T
     pick = JSON.stringify(answer);
   }
 
-  const bars = Object.entries(probs);
+  const bars = Object.entries(probs).filter(([, value]) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1);
   return (
     <DecisionCard>
       <DecisionQid>{qid}</DecisionQid>
@@ -456,15 +428,4 @@ function DecisionAnswer({ qid, answer, t }: { qid: string; answer: unknown; t: T
       })}
     </DecisionCard>
   );
-}
-
-/** Each modality buries its answer somewhere different; this is the only place that knows where. */
-function answerText(modality: ModelModality, body: Record<string, unknown>): string {
-  if (modality === 'transcription') return String(body.text ?? '');
-  const base = (body.base ?? null) as { content?: string } | null;
-  if (base?.content) return base.content;
-  const choices = body.choices as { message?: { content?: string } }[] | undefined;
-  // Another node's model arrives raw — Qwen3 leaves blank lines ahead of the answer, which read as a gap.
-  const content = choices?.[0]?.message?.content;
-  return typeof content === 'string' ? content.trim() : JSON.stringify(body, null, 2);
 }

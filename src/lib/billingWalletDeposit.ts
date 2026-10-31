@@ -19,7 +19,7 @@
  */
 import { connect, WalletError, type Eip1193Provider } from './ethWallet';
 import {
-  BILLING_ADDABLE_CHAINS, billingChainIdHex, billingErc20TransferCalldata, billingSameAddress,
+  BILLING_ADDABLE_CHAINS, billingChainIdHex, billingErc20TransferCalldata, billingSameAddress, billingIsHexAddress,
   type BillingDepositChain,
 } from '../api/billingThroughput';
 
@@ -36,14 +36,17 @@ function billingUnknownChainError(e: unknown): boolean {
 }
 function billingRejectedError(e: unknown): boolean {
   const err = e as { code?: number; message?: string } | null;
-  return err?.code === 4001 || /reject|denied|cancel/i.test(err?.message ?? '');
+  return err?.code === 4001;
 }
+const requireCurrent = (current: () => boolean) => { if (!current()) throw new BillingDepositError('departed'); };
+const onChain = (value: unknown, chain: number) => typeof value === 'string' && /^0x[\da-f]+$/i.test(value) && BigInt(value) === BigInt(chain);
 
 /**
  * Put the wallet on `chainId`, adding the chain first when the wallet has never heard of it (Base, on a wallet
  * fresh out of the box). Then read it back: only an `eth_chainId` that says so counts as switched.
  */
-export async function billingSwitchWalletChain(provider: Eip1193Provider, chainId: number): Promise<void> {
+export async function billingSwitchWalletChain(provider: Eip1193Provider, chainId: number, current = () => true): Promise<void> {
+  requireCurrent(current);
   const hex = billingChainIdHex(chainId);
   try {
     await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
@@ -52,13 +55,17 @@ export async function billingSwitchWalletChain(provider: Eip1193Provider, chainI
     const addable = BILLING_ADDABLE_CHAINS[chainId];
     if (!billingUnknownChainError(e) || !addable) throw new BillingDepositError('switch_failed');
     try {
+      requireCurrent(current);
       await provider.request({ method: 'wallet_addEthereumChain', params: [addable] });
     } catch (addError) {
+      if (addError instanceof BillingDepositError) throw addError;
       throw new BillingDepositError(billingRejectedError(addError) ? 'rejected' : 'switch_failed');
     }
   }
+  requireCurrent(current);
   const now = await provider.request({ method: 'eth_chainId' }).catch(() => null);
-  if (typeof now !== 'string' || parseInt(now, 16) !== chainId) throw new BillingDepositError('wrong_chain');
+  requireCurrent(current);
+  if (!onChain(now, chainId)) throw new BillingDepositError('wrong_chain');
 }
 
 export interface BillingSendDepositInput {
@@ -70,6 +77,11 @@ export interface BillingSendDepositInput {
   receivingAddress: string;
   /** amount in the token's smallest unit (`billingAmountToUnits`) */
   units: bigint;
+  current?: () => boolean;
+  /** Fresh server access/configuration check, after wallet connection and before submission. */
+  beforeSend?: () => Promise<void>;
+  /** Persist/claim the exact intent immediately before calling eth_sendTransaction. */
+  onSubmitting?: (nonce: string) => Promise<void>;
 }
 
 /**
@@ -78,8 +90,14 @@ export interface BillingSendDepositInput {
  */
 export async function billingSendDeposit(input: BillingSendDepositInput): Promise<{ txHash: string; from: string }> {
   const { provider, signedInAddress, chain, receivingAddress, units } = input;
+  let walletChanged = false;
+  const current = () => !walletChanged && (input.current?.() ?? true);
+  requireCurrent(current);
   if (units <= 0n) throw new BillingDepositError('bad_amount');
-  if (chain.chainId === null) throw new BillingDepositError('unknown_chain');
+  if (!Number.isSafeInteger(chain.chainId) || chain.chainId! <= 0) throw new BillingDepositError('unknown_chain');
+  if (!billingIsHexAddress(signedInAddress) || !billingIsHexAddress(receivingAddress) || !billingIsHexAddress(chain.token)
+    || /^0x0{40}$/i.test(receivingAddress) || /^0x0{40}$/i.test(chain.token) || chain.decimals !== 18) throw new BillingDepositError('configuration');
+  const data = billingErc20TransferCalldata(receivingAddress, units);
 
   let from: string;
   try {
@@ -87,17 +105,31 @@ export async function billingSendDeposit(input: BillingSendDepositInput): Promis
   } catch (e) {
     throw new BillingDepositError(e instanceof WalletError && e.message === 'rejected' ? 'rejected' : 'connect_failed');
   }
+  requireCurrent(current);
   if (!billingSameAddress(from, signedInAddress)) throw new BillingDepositError('account_mismatch');
 
-  await billingSwitchWalletChain(provider, chain.chainId);
-
-  const data = billingErc20TransferCalldata(receivingAddress, units);
-  let txHash: unknown;
+  await billingSwitchWalletChain(provider, chain.chainId!, current);
+  const changed = () => { walletChanged = true; };
+  const listens = !!provider.on && !!provider.removeListener;
+  if (listens) { provider.on!('accountsChanged', changed); provider.on!('chainChanged', changed); }
   try {
-    txHash = await provider.request({ method: 'eth_sendTransaction', params: [{ from, to: chain.token, data, value: '0x0' }] });
-  } catch (e) {
-    throw new BillingDepositError(billingRejectedError(e) ? 'rejected' : 'send_failed');
+    await input.beforeSend?.(); requireCurrent(current);
+    const accounts = await provider.request({ method: 'eth_accounts' }); requireCurrent(current);
+    if (!Array.isArray(accounts) || !billingSameAddress(accounts[0], signedInAddress)) throw new BillingDepositError('account_mismatch');
+    const activeChain = await provider.request({ method: 'eth_chainId' }); requireCurrent(current);
+    if (!onChain(activeChain, chain.chainId!)) throw new BillingDepositError('wrong_chain');
+    const nonce = await provider.request({ method: 'eth_getTransactionCount', params: [from, 'pending'] }); requireCurrent(current);
+    if (typeof nonce !== 'string' || !/^0x[\da-f]+$/i.test(nonce)) throw new BillingDepositError('configuration');
+    await input.onSubmitting?.(nonce); requireCurrent(current);
+    let txHash: unknown;
+    try {
+      txHash = await provider.request({ method: 'eth_sendTransaction', params: [{ from, to: chain.token, data, value: '0x0', nonce }] });
+    } catch (e) {
+      throw new BillingDepositError(billingRejectedError(e) ? 'rejected' : 'send_unconfirmed');
+    }
+    if (typeof txHash !== 'string' || (!/^0x[0-9a-fA-F]{64}$/.test(txHash) || /^0x0{64}$/i.test(txHash))) throw new BillingDepositError('send_unconfirmed');
+    return { txHash: txHash.toLowerCase(), from };
+  } finally {
+    if (listens) { provider.removeListener!('accountsChanged', changed); provider.removeListener!('chainChanged', changed); }
   }
-  if (typeof txHash !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new BillingDepositError('send_failed');
-  return { txHash: txHash.toLowerCase(), from };
 }

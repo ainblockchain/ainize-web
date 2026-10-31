@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-320 operations on 265 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+349 operations on 288 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -59,7 +59,8 @@ See [Error codes](./errors.md) for the full list.
 |---|---|---|---|
 | `POST` | [`/api/chat/feedback`](#post-apichatfeedback) | none | Mark an answer wrong — with or without sharing the question |
 | `GET` | [`/api/chat/patches`](#get-apichatpatches) | teaching key (optional) | Knowledge that can be live-tested on this node |
-| `POST` | [`/api/chat/patches/{id}/request`](#post-apichatpatchesidrequest) | none | Ask this node’s operator to get a knowledge it does not hold |
+| `GET` | [`/api/chat/patches/{id}/request`](#get-apichatpatchesidrequest) | none | Inspect this requester’s retained demand record and current selected file |
+| `POST` | [`/api/chat/patches/{id}/request`](#post-apichatpatchesidrequest) | none | Record a request for this node’s operator without purchasing or loading knowledge |
 | `GET` | [`/api/chat/status`](#get-apichatstatus) | none | Is my live test still queued behind the shared model? |
 | `POST` | [`/api/chat/cancel`](#post-apichatcancel) | none | Give up waiting for the shared model |
 | `POST` | [`/api/chat`](#post-apichat) | none | Compare answers before vs after the knowledge is loaded |
@@ -68,6 +69,7 @@ See [Error codes](./errors.md) for the full list.
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
+| `GET` | [`/api/throughput/deposits/{txHash}`](#get-apithroughputdepositstxhash) | none | Check the signed-in wallet’s recorded deposit credit |
 | `GET` | [`/api/models`](#get-apimodels) | operator | Configured models and current backend availability |
 | `POST` | [`/api/transcribe`](#post-apitranscribe) | operator | Free transcription trial on a configured audio backend |
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
@@ -131,7 +133,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/patches`](#post-apipatches) | operator | Register knowledge (created as a DRAFT) |
 | `POST` | [`/api/patches/{id}/announce`](#post-apipatchesidannounce) | operator | Announce — record on the ledger and request verification |
 | `POST` | [`/api/patches/{id}/retire`](#post-apipatchesidretire) | operator | Retire — take your own published knowledge off sale for good |
-| `POST` | [`/api/patches/{id}/verify`](#post-apipatchesidverify) | operator | Run verification on this node now (verifier role) |
+| `POST` | [`/api/patches/{id}/verify`](#post-apipatchesidverify) | operator | Run and record verification on this node (verifier role) |
 | `POST` | [`/api/patches/{id}/challenge`](#post-apipatchesidchallenge) | operator | Request re-verification (challenge) |
 
 **Public record** — ledger, provenance graph, network
@@ -218,16 +220,22 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/agent-previews/{preview}`](#get-apiagent-previewspreview) | operator | Read your temporary proposal runtime |
 | `DELETE` | [`/api/agent-previews/{preview}`](#delete-apiagent-previewspreview) | operator | Stop your temporary proposal runtime |
 | `POST` | [`/api/agent-previews/{preview}/rpc`](#post-apiagent-previewspreviewrpc) | operator | Talk to your proposal before merging |
+| `GET` | [`/api/agent-archive-operations`](#get-apiagent-archive-operations) | none | List your retained archive operation receipts |
+| `GET` | [`/api/agent-archive-operations/{requestId}`](#get-apiagent-archive-operationsrequestid) | none | Read an archive request without repeating its mutation |
+| `POST` | [`/api/agent-archive-operations/{requestId}`](#post-apiagent-archive-operationsrequestid) | none | Restore or remove a reviewed archive with durable request identity |
+| `POST` | [`/api/agent-archive-operations/{requestId}/cancel`](#post-apiagent-archive-operationsrequestidcancel) | none | Cancel an archive request only if it has not been admitted |
 | `GET` | [`/api/shared-agents`](#get-apishared-agents) | operator | Agents this node runs or proxies, in the cross-product registry shape (contract 1.0) |
+| `GET` | [`/api/shared-agents/{id}/visibility`](#get-apishared-agentsidvisibility) | none | Review current sharing and authority for an exact agent |
 | `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
 | `GET` | [`/api/agent-aliases/{name}`](#get-apiagent-aliasesname) | none | Resolve an agent alias (or id) to the agent's canonical id |
+| `GET` | [`/api/agents/{id}/alias`](#get-apiagentsidalias) | none | Review current agent address settings before editing |
 | `PUT` | [`/api/agents/{id}/alias`](#put-apiagentsidalias) | none | Give an agent a readable alias (replaces its current one) |
 | `DELETE` | [`/api/agents/{id}/alias`](#delete-apiagentsidalias) | none | Remove an agent's alias |
 | `GET` | [`/api/shared-agents/events`](#get-apishared-agentsevents) | operator | Changes to the shared agent registry since a cursor (contract 1.0) |
 | `GET` | [`/api/agents`](#get-apiagents) | operator | The agent catalogue |
 | `GET` | [`/api/linked-agents`](#get-apilinked-agents) | operator | Linked agents — external A2A agents people registered by URL |
 | `POST` | [`/api/linked-agents`](#post-apilinked-agents) | none | Register an external A2A agent |
-| `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise |
+| `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees upstream and edit_revision; removal administrators also receive can_unlink and unlink_review; anyone it is visible to sees the listing view; 404 otherwise |
 | `PUT` | [`/api/linked-agents/{id}`](#put-apilinked-agentsid) | none | Change a linked agent — owner only; the id cannot change |
 | `DELETE` | [`/api/linked-agents/{id}`](#delete-apilinked-agentsid) | none | Remove a linked agent — its registrant, or an admin of the organization it is shared with |
 | `GET` | [`/api/agent-archives`](#get-apiagent-archives) | none | List your privately retained deleted agents |
@@ -239,7 +247,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/hosted-agents`](#post-apihosted-agents) | none | Create a hosted agent |
 | `GET` | [`/api/hosted-agents/{id}`](#get-apihosted-agentsid) | none | One hosted agent — its owner and `write` members of the organization it is shared with see the whole spec (prompt, files, secret names); anyone else it is visible to sees the listing view; 404 otherwise |
 | `PUT` | [`/api/hosted-agents/{id}`](#put-apihosted-agentsid) | none | Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change |
-| `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove a hosted agent — its owner, or an `admin` of the organization it is shared with |
+| `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove the reviewed hosted registration — owner or organization admin |
 | `PUT` | [`/api/hosted-agents/{id}/secrets/{name}`](#put-apihosted-agentsidsecretsname) | none | Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only |
 | `GET` | [`/agents/{id}/.well-known/agent-card.json`](#get-agentsidwell-knownagent-cardjson) | operator | Read the A2A card; bound AINFT agents advertise current-holder authentication |
 | `POST` | [`/agents/{id}`](#post-agentsid) | none | Call an A2A agent; a bound AINFT executes in the current holder’s private workspace |
@@ -352,16 +360,24 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/me/teach/bans`](#get-apimeteachbans) | operator | Blocked keys / IPs |
 | `POST` | [`/api/me/teach/bans`](#post-apimeteachbans) | operator | Block a key or IP |
 | `DELETE` | [`/api/me/teach/bans/{id}`](#delete-apimeteachbansid) | operator | Unblock |
+| `POST` | [`/api/patches/{id}/buy-review`](#post-apipatchesidbuy-review) | operator | Review the exact purchase family and per-currency maximums without purchasing |
+| `POST` | [`/api/patches/{id}/buy-reviewed`](#post-apipatchesidbuy-reviewed) | operator | Execute an exact reviewed purchase with a durable request identifier |
+| `GET` | [`/api/purchases/requests/{id}`](#get-apipurchasesrequestsid) | operator | Read this operator’s saved purchase request without resubmitting |
+| `GET` | [`/api/purchases/requests/{id}/reconciliation`](#get-apipurchasesrequestsidreconciliation) | operator | Inspect request-specific payment evidence and current selected files without resubmitting |
 | `POST` | [`/api/patches/{id}/buy`](#post-apipatchesidbuy) | operator | Buy as this node (x402 handled automatically) |
-| `POST` | [`/api/patches/{id}/collect`](#post-apipatchesidcollect) | operator | Collect a knowledge this node already paid for — no second payment |
-| `GET` | [`/api/me/pending-payments`](#get-apimepending-payments) | operator | Payments that left this node and were never answered with a manifest |
+| `POST` | [`/api/patches/{id}/collect-reviewed`](#post-apipatchesidcollect-reviewed) | operator | Collect the exact selected file without submitting an unresolved payment |
+| `POST` | [`/api/patches/{id}/collect`](#post-apipatchesidcollect) | operator | Recover a purchased file or an unresolved recorded payment |
+| `GET` | [`/api/me/pending-payments`](#get-apimepending-payments) | operator | Unresolved recorded payment requests |
+| `GET` | [`/api/patches/{id}/apply-preview`](#get-apipatchesidapply-preview) | operator | Review the complete model load plan before applying |
 | `POST` | [`/api/patches/{id}/apply`](#post-apipatchesidapply) | operator | Load into the model (with everything it was trained on top of) |
 | `DELETE` | [`/api/patches/{id}/apply`](#delete-apipatchesidapply) | operator | Unload from the model (journal replay) |
 | `POST` | [`/api/patches/{id}/remove`](#post-apipatchesidremove) | operator | Unload from the model (same as DELETE …/apply) |
 | `GET` | [`/api/patches/{id}/check`](#get-apipatchesidcheck) | operator | Are the rows this knowledge was trained on the ones on the table right now? |
 | `POST` | [`/api/patches/{id}/forget`](#post-apipatchesidforget) | operator | Delete this node's copy of the knowledge file. NOT a takedown — the listing stays and the gateway keeps charging; POST /api/patches/{id}/retire is the takedown. 409 with `also_affects` when other items share the same file — repeat with `{"all_sharing": true}` to stop serving all of them |
 | `GET` | [`/api/ledger/inference`](#get-apiledgerinference) | operator | Read native inference batch submissions and local receipts |
-| `POST` | [`/api/branches`](#post-apibranches) | operator | Create a branch |
+| `POST` | [`/api/branches`](#post-apibranches) | operator | Create or replace an owned branch (legacy) |
+| `POST` | [`/api/branches/create`](#post-apibranchescreate) | operator | Create a new track without replacing an existing name |
+| `POST` | [`/api/branches/{name}/review`](#post-apibranchesnamereview) | operator | Review track spending and the model transition without executing it |
 | `POST` | [`/api/branches/{name}/subscribe`](#post-apibranchesnamesubscribe) | operator | Subscribe to a track: buy its current knowledge, load it, and keep it up to date |
 | `POST` | [`/api/branches/{name}/quote`](#post-apibranchesnamequote) | operator | What subscribing to a track would spend, item by item, before anything is spent |
 | `POST` | [`/api/branches/{name}/sync`](#post-apibranchesnamesync) | operator | Bring a subscribed track up to date now |
@@ -369,7 +385,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/me/payouts`](#get-apimepayouts) | operator | Royalty payouts this node owes creators and data providers (AIN ledger) |
 | `POST` | [`/api/me/payouts/{id}/retry`](#post-apimepayoutsidretry) | operator | Retry one failed / pending payout now (also after the 20 automatic attempts) |
 | `GET` | [`/api/me/patches`](#get-apimepatches) | operator | Knowledge I registered |
-| `GET` | [`/api/me/purchases`](#get-apimepurchases) | operator | Knowledge I bought |
+| `GET` | [`/api/me/purchases`](#get-apimepurchases) | operator | Latest stored purchase or download per knowledge item |
 | `GET` | [`/api/me/settings`](#get-apimesettings) | operator | Read settings |
 | `PATCH` | [`/api/me/settings`](#patch-apimesettings) | operator | Change settings |
 | `GET` | [`/api/chain`](#get-apichain) | none | Ledger / chain state and balance |
@@ -387,20 +403,33 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/auth/device/{code}/approve`](#post-apiauthdevicecodeapprove) | none | Approve it: one wallet signature (eip191) over the message the node issued, from the address that is signed in |
 | `POST` | [`/api/auth/device/{code}/claim`](#post-apiauthdevicecodeclaim) | none | The CLI collecting its session — single use, and needs the poll secret it never printed |
 | `POST` | [`/api/my/nodes/heartbeat`](#post-apimynodesheartbeat) | none | Report a linked node online using its dedicated node-link Bearer token |
-| `DELETE` | [`/api/my/nodes/{address}`](#delete-apimynodesaddress) | none | Disconnect one node from the signed-in wallet without stopping its process |
-| `GET` | [`/api/my/nodes`](#get-apimynodes) | none | Nodes linked to the signed-in wallet, including this node when operated by that wallet |
+| `DELETE` | [`/api/my/nodes/{address}`](#delete-apimynodesaddress) | none | Disconnect the reviewed node link from an AIN account or wallet without stopping its process |
+| `GET` | [`/api/my/nodes`](#get-apimynodes) | none | Nodes linked to the signed-in AIN account or wallet, including this node when operated by that account |
 | `GET` | [`/api/auth/bindings`](#get-apiauthbindings) | none | Every key that acts as you, and which one is acting now |
 | `DELETE` | [`/api/auth/bindings/{delegate}`](#delete-apiauthbindingsdelegate) | none | End one, and the sessions it collected |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | none | Log out |
+| `POST` | [`/api/branches/{name}/patches/review`](#post-apibranchesnamepatchesreview) | operator | Review adding knowledge to an owned active track |
 | `POST` | [`/api/branches/{name}/patches`](#post-apibranchesnamepatches) | operator | Add knowledge to a branch (owner only) |
-| `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Unsubscribe from a branch (unload its knowledge) |
+| `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Stop a subscription and clean up its owned model layers |
 | `GET` | [`/api/runtime`](#get-apiruntime) | none | Serving runtime state (model, hook, the ordered stack of loaded knowledge) |
 | `GET` | [`/api/runtime/stack`](#get-apiruntimestack) | none | The ordered stack loaded in the serving model |
+| `GET` | [`/api/runtime/jobs`](#get-apiruntimejobs) | operator | Recent runtime jobs |
+| `GET` | [`/api/runtime/jobs/capabilities`](#get-apiruntimejobscapabilities) | operator | Runtime job recovery capabilities |
 | `GET` | [`/api/runtime/jobs/{id}`](#get-apiruntimejobsid) | operator | A queued apply/remove |
 | `POST` | [`/api/runtime/complete`](#post-apiruntimecomplete) | operator | Raw completion on the serving model (try the model) |
 | `POST` | [`/api/peers`](#post-apipeers) | operator | Add a peer |
 | `DELETE` | [`/api/peers`](#delete-apipeers) | operator | Remove a peer |
-| `POST` | [`/api/chain/setup`](#post-apichainsetup) | operator | Create the knowledge app on the AIN chain, set market rules, stake (AIN ledger only) |
+| `GET` | [`/api/chain/setup`](#get-apichainsetup) | operator | Inspect current market rules and the latest durable reviewed setup request without writing to the chain |
+| `POST` | [`/api/chain/setup`](#post-apichainsetup) | operator | Legacy unreviewed setup is disabled |
+| `GET` | [`/api/me/wallet/send-history`](#get-apimewalletsend-history) | operator | List this node’s retained manual transfers, newest first, without broadcasting or chain queries |
+| `GET` | [`/api/me/wallet/send-requests`](#get-apimewalletsend-requests) | operator | Read the latest manual AIN transfer and reconcile only its exact finalized transaction |
+| `POST` | [`/api/me/wallet/send-requests`](#post-apimewalletsend-requests) | operator | Prepare an exact reviewed AIN transfer without broadcasting |
+| `GET` | [`/api/me/wallet/send-requests/{id}`](#get-apimewalletsend-requestsid) | operator | Read a retained manual transfer by request ID |
+| `POST` | [`/api/me/wallet/send-requests/{id}/submit`](#post-apimewalletsend-requestsidsubmit) | operator | Explicitly submit the operator’s saved prepared transfer once |
+| `POST` | [`/api/me/wallet/send-requests/{id}/cancel`](#post-apimewalletsend-requestsidcancel) | operator | Cancel only a prepared manual transfer, atomically against submission |
+| `POST` | [`/api/me/wallet/send`](#post-apimewalletsend) | operator | Deprecated unreviewed send; refuses to broadcast |
+| `GET` | [`/api/chain/setup/requests/{id}`](#get-apichainsetuprequestsid) | operator | Read the exact retained setup request without executing it |
+| `POST` | [`/api/chain/setup/requests`](#post-apichainsetuprequests) | operator | Prepare the reviewed app and rules without automatic staking, retaining the request and outcome |
 | `GET` | [`/api/drive/changes`](#get-apidrivechanges) | none | Change history of a drive file (aindrive Willow store) |
 
 **P2P** — node-to-node protocol
@@ -820,11 +849,11 @@ Knowledge that can be live-tested on this node
 |---|---|---|
 | `200` | list + runtime state + shared-model lock | [`ChatPatches`](./schemas.md#chatpatches) |
 
-### `POST /api/chat/patches/{id}/request`
+### `GET /api/chat/patches/{id}/request`
 
-Ask this node’s operator to get a knowledge it does not hold
+Inspect this requester’s retained demand record and current selected file
 
-Buying is operator-only, so this is a visitor’s first step: it writes one `demand` event with the price and the command that satisfies it, and answers how many different people have asked. Asking twice from the same visitor does not count twice.
+Does not record demand, buy or load knowledge. Returns version:1, node, patch_id, author, patch_sha256, opaque requester, actor (the current principal or null), scope (account/network), requested, available, can_request, requests, count_scope:retained_requests and event_id. Signed-in principals have separate state; anonymous requests share the observed network identity, not a verified person. Counts cover deduplicated retained demand records without the old 500-event cap; log pruning can reduce them. Legacy records without exact seller/file binding remain counted but do not confirm this selected file. Private drafts are not visible. Requester identity is node-specific and does not expose the IP.
 
 **Auth** — none
 
@@ -838,8 +867,39 @@ Buying is operator-only, so this is a visitor’s first step: it writes one `dem
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | {patch_id, requests} | `object` |
-| `409` | this node already holds it |   |
+| `200` | versioned demand status | `object` |
+| `404` | Unknown or private item |   |
+
+### `POST /api/chat/patches/{id}/request`
+
+Record a request for this node’s operator without purchasing or loading knowledge
+
+Current UI callers first read status and send its exact target/requester. A changed item, author, file or requester refuses before logging; an existing matching retained request returns its original record. Already-held licensed knowledge refuses a new request. New records bind requester, seller and selected file. Returns the same versioned status contract as GET; clients must confirm the matching current record, not treat a resolved promise as success. Legacy callers may omit expected; this does not authorize purchasing or loading. Local synchronous deduplication and retained-record counts are not permanent or distributed exactly-once delivery.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `expected` | `object` |   |
+| `expected.patch_id` | `string` | yes |
+| `expected.author` | `string` | yes |
+| `expected.patch_sha256` | `string` | yes |
+| `expected.requester` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | versioned demand status; requested:true identifies a retained log entry, not a purchase | `object` |
+| `409` | knowledge_request_changed or knowledge_request_available |   |
 
 ### `GET /api/chat/status`
 
@@ -911,6 +971,30 @@ Temporarily loads one to three knowledges into the shared serving model (in list
 ## Models
 
 what this node serves over the LLM API, and the free trials of it — the public list, and the transcription and image routes a visitor can press without a key (the chat trial is Live test's)
+
+### `GET /api/throughput/deposits/{txHash}`
+
+Check the signed-in wallet’s recorded deposit credit
+
+Requires the sending wallet session. With chain, returns a version 1 acknowledgement for the exact transaction, sender and watcher name. All matching logs are summed as integer share units (18 decimals). This is node credit evidence, not proof of original ERC-20 calldata. Omitting chain retains the legacy numeric, single-record result.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `txHash` | `path` | `string` | yes |   |
+| `chain` | `query` | `string` |   | Exact watcher name, e.g. base-sain. Requires a 32-byte transaction hash. |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Scoped acknowledgement when chain is supplied; legacy status otherwise | `object` |
+| `400` | Invalid scoped transaction/chain |   |
+| `401` | Sending wallet session required |   |
+| `503` | Credit ledger unavailable; outcome is unknown |   |
 
 ### `GET /api/models`
 
@@ -2147,7 +2231,7 @@ Download the knowledge body (.npz)
 
 What this purchase would cost — the item and the bases it needs
 
-Answers `{price, currency, requires[], missing[], unknown[], total, self_contained, export}`. `requires` is the whole base stack, deepest first, each with its price, seller and gateway; `licensed` says whether this node may already use it (holding the bytes is not a licence — a verifier holds everything it scored). `total` counts only what is still to be bought.
+Answers price, currency, requires[], missing[], unknown[], totals[], optional total, self_contained and export. requires is the full base stack deepest first, with each price, currency, seller and current licence. totals groups exact decimal prices by currency, excluding already licensed/owned bases. A scalar total exists only for zero cost or a single total in the root currency. Unknown bases mean the quote is incomplete; never interpret its known subtotal as the complete cost. This read does not reserve a price.
 
 **Auth** — none
 
@@ -2311,9 +2395,9 @@ Appends an author-signed `retire` record. The anchor stays on the permanent reco
 
 ### `POST /api/patches/{id}/verify`
 
-Run verification on this node now (verifier role)
+Run and record verification on this node (verifier role)
 
-Refused with 409 when this node published the knowledge (a self-attestation never counts) or when it already attested it and no challenge is open (the re-attestation would be discarded).
+Operator-only. Legacy synchronous calls return {attestation}. async:true requires a caller-generated request_id, current instance and expected selected target; HTTP 202 returns a recoverable kind:verify job. Poll /api/runtime/jobs/{id}. The same request and target/options return the original job even after the item disappears; different recheck or expected fields conflict. The target is reread and matched before preparation; private drafts are refused. Self-attestation and existing results follow verifier policy; recheck:true explicitly records a new measurement without challenging the listing. Concurrent identical background/manual attempts share one verification; different artifacts/recheck options are refused while it runs. A running job may be preparing files or waiting for the model queue. Completion means an attestation was recorded, not that its benchmark passed or even ran: inspect passed and verified_on. Runtime fallback may produce hash-only evidence. Check capabilities.verification_jobs before using recovery.
 
 **Auth** — operator
 
@@ -2323,12 +2407,40 @@ Refused with 409 when this node published the knowledge (a self-attestation neve
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, optional
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `async` | `boolean` |   | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` |   | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` |   | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
+| `recheck` | `boolean` |   | Intentionally remeasure an existing result; a new FAIL can withdraw this node’s earlier PASS. |
+| `expected` | `object` |   | Required for async verification. Exact selected fields from the anchor; included in recovery deduplication. |
+| `expected.id` | `string` | yes |   |
+| `expected.name` | `string` | yes |   |
+| `expected.author` | `string` | yes |   |
+| `expected.patch_sha256` | `string` | yes |   |
+| `expected.benchmark_hash` | `string` | yes |   |
+| `expected.created_at` | `integer` | yes | (at least 0) |
+| `expected.model` | `object` | yes |   |
+| `expected.model.id_M` | `string` | yes |   |
+| `expected.base` | `object` |   |   |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | attestation | [`Attestation`](./schemas.md#attestation) |
-| `409` | self-attestation, or a re-attestation that would not be counted |   |
+| `200` | attestation | `object` |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | verification_target_changed, verification_private_draft, verification_in_progress, self-attestation policy, already-attested without recheck or no clean baseline; async execution refusals are retained as failed jobs. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `attestation` | [`Attestation`](./schemas.md#attestation) |
 
 ### `POST /api/patches/{id}/challenge`
 
@@ -3974,6 +4086,256 @@ Owner/source-reader only, ready preview required. A2A JSON-RPC message/send, mes
 | `404` | Unknown or unreadable resource |
 | `409` | Read-only source, conflict or runtime not ready |
 
+### `GET /api/agent-archive-operations`
+
+List your retained archive operation receipts
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed. Returns the complete owner ledger (up to 1000 records); no secret values or repository contents.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `expected_owner` | `query` | `string` | yes |
+| `expected_node` | `query` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {format:1,node,owner,operations} | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operations` | `object`[] |   |   |
+| `operations[].format` | `object` | yes |   |
+| `operations[].id` | `string` | yes |   |
+| `operations[].node` | `string` | yes |   |
+| `operations[].owner` | `string` | yes |   |
+| `operations[].archiveId` | `string` | yes |   |
+| `operations[].agentId` | `string` | yes |   |
+| `operations[].action` | `"restore"` \| `"delete"` | yes |   |
+| `operations[].version` | `integer` | yes | (at least 1) |
+| `operations[].restoredAt` | `number,null` | yes |   |
+| `operations[].state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operations[].createdAt` | `number` | yes |   |
+| `operations[].updatedAt` | `number` | yes |   |
+| `operations[].result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operations[].error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+### `GET /api/agent-archive-operations/{requestId}`
+
+Read an archive request without repeating its mutation
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `requestId` | `path` | `string` | yes |
+| `expected_owner` | `query` | `string` | yes |
+| `expected_node` | `query` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `404` | archive_operation_not_found; inspect or explicitly cancel the unadmitted ID, never infer safe resubmission |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+### `POST /api/agent-archive-operations/{requestId}`
+
+Restore or remove a reviewed archive with durable request identity
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed. Generate 128 random bits once and persist in the client before submission. Under the shared repository queue, the node persists admission before mutation and rechecks archive id, agent id, archived version and restoredAt. Identical repeats return the original operation; parameter changes conflict. Unresolved operations block new mutations of that archive/agent, including legacy archive endpoints. done means the exact result was persisted; refused records a recognized no-effect/rolled-back refusal; unknown requires reconciliation. History is single-writer and capped without eviction.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `requestId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected_owner` | `string` | yes |   |
+| `expected_node` | `string` | yes |   |
+| `archiveId` | `string` | yes |   |
+| `agentId` | `string` | yes |   |
+| `action` | `"restore"` \| `"delete"` | yes |   |
+| `version` | `integer` | yes | (at least 1) |
+| `restoredAt` | `number,null` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `202` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+**`202` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+### `POST /api/agent-archive-operations/{requestId}/cancel`
+
+Cancel an archive request only if it has not been admitted
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed. Saves a durable refused/archive_operation_cancelled tombstone for an absent request ID. A delayed submission then returns that tombstone without execution. An already-admitted ID returns its current state; this does not abort or reverse a restore/delete.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `requestId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected_owner` | `string` | yes |   |
+| `expected_node` | `string` | yes |   |
+| `archiveId` | `string` | yes |   |
+| `agentId` | `string` | yes |   |
+| `action` | `"restore"` \| `"delete"` | yes |   |
+| `version` | `integer` | yes | (at least 1) |
+| `restoredAt` | `number,null` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `202` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+**`202` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
 ### `GET /api/shared-agents`
 
 Agents this node runs or proxies, in the cross-product registry shape (contract 1.0)
@@ -3987,9 +4349,9 @@ The same list every product reads from every origin — hosted agents, linked ag
 | Name | In | Type | Required | Default | Description |
 |---|---|---|---|---|---|
 | `scope` | `query` | `"mine"` \| `"shared_with_me"` \| `"shared_with_org"` \| `"public"` | yes |   |   |
-| `q` | `query` | `string` |   |   | case-insensitive substring over name and description |
+| `q` | `query` | `string` |   |   | case-insensitive terms across agent ID, name, description, registry issuer and skill names/descriptions; applied before pagination |
 | `org` | `query` | `string` |   |   | restrict to this organization; the caller must be a member |
-| `cursor` | `query` | `string` |   |   | the `nextCursor` of the previous page |
+| `cursor` | `query` | `string` |   |   | opaque nextCursor or previousCursor for this caller, scope, query, limit and unchanged ordered list; omit for the first page. A changed list returns 409 cursor_expired; legacy numeric cursors return 400. |
 | `limit` | `query` | `integer` |   | `50` |   |
 
 **Responses**
@@ -4000,14 +4362,39 @@ The same list every product reads from every origin — hosted agents, linked ag
 | `400` | malformed query |   |
 | `401` | auth_required | [`ContractError`](./schemas.md#contracterror) |
 | `403` | forbidden (not a member, or no SSO session for an organization listing) | [`ContractError`](./schemas.md#contracterror) |
+| `409` | cursor_expired: restart from the first page after a list or selection change |   |
 | `429` | rate_limited |   |
 | `503` | temporary_failure |   |
+
+### `GET /api/shared-agents/{id}/visibility`
+
+Review current sharing and authority for an exact agent
+
+Authorized owners, organization admins and operators receive review with id, kind, owner, actor, registry, revision, visibility and orgId. The revision contains no prompt, source code or private upstream. A target in pending hosted deletion refuses. Read is private/no-store and does not modify sharing.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | review | `object` |
+| `401` | auth_required |   |
+| `403` | forbidden |   |
+| `409` | resource_busy |   |
+| `410` | resource_deleted |   |
 
 ### `PUT /api/shared-agents/{id}/visibility`
 
 Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere)
 
-Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without touching what it runs or where it points. The owner may share with an organization they belong to (an AIN SSO session's memberships, or the organization an API key was issued for); the operator may share ANY agent with ANY organization — that is how the agents already on a node become an organization's list. A config agent's sharing lives in config.json (`agents[].visibility`, `agents[].orgId`) and is refused here with that field named. An agent the caller may not see is `resource_deleted` (410), never 403. The change is a new release (`v<n>` / `linked-v<n>`) and appears in the events feed.
+Requires the exact review from GET as expected. Changes to actor, registry, kind, ownership, registration, version or prior sharing refuse before saving. Returns applied (the exact prior review and requested values), review (the new state), and agent (the consistent registry ref). Unknown write failures have retryable=false; they may follow persistence and must not be automatically repeated. Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without touching what it runs or where it points. The owner may share with an organization they belong to (an AIN SSO session's memberships, or the organization an API key was issued for); the operator may share ANY agent with ANY organization — that is how the agents already on a node become an organization's list. A config agent's sharing lives in config.json (`agents[].visibility`, `agents[].orgId`) and is refused here with that field named. An agent the caller may not see is `resource_deleted` (410), never 403. The change is a new release (`v<n>` / `linked-v<n>`) and appears in the events feed.
 
 **Auth** — none
 
@@ -4021,6 +4408,15 @@ Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without to
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `expected` | `object` | yes |   |
+| `expected.id` | `string` | yes |   |
+| `expected.kind` | `"hosted"` \| `"linked"` | yes |   |
+| `expected.owner` | `string` | yes |   |
+| `expected.actor` | `string` | yes |   |
+| `expected.registry` | `string` | yes |   |
+| `expected.revision` | `string` | yes |   |
+| `expected.visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` | yes |   |
+| `expected.orgId` | `string,null` | yes |   |
 | `visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` | yes |   |
 | `orgId` | `string,null` |   | required with `org`; must be absent otherwise |
 
@@ -4029,10 +4425,12 @@ Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without to
 | Code | Description | Body |
 |---|---|---|
 | `200` | the agent as the registry now lists it | `object` |
-| `400` | invalid_request — malformed, or a config agent (edit config.json) |   |
+| `400` | invalid_request or review_required — malformed, unreviewed, or a config agent (edit config.json) |   |
 | `401` | auth_required |   |
 | `403` | forbidden — not the owner or the operator, or not a member of `orgId` |   |
+| `409` | review_changed or resource_busy |   |
 | `410` | resource_deleted — no such agent, or one the caller may not see |   |
+| `503` | temporary_failure with retryable=false; result may be unconfirmed |   |
 
 **`200` response body**
 
@@ -4044,7 +4442,7 @@ Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without to
 
 Resolve an agent alias (or id) to the agent's canonical id
 
-An alias is a readable second address for an agent whose id is not one (`external-e20458854c448acf7809` → `agent-m`). `name` may be an alias or an id; the answer is the canonical `id` and its `alias` (null when it has none). An agent the caller may not see is 404, the same as by id — an alias never confirms an agent its id would not. `/agents/{alias}` (card and JSON-RPC) reaches the same agent; its card `url` stays the canonical id.
+An alias is a readable second address for an agent whose id is not one (`external-e20458854c448acf7809` → `agent-m`). `name` may be an alias or an id; the answer is the canonical `id` and its active `alias` (null when it has none). Aliases bind a specific registration, kind and owner; deleted/recreated/restored agents never inherit old aliases. Unverified legacy aliases do not resolve until an authorized manager explicitly connects them. Config aliases bind the exact operator-reviewed definition and require reassignment when that definition changes. An agent the caller may not see is 404, the same as by id — an alias never confirms an agent its id would not. `/agents/{alias}` (card and JSON-RPC) reaches the same agent; its card `url` stays the canonical id.
 
 **Auth** — none
 
@@ -4068,11 +4466,41 @@ An alias is a readable second address for an agent whose id is not one (`externa
 | `id` | `string` | yes |
 | `alias` | `string,null` | yes |
 
+### `GET /api/agents/{id}/alias`
+
+Review current agent address settings before editing
+
+Authorized managers only; private, no-store. Returns {review} binding canonical id, kind, owner, acting account, registry, current alias, lifecycle state and revision. Unverified legacy names remain reserved while their id exists but are not served. Public name resolution remains GET /api/agent-aliases/{name}.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | current review | `object` |
+| `401` | not_signed_in |   |
+| `403` | not_owner |   |
+| `404` | not_found |   |
+| `409` | resource_busy — removal is pending |   |
+
+**`200` response body**
+
+| Field | Type | Required |
+|---|---|---|
+| `review` | [`AgentAliasReview`](./schemas.md#agentaliasreview) | yes |
+
 ### `PUT /api/agents/{id}/alias`
 
 Give an agent a readable alias (replaces its current one)
 
-The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`).
+The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`). First GET this path, then pass the entire review as expected. Setting an unverified legacy name explicitly binds it to the reviewed registration; normal hosted/linked edits preserve the binding. A successful non-null alias has review.state=active; clearing has review.state=none. The response contains applied.expected, applied.alias and the new review; verify these before claiming success or navigating. A lost response is uncertain: do not automatically retry, and a later matching read is not a historical receipt.
 
 **Auth** — none
 
@@ -4086,31 +4514,26 @@ The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]
 
 | Field | Type | Required |
 |---|---|---|
+| `expected` | [`AgentAliasReview`](./schemas.md#agentaliasreview) | yes |
 | `alias` | `string` | yes |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | the alias now set | `object` |
-| `400` | invalid_request — breaks the id rule, or is the agent's own id |   |
+| `200` | the confirmed alias change | [`AgentAliasMutationResult`](./schemas.md#agentaliasmutationresult) |
+| `400` | invalid_request — invalid alias; review_required — missing expected review |   |
 | `401` | not_signed_in |   |
 | `403` | not_owner |   |
 | `404` | not_found — no such agent, or one the caller may not see |   |
-| `409` | alias_taken — another agent's id or alias |   |
-
-**`200` response body**
-
-| Field | Type |
-|---|---|
-| `id` | `string` |
-| `alias` | `string` |
+| `409` | alias_taken, review_changed or resource_busy — reread and explicitly review before trying again |   |
+| `503` | temporary_failure, retryable:false — outcome unconfirmed |   |
 
 ### `DELETE /api/agents/{id}/alias`
 
 Remove an agent's alias
 
-Same permissions as setting one. The agent keeps its id; `/agents/{alias}` stops reaching it and the name is free again.
+Same permissions and reviewed-write protocol as setting one. Send expected from GET this path. The agent keeps its id; `/agents/{alias}` stops reaching it and the name is free again. Check the exact result; a lost reply is uncertain, not permission to retry.
 
 **Auth** — none
 
@@ -4120,21 +4543,23 @@ Same permissions as setting one. The agent keeps its id; `/agents/{alias}` stops
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected` | [`AgentAliasReview`](./schemas.md#agentaliasreview) | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | the alias removed | `object` |
+| `200` | the confirmed alias removal | [`AgentAliasMutationResult`](./schemas.md#agentaliasmutationresult) |
+| `400` | review_required |   |
 | `401` | not_signed_in |   |
 | `403` | not_owner |   |
 | `404` | not_found |   |
-
-**`200` response body**
-
-| Field | Type |
-|---|---|
-| `id` | `string` |
-| `alias` | `null` |
+| `409` | review_changed or resource_busy |   |
+| `503` | temporary_failure, retryable:false — outcome unconfirmed |   |
 
 ### `GET /api/shared-agents/events`
 
@@ -4251,7 +4676,7 @@ Anyone signed in — a wallet session, an AIN SSO session, or an Ainize API key 
 
 ### `GET /api/linked-agents/{id}`
 
-One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise
+One linked agent — the owner sees upstream and edit_revision; removal administrators also receive can_unlink and unlink_review; anyone it is visible to sees the listing view; 404 otherwise
 
 **Auth** — none
 
@@ -4273,6 +4698,8 @@ One linked agent — the owner sees the upstream too; anyone it is visible to se
 
 Change a linked agent — owner only; the id cannot change
 
+Read the owner detail first and send edit_revision as expected_revision. Missing review is refused. A changed record, account or sharing permission before or during upstream probing is refused without overwriting the current settings. Only the owner receives the updated upstream and edit_revision. This comparison is not an operation receipt; an unavailable response must not be automatically retried.
+
 **Auth** — none
 
 **Parameters**
@@ -4285,6 +4712,7 @@ Change a linked agent — owner only; the id cannot change
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `expected_revision` | `string` | yes | edit_revision from the exact owner detail used to initialize this edit |
 | `id` | `string` | yes | becomes the public address `/agents/{id}`; cannot change |
 | `name` | `string` |   | omitted → the card's name (at most 80 characters) |
 | `description` | `string` |   | (at most 500 characters) |
@@ -4297,14 +4725,15 @@ Change a linked agent — owner only; the id cannot change
 | Code | Description | Body |
 |---|---|---|
 | `200` | agent | `object` |
-| `400` | invalid, or the id differs |   |
-| `403` | `not_owner` |   |
+| `400` | invalid, the id differs, or `review_required` |   |
+| `403` | `not_owner` or `sharing_denied` |   |
+| `409` | `review_changed`; reload and review current settings without automatically resubmitting |   |
 
 ### `DELETE /api/linked-agents/{id}`
 
 Remove a linked agent — its registrant, or an admin of the organization it is shared with
 
-The address stops answering. A workspace that imported it keeps its member row and sees the agent go offline; it is that workspace's to remove.
+Removes this registration, not the external process. First GET the exact detail as the removing account and confirm unlink_review. DELETE requires expected_actor and that exact review as expected; missing review or an intervening change is refused. Successful replies identify the exact removed review and actor with registry=unlinked. A missing row or lost response is not a durable receipt; do not automatically retry. Imported workspace membership is managed separately.
 
 **Auth** — none
 
@@ -4314,12 +4743,25 @@ The address stops answering. A workspace that imported it keeps its member row a
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected_actor` | `string` | yes |
+| `expected` | `object` | yes |
+| `expected.id` | `string` | yes |
+| `expected.name` | `string` | yes |
+| `expected.owner` | `string` | yes |
+| `expected.revision` | `string` | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | deleted | `object` |
+| `200` | exact removed review and actor, registry=unlinked | `object` |
+| `400` | `review_required` |   |
 | `403` | `not_owner` |   |
+| `409` | `review_changed` |   |
 
 ### `GET /api/agent-archives`
 
@@ -4393,7 +4835,7 @@ Owner only. Requires successful complete export first; serialized with export an
 
 Restore your deleted agent at the same address
 
-Owner only. No body overrides. Restores the last successful active version when recorded, preserving newer failed history under an archive branch. Retains review/execution history and original source identity; project source SHAs remain distinct from projection SHAs. Reinstalls Git validation hooks, issues a fresh PoP key and waits for the runtime to be ready. Runtime secret values are not restored; secretsRequired names what the owner must set again. Current model/media/Docker availability and organization contributor permission are revalidated. A collision never overwrites an existing agent. Failed application removes the attempted restored state while retaining the archive for retry.
+Owner only. No body overrides. Restores the last successful active version when recorded, preserving newer failed history under an archive branch. Retains review/execution history and original source identity; project source SHAs remain distinct from projection SHAs. Reinstalls Git validation hooks, issues a fresh PoP key and waits for the runtime to be ready. Hosted-agent secret values are not restored; secretsRequired names what the owner must set again. Project-agent environment snapshots are excluded from archives and removed on agent deletion. A project agent with a snapshot reference requires the matching readable encrypted snapshot and active version before any restore mutation; otherwise 409 project_environment_required directs the owner to recover the snapshot or redeploy from project settings. Current model/media/Docker availability and organization contributor permission are revalidated. A collision never overwrites an existing agent. Failed application removes the attempted restored state while retaining the archive for retry.
 
 **Auth** — none
 
@@ -4407,12 +4849,12 @@ Owner only. No body overrides. Restores the last successful active version when 
 
 | Code | Description |
 |---|---|
-| `201` | agentId, version, commit, sourceCommit, status=ready, secretsRequired |
+| `201` | archiveId (the selected archive), agentId, version, commit, sourceCommit, status=ready, secretsRequired |
 | `400` | invalid_request or model_not_served |
 | `401` | Sign-in required |
 | `403` | Current organization sharing permission required |
 | `404` | Archive not found |
-| `409` | id_taken, state_exists or active_version_missing |
+| `409` | id_taken, state_exists, active_version_missing, project_binding_conflict or project_environment_required |
 | `429` | Hosted agent quota reached |
 | `501` | docker_unavailable |
 | `502` | restore_failed or restore_cleanup_failed |
@@ -4533,7 +4975,9 @@ Change a hosted agent — its owner, or a `write` member of the organization it 
 
 ### `DELETE /api/hosted-agents/{id}`
 
-Remove a hosted agent — its owner, or an `admin` of the organization it is shared with
+Remove the reviewed hosted registration — owner or organization admin
+
+GET the agent, confirm its name/id, then submit its complete delete_review as expected. The review is available only to an authorized administrator. Cleanup archives when configured, removes the runtime, secrets and repository, then removes the registration. Never interpret a generic failure or absence from a list as completion. A bound agent_cleanup_pending response permits a fresh review of the same registration and operation; it is not an automatic retry instruction. Lost responses require reconciliation; there is no durable completed-operation lookup yet.
 
 **Auth** — none
 
@@ -4543,13 +4987,23 @@ Remove a hosted agent — its owner, or an `admin` of the organization it is sha
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected` | [`HostedAgentDeletionReview`](./schemas.md#hostedagentdeletionreview) | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | deleted | `object` |
+| `200` | Verified completion: deleted, cleanup=complete, operationId, removed (exact submitted review), actor, registry, optional archiveId. All identity fields must match the submitted request. | `object` |
+| `400` | `review_required` |   |
+| `401` | `not_signed_in` |   |
 | `403` | `not_owner` |   |
 | `404` | `not_found` |   |
+| `409` | `agent_changed`: review or authority changed before cleanup started; read and confirm again |   |
+| `502` | `agent_cleanup_pending` with pending:{expected,operationId,review} identifies the same incomplete cleanup. `delete_failed` has no resumable proof. Both have retryable:false; never automatically repeat DELETE. |   |
 
 ### `PUT /api/hosted-agents/{id}/secrets/{name}`
 
@@ -5554,7 +6008,7 @@ Remove a project with its deployments, logs and secrets (owner only)
 
 A project's secrets — names and when each was set, never values (owner or org writer)
 
-The owner (of an org-private project, while still a member), or an active member with role `write`/`admin` of the organization that owns the project or that its slug names. A `read`/`contributor` member gets 403 `not_writer`; anyone else 404 `not_found`. `{ secrets: [{ name, updatedAt }], declared, missing }` — `declared` is the newest deployment's ainize.json `secrets` (names), `missing` the declared names with no value. 503 `secrets_off` on a node without the store.
+The owner (of an org-private project, while still a member), or an active member with role `write`/`admin` of the organization that owns the project or that its slug names. A `read`/`contributor` member gets 403 `not_writer`; anyone else 404 `not_found`. `{ secrets: [{ name, updatedAt }], declared, missing, unreadable }` — `declared` is the newest deployment's ainize.json `secrets` (names), `missing` the declared names with no value, and `unreadable` existing names whose ciphertext cannot be opened. Unreadable values remain listed for replacement/removal; container and script execution stops before starting when they cannot be read. 503 `secrets_off` on a node without the store.
 
 **Auth** — operator
 
@@ -5576,23 +6030,26 @@ The owner (of an org-private project, while still a member), or an active member
 
 Set or replace one project secret (owner or org writer)
 
-Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable to the project's container on its next deploy and to its script runs, over ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. No redeploy unless `?redeploy=1`, which queues one of the newest commit. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status } | null }`.
+Sealed at rest (AES-256-GCM, node key) and delivered on the next container or code-agent deployment and to script runs, overriding ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. Optional body `redeploy: { deploymentId, sha }` pins the reviewed source and full commit, validated before the secret write. Legacy `?redeploy=1` without that target is refused. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status, projectId, redeployOf, sha } | null }`. A failure after writing starts returns 500 `secret_mutation_outcome_unknown`; the value or deployment may already have changed. The worker reads current values when preparing execution, not when the write is admitted. Project-agent deployment then seals an immutable revision tied to the agent and project; container restarts reuse that revision. Missing or unreadable revisions refuse execution. App/service/script execution does not yet retain a versioned environment snapshot.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required |
-|---|---|---|---|
-| `id` | `path` | `string` | yes |
-| `name` | `path` | `string` | yes |
-| `redeploy` | `query` | `"1"` \| `"true"` |   |
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes |   |
+| `redeploy` | `query` | `"1"` \| `"true"` |   | Requires the explicit target in the JSON body; cannot select latest. |
 
 **Request body** — `application/json`, required
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `value` | `string` | yes | (at most 32768 characters) |
+| `redeploy` | `object` |   |   |
+| `redeploy.deploymentId` | `string` | yes |   |
+| `redeploy.sha` | `string` | yes |   |
 
 **Responses**
 
@@ -5603,24 +6060,33 @@ Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable 
 | `400` | `invalid_name` · `reserved_name` · `invalid_value` · `invalid_request` |
 | `403` | `not_writer` |
 | `404` | `not_found` |
-| `409` | `too_many_secrets` |
+| `409` | `too_many_secrets` · `project_deleting` · `invalid_redeploy_target` · `redeploy_target_changed` |
 | `413` | `value_too_large` |
+| `500` | `secret_mutation_outcome_unknown` |
 
 ### `DELETE /api/projects/{id}/secrets/{name}`
 
 Remove one project secret (owner or org writer)
 
-Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, redeploy }`; 404 when the secret is not set.
+Takes effect on the next deployment. Optional JSON body `redeploy: { deploymentId, sha }` requests the reviewed commit, validated before removal. Legacy `?redeploy=1` alone is refused. `{ ok, name, redeploy: { deploymentId, status, projectId, redeployOf, sha } | null }`; 404 when unset. A failure after writing starts returns 500 `secret_mutation_outcome_unknown`; inspect environment and history before retrying.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required |
-|---|---|---|---|
-| `id` | `path` | `string` | yes |
-| `name` | `path` | `string` | yes |
-| `redeploy` | `query` | `"1"` \| `"true"` |   |
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes |   |
+| `redeploy` | `query` | `"1"` \| `"true"` |   | Requires the explicit target in the JSON body; cannot select latest. |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `redeploy` | `object` |   |
+| `redeploy.deploymentId` | `string` | yes |
+| `redeploy.sha` | `string` | yes |
 
 **Responses**
 
@@ -5629,6 +6095,8 @@ Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, 
 | `200` | removed | `object` |
 | `403` | `not_writer` |   |
 | `404` | `not_found` |   |
+| `409` | `project_deleting` · `invalid_redeploy_target` · `redeploy_target_changed` |   |
+| `500` | `secret_mutation_outcome_unknown` |   |
 
 ### `PATCH /api/projects/{id}/rotate-secret`
 
@@ -6878,42 +7346,67 @@ Unblock
 |---|---|---|
 | `200` | ok | `object` |
 
-### `POST /api/patches/{id}/buy`
+### `POST /api/patches/{id}/buy-review`
 
-Buy as this node (x402 handled automatically)
+Review the exact purchase family and per-currency maximums without purchasing
 
-The seller is resolved at buy time — the peers this node currently sees first, the `gateway_url` on the anchor last — so a seller that changed its port is still reachable. The payment is written to a `pending_payments` row BEFORE it is presented; if the answer is lost, the next buy (or `POST /collect`) presents the same payment again instead of paying twice. `?bundle=1` (or `bundle`/`with_required` in the body) buys the bases this knowledge needs underneath it FIRST, deepest first, one settlement each, and answers with `purchases[]` and the `total` that actually moved; `max_total` refuses the whole family before any money moves.
+Read-only review: version:1, revision, node, patch_id, again, items[] and maximum[]. Includes full selected anchors and prerequisite order, current rights/file/pending state, and each buy/collect/keep decision. Missing/cyclic/deep prerequisites, unavailable purchases and unresolved prior payments refuse. Owned/purchased/licensed files are distinct from verification-only copies. Again authorizes a new payment only for the root. Prices and states are not reserved; confirmation must send the revision.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required | Description |
-|---|---|---|---|---|
-| `id` | `path` | `string` | yes |   |
-| `bundle` | `query` | `boolean` |   | buy the bases underneath first, one settlement each (design §12.4) |
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
 
 **Request body** — `application/json`, optional
 
 | Field | Type | Description |
 |---|---|---|
-| `apply` | `boolean` | load into the model right after purchase — the whole stack, ancestors first |
-| `bundle` | `boolean` | also buy the bases this knowledge needs underneath it, deepest first |
-| `with_required` | `boolean` | the older name of `bundle`, still accepted |
-| `max_total` | `number` | refuse when the family total is above this |
+| `again` | `boolean` | (default `false`) |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | purchase steps, purchases[], total | `object` |
-| `409` | over max_total { quote } · a base this node has never seen |   |
+| `200` | {review} | `object` |
+| `409` | purchase_review_changed or payment_pending; no purchase is started |   |
 
-### `POST /api/patches/{id}/collect`
+### `POST /api/patches/{id}/buy-reviewed`
 
-Collect a knowledge this node already paid for — no second payment
+Execute an exact reviewed purchase with a durable request identifier
 
-The recovery path for a lost manifest, a forgotten body or a purchase that died after the money moved. Presents the recorded payment again (the seller re-issues the manifest against the settlement it already has), or fetches the body over the signed `/p2p/blob` path a settlement already unlocks. 409 when this node has not paid for it — that is what `POST /buy` is for. CLI: `ainize patch download <id>`.
+Stores intent under the current operator and node before execution. The same request_id and parameters return its stored state, never repeat work; changed parameters conflict. Rechecks the full review while holding a process-local gate for all selected IDs, then checks each item immediately before its turn. Each seller payment must match the reviewed recipient/resource/method/currency and not exceed its price; amounts that cannot round-trip through the payment transport refuse. Acquires prerequisites first without loading a model. Writes partial progress after each completed item. An item failure stops remaining purchases and returns incomplete with completed receipts and confirmed_totals, which exclude unknown spend. Running/interrupted/failed outcomes are not proof of no charge. A refused request is specifically before any execution. There is no automatic resume across a restart; reread the stored request. This is not an atomic bundle, distributed lock or crash-atomic transaction with the remote seller.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `request_id` | `string` | yes | Random 128-bit ID saved by the client before POST. Never replace automatically after a lost response. |
+| `again` | `boolean` | yes |   |
+| `expected_review` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {request}: version, id, node, subject, patch_id, again, revision, state (running/finished/failed/interrupted/refused), created_at, updated_at, result, error. Result identifies complete/incomplete, ordered item outcomes with receipts and confirmed_totals. | `object` |
+| `409` | purchase_request_conflict; the same identifier was already used for another decision |   |
+
+### `GET /api/purchases/requests/{id}`
+
+Read this operator’s saved purchase request without resubmitting
+
+Request IDs are scoped to node and operator. A running row with no active worker in this process is interrupted, never resumed. Durable progress may be incomplete if a process stopped after payment but before recording its result. Missing records do not prove no payment occurred. Reading does not pay, collect, load a model or cancel work.
 
 **Auth** — operator
 
@@ -6927,14 +7420,123 @@ The recovery path for a lost manifest, a forgotten body or a purchase that died 
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | purchase steps (redeemed: true) | `object` |
-| `409` | nothing paid for this knowledge |   |
+| `200` | {request} | `object` |
+| `404` | No request found for the current operator and node |   |
+
+### `GET /api/purchases/requests/{id}/reconciliation`
+
+Inspect request-specific payment evidence and current selected files without resubmitting
+
+Read-only, scoped to the current node/operator/request. New requests persist evidence_version:1, the exact review and attempted item IDs before item work; new pending payment rows carry an opaque request association. Returns reconciliation version:1 with request_id, node, subject, patch_id, revision, evidence_revision, state and ordered items. Item states are complete, paid_missing_file, not_started, unconfirmed or changed. Payment evidence distinguishes a saved request result, an exact linked local purchase, a matching ledger settlement and free access. Older unrelated purchases or a pending status alone cannot complete Buy Again. Conflicting transactions/amounts/units remain unconfirmed. can_collect is true only for a missing file with current settlement/free collection access and non-running work; a local receipt alone does not advertise unsupported collection. Overall running cannot be completed or resumed by reading; legacy requests without item evidence return unavailable. This does not submit a payment, collect a file, load a model, cancel an intent or prove absence of a remote charge. A seller response lost before local purchase persistence may remain unconfirmed; continuation of missing purchases requires a separate explicit review, not a new automatic purchase.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {reconciliation} | `object` |
+| `404` | No request found for the current operator and node; absence is not proof of no payment |   |
+
+### `POST /api/patches/{id}/buy`
+
+Buy as this node (x402 handled automatically)
+
+Resolves the current seller and records payment intent before presenting it. A lost response may recover the same recorded payment instead of starting another payment. Pending local-credit intent is not proof that a debit already happened. A recovered unresolved payment omits receipt_version and totals; inspect its record rather than claiming no charge. bundle/with_required buys missing bases deepest first. Unknown bases refuse before purchase. totals[] keeps exact decimal amounts separate by currency and excludes confirmed redemptions; scalar total is omitted for mixed currencies. max_total checks the current quote in the root currency and refuses mixed-currency bundles; this preflight is not an immutable price review or an atomic bundle transaction. Earlier base purchases may stand if a later step fails. Concurrent purchase/collection for the same item is refused within this process.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `bundle` | `query` | `boolean` |   |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `apply` | `boolean` | Load the whole stack after purchase, ancestors first. |
+| `bundle` | `boolean` | Buy missing bases first. |
+| `with_required` | `boolean` | Older alias for bundle. |
+| `again` | `boolean` | Intentionally make another purchase despite existing purchase access. |
+| `max_total` | `number` | Single-currency quote limit; mixed-currency bundles refuse. (at least 0) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Purchase response: patch_id, manifest, path, amount, currency, scheme, tx_hash, steps, purchases[], totals[]; receipt_version:1 and node for confirmed charge accounting. This is not independent proof of model loading. | `object` |
+| `409` | purchase_action_busy, purchase_plan_incomplete, purchase_budget_currency, purchase_budget_exceeded, purchase_receipt_unconfirmed, pending payment or unavailable item |   |
+
+### `POST /api/patches/{id}/collect-reviewed`
+
+Collect the exact selected file without submitting an unresolved payment
+
+Requires an exact selected artifact snapshot. Checks it before file or payment work. Existing matching bytes return a read-only outcome; otherwise confirmed settlement/free access fetches the matching file. An existing settlement takes priority over unrelated pending payment intent. Unresolved pending payment alone refuses without presenting it to the seller. No fallback to legacy collect. Success identifies receipt_version:1, node, patch_id, matching manifest/path, redeemed:true, totals:[] and total:"0"; amount/currency describe the earlier receipt, not a new charge. Unknown historical currency remains absent. Clients must confirm fresh file presence before showing completion. This endpoint does not load a model.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected` | `object` | yes |   |
+| `expected.id` | `string` | yes | Must equal the path ID. (at least 1 characters) |
+| `expected.author` | `string` | yes | (at least 1 characters) |
+| `expected.patch_sha256` | `string` | yes | (at least 1 characters) |
+| `expected.benchmark_hash` | `string` | yes | (at least 1 characters) |
+| `expected.created_at` | `integer` | yes | (at least 0) |
+| `expected.model` | `object` | yes |   |
+| `expected.model.id_M` | `string` | yes |   |
+| `expected.base` | `object` |   | Exact anchor base, or null/absent when no base is declared. |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Confirmed no-charge collection receipt | `object` |
+| `409` | collection_target_changed, collection_payment_pending, purchase_action_busy, own item or no collection rights |   |
+
+### `POST /api/patches/{id}/collect`
+
+Recover a purchased file or an unresolved recorded payment
+
+Legacy recovery path: uses an existing settlement before any unrelated pending payment. When only recorded payment intent exists, it may present that intent again and complete its first debit. Such recovery omits receipt_version and totals: redeemed alone does not prove no charge occurred during this request. Prefer collect-reviewed for a selected-file/no-additional-charge UI. CLI: ainize patch download \<id>.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Recovery steps and recorded receipt; inspect receipt_version before interpreting charge totals | `object` |
+| `409` | No collection rights or purchase_action_busy |   |
 
 ### `GET /api/me/pending-payments`
 
-Payments that left this node and were never answered with a manifest
+Unresolved recorded payment requests
 
-Money on the chain and no body. Each row carries the gateway, the resource, the amount and the tx hash; `POST /api/patches/{id}/collect` finishes one.
+Rows in paid status without a completed manifest response. This status can mean an on-chain transfer or only signed local-credit intent; it is not universal proof that money left. Each row carries gateway, resource, amount, currency and available transaction hash; payload is withheld. Legacy collect may complete the recorded payment.
 
 **Auth** — operator
 
@@ -6944,11 +7546,33 @@ Money on the chain and no body. Each row carries the gateway, the resource, the 
 |---|---|---|
 | `200` | items | `object` |
 
+### `GET /api/patches/{id}/apply-preview`
+
+Review the complete model load plan before applying
+
+Read-only planner: expands all transitive bases, verifies held files/licences and pinned hashes/order, and preserves current recorded layers. Returns version:1, node, process instance, requested ids, with_base, revision, before/after id+hash records and ordered rows (compact anchor, requested, physical_id, action:load|reuse). Aliases name the physical record instead of pretending another copy will be loaded. No model weights are read or written. A concurrent stack change during the read returns 409; refresh rather than mixing snapshots. Submit revision as expected_preview on apply. The node recomputes and checks it under the actual model lock before writes. Older clients omitting expected_preview retain legacy behavior; UI clients must check capabilities.apply_preview.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `with_base` | `query` | `boolean` |   | `false` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | version, node, instance, requested, with_base, revision, before, after, order | `object` |
+| `409` | Missing prerequisites/files/licences, invalid pinned base order or changed load records; no model write is performed by preview. |   |
+
 ### `POST /api/patches/{id}/apply`
 
 Load into the model (with everything it was trained on top of)
 
-Loads the ordered stack under one runtime lock: the bases first, then this knowledge. An add-on (`base.export: "delta"`) is written only after its `before` is compared to the live rows on EVERY row; a mismatch is 409 `base_mismatch` and nothing is written. Without `with_base` an add-on whose base is not loaded is refused 409 `needs_base`. The answer carries `order` — the chain this knowledge now sits on, ancestors first — and `loaded`, the ids written by this call.
+Loads the ordered stack under one runtime lock: the bases first, then this knowledge. An add-on (`base.export: "delta"`) is written only after its `before` is compared to the live rows on EVERY row; a mismatch is 409 `base_mismatch` and that layer is not written; earlier layers may already have changed (`applied`/`removed` in the refusal). Without `with_base` an add-on whose base is not loaded is refused 409 `needs_base`. The answer carries `order` — the chain this knowledge now sits on, ancestors first — and `loaded`, the ids written by this call. `aliases` maps logical ids to existing physical layers with identical bytes. Planning happens after acquiring the model lock, preserving intervening work. Changed artifacts or missing retained files refuse rather than silently replacing/dropping layers.
 
 **Auth** — operator
 
@@ -6962,14 +7586,21 @@ Loads the ordered stack under one runtime lock: the bases first, then this knowl
 
 | Field | Type | Description |
 |---|---|---|
+| `async` | `boolean` | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
 | `with_base` | `boolean` | also load the knowledges this one was trained on top of |
+| `expected_preview` | `string` | Revision from apply-preview. Checked against the complete resolved anchors, logical/physical order, options, node/process and current id/hash stack under the execution lock. A stale review fails with runtime_plan_changed before model writes. Included in async deduplication. |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | result, order[], loaded[] + the ordered stack | `object` |
-| `409` | needs_base { missing } · base_not_held { missing } · base_mismatch { patch_id, rows_differ } |   |
+| `200` | result, order[], loaded[], aliases + the ordered stack | `object` |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | needs_base { missing } · base_not_held { missing } · base_mismatch { patch_id, rows_differ, applied, removed }; execution guards: runtime_plan_changed, base_artifact_changed, runtime_artifact_changed, runtime_stack_changed, runtime_stack_ambiguous, runtime_base_order. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired before running anything. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
 
 ### `DELETE /api/patches/{id}/apply`
 
@@ -6989,6 +7620,10 @@ Identical to `POST /api/patches/{id}/remove`. Replays the journal written when t
 
 | Field | Type | Description |
 |---|---|---|
+| `async` | `boolean` | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
+| `require_recorded` | `boolean` | Refuse with not_loaded if the id is not recorded at execution; never enter legacy raw restoration. The web uses true. Check capabilities.recorded_remove before relying on this flag. |
 | `cascade` | `boolean` | also unload everything loaded on top of it |
 
 **Responses**
@@ -6996,7 +7631,10 @@ Identical to `POST /api/patches/{id}/remove`. Replays the journal written when t
 | Code | Description | Body |
 |---|---|---|
 | `200` | result + the ordered stack | `object` |
-| `409` | has_dependents { ids } — something is loaded on top of it |   |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | has_dependents { ids }; execution guards: not_loaded (require_recorded), runtime_plan_changed, runtime_artifact_changed, runtime_stack_changed, runtime_unwind_unavailable. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
 
 ### `POST /api/patches/{id}/remove`
 
@@ -7016,15 +7654,21 @@ The same operation as `DELETE /api/patches/{id}/apply`, for clients that cannot 
 
 | Field | Type | Description |
 |---|---|---|
+| `async` | `boolean` | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
+| `require_recorded` | `boolean` | Refuse with not_loaded if the id is not recorded at execution; never enter legacy raw restoration. The web uses true. Check capabilities.recorded_remove before relying on this flag. |
 | `cascade` | `boolean` | also unload everything loaded on top of it |
-| `async` | `boolean` | answer 202 with a job instead of waiting for the model lock |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | result + the ordered stack | `object` |
-| `409` | has_dependents { ids } — something is loaded on top of it |   |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | has_dependents { ids }; execution guards: not_loaded (require_recorded), runtime_plan_changed, runtime_artifact_changed, runtime_stack_changed, runtime_unwind_unavailable. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
 
 ### `GET /api/patches/{id}/check`
 
@@ -7094,7 +7738,7 @@ Read-only operator journal, newest batches first. No submission, retry or flush 
 
 ### `POST /api/branches`
 
-Create a branch
+Create or replace an owned branch (legacy)
 
 **Auth** — operator
 
@@ -7113,11 +7757,34 @@ Create a branch
 |---|---|---|
 | `200` | branch | `object` |
 
-### `POST /api/branches/{name}/subscribe`
+### `POST /api/branches/create`
 
-Subscribe to a track: buy its current knowledge, load it, and keep it up to date
+Create a new track without replacing an existing name
 
-Buys every current item FIRST and appends the public subscription record only when all of them are in hand — a partial acquisition is 409 `subscription_incomplete` with `{acquired, failed[]}` and nothing is broadcast, so this node is never advertised as serving a track it holds a third of. Versions the track has retired (superseded by another member) and bakes that are not VERIFIED are skipped, never bought. Quote it first with POST /api/branches/{name}/quote. Once subscribed, the node buys and loads what the track adds and unloads what it retires (every 20 s, or on demand with POST /api/branches/{name}/sync).
+Rejects every existing name, including own, hidden and archived tracks. Initial knowledge must still be VERIFIED. Same-name creation is serialized with track actions. Legacy POST /api/branches retains its update behavior.
+
+**Auth** — operator
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `name` | `string` | yes |
+| `description` | `string` |   |
+| `context` | `object` |   |
+| `patch_ids` | `string`[] |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | new branch | `object` |
+
+### `POST /api/branches/{name}/review`
+
+Review track spending and the model transition without executing it
+
+Returns a version 1 review with a revision, node, action, quote, exact decimal fee-inclusive maximum total, ordered before/after model records, prerequisite anchors and retained-layer overlaps. A fee read failure or unavailable prerequisite cannot become a free/empty review. Pass the revision as expected_review to subscribe or sync. The server rechecks it before any payment, bounds each actual purchase/curation request, and compares the reviewed model plan under the lock. Price, artifact, terms, account-node, serving-model or load-record changes require a new review. This is not a durable job or a rollback guarantee.
 
 **Auth** — operator
 
@@ -7127,18 +7794,52 @@ Buys every current item FIRST and appends the public subscription record only wh
 |---|---|---|---|
 | `name` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `action` | `"subscribe"` \| `"sync"` | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | what was bought, loaded and skipped | `object` |
-| `409` | subscription_incomplete — nothing was subscribed to; `acquired` was still bought |   |
+| `200` | immutable reviewed spend, targets and model plan | `object` |
+| `409` | Review unavailable or changed; no action was executed |   |
+
+### `POST /api/branches/{name}/subscribe`
+
+Subscribe to a track: buy its current knowledge, load it, and keep it up to date
+
+Buys current items before writing a new subscription record. A partial acquisition is 409 `subscription_incomplete`; its response body includes acquired, failed, spent and the prior subscribed state. Earlier acquisitions and curation fees are not rolled back. Existing subscriptions are not registered twice. A 200 response includes receipt.version=1: subscribed and subscription_changed describe the ledger, while runtime.state (recorded/unavailable/failed), error, pending and records describe model load evidence. ok is false when model changes are incomplete even if the subscription was recorded. These are load records, not a live model-weight probe. Retired and unverified items are skipped. Quote before spending. Active subscriptions continue acquiring future updates until unsubscribed. Concurrent actions for one track return 409 track_action_busy.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `expected_review` | `string` | Revision from the subscribe review; changed decisions refuse before spending |
+| `replace` | `boolean` | Explicitly accept the reviewed retained-layer overlaps |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | acquisitions, spend and separate subscription/model receipt; inspect ok and receipt.runtime.state | `object` |
+| `409` | track_review_changed, subscription_incomplete, overlaps_loaded or track_action_busy; acquisition errors retain actual reported spend and prior subscription state |   |
 
 ### `POST /api/branches/{name}/quote`
 
 What subscribing to a track would spend, item by item, before anything is spent
 
-Every id on the track with what this node would do with it (`buy` / `held` / `own` / `retired` / `blocked` / `wrong_model` / `unknown`), the price, the total per currency and this node’s balance.
+Every id on the track with what this node would do with it (`buy` / `held` / `own` / `retired` / `blocked` / `wrong_model` / `unknown`), its published file hash when known, the price, item total per currency and this node’s balance. Subscription fee terms are separate from item totals. action_receipts:1 advertises separate subscription and model outcome receipts; it does not promise execution at a reviewed price or durable request recovery.
 
 **Auth** — operator
 
@@ -7158,7 +7859,7 @@ Every id on the track with what this node would do with it (`buy` / `held` / `ow
 
 Bring a subscribed track up to date now
 
-Buys and loads what the track has added since, unloads the versions it has retired, in one runtime lock. The 20-second tick does the same thing for every subscribed track.
+Requires an active subscription before purchasing. Buys new items and transitions model layers under one lock. Failed or deferred purchases preserve existing model records. The receipt separates subscription state from model outcome; unavailable models or unresolved loads are not successful completion. Retained manual layers, physical aliases and dependent layers are preserved using lock-time records. The 20-second tick uses the same path. Concurrent same-track actions return 409 track_action_busy.
 
 **Auth** — operator
 
@@ -7167,6 +7868,13 @@ Buys and loads what the track has added since, unloads the versions it has retir
 | Name | In | Type | Required |
 |---|---|---|---|
 | `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `expected_review` | `string` | Revision from the sync review |
+| `replace` | `boolean` | Explicitly allow reviewed overlaps; automatic sync never opts in |
 
 **Responses**
 
@@ -7258,7 +7966,9 @@ Knowledge I registered
 
 ### `GET /api/me/purchases`
 
-Knowledge I bought
+Latest stored purchase or download per knowledge item
+
+Each row includes payment evidence from a matching settlement or a coherent stored receipt; free downloads are explicit. payment=null means the historical amount/currency could not be confirmed and must not be inferred from the current listing. Seller-reported allocations are not proof of downstream transfers. Existing applied is an ID-based compatibility field; compare runtime file hashes for load-record standing.
 
 **Auth** — operator
 
@@ -7506,7 +8216,7 @@ What is being authorised, for the page that shows it — including the exact mes
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | status, delegate, label, message, expires | `object` |
+| `200` | kind, capabilities.reviewed_approval, status, delegate, label, message, expires, expires_at, node, name, owner | `object` |
 | `404` | not a code this node issued |   |
 
 ### `POST /api/auth/device/{code}/approve`
@@ -7580,7 +8290,7 @@ This credential only updates node status. It is not an account session. Fields: 
 
 ### `DELETE /api/my/nodes/{address}`
 
-Disconnect one node from the signed-in wallet without stopping its process
+Disconnect the reviewed node link from an AIN account or wallet without stopping its process
 
 **Auth** — none
 
@@ -7590,17 +8300,27 @@ Disconnect one node from the signed-in wallet without stopping its process
 |---|---|---|---|
 | `address` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected_revision` | `string` | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ok | `object` |
+| `200` | receipt: ok, address, revision | `object` |
+| `400` | missing or malformed reviewed revision |   |
 | `401` | not signed in |   |
-| `404` | not a node linked to this wallet |   |
+| `404` | not a node linked to this account |   |
+| `409` | connection changed; review the current list |   |
 
 ### `GET /api/my/nodes`
 
-Nodes linked to the signed-in wallet, including this node when operated by that wallet
+Nodes linked to the signed-in AIN account or wallet, including this node when operated by that account
+
+Includes owner and hub_address. Linked rows include an opaque revision required for DELETE; intrinsic operator rows have revision:null and cannot be unlinked. Heartbeats report status, not the node agent inventory.
 
 **Auth** — none
 
@@ -7655,9 +8375,37 @@ Log out
 |---|---|---|
 | `200` | ok | `object` |
 
+### `POST /api/branches/{name}/patches/review`
+
+Review adding knowledge to an owned active track
+
+Read-only version 1 review binds node, full track metadata, artifact and status to revision; item identifies the exact file and current price, replaces lists existing superseded items, and already identifies a no-op. No purchase, model load or public write occurs.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `patch_id` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | review | `object` |
+
 ### `POST /api/branches/{name}/patches`
 
 Add knowledge to a branch (owner only)
+
+expected_review binds the current track and artifact to a prior addition review. Changed state refuses before writing. Same-track local actions are gated, and already-present IDs do not append duplicate records. Legacy callers may omit expected_review.
 
 **Auth** — operator
 
@@ -7672,6 +8420,7 @@ Add knowledge to a branch (owner only)
 | Field | Type |
 |---|---|
 | `patch_id` | `string` |
+| `expected_review` | `string` |
 
 **Responses**
 
@@ -7681,7 +8430,9 @@ Add knowledge to a branch (owner only)
 
 ### `POST /api/branches/{name}/unsubscribe`
 
-Unsubscribe from a branch (unload its knowledge)
+Stop a subscription and clean up its owned model layers
+
+Records departure only if currently subscribed, then attempts cleanup under the model lock using current load reasons. Manual pins and other tracks are retained; missing retained files or retained dependents refuse cleanup. An inactive subscription may retry cleanup without appending another departure. receipt.subscribed=false does not mean cleanup succeeded: inspect ok, receipt.runtime.state, error and pending. Concurrent same-track actions return 409 track_action_busy.
 
 **Auth** — operator
 
@@ -7695,7 +8446,7 @@ Unsubscribe from a branch (unload its knowledge)
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ok | `object` |
+| `200` | separate subscription departure and model cleanup receipt | `object` |
 
 ### `GET /api/runtime`
 
@@ -7725,11 +8476,39 @@ Same `stack` as GET /api/runtime, on its own. Bottom first: a knowledge is alway
 |---|---|---|
 | `200` | stack + journal_dir | `object` |
 
+### `GET /api/runtime/jobs`
+
+Recent runtime jobs
+
+The latest 50 queued/running/terminal jobs, plus instance, server_time and request_window_ms. A job absent from this page may still exist; recover by its exact ID.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | jobs[], instance, server_time, request_window_ms | `object` |
+
+### `GET /api/runtime/jobs/capabilities`
+
+Runtime job recovery capabilities
+
+Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. verification_jobs:true advertises recoverable verification and is false when the verifier service is unavailable. verification_restoration:1 advertises exact saved restoration snapshots, retained failure evidence and restoration failure propagation; direct verification clients require both capabilities. This does not claim distributed crash atomicity or whole-model equality. apply_preview:true advertises apply-preview and enforcement of expected_preview at execution. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | instance, server_time, request_window_ms, recorded_remove, apply_preview, verification_jobs, verification_restoration | `object` |
+
 ### `GET /api/runtime/jobs/{id}`
 
 A queued apply/remove
 
-POST /api/patches/{id}/apply|remove with `{"async": true}` answers 202 `{job}` instead of holding the connection open behind the shared model lock; this is where the job’s state (`queued` → `running` → `done`/`failed`), its result and what the model is doing meanwhile are read. Jobs live in memory: a node restart forgets them.
+Read queued/running/done/failed, timestamps, result text, error/status/details and the shared queue. Done jobs also have outcome {result, stack, order?, loaded?, aliases?}; this is an operation receipt, not proof of current model weights. Jobs live in memory and carry a process instance. Pending jobs are never evicted; terminal receipts expire after more than 11 minutes. A missing job or node restart does not prove that the operation did not execute: inspect the current load records, never automatically start a replacement.
 
 **Auth** — operator
 
@@ -7744,6 +8523,7 @@ POST /api/patches/{id}/apply|remove with `{"async": true}` answers 202 `{job}` i
 | Code | Description | Body |
 |---|---|---|
 | `200` | job | `object` |
+| `404` | Unknown, expired or forgotten after restart; execution outcome is unknown. |   |
 
 ### `POST /api/runtime/complete`
 
@@ -7803,9 +8583,9 @@ Remove a peer
 |---|---|---|
 | `200` | ok | `object` |
 
-### `POST /api/chain/setup`
+### `GET /api/chain/setup`
 
-Create the knowledge app on the AIN chain, set market rules, stake (AIN ledger only)
+Inspect current market rules and the latest durable reviewed setup request without writing to the chain
 
 **Auth** — operator
 
@@ -7813,7 +8593,186 @@ Create the knowledge app on the AIN chain, set market rules, stake (AIN ledger o
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | result | `object` |
+| `200` | version, capabilities {exact_request_status:true, reviewed_selection:true}, context {node, provider, chain_id, app}, verification {valid, errors} or null, read_error, operation or null | `object` |
+
+### `POST /api/chain/setup`
+
+Legacy unreviewed setup is disabled
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `409` | Use the reviewed setup requests protocol; no funding or automatic staking. |
+
+### `GET /api/me/wallet/send-history`
+
+List this node’s retained manual transfers, newest first, without broadcasting or chain queries
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Default | Description |
+|---|---|---|---|---|
+| `cursor` | `query` | `string` |   | Opaque next_cursor from the previous page; bound to this node. |
+| `limit` | `query` | `integer` | `20` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | version, context, echoed cursor, public items, next_cursor. Saved states; open an exact request ID to reconcile its chain outcome. | `object` |
+
+### `GET /api/me/wallet/send-requests`
+
+Read the latest manual AIN transfer and reconcile only its exact finalized transaction
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | version, current context, public operation or null, read_error; never returns a signed payload | `object` |
+
+### `POST /api/me/wallet/send-requests`
+
+Prepare an exact reviewed AIN transfer without broadcasting
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `request_id` | `string` | yes |   |
+| `expected` | `object` | yes | Exact node, rpc_url, chain_id and gas_price from GET send-requests |
+| `to` | `string` | yes |   |
+| `amount` | `string` | yes | Positive decimal with up to six fractional places and exact SDK numeric round-trip; no coercion |
+| `memo` | `string` |   | Optional node-record note, included in replay identity; never part of the on-chain transaction (at most 200 characters) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Saved prepared operation, including known tx_hash. Replays are read-only; another unresolved request returns 409. | `object` |
+
+### `GET /api/me/wallet/send-requests/{id}`
+
+Read a retained manual transfer by request ID
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Same versioned public status; no rebroadcast | `object` |
+
+### `POST /api/me/wallet/send-requests/{id}/submit`
+
+Explicitly submit the operator’s saved prepared transfer once
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Saved outcome; submitted is NOT proof of success. Only exact finalized successful execution becomes confirmed. | `object` |
+
+### `POST /api/me/wallet/send-requests/{id}/cancel`
+
+Cancel only a prepared manual transfer, atomically against submission
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Current saved outcome. A submitted transfer cannot be cancelled. | `object` |
+
+### `POST /api/me/wallet/send`
+
+Deprecated unreviewed send; refuses to broadcast
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `409` | Use the reviewed prepare / submit protocol, or the account UI. |
+
+### `GET /api/chain/setup/requests/{id}`
+
+Read the exact retained setup request without executing it
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Versioned setup status with exact operation and current verification. capabilities.exact_request_status is true. | `object` |
+| `404` | Unknown request on this node; never substitutes latest. |   |
+| `409` | Saved request belongs to a different chain configuration. |   |
+
+### `POST /api/chain/setup/requests`
+
+Prepare the reviewed app and rules without automatic staking, retaining the request and outcome
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected_request` | `string,null` | yes | Exact latest reviewed setup request ID, or null when none. Checked atomically before creating a request. |
+| `request_id` | `string` | yes |   |
+| `expected` | `object` | yes |   |
+| `expected.node` | `string` | yes |   |
+| `expected.provider` | `string` | yes |   |
+| `expected.chain_id` | `integer` | yes |   |
+| `expected.app` | `object` | yes |   |
+| `retry_of` | `string` |   | Exact terminal unconfirmed request deliberately being retried |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | same status shape as GET /api/chain/setup; operation state running, verified or unconfirmed. A 200 response alone does not prove completion. | `object` |
+| `400` | invalid reviewed request |   |
+| `409` | context changed, request conflict or unresolved running request |   |
+| `503` | preflight inspection unavailable; request not started |   |
 
 ### `GET /api/drive/changes`
 

@@ -5,6 +5,8 @@
  * nothing claims (`/explore/whatever`, `/docs`'s neighbours) and for the Next routes the SPA never sees — they must
  * answer "not found", not "no such project". One place; `test/reserved-routes.test.ts` checks it against App.tsx.
  */
+import { isKnowledgeAuthor } from './detailRoutes';
+
 export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   // React Router routes (src/App.tsx)
   'explore', 'search', 'apps', 'models', 'billing', 'network', 'agent', 'agents', 'tracks', 'ledger', 'terms', 'signing', 'authorize', 'docs',
@@ -33,9 +35,35 @@ export const looksLikeSlug = (s: string): boolean => SLUG_PATTERN.test(s) && !is
 /**
  * The address of a project — every link to a project goes through here. `/<org>/<repo>` for a repository's own
  * project; a monorepo folder's project (`sourcePath`, a folder with its own ainize.json) is shown on that same page,
- * selected with `?project=<folder>` (src/lib/repoProjects.ts).
+ * selected with `project=<folder>` and its exact `projectId` (src/lib/repoProjects.ts). Names that collide with
+ * application/knowledge routes or cannot safely occupy one path segment use the exact ID route instead.
  */
-export const projectPath = (p: { org: string; repoName: string; id?: string; sourcePath?: string }): string =>
-  `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}${p.sourcePath ? `?project=${encodeURIComponent(p.sourcePath)}` : ''}`;
+export const hasPrettyProjectPath = (p: { org: string; repoName: string }): boolean =>
+  looksLikeSlug(p.org) && !isKnowledgeAuthor(p.org) && SLUG_PATTERN.test(p.repoName);
+
+export const projectPath = (p: { org: string; repoName: string; id: string; sourcePath?: string }): string => {
+  if (!hasPrettyProjectPath(p)) return `/projects/${encodeURIComponent(p.id)}`;
+  const query = new URLSearchParams();
+  if (p.sourcePath) query.set('project', p.sourcePath);
+  query.set('projectId', p.id);
+  return `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}${query.size ? `?${query}` : ''}`;
+};
+
+/** Redirecting an id URL retains record/run context but cannot inherit a conflicting project selection. */
+export function projectRedirectPath(p: Parameters<typeof projectPath>[0], search: string, hash = ''): string {
+  const [path, own = ''] = projectPath(p).split('?');
+  const merged = new URLSearchParams(search);
+  merged.delete('project'); merged.delete('projectId');
+  for (const [k, v] of new URLSearchParams(own)) merged.set(k, v);
+  return `${path}${merged.size ? `?${merged}` : ''}${hash}`;
+}
+
+/** A Drive ID is not an organization slug. A breadcrumb must not open an unrelated application route either. */
+export function projectOrganizationPath(p: { org: string; repo: string }): string | null {
+  if (!looksLikeSlug(p.org) || isKnowledgeAuthor(p.org)) return null;
+  try { if (new URL(p.repo).pathname.startsWith('/api/drives/')) return null; }
+  catch { return null; }
+  return orgPath(p.org);
+}
 /** The organization's page, `/<org>`. */
 export const orgPath = (org: string): string => `/${encodeURIComponent(org)}`;

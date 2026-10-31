@@ -1,11 +1,23 @@
+import { ManagePublication } from '@/components/operator/ManagePublication';
+import { AttestationCount } from '@/components/detail/AttestationCount';
+import { challengeAvailability, requestManagedChallenge, ManageChallengeError, CHALLENGE_REASON_MIN } from '@/lib/manageChallenge';
+import { changeManagedPrice, retireManagedKnowledge, deleteManagedDraft, ManageLifecycleError } from '@/lib/manageLifecycle';
+import type { PatchDetail } from '@/api/types';
+import { ManageDraftConflict } from '@/components/operator/ManageDraftConflict';
+import { manageDraftEditor, receiveManageDraft, draftDirty, draftConflicts, resolveDraftGroup, saveManageDraft, ManageDraftError, type ManageDraftEditor, type ManageDraftValues, type DraftGroup } from '@/lib/manageDraft';
+import { useActiveView } from '@/hooks/useActiveView';
+import { managedKnowledge, managementMatchesAuthor, runManagedAction, ManagementSelectionError } from '@/lib/manageKnowledge';
+import { knowledgePath, knowledgeLookupPath, isKnowledgeAuthor } from '@/lib/detailRoutes';
+import { accountPeers, accountRuntime, createNodeActionTask } from '@/lib/accountNodeActions';
+import { paidSales, dashboardInventory } from '@/lib/dashboardView';
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAnnounceMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, usePatchQuery,
-  useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation, useVerifyMutation,
+  errorMessage, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery, useMeQuery,
+  useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation,
 } from '@/api/api';
-import type { PatchAnchor } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -13,7 +25,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, Select, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
-import { CheckItem, Checklist, DevBox, ExternalAnchor, ExternalRow, ExternalTitle, MonoBox, Muted, Row, SectionBody, SmallSpinner, Stack, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { CheckItem, Checklist, DevBox, ExternalAnchor, ExternalRow, ExternalTitle, MonoBox, Muted, Row, SectionBody, SmallSpinner, Stack, Tip, QueryError, isInFlight, useMoney } from '@/components/operator/common';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { Sheet, SheetFooter } from '@/components/chat/Sheet';
 import { bytes, dateTime, num, scoreText, shortAddr, shortHash } from '@/utils/format';
@@ -29,16 +41,6 @@ const Snippet = styled.textarea`
   width: 100%; min-height: 64px; padding: 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; resize: none; background: #fafafa;
 `;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
-/** Item 150: what publishing retires, as a list — a four-column table put the sales and the status off a phone screen. */
-const RetireList = styled.ul`
-  margin: 0; padding: 0; list-style: none; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
-`;
-const RetireRow = styled.li`
-  display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline;
-  padding: 12px 2px; border-bottom: 1px solid #f4f4f4;
-`;
-const RetireWhat = styled.div`min-width: 0; flex: 1 1 200px; font-size: 14px; display: flex; flex-direction: column; gap: 2px;`;
-const RetireFacts = styled.div`flex: 0 0 auto; text-align: right; font-size: 13px; display: flex; flex-direction: column; gap: 2px; align-items: flex-end;`;
 /** Finding 32: the consequences of a permanent act, in the same shape the subscribe sheet already uses for its own. */
 const Consequences = styled.ul`
   margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.55; color: ${(p) => p.theme.color.BLACK};
@@ -48,33 +50,46 @@ const Consequences = styled.ul`
 interface Holder { address: string; name: string | null; why: 'author' | 'buyer' | 'verifier' | 'mirror'; last_seen: number; self: boolean }
 
 export default function ManagePage() {
+  const auth = useAuth();
+  const { author = '', patchId = '' } = useParams();
+  const { t } = useT();
+  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!auth.isOwner) return <PageWrapper><Description>{t('op.manage.owner_required')} <StyledLink to={knowledgePath(author, patchId)}>{t('op.manage.viewpage')}</StyledLink></Description></PageWrapper>;
+  return <ManageView key={JSON.stringify([auth.cacheIdentity, author, patchId])} />;
+}
+
+function ManageView() {
   const { t, term, help, tech } = useT();
   const money = useMoney();
   const { author = '', patchId = '' } = useParams();
   const navigate = useNavigate();
-  const { roles, address } = useAuth();
+  const auth = useAuth();
+  const meQuery = useMeQuery();
+  const { address, cacheIdentity } = auth;
+  const active = useActiveView();
+  const current = () => active() && auth.isCurrentAccount();
+  const [task] = useState(createNodeActionTask);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => () => task.abandon(), [task]);
   const [poll, setPoll] = useState(false);
-  const patch = usePatchQuery(patchId, { pollingInterval: poll ? 5000 : 0 });
-  const p = patch.data;
+  const patch = useManagedPatchQuery({ id: patchId, identity: cacheIdentity }, { pollingInterval: poll ? 5000 : 0 });
+  const p = !patch.isError ? managedKnowledge(patch.currentData, patchId) : null;
   const inFlight = !!p && isInFlight(p.status);
   useEffect(() => { setPoll(inFlight); }, [inFlight]);
-  const runtime = useRuntimeQuery();
+  const runtime = useRuntimeQuery({ identity: cacheIdentity });
+  const runtimeData = !runtime.isError ? accountRuntime(runtime.currentData) : null;
   // The retired items are knowledge this node already knows: their names, sales and revenue are on the catalogue.
-  const catalog = useCatalogQuery({ limit: 200, include_drafts: true });
+  const catalog = useManagedCatalogQuery({ identity: cacheIdentity });
+  const catalogItems = !catalog.isError ? dashboardInventory(catalog.currentData) : null;
   useTitle(p ? p.anchor.name || p.anchor.id : undefined);
 
   const [update, updateState] = useUpdatePatchMutation();
-  const [announce, announceState] = useAnnounceMutation();
-  const [verify, verifyState] = useVerifyMutation();
   const [challenge, challengeState] = useChallengeMutation();
   /**
    * SC-15 — an add-on is loaded with what it was trained on top of, and unloading something with a knowledge on top
    * of it says which one. The bare apply this page used to send answered `needs_base` with a code and no way out.
    */
-  const chain = useLoadChain((id) => catalog.data?.items.find((e) => e.anchor.id === id)?.anchor.name || id, {
-    onLoaded: () => setNotice(t('op.manage.runtime.loaded_ok')),
-    onUnloaded: () => setNotice(t('op.manage.runtime.unloaded_ok')),
-  });
+  const chain = useLoadChain((id) => catalogItems?.find((e) => e.anchor.id === id)?.anchor.name || id);
   const [del, delState] = useDeletePatchMutation();
   const [retire, retireState] = useRetireMutation();
   /** Item 278: a published price was permanent — the only re-pricing was republishing, which supersedes your own item. */
@@ -82,43 +97,40 @@ export default function ManagePage() {
   const [newPrice, setNewPrice] = useState('');
   const [priceReason, setPriceReason] = useState('');
 
-  // editable fields (drafts only)
-  const [desc, setDesc] = useState('');
-  const [priceV, setPriceV] = useState('');
-  const [branch, setBranch] = useState('');
-  const [license, setLicense] = useState('');
-  const [billing, setBilling] = useState<PatchAnchor['billing']>('per_download');
-  const [benchText, setBenchText] = useState('');
-  const [benchError, setBenchError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<ManageDraftEditor | null>(() => p ? manageDraftEditor(p.anchor) : null);
+  const form = editor ?? (p ? manageDraftEditor(p.anchor) : null);
+  const dirty = !!form && draftDirty(form);
+  const [draftFeedback, setDraftFeedback] = useState<{ group: DraftGroup; message: string; tone: 'success' | 'error' } | null>(null);
+  const edit = (values: Partial<ManageDraftValues>) => {
+    if (!form || task.pending() || !current()) return;
+    setEditor({ ...form, draft: { ...form.draft, ...values } }); setError(null); setNotice(null); setDraftFeedback(null);
+  };
   const [reason, setReason] = useState('');
-  const [confirmMode, setConfirmMode] = useState(false);
+  const [challengeFeedback, setChallengeFeedback] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const [challengeNow, setChallengeNow] = useState(Date.now);
+  useEffect(() => {
+    const id = setInterval(() => setChallengeNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const challengeReady = p ? challengeAvailability(p, address, challengeNow) : { kind: 'read' as const };
+  const [confirmMode, setConfirmMode] = useState<PatchDetail | null>(null);
   /**
    * Item 150 + finding 32: publishing is the permanent, public, paid act, and it used to be one unguarded click
    * whenever it happened to retire nothing. Every publish crosses this sheet now; the typed id below is kept only
    * for the publish that ALSO retires knowledge somebody is buying right now.
    */
-  const [publishOpen, setPublishOpen] = useState(false);
-  const [retireText, setRetireText] = useState('');
-  /** Finding 33: "Verifying…" with no sense of how long it has been holding this node's model. */
-  const [verifyStart, setVerifyStart] = useState<number | null>(null);
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (verifyStart === null) return;
-    const id = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [verifyStart]);
+  const [publishOpen, setPublishOpen] = useState<PatchDetail | null>(null);
   /** Item 148: the author's own takedown of a PUBLISHED knowledge — the exit `patch forget` was mistaken for. */
-  const [downMode, setDownMode] = useState(false);
+  const [downMode, setDownMode] = useState<PatchDetail | null>(null);
   const [downText, setDownText] = useState('');
   const [downReason, setDownReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lifecycleFeedback, setLifecycleFeedback] = useState<{ section: 'price' | 'retire'; message: string; tone: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    if (!p) return;
-    setDesc(p.anchor.description ?? ''); setPriceV(p.anchor.price); setBranch(p.anchor.branch ?? ''); setLicense(p.anchor.license ?? ''); setBilling(p.anchor.billing);
-    setBenchText(JSON.stringify(p.anchor.benchmark, null, 2));
-  }, [p?.anchor.id, p?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (p && !busy && !patch.isFetching) setEditor(previous => receiveManageDraft(previous, p.anchor));
+  }, [p, busy, patch.isFetching]);
 
   /**
    * Item 367 — replication is this product's answer to a seller going offline and its biggest leak at the same
@@ -127,7 +139,8 @@ export default function ManagePage() {
    * so every holder can be named with the reason it has the file. A node holding it for no recorded reason is
    * called what it is — a mirror — rather than being left out.
    */
-  const nodesQ = useNodesQuery(undefined, { pollingInterval: 30_000 });
+  const nodesQ = useNodesQuery({ identity: cacheIdentity }, { pollingInterval: 30_000 });
+  const nodeData = !nodesQ.isError ? accountPeers(nodesQ.currentData) : null;
   const holders = useMemo(() => {
     const sha = p?.anchor.patch_sha256;
     if (!sha) return [] as Holder[];
@@ -140,20 +153,18 @@ export default function ManagePage() {
       const low = address.toLowerCase();
       if (seen.has(low)) return;
       const why: Holder['why'] = low === author ? 'author' : buyers.has(low) ? 'buyer' : verifiers.has(low) ? 'verifier' : 'mirror';
-      seen.set(low, { address, name, why, last_seen, self: !!nodesQ.data && low === nodesQ.data.self.toLowerCase() });
+      seen.set(low, { address, name, why, last_seen, self: !!nodeData && low === nodeData.self.toLowerCase() });
     };
-    for (const n of nodesQ.data?.nodes ?? []) add(n.address, n.name ?? null, n.last_seen, n.blobs ?? []);
-    for (const pr of nodesQ.data?.peers ?? []) add(pr.address ?? '', pr.info?.name ?? null, pr.last_seen, pr.info?.blobs ?? []);
+    for (const n of nodeData?.nodes ?? []) add(n.address, n.name ?? null, n.last_seen, n.blobs ?? []);
+    for (const pr of nodeData?.peers ?? []) add(pr.address ?? '', pr.info?.name ?? null, pr.last_seen, pr.info?.blobs ?? []);
     return [...seen.values()].sort((a, b) => (a.self === b.self ? 0 : a.self ? -1 : 1) || a.why.localeCompare(b.why));
-  }, [p?.anchor.patch_sha256, p?.anchor.author, p?.settlements, p?.attestations, nodesQ.data]);
+  }, [p?.anchor.patch_sha256, p?.anchor.author, p?.settlements, p?.attestations, nodeData]);
 
   const isDraft = p?.status === 'DRAFT';
-  const isVerifier = roles.includes('verifier');
-  const alreadyAttested = !!p && !!address && p.attestations.some((a) => a.verifier === address);
+  const alreadyAttested = !!p && !!address && p.attestations.some((a) => a.verifier.toLowerCase() === address.toLowerCase());
   // Item 146: this is the author's own manage page — a "verify" here would be a self-attestation, which the node
   // now refuses to write and the catalogue never counts. The button is gone and the reason is on the page.
   const isMine = !!p && !!address && p.anchor.author.toLowerCase() === address.toLowerCase();
-  const canVerify = isVerifier && !!p && !isDraft && !alreadyAttested && !isMine && p.status !== 'REJECTED';
   /**
    * Finding 167 — the badge was `ic-certified.svg`, declared 12×12, so a reader saw a tick barely larger than the
    * full stop beside it; and its href was the x402 gateway, which answers a browser with a 402 payment-requirements
@@ -163,79 +174,77 @@ export default function ManagePage() {
   const snippet = useMemo(() => {
     if (!p) return '';
     const alt = t('op.manage.badge.alt', { name: p.anchor.name || p.anchor.id });
-    return `[![${alt}](${window.location.origin}/static/images/badge-knowledge.svg)](${window.location.origin}/${p.anchor.author}/${p.anchor.id})`;
+    return `[![${alt}](${window.location.origin}/static/images/badge-knowledge.svg)](${window.location.origin}/${encodeURIComponent(p.anchor.author)}/${encodeURIComponent(p.anchor.id)})`;
   }, [p, t]);
 
-  const run = async (fn: () => Promise<unknown>, ok?: string) => {
-    setError(null); setNotice(null);
-    try { await fn(); if (ok) setNotice(ok); } catch (err) { setError(errorMessage(err)); }
+  const run = async (fn: (stillCurrent: () => boolean) => Promise<unknown>, ok?: string, onError?: (message: string) => void) => {
+    if (task.pending() || chain.busy || !current()) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const finished = await task.run(current, async stillCurrent => {
+        return runManagedAction(patchId, author, { current: stillCurrent, read: () => patch.refetch().unwrap(), action: fn });
+      });
+      if (finished && current() && ok) setNotice(ok);
+    } catch (err) {
+      if (current()) {
+        const message = err instanceof ManageChallengeError ? t(`op.manage.challenge.error.${err.code}`) : err instanceof ManageLifecycleError ? t(`op.manage.lifecycle.${err.code}`) : err instanceof ManageDraftError ? t(err.code === 'benchmark' ? `op.benchmark.issue.${err.benchmarkIssue}` : `op.manage.draft.error.${err.code}`) : err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err);
+        if (onError) onError(message); else setError(message);
+      }
+    }
+    finally { if (current()) setBusy(false); }
   };
 
-  if (patch.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (patch.isError || !p) {
-    return (
-      <PageWrapper>
-        <Title>{t('op.manage.notfound')}</Title>
-        <Description>{patch.error ? errorMessage(patch.error) : t('op.manage.notfound.desc')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description>
-      </PageWrapper>
-    );
-  }
+  if (patch.isFetching && !patch.currentData) return <PageWrapper><CenterProgress /></PageWrapper>;
+  const failedAction = error || (draftFeedback?.tone === 'error' ? draftFeedback.message : null) || (lifecycleFeedback?.tone === 'error' ? lifecycleFeedback.message : null) || (challengeFeedback?.tone === 'error' ? challengeFeedback.message : null);
+  const missing = patch.isError && patch.error && 'status' in patch.error && patch.error.status === 404;
+  if (missing && busy) return <PageWrapper><CenterProgress /><Description role="status">{t('op.manage.lifecycle.checking')}</Description></PageWrapper>;
+  if (missing || p && !managementMatchesAuthor(p, author)) return <PageWrapper>{busy && <CenterProgress />}{failedAction && <Alert role="alert" $tone="error">{failedAction}</Alert>}<Title>{t('op.manage.notfound')}</Title><Description>{t(missing ? 'op.manage.notfound.desc' : 'op.manage.route_mismatch')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description></PageWrapper>;
+  if (!p || !form) return <PageWrapper>{failedAction && <Alert role="alert" $tone="error">{failedAction}</Alert>}<QueryError error={patch.error} what={t('op.knowledge')} onRetry={() => void patch.refetch()} retrying={patch.isFetching} /></PageWrapper>;
   if (!p.owned) {
     return (
       <PageWrapper>
         <Title>{p.anchor.name || p.anchor.id}</Title>
-        <Description>{t('op.manage.notowned', { owner: p.anchor.author_name ?? shortAddr(p.anchor.author) })} <StyledLink to={`/${author}/${patchId}`}>{t('op.manage.viewpage')}</StyledLink>.</Description>
+        <Description>{t('op.manage.notowned', { owner: p.anchor.author_name ?? shortAddr(p.anchor.author) })} <StyledLink to={knowledgePath(author, patchId)}>{t('op.manage.viewpage')}</StyledLink>.</Description>
       </PageWrapper>
     );
   }
 
   const a = p.anchor;
-  const patchPage = `${window.location.origin}/${a.author}/${a.id}`;
-  const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${a.id}`;
-  /**
-   * What `announce` will actually retire. The node records `pending_supersede` from the same-schema overlaps that are
-   * NOT cross-branch and are still VERIFIED / VERIFYING / ANNOUNCED (market.ts:499), and `reconcileSupersedes` turns
-   * each one into a permanent `supersede` record the moment this anchor reaches quorum. The checklist used to count
-   * every same-subject overlap — including the cross-branch ones that deliberately coexist — and the Publish button
-   * ignored the count entirely.
-   */
-  // Item 189: a declared base (or add-on) overlaps by design and is never retired by this publish — the node's own
-  // `supersedable()` skips it, so the checklist must not promise a retirement that will not happen.
-  const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && !c.lineage && ['VERIFIED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
-  const coexisting = p.conflicts.filter((c) => c.same_schema && c.cross_branch).length;
-  const byId = new Map((catalog.data?.items ?? []).map((e) => [e.anchor.id, e]));
+  const patchPage = `${window.location.origin}${knowledgePath(a.author, a.id)}`;
+  const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${encodeURIComponent(a.id)}`;
+  const byId = new Map((catalogItems ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
 
-  // An attestation this node wrote on its own anchor and excluded from the count (item 146).
-  const selfCheck = (at: { verifier: string }) => p.self_checks > 0 && at.verifier.toLowerCase() === a.author.toLowerCase();
-
-  /**
-   * Finding 33 — what "Verify now" really spends. The stake it was accused of hiding no longer exists: the node
-   * ignores `verifier.stake` and says so in its own log (server.ts), nothing is escrowed, transferred or slashed.
-   * What IS spent is this node's model for minutes, and its signature on a permanent public record. And when the
-   * run cannot execute — no matching model server, or no sample questions — it degrades to an integrity check that
-   * does not count toward a quorum, which the operator has to know BEFORE clicking, not from the results table.
-   * The three conditions below are exactly the ones verifier.ts:51 uses to choose between the two.
-   */
-  const sampleCount = a.benchmark.samples?.length ?? 0;
-  const canExecute = !!runtime.data?.available && !!runtime.data.model && a.model.id_M.startsWith(runtime.data.model) && sampleCount > 0;
-  const elapsed = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
-  const doVerify = () => {
-    setVerifyStart(Date.now());
-    void run(() => verify(a.id).unwrap(), t('op.manage.verified_ok')).finally(() => setVerifyStart(null));
+  const doChallenge = () => {
+    if (busy || task.pending() || !current() || challengeReady.kind !== 'ready' || reason.trim().length < CHALLENGE_REASON_MIN) return;
+    setChallengeFeedback(null);
+    void run(async stillCurrent => {
+      const result = await requestManagedChallenge(p, address, auth.subject, reason, {
+        current: stillCurrent, read: () => patch.refetch().unwrap(), readAccess: () => meQuery.refetch().unwrap(),
+        write: text => challenge({ id: a.id, reason: text }).unwrap(),
+      });
+      if (result && stillCurrent()) { setReason(''); setChallengeFeedback({ tone: 'success', message: t('op.manage.challenge.ok') }); }
+    }, undefined, message => setChallengeFeedback({ tone: 'error', message }));
   };
 
-  const saveFields = () => run(() => update({ id: a.id, patch: { description: desc, price: priceV, branch: branch || undefined, license: license || undefined, billing } }).unwrap(), t('op.saved'));
-  const saveBench = () => {
-    setBenchError(null);
-    let parsed: PatchAnchor['benchmark'];
-    try { parsed = JSON.parse(benchText); } catch (e) { setBenchError(t('op.manage.bench.invalid', { message: (e as Error).message })); return; }
-    if (!parsed || typeof parsed.schema !== 'string' || !parsed.schema) { setBenchError(t('op.manage.bench.schema_required')); return; }
-    void run(() => update({ id: a.id, patch: { benchmark: parsed } }).unwrap(), t('op.manage.bench.saved'));
+  const saveDraft = (group: DraftGroup) => {
+    if (task.pending() || !current() || !draftDirty(form, group) || draftConflicts(form, a, group).length || !isDraft) return;
+    setDraftFeedback(null);
+    void run(async stillCurrent => {
+      const result = await saveManageDraft(form, group, a.id, author, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: patch => update({ id: a.id, patch }).unwrap() });
+      if (result && stillCurrent()) {
+        setEditor(resolveDraftGroup(form, result.detail.anchor, group, false));
+        setDraftFeedback({ group, tone: 'success', message: t(group === 'fields' ? 'op.saved' : 'op.manage.bench.saved') });
+      }
+    }, undefined, message => setDraftFeedback({ group, tone: 'error', message }));
   };
+  const resolve = (group: DraftGroup, keep: boolean) => { setEditor(resolveDraftGroup(form, a, group, keep)); setError(null); setNotice(null); setDraftFeedback(null); };
+  const values = form.draft;
 
   return (
     <PageWrapper>
+      {chain.dialog}
+      <fieldset disabled={busy || chain.busy} aria-busy={busy || chain.busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ProjectName>{a.name || a.id}</ProjectName>
       <Row $gap={10} style={{ marginTop: 8 }}><StatusChip status={p.status} /><Muted><Mono>{a.id}</Mono></Muted></Row>
       {/* Finding 167: the row that carries the real shareable link was plain text, while the only CopyButton on the
@@ -267,7 +276,7 @@ export default function ManagePage() {
         </dd>
         <dt>{t('op.manage.file')}</dt>
         <dd title={tech('rows')}>{p.has_body
-          ? t('op.manage.file.present', { size: bytes(a.size_bytes), rows: t('units.rows', { n: num(a.rows) }), facts: t('units.facts', { n: num(a.benchmark.queries) }) })
+          ? t('op.manage.file.present', { size: bytes(a.size_bytes), rows: t('units.rows', { n: num(a.rows) }), facts: t('units.facts', { n: num(benchmarkQuestionCount(a.benchmark.queries)) }) })
           : <span style={{ color: '#e6173e' }}>{t('op.manage.file.missing')}</span>}</dd>
         <dt><Tip tech="sha256 of the .npz body">{t('op.manage.fingerprint')}</Tip></dt><dd><Mono>{a.patch_sha256}</Mono></dd>
         <dt>{t('op.manage.model')}</dt><dd>{a.model.id_M}{a.model.row_dim ? <Muted title={t('op.tech.row_dim_help')}> · {t('op.tech.row_dim')} {a.model.row_dim}</Muted> : ''}</dd>
@@ -303,107 +312,36 @@ export default function ManagePage() {
             <CheckItem ok={!!a.benchmark.schema}>{t('op.manage.check.schema', { schema: a.benchmark.schema || t('op.manage.check.schema.missing') })}</CheckItem>
             <CheckItem ok={(a.benchmark.samples?.length ?? 0) > 0}>{t('op.manage.check.samples', { n: a.benchmark.samples?.length ?? 0 })}</CheckItem>
             <CheckItem ok={!!a.description}>{t('op.manage.check.desc')}</CheckItem>
-            <CheckItem ok={retires.length === 0}>
-              <span data-testid="check-retire">{retires.length === 0 ? t('op.manage.check.conflict', { n: 0 }) : t('op.manage.check.conflict.retire', { n: retires.length }, retires.length)}</span>
-            </CheckItem>
           </Checklist>
-          {coexisting > 0 && <Muted style={{ display: 'block', marginTop: 8 }}>{t('op.manage.retire.crossbranch', { n: coexisting })}</Muted>}
           <SaveRow>
             {/* Finding 32: no publish is one click any more — the sheet lists what becomes permanent first. */}
-            <Button variant="contained" disabled={!p.has_body || !a.benchmark.schema} loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
+            <Button variant="contained" disabled={dirty || !p.has_body || !a.benchmark.schema}
               data-testid="announce"
-              onClick={() => { setRetireText(''); setPublishOpen(true); }}>{t('op.manage.announce')}</Button>
+              onClick={() => { setError(null); setPublishOpen(p); }}>{t('op.manage.announce')}</Button>
+            {dirty && <Muted role="status">{t('op.manage.draft.before_publish')}</Muted>}
             <Muted title={t('op.tech.announce')}>{t('op.manage.announce.note')}</Muted>
           </SaveRow>
         </SectionBody>
       )}
       {!isDraft && (
         <SectionBody>
-          {/* Finding 33: both buttons ran without saying what they spend. What each costs is beside it now. */}
-          {canVerify && (
-            <Stack $gap={8} style={{ maxWidth: '72ch' }}>
-              <Row $gap={12}>
-                <Button loading={verifyState.isLoading} loadingText={t('op.manage.verifying')} onClick={doVerify} data-testid="verify-now">{t('op.manage.verify_now')}</Button>
-                {verifyState.isLoading && verifyStart !== null && (
-                  <Muted data-testid="verify-elapsed">{t('op.manage.verify.elapsed', { elapsed: elapsed(Date.now() - verifyStart) })}</Muted>
-                )}
-              </Row>
-              <Muted data-testid="verify-cost">{canExecute ? t('op.manage.verify.cost.run', { n: sampleCount }) : t('op.manage.verify.cost.hash')}</Muted>
-            </Stack>
-          )}
           <Row $gap={12}>
             {alreadyAttested && <Muted>{t('op.manage.already')}</Muted>}
             {isMine && !alreadyAttested && <Muted data-testid="self-verify-note">{t('op.manage.self_verify')}</Muted>}
           </Row>
           <Stack $gap={8} style={{ marginTop: 16, maxWidth: 560 }}>
-            <TextField label={t('op.manage.challenge')} placeholder={t('op.manage.challenge.ph')} value={reason} onChange={(e) => setReason(e.target.value)} />
+            <TextField label={t('op.manage.challenge')} placeholder={t('op.manage.challenge.ph')} value={reason} onChange={(e) => { setReason(e.target.value); setChallengeFeedback(null); }} disabled={busy} aria-describedby="challenge-rule" data-testid="challenge-reason" />
+            <Muted id="challenge-rule">{t('op.manage.challenge.minimum', { n: reason.trim().length, min: CHALLENGE_REASON_MIN })}</Muted>
             <Muted data-testid="challenge-cost">{t('op.manage.challenge.cost')}</Muted>
-            <div><Button color="secondary" size="small" disabled={!reason.trim()} loading={challengeState.isLoading} onClick={() => run(() => challenge({ id: a.id, reason }).unwrap(), t('op.manage.challenge.ok'))}>{t('op.manage.challenge.button')}</Button></div>
+            {challengeReady.kind !== 'ready' && <Muted role="status" data-testid="challenge-unavailable">{challengeReady.kind === 'cooldown' ? t('op.manage.challenge.until', { when: dateTime(challengeReady.until!) }) : t(`op.manage.challenge.error.${challengeReady.kind}`)}</Muted>}
+            {(challengeReady.kind === 'read' || challengeFeedback?.tone === 'error') && <Button variant="text" size="small" disabled={busy || patch.isFetching} onClick={() => void patch.refetch()}>{t('op.manage.challenge.refresh')}</Button>}
+            <div><Button color="secondary" size="small" disabled={busy || patch.isFetching || challengeReady.kind !== 'ready' || reason.trim().length < CHALLENGE_REASON_MIN} loading={challengeState.isLoading} onClick={doChallenge} data-testid="challenge-submit">{t('op.manage.challenge.button')}</Button></div>
+            {challengeFeedback && <Alert role={challengeFeedback.tone === 'error' ? 'alert' : 'status'} $tone={challengeFeedback.tone}>{challengeFeedback.message}</Alert>}
           </Stack>
         </SectionBody>
       )}
 
-      {/* Item 150 + finding 32 — every publish crosses this sheet: what becomes permanent, and (when there is one)
-          what it retires. The typed id is asked for only when the publish also takes somebody's purchase off sale. */}
-      {publishOpen && (
-        <Sheet title={t('op.manage.publish.title', { name: a.name || a.id })} sub={t('op.manage.publish.sub')} onClose={() => setPublishOpen(false)} width={680} testId="publish-sheet">
-          <strong style={{ fontSize: 14 }}>{t('op.manage.publish.sealed.title')}</strong>
-          <KeyValue data-testid="publish-facts">
-            <dt>{t('op.manage.publish.f.id')}</dt><dd><Mono>{a.id}</Mono></dd>
-            <dt>{t('op.manage.publish.f.name')}</dt><dd>{a.name || a.id}</dd>
-            <dt>{t('op.manage.publish.f.price')}</dt><dd title={money.note(a.currency)}>{money.fmt(a.price, a.currency)} · {billingLabel(a.billing)}</dd>
-            <dt>{t('op.manage.publish.f.license')}</dt><dd>{a.license || <Muted>{t('op.manage.publish.f.license.none')}</Muted>}</dd>
-            <dt>{t('op.manage.publish.f.bench')}</dt><dd>{t('op.manage.publish.f.bench.value', { schema: a.benchmark.schema, queries: num(a.benchmark.queries), samples: a.benchmark.samples?.length ?? 0 })}</dd>
-            <dt>{t('op.manage.publish.f.file')}</dt><dd><Mono>{shortHash(a.patch_sha256, 24)}</Mono></dd>
-            <dt>{t('op.manage.publish.f.payee')}</dt><dd><Mono title={a.author}>{shortAddr(a.author, 8)}</Mono></dd>
-          </KeyValue>
-          <Consequences>
-            <li>{t('op.manage.publish.why.sealed')}</li>
-            <li>{t('op.manage.publish.why.record')}</li>
-            <li>{t('op.manage.publish.why.verify')}</li>
-            <li>{t('op.manage.publish.why.file')}</li>
-          </Consequences>
-
-          {retires.length > 0 && (<>
-            <strong style={{ fontSize: 14, marginTop: 8 }}>{t('op.manage.retire.title')}</strong>
-            <span>{t('op.manage.retire.body', { schema: a.benchmark.schema, id: a.id })}</span>
-            <RetireList>
-              {retires.map((c) => {
-                const e = byId.get(c.patch_id);
-                return (
-                  <RetireRow key={c.patch_id} data-testid="retire-row" data-id={c.patch_id}>
-                    <RetireWhat>
-                      <Row $gap={8} $wrap><StyledLink to={`/${e?.anchor.author ?? a.author}/${c.patch_id}`}>{e?.anchor.name || c.patch_id}</StyledLink><StatusChip status={e?.status ?? c.status} /></Row>
-                      <Muted><Mono>{c.patch_id}</Mono></Muted>
-                      {e?.status === 'VERIFIED' && <Muted>{t('op.manage.retire.selling')}</Muted>}
-                    </RetireWhat>
-                    <RetireFacts>
-                      <span data-testid="retire-sales">{t('op.manage.retire.col.sales')}: {e && e.downloads > 0
-                        ? t('op.manage.retire.sold', { n: e.downloads, revenue: money.revenue(e.revenue, e.anchor.currency) })
-                        : t('op.manage.retire.sold_none')}</span>
-                      <Muted>{t('op.manage.retire.col.overlap')}: {t('units.rows', { n: num(c.overlap_rows) })}</Muted>
-                    </RetireFacts>
-                  </RetireRow>
-                );
-              })}
-            </RetireList>
-            {coexisting > 0 && <Muted>{t('op.manage.retire.crossbranch', { n: coexisting })}</Muted>}
-            <TextField label={t('op.manage.retire.type', { id: a.id })} value={retireText} onChange={(e) => setRetireText(e.target.value)} data-testid="retire-type" />
-          </>)}
-
-          {error && <Alert $tone="error" role="alert">{error}</Alert>}
-          <SheetFooter>
-            <Button variant="text" color="default" onClick={() => setPublishOpen(false)}>{retires.length > 0 ? t('op.manage.retire.cancel') : t('op.manage.publish.cancel')}</Button>
-            <Button variant="contained" color={retires.length > 0 ? 'secondary' : 'primary'}
-              disabled={retires.length > 0 && retireText.trim() !== a.id}
-              loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
-              data-testid="publish-confirm"
-              onClick={() => run(async () => { await announce(a.id).unwrap(); setPublishOpen(false); }, t('op.manage.announced'))}>
-              {retires.length > 0 ? t('op.manage.retire.confirm') : t('op.manage.publish.confirm')}
-            </Button>
-          </SheetFooter>
-        </Sheet>
-      )}
+      {publishOpen && <ManagePublication expected={publishOpen} busy={busy} run={run} readDetail={() => patch.refetch().unwrap()} onClose={() => setPublishOpen(null)} onPublished={() => { setPublishOpen(null); setNotice(t('op.manage.announced')); }} />}
 
       {/* ------------------------------------------------------------ verification results */}
       <SubTitle $mt={40}>{t('op.manage.attest.title')}</SubTitle>
@@ -426,8 +364,8 @@ export default function ManagePage() {
                 <TableData $color={at.passed ? '#44a45f' : '#e6173e'} $weight={600}>{at.passed ? t('op.manage.attest.pass') : t('op.manage.attest.fail')}</TableData>
                 <TableData title={at.verified_on !== 'hash-only' ? JSON.stringify(at.score) : t('op.term.integrity')}>{at.verified_on !== 'hash-only' ? scoreText(at.score) : '—'}</TableData>
                 <TableData title={at.verified_on}>{at.verified_on === 'hash-only' ? t('op.manage.attest.how.hash') : t('op.manage.attest.how.run', { engine: at.verified_on })}</TableData>
-                <TableData>{at.restarts_detected ?? 0}</TableData>
-                <TableData $color={selfCheck(at) ? '#8a4b00' : undefined} title={help('signedResult')}>{selfCheck(at) ? t('op.manage.attest.counts_self') : t('op.manage.attest.counts_yes')}</TableData>
+                <TableData>{at.restarts_detected ?? '—'}</TableData>
+                <TableData title={help('signedResult')}><AttestationCount entry={p} attestation={at} /></TableData>
                 <TableData>{at.created_at ? dateTime(at.created_at) : '—'}</TableData>
               </TableRow>
             ))}
@@ -439,7 +377,7 @@ export default function ManagePage() {
       {/* ------------------------------------------------------------ who holds the file (item 367) */}
       <SubTitle $mt={40}>{t('op.manage.holders.title')}</SubTitle>
       <Description>{t('op.manage.holders.desc')}</Description>
-      {holders.length === 0 ? (
+      {nodesQ.isFetching && !nodesQ.currentData ? <CenterProgress /> : !nodeData ? <QueryError error={nodesQ.error} what={t('op.manage.holders.title')} onRetry={() => void nodesQ.refetch()} retrying={nodesQ.isFetching} /> : holders.length === 0 ? (
         <Description data-testid="holders-empty" style={{ marginTop: 8 }}>{t('op.manage.holders.empty')}</Description>
       ) : (
         <>
@@ -494,7 +432,7 @@ export default function ManagePage() {
               return (
                 <TableRow key={c.patch_id}>
                   <TableData $align="left" $padding="0 8px">
-                    <StyledLink to={`/${c.author ?? other?.anchor.author ?? a.author}/${c.patch_id}`}>{c.patch_id}</StyledLink>
+                    <StyledLink to={c.author && isKnowledgeAuthor(c.author) ? knowledgePath(c.author, c.patch_id) : other ? knowledgePath(other.anchor.author, c.patch_id) : knowledgeLookupPath(c.patch_id)}>{c.patch_id}</StyledLink>
                     {copy && <Muted style={{ display: 'block' }} data-testid="conflict-copy">{t('op.manage.conflict.copy')}</Muted>}
                   </TableData>
                   <TableData>{c.same_author === false
@@ -515,50 +453,56 @@ export default function ManagePage() {
 
       {/* ------------------------------------------------------------ editable fields */}
       <SubTitle $mt={56}>{t('op.manage.fields.title')}</SubTitle>
-      {!isDraft && <Description>{t('op.manage.fields.sealed')}</Description>}
+      {!isDraft && <Description>{t(dirty ? 'op.manage.draft.sealed_with_edits' : 'op.manage.fields.sealed')}</Description>}
+      {isDraft && <ManageDraftConflict editor={form} anchor={a} group="fields" onResolve={keep => resolve('fields', keep)} />}
       <SectionBody>
         <Stack $gap={18}>
-          <TextField label={t('op.manage.fields.desc')} value={desc} onChange={(e) => setDesc(e.target.value)} disabled={!isDraft} />
+          <TextField label={t('op.manage.fields.desc')} value={values.description} onChange={(e) => edit({ description: e.target.value })} readOnly={!isDraft} />
           <FormRow>
-            <TextField label={t('op.manage.fields.price', { unit: money.unit(a.currency) })} helper={money.note(a.currency)} type="number" min={0} step="0.000001" value={priceV} onChange={(e) => setPriceV(e.target.value)} disabled={!isDraft} />
+            <TextField label={t('op.manage.fields.price', { unit: money.unit(a.currency) })} helper={money.note(a.currency)} type="number" min={0} step="0.000001" value={values.price} onChange={(e) => edit({ price: e.target.value })} readOnly={!isDraft} />
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <FieldLabel>{t('op.manage.fields.billing')}</FieldLabel>
               {/* Item 360: "pay per hour loaded" and "pay per use" were offered here and metered nowhere — a sale
                   settles the price once, per download. An anchor that already carries one keeps it (the record is
                   immutable) and is shown as it is; nothing new can be published under a model nobody charges. */}
-              <Select value={billing} onChange={(e) => setBilling(e.target.value as PatchAnchor['billing'])} disabled={!isDraft} data-testid="billing-select">
-                {[...new Set(['per_download', ...(billing === 'per_download' ? [] : [billing])])].map((b) => <option key={b} value={b} disabled={b !== 'per_download'}>{billingLabel(b)}</option>)}
+              <Select value={values.billing} onChange={(e) => edit({ billing: e.target.value })} disabled={!isDraft} data-testid="billing-select">
+                {[...new Set(['per_download', ...(values.billing === 'per_download' ? [] : [values.billing])])].map((b) => <option key={b} value={b} disabled={b !== 'per_download'}>{billingLabel(b)}</option>)}
               </Select>
               <Muted style={{ fontSize: 12 }}>{t('op.manage.billing.only')}</Muted>
             </label>
-            <TextField label={t('op.manage.fields.branch')} placeholder="law/KR" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!isDraft} />
-            <TextField label={t('op.manage.fields.license')} placeholder="CC-BY-4.0" value={license} onChange={(e) => setLicense(e.target.value)} disabled={!isDraft} />
+            <TextField label={t('op.manage.fields.branch')} placeholder="law/KR" value={values.branch} onChange={(e) => edit({ branch: e.target.value })} readOnly={!isDraft} />
+            <TextField label={t('op.manage.fields.license')} placeholder="CC-BY-4.0" value={values.license} onChange={(e) => edit({ license: e.target.value })} readOnly={!isDraft} />
           </FormRow>
         </Stack>
-        {isDraft && <SaveRow><Button loading={updateState.isLoading} loadingText={t('op.saving')} onClick={saveFields}>{t('common.save')}</Button><Muted>{t('op.manage.fields.current', { price: money.fmt(a.price, a.currency) })}</Muted></SaveRow>}
+        {isDraft && <SaveRow><Button disabled={!draftDirty(form, 'fields') || draftConflicts(form, a, 'fields').length > 0} loading={updateState.isLoading} loadingText={t('op.saving')} onClick={() => saveDraft('fields')}>{t('common.save')}</Button><Button variant="text" disabled={!draftDirty(form, 'fields')} onClick={() => resolve('fields', false)}>{t('op.manage.draft.use_server')}</Button><Muted>{t('op.manage.fields.current', { price: money.fmt(a.price, a.currency) })}</Muted></SaveRow>}
       </SectionBody>
+
+      {draftFeedback?.group === 'fields' && <Alert role={draftFeedback.tone === 'error' ? 'alert' : 'status'} $tone={draftFeedback.tone} style={{ marginTop: 12 }}>{draftFeedback.message}</Alert>}
 
       {/* ------------------------------------------------------------ benchmark */}
       <SubTitle $mt={56}><Tip tech={tech('facts')}>{t('op.manage.bench.title')}</Tip></SubTitle>
       <Description>{t('op.manage.bench.desc')}</Description>
+      {isDraft && <ManageDraftConflict editor={form} anchor={a} group="benchmark" onResolve={keep => resolve('benchmark', keep)} />}
       <SectionBody>
-        <Textarea value={benchText} onChange={(e) => setBenchText(e.target.value)} disabled={!isDraft} spellCheck={false} />
-        {benchError && <Alert $tone="error" style={{ marginTop: 8 }}>{benchError}</Alert>}
-        <Row $gap={16} style={{ marginTop: 8 }}>
+        <Textarea aria-label={t('op.manage.bench.title')} value={values.benchmark} onChange={(e) => edit({ benchmark: e.target.value })} readOnly={!isDraft} spellCheck={false} />
+        <Row $gap={16} $wrap style={{ marginTop: 8 }}>
           <Muted title="sha256(canonical(benchmark))">{t('op.manage.bench.hash')} <Mono>{shortHash(a.benchmark_hash, 16)}</Mono></Muted>
-          {isDraft && <Button size="small" loading={updateState.isLoading} onClick={saveBench}>{t('op.manage.bench.save')}</Button>}
+          {isDraft && <Button size="small" disabled={!draftDirty(form, 'benchmark') || draftConflicts(form, a, 'benchmark').length > 0} loading={updateState.isLoading} onClick={() => saveDraft('benchmark')}>{t('op.manage.bench.save')}</Button>}
+          {isDraft && <Button size="small" variant="text" disabled={!draftDirty(form, 'benchmark')} onClick={() => resolve('benchmark', false)}>{t('op.manage.draft.use_server')}</Button>}
         </Row>
       </SectionBody>
+
+      {draftFeedback?.group === 'benchmark' && <Alert role={draftFeedback.tone === 'error' ? 'alert' : 'status'} $tone={draftFeedback.tone} style={{ marginTop: 12 }}>{draftFeedback.message}</Alert>}
 
       {/* ------------------------------------------------------------ lineage */}
       <SubTitle $mt={56}><Tip tech={tech('lineage')}>{t('op.manage.lineage.title')}</Tip></SubTitle>
       <KeyValue>
-        <dt>{t('op.manage.lineage.parents')}</dt><dd>{p.lineage.parents.length ? p.lineage.parents.map((x) => <span key={x.id} style={{ marginRight: 12 }}><StyledLink to={`/${x.author}/${x.id}`}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} /></span>) : <Muted>{t('op.manage.lineage.root')}</Muted>}</dd>
+        <dt>{t('op.manage.lineage.parents')}</dt><dd>{p.lineage.parents.length ? p.lineage.parents.map((x) => <span key={x.id} style={{ marginRight: 12 }}><StyledLink to={knowledgePath(x.author, x.id)}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} /></span>) : <Muted>{t('op.manage.lineage.root')}</Muted>}</dd>
         {/* Items 195, 318: a child was a name and a chip. What its price is, and what it has actually paid the
             creator of the base, is the whole of what an ancestor needs — and it was on no screen at all. */}
         <dt>{t('op.manage.lineage.children')}</dt><dd data-testid="lineage-children">{p.lineage.children.length ? p.lineage.children.map((x) => (
           <span key={x.id} style={{ marginRight: 12, display: 'inline-block' }}>
-            <StyledLink to={`/${x.author}/${x.id}`}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} />
+            <StyledLink to={knowledgePath(x.author, x.id)}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} />
             {x.price !== undefined && <Muted> · {money.fmt(x.price, x.currency ?? a.currency)}{Number(x.price) < Number(a.price) ? ` (${t('op.manage.lineage.cheaper')})` : ''}</Muted>}
             {x.author_name && x.author !== a.author && <Muted> · {x.author_name}</Muted>}
             {!!x.sales && <Muted> · {t('op.manage.lineage.child_earned', { amount: money.fmt(x.earned ?? '0', a.currency), n: x.sales })}</Muted>}
@@ -575,18 +519,18 @@ export default function ManagePage() {
       {/* ------------------------------------------------------------ runtime */}
       <SubTitle $mt={56}><Tip tech={`${tech('apply')} / ${tech('remove')}`}>{t('op.manage.runtime.title')}</Tip></SubTitle>
       <Description>{t('op.manage.runtime.desc')}</Description>
+      {runtime.isFetching && !runtime.currentData ? <CenterProgress /> : !runtimeData && <QueryError error={runtime.error} what={t('op.manage.runtime.title')} onRetry={() => void runtime.refetch()} retrying={runtime.isFetching} />}
       <SaveRow>
-        <Button disabled={!runtime.data?.available || !p.has_body || p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.loading')} onClick={() => { setError(null); setNotice(null); void chain.load(a.id); }}>{term('apply')}</Button>
-        <Button color="secondary" disabled={!runtime.data?.available || !p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.unloading')} onClick={() => { setError(null); setNotice(null); void chain.unload(a.id); }}>{term('remove')}</Button>
+        <Button data-testid="manage-load" disabled={!runtimeData?.available || !p.has_body || p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.loading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.load(a); }}>{term('apply')}</Button>
+        <Button data-testid="manage-unload" color="secondary" disabled={!runtimeData?.available || !p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.unloading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.unload(a); }}>{term('remove')}</Button>
         <Muted>
           {p.applied ? t('op.manage.runtime.is_loaded') : t('op.manage.runtime.not_loaded')}
-          {runtime.data && !runtime.data.available ? ` · ${t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}` : runtime.data?.model ? ` · ${runtime.data.model}` : ''}
+          {runtimeData && !runtimeData.available ? ` · ${t('op.runtime.unavailable', { error: runtimeData.error ?? t('op.runtime.noapi') })}` : runtimeData?.model ? ` · ${runtimeData.model}` : ''}
         </Muted>
         <StyledLink to={`/chat/${encodeURIComponent(a.id)}`} title={help('liveTest')}>{t('op.manage.runtime.try')} →</StyledLink>
       </SaveRow>
       {chain.notice && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="apply-order">{chain.notice}</Alert>}
       {chain.error && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="apply-error">{chain.error}</Alert>}
-      {chain.dialog}
 
       {/* ------------------------------------------------------------ markdown snippet */}
       <SubTitle $mt={56}>{t('op.manage.badge.title')}</SubTitle>
@@ -643,7 +587,7 @@ export default function ManagePage() {
       {!isDraft && (
         <>
           <SubTitle $mt={56}>{t('op.manage.price.title')}</SubTitle>
-          {p.status === 'RETIRED' ? <Muted>{t('op.manage.price.retired')}</Muted> : (
+          {p.status === 'RETIRED' || p.retired_at != null ? <Muted>{t('op.manage.price.retired')}</Muted> : (
             <Stack $gap={12} style={{ maxWidth: 560 }}>
               <Muted>{t('op.manage.price.desc', { price: money.fmt(a.price, a.currency) })}</Muted>
               {(p.price_history?.length ?? 0) > 0 && (
@@ -652,13 +596,16 @@ export default function ManagePage() {
                 })}</Muted>
               )}
               <Row $gap={12} $wrap>
-                <TextField label={t('op.manage.price.field', { currency: money.unit(a.currency) })} value={newPrice} onChange={(e) => setNewPrice(e.target.value)} data-testid="price-field" style={{ maxWidth: 220 }} />
-                <TextField label={t('op.manage.price.reason')} value={priceReason} onChange={(e) => setPriceReason(e.target.value)} data-testid="price-reason" />
+                <TextField label={t('op.manage.price.field', { currency: money.unit(a.currency) })} value={newPrice} onChange={(e) => { setNewPrice(e.target.value); setLifecycleFeedback(null); }} data-testid="price-field" style={{ maxWidth: 220 }} />
+                <TextField label={t('op.manage.price.reason')} value={priceReason} maxLength={500} onChange={(e) => { setPriceReason(e.target.value); setLifecycleFeedback(null); }} data-testid="price-reason" />
               </Row>
               <Row>
                 <Button color="secondary" data-testid="price-save" disabled={!/^\d+(\.\d+)?$/.test(newPrice.trim()) || newPrice.trim() === a.price}
                   loading={setPriceState.isLoading} loadingText={t('op.manage.price.working')}
-                  onClick={() => run(async () => { await setPrice({ id: a.id, price: newPrice.trim(), reason: priceReason.trim() || undefined }).unwrap(); setNewPrice(''); setPriceReason(''); }, t('op.manage.price.done'))}>
+                  onClick={() => { setLifecycleFeedback(null); void run(async stillCurrent => {
+                    const result = await changeManagedPrice(p, newPrice, priceReason, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: (price, reason) => setPrice({ id: a.id, price, reason }).unwrap() });
+                    if (result && stillCurrent()) { setNewPrice(''); setPriceReason(''); setLifecycleFeedback({ section: 'price', tone: 'success', message: t('op.manage.price.done') }); }
+                  }, undefined, message => setLifecycleFeedback({ section: 'price', tone: 'error', message })); }}>
                   {t('op.manage.price.button')}
                 </Button>
               </Row>
@@ -667,10 +614,12 @@ export default function ManagePage() {
         </>
       )}
 
+      {lifecycleFeedback?.section === 'price' && <Alert role={lifecycleFeedback.tone === 'error' ? 'alert' : 'status'} $tone={lifecycleFeedback.tone} style={{ marginTop: 12 }}>{lifecycleFeedback.message}</Alert>}
+
       <SubTitle $mt={56}>{isDraft ? t('op.manage.delete.title') : t('op.manage.takedown.title')}</SubTitle>
       {!isDraft ? (
         <>
-          {p.status === 'RETIRED' ? (
+          {p.status === 'RETIRED' || p.retired_at != null ? (
             <DeleteDesc data-testid="retired-note">
               {t('op.manage.takedown.already', { when: p.retired_at ? dateTime(p.retired_at) : '—' })}
               {p.retire_reason ? ` ${t('op.manage.takedown.already.reason', { reason: p.retire_reason })}` : ''}
@@ -678,22 +627,26 @@ export default function ManagePage() {
           ) : !downMode ? (
             <>
               <DeleteDesc>{t('op.manage.delete.sealed')} {t('op.manage.takedown.desc')}</DeleteDesc>
-              <Button color="secondary" data-testid="takedown" onClick={() => { setDownText(''); setDownReason(''); setDownMode(true); }}>{t('op.manage.takedown.button')}</Button>
+              <Button color="secondary" data-testid="takedown" onClick={() => { setDownText(''); setDownReason(''); setDownMode(p); setLifecycleFeedback(null); setError(null); }}>{t('op.manage.takedown.button')}</Button>
             </>
           ) : (
             <Stack $gap={16} style={{ maxWidth: 560 }}>
               <DeleteDesc style={{ margin: 0 }}>{t('op.manage.takedown.desc')}</DeleteDesc>
-              {p.downloads > 0 && <Muted>{t('op.manage.takedown.sales', { n: p.downloads })}</Muted>}
-              <TextField label={t('op.manage.takedown.reason')} placeholder={t('op.manage.takedown.reason.ph')} value={downReason} onChange={(e) => setDownReason(e.target.value)} data-testid="takedown-reason" />
+              {paidSales(p) === null ? <Muted>{t('op.manage.sales_unknown')}</Muted> : paidSales(p)! > 0 && <Muted>{t('op.manage.takedown.sales', { n: paidSales(p)! })}</Muted>}
+              <TextField label={t('op.manage.takedown.reason')} placeholder={t('op.manage.takedown.reason.ph')} value={downReason} maxLength={500} onChange={(e) => { setDownReason(e.target.value); setLifecycleFeedback(null); }} data-testid="takedown-reason" />
               <TextField label={t('op.manage.takedown.type', { id: a.id })} value={downText} onChange={(e) => setDownText(e.target.value)} data-testid="takedown-type" />
               <Row $gap={12}>
                 <Button variant="contained" color="secondary" disabled={downText.trim() !== a.id} loading={retireState.isLoading} loadingText={t('op.manage.takedown.working')}
                   data-testid="takedown-confirm"
-                  onClick={() => run(async () => { await retire({ id: a.id, reason: downReason.trim() || undefined }).unwrap(); setDownMode(false); }, t('op.manage.takedown.done'))}>{t('op.manage.takedown.confirm')}</Button>
-                <Button variant="text" color="default" onClick={() => setDownMode(false)}>{t('op.manage.takedown.cancel')}</Button>
+                  onClick={() => { setLifecycleFeedback(null); void run(async stillCurrent => {
+                    const result = await retireManagedKnowledge(downMode, downText, downReason, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: reason => retire({ id: downMode.anchor.id, reason }).unwrap() });
+                    if (result && stillCurrent()) { setDownMode(null); setLifecycleFeedback({ section: 'retire', tone: 'success', message: t('op.manage.takedown.done') }); }
+                  }, undefined, message => setLifecycleFeedback({ section: 'retire', tone: 'error', message })); }}>{t('op.manage.takedown.confirm')}</Button>
+                <Button variant="text" color="default" onClick={() => setDownMode(null)}>{t('op.manage.takedown.cancel')}</Button>
               </Row>
             </Stack>
           )}
+          {lifecycleFeedback?.section === 'retire' && <Alert role={lifecycleFeedback.tone === 'error' ? 'alert' : 'status'} $tone={lifecycleFeedback.tone} style={{ marginTop: 12 }}>{lifecycleFeedback.message}</Alert>}
           <DevBox style={{ marginTop: 24 }}>
             <Muted style={{ display: 'block', marginBottom: 6 }}>{t('op.manage.dev.forget')}</Muted>
             <MonoBox>ainize patch forget {a.id}</MonoBox>
@@ -702,11 +655,12 @@ export default function ManagePage() {
       ) : (
         <>
           <DeleteDesc>{t('op.manage.delete.desc')}</DeleteDesc>
-          <Button color="secondary" onClick={() => setConfirmMode(true)} data-testid="delete-draft">{t('op.manage.delete.button')}</Button>
+          <Button color="secondary" onClick={() => { setConfirmMode(p); setError(null); }} data-testid="delete-draft">{t('op.manage.delete.button')}</Button>
           {/* Finding 32 (other half): a local, unpublished, unpaid draft demanded its full id typed out — more
               friction than the permanent, public, paid publish above it. A plain confirmation is the right weight. */}
           {confirmMode && (
-            <Sheet title={t('op.manage.delete.sheet.title', { name: a.name || a.id })} onClose={() => setConfirmMode(false)} width={520} testId="delete-sheet">
+            <Sheet title={t('op.manage.delete.sheet.title', { name: confirmMode.anchor.name || confirmMode.anchor.id })} onClose={() => setConfirmMode(null)} width={520} testId="delete-sheet">
+              <Mono>{confirmMode.anchor.id}</Mono>
               <Consequences>
                 <li>{t('op.manage.delete.why.local')}</li>
                 <li>{t('op.manage.delete.why.file')}</li>
@@ -714,10 +668,13 @@ export default function ManagePage() {
               </Consequences>
               {error && <Alert $tone="error" role="alert">{error}</Alert>}
               <SheetFooter>
-                <Button variant="text" color="default" onClick={() => setConfirmMode(false)}>{t('op.manage.delete.cancel')}</Button>
+                <Button variant="text" color="default" onClick={() => setConfirmMode(null)}>{t('op.manage.delete.cancel')}</Button>
                 <Button variant="contained" color="secondary" loading={delState.isLoading} loadingText={t('op.manage.delete.deleting')}
                   data-testid="delete-confirm"
-                  onClick={() => run(async () => { await del(a.id).unwrap(); navigate('/dashboard'); })}>{t('op.manage.delete.confirm')}</Button>
+                  onClick={() => run(async stillCurrent => {
+                    const result = await deleteManagedDraft(confirmMode, auth.subject, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: () => del(confirmMode.anchor.id).unwrap(), readAccess: () => meQuery.refetch().unwrap() });
+                    if (result && stillCurrent()) navigate('/dashboard');
+                  })}>{t('op.manage.delete.confirm')}</Button>
               </SheetFooter>
             </Sheet>
           )}
@@ -725,8 +682,9 @@ export default function ManagePage() {
       )}
       </>)}
       <MonoBox style={{ marginTop: 40 }}>
-        <Link to={`/project/${a.author}/${a.id}/logs`} style={{ color: '#8b3eeb', textDecoration: 'none' }}>{t('op.manage.logs_link', { id: a.id })}</Link>
+        <Link to={`/project/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}/logs`} style={{ color: '#8b3eeb', textDecoration: 'none' }}>{t('op.manage.logs_link', { id: a.id })}</Link>
       </MonoBox>
+      </fieldset>
     </PageWrapper>
   );
 }

@@ -2,6 +2,12 @@ import { stableJson } from './ainftRegistration';
 export interface BenefitPolicy { active: boolean; version: number; title: string; unitCost: number; unitsPerPurchase: number; refundWindowMs: number }
 export interface BenefitPurchase { id: string; fingerprint: string; agentId: string; userId: string; policyVersion: number; cost: number; units: number; remaining: number; refundUntil: number; status: 'active' | 'consumed' | 'refunded'; settled: boolean }
 export interface BenefitCatalog { agentId: string; policy: BenefitPolicy | null; purchases: BenefitPurchase[] }
+type BenefitAvailability = { executionAvailable?: boolean; allowedPolicyVersions?: number[] };
+export const benefitUsable = (receipt: BenefitPurchase, connection: BenefitAvailability) => connection.executionAvailable === true
+  && receipt.status === 'active' && receipt.remaining > 0 && !!connection.allowedPolicyVersions?.includes(receipt.policyVersion);
+/** An explicitly selected receipt must still be available; never substitute another purchase. */
+export const selectedBenefit = (catalog: BenefitCatalog, connection: BenefitAvailability, id: string, version: number) =>
+  catalog.purchases.find(receipt => receipt.id === id && receipt.policyVersion === version && benefitUsable(receipt, connection)) ?? null;
 export function benefitCatalog(value: unknown, agentId: string, userId: string): BenefitCatalog {
   const data = value as BenefitCatalog | null;
   const integer = (x: number, min = 0) => Number.isSafeInteger(x) && x >= min;

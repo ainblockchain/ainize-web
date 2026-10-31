@@ -1,10 +1,11 @@
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ReactNode, type ChangeEvent } from 'react';
+import { useActiveView } from '@/hooks/useActiveView';
 import styled from 'styled-components';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert, Field, FieldLabel, HelperText, Input, Textarea } from '@/components/ui/Form';
 import { Mono } from '@/components/ui/Misc';
-import { createTeacherKey, currentTeacherKey, isAddress, keyIsPersisted, parseTeacherKeyBackup, saveTeacherKey, shortKey, teacherKeyBackup, teacherKeyBackupName, updateTeacherKey, type TeacherKey } from '@/lib/teacherKey';
+import { captureTeacherKey, createTeacherKey, currentTeacherKey, isAddress, keyIsPersisted, parseTeacherKeyBackup, saveTeacherKey, shortKey, teacherKeyBackup, teacherKeyBackupName, updateTeacherKey, type TeacherKey } from '@/lib/teacherKey';
 import { Sheet, SheetFooter, SheetNote } from './Sheet';
 import { downloadText } from './teachUtil';
 
@@ -14,6 +15,7 @@ const ImportBox = styled.div`display: flex; flex-direction: column; gap: 10px; p
 /** Restore-a-key form (used by the credit sheet and the Your-knowledge panel). */
 export function KeyImport({ onImported }: { onImported: (k: TeacherKey) => void }) {
   const { t } = useT();
+  const active = useActiveView();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const apply = (raw: string) => {
@@ -21,7 +23,14 @@ export function KeyImport({ onImported }: { onImported: (k: TeacherKey) => void 
   };
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
-    const r = new FileReader(); r.onload = () => apply(String(r.result ?? '')); r.readAsText(f);
+    const identity = captureTeacherKey();
+    const r = new FileReader();
+    r.onload = () => {
+      if (!active()) return;
+      try { identity.assertCurrent(); } catch { return; }
+      apply(String(r.result ?? ''));
+    };
+    r.readAsText(f);
   };
   return (
     <ImportBox data-testid="key-import">
@@ -43,7 +52,7 @@ export function KeyImport({ onImported }: { onImported: (k: TeacherKey) => void 
  * taken; only then does Continue become the filled button. Nothing is blocked — leaving without a backup is a
  * choice, and the button says so.
  */
-export function CreditSheet({ onDone, onClose }: { onDone: (key: TeacherKey) => void; onClose: () => void }) {
+export function CreditSheet({ onDone, onClose, children }: { onDone: (key: TeacherKey) => void; onClose: () => void; children?: ReactNode }) {
   const { t } = useT();
   const [key, setKey] = useState<TeacherKey>(() => currentTeacherKey() ?? createTeacherKey());
   const [name, setName] = useState(key.name ?? '');
@@ -51,8 +60,9 @@ export function CreditSheet({ onDone, onClose }: { onDone: (key: TeacherKey) => 
   const [importing, setImporting] = useState(false);
   const [restored, setRestored] = useState<string | null>(null);
   const [backedUp, setBackedUp] = useState(false);
+  const [changed, setChanged] = useState(false);
   /** localStorage refused the write (a private window, blocked site data): this key dies with the tab. */
-  const [persisted] = useState(() => keyIsPersisted());
+  const [persisted, setPersisted] = useState(() => keyIsPersisted());
   const payoutBad = !!payout.trim() && !isAddress(payout.trim());
 
   const backup = () => {
@@ -61,6 +71,8 @@ export function CreditSheet({ onDone, onClose }: { onDone: (key: TeacherKey) => 
   };
   const cont = () => {
     if (payoutBad) return;
+    if (currentTeacherKey()?.address.toLowerCase() !== key.address.toLowerCase()) { setChanged(true); return; }
+    setChanged(false);
     const k = updateTeacherKey({ name: name.trim().slice(0, 40), payout_address: payout.trim() || null }) ?? key;
     onDone(k);
   };
@@ -80,7 +92,9 @@ export function CreditSheet({ onDone, onClose }: { onDone: (key: TeacherKey) => 
       <Alert $tone={persisted ? 'warning' : 'error'} data-testid="key-warn">{t(persisted ? 'teach.key.warn' : 'teach.key.warn_memory')}</Alert>
       {backedUp && <Alert $tone="success" role="status" data-testid="key-backed-up">{t('teach.key.backed_up')}</Alert>}
       {restored && <Alert $tone="success" role="status">{restored}</Alert>}
-      {importing && <KeyImport onImported={(k) => { setKey(k); setName(k.name ?? ''); setPayout(k.payout_address ?? ''); setRestored(t('teach.key.import_ok', { short: shortKey(k.address) })); setImporting(false); }} />}
+      {importing && <KeyImport onImported={(k) => { setKey(k); setName(k.name ?? ''); setPayout(k.payout_address ?? ''); setBackedUp(false); setPersisted(keyIsPersisted()); setChanged(false); setRestored(t('teach.key.import_ok', { short: shortKey(k.address) })); setImporting(false); }} />}
+      {children}
+      {changed && <Alert role="alert" $tone="error">{t('teach.key.changed')}</Alert>}
       <SheetFooter>
         <Button type="button" color="secondary" onClick={() => setImporting((v) => !v)} style={{ marginRight: 'auto' }}>{t('teach.key.import')}</Button>
         <Button type="button" variant={backedUp ? undefined : 'contained'} onClick={backup} data-testid="key-backup">{t('teach.key.backup')}</Button>

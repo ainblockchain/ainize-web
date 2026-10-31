@@ -6,8 +6,8 @@
  * from another machine — where the promise rejects and a button with no fallback silently does nothing. The
  * `execCommand` path is the fallback for exactly that case.
  */
-import { useState } from 'react';
 import styled from 'styled-components';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 import { useDocsT } from './i18n';
 import { highlight, type TokenKind } from './highlight';
 import { practiceHref } from './practice';
@@ -52,38 +52,18 @@ const Lang = styled.span`
   letter-spacing: 0.04em; color: #6f6a80; text-transform: uppercase; pointer-events: none;
 `;
 
-async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
-  } catch { /* fall through to the http fallback */ }
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    return ok;
-  } catch { return false; }
-}
-
 export function CodeBlock({ code, lang, ctx, stepId, runnable = false }: { code: string; lang: string; ctx?: LinkCtx; stepId?: string; runnable?: boolean }) {
   const { t } = useDocsT();
-  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copy = useClipboardCopy(code);
   const tokens = highlight(code, lang);
-  const label = state === 'copied' ? t('docs.copied') : state === 'failed' ? t('docs.copy_failed') : t('docs.copy');
+  const label = copy.phase === 'copied' ? t('docs.copied') : copy.phase === 'failed' ? t('docs.copy_failed') : copy.phase === 'copying' ? t('docs.copying') : t('docs.copy');
   return (
     <Wrap>
       {lang && lang !== 'text' && <Lang aria-hidden="true">{lang}</Lang>}
       <Copy
         type="button"
-        onClick={async () => {
-          const ok = await copyText(code);
-          setState(ok ? 'copied' : 'failed');
-          setTimeout(() => setState('idle'), 1600);
-        }}
+        disabled={copy.disabled} aria-busy={copy.phase === 'copying'} aria-live="polite"
+        onClick={() => void copy.copy()}
       >{label}</Copy>
       <Pre><code>{tokens.map((tok, i) => (
         tok.k === 'plain' ? <span key={i}>{tok.v}</span> : <span key={i} style={{ color: TOKEN[tok.k], fontWeight: tok.k === 'command' ? 600 : undefined }}>{tok.v}</span>

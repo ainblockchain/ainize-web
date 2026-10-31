@@ -12,6 +12,9 @@ import { agentOrgIdOf, agentVisibilityOf, type AgentVisibility } from './sharedA
 import type { AgentSummary } from './types';
 import { agentAliasOf } from './agentIds';
 
+/** Browser cache ownership; identity is not sent as authorization. */
+export interface OrgReadScope { id: string; identity: string }
+
 export const ORG_ROLES = ['read', 'contributor', 'write', 'admin'] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 const RANK: Record<OrgRole, number> = { read: 0, contributor: 1, write: 2, admin: 3 };
@@ -63,6 +66,14 @@ export function orgCreateInputFromDraft(draft: OrgFormDraft, domain: string | nu
 
 export interface OrgUpdateInput {
   name?: string; description?: string; readme?: string; domains?: string[]; domainRole?: OrgRole; ssoOrgIds?: string[]; spendCapCredits?: number | null;
+}
+
+/** Blank explicitly removes a cap; malformed text must never be serialized as null. */
+export function orgSpendCap(value: string): number | null | undefined {
+  const text = value.trim();
+  if (!text) return null;
+  const cap = Number(text);
+  return /^\d+$/.test(text) && Number.isSafeInteger(cap) ? cap : undefined;
 }
 
 /** Roles in rank order, as the node ranks them (`roleAtLeast`). */
@@ -140,10 +151,10 @@ export function parseOrgAgent(raw: unknown): OrgAgentView | null {
   };
 }
 
-export function parseOrgProfile(raw: unknown): OrgProfile | null {
+export function parseOrgProfile(raw: unknown, expectedId?: string): OrgProfile | null {
   const r = obj((raw as { org?: unknown } | null | undefined)?.org ?? raw);
   const base = parseOrgSummary(r);
-  if (!r || !base) return null;
+  if (!r || !base || (expectedId !== undefined && base.id !== expectedId)) return null;
   return {
     ...base,
     readme: str(r.readme) ?? '', domain_role: isOrgRole(r.domain_role) ? r.domain_role : 'write', sso_org_ids: strs(r.sso_org_ids),
@@ -166,12 +177,31 @@ export function parseOrgList(raw: unknown): OrgListView {
   };
 }
 
-export interface OrgInviteView { token: string | null; token_prefix: string; role: OrgRole; email: string | null; created_by: string; created_at: number | null; expires_at: number | null; used_by: string | null; url: string | null }
+/** A membership selector must never silently discard rows and auto-select the remaining organization. */
+export function parseCompleteOrgList(raw: unknown): OrgListView | null {
+  const r = obj(raw), list = parseOrgList(raw);
+  if (!r || !Array.isArray(r.orgs) || typeof r.signed_in !== 'boolean' || r.orgs.length !== list.orgs.length
+    || new Set(list.orgs.map(o => o.id)).size !== list.orgs.length) return null;
+  return list;
+}
+
+/** The agent view needs a complete list belonging to the exact selected organization. */
+export function parseOrgAgentList(raw: unknown, expectedId: string): OrgProfile | null {
+  const r = obj((raw as { org?: unknown } | null)?.org ?? raw), profile = parseOrgProfile(raw, expectedId);
+  if (!r || !profile || !Array.isArray(r.agents) || r.agents.length !== profile.agents.length
+    || new Set(profile.agents.map(a => a.id)).size !== profile.agents.length
+    || profile.agents.some(a => a.org_id !== null && a.org_id !== expectedId && !profile.sso_org_ids.includes(a.org_id))) return null;
+  return profile;
+}
+
+export interface OrgInviteView { id: string | null; token: string | null; token_prefix: string; role: OrgRole; email: string | null; created_by: string; created_at: number | null; expires_at: number | null; used_by: string | null; url: string | null }
 export function parseOrgInvite(raw: unknown): OrgInviteView | null {
   const r = obj((raw as { invite?: unknown } | null | undefined)?.invite ?? raw);
-  if (!r || !str(r.token_prefix)) return null;
+  if (!r || !str(r.token_prefix) || !isOrgRole(r.role)) return null;
+  if (r.id != null && (typeof r.id !== 'string' || !/^inv_[a-f0-9]{64}$/.test(r.id))) return null;
+  if (['email', 'used_by', 'token', 'url'].some(key => r[key] != null && typeof r[key] !== 'string')) return null;
   return {
-    token: str(r.token), token_prefix: str(r.token_prefix) as string, role: isOrgRole(r.role) ? r.role : 'read', email: str(r.email), created_by: str(r.created_by) ?? '',
+    id: str(r.id), token: str(r.token), token_prefix: str(r.token_prefix) as string, role: r.role, email: str(r.email), created_by: str(r.created_by) ?? '',
     created_at: num(r.created_at), expires_at: num(r.expires_at), used_by: str(r.used_by), url: str(r.url),
   };
 }
@@ -194,7 +224,7 @@ export interface OrgBillingView {
 }
 export function parseOrgBilling(raw: unknown): OrgBillingView | null {
   const r = obj(raw);
-  if (!r) return null;
+  if (!r || !Array.isArray(r.keys) || !Array.isArray(r.agents)) return null;
   return {
     spend_cap_credits: num(r.spend_cap_credits), sso_org_ids: strs(r.sso_org_ids), keys_available: r.keys_available === true, spend_metered: r.spend_metered === true,
     agent_calls_total: num(r.agent_calls_total) ?? 0,
@@ -209,7 +239,7 @@ export interface OrgSecurityView {
 }
 export function parseOrgSecurity(raw: unknown): OrgSecurityView | null {
   const r = obj(raw);
-  if (!r) return null;
+  if (!r || !obj(r.sso) || !Array.isArray(r.admins) || !Array.isArray(r.domains)) return null;
   const sso = obj(r.sso);
   const via = obj(r.members_by_via) ?? {};
   return {

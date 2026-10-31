@@ -1,3 +1,4 @@
+import { readExploreSelection } from '@/lib/exploreSelection';
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router';
 import { Provider } from 'react-redux';
@@ -10,7 +11,7 @@ import { LocaleProvider } from './i18n';
 import { FocusedLayout, FullScreenLayout, Layout, NewPatchGate, SignedInLayout, SigningCheckLayout } from './components/base/Layout';
 import { TrainSection } from './components/teach/TrainSection';
 import { knowledgePath } from './lib/detailRoutes';
-import { legacyTrainDestination } from './lib/trainNavigation';
+import { legacyTrainDestination, legacyAgentsDestination } from './lib/trainNavigation';
 import { CenterProgress } from './components/ui/Misc';
 
 // Pages are code-split like ainize-web did with @loadable/component.
@@ -18,6 +19,7 @@ const LandingPage = lazy(() => import('./screens/LandingPage'));
 const ExplorePage = lazy(() => import('./screens/ExplorePage'));
 const PatchPage = lazy(() => import('./screens/PatchPage'));
 const BenchmarkPage = lazy(() => import('./screens/BenchmarkPage'));
+const KnowledgeByIdPage = lazy(() => import('./screens/KnowledgeByIdPage'));
 const LedgerPage = lazy(() => import('./screens/LedgerPage'));
 const NetworkPage = lazy(() => import('./screens/NetworkPage'));
 const ModelsPage = lazy(() => import('./screens/ModelsPage'));
@@ -84,11 +86,17 @@ function LegacyTrainRoute() {
   return <Navigate to={legacyTrainDestination(location.pathname, location.search, location.hash)} replace />;
 }
 
+function LegacyAgentsRoute() {
+  const { search, hash } = useLocation();
+  return <Navigate to={legacyAgentsDestination(search, hash)} replace />;
+}
+
 function ExploreEntry() {
   const location = useLocation();
-  return new URLSearchParams(location.search).get('kind') === 'agent'
-    ? <Layout><ExplorePage fixedKind="agent" /></Layout>
-    : <Navigate to={`/train/knowledge${location.search}${location.hash}`} replace />;
+  const selection = readExploreSelection(new URLSearchParams(location.search));
+  return selection.kind === 'knowledge' && !selection.invalid
+    ? <Navigate to={`/train/knowledge${location.search}${location.hash}`} replace />
+    : <Layout><ExplorePage /></Layout>;
 }
 
 function AccountEntry() {
@@ -135,7 +143,7 @@ export default function App() {
                 <Route path="/agent/:id" element={<Layout><AgentPage /></Layout>} />
                 {/* The list lives in one place. /agents used to be a second one, and clicking an item on the
                     marketplace landed the reader back on a grid of every agent. */}
-                <Route path="/agents" element={<Navigate to="/explore?kind=agent" replace />} />
+                <Route path="/agents" element={<LegacyAgentsRoute />} />
                 {/* a track name contains slashes (`finance/KRX-latest`), so the route is a splat: /tracks/finance/KRX-latest */}
                 <Route path="/tracks/*" element={<Layout><TrackPage /></Layout>} />
                 <Route path="/ledger" element={<Layout><LedgerPage /></Layout>} />
@@ -165,6 +173,7 @@ export default function App() {
                 <Route path="/verifier/:address" element={<Layout><VerifierPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<LegacyKnowledgeRoute />} />
+                <Route path="/patch/:patchId" element={<Layout><KnowledgeByIdPage /></Layout>} />
 
                 {/* Signed in is enough: these are the caller's own things, not this node's. */}
                 <Route path="/me" element={<SignedInLayout><MyPage /></SignedInLayout>} />

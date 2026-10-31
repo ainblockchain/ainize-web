@@ -1,16 +1,22 @@
-import { Link, Navigate } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useLocation } from 'react-router';
 import styled from 'styled-components';
-import { useMyNodesQuery, useUnlinkNodeMutation } from '@/api/api';
+import { useMyNodesQuery, useUnlinkNodeMutation, errorMessage } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { CenterProgress, Description, PageWrapper, StyledLink, Title } from '@/components/ui/Misc';
 import { Button } from '@/components/ui/Button';
+import { Alert } from '@/components/ui/Form';
+import { useActiveView } from '@/hooks/useActiveView';
+import { createNodeActionTask } from '@/lib/accountNodeActions';
+import { disconnectMyNode, NodeLinkActionError, readMyNodes } from '@/lib/myNodes';
+import { signInHref, withQuery } from '@/lib/uiNavigation';
 import { QueryError } from '@/components/operator/common';
 
 const List = styled.div`display: flex; flex-direction: column; gap: 12px; margin-top: 24px;`;
 const Card = styled.div`
-  border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 8px; padding: 18px 20px; background: #fff;
+  border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 8px; padding: 18px 20px; background: #fff; min-width: 0; overflow-wrap: anywhere;
 `;
 const Head = styled.div`display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;`;
 const Name = styled.strong`font-size: 16px; font-weight: 700;`;
@@ -21,7 +27,7 @@ const Dot = styled.span<{ $on: boolean | null }>`
   &::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 `;
 const Meta = styled.div`margin-top: 8px; font-size: 13px; color: ${(p) => p.theme.color.GREY}; line-height: 1.7;`;
-const Actions = styled.div`margin-top: 12px; display: flex; gap: 14px; font-size: 13px;`;
+const Actions = styled.div`margin-top: 12px; display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px;`;
 const Empty = styled.div`
   margin-top: 28px; border: 1px dashed ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 8px; padding: 24px;
   font-size: 14px; line-height: 1.9; color: #555;
@@ -29,26 +35,52 @@ const Empty = styled.div`
 `;
 
 export default function MyNodesPage() {
-  const { t } = useT();
-  const { subject, sso, cacheIdentity, loading } = useAuth();
-  const owner = subject ?? sso?.principal;
+  const auth = useAuth(), { t } = useT(), location = useLocation();
   useTitle(t('op.mynodes.title'));
-  const { currentData: data, error, isLoading, refetch, isFetching } = useMyNodesQuery(cacheIdentity, { skip: loading || !owner, pollingInterval: 15000 });
-  const [unlink, unlinkState] = useUnlinkNodeMutation();
-  const rows = data?.nodes ?? [];
-  if (loading) return <CenterProgress />;
-  if (!owner) return <Navigate to="/signing?next=%2Fmy-nodes" replace />;
+  const owner = auth.subject ?? auth.sso?.principal;
+  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!auth.isSignedIn) return <Navigate to={signInHref(location)} replace />;
+  if (!owner) return <PageWrapper><Alert $tone="info" data-testid="mynodes-account-required">
+    {t('op.mynodes.account_required')}{' '}
+    {auth.ssoConfigured && <a href={`/api/auth/sso/start?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`}>{t('op.sign.sso.button')}</a>}{' '}
+    <StyledLink to={withQuery(signInHref(location), { wallet: '1' })}>{t('op.mynodes.wallet')}</StyledLink>
+  </Alert></PageWrapper>;
+  return <MyNodes key={auth.cacheIdentity} owner={owner} />;
+}
 
+function MyNodes({ owner }: { owner: string }) {
+  const { t } = useT(), auth = useAuth(), active = useActiveView();
+  const current = () => active() && auth.isCurrentAccount();
+  const query = useMyNodesQuery(auth.cacheIdentity, { pollingInterval: 15000 });
+  const view = !query.isError ? readMyNodes(query.currentData, owner) : null;
+  const rows = view?.nodes ?? [], waiting = !view && query.isFetching;
+  const [unlink] = useUnlinkNodeMutation();
+  const [task] = useState(createNodeActionTask), [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null), [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => () => task.abandon(), [task]);
+  const disconnect = async (address: string, revision: string) => {
+    if (!view?.reviewed || !view.hubAddress || query.isFetching || task.pending() || !current()) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const result = await task.run(current, isCurrent => disconnectMyNode({ address, revision, hubAddress: view.hubAddress! }, owner, {
+        current: isCurrent, read: () => query.refetch().unwrap(), write: input => unlink(input).unwrap(),
+      }));
+      if (result && current()) setNotice(t('op.mynodes.disconnected', { address: result.address }));
+    } catch (err) { if (current()) setError(err instanceof NodeLinkActionError ? t(`op.mynodes.error.${err.code}`) : errorMessage(err)); }
+    finally { if (current()) setBusy(false); }
+  };
   return (
     <PageWrapper>
       <Title>{t('op.mynodes.title')}</Title>
-      <Description>{t('op.mynodes.desc', { addr: sso?.name || (owner ? `${owner.slice(0, 10)}…${owner.slice(-4)}` : '') })}</Description>
+      <Description>{t('op.mynodes.desc', { addr: auth.sso?.name || (owner.length > 18 ? `${owner.slice(0, 10)}…${owner.slice(-4)}` : owner) })}</Description>
       <details style={{ marginTop: 20 }}><summary>{t('op.mynodes.add')}</summary><p>{t('op.mynodes.add_hint')}</p><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>ainize init --home ~/.ainize-node2 --name node2 --port 3403{'\n'}ainize login --home ~/.ainize-node2{'\n'}ainize start --home ~/.ainize-node2 -d</pre></details>
-      {unlinkState.error && <QueryError error={unlinkState.error} what={t('op.mynodes.disconnect')} onRetry={() => unlinkState.reset()} />}
-      {!data && (isLoading || isFetching) && <CenterProgress />}
-      {error && <QueryError error={error} what={t('op.mynodes.title')} onRetry={() => void refetch()} retrying={isFetching} />}
+      {error && <Alert role="alert" $tone="error">{error}{' '}<Button variant="text" disabled={busy || query.isFetching} onClick={() => void query.refetch()}>{t('op.mynodes.refresh')}</Button></Alert>}
+      {notice && <Alert role="status" $tone="info">{notice}</Alert>}
+      {waiting && <CenterProgress />}
+      {!waiting && !view && <QueryError error={query.error} what={t('op.mynodes.title')} onRetry={() => void query.refetch()} retrying={query.isFetching} />}
+      {view && (!view.reviewed || rows.some(n => n.can_unlink && !n.revision)) && <Alert $tone="info" data-testid="mynodes-upgrade">{t('op.mynodes.upgrade')}</Alert>}
 
-      {!isLoading && !error && data && rows.length === 0 && (
+      {view && !waiting && rows.length === 0 && (
         <Empty data-testid="mynodes-empty">
           {/* The empty state is the instructions: this page is most often first seen by somebody who has one
               node running somewhere and no idea how it is supposed to find them. */}
@@ -62,23 +94,23 @@ export default function MyNodesPage() {
         {rows.map((n) => (
           <Card key={n.address}>
             <Head>
-              <Name>{n.name ?? t('op.mynodes.unnamed')}</Name>
+              <Name>{n.name || t('op.mynodes.unnamed')}</Name>
               <Mono>{n.address.slice(0, 10)}…{n.address.slice(-4)}</Mono>
-              <Dot $on={n.seen}>
+              {n.can_unlink !== false && <Dot $on={n.seen}>
                 {n.seen === true ? t('op.mynodes.seen') : n.seen === false ? t('op.mynodes.unseen') : t('op.mynodes.never')}
-              </Dot>
+              </Dot>}
               {n.is_this_hub && <Mono>{t('op.mynodes.this_one')}</Mono>}
             </Head>
             <Meta>
-              {n.roles.length > 0 && <>{n.roles.join(' · ')}{n.version ? ` · ${n.version}` : ''}<br /></>}
+              {(n.roles.length > 0 || n.version) && <>{[...n.roles, n.version].filter(Boolean).join(' · ')}<br /></>}
               {n.agents.length > 0
                 ? <>{t('op.mynodes.agents', { n: n.agents.length })}: {n.agents.map((a) => a.name || a.id).join(', ')}</>
-                : t('op.mynodes.no_agents')}
+                : t('op.mynodes.agents_unknown')}
             </Meta>
             {/* Only the node serving this page has screens here. Another node of yours is administered in its
                 own browser tab, at its own address — which this page deliberately does not know. */}
-            {n.can_unlink && <Actions><Button variant="text" disabled={unlinkState.isLoading} onClick={() => { void unlink(n.address); }}>{t('op.mynodes.disconnect')}</Button></Actions>}
-            {n.operable && (
+            {view?.reviewed && n.can_unlink && n.revision && <><Actions><Button variant="text" disabled={busy || query.isFetching} onClick={() => void disconnect(n.address, n.revision!)}>{t('op.mynodes.disconnect')}</Button></Actions><Meta>{t('op.mynodes.disconnect_hint')}</Meta></>}
+            {view?.reviewed && n.is_this_hub && n.operable && (
               <Actions>
                 <StyledLink as={Link} to="/logs">{t('op.mynodes.logs')}</StyledLink>
                 <StyledLink as={Link} to="/dashboard">{t('op.mynodes.dashboard')}</StyledLink>

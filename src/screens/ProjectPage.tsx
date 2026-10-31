@@ -5,45 +5,50 @@
  * actions — Code (the repo in ainize.ai/code), Run (script), Visit (service / agent / nextjs), Redeploy. Four tabs, deep-linked through `?tab=`:
  *
  *   Deployments  the Vercel-shaped rows (status dot, sha + subject, branch, who, when, how long); a row opens the
- *                full log (polled while it runs), exit code, output link, Redeploy — "roll back to this one" for a
- *                service, since a redeploy of an earlier commit re-points the container. Filters, pagination.
+ *                full log (polled while it runs), exit code, output link, and Redeploy of the displayed commit.
+ *                Filters and pagination preserve an explicitly selected record.
  *   Runs         script projects: the Run panel — entry file, the `inputs` form out of ainize.json (GitHub
  *                workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input, timeout, example
  *                presets (`examples` in ainize.json) — and the history of runs, each re-runnable with its inputs.
  *   Logs         a service/nextjs app's RUNTIME log — what the running container prints, on the node or the deployment
  *                peer it was placed on; owner/members only, followed live — and the newest deployment's or run's
- *                build log (`?log=build`), downloadable.
+ *                build log (`?log=build`), downloadable; `record` pins an explicit record.
  *   Settings     environment variables (write-only values, .env paste, redeploy after saving — ProjectEnvVars),
  *                branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
  *
  * A banner over the tabs names the environment variables ainize.json declares and nobody has set yet.
  *
  * Reading is public (ainize-node docs/PROJECTS.md "Who sees what"); the node says with `canManage` / `canOperate`
- * which buttons this caller gets. `/projects/:id` still resolves and forwards here.
+ * which buttons this caller gets. `/projects/:id` resolves the same console when a pretty route would collide.
  */
+import { createProjectManagement, ProjectManagementError, projectSyncTarget, sameProjectManagementTarget, type ProjectManagementAction } from '@/lib/projectManagement';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import {
-  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
+  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
   useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
-import { parseModelsResponse } from '@/api/models';
+import { readModelsResponse } from '@/api/models';
 import {
-  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
+  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, invalidInputs, projectInputValue, projectRunEnvIssues, projectRunTimeout, isModelInput, missingInputs, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
   type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
-import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
+import { logTime, readRuntimeLogs, runtimeLogProblemOf, runtimeLogsMatchDeployment, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
 import { useAuth } from '@/auth/AuthContext';
+import { useActiveView } from '@/hooks/useActiveView';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRoutes';
-import { activeProjectUrl, isScriptProject } from '@/lib/projectActions';
+import { hasPrettyProjectPath, isReservedFirstSegment, orgPath, projectOrganizationPath, projectPath, projectRedirectPath } from '@/lib/reservedRoutes';
+import { activeProjectUrl, hasProjectRunTargets } from '@/lib/projectActions';
+import { deploymentLogHref, deploymentPage, projectRedeployTarget, readProjectDeploymentHistory } from '@/lib/projectHistory';
+import { createProjectRedeployment } from '@/lib/projectRedeploy';
+import { createProjectRunSubmission, prepareProjectRun, projectRunSelection, readProjectRunSource, readProjectRunHistory, type ProjectRunDraft } from '@/lib/projectRun';
 import { signInHref } from '@/lib/uiNavigation';
 import { isKnowledgeAuthor } from '@/lib/detailRoutes';
-import { repoProjectLabel, repoProjects, selectRepoProject } from '@/lib/repoProjects';
+import { repoProjectLabel, repoProjects, selectRepoProject, readProjectList, readRepoProjectList } from '@/lib/repoProjects';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
@@ -103,13 +108,15 @@ function StatusDot({ status }: { status: DeploymentStatus | ProjectStatus }) {
 }
 
 /** The log: text, re-read every two seconds while the deployment is queued or building. */
-function LogView({ deployment, onText }: { deployment: Deployment; onText?: (text: string) => void }) {
+function LogView({ deployment, downloadName }: { deployment: Deployment; downloadName?: string }) {
   const { t } = useT();
-  const { currentData: data, isLoading, isFetching, error, refetch } = useDeploymentLogQuery(deployment.id, { pollingInterval: isLive(deployment.status) ? 2000 : 0 });
-  useEffect(() => { onText?.(error ? '' : data ?? ''); }, [data, error, onText]);
-  if (error) return <Alert $tone="error">{t('projects.logs.failed')} <Button onClick={() => void refetch()} loading={isFetching}>{t('projects.page.retry')}</Button></Alert>;
+  const { currentData: data, isLoading, isFetching, error, refetch } = useDeploymentLogQuery({ id: deployment.id, identity: useAuth().cacheIdentity }, { pollingInterval: isLive(deployment.status) ? 2000 : 0 });
+  if (error || data !== undefined && typeof data !== 'string' || !isFetching && !isLoading && data === undefined) return <Alert role="alert" $tone="error">{t('projects.logs.failed')} <Button onClick={() => void refetch()} loading={isFetching}>{t('projects.page.retry')}</Button></Alert>;
   if (isLoading || (isFetching && data === undefined)) return <Log>{t('projects.logs.loading')}</Log>;
-  return <Log aria-live="polite">{data?.length ? data : t('projects.page.log_empty')}</Log>;
+  return <>
+    {downloadName && <Actions><Button size="small" onClick={() => { if (typeof data === 'string') download(downloadName, data); }} disabled={!data?.length}>{t('projects.logs.download')}</Button></Actions>}
+    <Log aria-live="polite">{data?.length ? data : t('projects.page.log_empty')}</Log>
+  </>;
 }
 
 function download(name: string, text: string) {
@@ -128,37 +135,41 @@ const RunLine = styled.div<{ $err: boolean }>`
  * Owner and organization members only; "Follow" asks again every few seconds and keeps the view at the bottom unless
  * the reader scrolled up.
  */
-function RuntimeLogView({ project }: { project: Project }) {
+export function RuntimeLogView({ project, onRefreshProject }: { project: Project; onRefreshProject?: () => void }) {
   const { t } = useT();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, cacheIdentity } = useAuth();
   const [tail, setTail] = useState<number>(RUNTIME_LOG_DEFAULT_TAIL);
   const [follow, setFollow] = useState(true);
   const allowed = isSignedIn && !!project.canOperate;
-  const q = useProjectRuntimeLogsQuery({ id: project.id, tail }, { skip: !allowed, pollingInterval: follow ? RUNTIME_LOG_POLL_MS : 0, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true });
+  const q = useProjectRuntimeLogsQuery({ id: project.id, tail, identity: cacheIdentity }, { skip: !allowed, pollingInterval: follow ? RUNTIME_LOG_POLL_MS : 0, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true });
   const box = useRef<HTMLPreElement>(null);
   const stick = useRef(true);
-  useEffect(() => { const el = box.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [q.data]);
+  useEffect(() => { const el = box.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [q.currentData]);
   if (!isSignedIn) {
     return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(window.location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
   }
   if (!project.canOperate) return <Panel><Help>{t('projects.logs.not_member', { org: project.org })}</Help></Panel>;
-  const data = q.data;
-  const problem = q.error ? runtimeLogProblemOf(q.error) : null;
+  const read = q.error ? null : readRuntimeLogs(q.currentData, { id: project.id, tail });
+  const changed = !!read && !runtimeLogsMatchDeployment(read, project);
+  const data = changed ? null : read;
+  const problem = q.error ? runtimeLogProblemOf(q.error) : !q.isFetching && !read ? 'unavailable' : null;
+  const refresh = () => { stick.current = true; onRefreshProject?.(); void q.refetch(); };
   return (
     <>
       <FilterRow>
-        {data && <Meta>{t(data.placement === 'peer' ? 'projects.logs.placement_peer' : 'projects.logs.placement_local')} · <Mono title={data.sha}>{shortSha(data.sha)}</Mono> · {t('projects.logs.updated', { time: new Date(data.fetchedAt).toLocaleTimeString(undefined, { hour12: false }) })}</Meta>}
+        {data && <Meta>{t(data.placement === 'peer' ? 'projects.logs.placement_peer' : 'projects.logs.placement_local')} · <Mono title={data.deploymentId}>{data.deploymentId}</Mono> · <Mono title={data.sha}>{shortSha(data.sha)}</Mono> · {t('projects.logs.updated', { time: new Date(data.fetchedAt).toLocaleTimeString(undefined, { hour12: false }) })}</Meta>}
         <Spacer />
         <Checkbox label={t('projects.logs.follow')} checked={follow} onChange={(e) => { setFollow(e.target.checked); stick.current = true; }} />
         <Select aria-label={t('projects.logs.tail')} value={String(tail)} onChange={(e) => setTail(Number(e.target.value))}>
           {RUNTIME_LOG_TAILS.map((n) => <option key={n} value={n}>{n}</option>)}
         </Select>
-        <Button size="small" loading={q.isFetching} onClick={() => { stick.current = true; void q.refetch(); }}>{t('projects.logs.refresh')}</Button>
+        <Button size="small" loading={q.isFetching} onClick={refresh}>{t('projects.logs.refresh')}</Button>
         <Button size="small" onClick={() => download(`${project.org}-${project.repoName}-runtime.log`, runtimeLogsText(data?.lines ?? []))} disabled={!data?.lines.length}>{t('projects.logs.download')}</Button>
       </FilterRow>
       <Help>{t('projects.logs.runtime_hint')}</Help>
+      {changed && <Alert role="alert" $tone="info">{t('projects.logs.deployment_changed')}</Alert>}
       {problem && <Alert $tone={problem === 'not_running' ? 'info' : 'error'}>{t(`projects.logs.${problem}`, { org: project.org })}</Alert>}
-      {q.isLoading && !data ? <CenterProgress /> : data && (
+      {q.isFetching && !data ? <CenterProgress /> : data && (
         <Log ref={box} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}>
           {data.truncated && <RunLine $err={false}><span className="ts">…</span>{t('projects.logs.truncated')}</RunLine>}
           {data.lines.length === 0 ? t('projects.logs.runtime_empty') : data.lines.map((l, i) => (
@@ -175,17 +186,10 @@ const who = (d: Deployment) => d.pusher?.subject ?? null;
 /** The names a run was started with: the node sends names only (values may be secrets). */
 const runInputNames = (d: Deployment) => d.inputKeys ?? Object.keys(d.inputs ?? {});
 
-function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployment; project: Project; open: boolean; onToggle: () => void; onRunAgain?: (d: Deployment) => void }) {
+function DeploymentRow({ d, project, open, onToggle, onRunAgain, onRedeploy, redeployBlocked }: { d: Deployment; project: Project; open: boolean; onToggle: () => void; onRunAgain?: (d: Deployment) => void; onRedeploy?: (d: Deployment) => void; redeployBlocked?: boolean }) {
   const { t } = useT();
   const tone = statusToneOf(d.status);
-  const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
-  const [err, setErr] = useState<string | null>(null);
-  const isService = d.kind === 'service' || d.kind === 'nextjs';
-  const again = async () => {
-    setErr(null);
-    try { await redeploy({ deploymentId: d.id, projectId: project.id }).unwrap(); }
-    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
-  };
+  const output = d.trigger === 'run' || d.kind === 'script' ? d.outputUrl : activeProjectUrl(project, [d]);
   return (
     <Row $open={open}>
       <Head onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }} tabIndex={0} role="button" aria-expanded={open}>
@@ -204,24 +208,23 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
       </Head>
       {open && (
         <>
-          {d.placement && <Meta>Node: <ExternalLink href={d.placement.endpoint} target="_blank" rel="noreferrer">{d.placement.local ? 'Local' : new URL(d.placement.endpoint).hostname} ↗</ExternalLink> · {d.placement.reason}</Meta>}
+          {d.placement && <Meta>{t('projects.page.execution_node')}: {d.placement.local ? t('projects.page.this_node') : <Mono>{shortSha(d.placement.address)}</Mono>}</Meta>}
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
-          {d.trigger === 'run' && runInputNames(d).length > 0 && (
-            <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
-          )}
+          {d.trigger === 'run' && d.entry && <Meta>{t('projects.runs.entry')}: <Mono>{d.entry}</Mono></Meta>}
+          {d.trigger === 'run' && runInputNames(d).length > 0 && <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}</Meta>}
           <Actions>
-            {d.status === 'ready' && d.outputUrl && <ExternalLink href={d.outputUrl} target="_blank" rel="noreferrer">{d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
-            <ExternalLink href={d.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
+            {d.status === 'ready' && output && <ExternalLink href={output} target="_blank" rel="noreferrer">{d.trigger === 'run' || d.kind === 'script' ? t('projects.page.output') : d.kind === 'agent' ? t('projects.page.open_agent') : t('projects.page.visit')} ↗</ExternalLink>}
+            {d.status === 'ready' && d.outputState === 'unconfirmed' && <Meta>{t('projects.page.output_unconfirmed')}</Meta>}
+            <ExternalLink href={deploymentLogHref(d.id)} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
             <Spacer />
-            {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
-            {project.canOperate && d.trigger !== 'run' && d.sha && (
-              <Button size="small" loading={redeploying} onClick={again} title={isService ? t('projects.page.rollback_hint') : undefined}>
-                {isService && project.lastDeploymentId !== d.id ? t('projects.page.rollback') : t('projects.page.redeploy')}
+            {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" disabled={!/^[a-f0-9]{40,64}$/.test(d.sha)} onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
+            {project.canOperate && d.trigger !== 'run' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(d.sha) && onRedeploy && (
+              <Button size="small" disabled={redeployBlocked} onClick={() => onRedeploy(d)} title={t('projects.page.redeploy_hint')}>
+                {t('projects.page.redeploy_commit', { sha: shortSha(d.sha) })}
               </Button>
             )}
           </Actions>
-          {err && <Alert $tone="error">{err}</Alert>}
           <LogView deployment={d} />
         </>
       )}
@@ -231,69 +234,84 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
 
 // ------------------------------------------------------------------------------------------------ the Run panel
 
-interface RunDraft { target: 'head' | 'commit' | 'deployed'; sha: string; entry: string; answers: Record<string, string>; env: string; timeoutMs: string }
+type RunDraft = ProjectRunDraft;
 const emptyDraft = (p: Project): RunDraft => ({ target: 'head', sha: '', entry: '', answers: {}, env: '', timeoutMs: '' });
 
-function InputField({ name, spec, value, onChange, models }: { name: string; spec: ManifestInput; value: string; onChange: (v: string) => void; models: string[] }) {
+export function ProjectRunInput({ name, spec, value, onChange, models }: { name: string; spec: ManifestInput; value?: string; onChange: (v: string) => void; models: string[] }) {
+  const { t } = useT();
   const type = spec.type ?? 'string';
-  const id = `in-${name}`;
+  const id = `in-${name}`, shown = projectInputValue(spec, value);
   const label = <>{name}{spec.required && ' *'}{spec.description && <Help>{spec.description}</Help>}</>;
-  if (type === 'boolean') return <Field><Checkbox id={id} label={label} checked={value === 'true' || (value === '' && spec.default === true)} onChange={(e) => onChange(e.target.checked ? 'true' : 'false')} /></Field>;
-  if (type === 'choice' || (isModelInput(name, spec) && models.length)) {
-    const options = spec.options?.length ? spec.options : models;
-    return (
-      <Field><FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <Select id={id} value={value || String(spec.default ?? '')} onChange={(e) => onChange(e.target.value)}>
-          {!spec.required && <option value="">—</option>}
-          {options.map((o) => <option key={o} value={o}>{o}</option>)}
-        </Select>
-      </Field>
-    );
-  }
+  const options = type === 'boolean' ? ['true', 'false'] : spec.options ?? [];
+  if (options.length) return (
+    <Field><FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Select id={id} value={shown} onChange={e => onChange(e.target.value)}>
+        <option value="">{spec.required ? t('projects.runs.choose') : '—'}</option>
+        {shown && !options.includes(shown) && <option value={shown} disabled>{shown} · {t('projects.runs.invalid_choice')}</option>}
+        {[...new Set(options)].map(o => <option key={o} value={o}>{type === 'boolean' ? t(`projects.runs.boolean_${o}`) : o}</option>)}
+      </Select>
+    </Field>
+  );
+  const suggestions = isModelInput(name, spec) ? [...new Set(models)] : [];
   return (
     <Field><FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input id={id} type={type === 'number' ? 'number' : 'text'} value={value} placeholder={spec.default !== undefined ? String(spec.default) : ''} onChange={(e) => onChange(e.target.value)} />
+      <Input id={id} type={type === 'number' ? 'number' : 'text'} value={shown} list={suggestions.length ? `${id}-models` : undefined} onChange={e => onChange(e.target.value)} />
+      {suggestions.length > 0 && <datalist id={`${id}-models`}>{suggestions.map(model => <option key={model} value={model} />)}</datalist>}
     </Field>
   );
 }
 
-function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; draft: RunDraft; setDraft: (d: RunDraft) => void; onStarted: (runId: string) => void }) {
+export function ProjectRunPanel({ project, draft, setDraft, onStarted }: { project: Project; draft: RunDraft; setDraft: (d: RunDraft) => void; onStarted: (runId: string) => void }) {
   const { t } = useT();
-  const { isSignedIn } = useAuth();
+  const auth = useAuth();
+  const { isSignedIn, cacheIdentity } = auth;
   const location = useLocation();
+  const active = useActiveView();
   const [run, { isLoading }] = useRunProjectMutation();
   const [err, setErr] = useState<string | null>(null);
-  const modelsQuery = useModelsQuery();
-  const models = useMemo(() => parseModelsResponse(modelsQuery.data).filter((m) => m.available !== false).map((m) => m.id), [modelsQuery.data]);
-  const sourceQuery = useProjectSourceQuery({ id: project.id, target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}) }, {
+  const [submission] = useState(createProjectRunSubmission);
+  const [uncertain, setUncertain] = useState(false);
+  const [accepted, setAccepted] = useState<string | null>(null);
+  const modelsQuery = useModelsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const modelRead = useMemo(() => modelsQuery.isError ? null : readModelsResponse(modelsQuery.currentData), [modelsQuery.currentData, modelsQuery.isError]);
+  const models = modelRead?.models.map(m => m.id) ?? [];
+  const sourceQuery = useProjectSourceQuery({ id: project.id, identity: cacheIdentity, target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}) }, {
     skip: !isSignedIn || !project.canOperate || (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)),
     refetchOnMountOrArgChange: true,
   });
-  const source = sourceQuery.currentData;
+  const source = sourceQuery.isError ? null : readProjectRunSource(sourceQuery.currentData, project, draft.target, draft.sha);
+  const sourceInvalid = !source && !sourceQuery.isFetching && !sourceQuery.isUninitialized;
   const manifest = source?.manifest;
-  const entry = draft.entry || manifest?.entry || '';
-  const inputs = manifest?.inputs ?? {};
-  const runnable = manifest?.entry ? [manifest.entry] : [];
+  const { targets: runnable, selected } = projectRunSelection(source, draft.entry);
+  const entry = draft.entry || selected?.entry || '';
+  const inputs = selected?.inputs ?? {};
+  const examples = selected?.examples ?? [];
+  const selectionIdentity = JSON.stringify([project.id, project.repoId, project.sourcePath, auth.address, cacheIdentity, source?.sha, draft]);
+  const latestSelection = useRef(selectionIdentity); latestSelection.current = selectionIdentity;
+  const current = () => active() && auth.isCurrentAccount() && latestSelection.current === selectionIdentity;
   const missing = missingInputs(inputs, draft.answers);
+  const invalid = invalidInputs(inputs, draft.answers);
+  const invalidEnv = projectRunEnvIssues(draft.env), timeoutMs = projectRunTimeout(draft.timeoutMs);
   const setAnswer = (name: string, v: string) => setDraft({ ...draft, answers: { ...draft.answers, [name]: v } });
   const preset = (ex: { inputs: Record<string, string | number | boolean> }) => {
-    const answers: Record<string, string> = {};
-    for (const [k, v] of Object.entries(ex.inputs)) answers[k] = String(v);
+    if (Object.keys(ex.inputs).some(name => !Object.hasOwn(inputs, name))) { setErr(t('projects.runs.preset_invalid')); return; }
+    setErr(null);
+    const answers = Object.fromEntries(Object.entries(ex.inputs).map(([k, v]) => [k, String(v)]));
     setDraft({ ...draft, answers });
   };
+  let body: RunInput | null = null, sizeError = false;
+  try { if (source) body = prepareProjectRun(source, draft); } catch (error) { sizeError = error instanceof Error && error.message === 'run_size'; }
   const start = async () => {
-    setErr(null);
-    if (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)) { setErr(t('projects.runs.sha_required')); return; }
-    if (!source || sourceQuery.isFetching || manifest?.kind !== 'script') return;
-    const body: RunInput = {
-      target: 'commit', sha: source.sha,
-      ...(entry && entry !== manifest?.entry ? { entry } : {}),
-      inputs: inputAnswers(inputs, draft.answers),
-      env: parseEnvLines(draft.env),
-      ...(draft.timeoutMs ? { timeoutMs: Number(draft.timeoutMs) * 1000 } : {}),
-    };
-    try { const r = await run({ id: project.id, body }).unwrap(); onStarted(r.runId ?? r.deploymentId); }
-    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+    if (!current() || submission.blocked() || !body || sourceQuery.isFetching || !project.canOperate) return;
+    setErr(null); setAccepted(null);
+    try {
+      const id = await submission.submit(() => run({ id: project.id, body: body! }).unwrap());
+      if (id && active() && auth.isCurrentAccount()) { setAccepted(id); onStarted(id); }
+    } catch (e) {
+      if (!active() || !auth.isCurrentAccount()) return;
+      if (submission.blocked()) { setUncertain(true); setErr(t('projects.runs.unconfirmed')); }
+      else { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+    }
   };
   if (!isSignedIn) {
     return <Panel><Help>{t('projects.runs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
@@ -301,10 +319,11 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   if (!project.canOperate) return <Panel><Help>{t('projects.runs.not_member', { org: project.org })}</Help></Panel>;
   return (
     <Panel aria-label={t('projects.runs.panel')}>
-      {manifest?.examples?.length ? (
+      <fieldset disabled={isLoading} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      {examples.length ? (
         <div>
           <FieldLabel as="div">{t('projects.runs.examples')}</FieldLabel>
-          <Presets>{manifest.examples.map((ex) => <Button key={ex.name} size="small" title={ex.description} onClick={() => preset(ex)}>{ex.name}</Button>)}</Presets>
+          <Presets>{examples.map((ex, index) => <Button key={`${ex.name}:${index}`} size="small" title={ex.description} onClick={() => preset(ex)}>{ex.name}</Button>)}</Presets>
         </div>
       ) : null}
       <Grid>
@@ -317,28 +336,41 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
         </Field>
         {draft.target === 'commit' && <Field><FieldLabel htmlFor="run-sha">{t('projects.runs.sha')}</FieldLabel><Input id="run-sha" value={draft.sha} onChange={(e) => setDraft({ ...draft, sha: e.target.value.trim(), entry: '', answers: {} })} placeholder={project.sourceCommit ?? ''} /></Field>}
         <Field><FieldLabel htmlFor="run-entry">{t('projects.runs.entry')}</FieldLabel>
-          {runnable.length > 1
-            ? <Select id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })}>{runnable.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
-            : <Input id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })} placeholder="main.py" />}
+          <Select id="run-entry" value={entry} onChange={e => setDraft({ ...draft, entry: e.target.value, answers: {} })} disabled={!source || !runnable.length}>
+            {!entry && <option value="">{t('projects.runs.choose')}</option>}
+            {draft.entry && !selected && <option value={draft.entry} disabled>{draft.entry} · {t('projects.runs.invalid_choice')}</option>}
+            {runnable.map(row => <option key={row.entry} value={row.entry}>{row.name ? `${row.name} · ${row.entry}` : row.entry}</option>)}
+          </Select>
+          {selected?.description && <Help>{selected.description}</Help>}
         </Field>
-        {Object.entries(inputs).map(([name, spec]) => <InputField key={name} name={name} spec={spec} value={draft.answers[name] ?? ''} onChange={(v) => setAnswer(name, v)} models={models} />)}
+        {Object.entries(inputs).map(([name, spec]) => <ProjectRunInput key={name} name={name} spec={spec} value={Object.hasOwn(draft.answers, name) ? draft.answers[name] : undefined} onChange={(v) => setAnswer(name, v)} models={models} />)}
         <Field><FieldLabel htmlFor="run-timeout">{t('projects.runs.timeout')}</FieldLabel>
-          <Input id="run-timeout" type="number" min={1} max={300} value={draft.timeoutMs} placeholder={String((manifest?.timeoutMs ?? 120_000) / 1000)} onChange={(e) => setDraft({ ...draft, timeoutMs: e.target.value })} />
+          <Input id="run-timeout" type="number" min={1} max={300} step="any" value={draft.timeoutMs} placeholder={String((manifest?.timeoutMs ?? 120_000) / 1000)} onChange={(e) => setDraft({ ...draft, timeoutMs: e.target.value })} />
         </Field>
       </Grid>
       <Field><FieldLabel htmlFor="run-env">{t('projects.runs.env')}</FieldLabel>
         <Input as="textarea" id="run-env" rows={2} value={draft.env} placeholder={'NAME=value\nOTHER=value'} onChange={(e) => setDraft({ ...draft, env: e.target.value })} style={{ fontFamily: 'monospace', minHeight: 56 }} />
         <Help>{t('projects.runs.env_help')}</Help>
       </Field>
+      {Object.entries(inputs).some(([name, spec]) => isModelInput(name, spec)) && !modelRead && !modelsQuery.isFetching && <Help role="status">{t('projects.runs.models_unavailable')} <Button size="small" onClick={() => void modelsQuery.refetch()}>{t('projects.page.retry')}</Button></Help>}
+      {invalidEnv.length > 0 && <Alert role="alert">{t('projects.runs.invalid_env', { lines: invalidEnv.join(', ') })}</Alert>}
+      {timeoutMs === null && <Alert role="alert">{t('projects.runs.invalid_timeout')}</Alert>}
+      {invalid.length > 0 && <Alert role="alert">{t('projects.runs.invalid_inputs', { names: invalid.join(', ') })}</Alert>}
       {missing.length > 0 && <Help>{t('projects.runs.missing', { names: missing.join(', ') })}</Help>}
+      {sizeError && <Alert role="alert">{t('projects.runs.input_limits')}</Alert>}
+      {sourceQuery.isFetching && !source && <CenterProgress />}
+      {draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha) && <Help>{t('projects.runs.sha_required')}</Help>}
       {source && <Meta><Mono>{shortSha(source.sha)}</Mono></Meta>}
-      {source && manifest?.kind !== 'script' && <Help>{t('projects.runs.script_commit_required')}</Help>}
-      {sourceQuery.error && <Alert $tone="error">{projectApiErrorOf(sourceQuery.error).message ?? t('projects.api.unknown')}</Alert>}
-      {err && <Alert $tone="error">{err}</Alert>}
+      {source && !runnable.length && <Help>{t('projects.runs.no_targets')}</Help>}
+      {source && draft.entry && !selected && <Alert role="alert">{t('projects.runs.entry_missing')}</Alert>}
+      {sourceInvalid && <Alert role="alert" $tone="error">{t('projects.runs.source_unconfirmed')} <Button size="small" disabled={sourceQuery.isFetching} onClick={() => void sourceQuery.refetch()}>{t('projects.page.retry')}</Button></Alert>}
+      {err && <Alert role="alert" $tone="error">{err}</Alert>}
+      {accepted && <Help role="status">{t('projects.runs.accepted', { id: accepted })}</Help>}
       <Actions>
-        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !entry || !source || manifest?.kind !== 'script' || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
+        <Button data-testid="project-run-submit" variant="contained" loading={isLoading} disabled={!body || uncertain || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
         <Help>{t('projects.runs.key_hint')}</Help>
       </Actions>
+      </fieldset>
     </Panel>
   );
 }
@@ -353,8 +385,15 @@ const TABS: Tab[] = ['deployments', 'runs', 'logs', 'settings'];
  * folder projects), the row that picks which one this console shows — drawn under the breadcrumb.
  */
 export function ProjectConsole({ project: initial, switcher }: { project: Project; switcher?: ReactNode }) {
+  const { cacheIdentity } = useAuth();
+  return <ProjectConsoleContent key={`${cacheIdentity}:${initial.id}`} project={initial} switcher={switcher} />;
+}
+
+function ProjectConsoleContent({ project: initial, switcher }: { project: Project; switcher?: ReactNode }) {
   const { t } = useT();
+  const { cacheIdentity, isSignedIn } = useAuth();
   const navigate = useNavigate();
+  const active = useActiveView();
   const [sp, setSp] = useSearchParams();
   const tab: Tab = (TABS as string[]).includes(sp.get('tab') ?? '') ? (sp.get('tab') as Tab) : 'deployments';
   const setTab = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); if (id === 'deployments') n.delete('tab'); else n.set('tab', id); n.delete('open'); return n; });
@@ -362,20 +401,24 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const setOpen = (id: string | null) => setSp((prev) => { const n = new URLSearchParams(prev); if (id) n.set('open', id); else n.delete('open'); return n; });
 
   const live = isLive(initial.status);
-  const projectQ = useProjectQuery(initial.id, { pollingInterval: live ? 2000 : 15_000 });
-  const p = projectQ.currentData ?? initial;
-  const deployments = useProjectDeploymentsQuery(p.id, { pollingInterval: live ? 2000 : 15_000 });
+  const projectQ = useProjectQuery({ id: initial.id, identity: cacheIdentity }, { pollingInterval: live ? 2000 : 15_000 });
+  const p = projectQ.currentData?.id === initial.id ? projectQ.currentData : initial;
+  const deployments = useProjectDeploymentsQuery({ id: p.id, identity: cacheIdentity }, { pollingInterval: live ? 2000 : 15_000 });
   const kind = p.kind ?? p.manifest?.kind ?? null;
-  const isScript = isScriptProject(p);
-  const runs = useProjectRunsQuery(p.id, { skip: !isScript, pollingInterval: tab === 'runs' ? 2000 : 0 });
+  const canRun = hasProjectRunTargets(p);
+  const readRuns = canRun || tab === 'runs' || tab === 'logs';
+  const runs = useProjectRunsQuery({ id: p.id, identity: cacheIdentity }, { skip: !readRuns, pollingInterval: tab === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
-  const newest = deployments.data?.deployments[0]?.status;
+  const deploymentRead = deployments.isError ? null : readProjectDeploymentHistory(deployments.currentData, p.id);
+  const rows = deploymentRead ?? [];
+  const deploymentsFailed = deployments.isError || !deployments.isFetching && deploymentRead === null;
+  const runRead = runs.isError ? null : readProjectRunHistory(runs.currentData, p.id);
+  const runRows = runRead ?? [];
+  const runsFailed = readRuns && (runs.isError || !runs.isFetching && runRead === null);
+  const visitUrl = deploymentRead ? activeProjectUrl(p, rows) : null;
+  const latest = projectRedeployTarget(p, rows);
+  const newest = latest?.status;
   useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
-
-  const rows = deployments.currentData?.deployments ?? [];
-  const runRows = runs.currentData?.runs ?? [];
-  const visitUrl = activeProjectUrl(p, rows);
-  const latest = rows[0];
 
   // Deployments: filters + pages
   const [status, setStatus] = useState<string>('');
@@ -383,75 +426,118 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const [page, setPage] = useState(1);
   const branches = useMemo(() => [...new Set(rows.map((d) => d.ref.replace(/^refs\/heads\//, '')))], [rows]);
   const filtered = rows.filter((d) => (!status || d.status === status) && (!branch || d.ref.replace(/^refs\/heads\//, '') === branch));
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
-  const shown = filtered.slice((page - 1) * PAGE, page * PAGE);
+  const pageView = deploymentPage(filtered, page, open, PAGE);
+  const shown = pageView.rows;
 
   // Runs
   const [draft, setDraft] = useState<RunDraft>(() => emptyDraft(p));
   // The values a run was started with are not read back (they may be secrets): Run again keeps the commit and entry,
   // and leaves the answers to be given again.
-  const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
+  const [redeployment] = useState(createProjectRedeployment);
+  const [redeployUnknown, setRedeployUnknown] = useState(false);
+  const [accepted, setAccepted] = useState<string | null>(null);
   const [syncFromGithub, { isLoading: syncing }] = useSyncFromGithubMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
-  const [synced, setSynced] = useState(false);
+  const [synced, setSynced] = useState<{ target: Project; requestedAt: string } | null>(null);
+  const syncConfirmed = !!synced && sameProjectManagementTarget(p, synced.target, 'sync');
   // GitHub → AIN Drive runs on a backoff; this asks for it now. The push to AIN Drive then deploys as usual.
-  const syncNow = async () => {
+  const syncNow = () => manage('sync', () => syncFromGithub(p.id).unwrap());
+  const redeployRecord = async (selected: Deployment) => {
+    if (!p.canOperate || !rows.some(row => row.id === selected.id && row.sha === selected.sha) || redeployment.blocked()) return;
     setHeadErr(null);
-    try { await syncFromGithub(p.id).unwrap(); setSynced(true); }
-    catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
-  };
-  const redeployLatest = async () => {
-    if (!latest) return;
-    setHeadErr(null);
-    try { const r = await redeploy({ deploymentId: latest.id, projectId: p.id }).unwrap(); openDeployment(r.deploymentId); }
-    catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
+    setAccepted(null);
+    try {
+      const id = await redeployment.submit(selected, deploymentId => redeploy({ deploymentId, projectId: p.id, sha: selected.sha }).unwrap(), [...rows, ...runRows].map(d => d.id));
+      if (active() && id) { setAccepted(id); openDeployment(id); }
+    } catch (e) {
+      if (!active()) return;
+      if (redeployment.uncertain()) setRedeployUnknown(true);
+      else { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
+    }
   };
 
   // Logs
-  const latestAny = [latest, runRows[0]].filter((x): x is Deployment => !!x).sort((a, b) => b.createdAt - a.createdAt)[0];
-  const [logText, setLogText] = useState('');
+  const logRecords = [...rows, ...runRows].sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  const logId = sp.get('record') ?? '';
+  const selectedLog = logId ? logRecords.find(d => d.id === logId) : logRecords[0];
+  const setLogRecord = (id: string) => setSp(prev => { const n = new URLSearchParams(prev); if (id) n.set('record', id); else n.delete('record'); return n; });
   // A service or Next.js app has a runtime log beside its build log; `?log=build` deep-links the build one.
   const hasRuntime = kind === 'service' || kind === 'nextjs';
-  const logView: 'runtime' | 'build' = sp.get('log') === 'build' ? 'build' : 'runtime';
-  const setLogView = (v: 'runtime' | 'build') => setSp((prev) => { const n = new URLSearchParams(prev); if (v === 'build') n.set('log', 'build'); else n.delete('log'); return n; });
+  const logView: 'runtime' | 'build' = sp.get('log') === 'build' || logId && sp.get('log') !== 'runtime' ? 'build' : 'runtime';
+  const setLogView = (v: 'runtime' | 'build') => setSp((prev) => { const n = new URLSearchParams(prev); n.set('log', v); return n; });
 
   // Settings
   const [remove, { isLoading: removing }] = useDeleteProjectMutation();
   const [rotate, { isLoading: rotating }] = useRotateProjectSecretMutation();
-  const [rotated, setRotated] = useState<string | null>(null);
+  const [rotated, setRotated] = useState<{ target: Project; secret: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const del = async () => {
-    if (!window.confirm(t('projects.page.delete_confirm', { name: p.name }))) return;
-    setError(null);
-    try { await remove(p.id).unwrap(); navigate('/me/projects', { replace: true }); }
-    catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
+  const [management] = useState(createProjectManagement);
+  const [managementBusy, setManagementBusy] = useState(false);
+  const [managementUnknown, setManagementUnknown] = useState(false);
+  const managementReady = isSignedIn && !projectQ.isError && projectQ.currentData?.id === initial.id;
+  const managementDisabled = !managementReady || managementBusy || managementUnknown;
+  const manage = async (action: ProjectManagementAction, send: () => Promise<unknown>) => {
+    if (managementDisabled || management.blocked() || (action === 'sync' ? !p.canOperate : !p.canManage)) return;
+    setManagementBusy(true); setError(null); setHeadErr(null);
+    if (action === 'rotate') setRotated(null);
+    try {
+      const result = await management.run(p, action, { read: () => projectQ.refetch().unwrap(), send, active });
+      if (!active() || !result) return;
+      if (result.kind === 'delete') navigate('/me/projects', { replace: true });
+      if (result.kind === 'rotate') setRotated({ target: p, secret: result.receipt.webhookSecret });
+      if (result.kind === 'sync') setSynced({ target: p, requestedAt: result.requestedAt });
+    } catch (err) {
+      if (!active()) return;
+      const failure = projectApiErrorOf(err);
+      setError(management.uncertain() ? t('projects.settings.unconfirmed') : err instanceof ProjectManagementError
+        ? t('projects.settings.changed') : failure.message ?? t(`projects.api.${failure.code}`));
+    } finally { if (active()) { setManagementBusy(false); setManagementUnknown(management.uncertain()); } }
   };
-  const doRotate = async () => {
-    if (!window.confirm(t('projects.settings.rotate_confirm'))) return;
-    setError(null);
-    try { const r = await rotate(p.id).unwrap(); setRotated(r.webhookSecret); }
-    catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
+  const del = () => {
+    if (managementDisabled || management.blocked() || !p.canManage) return;
+    if (window.confirm(t('projects.page.delete_confirm', { name: p.name }))) void manage('delete', () => remove(p.id).unwrap());
   };
+  const doRotate = () => {
+    if (managementDisabled || management.blocked() || !p.canManage) return;
+    if (window.confirm(t('projects.settings.rotate_confirm'))) void manage('rotate', () => rotate(p.id).unwrap());
+  };
+  useEffect(() => { if (!isSignedIn || !p.canManage || projectQ.isError) setRotated(null); }, [isSignedIn, p.canManage, projectQ.isError]);
 
   const goToEnv = () => {
     setTab('settings');
     // after the Settings tab has rendered
     setTimeout(() => document.getElementById(ENV_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
-  const openDeployment = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; });
+  const openDeployment = (id: string) => {
+    setStatus(''); setBranch(''); setPage(1);
+    setSp(prev => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; });
+  };
 
   const tabs = [
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
-    ...(isScript ? [{ id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` }] : []),
+    { id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` },
     { id: 'logs', label: t('projects.tabs.logs') },
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
 
+  if (projectQ.isError || projectQ.currentData && projectQ.currentData.id !== initial.id) return <PageWrapper><Alert role="alert" $tone="error">{error ?? t('projects.page.load_failed')} <Button loading={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button></Alert></PageWrapper>;
+
+  if (p.deletionRequestedAt !== undefined) return <PageWrapper>
+    <h1>{p.name}</h1>
+    <Alert role="status" $tone="warning">{t('projects.settings.deleting')}</Alert>
+    {error && <Alert role="alert" $tone="error">{error}</Alert>}
+    <Actions>
+      <Button disabled={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button>
+      {isSignedIn && p.canManage && <Button color="secondary" disabled={managementDisabled} loading={removing} onClick={del}>{t('projects.settings.resume_delete')}</Button>}
+    </Actions>
+  </PageWrapper>;
+
   return (
     <PageWrapper $wide>
       <Crumbs aria-label="breadcrumb">
-        <Link to={orgPath(p.org)}>{p.org}</Link><span className="sep">/</span><span>{p.repoName}</span>
+        {projectOrganizationPath(p) ? <Link to={projectOrganizationPath(p)!}>{p.org}</Link> : <span>{p.org}</span>}<span className="sep">/</span><span>{p.repoName}</span>
         {p.sourcePath && <><span className="sep">/</span><span>{p.sourcePath}</span></>}
         <StatusDot status={p.status} />
       </Crumbs>
@@ -469,13 +555,17 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         <Spacer />
         <Actions>
           <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
-          {isScript && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
-          {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
-          {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
-          {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
+          {canRun && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
+          {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t(kind === 'agent' ? 'projects.page.open_agent' : 'projects.page.visit')} ↗</Button>}
+          {p.canOperate && latest && <Button size="small" loading={redeploying} disabled={redeployUnknown} title={t('projects.page.redeploy_hint')} onClick={() => void redeployRecord(latest)}>{t('projects.page.redeploy_commit', { sha: shortSha(latest.sha) })}</Button>}
+          {isSignedIn && p.canOperate && projectSyncTarget(p) && <Button size="small" loading={syncing} disabled={syncConfirmed || managementDisabled} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{syncConfirmed ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
       </HeaderRow>
+      {p.activeDeploymentId && !visitUrl && !deployments.isFetching && !deploymentsFailed && ['service', 'nextjs', 'agent'].includes(kind ?? '') && <Meta role="status">{t('projects.page.output_unconfirmed')} <Button size="small" variant="text" onClick={() => { void projectQ.refetch(); void deployments.refetch(); }}>{t('projects.page.retry')}</Button></Meta>}
       {headErr && <Alert $tone="error">{headErr}</Alert>}
+      {accepted && <Alert role="status" $tone="info">{t('projects.page.redeploy_accepted')} <Mono>{accepted}</Mono> <Button size="small" onClick={() => openDeployment(accepted)}>{t('projects.env.deploy.open')}</Button></Alert>}
+      {redeployUnknown && <Alert role="alert" $tone="warning">{t('projects.page.redeploy_unconfirmed')} <Button size="small" loading={deployments.isFetching} onClick={() => { setTab('deployments'); void deployments.refetch(); }}>{t('projects.page.retry')}</Button></Alert>}
+      {error && <Alert role="alert" $tone="error">{error} <Button loading={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button></Alert>}
       <MissingEnvBanner project={p} onGo={goToEnv} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
@@ -486,28 +576,30 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
               <option value="">{t('projects.filters.all_statuses')}</option>
               {(['queued', 'building', 'ready', 'error'] as const).map((s) => <option key={s} value={s}>{t(`projects.status.${s}`)}</option>)}
             </Select>
-            {branches.length > 1 && (
+            {(branches.length > 1 || branch) && (
               <Select aria-label={t('projects.filters.branch')} value={branch} onChange={(e) => { setBranch(e.target.value); setPage(1); }}>
                 <option value="">{t('projects.filters.all_branches')}</option>
+                {branch && !branches.includes(branch) && <option value={branch}>{branch}</option>}
                 {branches.map((b) => <option key={b} value={b}>{b}</option>)}
               </Select>
             )}
             <Spacer />
-            <Meta>{t('projects.filters.count', { n: filtered.length })}</Meta>
+            {deploymentRead && <Meta>{t('projects.filters.count', { n: filtered.length })}</Meta>}
           </FilterRow>
-          {deployments.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert> : deployments.isLoading ? <CenterProgress /> : shown.length === 0
+          {open && deploymentRead && !rows.some(d => d.id === open) && <Alert role="alert" $tone="info">{t('projects.page.record_unavailable')} <Mono>{open}</Mono> <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert>}
+          {deploymentsFailed ? <Alert role="alert" $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert> : (deploymentRead === null && deployments.isFetching) ? <CenterProgress /> : shown.length === 0
             ? <Empty>{rows.length === 0 ? t('projects.page.no_deployments', { branch: p.branch }) : t('projects.filters.none')}</Empty>
-            : <Rows>{shown.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} />)}</Rows>}
-          {pageCount > 1 && <Pagination page={page} pageCount={pageCount} onChange={setPage} />}
+            : <Rows>{shown.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRedeploy={d => void redeployRecord(d)} redeployBlocked={redeploying || redeployUnknown} />)}</Rows>}
+          {pageView.count > 1 && <Pagination page={pageView.page} pageCount={pageView.count} onChange={n => { setPage(n); setOpen(null); }} />}
         </TabBody>
       )}
 
-      {tab === 'runs' && !isScript && <Alert $tone="info">{t(kind ? 'projects.api.not_a_script' : 'projects.page.kind_pending')} <Button onClick={() => setTab('deployments')}>{t('projects.tabs.deployments')}</Button></Alert>}
-      {tab === 'runs' && isScript && (
+      {tab === 'runs' && (
         <TabBody>
-          <RunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
+          <ProjectRunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
           <SubTitle>{t('projects.runs.history')}</SubTitle>
-          {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : runs.isLoading ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
+          {open && runRead && !runRows.some(d => d.id === open) && <Alert role="alert" $tone="info">{t('projects.page.record_unavailable')} <Mono>{open}</Mono> <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert>}
+          {runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : (runRead === null && runs.isFetching) ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
             : <Rows>{runRows.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRunAgain={runAgain} />)}</Rows>}
         </TabBody>
       )}
@@ -520,16 +612,20 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
               <Button size="small" variant={logView === 'build' ? 'contained' : undefined} aria-pressed={logView === 'build'} onClick={() => setLogView('build')}>{t('projects.logs.build')}</Button>
             </FilterRow>
           )}
-          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deployments.isError || runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (isScript) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : deployments.isLoading || runs.isLoading ? <CenterProgress /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
+          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} onRefreshProject={() => void projectQ.refetch()} /> : deploymentsFailed || runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (readRuns) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (deploymentRead === null && deployments.isFetching) || (runRead === null && runs.isFetching) ? <CenterProgress /> : (
             <>
               <FilterRow>
-                <StatusDot status={latestAny.status} />
-                <Meta>{t(`projects.trigger.${latestAny.trigger}`)} · <Mono>{latestAny.sha ? shortSha(latestAny.sha) : '…'}</Mono> · {when(latestAny.createdAt)}</Meta>
+                <Select aria-label={t('projects.logs.record')} value={logId} onChange={e => setLogRecord(e.target.value)}>
+                  <option value="">{t('projects.logs.latest')}</option>
+                  {logId && !selectedLog && <option value={logId}>{logId} · {t('projects.logs.record_unavailable')}</option>}
+                  {logRecords.map(d => <option key={d.id} value={d.id}>{t(`projects.trigger.${d.trigger}`)} · {shortSha(d.sha) || '…'} · {when(d.createdAt)} · {d.id}</option>)}
+                </Select>
+                {selectedLog && <><StatusDot status={selectedLog.status} /><Meta>{t(`projects.trigger.${selectedLog.trigger}`)} · <Mono>{selectedLog.sha ? shortSha(selectedLog.sha) : '…'}</Mono> · {when(selectedLog.createdAt)}</Meta></>}
                 <Spacer />
-                <Button size="small" onClick={() => download(`${p.org}-${p.repoName}-${latestAny.id}.log`, logText)} disabled={!logText}>{t('projects.logs.download')}</Button>
-                <ExternalLink href={latestAny.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
+                {selectedLog && <ExternalLink href={deploymentLogHref(selectedLog.id)} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>}
               </FilterRow>
-              <LogView deployment={latestAny} onText={setLogText} />
+              {selectedLog ? <LogView key={selectedLog.id} deployment={selectedLog} downloadName={`${p.org}-${p.repoName}-${selectedLog.id}.log`} />
+                : logId ? <Alert role="alert" $tone="info">{t('projects.page.record_unavailable')}</Alert> : <Empty>{t('projects.logs.none')}</Empty>}
             </>
           )}
         </TabBody>
@@ -566,13 +662,12 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
             {p.canManage && p.hookUrl && <><dt>{t('projects.settings.webhook')}</dt><dd><Mono>{p.hookUrl}</Mono> <CopyButton text={p.hookUrl} /><Help>{t('projects.settings.webhook_help')}</Help></dd></>}
           </KeyValue>
           <Help>{t('projects.settings.readonly')} <ExternalLink href={p.repo} target="_blank" rel="noreferrer">{t('projects.settings.edit_in_aindrive')} ↗</ExternalLink></Help>
-          {rotated && <Alert $tone="warning"><strong>{t('projects.settings.rotated')}</strong> <Mono>{rotated}</Mono> <CopyButton text={rotated} /></Alert>}
-          {error && <Alert $tone="error">{error}</Alert>}
-          {p.canManage && (
+          {isSignedIn && rotated && sameProjectManagementTarget(p, rotated.target, 'rotate') && <Alert $tone="warning"><strong>{t('projects.settings.rotated')}</strong> <Mono>{rotated.secret}</Mono> <CopyButton text={rotated.secret} /></Alert>}
+          {isSignedIn && p.canManage && (
             <Actions style={{ marginTop: 16 }}>
-              <Button size="small" loading={rotating} onClick={doRotate}>{t('projects.settings.rotate')}</Button>
+              <Button size="small" loading={rotating} disabled={managementDisabled || !sameProjectManagementTarget(p, p, 'rotate')} onClick={doRotate}>{t('projects.settings.rotate')}</Button>
               <Spacer />
-              <Button size="small" color="secondary" loading={removing} onClick={del}>{t('projects.page.delete')}</Button>
+              <Button size="small" color="secondary" loading={removing} disabled={managementDisabled} onClick={del}>{t('projects.page.delete')}</Button>
             </Actions>
           )}
           <Actions style={{ marginTop: 16 }}><StyledLink to="/me/projects">← {t('projects.mine.title')}</StyledLink></Actions>
@@ -593,66 +688,93 @@ function RepoDeployments({ projects, selected, onPick }: { projects: Project[]; 
   );
 }
 
-/** `path` (which may carry its own query) with `search` (`?a=b`) merged in; the path's own parameters win. */
-const withSearch = (path: string, search: string) => {
-  const [base, own = ''] = path.split('?');
-  const merged = new URLSearchParams(search);
-  for (const [k, v] of new URLSearchParams(own)) merged.set(k, v);
-  const q = merged.toString();
-  return q ? `${base}?${q}` : base!;
-};
-
 // ------------------------------------------------------------------------------------------------ routes
 
 /** `/:org/:repo` — a project by name; when none is bound here, the knowledge page that used to own this shape. */
 export function ProjectByNamePage() {
   const { org = '', repo = '' } = useParams();
   const { t } = useT();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, cacheIdentity } = useAuth();
   const location = useLocation();
   useTitle(`${org}/${repo}`);
   const reserved = isReservedFirstSegment(org);
-  const knowledge = isKnowledgeAuthor(org);
-  const q = useProjectByNameQuery({ org, repo }, { skip: reserved || knowledge });
-  // A monorepo's folder projects share this address: the organization's list names them (the ones this viewer may see).
-  const orgQ = useOrgProjectsQuery(org, { skip: reserved || knowledge || !q.currentData });
   const [sp, setSp] = useSearchParams();
+  const id = sp.get('projectId'), folder = sp.get('project');
+  const knowledge = isKnowledgeAuthor(org) && id === null && folder === null;
+  const invalid = sp.getAll('projectId').length > 1 || sp.getAll('project').length > 1 || id === '';
+  const exact = useProjectQuery({ id: id ?? '', identity: cacheIdentity }, { skip: reserved || knowledge || !id || invalid });
+  const orgQ = useOrgProjectsQuery({ org, identity: cacheIdentity }, { skip: reserved || knowledge });
   if (reserved) return <NotFoundPage />;
   if (knowledge) return <PatchPage author={org} patchId={repo} />;
-  if (q.isLoading || (q.isFetching && !q.currentData)) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (q.currentData) {
-    const all = repoProjects(q.currentData, orgQ.currentData?.projects ?? []);
-    const selected = selectRepoProject(all, sp.get('project'));
-    const pick = (id: string) => setSp(() => { const n = new URLSearchParams(); const folder = all.find((p) => p.id === id)?.sourcePath; if (folder) n.set('project', folder); return n; });
+  const listed = orgQ.isError ? null : readRepoProjectList<Project>(orgQ.currentData, org, repo);
+  const waiting = id && !invalid ? !exact.currentData && exact.isFetching : !orgQ.currentData && orgQ.isFetching;
+  if (!invalid && waiting) return <PageWrapper><CenterProgress /></PageWrapper>;
+  const failed = !invalid && (id ? !!exact.error : orgQ.isError || listed === null);
+  const known = id && !invalid && !exact.error ? readRepoProjectList<Project>({ projects: exact.currentData ? [exact.currentData] : [] }, org, repo)?.find(p => p.id === id) : undefined;
+  const all = known ? repoProjects(known, listed ?? []) : listed ?? [];
+  const selected = invalid || failed ? undefined : selectRepoProject(id ? (known ? [known] : []) : all, folder, id);
+  const retry = () => { if (id && !invalid) void exact.refetch(); void orgQ.refetch(); };
+  const pick = (chosen: string) => {
+    const p = all.find(p => p.id === chosen);
+    if (p) setSp(new URLSearchParams(projectPath(p).split('?')[1] ?? ''));
+  };
+  if (selected) {
+    if (!hasPrettyProjectPath(selected)) return <Navigate to={projectRedirectPath(selected, location.search, location.hash)} replace />;
     const switcher = all.length > 1 ? <RepoDeployments projects={all} selected={selected.id} onPick={pick} /> : undefined;
-    return <ProjectConsole key={selected.id} project={selected} switcher={switcher} />;
+    return <>{id && listed === null && !orgQ.isFetching && <Alert role="status" $tone="warning">{t('projects.page.siblings_failed')} <Button onClick={() => void orgQ.refetch()}>{t('projects.page.retry')}</Button></Alert>}<ProjectConsole key={`${cacheIdentity}:${selected.id}`} project={selected} switcher={switcher} /></>;
   }
-  const why = projectApiErrorOf(q.error);
+  const why = projectApiErrorOf(id ? exact.error : orgQ.error);
   const unavailable = why.status === 404 || why.status === 401 || why.status === 403;
   return <PageWrapper>
-    <Crumbs aria-label={t('projects.page.title')}><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span></Crumbs>
-    <SubTitle>{t(unavailable ? 'projects.page.unavailable' : 'projects.page.load_failed')}</SubTitle>
-    <Empty>{t(unavailable ? (isSignedIn ? 'projects.page.check_access' : 'projects.page.signin_check') : 'projects.page.retry_help')}</Empty>
+    <Crumbs>{isKnowledgeAuthor(org) ? <span>{org}</span> : <Link to={orgPath(org)}>{org}</Link>}<span className="sep">/</span><span>{repo}</span></Crumbs>
+    {failed ? <Alert role="alert" $tone="error">{t(unavailable ? 'projects.page.unavailable' : 'projects.page.load_failed')}</Alert>
+      : <Empty data-testid="project-selection-unavailable">{t(!invalid && !id && all.filter(p => folder === null || (p.sourcePath ?? '') === folder).length > 1 ? 'projects.page.choose_project' : 'projects.page.folder_unavailable', { folder: id ?? folder ?? repo })}</Empty>}
     <Actions>
-      {!isSignedIn && unavailable && <StyledLink to={signInHref(location)}>{t('projects.runs.sign_in_button')}</StyledLink>}
-      <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('projects.page.retry')}</Button>
+      {!isSignedIn && (!all.length || unavailable) && <StyledLink to={signInHref(location)}>{t('projects.runs.sign_in_button')}</StyledLink>}
+      <Button onClick={retry} loading={orgQ.isFetching || exact.isFetching}>{t('projects.page.retry')}</Button>
       <StyledLink to="/apps">{t('projects.page.apps')}</StyledLink>
     </Actions>
+    {all.length > 0 && <Actions data-testid="project-choices">{all.map(p => <StyledLink key={p.id} to={projectPath(p)}>{repoProjectLabel(p)}</StyledLink>)}</Actions>}
   </PageWrapper>;
 }
 
 /**
- * `/projects/:id` — the old address; forwards to `/<org>/<repo>` once the project is known. A monorepo folder's project
- * has no name of its own (it shares the repository's), so this is its page: it renders here.
+ * `/projects/:id` keeps exact identity, using the repository's pretty address only when that route is unambiguous.
+ * Folder and branch ambiguity cannot replace the selected project; record/run parameters ride along.
  */
 export default function ProjectPage() {
   const { t } = useT();
   const { id = '' } = useParams();
   const location = useLocation();
-  const q = useProjectQuery(id);
-  if (q.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  // A folder project's page is its repository's, with it selected (`?project=<folder>`); other parameters ride along.
-  if (q.data) return <Navigate to={withSearch(projectPath(q.data), location.search)} replace />;
+  const q = useProjectQuery({ id, identity: useAuth().cacheIdentity });
+  if (!q.currentData && q.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  const project = readProjectList<Project>({ projects: q.currentData ? [q.currentData] : [] })?.find(p => p.id === id);
+  if (project && !q.error) {
+    const target = projectRedirectPath(project, location.search, location.hash);
+    if (target !== `${location.pathname}${location.search}${location.hash}`) return <Navigate to={target} replace />;
+    return <ProjectAtId project={project} />;
+  }
   const why = projectApiErrorOf(q.error);
-  return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty></PageWrapper>;
+  return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty><Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></PageWrapper>;
+}
+
+/** Keep folder/branch choices available even when the repository name cannot use a pretty route. */
+function ProjectAtId({ project }: { project: Project }) {
+  const { cacheIdentity } = useAuth();
+  const { t } = useT();
+  const navigate = useNavigate();
+  const location = useLocation();
+  let driveIdSource = true;
+  try { driveIdSource = new URL(project.repo).pathname.startsWith('/api/drives/'); } catch { /* no verified organization source */ }
+  const siblings = useOrgProjectsQuery({ org: project.org, identity: cacheIdentity }, { skip: driveIdSource });
+  const listed = siblings.isError ? null : readRepoProjectList<Project>(siblings.currentData, project.org, project.repoName);
+  const all = repoProjects(project, listed ?? []);
+  const pick = (id: string) => {
+    const next = all.find(p => p.id === id);
+    if (next) navigate(projectRedirectPath(next, '', location.hash));
+  };
+  return <>
+    {!driveIdSource && listed === null && !siblings.isFetching && <Alert role="status" $tone="warning">{t('projects.page.siblings_failed')} <Button onClick={() => void siblings.refetch()}>{t('projects.page.retry')}</Button></Alert>}
+    <ProjectConsole project={project} switcher={all.length > 1 ? <RepoDeployments projects={all} selected={project.id} onPick={pick} /> : undefined} />
+  </>;
 }

@@ -2,6 +2,8 @@ import type { Dict } from '../index';
 
 /** Strings shared by header/footer/layout and generic UI. */
 export const common: Dict = {
+  'common.select_option': { ko: '항목 선택', en: 'Choose an option' },
+  'common.selection_unavailable': { ko: '선택한 항목을 사용할 수 없음', en: 'Selected option unavailable' },
   'nav.train': { ko: 'Train', en: 'Train' },
   'train.start': { ko: '학습 시작', en: 'Start training' },
   'train.knowledge': { ko: '학습된 지식', en: 'Trained knowledge' },
@@ -20,6 +22,8 @@ export const common: Dict = {
   'nav.account': { ko: '계정 설정', en: 'Account settings' },
   'nav.logs': { ko: '노드 로그', en: 'Node log' },
   'nav.files': { ko: '파일과 변경 이력', en: 'Files & changes' },
+  'nav.logging_out': { ko: '로그아웃 중…', en: 'Signing out…' },
+  'nav.logout_failed': { ko: '로그아웃을 완료하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.', en: 'Sign-out could not be completed. Check your connection and try again.' },
   'nav.logout': { ko: '로그아웃', en: 'Log out' },
   'footer.terms': { ko: '이용약관', en: 'Terms and Policies' },
   // Finding 99 — the privacy policy is §3 of /terms and had no link anywhere; in Korean the words 개인정보 처리방침
@@ -42,6 +46,11 @@ export const common: Dict = {
   'offline.retry': { ko: '다시 시도', en: 'Try again' },
   'offline.what.ledger': { ko: '공개 기록', en: 'The public record' },
   'offline.what.network': { ko: '네트워크', en: 'The network view' },
+  'offline.what.benchmark': { ko: '벤치마크 비교 목록', en: 'The benchmark comparison' },
+  'offline.what.teacher': { ko: '지식 제공자의 기록', en: 'The knowledge provider’s record' },
+  'offline.what.verifier': { ko: '검증자의 기록', en: 'The verifier’s record' },
+  'offline.what.knowledge': { ko: '지식 상세 정보', en: 'The knowledge details' },
+  'knowledge.not_found': { ko: '해당 지식을 찾을 수 없습니다.', en: 'This knowledge could not be found.' },
   'common.free': { ko: '무료', en: 'Free' },
   'common.price': { ko: '가격', en: 'Price' },
   'common.model': { ko: '대상 모델', en: 'Target model' },
@@ -54,6 +63,8 @@ export const common: Dict = {
   'common.back': { ko: '뒤로', en: 'Back' },
   'common.copy': { ko: '복사', en: 'Copy' },
   'common.copied': { ko: '복사됨', en: 'Copied' },
+  'common.copying': { ko: '복사 중…', en: 'Copying…' },
+  'common.copy_failed': { ko: '복사하지 못했습니다. 다시 누르거나 내용을 선택해 직접 복사해 주세요.', en: 'Could not copy. Try again or select the text and copy it manually.' },
   'common.copy_clipboard': { ko: '클립보드에 복사', en: 'Copy to clipboard' },
   'common.sort_aria': { ko: '정렬', en: 'sort' },
   'common.kind_aria': { ko: '기록 종류', en: 'record kind' },
@@ -79,10 +90,10 @@ export const common: Dict = {
   'price.credit_note': { ko: '노드 크레딧 = 개발용 가상 화폐 (실제 가치 없음)', en: 'node credit = development play money (no real value)' },
   'price.ain_note': { ko: 'AIN = AI Network 토큰 (이 데모는 로컬 개발 체인)', en: 'AIN = AI Network token (this demo runs a local dev chain)' },
   'units.rows': { ko: '기억 항목 {n}개', en: '{n} memory entries' },
-  'units.facts': { ko: '사실 {n}건', en: '{n} facts' },
+  'units.facts': { ko: '등록 질문 {n}개', en: '{n} declared questions' },
   // Finding 88 — called without a count this read "1 facts" on every single-fact knowledge in the live-test picker.
-  'units.facts_one': { ko: '사실 1건', en: '1 fact' },
-  'units.verified_by': { ko: '검증 노드 {passed}/{quorum}', en: '{passed}/{quorum} verifiers' },
+  'units.facts_one': { ko: '등록 질문 1개', en: '1 declared question' },
+  'units.verified_by': { ko: '검증 정족수 {passed}/{quorum}', en: 'Quorum {passed}/{quorum}' },
   // The header's unified search (huggingface-style): one box over apps, models, agents and knowledge.
   'search.placeholder': { ko: '앱·모델·에이전트·지식 검색', en: 'Search apps, models, agents, knowledge' },
   'search.title': { ko: '검색 결과', en: 'Search results' },

@@ -192,7 +192,7 @@ test('a suspended account is refused by the node, and the page says why', async 
 async function toConnect() {
   N.replies.set('/api/auth/sso/session', (body) => (body.link === null && body.allowConnect
     ? { status: 200, body: { status: 'needs_link' } }
-    : { status: 200, body: { status: 'ok', token: 'node-token-linked', principal: (body.link as { principal?: string } | null)?.principal ?? `sso:${SUB}`, expiresAt: 0, created: true, linked: (body.link as { principal?: string } | null)?.principal ?? null } }));
+    : { status: 200, body: { status: 'ok', token: 'node-token-linked', principal: (body.link as { principal?: string } | null)?.principal ?? `sso:${SUB}`, expiresAt: Date.now() + 60000, created: true, linked: (body.link as { principal?: string } | null)?.principal ?? null } }));
   const res = await fullSignIn();
   assert.equal(location(res).pathname, '/signing');
   assert.equal(location(res).searchParams.get('sso'), 'connect');
@@ -201,7 +201,9 @@ async function toConnect() {
 }
 const connect = async (choice: string, cookie: string, origin = 'https://ainize.ai') => {
   const { POST } = await import('../app/api/auth/sso/connect/route');
-  return POST(new NextRequest('https://ainize.ai/api/auth/sso/connect', { method: 'POST', headers: { ...headers(cookie), origin, 'content-type': 'application/json' }, body: JSON.stringify({ choice }) }));
+  const { GET } = await import('../app/api/auth/sso/status/route');
+  const expected = (await (await GET(get('/api/auth/sso/status', cookie))).json()).connectionReview;
+  return POST(new NextRequest('https://ainize.ai/api/auth/sso/connect', { method: 'POST', headers: { ...headers(cookie), origin, 'content-type': 'application/json' }, body: JSON.stringify({ choice, expected }) }));
 };
 
 test('no link yet: the person may connect the ainize.ai Google account signed in in this browser, and AIN SSO is told', async () => {
@@ -209,13 +211,13 @@ test('no link yet: the person may connect the ainize.ai Google account signed in
   const { GET } = await import('../app/api/auth/sso/status/route');
   const gcookie = mintGoogleSessionCookie({ sub: '1098765', email: 'kim@gmail.com', name: null, picture: null }, google);
   const cookies = `ainize_sso_pending=${encodeURIComponent(pending)}; ${GOOGLE_SESSION_COOKIE}=${encodeURIComponent(gcookie)}`;
-  const status = await (await GET(get('/api/auth/sso/status', cookies))).json() as { pending: { email: string }; legacyGoogle: { email: string } };
+  const status = await (await GET(get('/api/auth/sso/status', cookies))).json() as { pending: { email: string }; legacyGoogle: { email: string }; connectionReview: { request: string } };
   assert.equal(status.pending.email, 'kim@comcom.ai');
   assert.equal(status.legacyGoogle.email, 'kim@gmail.com');
 
   const res = await connect('legacy', cookies);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, next: '/models', linked: 'google:1098765' });
+  assert.deepEqual(await res.json(), { ok: true, next: '/models', linked: 'google:1098765', principal: 'google:1098765', subject: SUB, request: status.connectionReview.request });
   assert.equal(cookieOf(res, 'ainize_session')?.value, 'node-token-linked');
   assert.equal(cookieOf(res, 'ainize_sso_pending')?.maxAge, 0);
   const call = N.calls.filter((c) => c.path === '/api/auth/sso/session').at(-1)!;

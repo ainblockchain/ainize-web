@@ -155,7 +155,8 @@ function fakeWallet(opts: { account: string; chainId: number; unknownChain?: boo
     calls,
     async request({ method, params }) {
       calls.push({ method, params });
-      if (method === 'eth_requestAccounts') return [opts.account];
+      if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [opts.account];
+      if (method === 'eth_getTransactionCount') return '0x3';
       if (method === 'eth_chainId') return `0x${chain.toString(16)}`;
       if (method === 'wallet_switchEthereumChain') {
         if (!known) throw Object.assign(new Error('Unrecognized chain'), { code: 4902 });
@@ -181,7 +182,7 @@ test('a deposit switches the chain and sends transfer(receiver, units) on the to
   assert.equal(out.txHash, `0x${'ab'.repeat(32)}`);
   const send = w.calls.find((c) => c.method === 'eth_sendTransaction')!;
   assert.deepEqual(send.params, [{
-    from: SENDER, to: BASE_SAIN.token, value: '0x0',
+    from: SENDER, to: BASE_SAIN.token, value: '0x0', nonce: '0x3',
     data: '0xa9059cbb00000000000000000000000077547927486dc69793d460661f4a161d1b9068e30000000000000000000000000000000000000000000000000de0b6b3a7640000',
   }]);
   assert.deepEqual(w.calls.find((c) => c.method === 'wallet_switchEthereumChain')!.params, [{ chainId: '0x2105' }]);

@@ -1,3 +1,4 @@
+import { readExploreSelection } from './exploreSelection';
 import { isKnowledgeAuthor } from './detailRoutes';
 import { looksLikeSlug } from './reservedRoutes';
 
@@ -18,7 +19,9 @@ export function withQuery(path: string, values: Record<string, string>): string 
 export function navigationSection(pathname: string, search = ''): 'train' | 'agents' | 'apps' | null {
   const parts = pathname.split('/').filter(Boolean);
   const first = parts[0] ?? '';
-  if (first === 'explore') return new URLSearchParams(search).get('kind') === 'agent' ? 'agents' : 'train';
+  const params = new URLSearchParams(search);
+  if (first === 'explore') { const selection = readExploreSelection(params); return selection.invalid ? null : selection.kind === 'agent' ? 'agents' : 'train'; }
+  if (parts.length === 2 && isKnowledgeAuthor(first) && (params.has('projectId') || params.has('project'))) return 'apps';
   if (['train', 'teach', 'teacher'].includes(first) || isKnowledgeAuthor(first) || (first === 'chat' && new URLSearchParams(search).get('teach') === '1')) return 'train';
   if (['agent', 'agents'].includes(first) || pathname === '/me/agents') return 'agents';
   if (['apps', 'projects'].includes(first) || pathname === '/me/projects' || (parts.length === 2 && looksLikeSlug(first))) return 'apps';

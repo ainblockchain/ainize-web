@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { agentEndpoints, agentRequestUrl } from '../src/lib/agentRequestUrl';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -72,8 +73,7 @@ test('src/pages is not resurrected — Next would read it as a second router', (
 test('the live test posts to the origin the reader is on, not the one the node calls itself', () => {
   const page = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8');
   assert.match(page, /fetch\(samePath\(/, 'an absolute node address from a www. page is a cross-origin POST');
-  // and the rewrite is limited to this app's own prefixes: an agent on another host must keep its host
-  assert.match(page, /\^\\\/\(api\|agents\)\\\//, 'samePath only relativises /api and /agents');
+  assert.ok(page.includes('agentRequestUrl(url, window.location.origin)'), 'destination policy is shared with its behavior tests');
 });
 
 test('the live test offers the AGENT\'s examples, not one agent\'s job hard-coded into the page', () => {
@@ -84,7 +84,7 @@ test('the live test offers the AGENT\'s examples, not one agent\'s job hard-code
   assert.equal(/Paste an article/.test(page), false, 'the placeholder must not describe one agent\'s input');
   assert.equal(/publisher pages|Scoring…/.test(page), false, 'nor must the waiting note describe one agent\'s work');
   assert.match(page, /examplesOf\(skills\)/, 'examples come from the card');
-  assert.match(page, /samePath\(agent\.card_url\)/, 'the card is fetched from this app, same origin');
+  assert.match(page, /samePath\(cardUrl\)/, 'the card is fetched from this app, same origin');
 });
 
 /**
@@ -127,7 +127,9 @@ test('one list, one item — the item page is not a second list', () => {
   const app = readFileSync(join(root, 'src/App.tsx'), 'utf8');
   // /agents was a grid of every agent PLUS a panel, so clicking a row on the marketplace showed both again
   assert.match(app, /path="\/agent\/:id"/, 'the item has its own route');
-  assert.match(app, /path="\/agents" element=\{<Navigate to="\/explore\?kind=agent"/, 'the old list redirects');
+  // The dedicated legacy route preserves search/org/page state; a fixed Navigate target would lose it.
+  assert.match(app, /path="\/agents" element=\{<LegacyAgentsRoute/, 'the old list uses its redirect route');
+  assert.ok(app.includes('legacyAgentsDestination(search, hash)'), 'redirect preserves the selected view');
   const item = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8');
   assert.equal(/agents\.map\(/.test(item), false, 'the item page must not render the list');
   const row = readFileSync(join(root, 'src/components/public/AgentListItem.tsx'), 'utf8');
@@ -138,23 +140,13 @@ test('one list, one item — the item page is not a second list', () => {
   assert.equal(/to=\{`\/agents\//.test(row), false, 'a page under /agents/ would shadow the agent address');
 });
 
-/**
- * A page calls the address the agent is published at, and no other.
- *
- * `/api/sam/<peer>/a2a/<id>` reaches the same agent through the same relay — it was the only path that worked
- * before `/agents/<id>` was routed here, and a fetch left on it keeps working, which is why it survived. It is
- * the wrong address to call from a browser twice over: it prints which peer runs the agent into a URL a visitor
- * can read, and it is a second public address for something that already has one. `a2a_url` is the registered
- * front door, and the node already falls back to the mesh path there for the one case that needs it — an id
- * two nodes both claim. So the page has one address to use, and this test says so.
- */
-test('the browser calls an agent at its published address, never at a peer-qualified mesh path', () => {
-  const offenders = walk(join(root, 'src'))
-    .filter((f) => /\.tsx?$/.test(f))
-    // Generated markdown describes API fields such as call_url; it does not
-    // call them. gen:check separately verifies this file is literal docs data.
-    .filter((f) => f !== join(root, 'src/screens/docs/generated.ts'))
-    .filter((f) => /['"`]\/api\/sam\/|\bcall_url\b/.test(readFileSync(f, 'utf8')))
-    .map((f) => f.slice(root.length + 1));
-  assert.deepEqual(offenders, [], 'call the agent at agent.a2a_url');
+/** A short peer registration can change with the freshest advert; selected identity must survive that. */
+test('peer execution and cards stay on the selected public relay instead of a moving short registration', () => {
+  const node = { address: '0xselected', name: 'Selected node' };
+  const row = { id: 'guide', node, a2a_url: 'https://ainize.ai/agents/guide', card_url: 'https://ainize.ai/agents/guide/.well-known/agent-card.json', call_url: 'https://ainize.ai/api/sam/0xselected/a2a/guide' };
+  const selected = agentEndpoints(row);
+  assert.equal(agentRequestUrl(selected.call, 'https://www.ainize.ai'), '/api/sam/0xselected/a2a/guide');
+  assert.equal(selected.card, row.call_url + '/.well-known/agent-card.json');
+  assert.deepEqual(agentEndpoints({ ...row, a2a_url: 'https://ainize.ai/agents/another-registration' }), selected);
+  assert.notEqual(agentEndpoints({ ...row, node: { address: '0xother', name: 'Other node' }, call_url: 'https://ainize.ai/api/sam/0xother/a2a/guide' }).call, selected.call);
 });

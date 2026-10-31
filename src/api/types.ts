@@ -163,7 +163,7 @@ export interface RequiredBase {
 export interface PatchQuote {
   patch_id: string; price: string; currency: string;
   requires: (RequiredBase & { licensed: boolean; known: boolean; mine: boolean; depth: number; currency: string; author: string })[];
-  missing: string[]; unknown: string[]; total: string; self_contained: boolean;
+  missing: string[]; unknown: string[]; total?: string; totals?: { amount: string; currency: string }[]; self_contained: boolean;
   export: 'delta' | 'squash' | null; derivation: string | null;
 }
 
@@ -227,12 +227,15 @@ export interface BranchesResponse {
 }
 /** One item of a track as the NODE resolves it (POST /api/branches/:name/quote) — the same rules `subscribe` follows. */
 export interface TrackItem {
+  patch_sha256?: string | null;
   patch_id: string; name: string | null; author: string | null; author_name: string | null;
   price: string; currency: string; status: string | null;
   plan: 'buy' | 'held' | 'own' | 'retired' | 'blocked' | 'wrong_model' | 'unknown';
   reason: string; superseded_by: string[];
 }
 export interface TrackQuote {
+  action_receipts?: 1;
+  runtime_model?: string | null;
   branch: string; owner: string; description: string; subscribed: boolean;
   items: TrackItem[]; current: string[]; retired: string[]; buy: string[];
   total: { currency: string; amount: string }[]; currency: string; balance: number | null;
@@ -254,9 +257,21 @@ export interface TrackQuote {
 export interface TrackOverlap { track_id: string; loaded_id: string; rows: number | null; estimated: boolean; jaccard?: number; loaded_reason: string }
 
 export interface SubscribeResult {
-  ok: true; branch: string; action: 'subscribe' | 'unsubscribe' | 'sync';
+  ok: boolean; branch: string; action: 'subscribe' | 'unsubscribe' | 'sync';
   acquired: string[]; failed: { patch_id: string; error: string }[]; applied: string[];
   skipped: { patch_id: string; reason: string }[]; removed: string[]; spent: { currency: string; amount: string }[];
+  receipt?: {
+    version: 1; subscribed: boolean; subscription_changed: boolean;
+    runtime: { state: 'recorded' | 'unavailable' | 'failed'; error: string | null; pending: string[];
+      records: { patch_id: string; sha256: string; reason: string }[] };
+  };
+}
+export interface TrackActionReview {
+  version: 1; revision: string; node: string; action: 'subscribe' | 'sync'; quote: TrackQuote;
+  before: { patch_id: string; sha256: string; reason: string }[];
+  after: { patch_id: string; sha256: string; reason: string }[];
+  anchors: PatchAnchor[]; overlaps: TrackOverlap[];
+  fee: { amount: string; currency: string }; total: { amount: string; currency: string }[];
 }
 /**
  * `/api/route` (item 234): which track answered, which of the caller's attributes it matched, what else came close,
@@ -320,6 +335,7 @@ export interface SsoSessionView {
 
 /** `/api/auth/sso/status` (app/api/auth/sso/status/route.ts). */
 export interface SsoStatusResponse {
+  connectionReview?: import('../lib/ssoConnection').SsoConnectionReview | null;
   configured: boolean;
   legacyLogin: 'true' | 'unlinked_only' | 'false';
   /** an AIN sign-in waiting for "connect your existing account" */
@@ -329,7 +345,7 @@ export interface SsoStatusResponse {
   legacyGoogleAvailable: boolean;
 }
 
-export interface ApiKeySummary { prefix: string; issuedAt: number; label: string | null; org_id?: string | null; disabled?: boolean }
+export interface ApiKeySummary { key_id?: string; prefix: string; issuedAt: number; label: string | null; org_id?: string | null; disabled?: boolean }
 
 export interface AuthMe {
   /** an AIN SSO session, or null/absent (a node from before AIN SSO) */
@@ -366,6 +382,7 @@ export interface AuthMe {
  * a wallet prompt that say different things is the whole attack.
  */
 export interface DeviceRequest {
+  capabilities: { reviewed_approval: true };
   /** What asked: a command line somebody ran, or a node that printed its own link. Older nodes send none. */
   kind?: 'cli' | 'node';
   status: 'pending' | 'approved' | 'claimed' | 'expired';
@@ -393,6 +410,8 @@ export interface Binding { delegate: string; owner: string; label: string | null
  * name and its address, and what a list of your nodes is for is seeing that they are all still there.
  */
 export interface MyNode {
+  /** Opaque node-link generation; absent on older servers, null for an intrinsic operator row. */
+  revision?: string | null;
   can_unlink?: boolean;
   address: string;
   name: string | null;
@@ -420,6 +439,8 @@ export interface NodeOwner {
   note: string | null;
 }
 export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string; scheme: string; amount: string; manifest: PatchManifest | null; path: string | null; created_at: number; entry: CatalogEntry | null; applied: boolean;
+  currency?: string | null;
+  payment?: import('../lib/purchaseView').PurchasePayment | null;
   /** Why this node paid: a deliberate purchase, or `subscription:<track>` (item 362). */
   origin?: string;
   /** Who the money went to, from the seller's own split (item 280). */
@@ -451,12 +472,13 @@ export interface WalletResponse extends ChainResponse { sales: Settlement[]; roy
   /** Knowledge handed over for nothing because it is priced 0 (item 277) — downloads, not sales. */
   free_downloads?: { patch_id: string; count: number; last_at: number }[]; }
 export interface PurchaseResult {
+  receipt_version?: 1; node?: string; totals?: { amount: string; currency: string }[];
   patch_id: string; steps: { step: string; detail: string; at: number }[]; manifest: PatchManifest; path: string;
   tx_hash: string; amount: string; scheme: string;
   /** Every knowledge this purchase paid for, bases first (item 270). */
   purchases?: { patch_id: string; amount: string; currency: string; scheme: string; tx_hash: string; free?: boolean }[];
   total?: string; currency?: string;
-  /** The payment was already settled and the seller re-issued the manifest — nothing was charged (item 273). */
+  /** Earlier payment reused; only versioned charge totals establish whether this call added a charge. */
   redeemed?: boolean;
 }
 /** One layer of the loaded stack, deepest first (lineage design §5.4, SC-18) — `base: true` = loaded under a child. */
@@ -467,7 +489,8 @@ export interface StackLayer {
   journal: boolean; journal_path: string | null; stack_sha256: string | null; body_present: boolean;
 }
 export interface RuntimeResponse extends Omit<RuntimeStatus, 'applied'> {
-  applied: { patch_id: string; sha256: string; applied_at: number; reason: string }[];
+  /** GET /api/runtime reports ids here; per-layer metadata is in stack. */
+  applied: string[];
   /** SC-18: the same layers in the order they were applied. */
   stack?: StackLayer[];
   journal_dir?: string;
@@ -970,6 +993,8 @@ export interface AgentSkill {
   examples: string[];
 }
 export interface AgentSummary {
+  /** A durable cleanup request; the agent must not offer new mutations while it is pending. */
+  deletion_requested_at?: number | null;
   id: string;
   name: string;
   description: string | null;
@@ -997,6 +1022,7 @@ export interface AgentSummary {
    * content, and the browser asks the visitor for local network access when that address is a private one.
    * The node can reach both ends; the browser cannot.
    */
+  call_url?: string;
   reachable: boolean | null;
   last_checked: number | null;
   error: string | null;

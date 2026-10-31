@@ -2,7 +2,7 @@
 title: 결정 모델 쓰기 (Cloudflare Clef)
 summary: 결정 모델은 글을 쓰지 않습니다. 상황과 그에 대한 유형이 정해진 질문을 받아 각 질문에 확률로 답합니다 — ainize SDK의 client.decide()로, 내 API 키로.
 source: en/how-to/decision-models-clef.md
-source_sha256: 54b50208eaa71a025bddbac51a7f531fd25c72124bec6a035907d2e2211f0a93
+source_sha256: 23da71090821fe5e71b1d0d8dddbcd88fc94b48323b4b2870551e3e7a2af6e9d
 ---
 
 # 결정 모델 쓰기 (Cloudflare Clef)
@@ -42,8 +42,12 @@ source_sha256: 54b50208eaa71a025bddbac51a7f531fd25c72124bec6a035907d2e2211f0a93
 
 ## 내 코드에서 호출하기
 
-SDK를 설치하고 사이트에서 API 키를 받습니다 — 지갑으로 로그인한 뒤 [모델 페이지](/models)에서 발급하면, 그 페이지가
-보여주는 코드에 바로 채워집니다.
+SDK를 설치하고 사이트에서 API 키를 받습니다. AIN 계정 또는 지갑으로 로그인한 뒤 [모델 페이지](/models)에서
+모델을 열고 개인 키를 만드세요. 조직 키는 [키 관리](/me)에서 만들 수 있습니다.
+
+실행 화면과 복사한 코드에는 입력한 `state`, 정확한 `questions`, 미디어나 `debug` 같은 선택 필드가 유지됩니다.
+잘못된 JSON이나 배열로 전달한 choice 기준은 입력 오류로 표시하며 소개용 예제로 바꾸지 않습니다.
+`model`을 입력했다면 선택한 모델·제공 노드 참조와 일치해야 합니다.
 
 [AinCode](/code)에서는 실습 공간의 오프라인 패키지 캐시로 SDK를 설치합니다. `AINIZE_URL`은 실습 공간에 설정되어 있고, 호출은 로그인한 계정으로 연결됩니다. 각 Python 코드 블록을 `.py` 파일로 저장하고 `python 파일명.py`로 실행하세요. 아래 예제에는 연결 코드와 실습 입력값이 포함되어 있습니다. 파일과 진행 기록은 선택한 AinDrive Git 저장소에 저장하세요.
 
@@ -273,5 +277,5 @@ print(out.answers)
 - 완전한, 바로 돌아가는 예 — `clef`로 묘사에 맞는 작품을 랭킹하기:
   [`clef-artwork-search`](https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search). aindrive에서
   `art_search.py`의 ▶를 누르면 내 키로 실행됩니다.
-- 결정 모델도 채팅 모델이 답을 배우듯 내 기준을 배웁니다. [Teach](/teach)에서 내 질문–답 쌍으로 가르치고, 결과를
+- 결정 모델도 채팅 모델이 답을 배우듯 내 기준을 배웁니다. [Train](/train)에서 내 질문–답 쌍으로 가르치고, 결과를
   다른 사람이 불러올 수 있는 지식으로 공개하세요.

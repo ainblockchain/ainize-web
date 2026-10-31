@@ -1,7 +1,8 @@
 # Call the model from your own code
 
-> Want to press one rather than read about it? The [Models page](/models) lists what this node serves and runs
-> all three in the browser, with no key and no deposit — then hands you this same code with the model filled in.
+> Want to press one rather than read about it? The [Models page](/models) lists available models and providers. Chat, transcription,
+> image and decision trials use the free routes; embeddings, speech and music require your API key. The detail
+> page copies code for the selected model and current input, with explicit request limits.
 
 > This page is about **using** a node's model — chat, speech and images — from your own program.
 > Teaching one is [Teach by correcting the model](../tutorials/teach-in-chat.md); buying somebody's knowledge is
@@ -25,13 +26,48 @@ models = client.models.list().data
 print([model.id for model in models])
 ```
 
-**You get the key from the site.** Sign in there with your wallet and create one on the
-[Models page](/models), which also writes it into the snippet it shows you. Your private key never leaves the
+**You get the key from the site.** Sign in with your AIN account or wallet. A model detail page can create a personal key and fill it into the snippet;
+[Manage your keys](/me) also lets eligible accounts choose an organization. Your private key never leaves the
 browser: a key that can sign a transfer has no business in a source file, a CI variable or a screenshot, and no
 other model API asks you to put one in any of them.
 
+A key saved in the browser belongs to the current account **and node**. The playground checks its current
+status before a key-authenticated call. Disabled keys are kept so you can save their value, but are not used
+in calls or copied request snippets. A confirmed revoked key is removed from the browser's saved-key display.
+Use **Manage your keys** to see each key's identifier, organization and status. A lost response does not prove
+that creation or revocation failed. The server cannot recover a lost secret from its hash.
+
+Key creation saves the account, node, label, organization and a request identifier in this browser before
+sending. Reloading either the model or account page checks that same request without issuing another key.
+**Retry same request** cannot issue a second key for that identifier. **Cancel if unissued** prevents a delayed
+request from issuing, but if issuance already happened the page reports that key instead of claiming cancellation.
+If the key was issued but this tab never received a verified secret, manage or revoke the displayed identifier;
+retrying cannot retrieve its secret. Save and clear a visible secret before creating another. Browser storage
+and tab coordination must be available for these actions. Clearing browser data or switching devices loses this
+browser's recovery record; the owned-key list remains available. This workflow requires a node with request-scoped
+key creation; older nodes do not fall back to a potentially duplicate legacy issuance.
+
+Key revocation records the selected identifier in your browser before sending the request. If the response is
+lost, **Check status** only reads the current list. Reloading the account page resumes that check without
+repeating revocation. If the same key is still present, **Retry revoking this key** is an explicit retry of that
+identifier. A confirmed record stays visible until you close it. This record contains identifiers and labels,
+not the key secret, and belongs to that account and node in this browser.
+
 A program that already holds a wallet — an agent that also sends transactions — can pass `private_key=` instead
 and be issued a key automatically. That is the exception, not the quickstart.
+
+Model links retain the selected provider and model type. A peer being advertised is not a successful health
+check. Before **Run**, the page rechecks that the selected provider still offers that exact model/type; it
+does not substitute another node if the provider disappears. A failed or malformed catalogue is shown as
+unavailable information, not an empty network. Models with an unknown availability probe cannot run locally.
+The AinCode workspace link opens the workspace only; it does not pass the selected model/provider into AinCode.
+
+For an API call or an agent configuration, `model-id@0x<full-node-address>` names exactly that provider,
+including when it names this node itself. If the selected backend disappears, the request fails without
+forwarding its input to another provider. A bare model id keeps automatic routing: local first, otherwise an
+advertising peer; `/v1` chat may use an operator-configured preferred peer. Use the full reference when the
+provider matters. This applies to chat, transcription, images, decisions, embeddings, speech and music.
+
 
 ## Chat
 

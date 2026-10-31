@@ -1,4 +1,5 @@
 import { useParams } from 'react-router';
+import { useRef } from 'react';
 import styled from 'styled-components';
 import { errorMessage, useInfoQuery, useNudgePayoutMutation, useTeacherQuery } from '@/api/api';
 import { useT } from '@/i18n';
@@ -10,6 +11,11 @@ import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWra
 import { currentTeacherKey, isAddress, shortKey } from '@/lib/teacherKey';
 import { num, shortAddr, shortHash } from '@/utils/format';
 import { useDateTime, useElapsed } from '@/utils/useFormat';
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
+import { useActiveView } from '@/hooks/useActiveView';
+import { teacherView } from '@/lib/providerViews';
+import { knowledgeLookupPath } from '@/lib/detailRoutes';
+import { Offline } from '@/components/ui/Offline';
 
 const Stats = styled.div`margin-top: 16px; display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};`;
 const Stat = styled.div<{ $tone?: string }>`
@@ -37,19 +43,32 @@ const Rejected = styled.div`
 /** /teacher/:address — public data-provider page: taught knowledge + earnings reconciled from the public record (spec §4.1 step 9, §9.3). */
 export default function TeacherPage() {
   const { address = '' } = useParams<{ address: string }>();
+  const identity = useTeacherIdentity();
+  return <TeacherContent key={`${address.toLowerCase()}:${identity}`} address={address.toLowerCase()} identity={identity} />;
+}
+
+function TeacherContent({ address, identity }: { address: string; identity: string }) {
   const { t } = useT();
   const elapsed = useElapsed();
   const dateTime = useDateTime();
   const valid = isAddress(address);
-  const { data, error, isLoading } = useTeacherQuery(address, { skip: !valid, pollingInterval: 15_000 });
+  const query = useTeacherQuery(address, { skip: !valid, pollingInterval: 15_000 });
+  const data = query.isError ? null : teacherView(query.currentData, address);
   const { data: info } = useInfoQuery();
   const [nudge, nudgeState] = useNudgePayoutMutation();
-  const mine = currentTeacherKey()?.address.toLowerCase() === address.toLowerCase();
+  const mine = !!identity && identity === address;
+  const active = useActiveView();
+  const nudgeFlight = useRef(false);
+  const retryPayout = async (id: number) => {
+    if (nudgeFlight.current || !active() || !mine || currentTeacherKey()?.address.toLowerCase() !== identity) return;
+    nudgeFlight.current = true;
+    try { await nudge(id); } finally { nudgeFlight.current = false; }
+  };
   useTitle(data?.name ? `${t('teacher.title')} · ${data.name}` : t('teacher.title'));
 
   if (!valid) return <PageWrapper><Alert $tone="error">{t('teacher.not_found')}</Alert></PageWrapper>;
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (error || !data) return <PageWrapper><Alert $tone="error">{t('common.error', { message: errorMessage(error) })}</Alert></PageWrapper>;
+  if (!query.currentData && query.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!data) return <PageWrapper><Offline error={query.error} what={t('offline.what.teacher')} retrying={query.isFetching} onRetry={() => { void query.refetch(); }} /></PageWrapper>;
   const e = data.earnings;
   const cur = e.currency;
   const nodeName = info?.node.name ?? 'this node';
@@ -109,7 +128,7 @@ export default function TeacherPage() {
             <TableBody>
               {data.lessons.map((l) => (
                 <TableRow key={l.id} data-testid="teacher-lesson">
-                  <TableData $align="left" $padding="0 0 0 16px" $weight={600}>{l.status === 'PENDING_REVIEW' ? l.name : <StyledLink to={`/explore?q=${encodeURIComponent(l.id)}`}>{l.name}</StyledLink>}<div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400 }}>{l.id}</div></TableData>
+                  <TableData $align="left" $padding="0 0 0 16px" $weight={600}>{l.status === 'PENDING_REVIEW' ? l.name : <StyledLink to={knowledgeLookupPath(l.id)}>{l.name}</StyledLink>}<div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400 }}>{l.id}</div></TableData>
                   <TableData>
                     {l.status === 'PENDING_REVIEW' ? t('teach.mine.status.review') : <StatusChip status={l.status} />}
                     {waiting(l) && <div style={{ fontSize: 11, color: '#8d8d8f', fontWeight: 400, marginTop: 4 }} data-testid="teacher-awaiting">{waiting(l)}</div>}
@@ -125,7 +144,7 @@ export default function TeacherPage() {
                           </dl>
                         ))}
                         {!r.failures.length && <div style={{ marginTop: 4 }}>{t('teacher.rej.no_questions', { who: r.verifier_name ?? shortAddr(r.verifier, 8) })}</div>}
-                        {mine && l.job_id && <div style={{ marginTop: 6 }}><StyledLink to={`/train/lesson/${l.job_id}`}>{t('teacher.rej.again')} →</StyledLink></div>}
+                        {mine && l.job_id && <div style={{ marginTop: 6 }}><StyledLink to={`/train/lesson/${encodeURIComponent(l.job_id)}`}>{t('teacher.rej.again')} →</StyledLink></div>}
                         <div style={{ marginTop: 6, color: '#8d8d8f' }}>{t('teacher.rej.permanent')}</div>
                       </Rejected>
                     ))}
@@ -163,7 +182,7 @@ export default function TeacherPage() {
                         <Button
                           size="small" variant="outlined" data-testid="teacher-payout-nudge"
                           loading={nudgeState.isLoading}
-                          onClick={() => { void nudge(it.payout_id!); }}
+                          onClick={() => { void retryPayout(it.payout_id!); }}
                         >{t('teacher.item.nudge')}</Button>
                         {nudgeState.isSuccess && nudgeState.originalArgs === it.payout_id && (
                           <span style={{ marginLeft: 8, fontSize: 11, color: '#8d8d8f' }}>

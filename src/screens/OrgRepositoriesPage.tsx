@@ -1,3 +1,4 @@
+import { useAuth } from '@/auth/AuthContext';
 /**
  * `/<org>` — an organization's repositories, the counterpart of the aindrive drive folder `repositories/`
  * (`https://aindrive.ainetwork.ai/d/<driveId>?path=repositories`), laid out like a GitHub organization page: the
@@ -13,14 +14,16 @@
  */
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { useMeQuery, useOrgProjectsQuery, useOrgQuery, useOrgRepositoriesQuery } from '@/api/api';
+import { useOrgProjectsQuery, useOrgQuery, useOrgRepositoriesQuery } from '@/api/api';
 import { parseOrgProfile } from '@/api/organizations';
 import { mergeOrgRepos, projectApiErrorOf, relativeTime, shortSha, statusToneOf } from '@/api/projects';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { isReservedFirstSegment, projectPath } from '@/lib/reservedRoutes';
+import { Alert } from '@/components/ui/Form';
+import { Button } from '@/components/ui/Button';
 import { withQuery } from '@/lib/uiNavigation';
-import { isScriptProject } from '@/lib/projectActions';
+import { activeProjectUrl, hasProjectRunTargets } from '@/lib/projectActions';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 
@@ -50,24 +53,27 @@ const Action = styled(Link)`
 export default function OrgRepositoriesPage() {
   const { t } = useT();
   const { org = '' } = useParams();
+  const auth = useAuth();
   const reserved = isReservedFirstSegment(org);
-  const projectsQ = useOrgProjectsQuery(org, { skip: reserved, pollingInterval: 15_000 });
-  const reposQ = useOrgRepositoriesQuery(org, { skip: reserved });
-  const orgQ = useOrgQuery(org, { skip: reserved });
-  const meQ = useMeQuery();
-  const signedIn = !!(meQ.data?.signedIn || meQ.data?.sso || meQ.data?.site);
-  const profile = parseOrgProfile(orgQ.data);
+  const projectsQ = useOrgProjectsQuery({ org, identity: auth.cacheIdentity }, { skip: reserved, pollingInterval: 15_000 });
+  const reposQ = useOrgRepositoriesQuery({ org, identity: auth.cacheIdentity }, { skip: reserved });
+  const orgQ = useOrgQuery({ id: org, identity: auth.cacheIdentity }, { skip: reserved });
+  const signedIn = auth.isSignedIn;
+  const profile = orgQ.error ? null : parseOrgProfile(orgQ.currentData);
+  const validProjects = typeof projectsQ.currentData?.org === 'string' && Array.isArray(projectsQ.currentData?.projects);
+  const validRepos = Array.isArray(reposQ.currentData?.repositories);
+  const reposFailed = reposQ.isError || (!reposQ.isFetching && !validRepos);
   useTitle(profile?.name ?? org);
   if (reserved) return <NotFoundPage />;
-  if (projectsQ.isLoading && !projectsQ.data) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (!projectsQ.data) {
+  if (projectsQ.isFetching && !projectsQ.currentData) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!validProjects || !projectsQ.currentData || (projectsQ.error && [401, 403, 404].includes(projectApiErrorOf(projectsQ.error).status ?? 0))) {
     const why = projectApiErrorOf(projectsQ.error);
-    return <PageWrapper><TitleRow><Title>{org}</Title></TitleRow><Empty>{why.code === 'not_found' ? t('projects.org.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty></PageWrapper>;
+    return <PageWrapper><TitleRow><Title>{org}</Title></TitleRow><Empty>{why.code === 'not_found' ? t('projects.org.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty><Button loading={projectsQ.isFetching} onClick={() => void projectsQ.refetch()}>{t('projects.page.retry')}</Button></PageWrapper>;
   }
-  const slug = projectsQ.data.org;
-  const repos = reposQ.data?.repositories ?? [];
-  const rows = mergeOrgRepos(projectsQ.data.projects, repos);
-  const driveUrl = reposQ.data?.driveUrl ?? null;
+  const slug = projectsQ.currentData.org;
+  const repos = reposFailed ? [] : reposQ.currentData?.repositories ?? [];
+  const rows = mergeOrgRepos(projectsQ.currentData.projects, repos);
+  const driveUrl = reposFailed ? null : reposQ.currentData?.driveUrl ?? null;
   const members = profile?.member_count ?? null;
   const accessRequired = rows.length === 0 && reposQ.isError && projectApiErrorOf(reposQ.error).code === 'not_found';
   return (
@@ -77,11 +83,13 @@ export default function OrgRepositoriesPage() {
         {typeof members === 'number' && <span>{t('projects.org.members', { n: members })}</span>}
         {profile && <StyledLink to={`/org/${encodeURIComponent(profile.id)}`}>{t('projects.org.org_page')}</StyledLink>}
         {driveUrl && <ExternalLink href={driveUrl} target="_blank" rel="noreferrer">{t('projects.org.drive')} ↗</ExternalLink>}
-        {!accessRequired && <span>{t('projects.org.count', { n: rows.length })}</span>}
+        {!accessRequired && validRepos && !reposFailed && !projectsQ.error && <span>{t('projects.org.count', { n: rows.length })}</span>}
       </HeaderMeta>
       {profile?.description && <Description>{profile.description}</Description>}
+      {projectsQ.isError && <Alert role="alert" $tone="error">{t('projects.page.load_failed')} <Button loading={projectsQ.isFetching} onClick={() => void projectsQ.refetch()}>{t('projects.page.retry')}</Button></Alert>}
+      {reposFailed && !accessRequired && <Alert role="alert" $tone="error">{t('projects.org.list_failed')} <Button loading={reposQ.isFetching} onClick={() => void reposQ.refetch()}>{t('projects.page.retry')}</Button></Alert>}
       {reposQ.isError && projectApiErrorOf(reposQ.error).code === 'aindrive_off' && <Description>{t('projects.org.no_aindrive')}</Description>}
-      {accessRequired ? <Empty><p>{t(signedIn ? 'projects.org.members_only' : 'projects.org.signin_hint')}</p><StyledLink to={`/signing?next=${encodeURIComponent(`/${org}`)}`}>{t('projects.org.signin')}</StyledLink></Empty> : rows.length === 0 && reposQ.isFetching ? <CenterProgress /> : rows.length === 0 ? <Empty>{t('projects.org.none')}</Empty> : (
+      {accessRequired ? <Empty><p>{t(signedIn ? 'projects.org.members_only' : 'projects.org.signin_hint')}</p>{signedIn ? <StyledLink to="/org">{t('orgs.title')}</StyledLink> : <StyledLink to={`/signing?next=${encodeURIComponent(`/${org}`)}`}>{t('projects.org.signin')}</StyledLink>}</Empty> : rows.length === 0 && reposQ.isFetching ? <CenterProgress /> : rows.length === 0 ? (!reposFailed && !projectsQ.error && <Empty>{t('projects.org.none')}</Empty>) : (
         <List>
           {rows.map((r) => {
             const p = r.project;
@@ -90,9 +98,10 @@ export default function OrgRepositoriesPage() {
             const sha = last?.sha || r.repo?.headSha || null;
             const subject = last?.subject ?? r.repo?.headSubject ?? null;
             const to = p ? projectPath(p) : null;
-            const isScript = !!p && isScriptProject(p);
+            const canRun = !!p && hasProjectRunTargets(p);
+            const visitUrl = p ? activeProjectUrl(p) : null;
             return (
-              <Item key={r.name}>
+              <Item key={p ? `project:${p.id}` : `repo:${r.name}`}>
                 <Name>
                   <Dot $tone={p ? statusToneOf(p.status) : 'muted'} />
                   {to ? <StyledLink to={to}>{r.name}</StyledLink> : <span>{r.name}</span>}
@@ -100,8 +109,8 @@ export default function OrgRepositoriesPage() {
                   {!p && r.repo && !r.repo.hasManifest && <Chip title={t('projects.org.no_manifest_hint')}>{t('projects.org.no_manifest')}</Chip>}
                 </Name>
                 <Quick>
-                  {to && isScript && <Action to={withQuery(to, { tab: 'runs' })}>▶ {t('projects.runs.run')}</Action>}
-                  {to && !isScript && last?.status === 'ready' && last.outputUrl && <ExternalLink href={last.outputUrl} target="_blank" rel="noreferrer">{t('projects.page.visit')} ↗</ExternalLink>}
+                  {to && canRun && <Action to={withQuery(to, { tab: 'runs' })}>▶ {t('projects.runs.run')}</Action>}
+                  {to && visitUrl && <ExternalLink href={visitUrl} target="_blank" rel="noreferrer">{t('projects.page.visit')} ↗</ExternalLink>}
                   {to && <Action to={to}>{t('projects.org.open')}</Action>}
                   {!to && r.repo && <ExternalLink href={r.repo.cloneUrl} target="_blank" rel="noreferrer">aindrive ↗</ExternalLink>}
                 </Quick>

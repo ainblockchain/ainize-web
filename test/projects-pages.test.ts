@@ -1,3 +1,4 @@
+import { organizations } from '../src/i18n/pages/organizations';
 /**
  * The project pages' contract with aindrive (aindrive#206) and with the node (ainize-node docs/PROJECTS.md), held
  * still where it can be: the hand-off query string, the one-time secret's return trip, the node's error shape, and
@@ -9,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
+import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, invalidInputs, projectInputValue, projectRunEnvIssues, projectRunTimeout, isModelInput, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
 import { projectPath } from '../src/lib/reservedRoutes.ts';
 import { repoProjectLabel, repoProjects, selectRepoProject } from '../src/lib/repoProjects.ts';
@@ -18,11 +19,11 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`
 
 test('the "Connect to ainize" query string: repo and driveId pass, returnTo only back to aindrive or into this app', () => {
   const p = connectParamsOf('?repo=https%3A%2F%2Faindrive.ainetwork.ai%2Fcomcom%2Fgit%2Fart&driveId=-nLGGiI3VXYR&returnTo=https%3A%2F%2Faindrive.ainetwork.ai%2Fcomcom%2Fgit%2Fart');
-  assert.deepEqual(p, { repo: 'https://aindrive.ainetwork.ai/comcom/git/art', driveId: '-nLGGiI3VXYR', returnTo: 'https://aindrive.ainetwork.ai/comcom/git/art' });
+  assert.deepEqual(p, { repo: 'https://aindrive.ainetwork.ai/comcom/git/art', driveId: '-nLGGiI3VXYR', returnTo: 'https://aindrive.ainetwork.ai/comcom/git/art', branch: 'main', invalid: false });
   assert.equal(connectParamsOf('?returnTo=https://evil.example/x').returnTo, null, 'no open redirect');
   assert.equal(connectParamsOf('?returnTo=//evil.example').returnTo, null);
   assert.equal(connectParamsOf('?returnTo=/me/projects').returnTo, '/me/projects');
-  assert.deepEqual(connectParamsOf(''), { repo: null, driveId: null, returnTo: null });
+  assert.deepEqual(connectParamsOf(''), { repo: null, driveId: null, returnTo: null, branch: 'main', invalid: false });
 });
 
 test('a repo URL is accepted only in the node\'s shape, and labelled org/repo', () => {
@@ -38,19 +39,19 @@ test('a repo URL is accepted only in the node\'s shape, and labelled org/repo', 
 test('the one-time secret goes to aindrive\'s git-connect with the person\'s session, and a refusal comes back as words', async () => {
   const calls: { url: string; init: RequestInit }[] = [];
   const ok = await connectRepoOnAindrive({ driveId: 'd1', repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'prj_1', webhookSecret: 'whsec_x' }, {
-    fetchImpl: (async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch,
+    fetchImpl: (async (url: string, init: RequestInit) => { calls.push({ url, init }); return Response.json({ ok: true, driveId: 'd1', repoUrl: 'https://aindrive.ainetwork.ai/o/git/r', repo: 'repositories/r', projectId: 'prj_1' }); }) as unknown as typeof fetch,
   });
-  assert.deepEqual(ok, { ok: true });
+  assert.deepEqual(ok, { ok: true, repoPath: 'repositories/r' });
   assert.equal(calls[0]!.url, 'https://aindrive.ainetwork.ai/api/drives/d1/git-connect');
   assert.equal(calls[0]!.init.method, 'POST');
   assert.equal(calls[0]!.init.credentials, 'include', 'the aindrive session cookie must travel');
-  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'prj_1', webhookSecret: 'whsec_x' });
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { repoUrl: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'prj_1', webhookSecret: 'whsec_x', expectedProjectId: null });
 
-  const refused = await connectRepoOnAindrive({ driveId: 'd1', repo: 'r', projectId: 'p', webhookSecret: 's' }, {
+  const refused = await connectRepoOnAindrive({ driveId: 'd1', repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'p', webhookSecret: 's' }, {
     fetchImpl: (async () => new Response(JSON.stringify({ error: { message: 'not an editor of this drive' } }), { status: 403 })) as unknown as typeof fetch,
   });
   assert.deepEqual(refused, { ok: false, status: 403, message: 'not an editor of this drive' });
-  const down = await connectRepoOnAindrive({ driveId: 'd1', repo: 'r', projectId: 'p', webhookSecret: 's' }, { fetchImpl: (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch });
+  const down = await connectRepoOnAindrive({ driveId: 'd1', repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'p', webhookSecret: 's' }, { fetchImpl: (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch });
   assert.equal(down.ok, false);
 });
 
@@ -67,7 +68,7 @@ test('every string the project pages render exists in English and in Korean', ()
   const keys = [...sources.matchAll(/\bt\('([a-zA-Z0-9_.]+)'/g)].map((m) => m[1]!);
   assert.ok(keys.length > 20, 'the pages are translated through t()');
   for (const key of keys) {
-    const e = projects[key];
+    const e = projects[key] ?? organizations[key];
     assert.ok(e, `missing i18n key ${key}`);
     assert.ok(e.en.trim() && e.ko.trim(), `${key} needs both languages`);
     assert.ok(/[가-힣]/.test(e.ko) || e.ko === e.en, `${key}.ko is not Korean`);
@@ -89,12 +90,10 @@ test('/projects/new keeps its own sign-in gate so the hand-off query string surv
   assert.ok(page.includes('to={signInHref(location)}'), 'the shared return-link helper preserves query and anchor');
 });
 
-test('every link to a project is the pretty URL /<org>/<repo> (a monorepo folder\'s project excepted, projectPath); nothing builds /projects/<id> by hand', () => {
+test('project links use the shared route resolver rather than building an ID destination in each screen', () => {
   for (const file of ['screens/ProjectNewPage.tsx', 'screens/MyProjectsPage.tsx', 'screens/ProjectPage.tsx', 'screens/OrgRepositoriesPage.tsx']) {
-    assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} still builds a /projects/<id> link`);
+    assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} bypasses the project route resolver`);
   }
-  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{withSearch\(projectPath\(q\.data\), location\.search\)\}/, '/projects/:id forwards to the pretty URL');
-  assert.match(read('screens/ProjectPage.tsx'), /<Link to=\{orgPath\(p\.org\)\}>\{p\.org\}<\/Link>/, 'the breadcrumb\'s org links to /<org>');
 });
 
 test('the org page merges the drive\'s repositories with the projects bound here, by name, newest first', () => {
@@ -112,21 +111,21 @@ test('a monorepo folder project is its own row; its page is the repository\'s, s
   const indexer = { ...base, id: 'prj_idx', name: 'aindrive-indexer', updatedAt: 20, sourcePath: 'indexer' } as unknown as Project;
   const rows = mergeOrgRepos([indexer, root], [{ name: 'aindrive', cloneUrl: 'c', headSha: 'a', headSubject: 's', updatedAt: 5, hasManifest: true }]);
   assert.deepEqual(rows.map((r) => [r.name, r.project?.id ?? null]), [['aindrive/indexer', 'prj_idx'], ['aindrive', 'prj_root']]);
-  assert.equal(projectPath(root), '/comcom/aindrive');
-  assert.equal(projectPath(indexer), '/comcom/aindrive?project=indexer');
+  assert.equal(projectPath(root), '/comcom/aindrive?projectId=prj_root');
+  assert.equal(projectPath(indexer), '/comcom/aindrive?project=indexer&projectId=prj_idx');
   // every deployment of the repository on its one page: the root first, then folders; ?project= picks one
   const other = { ...base, id: 'prj_other', name: 'x', updatedAt: 1, sourcePath: 'web', repo: 'https://aindrive.ainetwork.ai/comcom/git/other' } as unknown as Project;
   const docs = { ...base, id: 'prj_docs', name: 'aindrive-docs', updatedAt: 30, sourcePath: 'docs' } as unknown as Project;
   const all = repoProjects(root, [indexer, other, root, docs]);
   assert.deepEqual(all.map((p) => p.id), ['prj_root', 'prj_docs', 'prj_idx'], 'other repositories are left out');
-  assert.equal(selectRepoProject(all, null).id, 'prj_root', 'no parameter: the root, as the page always was');
-  assert.equal(selectRepoProject(all, 'indexer').id, 'prj_idx');
-  assert.equal(selectRepoProject(all, 'nope').id, 'prj_root');
+  assert.equal(selectRepoProject(all, null)?.id, 'prj_root', 'no parameter: the root, as the page always was');
+  assert.equal(selectRepoProject(all, 'indexer')?.id, 'prj_idx');
+  assert.equal(selectRepoProject(all, 'nope'), undefined, 'an unavailable folder never selects a different project');
   assert.deepEqual(repoProjects(root, [root]).map((p) => p.id), ['prj_root'], 'no folder projects: no switcher');
-  assert.equal(repoProjectLabel(indexer), 'aindrive/indexer');
+  assert.equal(repoProjectLabel(indexer), 'aindrive/indexer · main');
   const page = read('screens/ProjectPage.tsx');
   assert.match(page, /const switcher = all\.length > 1 \? <RepoDeployments/, 'the switcher only when the repository has folder projects');
-  assert.match(page, /<ProjectConsole key=\{selected\.id\} project=\{selected\} switcher=\{switcher\} \/>/);
+  assert.match(page, /<ProjectConsole key=\{`\$\{cacheIdentity\}:\$\{selected\.id\}`\} project=\{selected\} switcher=\{switcher\} \/>/);
 });
 
 test('the Run panel: answers fall back to defaults, required blanks are named, env lines are parsed, times are relative', () => {
@@ -141,4 +140,40 @@ test('the Run panel: answers fall back to defaults, required blanks are named, e
   assert.equal(relativeTime(now - 3 * 3_600_000, now), '3h ago');
   assert.equal(relativeTime(now - 2 * 86_400_000, now), '2d ago');
   assert.equal(relativeTime(null), '');
+});
+
+
+test('project inputs preserve explicit clears and reject incompatible presets without substituting defaults', () => {
+  const inputs = { model: { default: 'repo/model', required: true }, count: { type: 'number' as const, default: 5 },
+    enabled: { type: 'boolean' as const, default: true }, mode: { type: 'choice' as const, options: ['first', 'second'] } };
+  const cleared = { model: '', count: '0', enabled: 'false', mode: 'removed' };
+  assert.deepEqual(inputAnswers(inputs, cleared), cleared);
+  assert.equal(projectInputValue(inputs.model, ''), '');
+  assert.equal(projectInputValue(inputs.model, undefined), 'repo/model');
+  assert.deepEqual(missingInputs(inputs, cleared), ['model']);
+  assert.deepEqual(missingInputs(inputs, { model: '   ' }), ['model']);
+  assert.deepEqual(invalidInputs(inputs, cleared), ['mode']);
+  assert.deepEqual(invalidInputs(inputs, { count: 'NaN', enabled: 'yes' }), ['count', 'enabled']);
+  assert.deepEqual(invalidInputs(inputs, { count: '1.25', enabled: 'false', mode: 'second' }), []);
+  for (const count of ['0xff', '+2', ' 5 ']) assert.deepEqual(invalidInputs(inputs, { count }), ['count']);
+});
+
+
+test('model hints only apply to identifier fields and prototype-like input names remain literal', () => {
+  for (const name of ['model', 'MODEL_ID', 'llm_model', 'embedding_model_name']) assert.equal(isModelInput(name, {}), true);
+  for (const name of ['model_path', 'model_temperature', 'modelProvider', 'remodel']) assert.equal(isModelInput(name, {}), false);
+  const inputs = JSON.parse('{"__proto__":{"default":"literal"},"constructor":{"required":true}}');
+  assert.deepEqual(inputAnswers(inputs, {}), JSON.parse('{"__proto__":"literal"}'));
+  assert.deepEqual(missingInputs(inputs, {}), ['constructor']);
+  assert.deepEqual(invalidInputs(inputs, {}), []);
+});
+
+
+test('run environment typos and duplicate names cannot silently drop or overwrite settings', () => {
+  assert.deepEqual(projectRunEnvIssues('A=one\nmissing value\nA=two\n9BAD=no\n# comment\n B=three'), [2, 3, 4]);
+  assert.deepEqual(projectRunEnvIssues('A=one\nB=\n# comment'), []);
+  assert.deepEqual(parseEnvLines('__proto__=literal'), JSON.parse('{"__proto__":"literal"}'));
+  assert.equal(projectRunTimeout(''), undefined);
+  assert.equal(projectRunTimeout('1.5'), 1500);
+  for (const value of ['0', '-1', '301', 'NaN', 'Infinity', '0x10', '+2']) assert.equal(projectRunTimeout(value), null);
 });

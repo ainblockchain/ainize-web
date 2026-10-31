@@ -207,8 +207,8 @@ export function billingIsHexAddress(value: unknown): value is string {
 }
 
 /** Two addresses are the same account whatever their checksum casing. */
-export function billingSameAddress(a: string | null | undefined, b: string | null | undefined): boolean {
-  return !!a && !!b && a.toLowerCase() === b.toLowerCase();
+export function billingSameAddress(a: unknown, b: unknown): boolean {
+  return typeof a === 'string' && !!a && typeof b === 'string' && !!b && a.toLowerCase() === b.toLowerCase();
 }
 
 /** `transfer(address,uint256)` — the first four bytes of its keccak-256. */

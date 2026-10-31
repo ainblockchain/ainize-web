@@ -1,11 +1,22 @@
-import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddToBranchMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useLedgerQuery, useMeQuery, useMyPatchesQuery,
-  useMyPurchasesQuery, useRuntimeQuery, useWalletQuery,
+  api, errorMessage, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMeQuery, useMyPatchesQuery,
+  useMyPurchasesQuery, useRuntimeQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
+import { purchaseRows, purchaseStanding } from '@/lib/purchaseView';
+import { accountRuntime } from '@/lib/accountNodeActions';
+import { dashboardInventory, inventoryRows, paidSales, statusRank } from '@/lib/dashboardView';
+import { knowledgePath } from '@/lib/detailRoutes';
+import { trackBranches } from '@/lib/trackView';
+import { createNodeActionTask } from '@/lib/accountNodeActions';
+import { createTrack, trackCreationInput, TrackCreationError } from '@/lib/trackCreation';
+import { LoadKnowledgeError } from '@/lib/loadKnowledge';
+import { useActiveView } from '@/hooks/useActiveView';
+import { VerificationWork } from '@/components/operator/VerificationWork';
+import { logEvents } from '@/lib/logView';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -15,28 +26,10 @@ import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
 import { CenterProgress, Empty, Pagination, PageWrapper, SelectBox, StatusChip, SubTitle, Tabs, Title, TitleRow, Description } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { IconButton, LiveTestIcon, QueryError, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { TrackAdditionForm } from '@/components/operator/TrackAdditionForm';
 import { TrackCard } from '@/components/operator/TrackCard';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { num, shortAddr, shortHash } from '@/utils/format';
-
-/**
- * Item 335 — the console showed verification as no work at all: a node with 203 attestations on the record read
- * "No knowledge yet — register your first one", Account said "Roles: verifier" and nothing anywhere answered what
- * the node did this week, what came back, or what it earned for it. Every fact here is read from the public record
- * (`attest` records this node signed) and from the wallet's own verification rows — nothing is estimated, and the
- * things this build genuinely does not measure (GPU seconds, bytes held for verification alone) are not invented.
- */
-const VerifyCard = styled.div`
-  display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 18px 22px; margin-bottom: 24px;
-  background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
-`;
-const VerifyStat = styled.div`
-  display: flex; flex-direction: column; min-width: 92px;
-  b { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; color: ${(p) => p.theme.color.BLACK}; }
-  b.bad { color: ${(p) => p.theme.color.ERROR}; }
-  span { margin-top: 3px; font-size: 12px; color: ${(p) => p.theme.color.GREY}; }
-`;
-const VerifyNote = styled.div`flex: 1 1 100%; font-size: 12px; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;`;
 
 const NameLink = styled(Link)`
   font-weight: 600; color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { text-decoration: underline; }
@@ -44,11 +37,11 @@ const NameLink = styled(Link)`
 const IconLink = styled(Link)`
   display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 4px; &:hover { background: #f5eefc; }
 `;
-const BranchGrid = styled.div`display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;`;
+const BranchGrid = styled.div`display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 16px; margin-top: 16px;`;
 const MiniForm = styled.form`
   margin-top: 16px; padding: 16px 20px; border: 1px dashed ${(p) => p.theme.color.LIGHT_GREY}; display: flex; flex-direction: column; gap: 14px; max-width: 640px;
 `;
-const ContextRow = styled.div`display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;`;
+const ContextRow = styled.div`display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; @media (max-width: 640px) { grid-template-columns: minmax(0, 1fr); }`;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
 
 /**
@@ -89,59 +82,31 @@ const LogBadge = styled.span`
 `;
 
 const PAGE_SIZE = 25;
-/** Needs-attention order: what the operator has to act on, then what is merely on sale, then what is over. */
-const STATUS_ORDER = ['DRAFT', 'ANNOUNCED', 'VERIFYING', 'CHALLENGED', 'VERIFIED', 'SUPERSEDED', 'RETIRED', 'REJECTED'];
-const statusRank = (s: string) => { const i = STATUS_ORDER.indexOf(s); return i < 0 ? STATUS_ORDER.length : i; };
-const recency = (e: CatalogEntry) => e.listed_at ?? e.anchor.created_at ?? 0;
 const NODELOG_SEEN = 'ainize.nodelog.seen';
 
 /** Teaching tab (spec §5.13) is code-split: most operators open My knowledge far more often than the teach queue. */
 const TeachingTab = lazy(() => import('@/components/operator/TeachingTab'));
 
-/** The verification block (item 335) — rendered only for a node that has actually written attestations. */
-function VerificationWork({ address }: { address: string }) {
-  const { t, tech, help } = useT();
-  const money = useMoney();
-  const attests = useLedgerQuery({ kind: 'attest', limit: 5000 });
-  const wallet = useWalletQuery();
-  // `wallet.network` is the ledger's network name ("local"), never a currency — the unit comes from /api/info.
-  const { data: nodeInfo } = useInfoQuery();
-  const mine = useMemo(() => {
-    const rows = (attests.data?.records ?? []).map((r) => r.body as { patch_id?: string; verifier?: string; passed?: boolean; verified_on?: string })
-      .filter((b) => (b.verifier ?? '').toLowerCase() === address.toLowerCase());
-    return {
-      total: rows.length,
-      passed: rows.filter((b) => b.passed !== false).length,
-      failed: rows.filter((b) => b.passed === false).length,
-      hashOnly: rows.filter((b) => b.verified_on === 'hash-only').length,
-      knowledges: new Set(rows.map((b) => b.patch_id ?? '')).size,
-    };
-  }, [attests.data, address]);
-  const network = useMemo(() => {
-    const rows = (attests.data?.records ?? []).map((r) => r.body as { passed?: boolean });
-    return { total: rows.length, failed: rows.filter((b) => b.passed === false).length };
-  }, [attests.data]);
-  if (!mine.total) return null;
-  const earned = wallet.data?.verification_total ?? '0';
-  const currency = nodeInfo?.currency ?? '';
-  return (
-    <VerifyCard data-testid="dash-verification">
-      <VerifyStat><b>{num(mine.total)}</b><span title={`${help('signedResult')} (${tech('signedResult')})`}>{t('op.dash.verify.attested')}</span></VerifyStat>
-      <VerifyStat><b>{num(mine.passed)}</b><span>{t('op.dash.verify.passed')}</span></VerifyStat>
-      <VerifyStat><b className={mine.failed ? 'bad' : undefined}>{num(mine.failed)}</b><span>{t('op.dash.verify.failed')}</span></VerifyStat>
-      <VerifyStat><b>{num(mine.hashOnly)}</b><span title={t('op.dash.verify.hash_help')}>{t('op.dash.verify.hash')}</span></VerifyStat>
-      <VerifyStat><b>{num(mine.knowledges)}</b><span>{t('op.dash.verify.knowledges')}</span></VerifyStat>
-      <VerifyStat><b>{money.revenue(earned, currency)}</b><span title={t('op.dash.verify.earned_help')}>{t('op.dash.verify.earned')}</span></VerifyStat>
-      <VerifyNote>{t('op.dash.verify.network', { total: num(network.total), failed: num(network.failed) })} {t('op.dash.verify.note')}</VerifyNote>
-    </VerifyCard>
-  );
+export default function DashboardPage() {
+  const { cacheIdentity } = useAuth();
+  return <DashboardContent key={cacheIdentity} />;
 }
 
-export default function DashboardPage() {
+export function DashboardContent() {
   const { t, term, help, tech } = useT();
   useTitle(t('op.dash.title'));
   const money = useMoney();
-  const { address } = useAuth();
+  const auth = useAuth();
+  const { address, cacheIdentity, loading: authLoading } = auth;
+  const active = useActiveView();
+  const [creationTask] = useState(createNodeActionTask);
+  useEffect(() => () => creationTask.abandon(), [creationTask]);
+  const [creationBusy, setCreationBusy] = useState(false);
+  const [creationError, setCreationError] = useState<string | null>(null);
+  const [createdName, setCreatedName] = useState<string | null>(null);
+  const [readBranchAccess] = api.useLazyMeQuery();
+  const [readBranches] = api.useLazyBranchesQuery();
+  const [readInventory] = api.useLazyMyPatchesQuery();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab: 'knowledge' | 'teaching' = params.get('tab') === 'teaching' ? 'teaching' : 'knowledge';
@@ -150,34 +115,36 @@ export default function DashboardPage() {
   const { data: me } = useMeQuery();
   const currency = info?.currency ?? '';
   const [inFlight, setInFlight] = useState(false);
-  const patches = useMyPatchesQuery(undefined, { pollingInterval: inFlight ? 5000 : 0 });
-  const items = patches.data?.items ?? [];
+  const patches = useMyPatchesQuery({ identity: cacheIdentity }, { pollingInterval: inFlight ? 5000 : 0, skip: authLoading });
+  const inventory = !authLoading && !patches.isError ? dashboardInventory(patches.currentData) : null;
+  const items = inventory ?? [];
+  const inventoryFailed = !authLoading && (patches.isError || !inventory && !patches.isFetching);
   const anyInFlight = items.some((e) => isInFlight(e.status));
   if (anyInFlight !== inFlight) setInFlight(anyInFlight);
 
-  const purchases = useMyPurchasesQuery();
-  const runtime = useRuntimeQuery();
+  const purchases = useMyPurchasesQuery({ identity: cacheIdentity }, { skip: authLoading });
+  const purchased = !authLoading && !purchases.isError ? purchaseRows(purchases.currentData) : null;
+  const runtime = useRuntimeQuery({ identity: cacheIdentity }, { skip: authLoading });
+  const model = !authLoading && !runtime.isError ? accountRuntime(runtime.currentData) : null;
   /**
    * SC-15 — this is the table where a bought add-on is loaded, so it is where the base has to be offered: a bare
    * apply answered `needs_base` with a code, on the one screen whose whole job is turning a purchase into a model
    * that knows something.
    */
-  const chain = useLoadChain((id) => purchases.data?.items.find((x) => x.patch_id === id)?.entry?.anchor.name || id);
-  const branches = useBranchesQuery();
+  const chain = useLoadChain((id) => purchased?.find((x) => x.patch_id === id)?.entry?.anchor.name || id);
+  const branches = useBranchesQuery({ identity: cacheIdentity }, { skip: authLoading });
+  const branchData = !branches.isError ? trackBranches(branches.currentData) : null;
   const [createBranch, createState] = useCreateBranchMutation();
-  const [addToBranch, addState] = useAddToBranchMutation();
 
   // create branch mini form
   const [bName, setBName] = useState('');
   const [bDesc, setBDesc] = useState('');
   const [ctx, setCtx] = useState<{ k: string; v: string }[]>([{ k: 'jurisdiction', v: '' }]);
   const [bPatches, setBPatches] = useState<string[]>([]);
-  const [addBranch, setAddBranch] = useState('');
-  const [addPatch, setAddPatch] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
 
   const listedMine = useMemo(() => items.filter((e) => e.status === 'VERIFIED'), [items]);
-  const ownedBranches = useMemo(() => (branches.data?.branches ?? []).filter((b) => b.owner === address), [branches.data, address]);
+  const ownedBranches = useMemo(() => (branchData?.branches ?? []).filter((b) => b.owner.toLowerCase() === address?.toLowerCase()), [branchData, address]);
 
   // ---------------------------------------------------------------- finding 31: search, status filter, sort, paging
   const [q, setQ] = useState('');
@@ -192,50 +159,49 @@ export default function DashboardPage() {
     return [...m.entries()].sort((a, b) => statusRank(a[0]) - statusRank(b[0]));
   }, [items]);
 
-  const matched = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const hit = (e: CatalogEntry) => !needle || [e.anchor.id, e.anchor.name, e.anchor.model.id_M, e.anchor.benchmark.schema, e.anchor.branch]
-      .some((v) => (v ?? '').toLowerCase().includes(needle));
-    const list = items.filter((e) => (statusFilter === 'all' || e.status === statusFilter) && hit(e));
-    const by = {
-      // Within one status the newest first: an operator scanning drafts wants the one they just made.
-      status: (a: CatalogEntry, b: CatalogEntry) => statusRank(a.status) - statusRank(b.status) || recency(b) - recency(a),
-      new: (a: CatalogEntry, b: CatalogEntry) => recency(b) - recency(a),
-      name: (a: CatalogEntry, b: CatalogEntry) => (a.anchor.name || a.anchor.id).localeCompare(b.anchor.name || b.anchor.id) || a.anchor.id.localeCompare(b.anchor.id),
-      sales: (a: CatalogEntry, b: CatalogEntry) => b.downloads - a.downloads || recency(b) - recency(a),
-    }[sort];
-    return [...list].sort(by);
-  }, [items, q, statusFilter, sort]);
+  const matched = useMemo(() => inventoryRows(items, q, statusFilter, sort), [items, q, statusFilter, sort]);
 
   const pageCount = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
+  useEffect(() => { if (inventory && page > pageCount) setPage(pageCount); }, [inventory, page, pageCount]);
   const visible = useMemo(() => matched.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [matched, currentPage]);
   const narrowed = statusFilter !== 'all' || !!q.trim();
   const clearFilters = () => { setQ(''); setStatusFilter('all'); resetPage(); };
 
   // ---------------------------------------------------------------- finding 133: what the node log has to say
   const [logSeen] = useState(() => { try { return Number(localStorage.getItem(NODELOG_SEEN)) || 0; } catch { return 0; } });
-  const recentEvents = useEventsQuery({ limit: 200 });
-  const unseenBad = (recentEvents.data?.events ?? []).filter((e) => (e.level === 'warn' || e.level === 'error') && e.ts > logSeen).length;
+  const recentEvents = useEventsQuery({ limit: 200, identity: cacheIdentity }, { skip: authLoading });
+  const unseenBad = (!authLoading && !recentEvents.isError ? logEvents(recentEvents.currentData) ?? [] : []).filter((e) => (e.level === 'warn' || e.level === 'error') && e.ts > logSeen).length;
 
   const onCreateBranch = async (e: FormEvent) => {
     e.preventDefault();
-    setActionError(null);
-    const context: Record<string, string> = {};
-    for (const c of ctx) if (c.k.trim()) context[c.k.trim()] = c.v.trim();
+    const current = () => active() && auth.isCurrentAccount();
+    if (creationTask.pending() || !current() || !auth.isOwner || !branchData || !inventory) return;
+    setCreationError(null); setCreatedName(null); setCreationBusy(true);
+    let stillCurrent = current;
     try {
-      await createBranch({ name: bName.trim(), description: bDesc.trim(), context, patch_ids: bPatches }).unwrap();
-      setBName(''); setBDesc(''); setBPatches([]); setCtx([{ k: 'jurisdiction', v: '' }]);
-    } catch (err) { setActionError(errorMessage(err)); }
-  };
-  const onAddToBranch = async (e: FormEvent) => {
-    e.preventDefault();
-    setActionError(null);
-    try { await addToBranch({ name: addBranch, patch_id: addPatch }).unwrap(); setAddPatch(''); } catch (err) { setActionError(errorMessage(err)); }
+      const input = trackCreationInput(bName, bDesc, ctx, bPatches);
+      const name = await creationTask.run(current, async check => {
+        stillCurrent = check;
+        return createTrack(input, {
+          current: check, node: address, subject: auth.subject,
+          readAccess: () => readBranchAccess(undefined, false).unwrap(),
+          readBranches: () => readBranches({ identity: cacheIdentity }, false).unwrap(),
+          readInventory: () => readInventory({ identity: cacheIdentity }, false).unwrap(),
+          write: value => createBranch(value).unwrap(),
+        });
+      });
+      if (name && stillCurrent()) {
+        setCreatedName(name); setBName(''); setBDesc(''); setBPatches([]); setCtx([{ k: 'jurisdiction', v: '' }]);
+      }
+    } catch (err) {
+      if (stillCurrent()) setCreationError(err instanceof TrackCreationError ? t(`op.dash.branch.error.${err.code}`)
+        : err instanceof LoadKnowledgeError ? t(`detail.apply.error.${err.code}`) : errorMessage(err));
+    } finally { if (stillCurrent()) setCreationBusy(false); }
   };
   const run = async (fn: () => Promise<unknown>) => { setActionError(null); try { await fn(); } catch (err) { setActionError(errorMessage(err)); } };
 
-  const salesText = (e: CatalogEntry) => t('op.dash.sales.cell', { n: num(e.downloads), revenue: money.revenue(e.revenue, e.anchor.currency || currency) });
+  const salesText = (e: CatalogEntry) => t('op.dash.sales.cell', { n: paidSales(e) === null ? '—' : num(paidSales(e)!), revenue: money.revenue(e.revenue, e.anchor.currency || currency) });
   /** Item 194: what the sale price was, and what of it reached this node — the gross figure alone is not earnings. */
   const salesNet = (e: CatalogEntry) => (Number(e.revenue_shared ?? 0) > 0
     ? t('op.dash.sales.net', { revenue: money.revenue(e.revenue, e.anchor.currency || currency), net: money.revenue(e.revenue_net ?? e.revenue, e.anchor.currency || currency), shared: money.revenue(e.revenue_shared ?? '0', e.anchor.currency || currency) })
@@ -287,16 +253,16 @@ export default function DashboardPage() {
       {chain.dialog}
 
       {/* ---------------------------------------------------------------- my knowledge */}
-      {patches.isError && <QueryError error={patches.error} what={t('op.error.what.patches')} retrying={patches.isFetching} onRetry={() => void patches.refetch()} />}
-      {patches.isLoading ? <CenterProgress /> : patches.isError ? null : (<>
+      {inventoryFailed && <QueryError error={patches.error} what={t('op.error.what.patches')} retrying={patches.isFetching} onRetry={() => void patches.refetch()} />}
+      {inventoryFailed ? null : !inventory ? <CenterProgress /> : (<>
         {/* Finding 31: search, narrow, order and count — the list stopped fitting on a screen long ago. */}
-        {items.length > PAGE_SIZE / 2 && (
+        {(items.length > 0 || narrowed) && (
           <Toolbar>
             <FilterGroup>
               <span className="label">{t('op.dash.filter.status')}</span>
-              <FilterChip type="button" $active={statusFilter === 'all'} onClick={() => { setStatusFilter('all'); resetPage(); }}>{t('op.dash.filter.all', { n: items.length })}</FilterChip>
+              <FilterChip type="button" aria-pressed={statusFilter === 'all'} $active={statusFilter === 'all'} onClick={() => { setStatusFilter('all'); resetPage(); }}>{t('op.dash.filter.all', { n: items.length })}</FilterChip>
               {statusCounts.map(([s, n]) => (
-                <FilterChip key={s} type="button" $active={statusFilter === s} onClick={() => { setStatusFilter(statusFilter === s ? 'all' : s); resetPage(); }}>
+                <FilterChip key={s} type="button" aria-pressed={statusFilter === s} $active={statusFilter === s} onClick={() => { setStatusFilter(statusFilter === s ? 'all' : s); resetPage(); }}>
                   {t('op.dash.filter.count', { label: t(`status.${s}`) === `status.${s}` ? s : t(`status.${s}`), n })}
                 </FilterChip>
               ))}
@@ -338,10 +304,10 @@ export default function DashboardPage() {
                 return (
                   <TableRow key={a.id}>
                     <TableData $align="left" $padding="8px 0 8px 32px" $maxWidth="360px">
-                      <NameLink to={`/${author}/${a.id}`}>{a.name || a.id}</NameLink>
+                      <NameLink to={knowledgePath(author, a.id)}>{a.name || a.id}</NameLink>
                       {/* Finding 31: with 28 rows called "O69 grace period" the id is the identity, not a footnote —
                           it reads in the mono face, at full length, and one click selects the whole of it. */}
-                      <SubText title={a.id}><IdText>{a.id}</IdText> · {a.model.id_M} · {t('units.facts', { n: num(a.benchmark.queries) })}</SubText>
+                      <SubText title={a.id}><IdText>{a.id}</IdText> · {a.model.id_M} · {t('op.dash.questions', { n: num(a.benchmark.queries) })}</SubText>
                     </TableData>
                     <TableData>
                       <StatusText style={{ justifyContent: 'center' }}>
@@ -358,7 +324,7 @@ export default function DashboardPage() {
                       {salesNet(e) && <SubText style={{ display: 'block' }}>{salesNet(e)}</SubText>}
                     </TableData>
                     <TableData>
-                      <IconButton aria-label={t('op.dash.col.logs')} title={t('op.dash.col.logs')} onClick={() => navigate(`/project/${author}/${a.id}/logs`)}><LogIcon /></IconButton>
+                      <IconButton aria-label={t('op.dash.col.logs')} title={t('op.dash.col.logs')} onClick={() => navigate(`/project${knowledgePath(author, a.id)}/logs`)}><LogIcon /></IconButton>
                     </TableData>
                     <TableData>
                       {a.gateway_url ? (
@@ -369,7 +335,7 @@ export default function DashboardPage() {
                       <IconLink to={`/chat/${encodeURIComponent(a.id)}`} aria-label={t('op.livetest')} title={`${t('op.livetest')} — ${t('op.livetest.hint')}`}><LiveTestIcon /></IconLink>
                     </TableData>
                     <TableData>
-                      <IconButton aria-label={t('op.dash.col.manage')} title={t('op.dash.col.manage')} onClick={() => navigate(`/project/${author}/${a.id}`)}><ManageIcon /></IconButton>
+                      <IconButton aria-label={t('op.dash.col.manage')} title={t('op.dash.col.manage')} onClick={() => navigate(`/project${knowledgePath(author, a.id)}`)}><ManageIcon /></IconButton>
                     </TableData>
                   </TableRow>
                 );
@@ -392,8 +358,9 @@ export default function DashboardPage() {
       {/* ---------------------------------------------------------------- purchases */}
       <SubTitle $mt={56}>{t('op.dash.purchases.title')}</SubTitle>
       <Description title={tech('autoPay')}>{t('op.dash.purchases.desc')}</Description>
-      {purchases.isError && <QueryError error={purchases.error} what={t('op.error.what.purchases')} retrying={purchases.isFetching} onRetry={() => void purchases.refetch()} />}
-      {!purchases.isError && (
+      {(purchases.isError || purchases.currentData && !purchased) && <QueryError error={purchases.error} what={t('op.error.what.purchases')} retrying={purchases.isFetching} onRetry={() => void purchases.refetch()} />}
+      {!purchases.isError && !purchases.currentData && <CenterProgress />}
+      {purchased && (
       <TableWrapper style={{ marginTop: 16 }}>
         <Table>
           <TableHeader>
@@ -408,77 +375,85 @@ export default function DashboardPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(purchases.data?.items ?? []).map((p) => {
+            {purchased.map((p) => {
               const author = p.entry?.anchor.author;
-              const cur = p.entry?.anchor.currency ?? currency;
+              const payment = p.payment;
+              const cur = payment?.currency ?? '';
+              const standing = purchaseStanding(p, model);
+              const canChange = auth.isOwner && model?.available && p.currentFile && !chain.busy;
               const busy = chain.busy && chain.busyId === p.patch_id;
               return (
                 <TableRow key={p.patch_id}>
                   <TableData $align="left" $padding="8px 0 8px 32px" $maxWidth="320px">
-                    {author ? <NameLink to={`/${author}/${p.patch_id}`}>{p.entry?.anchor.name ?? p.patch_id}</NameLink> : <strong>{p.patch_id}</strong>}
+                    {author ? <NameLink to={knowledgePath(author, p.patch_id)}>{p.entry?.anchor.name ?? p.patch_id}</NameLink> : <strong>{p.patch_id}</strong>}
                     <SubText>{p.entry ? p.patch_id : shortHash(p.sha256, 16)}</SubText>
+                    {p.entry && !p.currentFile && <SubText>{t('op.dash.purchases.changedFile')}</SubText>}
                   </TableData>
-                  <TableData title={money.note(cur)} data-testid="purchase-paid">
-                    {money.fmt(p.amount, cur)}
-                    {schemeText(p.scheme, cur) && <SubText style={{ display: 'inline' }}> ({schemeText(p.scheme, cur)})</SubText>}
+                  <TableData title={payment?.currency ? money.note(cur) : undefined} data-testid="purchase-paid">
+                    {!payment ? t('op.dash.purchases.paymentUnknown') : payment.evidence === 'free' ? t('op.dash.purchases.scheme.free') : `${payment.amount} ${money.unit(cur)}`}
+                    {payment && payment.evidence !== 'free' && schemeText(payment.scheme, cur) && <SubText style={{ display: 'inline' }}> ({schemeText(payment.scheme, cur)})</SubText>}
                     {originText(p.origin) && <SubText style={{ display: 'block' }}>{originText(p.origin)}</SubText>}
                     {/* Item 280: the settle record has carried the split all along, and the buyer was shown a tx hash. */}
                     {(p.payees?.length ?? 0) > 0 && (
                       <SubText style={{ display: 'block' }} data-testid="purchase-payees">{t('op.dash.purchases.paid_to', {
-                        who: p.payees!.map((x) => t('op.dash.purchases.paid_to.line', { name: x.name ?? shortAddr(x.address, 6), amount: money.revenue(x.amount, cur) })).join(' · '),
+                        who: p.payees!.map((x) => t('op.dash.purchases.paid_to.line', { name: x.name ?? shortAddr(x.address, 6), amount: `${x.amount} ${money.unit(cur)}` })).join(' · '),
                       })}</SubText>
                     )}
                   </TableData>
                   <TableData $mono title={p.tx_hash}>{shortHash(p.tx_hash, 12)}</TableData>
                   <TableData $mono title={p.path ?? ''}>{p.path ? `…/${p.path.split('/').slice(-1)[0].slice(0, 18)}` : '—'}</TableData>
-                  <TableData>{p.applied ? <span style={{ color: '#44a45f', fontWeight: 600 }}>{t('op.yes')}</span> : t('op.no')}</TableData>
+                  <TableData>{t(`op.dash.purchases.record.${standing?.state ?? 'unknown'}`, { id: standing?.id ?? '' })}</TableData>
                   <TableData>
                     <Row $gap={6} $justify="center">
-                      <Button size="small" title={help('apply')} disabled={!runtime.data?.available || busy || p.applied} loading={busy && !p.applied} onClick={() => { setActionError(null); void chain.load(p.patch_id); }}>{term('apply')}</Button>
-                      <Button size="small" color="secondary" title={help('remove')} disabled={!runtime.data?.available || busy || !p.applied} loading={busy && p.applied} onClick={() => { setActionError(null); void chain.unload(p.patch_id); }}>{term('remove')}</Button>
+                      <Button size="small" title={help('apply')} disabled={!canChange || standing?.state !== 'absent'} loading={busy && standing?.state === 'absent'} onClick={() => { setActionError(null); if (p.entry) void chain.load(p.entry.anchor); }}>{term('apply')}</Button>
+                      <Button size="small" color="secondary" title={help('remove')} disabled={!canChange || standing?.state !== 'recorded'} loading={busy && standing?.state === 'recorded'} onClick={() => { setActionError(null); if (p.entry) void chain.unload(p.entry.anchor); }}>{term('remove')}</Button>
                     </Row>
                   </TableData>
                   <TableData>
-                    <IconLink to={`/chat/${encodeURIComponent(p.patch_id)}`} aria-label={t('op.livetest')} title={`${t('op.livetest')} — ${t('op.livetest.hint')}`}><LiveTestIcon /></IconLink>
+                    {p.currentFile && <IconLink to={`/chat/${encodeURIComponent(p.patch_id)}`} aria-label={t('op.livetest')} title={`${t('op.livetest')} — ${t('op.livetest.hint')}`}><LiveTestIcon /></IconLink>}
                   </TableData>
                 </TableRow>
               );
             })}
-            {(purchases.data?.items ?? []).length === 0 && <TableRowEmpty $height={120}><td colSpan={7}>{purchases.isLoading ? <SmallSpinner /> : t('op.dash.purchases.empty')}</td></TableRowEmpty>}
+            {purchased.length === 0 && <TableRowEmpty $height={120}><td colSpan={7}>{purchases.isLoading ? <SmallSpinner /> : t('op.dash.purchases.empty')}</td></TableRowEmpty>}
           </TableBody>
         </Table>
       </TableWrapper>
       )}
+      {(runtime.isError || runtime.currentData && !model) && <QueryError error={runtime.error} what={t('op.dash.purchases.runtimeRead')} retrying={runtime.isFetching} onRetry={() => void runtime.refetch()} />}
       {/* SC-18 — the loaded stack, in the order the model holds it. A set of ids cannot answer the operator's
           question ("what is under what?"), and after L2 the order is a record the node keeps, not a guess. */}
-      {!!runtime.data?.stack?.length && (
+      {!!model?.stack?.length && (
         <StatusText style={{ marginTop: 8 }} data-testid="ops-stack">
           {/* Item 214: WHY each layer is there — by hand, or by a track — was in the answer and on no screen. */}
-          {t('ops.stack', { list: runtime.data.stack.map((l, i) => `${i + 1}. ${l.name ?? l.patch_id} (${
+          {t('ops.stack', { list: model.stack.map((l, i) => `${i + 1}. ${typeof l.name === 'string' ? l.name : l.patch_id} (${
             l.reason === 'base' ? t('ops.stack.base')
               : l.reason === 'manual' ? t('op.dash.branches.loadedby.manual')
                 : l.reason?.startsWith('subscription:') ? t('op.dash.branches.loadedby.track', { track: l.reason.slice('subscription:'.length) })
                   : l.reason?.startsWith('chat:') ? t('ops.stack.livetest') : l.reason
           })`).join('  ·  ') })}
-          {runtime.data.stack.some((l) => !l.journal) && <div>{t('ops.stack.nojournal', { n: runtime.data.stack.filter((l) => !l.journal).length })}</div>}
+          {model.stack.some((l) => l.journal === false) && <div>{t('ops.stack.nojournal', { n: model.stack.filter((l) => l.journal === false).length })}</div>}
         </StatusText>
       )}
-      {runtime.data && !runtime.data.available && <StatusText style={{ marginTop: 8 }}>{t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}</StatusText>}
+      {model && !model.available && <StatusText style={{ marginTop: 8 }}>{t('op.runtime.unavailable', { error: model.error ?? t('op.runtime.noapi') })}</StatusText>}
 
       {/* ---------------------------------------------------------------- knowledge tracks (branches) */}
       <SubTitle $mt={56}><Tip tech={tech('branch')}>{t('op.dash.branches.title')}</Tip></SubTitle>
       <Description>{t('op.dash.branches.desc')}</Description>
-      {branches.isError && <QueryError error={branches.error} what={t('op.error.what.branches')} retrying={branches.isFetching} onRetry={() => void branches.refetch()} />}
-      {branches.isLoading ? <CenterProgress /> : branches.isError ? null : (
+      {(branches.isError || branches.currentData && !branchData) && <QueryError error={branches.error} what={t('op.error.what.branches')} retrying={branches.isFetching} onRetry={() => void branches.refetch()} />}
+      {branches.isLoading || !branches.currentData && !branches.isError ? <CenterProgress /> : !branchData ? null : (
         <BranchGrid>
-          {(branches.data?.branches ?? []).map((b) => (
-            <TrackCard key={b.name} branch={b} subscribed={!!branches.data?.mine.includes(b.name)} currency={currency} address={address} />
+          {branchData.branches.map((b) => (
+            <TrackCard key={b.name} branch={b} subscribed={branchData.mine.includes(b.name)} currency={currency} address={address} />
           ))}
-          {(branches.data?.branches ?? []).length === 0 && <span style={{ color: '#8d8d8f', fontSize: 14 }}>{t('op.dash.branches.empty')}</span>}
+          {branchData.branches.length === 0 && <span style={{ color: '#8d8d8f', fontSize: 14 }}>{t('op.dash.branches.empty')}</span>}
         </BranchGrid>
       )}
 
       <MiniForm onSubmit={onCreateBranch}>
+        {creationError && <Alert $tone="error" role="alert">{creationError}</Alert>}
+        {createdName && <Alert $tone="success" role="status">{t('op.dash.branch.created', { name: createdName })}</Alert>}
+        <fieldset disabled={creationBusy || !auth.isOwner || !branchData || !inventory} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <strong style={{ fontSize: 14 }}>{t('op.dash.branch.create')}</strong>
         <TextField label={t('op.dash.branch.name')} placeholder="law/KR" value={bName} onChange={(e) => setBName(e.target.value)} required />
         <TextField label={t('op.dash.branch.desc')} placeholder={t('op.dash.branch.desc.ph')} value={bDesc} onChange={(e) => setBDesc(e.target.value)} />
@@ -502,26 +477,11 @@ export default function DashboardPage() {
             ))}
           </Stack>
         )}
-        <div><Button type="submit" loading={createState.isLoading} loadingText={t('op.dash.branch.creating')}>{t('op.dash.branch.submit')}</Button></div>
+        <div><Button type="submit" loading={creationBusy || createState.isLoading} loadingText={t('op.dash.branch.creating')}>{t('op.dash.branch.submit')}</Button></div>
+        </fieldset>
       </MiniForm>
 
-      {ownedBranches.length > 0 && (
-        <MiniForm onSubmit={onAddToBranch}>
-          <strong style={{ fontSize: 14 }}>{t('op.dash.branch.addto')}</strong>
-          <ContextRow style={{ gridTemplateColumns: '1fr 1fr auto' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <FieldLabel>{t('op.dash.branch.pick')}</FieldLabel>
-              <Select value={addBranch} onChange={(e) => setAddBranch(e.target.value)} required>
-                <option value="">{t('op.select')}</option>
-                {ownedBranches.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
-              </Select>
-            </label>
-            <TextField label={t('op.dash.branch.patchid')} placeholder="krx-all-2761" value={addPatch} onChange={(e) => setAddPatch(e.target.value)} required />
-            <Button type="submit" loading={addState.isLoading}>{t('op.add')}</Button>
-          </ContextRow>
-          <span style={{ fontSize: 12, color: '#8d8d8f' }}>{t('op.dash.branch.owner_note')}</span>
-        </MiniForm>
-      )}
+      <TrackAdditionForm branches={ownedBranches} available={!!branchData} />
       </>)}
     </PageWrapper>
   );

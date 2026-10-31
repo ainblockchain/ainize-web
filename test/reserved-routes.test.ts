@@ -43,5 +43,5 @@ test('a slug is a slug, a reserved word or an odd string is not; links are built
   assert.equal(looksLikeSlug('Models'), false, 'case-insensitive');
   assert.equal(looksLikeSlug('.git'), false);
   assert.equal(looksLikeSlug('a b'), false);
-  assert.equal(projectPath({ org: 'comcom', repoName: 'clef-artwork-search' }), '/comcom/clef-artwork-search');
+  assert.equal(projectPath({ org: 'comcom', repoName: 'clef-artwork-search', id: 'prj_1' }), '/comcom/clef-artwork-search?projectId=prj_1');
 });

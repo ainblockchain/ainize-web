@@ -1,55 +1,109 @@
-import { useEffect, useState } from 'react';
+import { useAuth } from '@/auth/AuthContext';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useAgentArchivesQuery, useRestoreAgentArchiveMutation, useDeleteAgentArchiveMutation } from '@/api/agentArchives';
-import type { AgentArchiveSummary } from '@/api/agentArchives';
+import { useAgentArchivesQuery, useAgentArchiveOperationsQuery } from '@/api/agentArchives';
+import { readAgentArchivePage, readAgentArchiveDownload, type AgentArchiveSummary } from '@/api/agentArchiveEvidence';
+import { createAgentArchiveDownload, type AgentArchiveAction } from '@/lib/agentArchiveAction';
 import { hostedAgentApiErrorOf } from '@/api/hostedAgents';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
-import { StyledLink } from '@/components/ui/Misc';
+import { useAgentArchiveOperation } from '@/hooks/useAgentArchiveOperation';
+import { ArchiveOperationNotice } from '@/components/ArchiveOperationNotice';
+import { ArchiveOperationHistory } from '@/components/ArchiveOperationHistory';
+import { archiveOperationBlocking, readArchiveOperationHistory } from '@/lib/agentArchiveOperation';
 import { useT } from '@/i18n';
 const Panel = styled.section`margin-top:24px; min-width:0; p { overflow-wrap:anywhere; }`;
 const Record = styled.article`border:1px solid #ddd; border-radius:10px; padding:16px; margin:12px 0; min-width:0; h4 { margin:0; overflow-wrap:anywhere; }`;
 const Actions = styled.div`display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; button,a { min-height:44px; }`;
+export const agentArchiveScope = (identity: string, node: string | null) => JSON.stringify([identity, node]);
 export function AgentArchivePanel() {
+  const auth = useAuth();
+  const scope = agentArchiveScope(auth.cacheIdentity, auth.address);
+  return auth.isSignedIn && !auth.loading ? <ArchiveContent key={scope} principal={scope} /> : null;
+}
+function ArchiveContent({ principal }: { principal: string }) {
+  const auth = useAuth();
+  const active = useRef(true), pending = useRef(false);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  const [controller] = useState(createAgentArchiveDownload);
   const { locale } = useT(), ko = locale === 'ko';
   const [offset, setOffset] = useState(0), [busy, setBusy] = useState(''), [error, setError] = useState('');
-  const [restored, setRestored] = useState<{ agentId: string; secretsRequired: string[] } | null>(null);
-  const query = useAgentArchivesQuery(offset, { pollingInterval: 30_000 });
-  const [restore] = useRestoreAgentArchiveMutation(), [remove] = useDeleteAgentArchiveMutation();
-  useEffect(() => { if (query.currentData && offset > 0 && offset >= query.currentData.total) setOffset(Math.max(0, offset - 10)); }, [query.currentData, offset]);
-  const act = async (record: AgentArchiveSummary, action: 'export' | 'restore' | 'delete') => {
-    if (action === 'delete' && !window.confirm(ko ? '내려받은 보관본을 서버에서 영구 삭제할까요?' : 'Permanently remove this downloaded archive from the server?')) return;
-    setBusy(record.id); setError('');
+  const [notice, setNotice] = useState('');
+  const query = useAgentArchivesQuery({ offset, principal }, { pollingInterval: 30_000 });
+  const parsed = readAgentArchivePage(query.currentData, offset);
+  const data = !query.isError ? parsed : null;
+  const failed = query.isError || query.currentData !== undefined && !parsed;
+  const current = () => active.current && auth.isCurrentAccount();
+  const context = auth.address && auth.principal ? { node: auth.address.toLowerCase(), owner: auth.principal.toLowerCase() } : null;
+  const historyQuery = useAgentArchiveOperationsQuery({ context: context ?? { node: '', owner: '' }, principal }, { skip: !context });
+  const history = context && !historyQuery.isError ? readArchiveOperationHistory(historyQuery.currentData, context) : null;
+  const operation = useAgentArchiveOperation(context, current, () => Promise.all([query.refetch().unwrap(), historyQuery.refetch().unwrap()]));
+  const disabled = !!busy || operation.running || query.isFetching || !data || !auth.principal;
+  const mutationDisabled = disabled || !operation.ready || !!operation.operation || !history || historyQuery.isFetching;
+  useEffect(() => {
+    if (data && !query.isFetching && offset > 0 && offset >= data.total) setOffset(Math.max(0, Math.floor((data.total - 1) / 10) * 10));
+  }, [data?.total, query.isFetching, offset]);
+  const act = async (record: AgentArchiveSummary, action: AgentArchiveAction) => {
+    if (pending.current || disabled || !current() || !data?.archives.some(row => row.id === record.id)) return;
+    if (action !== 'export' && (mutationDisabled || history && archiveOperationBlocking(history, record))) return;
+    if (action === 'delete' && !window.confirm(ko ? '이 보관본을 파일로 저장했는지 확인해 주세요. 서버의 보관본을 영구 삭제할까요?' : 'Check that you saved this archive to a file. Permanently delete the server copy?')) return;
+    if (!current()) return;
+    pending.current = true; setBusy(record.id); setError(''); setNotice('');
     try {
-      if (action === 'export') {
-        const response = await fetch(`/api/agent-archives/${encodeURIComponent(record.id)}/export`, { method: 'POST', credentials: 'include' });
-        if (!response.ok) { const data: unknown = await response.json().catch(() => null); throw { data, status: response.status }; }
-        const blob = await response.blob(), url = URL.createObjectURL(blob);
-        const link = document.createElement('a'); link.href = url; link.download = `${record.agent}-${record.id}.tar.gz`; link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000); await query.refetch();
-      } else if (action === 'restore') setRestored(await restore(record.id).unwrap());
-      else await remove(record.id).unwrap();
-    } catch (err) { const failure = hostedAgentApiErrorOf(err); setError(failure.message || (ko ? '작업을 완료하지 못했습니다. 다시 시도해 주세요.' : 'Could not complete this action. Please retry.')); }
-    finally { setBusy(''); }
+      if (action !== 'export') { await operation.start(record, action); return; }
+      const result = await controller.run(record, {
+        owner: auth.principal!, current,
+        read: async () => {
+          const response = await fetch(`/api/agent-archives/${encodeURIComponent(record.id)}`, { credentials: 'include', cache: 'no-store', redirect: 'error' });
+          if (!response.ok) throw { status: response.status, data: await response.json().catch(() => null) };
+          return response.json();
+        },
+        perform: async ({ record: reviewed }) => {
+          const response = await fetch(`/api/agent-archives/${encodeURIComponent(reviewed.id)}/export`, { method: 'POST', credentials: 'include', redirect: 'error' });
+          return readAgentArchiveDownload(response, reviewed);
+        },
+      });
+      if (!current()) return;
+      if (result.kind === 'exported') {
+        const url = URL.createObjectURL(result.blob), link = document.createElement('a');
+        link.href = url; link.download = `${record.agent}-${record.id}.tar.gz`;
+        document.body.appendChild(link);
+        try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30_000); }
+        setNotice(ko ? '브라우저에 내려받기를 요청했습니다. 파일이 저장됐는지 확인해 주세요.' : 'Download requested in your browser. Check that the file was saved.');
+      }
+      else if (result.kind === 'changed') setError(ko ? '선택한 보관본의 상태를 확인하지 못했습니다. 목록을 새로 불러온 뒤 다시 검토해 주세요.' : 'The selected archive could not be confirmed. Refresh the list and review it again.');
+      else if (result.kind === 'failed') {
+        const failure = hostedAgentApiErrorOf(result.error);
+        setError(failure.message || (ko ? '작업을 확인하지 못했습니다. 보관본 상태를 다시 불러와 주세요.' : 'Could not confirm this action. Reload the archive state.'));
+      }
+      if (current()) await query.refetch().unwrap().catch(() => undefined);
+    } catch {
+      if (current()) setError(ko ? '내려받기 또는 결과 표시를 완료하지 못했습니다. 보관본 상태와 브라우저 다운로드를 확인해 주세요.' : 'Could not finish the download or display its result. Check the archive state and browser downloads.');
+    } finally { pending.current = false; if (current()) setBusy(''); }
   };
   return <Panel aria-label={ko ? '삭제한 에이전트 복구' : 'Recover deleted agents'}>
     <h3>{ko ? '삭제한 에이전트' : 'Deleted agents'}</h3>
-    <p>{ko ? '보관된 이력으로 같은 주소에 복구합니다. 비밀 값은 다시 설정해야 합니다. 영구 삭제 전에 보관본을 내려받아 주세요.' : 'Restore the same address from retained history. Set secret values again after recovery. Download an archive before permanently removing it.'}</p>
+    <p>{ko ? '보관본에는 비밀 값이 없습니다. 프로젝트 에이전트는 배포 당시 환경변수 원본을 복구하거나 프로젝트에서 다시 배포해야 합니다.' : 'Archives exclude secret values. Project agents need their original deployed environment recovered, or a new deployment from the project.'}</p>
     {error && <Alert $tone="error" role="alert">{error}</Alert>}
-    {restored && <p role="status">{ko ? '복구되었습니다.' : 'Restored.'} <StyledLink to={`/agent/${encodeURIComponent(restored.agentId)}/edit`}>{ko ? '에이전트 설정 열기' : 'Open agent settings'}</StyledLink>{restored.secretsRequired.length > 0 && <> · {ko ? '다시 설정할 비밀 값' : 'Secrets to set again'}: {restored.secretsRequired.join(', ')}</>}</p>}
-    {query.isLoading && <p role="status">{ko ? '보관본을 불러오는 중…' : 'Loading archives…'}</p>}
-    {query.isError && <Alert $tone="error">{ko ? '보관본을 불러오지 못했습니다.' : 'Could not load archives.'} <Button onClick={() => void query.refetch()}>{ko ? '다시 시도' : 'Retry'}</Button></Alert>}
-    {query.currentData?.total === 0 && <p>{ko ? '보관된 에이전트가 없습니다.' : 'No retained agents.'}</p>}
-    {query.currentData?.archives.map((record) => <Record key={record.id}>
+    {notice && <p role="status">{notice}</p>}
+    <ArchiveOperationNotice operation={operation.operation} ready={operation.ready} running={operation.running} error={operation.error}
+      inspect={() => void operation.inspect()} cancel={() => void operation.cancel()} acknowledge={() => void operation.acknowledge()} reload={operation.sync} />
+    {context && <ArchiveOperationHistory context={context} data={historyQuery.currentData} loading={historyQuery.isFetching} failed={historyQuery.isError} refresh={() => void historyQuery.refetch()} />}
+    {query.isFetching && <p role="status">{data ? (ko ? '보관본 상태 확인 중…' : 'Refreshing archives…') : (ko ? '보관본을 불러오는 중…' : 'Loading archives…')}</p>}
+    {failed && <Alert $tone="error" role="alert">{ko ? '보관본을 불러오지 못했습니다.' : 'Could not load archives.'}</Alert>}
+    <Button disabled={!!busy || query.isFetching} onClick={() => void query.refetch()}>{ko ? '보관본 새로고침' : 'Refresh archives'}</Button>
+    {data?.total === 0 && !query.isFetching && <p>{ko ? '보관된 에이전트가 없습니다.' : 'No retained agents.'}</p>}
+    {data?.archives.map(record => <Record key={record.id}>
       <h4>{record.name}</h4><p>{record.agent} · {new Date(record.createdAt).toLocaleString()} · {(record.bytes / 1024 / 1024).toFixed(1)} MB</p>
       {!record.repository && <p>{ko ? '이전 에이전트의 설정만 보관되어 있습니다.' : 'Only this legacy agent’s settings were retained.'}</p>}
-      {record.restoredAt && <p>{ko ? '복구 이력' : 'Previously restored'}: {new Date(record.restoredAt).toLocaleString()}</p>}
+      {record.restoredAt !== null && <p>{ko ? '복구 이력' : 'Previously restored'}: {new Date(record.restoredAt).toLocaleString()}</p>}
       <Actions>
-        <Button disabled={!!busy} onClick={() => void act(record, 'export')}>{ko ? '보관본 내려받기' : 'Download archive'}</Button>
-        <Button disabled={!!busy} onClick={() => void act(record, 'restore')}>{ko ? '같은 주소로 복구' : 'Restore same address'}</Button>
-        <Button disabled={!!busy || !record.exportedAt} onClick={() => void act(record, 'delete')}>{ko ? '내려받은 보관본 삭제' : 'Remove downloaded archive'}</Button>
+        <Button disabled={disabled} onClick={() => void act(record, 'export')}>{ko ? '보관본 내려받기' : 'Download archive'}</Button>
+        <Button disabled={mutationDisabled || !!history && !!archiveOperationBlocking(history, record)} onClick={() => void act(record, 'restore')}>{ko ? '같은 주소로 복구' : 'Restore same address'}</Button>
+        <Button disabled={mutationDisabled || !!history && !!archiveOperationBlocking(history, record) || record.exportedAt === null} onClick={() => void act(record, 'delete')}>{ko ? '보관본 영구 삭제' : 'Permanently delete archive'}</Button>
       </Actions>{busy === record.id && <p role="status">{ko ? '처리 중…' : 'Working…'}</p>}
+      {history && archiveOperationBlocking(history, record) && <p role="status">{ko ? '먼저 복원·삭제 요청 기록에서 이전 요청의 결과를 확인하세요.' : 'Check the earlier result in restore and deletion requests before another action.'}</p>}
     </Record>)}
-    {!!query.currentData?.total && <Actions><Button disabled={!!busy || offset === 0} onClick={() => setOffset(Math.max(0, offset - 10))}>{ko ? '최신 보관본' : 'Newer archives'}</Button><Button disabled={!!busy || offset + 10 >= query.currentData.total} onClick={() => setOffset(offset + 10)}>{ko ? '이전 보관본' : 'Older archives'}</Button></Actions>}
+    {!!data?.total && <Actions><Button disabled={disabled || offset === 0} onClick={() => setOffset(Math.max(0, offset - 10))}>{ko ? '최신 보관본' : 'Newer archives'}</Button><Button disabled={disabled || offset + 10 >= data.total} onClick={() => setOffset(offset + 10)}>{ko ? '이전 보관본' : 'Older archives'}</Button></Actions>}
   </Panel>;
 }

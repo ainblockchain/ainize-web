@@ -1,4 +1,13 @@
+import { agentDeletionComplete } from '@/lib/hostedAgentDeletion';
+import { agentAliasChangeConfirmed, type AgentAliasChange } from '@/lib/agentAliasChange';
+import { agentSharingConfirmed } from '@/lib/agentSharing';
+import { linkedAgentRemovalConfirmed, type LinkedAgentUnlinkRequest } from '@/lib/linkedAgentRemoval';
+import { readDeviceRequest, type DeviceApprovalReview } from '@/lib/deviceApproval';
+import { reconcileChainSetup } from '@/lib/accountChainSetup';
+import type { ApiKeyContext } from './apiKeyEvidence';
+import type { KeyCreation } from '@/lib/apiKeyCreation';
 import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
+import { loadTrackCatalog, loadCatalogSnapshot, type TrackCatalog, type CatalogSnapshot } from '@/lib/trackView';
 import type { AppDomain, AppDomainsResponse } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
 import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
@@ -16,13 +25,13 @@ import type {
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
-  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse, ApiKeySummary,
+  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse,
 } from './types';
 import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
-import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
-import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
+import type { OrgCreateInput, OrgUpdateInput, OrgRole, OrgReadScope } from './organizations';
+import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, Redeployed, RotatedSecret, RunInput, RunsResponse } from './projects';
 import { currentTeacherKey } from '@/lib/teacherKey';
 import { createTeacherFetch, SIGN_MARKER, DATASET_SHA_HEADER } from '@/lib/teacherFetch';
 export { DATASET_SHA_HEADER } from '@/lib/teacherFetch';
@@ -83,46 +92,53 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org', 'Project'],
+  tagTypes: ['ChainSetup', 'WalletSends', 'WalletSendHistory', 'WalletBalance', 'Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org', 'Project'],
   endpoints: (b) => ({
-    info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
+    info: b.query<InfoResponse, { identity: string } | void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
      * What this node serves over the LLM API. Public, unlike `/v1/models`, because the page asking has no
      * visitor to authenticate — see `src/api/models.ts` for how a newer or older node's answer is read.
      */
-    models: b.query<unknown, void>({ query: () => 'api/models' }),
+    models: b.query<unknown, void>({ query: () => ({ url: 'api/models', timeout: 15_000, cache: 'no-store' }) }),
     /**
      * What speed a caller can expect from a chat model now, and after depositing `amount` of `token` (the billing
      * page, `/billing`). Public; `you` is filled from the wallet site-session cookie. Returned as `unknown` and read
      * by `parseBillingThroughputResponse` (`billingThroughput.ts`) — an older node answers 404 for the route.
      */
-    throughputQuote: b.query<unknown, { model: string; amount?: string; token?: 'sAIN' | 'AIN' }>({
+    throughputQuote: b.query<unknown, { model: string; amount?: string; token?: 'sAIN' | 'AIN'; identity?: string }>({
       query: ({ model, amount, token }) => `api/throughput${toQuery({ model, amount, token: amount ? token : undefined })}`,
       providesTags: ['Throughput'],
     }),
     /** Has this deposit transfer been credited to the signed-in wallet yet. Polled by the billing page until it has. */
-    throughputDepositStatus: b.query<unknown, string>({
-      query: (txHash) => `api/throughput/deposits/${encodeURIComponent(txHash)}`,
+    throughputDepositStatus: b.query<unknown, { txHash: string; chain: string; identity: string }>({
+      query: ({ txHash, chain }) => `api/throughput/deposits/${encodeURIComponent(txHash)}${toQuery({ chain })}`,
     }),
     // Every model the node can reach, its own and its peers' (ainize-node peer-models.ts). An older node answers 404.
-    networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),
+    networkModels: b.query<unknown, void>({ query: () => ({ url: 'api/network/models', timeout: 15_000, cache: 'no-store' }) }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
     // These cache arguments distinguish viewers; authorization still comes only from the session cookie.
-    apiKeys: b.query<{ keys: ApiKeySummary[] }, string>({
+    apiKeys: b.query<unknown, string>({
       keepUnusedDataFor: 0,
-      query: () => 'api/keys', providesTags: ['ApiKeys'],
+      query: () => ({ url: 'api/keys', timeout: 15_000 }), providesTags: ['ApiKeys'],
     }),
-    /** Issue one. The secret is in this response and nowhere else, ever again. */
-    createApiKey: b.mutation<{ api_key: string; prefix: string; label: string | null; org_id?: string | null }, { label?: string; org_id?: string | null }>({
-      query: (body) => ({ url: 'api/keys', method: 'POST', body }), invalidatesTags: ['ApiKeys'],
+    /** Request-scoped creation deliberately has no fallback to legacy POST /api/keys. */
+    inspectKeyCreation: b.mutation<unknown, KeyCreation>({
+      query: ({ id, context }) => ({ url: `api/key-operations/${encodeURIComponent(id)}${toQuery({ expected_owner: context.owner, expected_node: context.node })}`, timeout: 15_000 }),
     }),
-    revokeApiKey: b.mutation<{ revoked: boolean }, string>({
-      query: (prefix) => ({ url: `api/keys/${encodeURIComponent(prefix)}`, method: 'DELETE' }), invalidatesTags: ['ApiKeys'],
+    submitKeyCreation: b.mutation<unknown, KeyCreation>({
+      query: ({ id, context, label, orgId, action }) => ({ url: `api/key-operations/${encodeURIComponent(id)}${action === 'cancel' ? '/cancel' : ''}`,
+        method: 'POST', body: { expected_owner: context.owner, expected_node: context.node, label, org_id: orgId }, timeout: 15_000 }),
+      invalidatesTags: ['ApiKeys'],
+    }),
+    revokeApiKey: b.mutation<unknown, { id: string; context: ApiKeyContext }>({
+      query: ({ id, context }) => ({ url: `api/keys/${encodeURIComponent(id)}${toQuery({ expected_owner: context.owner, expected_node: context.node })}`, method: 'DELETE', timeout: 15_000 }), invalidatesTags: ['ApiKeys'],
     }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
+    managedPatch: b.query<PatchDetail, { id: string; identity: string }>({ query: ({ id }) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me'] }),
+    managedCatalog: b.query<CatalogResponse, { identity: string }>({ query: () => 'api/catalog?limit=200&include_drafts=true', providesTags: ['Catalog', 'Me'] }),
     patch: b.query<PatchDetail, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog'] }),
     patchRecords: b.query<{ records: LedgerRecord[] }, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/records`, providesTags: ['Ledger'] }),
-    patchEvents: b.query<{ events: EventRow[] }, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/patches/${encodeURIComponent(id)}/events${toQuery({ limit })}`, providesTags: ['Events'] }),
+    patchEvents: b.query<{ events: EventRow[] }, { id: string; limit?: number; identity: string }>({ query: ({ id, limit }) => `api/patches/${encodeURIComponent(id)}/events${toQuery({ limit })}`, providesTags: ['Events'] }),
     // lineage §12.5 — the family tree, how it is doing, and what people asked it that it could not answer
     patchTree: b.query<TreeResponse, { id: string; depth?: number; dir?: 'up' | 'down' | 'both' }>({ query: ({ id, depth, dir }) => `api/patches/${encodeURIComponent(id)}/tree${toQuery({ depth, dir })}`, providesTags: ['Catalog'] }),
     patchSignals: b.query<SignalsResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/signals`, providesTags: ['Catalog'] }),
@@ -136,12 +152,14 @@ export const api = createApi({
     }),
     exploreShelves: b.query<ShelvesResponse, { limit?: number } | void>({ query: (q) => `api/explore/shelves${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     benchmark: b.query<{ schema: string; items: CatalogEntry[] }, string>({ query: (schema) => `api/benchmarks/${encodeURIComponent(schema)}`, providesTags: ['Catalog'] }),
-    ledger: b.query<LedgerResponse, { kind?: string; limit?: number } | void>({ query: (q) => `api/ledger${toQuery({ ...(q ?? {}) })}`, providesTags: ['Ledger'] }),
+    ledger: b.query<LedgerResponse, { kind?: string; limit?: number; identity?: string } | void>({ query: (q) => `api/ledger${toQuery({ kind: q?.kind, limit: q?.limit })}`, providesTags: ['Ledger'] }),
     ledgerVerify: b.query<VerifyResponse, void>({ query: () => 'api/ledger/verify', providesTags: ['Ledger'] }),
     graph: b.query<GraphResponse, void>({ query: () => 'api/ledger/graph', providesTags: ['Ledger', 'Catalog'] }),
-    branches: b.query<BranchesResponse, void>({ query: () => 'api/branches', providesTags: ['Branches'] }),
+    branches: b.query<BranchesResponse, { identity: string } | void>({ query: () => 'api/branches', providesTags: ['Branches'] }),
+    trackCatalog: b.query<TrackCatalog, string>({ queryFn: (name, api, _extra, baseQuery) => loadTrackCatalog(name, async (url) => baseQuery(url), api.signal), providesTags: ['Catalog', 'Branches'] }),
+    catalogSnapshot: b.query<CatalogSnapshot, void>({ queryFn: (_arg, api, _extra, baseQuery) => loadCatalogSnapshot(async (url) => baseQuery(url), api.signal), providesTags: ['Catalog', 'Branches'] }),
     route: b.query<RouteResponse, Record<string, string>>({ query: (ctx) => `api/route${toQuery(ctx)}`, providesTags: ['Branches', 'Nodes'] }),
-    nodes: b.query<NodesResponse, void>({ query: () => 'api/nodes', providesTags: ['Nodes'] }),
+    nodes: b.query<NodesResponse, { identity: string } | void>({ query: () => 'api/nodes', providesTags: ['Nodes'] }),
     /** A2A agents this node operates (§6.1). Polled, because "is it answering" is a live question. */
     agents: b.query<AgentsResponse, void>({ query: () => 'api/agents', providesTags: ['Agents'] }),
     /**
@@ -150,7 +168,7 @@ export const api = createApi({
      * that trusted the declared type would render an older node's answer as blanks instead of saying what is missing.
      */
     /** One model: `{ id, modality, available, agents }`, 404 when this node does not serve it. */
-    modelDetail: b.query<unknown, string>({ query: (id) => `api/models/${encodeURIComponent(id)}`, providesTags: ['Agents'] }),
+    modelDetail: b.query<unknown, string>({ query: (id) => ({ url: `api/models/${encodeURIComponent(id)}`, timeout: 15_000, cache: 'no-store' }), providesTags: ['Agents'] }),
     /** The agents built on one model. An older node ignores `?model=`, so the page filters again (`agentsBuiltOnModel`). */
     agentsByModel: b.query<AgentsResponse, string>({ query: (model) => `api/agents${toQuery({ model })}`, providesTags: ['Agents'] }),
     /** The signed-in person's own hosted agents (summaries). */
@@ -160,56 +178,58 @@ export const api = createApi({
      * polls it while a deployment is queued or building.
      */
     accessibleApps: b.query<AccessibleAppsResponse, { principal: string; orgs: string[] }>({
+      keepUnusedDataFor: 0,
       queryFn: ({ orgs }, _api, _extra, baseQuery) => loadAccessibleApps(orgs, async (url) => baseQuery(url)),
       providesTags: ['Project', 'Me', 'Org'],
     }),
-    myProjects: b.query<ProjectsResponse, void>({ query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
-    project: b.query<Project, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
+    myProjects: b.query<ProjectsResponse, string>({ keepUnusedDataFor: 0, query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
+    project: b.query<Project, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id }] }),
     createProject: b.mutation<ProjectCreated, ProjectCreateInput>({ query: (body) => ({ url: 'api/projects', method: 'POST', body }), invalidatesTags: ['Project'] }),
-    deleteProject: b.mutation<{ ok: true; id: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Project'] }),
-    projectDeployments: b.query<DeploymentsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/deployments`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
+    deleteProject: b.mutation<{ ok: true; id: string; cleanup: 'complete' }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Project'] }),
+    projectDeployments: b.query<DeploymentsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/deployments`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id }] }),
     /** `/<org>/<repo>` → the project (public). */
-    projectByName: b.query<Project, { org: string; repo: string }>({ query: ({ org, repo }) => `api/projects/by-name${toQuery({ org, repo })}`, providesTags: (r) => (r ? [{ type: 'Project', id: r.id }] : ['Project']) }),
+    projectByName: b.query<Project, { org: string; repo: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ org, repo }) => `api/projects/by-name${toQuery({ org, repo })}`, providesTags: (r) => (r ? [{ type: 'Project', id: r.id }] : ['Project']) }),
     /** `/<org>` — the slug's projects, and the drive's repositories as aindrive lists them (through the node). */
-    orgProjects: b.query<OrgProjectsResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/projects`, providesTags: ['Project'] }),
-    orgRepositories: b.query<OrgRepositoriesResponse, string>({ query: (org) => `api/orgs/${encodeURIComponent(org)}/repositories` }),
-    projectSource: b.query<ProjectSource, { id: string; target: 'head' | 'commit' | 'deployed'; sha?: string }>({
+    orgProjects: b.query<OrgProjectsResponse, { org: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ org }) => `api/orgs/${encodeURIComponent(org)}/projects`, providesTags: ['Project'] }),
+    orgRepositories: b.query<OrgRepositoriesResponse, { org: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ org }) => `api/orgs/${encodeURIComponent(org)}/repositories` }),
+    projectSource: b.query<ProjectSource, { id: string; identity: string; target: 'head' | 'commit' | 'deployed'; sha?: string }>({
+      keepUnusedDataFor: 0,
       query: ({ id, target, sha }) => ({ url: `api/projects/${encodeURIComponent(id)}/source`, params: { target, ...(sha ? { sha } : {}) } }),
       providesTags: (_r, _e, { id }) => [{ type: 'Project', id }],
     }),
-    projectRuns: b.query<RunsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/runs` }] }),
+    projectRuns: b.query<RunsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/runs` }] }),
     runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
-    redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
+    redeploy: b.mutation<Redeployed, { deploymentId: string; projectId: string; sha: string }>({ query: ({ deploymentId, projectId, sha }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST', body: { projectId, sha } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
-    syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
+    syncFromGithub: b.mutation<{ projectId: string; repository: string; requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
     rotateProjectSecret: b.mutation<RotatedSecret, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/rotate-secret`, method: 'PATCH' }) }),
-    projectDomains: b.query<AppDomainsResponse, string>({ query: id => `api/projects/${encodeURIComponent(id)}/domains`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/domains` }] }),
+    projectDomains: b.query<AppDomainsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/domains`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/domains` }] }),
     addProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains`, method: 'POST', body: { hostname } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
     renameAppDomain: b.mutation<AppDomain, { id: string; label: string }>({ query: ({ id, label }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/default`, method: 'PATCH', body: { label } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }, { type: 'Project', id: a.id }] }),
     checkProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}/check`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
     removeProjectDomain: b.mutation<void, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains/${encodeURIComponent(hostname)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
-    deployment: b.query<Deployment, string>({ query: (id) => `api/deployments/${encodeURIComponent(id)}` }),
+    deployment: b.query<Deployment, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/deployments/${encodeURIComponent(id)}` }),
     /**
      * The project's environment variables (src/api/projectSecrets.ts): names only — values are write-only. A write
-     * with `redeploy` asks the node to deploy the newest commit again, so the project's view refreshes too.
+     * with `redeploy` asks the node to redeploy the reviewed deployment and full commit, so the project's view refreshes too.
      */
-    projectSecrets: b.query<ProjectSecretsResponse, string>({ query: (id) => secretsListUrl(id), transformResponse: parseProjectSecretsResponse, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/secrets` }] }),
-    setProjectSecret: b.mutation<SecretSaved, { id: string; name: string; value: string; redeploy?: boolean }>({
-      query: ({ id, name, value, redeploy }) => secretPutRequest(id, name, value, redeploy), transformResponse: parseSecretSaved,
+    projectSecrets: b.query<ProjectSecretsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => secretsListUrl(id), transformResponse: parseProjectSecretsResponse, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/secrets` }] }),
+    setProjectSecret: b.mutation<SecretSaved, { id: string; name: string; value: string; redeploy?: import('./projectSecrets').SecretRedeployTarget | false }>({
+      query: ({ id, name, value, redeploy }) => secretPutRequest(id, name, value, redeploy), transformResponse: (raw, _meta, arg) => parseSecretSaved(raw, arg),
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
     }),
-    deleteProjectSecret: b.mutation<SecretRemoved, { id: string; name: string; redeploy?: boolean }>({
-      query: ({ id, name, redeploy }) => secretDeleteRequest(id, name, redeploy), transformResponse: parseSecretRemoved,
+    deleteProjectSecret: b.mutation<SecretRemoved, { id: string; name: string; redeploy?: import('./projectSecrets').SecretRedeployTarget | false }>({
+      query: ({ id, name, redeploy }) => secretDeleteRequest(id, name, redeploy), transformResponse: (raw, _meta, arg) => parseSecretRemoved(raw, arg),
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
     }),
     /** The running service's own stdout/stderr, on the node or its deployment peer (src/api/runtimeLogs.ts). Owner/members only. */
-    projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: parseRuntimeLogs, keepUnusedDataFor: 0 }),
-    deploymentLog: b.query<string, string>({ query: (id) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
-    myHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
+    projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number; identity: string }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: (raw, _meta, arg) => parseRuntimeLogs(raw, arg), keepUnusedDataFor: 0 }),
+    deploymentLog: b.query<string, { id: string; identity: string }>({ query: ({ id }) => ({ url: `api/deployments/${encodeURIComponent(id)}/log`, headers: { accept: 'text/plain' }, responseHandler: 'text' }), keepUnusedDataFor: 0 }),
+    myHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?mine=1', providesTags: ['HostedAgent', 'Me'] }),
     /** Own hosted agents plus the ones shared with an organization where the caller may edit — read through `parseManageableHostedAgents`. */
-    manageableHostedAgents: b.query<unknown, void>({ query: () => 'api/hosted-agents?manageable=1', providesTags: ['HostedAgent', 'Me', 'Org'] }),
+    manageableHostedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/hosted-agents?manageable=1', providesTags: ['HostedAgent', 'Me', 'Org'] }),
     /** The full stored spec, files included — owner only; anyone else gets 403. */
-    hostedAgent: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'HostedAgent', id }] }),
+    hostedAgent: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/hosted-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'HostedAgent', id }] }),
     createHostedAgent: b.mutation<unknown, HostedAgentSpecInput>({
       query: (body) => ({ url: 'api/hosted-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'HostedAgent'],
     }),
@@ -217,8 +237,8 @@ export const api = createApi({
       query: (body) => ({ url: `api/hosted-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }],
     }),
-    deleteHostedAgent: b.mutation<unknown, string>({
-      query: (id) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'HostedAgent'],
+    deleteHostedAgent: b.mutation<unknown, import('../lib/hostedAgentDeletion').AgentDeletionRequest>({
+      query: ({ id, expected }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}`, method: 'DELETE', body: { expected } }), invalidatesTags: (r, _e, a) => agentDeletionComplete(r, a) ? ['Agents', 'HostedAgent'] : [],
     }),
     /** A secret's value goes on its own request, after the spec: the spec is readable by its owner, a value never is. */
     setHostedAgentSecret: b.mutation<unknown, { id: string; name: string; value: string }>({
@@ -229,25 +249,26 @@ export const api = createApi({
      * Linked agents (ainize-node linked-agents design): external A2A agents a person registers by URL. Typed
      * `unknown` and read through `src/api/linkedAgents.ts`, as the hosted ones are and for the same reason.
      */
-    myLinkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents?mine=1', providesTags: ['LinkedAgent', 'Me'] }),
-    /** The stored record, upstream included — owner only; anyone else gets 403. */
-    linkedAgent: b.query<unknown, string>({ query: (id) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'LinkedAgent', id }] }),
+    myLinkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents?mine=1', providesTags: ['LinkedAgent', 'Me'] }),
+    /** Owner detail includes upstream and edit revision; other visible readers get listing fields only. */
+    linkedAgent: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'LinkedAgent', id }] }),
     createLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
       query: (body) => ({ url: 'api/linked-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'LinkedAgent', 'Org'],
     }),
-    updateLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
+    updateLinkedAgent: b.mutation<unknown, LinkedAgentInput & { expected_revision: string }>({
       query: (body) => ({ url: `api/linked-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'LinkedAgent', id: a.id }],
     }),
-    deleteLinkedAgent: b.mutation<unknown, string>({
-      query: (id) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'LinkedAgent', 'Org'],
+    deleteLinkedAgent: b.mutation<unknown, LinkedAgentUnlinkRequest>({
+      query: ({ id, ...body }) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE', body }),
+      invalidatesTags: (result, _error, request) => linkedAgentRemovalConfirmed(result, request) ? ['Agents', 'LinkedAgent', 'Org'] : [],
     }),
     /**
      * Organizations (ainize-node organizations design). Typed `unknown` and read through `src/api/organizations.ts`
      * for the same reason as the agents above: a node from before organizations answers 404 for all of these.
      */
     myOrgs: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/orgs', providesTags: ['Org', 'Me'] }),
-    org: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
+    org: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
     createOrg: b.mutation<unknown, OrgCreateInput>({ query: (body) => ({ url: 'api/orgs', method: 'POST', body }), invalidatesTags: ['Org'] }),
     updateOrg: b.mutation<unknown, { id: string; patch: OrgUpdateInput }>({
       query: ({ id, patch }) => ({ url: `api/orgs/${encodeURIComponent(id)}`, method: 'PUT', body: patch }), invalidatesTags: (_r, _e, a) => ['Org', { type: 'Org', id: a.id }],
@@ -265,7 +286,7 @@ export const api = createApi({
     requestJoinOrg: b.mutation<unknown, { id: string; message: string }>({
       query: ({ id, message }) => ({ url: `api/orgs/${encodeURIComponent(id)}/join`, method: 'POST', body: { message } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
-    orgRequests: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/requests`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/requests` }] }),
+    orgRequests: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/requests`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id: `${id}/requests` }] }),
     approveOrgRequest: b.mutation<unknown, { id: string; principal: string; role: OrgRole }>({
       query: ({ id, principal, role }) => ({ url: `api/orgs/${encodeURIComponent(id)}/requests/${encodeURIComponent(principal)}/approve`, method: 'POST', body: { role } }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/requests` }],
@@ -274,7 +295,7 @@ export const api = createApi({
       query: ({ id, principal }) => ({ url: `api/orgs/${encodeURIComponent(id)}/requests/${encodeURIComponent(principal)}`, method: 'DELETE' }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/requests` }],
     }),
-    orgInvites: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/invites`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/invites` }] }),
+    orgInvites: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/invites`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id: `${id}/invites` }] }),
     createOrgInvite: b.mutation<unknown, { id: string; role: OrgRole; email: string | null; ttlHours: number }>({
       query: ({ id, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/invites`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/invites` }],
     }),
@@ -284,6 +305,8 @@ export const api = createApi({
     /** What an invite link leads to — public, so the page can say the organization's name before asking to sign in. */
     peekOrgInvite: b.query<unknown, string>({ query: (token) => `api/orgs/join/${encodeURIComponent(token)}` }),
     acceptOrgInvite: b.mutation<unknown, string>({ query: (token) => ({ url: `api/orgs/join/${encodeURIComponent(token)}`, method: 'POST' }), invalidatesTags: ['Org'] }),
+    // Profiles expose only a member's groups; this endpoint exposes the full list to writers/admins.
+    orgGroups: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/groups`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
     createOrgGroup: b.mutation<unknown, { id: string; name: string; members: string[]; agents: string[] }>({
       query: ({ id, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
@@ -293,40 +316,43 @@ export const api = createApi({
     deleteOrgGroup: b.mutation<unknown, { id: string; groupId: string }>({
       query: ({ id, groupId }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupId)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
-    orgAudit: b.query<unknown, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/orgs/${encodeURIComponent(id)}/audit?limit=${limit ?? 200}`, providesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }] }),
-    orgBilling: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/billing`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
-    orgSecurity: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/security`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
+    orgAudit: b.query<unknown, OrgReadScope & { limit?: number }>({ keepUnusedDataFor: 0, query: ({ id, limit }) => `api/orgs/${encodeURIComponent(id)}/audit?limit=${limit ?? 200}`, providesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }] }),
+    orgBilling: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/billing`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
+    orgSecurity: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/security`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
     /**
      * The shared-agent registry (ainize-node `feat/shared-agent-registry`, contract 1.0): the agents the caller may
      * see, by scope. Typed `unknown` and read through `src/api/sharedAgents.ts`; an older node answers 404 and the
      * page falls back to `agents`. `org` narrows `shared_with_org` to one organization.
      */
-    sharedAgents: b.query<unknown, { scope: AgentListScope; q?: string; org?: string; limit?: number }>({
-      query: ({ scope, q, org, limit }) => `api/shared-agents${toQuery({ scope, q, org, limit })}`, providesTags: ['Agents', 'HostedAgent', 'LinkedAgent'],
+    sharedAgents: b.query<unknown, { identity: string; scope: AgentListScope; q?: string; org?: string; limit?: number; cursor?: string }>({
+      keepUnusedDataFor: 0,
+      query: ({ scope, q, org, limit, cursor }) => `api/shared-agents${toQuery({ scope, q, org, limit, cursor })}`, providesTags: ['Agents', 'HostedAgent', 'LinkedAgent'],
     }),
     /** Who may see one agent — owner or node operator. Applies to hosted and linked agents alike. */
+    agentVisibility: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/shared-agents/${encodeURIComponent(id)}/visibility`, providesTags: (_r, _e, a) => [{ type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }] }),
     setAgentVisibility: b.mutation<unknown, AgentVisibilityInput>({
       query: ({ id, ...body }) => ({ url: `api/shared-agents/${encodeURIComponent(id)}/visibility`, method: 'PUT', body }),
-      invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }],
+      invalidatesTags: (r, _e, a) => agentSharingConfirmed(r, a.expected, a) ? ['Agents', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }] : [],
     }),
     /**
      * Agent aliases (ainize-node agent-aliases.ts). `agentAlias` resolves an alias OR an id to `{ id, alias }` — 404 for
      * an agent the caller may not see, and on a node without aliases. Setting and clearing: owner, write member
      * (hosted) or the node operator.
      */
-    agentAlias: b.query<unknown, string>({ query: (name) => `api/agent-aliases/${encodeURIComponent(name)}`, providesTags: ['Agents'] }),
-    setAgentAlias: b.mutation<unknown, { id: string; alias: string }>({
-      query: ({ id, alias }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'PUT', body: { alias } }),
-      invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }, 'HostedAgent', 'LinkedAgent'],
+    agentAlias: b.query<unknown, { name: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ name }) => `api/agent-aliases/${encodeURIComponent(name)}`, providesTags: ['Agents'] }),
+    agentAliasReview: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/agents/${encodeURIComponent(id)}/alias`, providesTags: ['Agents'] }),
+    setAgentAlias: b.mutation<unknown, AgentAliasChange & { alias: string }>({
+      query: ({ id, alias, expected }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'PUT', body: { alias, expected } }),
+      invalidatesTags: (r, _e, a) => agentAliasChangeConfirmed(r, a) ? ['Agents', 'Org', 'HostedAgent', 'LinkedAgent'] : [],
     }),
-    clearAgentAlias: b.mutation<unknown, string>({
-      query: (id) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'DELETE' }),
-      invalidatesTags: (_r, _e, id) => ['Agents', 'Org', { type: 'HostedAgent', id }, { type: 'LinkedAgent', id }, 'HostedAgent', 'LinkedAgent'],
+    clearAgentAlias: b.mutation<unknown, Omit<AgentAliasChange, 'alias'>>({
+      query: ({ id, expected }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'DELETE', body: { expected } }),
+      invalidatesTags: (r, _e, a) => agentAliasChangeConfirmed(r, { ...a, alias: null }) ? ['Agents', 'Org', 'HostedAgent', 'LinkedAgent'] : [],
     }),
     /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
-    linkedAgents: b.query<unknown, void>({ query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
+    linkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
     /** Build + runtime tail, owner only. Not cached across visits: a log is read for what it says now. */
-    hostedAgentLogs: b.query<unknown, string>({ query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
+    hostedAgentLogs: b.query<unknown, { id: string; identity: string }>({ query: ({ id }) => `api/hosted-agents/${encodeURIComponent(id)}/logs`, keepUnusedDataFor: 0 }),
     /**
      * The agent's history. An agent on ainize is a git repository the node hosts and runs, so these answer the
      * questions a version number could not: what changed, who changed it, and what it looked like before.
@@ -334,31 +360,31 @@ export const api = createApi({
      * Tagged `HostedAgent`, so a push or an edit that invalidates the agent invalidates its history with it —
      * a commit list still showing the version before the one on screen is worse than no commit list.
      */
-    agentExecutions: b.query<AgentExecutionsResponse, { id: string; offset?: number; limit?: number }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/executions${toQuery(q)}`,
+    agentExecutions: b.query<AgentExecutionsResponse, { id: string; identity: string; offset?: number; limit?: number }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/executions${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    agentCommits: b.query<AgentCommitsResponse, { id: string; ref?: string; limit?: number }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/commits${toQuery(q)}`,
+    agentCommits: b.query<AgentCommitsResponse, { id: string; identity: string; ref?: string; limit?: number }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/commits${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    agentRefs: b.query<AgentRefsResponse, string>({
-      query: (id) => `api/hosted-agents/${encodeURIComponent(id)}/refs`,
+    agentRefs: b.query<AgentRefsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0,
+      query: ({ id }) => `api/hosted-agents/${encodeURIComponent(id)}/refs`,
       providesTags: ['HostedAgent'],
     }),
     /** Proposals on an agent, and merging one — which is the deploy, so it invalidates the agent with it. */
-    agentPulls: b.query<AgentPullsResponse, { id: string; state?: 'open' | 'merged' | 'closed' }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
+    agentPulls: b.query<AgentPullsResponse, { id: string; identity: string; state?: 'open' | 'merged' | 'closed' }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/pulls${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    agentPreviewRuns: b.query<AgentPreviewRunsResponse, { id: string; offset?: number }>({ query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/preview-runs${toQuery(q)}`, providesTags: ['HostedAgent'] }),
+    agentPreviewRuns: b.query<AgentPreviewRunsResponse, { id: string; identity: string; offset?: number }>({ keepUnusedDataFor: 0, query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/preview-runs${toQuery(q)}`, providesTags: ['HostedAgent'] }),
     exportAgentPreviewRun: b.mutation<{ run: AgentPreviewRun }, { id: string; run: string }>({ query: ({ id, run }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/preview-runs/${encodeURIComponent(run)}/export`, method: 'POST' }), invalidatesTags: ['HostedAgent'] }),
     deleteAgentPreviewRun: b.mutation<{ ok: boolean }, { id: string; run: string }>({ query: ({ id, run }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/preview-runs/${encodeURIComponent(run)}`, method: 'DELETE' }), invalidatesTags: ['HostedAgent'] }),
     createAgentPreview: b.mutation<{ preview: AgentPreview }, { id: string; ref: string }>({ query: ({ id, ref }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/previews`, method: 'POST', body: { ref } }) }),
-    agentPreview: b.query<{ preview: AgentPreview }, string>({ query: (id) => `api/agent-previews/${encodeURIComponent(id)}`, keepUnusedDataFor: 0 }),
+    agentPreview: b.query<{ preview: AgentPreview }, { id: string; identity: string }>({ query: ({ id }) => `api/agent-previews/${encodeURIComponent(id)}`, keepUnusedDataFor: 0 }),
     deleteAgentPreview: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/agent-previews/${encodeURIComponent(id)}`, method: 'DELETE' }) }),
     chatAgentPreview: b.mutation<unknown, { id: string; body: Record<string, unknown> }>({ query: ({ id, body }) => ({ url: `api/agent-previews/${encodeURIComponent(id)}/rpc`, method: 'POST', body }), invalidatesTags: ['HostedAgent'] }),
-    myAgentForks: b.query<{ forks: AgentFork[] }, void>({ query: () => 'api/agent-forks', providesTags: ['HostedAgent'] }),
+    myAgentForks: b.query<{ forks: AgentFork[] }, string>({ keepUnusedDataFor: 0, query: () => 'api/agent-forks', providesTags: ['HostedAgent'] }),
     createAgentFork: b.mutation<{ fork: AgentFork; clonePath: string }, { id: string; ref: string }>({
       query: ({ id, ref }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/forks`, method: 'POST', body: { ref } }), invalidatesTags: ['HostedAgent'],
     }),
@@ -383,13 +409,22 @@ export const api = createApi({
       query: (id) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}/mirror/sync`, method: 'POST', body: {} }),
       invalidatesTags: ['HostedAgent', 'Agents'],
     }),
-    agentDiff: b.query<AgentDiffResponse, { id: string; base: string; head: string }>({
-      query: ({ id, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/diff${toQuery(q)}`,
+    agentDiff: b.query<AgentDiffResponse, { id: string; identity: string; base: string; head: string }>({ keepUnusedDataFor: 0,
+      query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/diff${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
+    events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; level?: string; since?: number; identity: string }>({ query: ({ identity: _identity, ...q }) => `api/events${toQuery(q)}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
-    runtime: b.query<RuntimeResponse, void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
+    runtime: b.query<RuntimeResponse, { identity: string } | void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
+    runtimeOperationCapabilities: b.query<unknown, { identity: string }>({ query: () => ({ url: 'api/runtime/jobs/capabilities', timeout: 15_000 }) }),
+    runtimeApplyPreview: b.query<unknown, { identity: string; id: string }>({ query: ({ id }) => ({ url: `api/patches/${encodeURIComponent(id)}/apply-preview?with_base=true`, timeout: 15_000 }) }),
+    runtimeOperation: b.query<unknown, { identity: string; id: string }>({ query: ({ id }) => ({ url: `api/runtime/jobs/${encodeURIComponent(id)}`, timeout: 15_000 }) }),
+    startRuntimeOperation: b.mutation<unknown, { id: string; kind: 'load' | 'unload'; body: { async: true; request_id: string; instance: string; with_base?: boolean; cascade?: boolean; require_recorded?: boolean; expected_preview?: string } }>({
+      query: ({ id, kind, body }) => ({ url: `api/patches/${encodeURIComponent(id)}/${kind === 'load' ? 'apply' : 'remove'}`, method: 'POST', body, timeout: 15_000 }),
+    }),
+    startVerification: b.mutation<unknown, { id: string; body: { async: true; request_id: string; instance: string; recheck: boolean; expected: import('../lib/loadKnowledge').RuntimeTarget } }>({
+      query: ({ id, body }) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST', body, timeout: 15_000 }),
+    }),
     drive: b.query<DriveResponse, void>({ query: () => 'api/drive', providesTags: ['Drive'] }),
     driveChanges: b.query<DriveChangesResponse, string>({ query: (path) => `api/drive/changes${toQuery({ path })}`, providesTags: ['Drive'] }),
     docs: b.query<DocsResponse, void>({ query: () => 'api/docs' }),
@@ -427,8 +462,13 @@ export const api = createApi({
     // `ainize login`: what a command line is asking for, and the one signature that answers it. `message` is the
     // exact string the wallet will sign — rendered rather than recomposed here, so what a person reads on the
     // page and what they read in MetaMask cannot drift apart.
-    deviceRequest: b.query<DeviceRequest, string>({ query: (code) => `api/auth/device/${encodeURIComponent(code)}` }),
-    approveAccountDevice: b.mutation<{ ok: boolean }, { code: string }>({
+    deviceRequest: b.query<DeviceRequest, string>({ keepUnusedDataFor: 0, queryFn: async (code, _api, _extra, baseQuery) => {
+      const response = await baseQuery(`api/auth/device/${encodeURIComponent(code)}`);
+      if (response.error) return { error: response.error };
+      const data = readDeviceRequest(response.data);
+      return data ? { data } : { error: { status: 'CUSTOM_ERROR', error: 'Invalid or unsupported device request' } };
+    } }),
+    approveAccountDevice: b.mutation<{ ok: boolean; owner: string; delegate: string; expires: number }, { code: string; expected: DeviceApprovalReview }>({
       query: (body) => ({ url: 'api/auth/sso/device-approve', method: 'POST', body }),
       invalidatesTags: ['Me'],
     }),
@@ -437,7 +477,7 @@ export const api = createApi({
     }),
     // Every key that acts as you, and ending one. A binding outlives a session on purpose, so it has to be
     // visible and revocable — and revoking ends the sessions the key already collected.
-    bindings: b.query<{ bindings: Binding[]; via: string | null }, void>({ query: () => 'api/auth/bindings', providesTags: ['Me'] }),
+    bindings: b.query<{ bindings: Binding[]; via: string | null }, { identity: string } | void>({ query: () => 'api/auth/bindings', providesTags: ['Me'] }),
     /**
      * The nodes that belong to the signed-in wallet.
      *
@@ -445,16 +485,16 @@ export const api = createApi({
      * screen could ask before: node ownership lives in each node's own database, and a node only becomes
      * connected to a person when it asks this hub for a code at startup and that person approves it.
      */
-    unlinkNode: b.mutation<{ ok: boolean }, string>({ query: (address) => ({ url: `api/my/nodes/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
+    unlinkNode: b.mutation<{ ok: boolean; address: string; revision: string }, { address: string; expected_revision: string }>({ query: ({ address, expected_revision }) => ({ url: `api/my/nodes/${encodeURIComponent(address)}`, method: 'DELETE', body: { expected_revision } }), invalidatesTags: ['Me'] }),
     myNodes: b.query<{ nodes: MyNode[]; hub: string }, string>({ keepUnusedDataFor: 0, query: () => 'api/my/nodes', providesTags: ['Me'] }),
-    removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
+    removeBinding: b.mutation<{ ok: boolean; delegate: string; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
     }),
     // Who owns this node. An owner may add another from here; only what was added from here may be removed from
     // here, because the other two claims live in the node's identity and in a file on its machine.
-    owners: b.query<{ owners: NodeOwner[] }, void>({ query: () => 'api/auth/owners', providesTags: ['Me'] }),
-    addOwner: b.mutation<{ ok: boolean; already: boolean; owners: NodeOwner[] }, { address: string; note?: string }>({ query: (body) => ({ url: 'api/auth/owners', method: 'POST', body }), invalidatesTags: ['Me'] }),
-    removeOwner: b.mutation<{ ok: boolean; sessions_ended: number; owners: NodeOwner[] }, string>({ query: (address) => ({ url: `api/auth/owners/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
+    owners: b.query<{ owners: NodeOwner[] }, { identity: string } | void>({ query: () => 'api/auth/owners', providesTags: ['Me'] }),
+    addOwner: b.mutation<{ ok: boolean; address: string; already: boolean; owners: NodeOwner[] }, { address: string; note?: string }>({ query: (body) => ({ url: 'api/auth/owners', method: 'POST', body }), invalidatesTags: ['Me'] }),
+    removeOwner: b.mutation<{ ok: boolean; address: string; sessions_ended: number; owners: NodeOwner[] }, string>({ query: (address) => ({ url: `api/auth/owners/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
     // Google sign-in lives in this app, not on the node (src/lib/googleOAuth.ts). The session is read here; signing in
     // is a full-page redirect to /api/auth/google/start, because Google's consent screen is not something to fetch.
@@ -462,17 +502,19 @@ export const api = createApi({
     googleLogout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/google/session', method: 'DELETE' }), invalidatesTags: ['GoogleSession'] }),
     // AIN SSO (src/lib/ainSso.ts): whether it is offered, and finishing a sign-in that had no link yet.
     ssoStatus: b.query<SsoStatusResponse, void>({ query: () => 'api/auth/sso/status', providesTags: ['SsoStatus'] }),
-    ssoConnect: b.mutation<{ ok: boolean; next: string; linked: string | null }, { choice: 'legacy' | 'new' }>({
+    ssoConnect: b.mutation<{ ok: boolean; next: string; linked: string | null; request: string; subject: string; principal: string }, { choice: 'legacy' | 'new'; expected: import('../lib/ssoConnection').SsoConnectionReview }>({
       query: (body) => ({ url: 'api/auth/sso/connect', method: 'POST', body }), invalidatesTags: ['Me', 'GoogleSession', 'SsoStatus', 'ApiKeys'],
     }),
 
     // operator
-    myPatches: b.query<{ items: CatalogEntry[] }, void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
-    myPurchases: b.query<{ items: PurchaseRow[] }, void>({ query: () => 'api/me/purchases', providesTags: ['Me', 'Catalog'] }),
-    wallet: b.query<WalletResponse, void>({ query: () => 'api/me/wallet', providesTags: ['Me', 'Ledger'] }),
+    myPatches: b.query<{ items: CatalogEntry[] }, { identity: string } | void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
+    myPurchases: b.query<{ items: PurchaseRow[] }, { identity: string } | void>({ query: () => 'api/me/purchases', providesTags: ['Me', 'Catalog'] }),
+    wallet: b.query<WalletResponse, { identity: string } | void>({ query: () => 'api/me/wallet', providesTags: ['Me', 'Ledger', 'WalletBalance'] }),
     createPatch: b.mutation<{ anchor: PatchAnchor }, FormData>({ query: (body) => ({ url: 'api/patches', method: 'POST', body }), invalidatesTags: ['Catalog', 'Me'] }),
     updatePatch: b.mutation<{ anchor: PatchAnchor }, { id: string; patch: Partial<PatchAnchor> }>({ query: ({ id, patch }) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'PATCH', body: patch }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me'] }),
     deletePatch: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Catalog', 'Me'] }),
+    announcePreview: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/patches/${encodeURIComponent(id)}/announce-preview`, providesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me'] }),
+    reviewedAnnounce: b.mutation<unknown, { id: string; revision: string }>({ query: ({ id, revision }) => ({ url: `api/patches/${encodeURIComponent(id)}/announce`, method: 'POST', body: { expected_preview: revision } }), invalidatesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     announce: b.mutation<{ record: LedgerRecord; verifiers?: { known: number; reachable: number; verifiers: number; quorum: number; self_attest: boolean }; visibility?: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/announce`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     // The takedown (item 148): the anchor stays on the record, the knowledge goes off sale everywhere.
     retire: b.mutation<{ patch_id: string; retired_at: number; reason: string }, { id: string; reason?: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/retire`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
@@ -484,15 +526,31 @@ export const api = createApi({
       query: ({ id, price, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/price`, method: 'POST', body: { price, reason } }),
       invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     /** Item 320: money that has been earned can leave the node — the only outward money verb there is. */
-    walletSend: b.mutation<{ to: string; amount: number; tx_hash: string; balance: number | null; currency: string }, { to: string; amount: number; memo?: string }>({
-      query: (body) => ({ url: 'api/me/wallet/send', method: 'POST', body }), invalidatesTags: ['Me', 'Events'] }),
-    verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
+    walletSendStatus: b.query<unknown, { identity: string; context: import('../lib/accountWalletSend').WalletSendContext }>({
+      query: () => 'api/me/wallet/send-requests', keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger', 'WalletSends'],
+    }),
+    walletSendHistory: b.query<unknown, { identity: string; context: import('../lib/accountWalletSend').WalletSendContext; cursor: string | null }>({
+      query: ({ cursor }) => ({ url: 'api/me/wallet/send-history', params: { limit: 20, ...(cursor ? { cursor } : {}) } }), keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger', 'WalletSendHistory'],
+    }),
+    walletSendRequest: b.query<unknown, { identity: string; context: import('../lib/accountWalletSend').WalletSendContext; id: string }>({
+      query: ({ id }) => `api/me/wallet/send-requests/${encodeURIComponent(id)}`, keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger', 'WalletSends'],
+    }),
+    prepareWalletSend: b.mutation<unknown, { request_id: string; expected: import('../lib/accountWalletSend').WalletSendContext; to: string; amount: string }>({
+      query: body => ({ url: 'api/me/wallet/send-requests', method: 'POST', body }), invalidatesTags: ['WalletSends', 'WalletSendHistory'],
+    }),
+    submitWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/submit`, method: 'POST' }), invalidatesTags: ['Me', 'Ledger', 'Events', 'WalletSends', 'WalletSendHistory'] }),
+    cancelWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/cancel`, method: 'POST' }), invalidatesTags: ['WalletSends', 'WalletSendHistory'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     /** Item 270 / design §12.4 — `bundle` buys the bases this knowledge needs underneath it too, deepest first,
      * one settlement each. */
     // `again` is the deliberate second payment (item 271): without it the node collects on the receipt it already has.
     buy: b.mutation<PurchaseResult, { id: string; apply?: boolean; bundle?: boolean; again?: boolean }>({ query: ({ id, apply, bundle, again }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply, bundle, again } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
     /** Item 273 — collect a knowledge this node already paid for: a re-issued manifest, no second charge. */
+    purchaseReview: b.query<unknown, { id: string; again: boolean; identity: string }>({ query: ({ id, again }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy-review`, method: 'POST', body: { again } }) }),
+    purchaseReviewed: b.mutation<unknown, { id: string; again: boolean; expected_review: string; request_id: string }>({ query: ({ id, ...body }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy-reviewed`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
+    purchaseReconciliation: b.query<unknown, { id: string; identity: string }>({ query: ({ id }) => `api/purchases/requests/${encodeURIComponent(id)}/reconciliation` }),
+    purchaseRequest: b.query<unknown, { id: string; identity: string }>({ query: ({ id }) => `api/purchases/requests/${encodeURIComponent(id)}` }),
+    collectReviewed: b.mutation<unknown, { id: string; expected: ReturnType<typeof import('../lib/collectKnowledge').collectionTarget> }>({ query: ({ id, expected }) => ({ url: `api/patches/${encodeURIComponent(id)}/collect-reviewed`, method: 'POST', body: { expected } }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id: id.id }, 'Catalog', 'Me', 'Events', 'Runtime'] }),
     collect: b.mutation<PurchaseResult, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/collect`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Events', 'Runtime'] }),
     /** Item 364 — where this node's local credit came from, and the fact that it is not money. */
     myCredit: b.query<CreditInfo, void>({ query: () => 'api/me/credit', providesTags: ['Me', 'Ledger'] }),
@@ -510,20 +568,28 @@ export const api = createApi({
       query: (a) => { const { id, cascade } = typeof a === 'string' ? { id: a, cascade: undefined } : a; return { url: `api/patches/${encodeURIComponent(id)}/remove`, method: 'POST', body: { cascade } }; },
       invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: typeof a === 'string' ? a : a.id }, 'Runtime', 'Events', 'Me'],
     }),
-    createBranch: b.mutation<unknown, { name: string; description: string; context: Record<string, string>; patch_ids: string[] }>({ query: (body) => ({ url: 'api/branches', method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger'] }),
-    addToBranch: b.mutation<unknown, { name: string; patch_id: string }>({ query: ({ name, patch_id }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches`, method: 'POST', body: { patch_id } }), invalidatesTags: ['Branches', 'Ledger'] }),
+    createBranch: b.mutation<unknown, { name: string; description: string; context: Record<string, string>; patch_ids: string[] }>({ query: (body) => ({ url: 'api/branches/create', method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger'] }),
+    trackAdditionReview: b.query<unknown, { name: string; patch_id: string; identity: string }>({ query: ({ name, patch_id }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches/review`, method: 'POST', body: { patch_id } }), keepUnusedDataFor: 0 }),
+    addToBranch: b.mutation<unknown, { name: string; patch_id: string; expected_review: string }>({ query: ({ name, patch_id, expected_review }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches`, method: 'POST', body: { patch_id, expected_review } }), invalidatesTags: ['Branches', 'Ledger'] }),
     // `replace` (item 214): the node refuses to load a track over knowledge already in the model unless it is passed.
-    subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe'; replace?: boolean }>({ query: ({ name, action, replace }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST', body: action === 'subscribe' ? { replace: !!replace } : {} }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
+    subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe'; replace?: boolean; expected_review?: string }>({ query: ({ name, action, replace, expected_review }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST', body: action === 'subscribe' ? { replace: !!replace, expected_review } : {} }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
     /** Item 357 — what subscribing would spend, decided by the node with the same rules `subscribe` follows. */
-    trackQuote: b.query<{ quote: TrackQuote }, string>({ query: (name) => ({ url: `api/branches/${encodeURIComponent(name)}/quote`, method: 'POST' }), providesTags: ['Branches', 'Catalog', 'Me'] }),
+    trackQuote: b.query<{ quote: TrackQuote }, { name: string; identity: string }>({ query: ({ name }) => ({ url: `api/branches/${encodeURIComponent(name)}/quote`, method: 'POST' }), providesTags: ['Branches', 'Catalog', 'Me'] }),
     /** Item 255 — buy and load what the track added, unload what it retired. */
-    syncBranch: b.mutation<SubscribeResult, string>({ query: (name) => ({ url: `api/branches/${encodeURIComponent(name)}/sync`, method: 'POST' }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
+    trackReview: b.query<unknown, { name: string; action: 'subscribe' | 'sync'; identity: string }>({ query: ({ name, action }) => ({ url: `api/branches/${encodeURIComponent(name)}/review`, method: 'POST', body: { action } }) }),
+    syncBranch: b.mutation<SubscribeResult, { name: string; expected_review: string; replace: boolean }>({ query: ({ name, ...body }) => ({ url: `api/branches/${encodeURIComponent(name)}/sync`, method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
     /** Item 297 — a visitor asks the operator to get a knowledge this node does not hold. */
-    requestPatch: b.mutation<{ patch_id: string; requests: number }, string>({ query: (id) => ({ url: `api/chat/patches/${encodeURIComponent(id)}/request`, method: 'POST' }), invalidatesTags: ['Chat'] }),
+    knowledgeDemand: b.query<unknown, { id: string; identity: string }>({ query: ({ id }) => `api/chat/patches/${encodeURIComponent(id)}/request` }),
+    requestPatch: b.mutation<unknown, { id: string; expected: import('../lib/knowledgeDemand').KnowledgeDemandTarget }>({ query: ({ id, expected }) => ({ url: `api/chat/patches/${encodeURIComponent(id)}/request`, method: 'POST', body: { expected } }), invalidatesTags: ['Chat'] }),
     complete: b.mutation<{ text: string }, { prompt: string; max_tokens?: number }>({ query: (body) => ({ url: 'api/runtime/complete', method: 'POST', body }) }),
     addPeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'POST', body }), invalidatesTags: ['Nodes', 'Info'] }),
     removePeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'DELETE', body }), invalidatesTags: ['Nodes', 'Info'] }),
-    chainSetup: b.mutation<unknown, void>({ query: () => ({ url: 'api/chain/setup', method: 'POST' }), invalidatesTags: ['Info', 'Ledger'] }),
+    chainSetupStatus: b.query<unknown, { identity: string; context: import('../lib/accountChainSetup').ChainSetupContext }>({ query: () => 'api/chain/setup', keepUnusedDataFor: 0, providesTags: ['ChainSetup'] }),
+    chainSetupRequest: b.query<unknown, { identity: string; context: import('../lib/accountChainSetup').ChainSetupContext; id: string }>({
+      query: ({ id }) => `api/chain/setup/requests/${encodeURIComponent(id)}`, keepUnusedDataFor: 0, providesTags: ['ChainSetup'],
+      merge: (previous, incoming, { arg }) => reconcileChainSetup(previous, incoming, arg.context, arg.id),
+    }),
+    reviewedChainSetup: b.mutation<unknown, { request_id: string; expected: import('../lib/accountChainSetup').ChainSetupContext; expected_request: string | null; retry_of?: string }>({ query: body => ({ url: 'api/chain/setup/requests', method: 'POST', body }), invalidatesTags: ['Me', 'Ledger', 'WalletBalance', 'ChainSetup'] }),
     driveAction: b.mutation<unknown, { action: 'up' | 'stop' | 'sync' | 'login'; server?: string }>({ query: (body) => ({ url: 'api/drive', method: 'POST', body }), invalidatesTags: ['Drive'] }),
 
     // ChatMode (live test)
@@ -533,7 +599,7 @@ export const api = createApi({
     chatStatus: b.query<ChatStatusResponse, string>({ query: (id) => `api/chat/status?request_id=${encodeURIComponent(id)}` }),
     cancelChat: b.mutation<ChatCancelResponse, string>({ query: (id) => ({ url: 'api/chat/cancel', method: 'POST', body: { request_id: id } }) }),
     // operator settings (persisted on the node)
-    settings: b.query<{ settings: Settings }, void>({ query: () => 'api/me/settings', providesTags: ['Settings'] }),
+    settings: b.query<{ settings: Settings }, { identity: string } | void>({ query: () => 'api/me/settings', providesTags: ['Settings'] }),
     updateSettings: b.mutation<{ settings: Settings }, Partial<Settings>>({ query: (body) => ({ url: 'api/me/settings', method: 'PATCH', body }), invalidatesTags: ['Settings', 'Me', 'Info'] }),
 
     // Teach mode (spec §6.2) — visitor routes signed with the browser's teaching key; poll a job every 5 s (call site: pollingInterval)
@@ -648,32 +714,34 @@ export const api = createApi({
     teachBans: b.query<{ items: BanRow[] }, void>({ query: () => 'api/me/teach/bans', providesTags: ['TeachAdmin'] }),
     addTeachBan: b.mutation<{ ban: BanRow }, { kind: 'address' | 'ip'; value: string; reason?: string }>({ query: (body) => ({ url: 'api/me/teach/bans', method: 'POST', body }), invalidatesTags: ['TeachAdmin'] }),
     deleteTeachBan: b.mutation<{ ok: boolean }, number>({ query: (id) => ({ url: `api/me/teach/bans/${id}`, method: 'DELETE' }), invalidatesTags: ['TeachAdmin'] }),
-    payouts: b.query<PayoutsResponse, { status?: 'pending' | 'paid' | 'failed'; limit?: number } | void>({ query: (q) => `api/me/payouts${toQuery({ ...(q ?? {}) })}`, providesTags: ['Payouts'] }),
+    payouts: b.query<PayoutsResponse, { status?: 'pending' | 'paid' | 'failed'; limit?: number; identity?: string } | void>({ query: (q) => { const { identity: _identity, ...filter } = q ?? {}; return `api/me/payouts${toQuery(filter)}`; }, providesTags: ['Payouts'] }),
     retryPayout: b.mutation<{ payout: PayoutRow }, number>({ query: (id) => ({ url: `api/me/payouts/${id}/retry`, method: 'POST' }), invalidatesTags: ['Payouts', 'Me', 'Teacher'] }),
   }),
 });
 
 export const {
-  useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
+  useTrackCatalogQuery,
+  useCatalogSnapshotQuery,
+  useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useInspectKeyCreationMutation, useSubmitKeyCreationMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, useManagedPatchQuery, useManagedCatalogQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
-  useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
+  useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery, useLazyHostedAgentQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useLazyLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useLazyAgentVisibilityQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useLazyAgentAliasReviewQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
-  usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useOrgGroupsQuery, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useApproveAccountDeviceMutation, useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
-  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
-  useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
+  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendStatusQuery, useWalletSendHistoryQuery, useWalletSendRequestQuery, usePrepareWalletSendMutation, useSubmitWalletSendMutation, useCancelWalletSendMutation,
+  useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
-  useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
+  useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupStatusQuery, useChainSetupRequestQuery, useLazyChainSetupRequestQuery, useReviewedChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useMergePreviewMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery, useVerifierQuery, useNudgePayoutMutation,

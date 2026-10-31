@@ -1,4 +1,4 @@
-import { verificationCount } from '@ainize/core/browser';
+import { verificationCount } from '@/lib/verificationView';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
@@ -9,8 +9,11 @@ import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox,
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { benchmarkFormats, bytes, num } from '@/utils/format';
+import { benchmarkFormats, bytes, dateTime, num, shortAddr } from '@/utils/format';
+import { Explain as ScoreExplanation } from '@/components/ui/Explain';
 import NotFoundPage from './NotFoundPage';
+import { Offline } from '@/components/ui/Offline';
+import { benchmarkView } from '@/lib/benchmarkView';
 
 // Finding 74: Price is back. /explore offers it and the page whose whole job is "which of these should I buy?"
 // was the one place that silently dropped it.
@@ -80,11 +83,17 @@ const PriceCell = styled(TableData)`color: ${(p) => p.theme.color.PRIMARY}; font
  */
 export default function BenchmarkPage() {
   const { schema = '' } = useParams();
+  return <BenchmarkContent key={schema} schema={schema} />;
+}
+
+function BenchmarkContent({ schema }: { schema: string }) {
   const { t, help, tech } = useT();
   const [sort, setSort] = useState<Sort>('popular');
   const [page, setPage] = useState(1);
   const { data: info } = useInfoQuery();
-  const { data, isLoading, error } = useBenchmarkQuery(schema);
+  const query = useBenchmarkQuery(schema);
+  const { error } = query;
+  const data = useMemo(() => query.isError ? null : benchmarkView(query.currentData, schema), [query.currentData, query.isError, schema]);
   const priceLabel = usePriceLabel();
   useTitle(`${t('bench.title')} ${schema}`);
 
@@ -103,16 +112,16 @@ export default function BenchmarkPage() {
     else list.sort((a, b) => b.downloads - a.downloads || b.passed - a.passed);
     const byHash = new Map<string, typeof list>();
     for (const e of list) {
-      const key = e.anchor.benchmark_hash || `no-hash:${e.anchor.id}`;
+      const key = JSON.stringify([e.anchor.benchmark_hash ? ['hash', e.anchor.benchmark_hash] : ['id', e.anchor.id], [...new Set(benchmarkFormats(e.anchor.benchmark.format))].sort(), e.anchor.benchmark.queries]);
       const bucket = byHash.get(key);
       if (bucket) bucket.push(e); else byHash.set(key, [e]);
     }
     return [...byHash.entries()]
-      .map(([hash, entries]) => ({
-        hash,
+      .map(([key, entries]) => ({
+        key, hash: entries[0].anchor.benchmark_hash || null,
         entries,
         /** the group's own facts: the format its verifiers used and how many questions the set declares */
-        format: benchmarkFormats(entries[0].anchor.benchmark.format),
+        format: [...new Set(benchmarkFormats(entries[0].anchor.benchmark.format))].sort(),
         queries: entries[0].anchor.benchmark.queries,
         newest: Math.max(...entries.map((e) => e.anchor.created_at)),
       }))
@@ -124,8 +133,9 @@ export default function BenchmarkPage() {
     return (id: string) => m.get(id);
   }, [items]);
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (error || !data) return <NotFoundPage message={t('bench.notfound', { schema })} />;
+  if (!query.currentData && query.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (error && 'status' in error && error.status === 404) return <NotFoundPage message={t('bench.notfound', { schema })} />;
+  if (error || !data) return <PageWrapper><Offline error={error} what={t('offline.what.benchmark')} retrying={query.isFetching} onRetry={() => { void query.refetch(); }} /></PageWrapper>;
 
   const pageCount = Math.max(1, Math.ceil(items.length / ITEM_LIMIT));
   const current = Math.min(page, pageCount);
@@ -154,7 +164,7 @@ export default function BenchmarkPage() {
         <TableData $align="left" $maxWidth="180px" $padding={CELL_PAD}><StatusChip status={e.status} /></TableData>
         <PriceCell $align="right" $padding={CELL_PAD}>{p.text}</PriceCell>
         <TableData $align="right" $padding={CELL_PAD}>
-          {acc ? <><Good>{acc.pct}%</Good><SubText title={t('item.accuracy_raw', { raw: acc.raw })}>{acc.raw}</SubText></> : <Muted>{t('bench.col.unscored')}</Muted>}
+          {acc ? <><ScoreExplanation text={t('detail.stat.score_source', { who: acc.attestation.verifier_name ?? shortAddr(acc.attestation.verifier), when: dateTime(acc.attestation.created_at) })}><Good>{acc.pct}%</Good></ScoreExplanation><SubText title={t('item.accuracy_raw', { raw: acc.raw })}>{acc.raw}</SubText></> : <Muted>{t('bench.col.unscored')}</Muted>}
         </TableData>
         <TableData $align="right" $padding={CELL_PAD}>
           {e.quorum_ok && e.sellable !== false ? <Good>{t('units.verified_by', { passed: verificationCount(e).shown, quorum: e.quorum })}</Good>
@@ -186,12 +196,12 @@ export default function BenchmarkPage() {
           const shown = g.entries.filter((e) => visible.includes(e));
           if (shown.length === 0) return null;
           return (
-            <section key={g.hash} data-testid="bench-group">
+            <section key={g.key} data-testid="bench-group">
               <GroupHead data-testid="bench-group-head">
                 {g.format.length ? t('bench.group.title', { format: g.format.join(' + '), n: num(g.queries) }) : t('bench.group.title_noformat', { n: num(g.queries) })}
-                <code title={t('detail.ov.benchmark_hash')}>{g.hash.slice(0, 8)}</code>
+                {g.hash ? <code title={g.hash}>{g.hash.slice(0, 8)}</code> : <span>{t('bench.group.unknown')}</span>}
               </GroupHead>
-              <GroupNote>{g.entries.length === 1 ? t('bench.group.alone') : t('bench.group.note', { n: g.entries.length })}</GroupNote>
+              <GroupNote>{!g.hash ? t('bench.group.unknown_note') : g.entries.length === 1 ? t('bench.group.alone') : t('bench.group.note', { n: g.entries.length })}</GroupNote>
               <Scroller>
                 <Table data-testid="bench-table">
                   {/* The column names are short on purpose — every one of them is defined in full in the legend
