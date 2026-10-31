@@ -251,7 +251,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
    */
   const agents = useMemo(() => {
     const matches = matchingSearchIds(docsFromAgents(scopedAgents), q);
-    return scopedAgents.filter((a) => matches.has(a.id));
+    return scopedAgents.filter((a) => matches.has(agentListKey(a)));
   }, [scopedAgents, q]);
   const scopedLoading = agentFilter === 'mine' ? !shared.currentData && shared.isFetching : agentFilter === 'org' ? orgsLoading || (!orgQuery.currentData && orgQuery.isFetching) : false;
   const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)

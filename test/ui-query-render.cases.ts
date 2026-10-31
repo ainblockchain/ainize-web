@@ -794,7 +794,8 @@ test('agent detail offers explicit form discovery without unrelated hosted manag
   const html = renderAgent([...appAccount, { name: 'agents', value: { agents: [detailAgent] } }]);
   assert.match(html, /Chosen agent|Ask agent for an input form/);
   assert.doesNotMatch(html, /hosted-agent-owner|agent-git-panel|ainft-binding/);
-  const peer = renderAgent([...appAccount, { name: 'agents', value: { agents: [{ ...detailAgent, kind: 'prompt', owner: 'sso:viewer', node: { name: 'Peer', address: 'https://peer.example' } }] } }, { name: 'manageableHostedAgents', arg: accountIdentity, value: { agents: [{ ...editableHosted, can_delete: true }] } }]);
+  const peer = renderAgent([...appAccount, { name: 'agents', value: { agents: [{ ...detailAgent, kind: 'prompt', owner: 'sso:viewer', node: { name: 'Peer', address: 'https://peer.example' } }] } }, { name: 'manageableHostedAgents', arg: accountIdentity, value: { agents: [{ ...editableHosted, can_delete: true }] } }], '/agent/chosen?node=https%3A%2F%2Fpeer.example');
+  assert.match(peer, /Chosen agent|Ask agent for an input form/);
   assert.doesNotMatch(peer, /hosted-agent-owner|hosted-agent-edit|agent-git-panel/);
 });
 
@@ -901,4 +902,39 @@ test('A2UI multiple selections and scoped list values render the actual bound ch
   assert.equal((html.match(/checked=""/g) ?? []).length, 1);
   assert.match(html, /value="First row value"/); assert.match(html, /value="Second row value"/);
   assert.doesNotMatch(html, /unsupported ChoicePicker/);
+});
+
+
+test('agent detail retains the selected peer with colliding local ids and unavailable peer states', () => {
+  const peer = { ...detailAgent, name: 'Selected remote agent', description: 'Only selected peer', node: { address: 'peer-one', name: 'Selected peer node' }, call_url: 'https://ainize.ai/api/sam/peer-one/a2a/chosen' };
+  const wrong = { ...peer, name: 'Different remote agent', node: { address: 'peer-two', name: 'Different peer node' } };
+  const fixtures: Fixture[] = [...appAccount, { name: 'agents', value: { agents: [detailAgent, wrong, peer] } }];
+  const chosen = renderAgent(fixtures, '/agent/chosen?node=peer-one');
+  assert.match(chosen, /Selected remote agent/); assert.match(chosen, /sam\/peer-one\/a2a\/chosen/);
+  assert.doesNotMatch(chosen, /Chosen agent|Different remote agent|hosted-agent-owner/);
+  assert.ok(!chosen.includes('https://ainize.ai/agents/chosen'), 'peer endpoints must not use the short local registration');
+  const local = renderAgent(fixtures);
+  assert.match(local, /Chosen agent/); assert.doesNotMatch(local, /Selected remote agent|Different remote agent/);
+  for (const search of ['?node=missing', '?node=', '?node=peer-one&node=peer-two']) {
+    const missing = renderAgent(fixtures, '/agent/chosen' + search);
+    assert.match(missing, /agent-detail-unavailable|Try again/);
+    assert.doesNotMatch(missing, /Ask agent for an input form|Chosen agent|Selected remote agent|Different remote agent/);
+  }
+});
+
+
+test('agent list and full search keep same-id peer results separate and link to the exact node', () => {
+  const base = { ...detailAgent, name: 'Gallery guide' };
+  const rows = [base, { ...base, node: { address: 'peer-one', name: 'Seoul' } }, { ...base, node: { address: 'peer-two', name: 'Busan' } }];
+  const fixtures: Fixture[] = [...signedOut, { name: 'agents', value: { agents: rows } }, { name: 'models', value: {} }, { name: 'networkModels', value: {} }];
+  const list = render(ExplorePage, fixtures, '/explore?kind=agent');
+  assert.equal((list.match(/data-testid="agent-row"/g) ?? []).length, 3);
+  for (const href of ['/agent/chosen', '/agent/chosen?node=peer-one', '/agent/chosen?node=peer-two']) assert.ok(list.includes(`href="${href}"`));
+  const selected = render(ExplorePage, fixtures, '/explore?kind=agent&q=Seoul');
+  assert.equal((selected.match(/data-testid="agent-row"/g) ?? []).length, 1);
+  assert.ok(selected.includes('href="/agent/chosen?node=peer-one"'));
+  assert.ok(!selected.includes('href="/agent/chosen?node=peer-two"'));
+  const search = render(SearchPage, fixtures, '/search?q=guide');
+  for (const href of ['/agent/chosen', '/agent/chosen?node=peer-one', '/agent/chosen?node=peer-two']) assert.ok(search.includes(`href="${href}"`));
+  assert.match(search, /Seoul/); assert.match(search, /Busan/);
 });

@@ -997,6 +997,7 @@ export interface AgentSummary {
    * content, and the browser asks the visitor for local network access when that address is a private one.
    * The node can reach both ends; the browser cannot.
    */
+  call_url?: string;
   reachable: boolean | null;
   last_checked: number | null;
   error: string | null;

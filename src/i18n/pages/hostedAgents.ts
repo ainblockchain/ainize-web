@@ -74,6 +74,8 @@ export const hostedAgents: Dict = {
   'agentPage.live.via_node': { ko: '이 에이전트는 {node}에서 실행되므로, 요청은 브라우저가 아니라 이 노드를 거쳐 갑니다 — 이 사이트의 페이지는 다른 운영자의 네트워크에 직접 연결할 수 없고, 그렇게 요구해서도 안 됩니다.', en: 'This agent runs on {node}, so the request goes through this node rather than from your browser — a page on this origin cannot open a connection to another operator’s network, and should not ask you to.' },
   'agentPage.copy_failed': { ko: '복사하지 못했습니다. 위 주소를 선택해 복사해 주세요.', en: 'Could not copy. Select and copy the address above.' },
   'agentPage.read_failed': { ko: '에이전트를 불러오지 못했습니다.', en: 'Could not load this agent.' },
+  'agentPage.unavailable': { ko: '선택한 노드에서 에이전트 “{id}”를 찾을 수 없습니다.', en: 'Agent “{id}” is unavailable on the selected node.' },
+  'agentPage.browse': { ko: '에이전트 목록', en: 'Browse agents' },
   'agentPage.live.request_form': { ko: '에이전트에 입력 양식 요청', en: 'Ask agent for an input form' },
   'agentPage.live.no_form': { ko: '에이전트가 입력 양식을 보내지 않았습니다. 아래에 메시지를 입력하세요.', en: 'The agent did not return an input form. Enter a message below.' },
   'agentPage.live.pending': { ko: '에이전트가 작업을 접수했습니다. 아직 최종 응답이 없습니다.', en: 'The agent accepted the task. No final response yet.' },

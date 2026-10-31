@@ -6,6 +6,8 @@
  * it gets back. Keeping the ranking here is what lets `test/global-search.test.ts` hold it without a renderer.
  */
 import { projectPath } from './reservedRoutes';
+import { agentPagePath } from '../api/agentIds';
+import { agentListKey } from '../api/sharedAgents';
 
 export type SearchKind = 'app' | 'model' | 'agent' | 'knowledge';
 export const searchHref = (query: string): string => `/search?q=${encodeURIComponent(query.trim())}`;
@@ -113,12 +115,12 @@ export function docsFromModels(models: readonly { id: string; modality: string; 
   }));
 }
 
-export function docsFromAgents(agents: readonly { id: string; name: string; description: string | null; alias?: string | null; provider?: string | null; model?: string | null; skills?: readonly { name: string; description?: string | null; tags?: readonly string[] }[] }[]): SearchDoc[] {
+export function docsFromAgents(agents: readonly { id: string; name: string; description: string | null; alias?: string | null; node?: { address: string; name: string } | null; provider?: string | null; model?: string | null; skills?: readonly { name: string; description?: string | null; tags?: readonly string[] }[] }[]): SearchDoc[] {
   return agents.map((a) => ({
-    kind: 'agent', id: a.id, title: a.name || a.id,
-    subtitle: a.description ?? undefined,
-    href: `/agent/${encodeURIComponent(a.alias || a.id)}`,
-    keywords: [a.alias ?? '', a.provider ?? '', a.model ?? '', ...(a.skills ?? []).flatMap((s) => [s.name, s.description ?? '', ...(s.tags ?? [])])],
+    kind: 'agent', id: agentListKey({ ...a, node: a.node ?? null }), title: a.name || a.id,
+    subtitle: [a.node?.name, a.description].filter(Boolean).join(' · ') || undefined,
+    href: agentPagePath(a),
+    keywords: [a.id, a.node?.address ?? '', a.alias ?? '', a.provider ?? '', a.model ?? '', ...(a.skills ?? []).flatMap((s) => [s.name, s.description ?? '', ...(s.tags ?? [])])],
   }));
 }
 

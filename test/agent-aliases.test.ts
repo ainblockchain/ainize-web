@@ -6,11 +6,35 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentAliasOf, agentMatchesParam, agentPagePath, agentPageRedirect, aliasSuggestion } from '../src/api/agentIds';
+import { agentAliasOf, agentMatchesParam, agentPagePath, agentPageRedirect, agentPageScope, agentForPage, aliasSuggestion } from '../src/api/agentIds';
 import { agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList } from '../src/api/sharedAgents';
 import { agentSummaryFromOrgAgent, parseOrgAgent } from '../src/api/organizations';
 
 const M = { id: 'external-e20458854c448acf7809', alias: 'agent-m' };
+
+test('peer links and alias redirects preserve the selected node, including URL punctuation', () => {
+  const node = { address: 'https://peer.example/a?x=1&next=2#part' };
+  const peer = { ...M, node };
+  const expected = `/agent/agent-m?node=${encodeURIComponent(node.address)}`;
+  assert.equal(agentPagePath(peer), expected);
+  assert.equal(agentPageRedirect(peer.id, peer), expected);
+  assert.deepEqual(agentPageScope(expected.slice(expected.indexOf('?'))), { node: node.address, valid: true });
+});
+
+test('same ids and aliases resolve only within the explicit node; missing peers never fall back', () => {
+  const local = { ...M, node: null };
+  const peer = { ...M, node: { address: 'peer-one' } };
+  const other = { ...M, node: { address: 'peer-two' } };
+  const agents = [other, peer, local];
+  assert.equal(agentForPage(agents, M.id, agentPageScope('')), local);
+  assert.equal(agentForPage(agents, M.alias, agentPageScope('?node=peer-one')), peer);
+  assert.equal(agentForPage([other, local], M.id, agentPageScope('?node=peer-one')), null);
+  assert.equal(agentForPage([peer], M.id, agentPageScope('')), null, 'unqualified local private lookup must not be shadowed by a peer');
+  for (const search of ['?node=', '?node=%20', '?node=peer-one&node=peer-two']) {
+    assert.equal(agentPageScope(search).valid, false);
+    assert.equal(agentForPage(agents, M.id, agentPageScope(search)), null);
+  }
+});
 
 test('links to an agent page use the alias when there is one, the id otherwise', () => {
   assert.equal(agentPagePath(M), '/agent/agent-m');

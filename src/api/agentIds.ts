@@ -106,9 +106,27 @@ export function agentAliasOf(row: unknown): string | null {
   return typeof v === 'string' && AGENT_ID_RULE.test(v) ? v : null;
 }
 
-/** `/agent/<alias>` when the agent has one, `/agent/<id>` otherwise — the address every link to an agent's page uses. */
-export function agentPagePath(agent: { id: string; alias?: string | null }, suffix = ''): string {
-  return `/agent/${encodeURIComponent(agentAliasOf(agent) ?? agent.id)}${suffix}`;
+type AgentAddress = { id: string; alias?: string | null; node?: { address: string } | null };
+
+/** Peer ids/aliases belong to that node; their links must carry that identity through reload and sharing. */
+export function agentPagePath(agent: AgentAddress, suffix = ''): string {
+  const peer = agent.node ? `?node=${encodeURIComponent(agent.node.address)}` : '';
+  return `/agent/${encodeURIComponent(agentAliasOf(agent) ?? agent.id)}${suffix}${peer}`;
+}
+
+/** An explicit empty/ambiguous node parameter is invalid, never a request for a local agent. */
+export function agentPageScope(search: string): { node: string | null; valid: boolean } {
+  const values = new URLSearchParams(search).getAll('node');
+  return { node: values[0] ?? null, valid: values.length === 0 || (values.length === 1 && !!values[0].trim()) };
+}
+
+/** Resolve only within the requested node. A disappearing peer must not turn into a local namesake. */
+export function agentForPage<T extends AgentAddress>(agents: readonly T[], param: string, scope: ReturnType<typeof agentPageScope>): T | null {
+  if (!scope.valid) return null;
+  const scoped = agents.filter((agent) => scope.node === null ? !agent.node : agent.node?.address === scope.node);
+  const ids = scoped.filter((agent) => agent.id === param);
+  const matches = ids.length ? ids : scoped.filter((agent) => agentMatchesParam(agent, param));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /** Does the `/agent/:idOrAlias` segment name this agent — by its id or by its alias? */
@@ -120,7 +138,7 @@ export function agentMatchesParam(agent: { id: string; alias?: string | null }, 
  * Where the agent page should move the URL bar: to `/agent/<alias>` when the page was opened by id (or an old
  * alias) and the agent has an alias, so the readable address is the one people copy. `null` when it is already there.
  */
-export function agentPageRedirect(param: string, agent: { id: string; alias?: string | null } | null): string | null {
+export function agentPageRedirect(param: string, agent: AgentAddress | null): string | null {
   const alias = agent ? agentAliasOf(agent) : null;
   return alias && alias !== param ? agentPagePath(agent!) : null;
 }

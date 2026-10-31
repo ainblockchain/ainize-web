@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { saveHostedAgent } from '../src/lib/saveHostedAgent';
-import { agentRequestUrl } from '../src/lib/agentRequestUrl';
+import { agentEndpoints, agentRequestUrl } from '../src/lib/agentRequestUrl';
 import { canEditHostedAgentSpec, parseHostedAgentSpecResponse, type HostedAgentSpecInput } from '../src/api/hostedAgents';
 
 const body: HostedAgentSpecInput = { id: 'sample', name: 'Sample', mode: 'prompt', model: 'chat', systemPrompt: 'Help.' };
@@ -70,4 +70,16 @@ test('agent requests keep peer hosts even if they share the local API path', () 
   for (const url of ['https://peer.example/agents/a', 'https://peer.example/api/a', 'http://ainize.ai/agents/a', 'https://ainize.ai:8443/agents/a', 'https://ainize.ai/other/a']) {
     assert.equal(agentRequestUrl(url, origin), url);
   }
+});
+
+
+test('peer calls and copied cards use the pinned node route even when the short address belongs to it today', () => {
+  const local = { id: 'guide', node: null, a2a_url: 'https://ainize.ai/agents/guide', card_url: 'https://ainize.ai/agents/guide/.well-known/agent-card.json' };
+  assert.deepEqual(agentEndpoints(local), { call: local.a2a_url, card: local.card_url });
+  const peer = { ...local, node: { address: '0xpeer', name: 'Peer' }, call_url: 'https://ainize.ai/api/sam/0xpeer/a2a/guide' };
+  assert.deepEqual(agentEndpoints(peer), { call: peer.call_url, card: peer.call_url + '/.well-known/agent-card.json' });
+  const legacy = agentEndpoints({ ...peer, call_url: undefined });
+  assert.equal(legacy.call, '/api/sam/0xpeer/a2a/guide');
+  assert.equal(legacy.card, '/api/sam/0xpeer/a2a/guide/.well-known/agent-card.json');
+  assert.equal(agentRequestUrl(agentEndpoints(peer).call, 'https://www.ainize.ai'), '/api/sam/0xpeer/a2a/guide');
 });

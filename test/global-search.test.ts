@@ -54,13 +54,13 @@ test('exact beats prefix beats substring beats keyword', () => {
 });
 
 test('every word of a multi-word query has to land', () => {
-  assert.ok(scoreDoc(docs.find((d) => d.id === 'ag1')!, 'docent museum') > 0);
-  assert.equal(scoreDoc(docs.find((d) => d.id === 'ag2')!, 'chat museum'), 0);
+  assert.ok(scoreDoc(docs.find((d) => d.id === 'self#ag1')!, 'docent museum') > 0);
+  assert.equal(scoreDoc(docs.find((d) => d.id === 'self#ag2')!, 'chat museum'), 0);
 });
 
 test('search is case-insensitive and reaches skills, tags, aliases, authors and topics', () => {
   const by = (q: string) => flattenHits(searchDocs(docs, q)).map((h) => h.id);
-  assert.deepEqual(by('MUSEUM'), ['ag1']);
+  assert.deepEqual(by('MUSEUM'), ['self#ag1']);
   assert.deepEqual(by('kim'), ['k1']);
   assert.deepEqual(by('finance'), ['k1']);
   assert.deepEqual(by('ainspace'), ['dsv41']);
@@ -77,8 +77,8 @@ test('perKind caps the rows but total still counts them', () => {
 test('adapters link where the site already links', () => {
   const href = (id: string) => docs.find((d) => d.id === id)!.href;
   assert.equal(href('dsv41'), '/models/dsv41');
-  assert.equal(href('ag1'), '/agent/docent', 'an aliased agent links by its alias');
-  assert.equal(href('ag2'), '/agent/ag2');
+  assert.equal(href('self#ag1'), '/agent/docent', 'an aliased agent links by its alias');
+  assert.equal(href('self#ag2'), '/agent/ag2');
   assert.equal(href('k1'), '/0xabc/k1');
   assert.equal(href('p1'), '/comcom/nextjs-hello-world');
 });
@@ -114,4 +114,15 @@ test('every string the search box reads exists in English and in Korean', () => 
     assert.ok(HANGUL.test(e.ko), `${key} has no Korean`);
   }
   for (const kind of SEARCH_KINDS) assert.ok(common[`search.kind.${kind}`], `search.kind.${kind} is missing`);
+});
+
+
+test('agent search distinguishes same-id nodes in matching, labels and destinations', () => {
+  const base = { id: 'guide', name: 'Guide', description: 'museum guide', alias: 'docent' };
+  const rows = docsFromAgents([base, { ...base, node: { address: 'peer-one', name: 'Seoul node' } }, { ...base, node: { address: 'peer-two', name: 'Busan node' } }]);
+  assert.equal(new Set(rows.map((row) => row.id)).size, 3);
+  assert.deepEqual(rows.map((row) => row.href), ['/agent/docent', '/agent/docent?node=peer-one', '/agent/docent?node=peer-two']);
+  assert.deepEqual([...matchingSearchIds(rows, 'Seoul')], ['peer-one#guide']);
+  assert.deepEqual([...matchingSearchIds(rows, 'peer-two')], ['peer-two#guide']);
+  assert.equal(rows[1].subtitle, 'Seoul node · museum guide');
 });

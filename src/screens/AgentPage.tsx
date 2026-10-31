@@ -32,7 +32,7 @@ import { useActiveView } from '@/hooks/useActiveView';
 import { parseMyLinkedAgents } from '@/api/myAgents';
 import { A2aReply, a2aReplyText, readA2aReply } from '@/lib/a2aReply';
 import { a2uiActionParts } from '@/lib/a2uiAction';
-import { agentRequestUrl } from '@/lib/agentRequestUrl';
+import { agentEndpoints, agentRequestUrl } from '@/lib/agentRequestUrl';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -53,7 +53,7 @@ import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
 import { AgentHistoryPanel } from './agent/AgentHistoryPanel';
 import { LinkedAgentOwnerPanel } from './agent/LinkedAgentOwnerPanel';
 import { isAgentOwnedBy, isLinkedAgentRow, viewerPrincipals } from '@/api/linkedAgents';
-import { agentAliasOf, agentMatchesParam, agentPageRedirect } from '@/api/agentIds';
+import { agentAliasOf, agentForPage, agentPageScope, agentPageRedirect } from '@/api/agentIds';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
 const Card = styled.div<{ $selected?: boolean }>`
@@ -163,7 +163,9 @@ const ago = (t: number | null) => (t ? `${Math.max(0, Math.round((Date.now() - t
 export function AgentPage() {
   const { cacheIdentity } = useAuth();
   const { id = '' } = useParams();
-  return <AgentDetail key={`${cacheIdentity}:${id}`} />;
+  const { search } = useLocation();
+  const scope = agentPageScope(search);
+  return <AgentDetail key={JSON.stringify([cacheIdentity, id, scope.node, scope.valid])} />;
 }
 
 function AgentDetail() {
@@ -173,17 +175,18 @@ function AgentDetail() {
   const { id: param = '' } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const scope = agentPageScope(location.search);
   // polled: "is it answering" goes stale the moment it is rendered
   const { data, isLoading, error, refetch } = useAgentsQuery(undefined, { pollingInterval: 30_000 });
   const agents = useMemo(() => data?.agents ?? [], [data]);
-  const listed = agents.find((a) => a.id === param) ?? agents.find((a) => agentMatchesParam(a, param)) ?? null;
+  const listed = agentForPage(agents, param, scope);
   /**
    * Not on the public list is not the same as not here. An `org`, `private` or `unlisted` agent (shared-agent
    * registry) is left off `/api/agents` on purpose, so when the list misses, the two stores that know non-public
    * agents are asked: the hosted spec — which the node answers to its owner and, as a listing view, to anyone it is
    * visible to, and with 404 to everyone else — and the linked-agents list. Only asked once the public list has said no.
    */
-  const missed = !authLoading && !isLoading && !listed && !!param;
+  const missed = scope.valid && scope.node === null && !authLoading && !isLoading && !listed && !!param;
   // Off the public list the segment may still be an alias: the node names its id (404 for an agent the caller may
   // not see, and on a node without aliases — the segment is then taken as the id, as it always was).
   const resolved = useAgentAliasQuery({ name: param, identity: cacheIdentity }, { skip: !missed });
@@ -237,6 +240,9 @@ function AgentDetail() {
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const linkedNote = (location.state as { linkedNote?: unknown } | null)?.linkedNote;
   const [article, setArticle] = useState('');
+  const endpoints = agent ? agentEndpoints(agent) : null;
+  const callUrl = endpoints?.call;
+  const cardUrl = endpoints?.card;
   const [contextId, setContextId] = useState<string | undefined>();
   const [taskId, setTaskId] = useState<string | undefined>();
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
@@ -268,13 +274,13 @@ function AgentDetail() {
   // only gossips the names, so the examples exist nowhere but the card — which is one fetch away, on this
   // origin, through the same front door a stranger's client would use.
   useEffect(() => {
-    if (!agent) { setSkills([]); return; }
+    if (!cardUrl) { setSkills([]); return; }
     let live = true;
     const controller = new AbortController();
     setSkills([]);
     setTakesAudio(false);
     setStreams(null);
-    fetch(samePath(agent.card_url), { signal: controller.signal, headers: { Accept: 'application/json' } })
+    fetch(samePath(cardUrl), { signal: controller.signal, headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
       .then((card: { skills?: CardSkill[] } | null) => {
         if (!live) return;
@@ -284,7 +290,7 @@ function AgentDetail() {
       })
       .catch(() => {/* no examples is a fine outcome; the box still works */});
     return () => { live = false; controller.abort(); };
-  }, [agent?.card_url]);
+  }, [cardUrl]);
 
   const samples = examplesOf(skills);
 
@@ -294,11 +300,11 @@ function AgentDetail() {
   const [formNotice, setFormNotice] = useState<string | null>(null);
   const sendFormAction = (name: string, context: Record<string, unknown>, source: Parameters<typeof a2uiActionParts>[2]) => { void run('', a2uiActionParts(name, context, source)); };
   const requestForm = async () => {
-    if (!agent || flight.current || !active()) return;
+    if (!agent || !callUrl || flight.current || !active()) return;
     const controller = new AbortController(); flight.current = controller;
     setFormBusy(true); setFormNotice(null);
     try {
-      const response = await fetch(samePath(agent.a2a_url), {
+      const response = await fetch(samePath(callUrl), {
         method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send', params: {
           message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', contextId, taskId, parts: [{ kind: 'text', text: '' }] },
@@ -338,7 +344,7 @@ function AgentDetail() {
    * not been read yet, a refusal to stream is retried once as `message/send` rather than shown as a failure.
    */
   const run = async (message = article, actionParts?: unknown[]) => {
-    if (!agent || flight.current || !active()) return;
+    if (!agent || !callUrl || flight.current || !active()) return;
     const controller = new AbortController(); flight.current = controller;
     setBusy(true); setResult(null); setSurfaces([]); setImages([]); setFailed(null); setElapsed(0); setProgress([]);
     const started = Date.now();
@@ -360,7 +366,7 @@ function AgentDetail() {
     try {
       // Use a local path only for this site's own endpoint; peer URLs keep their original destination.
       const parts = actionParts ?? [...(message.trim() ? [{ kind: 'text', text: message }] : []), ...(audio ? [a2aAudioPart(audio.bytesBase64, audio.name, audio.mimeType)] : [])];
-      const call = (method: 'message/stream' | 'message/send') => fetch(samePath(agent.a2a_url), {
+      const call = (method: 'message/stream' | 'message/send') => fetch(samePath(callUrl), {
         method: 'POST', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Accept: method === 'message/stream' ? 'text/event-stream, application/json' : 'application/json' },
         body: JSON.stringify({
@@ -454,11 +460,12 @@ function AgentDetail() {
         <TitleRow><Title>Agent</Title></TitleRow>
         {lookupFailure ? <Empty role="alert" data-testid="agent-detail-failed">
           {t('agentPage.read_failed')} <Button size="small" onClick={retryLookup}>{t('aincode.retry')}</Button>
-        </Empty> : <Empty>
+        </Empty> : <Empty data-testid="agent-detail-unavailable">
           {/* An id that resolves nowhere is not the same as a node with no agents, and used to silently
               become "whichever one is listed first" — a page about an agent the reader never asked for. */}
-          No agent called <Mono>{param}</Mono> is listed here. It may have been taken down, or it may be on a node
-          this one is not connected to. <Link to="/explore?kind=agent">See the agents →</Link>
+          {t('agentPage.unavailable', { id: param })}{' '}
+          <Button size="small" onClick={retryLookup}>{t('aincode.retry')}</Button>{' '}
+          <Link to="/explore?kind=agent">{t('agentPage.browse')}</Link>
         </Empty>}
       </PageWrapper>
     );
@@ -525,16 +532,16 @@ function AgentDetail() {
         * below, where the live test says what it posts to.
         */}
       <UrlRow>
-        <code>{agent.card_url}</code>
+        <code>{cardUrl}</code>
         <Button size="small" onClick={async () => {
-          try { await navigator.clipboard.writeText(agent.card_url); if (active()) setCopyNotice(t('agentGit.copied')); }
+          try { await navigator.clipboard.writeText(new URL(cardUrl!, window.location.origin).href); if (active()) setCopyNotice(t('agentGit.copied')); }
           catch { if (active()) setCopyNotice(t('agentPage.copy_failed')); }
         }}>Copy</Button>
       </UrlRow>
       {copyNotice && <Small role="status">{copyNotice}</Small>}
       <Small>
         Give this to a workspace to invite the agent ·{' '}
-        <ExternalLink href={samePath(agent.card_url)}>open the card</ExternalLink> · Check the card's
+        <ExternalLink href={samePath(cardUrl!)}>open the card</ExternalLink> · Check the card's
         sign-in requirements before calling this agent.
       </Small>
 
@@ -566,7 +573,7 @@ function AgentDetail() {
       <Panel>
         <h3 style={{ margin: 0 }}>{t('agentPage.live.title')}</h3>
         <Description>
-          {t('agentPage.live.posts')} <Mono>{agent.a2a_url}</Mono>
+          {t('agentPage.live.posts')} <Mono>{callUrl}</Mono>
           {agent.node && <>{' '}{t('agentPage.live.via_node', { node: agent.node.name })}</>}
         </Description>
         {/**
