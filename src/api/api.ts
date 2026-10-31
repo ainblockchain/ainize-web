@@ -495,7 +495,7 @@ export const api = createApi({
     googleLogout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/google/session', method: 'DELETE' }), invalidatesTags: ['GoogleSession'] }),
     // AIN SSO (src/lib/ainSso.ts): whether it is offered, and finishing a sign-in that had no link yet.
     ssoStatus: b.query<SsoStatusResponse, void>({ query: () => 'api/auth/sso/status', providesTags: ['SsoStatus'] }),
-    ssoConnect: b.mutation<{ ok: boolean; next: string; linked: string | null }, { choice: 'legacy' | 'new' }>({
+    ssoConnect: b.mutation<{ ok: boolean; next: string; linked: string | null; request: string; subject: string; principal: string }, { choice: 'legacy' | 'new'; expected: import('../lib/ssoConnection').SsoConnectionReview }>({
       query: (body) => ({ url: 'api/auth/sso/connect', method: 'POST', body }), invalidatesTags: ['Me', 'GoogleSession', 'SsoStatus', 'ApiKeys'],
     }),
 

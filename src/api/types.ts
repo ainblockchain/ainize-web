@@ -335,6 +335,7 @@ export interface SsoSessionView {
 
 /** `/api/auth/sso/status` (app/api/auth/sso/status/route.ts). */
 export interface SsoStatusResponse {
+  connectionReview?: import('../lib/ssoConnection').SsoConnectionReview | null;
   configured: boolean;
   legacyLogin: 'true' | 'unlinked_only' | 'false';
   /** an AIN sign-in waiting for "connect your existing account" */

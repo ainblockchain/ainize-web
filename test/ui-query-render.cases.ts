@@ -55,7 +55,7 @@ import { createTeacherKey, forgetTeacherKey, currentTeacherKey } from '../src/li
 import TeachDatasetPage from '../src/screens/TeachDatasetPage';
 import TeachSettingsPage from '../src/screens/TeachSettingsPage';
 import TeachMinePage from '../src/screens/TeachMinePage';
-import SigningPage, { WalletChoices } from '../src/screens/SigningPage';
+import SigningPage, { WalletChoices, ConnectionRecovery } from '../src/screens/SigningPage';
 import AuthorizePage from '../src/screens/AuthorizePage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
@@ -4233,7 +4233,24 @@ test('wallet choices name every provider and its operation, including enrollment
 
 
 test('account linking offers its own choices without unrelated wallet login actions', () => {
-  const html = render(SigningPage, [...signedOut.filter(f => f.name !== 'ssoStatus'), { name: 'ssoStatus', value: { configured: true, pending: { sub: 'new-account', name: 'Fixture', next: '/apps' } } }], '/signing?sso=connect&next=%2Fapps');
+  const html = render(SigningPage, [...signedOut.filter(f => f.name !== 'ssoStatus'), { name: 'ssoStatus', value: { configured: true, connectionReview: { request: 'a'.repeat(64), issuer: 'https://issuer.test', subject: 'new-account', name: 'Fixture', email: null, next: '/apps', expiresAt: 9999999999999, legacy: null }, pending: { sub: 'new-account', name: 'Fixture', next: '/apps' } } }], '/signing?sso=connect&next=%2Fapps');
   assert.match(html, /data-testid="sso-connect-new"/);
   assert.doesNotMatch(html, /data-testid="wallet-options"|data-testid="ain-wallet-signin"/);
+});
+
+
+test('unreviewed legacy account status cannot expose a connect button', () => {
+  const html = render(SigningPage, [...signedOut.filter(f => f.name !== 'ssoStatus'), { name: 'ssoStatus', value: { configured: true, pending: { name: 'Fixture', next: '/apps' }, legacyGoogle: { email: 'old@example.test' } } }], '/signing?sso=connect');
+  assert.match(html, /Could not verify the accounts to connect/);
+  assert.doesNotMatch(html, /data-testid="sso-connect-new"|data-testid="sso-connect-legacy"|data-testid="wallet-options"/);
+});
+
+test('ambiguous account connection offers a read-only check and explicit sign-in restart, never another connect', () => {
+  for (const busy of [false, true]) {
+    const html = render(() => createElement(ConnectionRecovery, { next: '/apps?q=selected#result', busy, onCheck() {} }), signedOut);
+    assert.match(html, /data-testid="sso-connect-check"/);
+    assert.doesNotMatch(html, /data-testid="sso-connect-new"|data-testid="sso-connect-legacy"/);
+    if (busy) { assert.match(html, /disabled=""/); assert.doesNotMatch(html, /data-testid="sso-connect-restart"/); }
+    else assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fapps%3Fq%3Dselected%23result"/);
+  }
 });

@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery, useSsoConnectMutation, useSsoStatusQuery } from '@/api/api';
 import { ainWalletLoginProof } from '@/lib/ainWalletLogin';
 import { completeWalletLogin, walletLoginProof, WalletLoginError, type WalletProof } from '@/lib/walletLogin';
+import { connectReviewedAccount, connectionSessionMatches, readConnectionReview, SsoConnectionError, type ConnectionChoice, type SsoConnectionReview } from '@/lib/ssoConnection';
 import { createNodeActionTask } from '@/lib/accountNodeActions';
 import { useActiveView } from '@/hooks/useActiveView';
 import type { AinftWallet } from '@/lib/ainftRegistration';
@@ -26,11 +27,6 @@ const WalletOptions = styled.details`
 `;
 const StyledLink = styled(Link)`color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { border-bottom: 1px solid #8b3eeb; }`;
 const Outbound = styled.a`color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { border-bottom: 1px solid #8b3eeb; }`;
-const ConfirmButton = styled.button`
-  width: 196px; height: 44px; margin-top: 32px; border: 0; border-radius: 4px; background: ${(p) => p.theme.color.PRIMARY}; color: #fff;
-  font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.2s ease;
-  &:hover { background: ${(p) => p.theme.color.HOVER}; } &:disabled { background: ${(p) => p.theme.color.PRESSED}; cursor: not-allowed; }
-`;
 const Hint = styled.p`
   margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; word-break: keep-all; overflow-wrap: anywhere;
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; background: #f4f4f5; border-radius: 3px; padding: 1px 5px; color: ${(p) => p.theme.color.BLACK}; }
@@ -147,9 +143,11 @@ function SigningView() {
    */
   const ssoError = params.get('sso_error');
   const connecting = params.get('sso') === 'connect';
-  const { data: ssoStatus, isLoading: ssoLoading, isError: ssoUnavailable, refetch: refetchSso } = useSsoStatusQuery();
+  const { data: ssoStatus, isLoading: ssoLoading, isError: ssoUnavailable, refetch: refetchSso } = useSsoStatusQuery(undefined, { refetchOnMountOrArgChange: true });
   const [ssoConnect, ssoConnectState] = useSsoConnectMutation();
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [connectionAttempt, setConnectionAttempt] = useState<{ review: SsoConnectionReview; choice: ConnectionChoice; node: string } | null>(null);
+  const connectionReview = connectionAttempt?.review ?? readConnectionReview(ssoStatus?.connectionReview);
   const pending = connecting ? ssoStatus?.pending ?? null : null;
   const direct = directSignIn({
     loading: auth.loading || ssoLoading || busy || task.pending() || !!localError, signedIn: auth.isSignedIn,
@@ -173,20 +171,38 @@ function SigningView() {
     if (redirectKind === 'return') navigate(redirectHref, { replace: true });
     else window.location.replace(redirectHref);
   }, [redirectHref, redirectKind, navigate]);
-  const finishConnect = async (choice: 'legacy' | 'new') => {
-    await task.run(() => active() && !latest.current.signingOut, async current => {
+  const finishConnect = async (choice: ConnectionChoice) => {
+    const review = connectionReview, node = auth.address;
+    if (!review || !node || connectionAttempt) return;
+    await task.run(() => active() && !latest.current.signingOut && latest.current.address === node, async current => {
       setConnectError(null); setBusy(true);
       try {
-        const r = await ssoConnect({ choice }).unwrap();
-        if (!current()) return null;
-        await auth.refresh();
-        if (current()) navigate(safeReturnPath(r.next, next), { replace: true });
+        const done = await connectReviewedAccount(review, choice, node, {
+          current, read: () => refetchSso().unwrap(), session: () => refetchMe().unwrap(),
+          attempting: () => setConnectionAttempt({ review, choice, node }), refused: () => setConnectionAttempt(null),
+          write: (selection, expected) => ssoConnect({ choice: selection, expected }).unwrap(),
+        });
+        if (done && current()) navigate(review.next, { replace: true });
       } catch (e) {
         if (!current()) return null;
         const body = (e as { data?: { message?: string; error?: string } } | null)?.data;
-        setConnectError(body?.message ?? body?.error ?? errorMessage(e));
-        void refetchSso();
+        setConnectError(e instanceof SsoConnectionError ? t(`op.sign.sso.connect.${e.code}`) : body?.message ?? body?.error ?? errorMessage(e));
       } finally { if (active()) setBusy(false); }
+      return null;
+    });
+  };
+  const checkConnection = async () => {
+    if (!connectionAttempt) return;
+    const { review, choice, node } = connectionAttempt;
+    await task.run(() => active() && !latest.current.signingOut && latest.current.address === node, async current => {
+      setBusy(true);
+      try {
+        const result = await refetchMe().unwrap();
+        if (!current()) return null;
+        if (connectionSessionMatches(result, review, choice, node)) navigate(review.next, { replace: true });
+        else setConnectError(t('op.sign.sso.connect.unconfirmed'));
+      } catch { if (current()) setConnectError(t('op.sign.sso.connect.unconfirmed')); }
+      finally { if (active()) setBusy(false); }
       return null;
     });
   };
@@ -203,7 +219,7 @@ function SigningView() {
   };
 
   const runWallet = async (scheme: 'ain' | 'eip191', prove: (current: () => boolean) => Promise<WalletProof | null>) => {
-    if (ssoConnectState.isLoading || pending || unconfirmed) return;
+    if (ssoConnectState.isLoading || pending || connectionAttempt || unconfirmed) return;
     const node = auth.address, identity = auth.cacheIdentity;
     const currentView = () => active() && !latest.current.signingOut && latest.current.address === node;
     const currentProof = () => currentView() && latest.current.cacheIdentity === identity;
@@ -262,30 +278,33 @@ function SigningView() {
         if (task.pending() && e.target instanceof Element && e.target.closest('a')) e.preventDefault();
       }}>
         {ssoUnavailable && <Alert $tone="error" role="alert">{t('op.sign.options_failed')} <Button size="small" onClick={() => void refetchSso()}>{t('op.sign.options_retry')}</Button></Alert>}
-        {auth.isSignedIn && !pending && !auth.subject && <Button variant="contained" onClick={() => navigate(next, { replace: true })} disabled={busy || !!setupToken} data-testid="signin-continue">{t('op.sign.continue')}</Button>}
+        {auth.isSignedIn && !pending && !connectionAttempt && !auth.subject && <Button variant="contained" onClick={() => navigate(next, { replace: true })} disabled={busy || !!setupToken} data-testid="signin-continue">{t('op.sign.continue')}</Button>}
         {/* The AIN sign-in waiting to be finished: connect the old account, or not. */}
-        {connecting && pending && (
+        {connecting && (pending || connectionAttempt) && (
           <ConnectPanel data-testid="sso-connect">
             <ConnectTitle>{t('op.sign.sso.connect.title')}</ConnectTitle>
-            <Hint style={{ marginTop: 0 }}>{t('op.sign.sso.connect.lede', { who: pending.email ?? pending.name ?? 'AIN' })}</Hint>
-            {ssoStatus?.legacyGoogle && (
-              <ConfirmButton type="button" style={{ marginTop: 0, width: 'auto', padding: '0 16px' }} disabled={busy || ssoConnectState.isLoading} onClick={() => void finishConnect('legacy')} data-testid="sso-connect-legacy">
-                {ssoConnectState.isLoading ? t('op.sign.sso.connect.busy') : t('op.sign.sso.connect.legacy', { email: ssoStatus.legacyGoogle.email })}
-              </ConfirmButton>
-            )}
-            {!ssoStatus?.legacyGoogle && ssoStatus?.legacyGoogleAvailable && (
-              <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(connectAgain)}`} data-testid="sso-connect-google">
+            <Hint style={{ marginTop: 0 }}>{t('op.sign.sso.connect.lede', { who: connectionReview?.email ?? connectionReview?.name ?? pending?.email ?? pending?.name ?? 'AIN' })}</Hint>
+            {!connectionReview && <Alert $tone="info" role="status">{t('op.sign.sso.connect.unavailable')}</Alert>}
+            {!auth.address && <Hint role="status">{t('op.sign.sso.connect.node_unavailable')}</Hint>}
+            {connectionReview && !connectionAttempt && <>
+              {connectionReview.legacy && <WalletButton type="button" disabled={busy || !auth.address} onClick={() => void finishConnect('legacy')} data-testid="sso-connect-legacy">
+                {t('op.sign.sso.connect.legacy', { email: connectionReview.legacy.email })}
+              </WalletButton>}
+              {!connectionReview.legacy && ssoStatus?.legacyGoogleAvailable && <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(connectAgain)}`} data-testid="sso-connect-google">
                 <GoogleMark />{t('op.sign.sso.connect.google_first')}
-              </GoogleButton>
-            )}
-            <WalletButton type="button" disabled={busy || ssoConnectState.isLoading} onClick={() => void finishConnect('new')} data-testid="sso-connect-new">{t('op.sign.sso.connect.new')}</WalletButton>
+              </GoogleButton>}
+              <WalletButton type="button" disabled={busy || !auth.address} onClick={() => void finishConnect('new')} data-testid="sso-connect-new">{t('op.sign.sso.connect.new')}</WalletButton>
+            </>}
+            {connectionAttempt ? <ConnectionRecovery next={connectionAttempt.review.next} busy={busy} onCheck={() => void checkConnection()} />
+              : <Button variant="text" disabled={busy || ssoLoading} onClick={() => { void refetchSso(); void refetchMe(); }}>{t('op.sign.sso.connect.refresh')}</Button>}
+            {busy && <Hint role="status">{t('op.sign.sso.connect.busy')}</Hint>}
             {connectError && <Alert $tone="error" role="alert">{connectError}</Alert>}
           </ConnectPanel>
         )}
-        {connecting && ssoStatus && !pending && <Alert $tone="info" role="status" style={{ marginTop: 24 }}>{t('op.sign.sso.connect.expired')}</Alert>}
+        {connecting && ssoStatus && !pending && !connectionAttempt && <Alert $tone="info" role="status" style={{ marginTop: 24 }}>{t('op.sign.sso.connect.expired')}</Alert>}
 
         {/* The shared AIN account is the primary sign-in when this server offers it. */}
-        {auth.ssoConfigured && !auth.sso && !pending && !setupToken && (
+        {auth.ssoConfigured && !auth.sso && !pending && !connectionAttempt && !setupToken && (
           <>
             <SsoButton href={`/api/auth/sso/start?next=${encodeURIComponent(googleNext)}`} data-testid="sso-signin" style={{ marginTop: 0 }}>
               {t('op.sign.sso.button')}
@@ -299,7 +318,7 @@ function SigningView() {
         )}
         {/* Once this site's own Google sign-in is switched off (LEGACY_LOGIN=false), the Google door goes through AIN SSO,
             straight to Google (ain_idp=google): the same account as everywhere else, not a separate one here. */}
-        {auth.ssoConfigured && ssoStatus?.legacyLogin === 'false' && !auth.sso && !pending && !setupToken && (
+        {auth.ssoConfigured && ssoStatus?.legacyLogin === 'false' && !auth.sso && !pending && !connectionAttempt && !setupToken && (
           <GoogleButton href={`/api/auth/sso/start?idp=google&next=${encodeURIComponent(googleNext)}`} data-testid="sso-google" style={{ marginTop: 16 }}>
             <GoogleMark />{t('op.sign.sso.google')}
           </GoogleButton>
@@ -309,7 +328,7 @@ function SigningView() {
 
         {/* Google is a separate door into this app, not into the node: a full-page redirect, because the consent
             screen is Google's page and cannot be fetched. Offered only when this server holds the credentials. */}
-        {auth.googleConfigured && !auth.google && !pending && !setupToken && (
+        {auth.googleConfigured && !auth.google && !pending && !connectionAttempt && !setupToken && (
           <>
             <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(googleNext)}`} data-testid="google-signin" style={{ marginTop: 0 }}>
               <GoogleMark />{t('op.sign.google.button')}
@@ -319,7 +338,7 @@ function SigningView() {
         {auth.google && <Alert $tone="info" role="status" data-testid="google-signed-in" style={{ marginTop: 24 }}>{t('op.sign.google.signed_in', { email: auth.google.email })}</Alert>}
         {googleError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.google.err', { reason: googleError })}</Alert>}
 
-        {!pending && <WalletOptions open={params.get('wallet') === '1' || !!setupToken || !!me?.canEnroll || (!auth.ssoConfigured && !auth.googleConfigured)} data-testid="wallet-options">
+        {!pending && !connectionAttempt && <WalletOptions open={params.get('wallet') === '1' || !!setupToken || !!me?.canEnroll || (!auth.ssoConfigured && !auth.googleConfigured)} data-testid="wallet-options">
           <summary>{t(enrollMode ? 'op.sign.key.enroll' : auth.isSignedIn ? 'op.sign.wallet.connect_option' : 'op.sign.wallet.option')}</summary>
           {setupToken && <Alert $tone="info" role="status" style={{ marginTop: 12 }}>{t('op.sign.enroll_invite')}</Alert>}
           {enrollMode && <Hint>{t('op.sign.enroll.node', { node: auth.address ?? '—' })}</Hint>}
@@ -364,4 +383,12 @@ export function WalletChoices({ wallets, enroll, busy, onNative, onWallet }: {
       {wallet.info.icon && <img src={wallet.info.icon} alt="" />}{label(wallet.info.name)}
     </WalletButton>)}
   </WalletList>;
+}
+
+export function ConnectionRecovery({ next, busy, onCheck }: { next: string; busy: boolean; onCheck: () => void }) {
+  const { t } = useT();
+  return <>
+    <Button disabled={busy} onClick={onCheck} data-testid="sso-connect-check">{t('op.sign.sso.connect.check')}</Button>
+    {!busy && <Outbound href={`/api/auth/sso/start?next=${encodeURIComponent(safeReturnPath(next))}`} data-testid="sso-connect-restart">{t('op.sign.sso.connect.restart')}</Outbound>}
+  </>;
 }
