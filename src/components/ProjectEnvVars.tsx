@@ -6,7 +6,8 @@
  * ready or failed.
  *
  * A member without the write role sees the names ainize.json declares (the node refuses them the list); anyone else
- * sees nothing — the node answers them 404.
+ * sees nothing — the node answers them 404. A name a connected managed store sets (the list's `managed`) is greyed:
+ * the store's value wins at deploy, so the row says so and links to the Storage tab instead of offering Edit.
  */
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
@@ -32,7 +33,7 @@ const Section = styled.section`
 `;
 const Help = styled.p`margin: 0; font-size: 13px; color: #666; overflow-wrap: anywhere;`;
 const List = styled.ul`list-style: none; margin: 0; padding: 0; border-top: 1px solid #eee;`;
-const Item = styled.li`border-bottom: 1px solid #eee; padding: 10px 0; display: flex; flex-direction: column; gap: 8px;`;
+const Item = styled.li<{ $muted?: boolean }>`border-bottom: 1px solid #eee; padding: 10px 0; display: flex; flex-direction: column; gap: 8px; ${(p) => (p.$muted ? 'opacity: .6;' : '')}`;
 const ItemHead = styled.div`display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; min-height: 36px; font-size: 14px;`;
 const Name = styled(Mono)`font-weight: 600; overflow-wrap: anywhere; word-break: break-all; min-width: 0;`;
 const Masked = styled.span`font-family: ${(p) => p.theme.font.mono}; color: #999; letter-spacing: 2px;`;
@@ -92,6 +93,39 @@ export function DeployWatch({ queued, onOpen }: { queued: Queued; onOpen?: (depl
       </Actions>
       {d?.error && <Help>{d.error}</Help>}
     </Alert>
+  );
+}
+
+/**
+ * A name a connected store sets: greyed, no Edit — the store's value is what the app gets. A secret of the same name
+ * that is still set is shadowed; it can be removed (the node refuses only a PUT, `managed_by_store`).
+ */
+function ManagedItem({ row, project, redeploy, onSaved, onStorage }: { row: EnvRow; project: Project; redeploy: boolean; onSaved: (q: Queued | null) => void; onStorage?: () => void }) {
+  const { t } = useT();
+  const [del, deleting] = useDeleteProjectSecretMutation();
+  const [err, setErr] = useState<string | null>(null);
+  const remove = async () => {
+    if (!window.confirm(t('projects.env.remove_confirm', { name: row.name }))) return;
+    setErr(null);
+    try { const r = await del({ id: project.id, name: row.name, redeploy }).unwrap(); onSaved(r.redeploy); }
+    catch (e) { setErr(errorText(t, e)); }
+  };
+  return (
+    <Item $muted data-testid={`env-managed-${row.name}`}>
+      <ItemHead>
+        <Name>{row.name}</Name>
+        <Badge $tone="muted">{t('projects.env.managed')}</Badge>
+        {row.set && <Masked aria-label={t('projects.env.hidden_value')}>••••••</Masked>}
+        {row.declared && <Meta>{t('projects.env.declared')}</Meta>}
+        <Spacer />
+        <Actions>
+          {onStorage && <Button size="small" variant="text" onClick={onStorage}>{t('storage.title')}</Button>}
+          {row.set && <Button size="small" color="secondary" loading={deleting.isLoading} onClick={remove}>{t('projects.env.remove')}</Button>}
+        </Actions>
+      </ItemHead>
+      <Help>{t('storage.env.shadowed', { name: row.name })}</Help>
+      {err && <Alert $tone="error">{err}</Alert>}
+    </Item>
   );
 }
 
@@ -252,7 +286,7 @@ export function useProjectEnv(project: Project) {
   return { q, access: envAccessOf({ skip, isLoading: q.isLoading, data: q.data, error: q.error }) };
 }
 
-export default function ProjectEnvVars({ project, onOpenDeployment }: { project: Project; onOpenDeployment?: (deploymentId: string) => void }) {
+export default function ProjectEnvVars({ project, onOpenDeployment, onOpenStorage }: { project: Project; onOpenDeployment?: (deploymentId: string) => void; onOpenStorage?: () => void }) {
   const { t } = useT();
   const { q, access } = useProjectEnv(project);
   const kind = project.kind ?? project.manifest?.kind ?? null;
@@ -305,7 +339,7 @@ export default function ProjectEnvVars({ project, onOpenDeployment }: { project:
         <>
           {rows.length === 0 ? <Help>{t('projects.env.empty')}</Help> : (
             <List aria-label={t('projects.env.title')}>
-              {rows.map((r) => <EnvItem key={r.name} row={r} project={project} redeploy={redeploy} onSaved={onSaved} />)}
+              {rows.map((r) => (r.managed ? <ManagedItem key={r.name} row={r} project={project} redeploy={redeploy} onSaved={onSaved} onStorage={onOpenStorage} /> : <EnvItem key={r.name} row={r} project={project} redeploy={redeploy} onSaved={onSaved} />))}
             </List>
           )}
           <AddForm project={project} existing={existing} redeploy={redeploy} onSaved={onSaved} />

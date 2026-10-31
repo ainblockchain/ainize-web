@@ -27,6 +27,10 @@
         "title": "ainize.json reference"
       },
       {
+        "page": "how-to/managed-storage",
+        "title": "Give a project a database and file storage"
+      },
+      {
         "page": "how-to/run-scripts-on-a-schedule",
         "title": "Run scripts on a schedule"
       }

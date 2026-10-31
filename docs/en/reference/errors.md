@@ -166,9 +166,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 201 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 239 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 112 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 118 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -181,14 +181,16 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | \<AGENT_GIT_SPEC_FILE> is not valid JSON: … | `src/agent-git.ts`, `src/project-agents.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> sets …, which the node owns — remove … | `src/project-agents.ts` |
 | `null` | \<d> already belongs to the organization "\<holder.id>" | `src/organization-store.ts` |
-| `null` | \<e.message> — an admin of organization … must create the service account for (ainize, \<project.id>) with chainApps for the paths it writes: POST /api/chain/orgs/…/service-accounts { app: "ainize", projectId: "\<project.id>", role, chainApps } at AIN SSO, or `cli chain:service-account --org <slug> --app ainize --project <project.id> --role member --chain-apps <app>` | `src/projects.ts` |
+| `null` | \<e.message> — an admin of the project's organization must create its service account for (ainize, \<project.id>) with chainApps for the paths it writes: POST /api/chain/orgs/\<orgId>/service-accounts { app: "ainize", projectId: "\<project.id>", role, chainApps } at AIN SSO, or `cli chain:service-account --org <slug> --app ainize --project <project.id> --role member --chain-apps <app>` | `src/projects.ts` |
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "media" is for a service project, not \<kind> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "release" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "storage" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "triggers" is for a script project, not \<kind> — a \<kind> project is deployed by a push, not run | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "websocket" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
@@ -208,10 +210,12 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | \<rel> is not a regular file | `src/hosted-qa-engine.ts` |
 | `null` | a file path is required | `src/hosted-qa-engine.ts` |
 | `null` | a run session needs at least one declared write path | `src/run-session.ts` |
+| `null` | a run session needs the project's AIN SSO organization — this project belongs to none | `src/run-session.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
 | `null` | AIN JSON-RPC answered \<res.status> | `src/ain-chain.ts` |
 | `null` | AIN JSON-RPC error: … | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC refused \<type> \<ref>: … | `src/ain-chain.ts` |
 | `null` | AIN JSON-RPC refused: … | `src/ain-chain.ts` |
 | `null` | AIN JSON-RPC unreachable: … | `src/ain-chain.ts` |
 | `null` | AIN SSO answered the delegation request with a malformed reused flag | `src/run-session.ts` |
@@ -234,6 +238,7 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | AIN SSO's delegation is unreadable: … | `src/run-session.ts` |
 | `null` | AIN SSO's delegation names resources the trigger did not declare | `src/run-session.ts` |
 | `null` | AIN SSO's delegation outlives the run | `src/run-session.ts` |
+| `null` | aindrive_error | `src/project-storage-aindrive.ts`, `src/project-storage-backups.ts` |
 | `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | an alias is 1–40 lower-case letters, digits and hyphens, starting with a letter or digit | `src/agent-aliases.ts` |
@@ -241,7 +246,6 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | an organization may have \<perOrg> projects on this node | `src/projects.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
-| `null` | as: app needs the project's AIN SSO organization (its service account acts for the run) — this project belongs to none | `src/run-session.ts` |
 | `null` | as: caller needs the verified signer of the triggering transaction | `src/run-session.ts` |
 | `null` | as: caller needs the verified triggering transaction hash | `src/run-session.ts` |
 | `null` | at most 64 write paths per run | `src/run-session.ts` |
@@ -251,7 +255,9 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | content is larger than 1 MiB | `src/hosted-qa-engine.ts` |
 | `null` | content must be a string | `src/hosted-qa-engine.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
+| `null` | functions are installed only under /apps/\<app>/ | `src/ain-chain.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
+| `null` | http_\<res.status> | `src/project-storage-s3.ts` |
 | `null` | invalid agent source path | `src/agent-git.ts` |
 | `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
@@ -276,6 +282,7 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | path refused: … is a symbolic link | `src/hosted-qa-engine.ts` |
 | `null` | path refused: \<raw> (paths are relative to the repository root; .., .git, .env files and absolute paths outside the repository are not allowed) | `src/hosted-qa-engine.ts` |
 | `null` | pattern is required | `src/hosted-qa-engine.ts` |
+| `null` | project \<projectId> already connects "\<binding>" | `src/project-storage.ts` |
 | `null` | repository id already exists | `src/agent-git.ts` |
 | `null` | repository objects must not be symlinks | `src/agent-git.ts` |
 | `null` | repository storage limit exceeded (\<bytes> > \<this.storageLimitBytes> bytes); export history or ask the operator to raise the limit | `src/agent-git.ts` |
@@ -288,6 +295,9 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
 | `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
 | `null` | the image backend answered \<up.status> | `src/peer-models.ts` |
+| `null` | the organization already has a store named "\<name>" | `src/project-storage.ts` |
+| `null` | the organization's key \<address> may not set functions at \<path> — it is not an app this organization owns | `src/ain-chain.ts` |
+| `null` | the store's directory is held by another node (…, … min ago) — a second node on one NFS export would corrupt it | `src/project-storage-docker.ts` |
 | `null` | the transaction was not accepted: … | `src/ain-chain.ts` |
 | `null` | the transcription backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | this node holds its maximum of \<this.limits.total> organizations | `src/organization-store.ts` |
@@ -300,12 +310,14 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `null` | this repository is not a valid agent: … | `src/project-agents.ts` |
 | `null` | this session is read-only | `src/hosted-qa-engine.ts` |
 | `null` | this tree is not a valid agent: … | `src/agent-git.ts` |
+| `null` | too_large_for_drive | `src/project-storage-aindrive.ts` |
 | `400` | \<address> is listed in operatorAddresses in this node's config file — remove it there, on the machine this node runs on (`ainize operators remove <address>`), and restart | `src/api.ts` |
 | `400` | \<label> must be a non-negative number (e.g. "0", "0.1", "25") | `../ainize-core/src/catalog.ts` |
 | `400` | a dispute has to say what did not work — at least \<DISPUTE_MIN_REASON> characters (this is a permanent public record, and the seller answers it on the same record) | `src/market.ts` |
 | `400` | answering a dispute needs the settle_hash of the sale it is about | `src/market.ts` |
 | `400` | at most \<MAX_CHAT_PATCHES> knowledges can be loaded together | `src/market.ts` |
 | `400` | at most \<MAX_CONTRIBUTORS> contributors per patch | `../ainize-core/src/catalog.ts` |
+| `400` | confirm_mismatch | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
 | `400` | contributor must be an object | `../ainize-core/src/catalog.ts` |
 | `400` | contributor shares add up to more than 1 | `../ainize-core/src/catalog.ts` |
 | `400` | contributor.address must be an AIN address (0x + 40 hex) | `../ainize-core/src/catalog.ts` |
@@ -315,11 +327,14 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `400` | contributor.sig must be a string | `../ainize-core/src/catalog.ts` |
 | `400` | contributor.signer must be an AIN address | `../ainize-core/src/catalog.ts` |
 | `400` | contributors must be an array | `../ainize-core/src/catalog.ts` |
+| `400` | drive_unauthorized | `src/project-storage-backups.ts` |
 | `400` | duplicate contributor address: \<c.address> | `../ainize-core/src/catalog.ts` |
 | `400` | invalid_actor | `src/run-actor.ts` |
-| `400` | invalid_request | `src/server.ts` |
+| `400` | invalid_prefix | `src/project-storage-manager.ts` |
+| `400` | invalid_request | `src/project-storage-backups.ts`, `src/project-storage-manager.ts`, `src/server.ts` |
 | `400` | model_not_served | `src/server.ts` |
 | `400` | node address required | `src/api.ts` |
+| `400` | not_blob | `src/project-storage-manager.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
 | `400` | this is the node's own key: it owns what this node published, and revoking it would only stop the node acting for itself | `src/api.ts` |
 | `400` | unsupported contributor proof: … | `../ainize-core/src/catalog.ts` |
@@ -345,26 +360,49 @@ A further 112 throw sites build their message at the time (a validator's own wor
 | `403` | only the owner of \<name> (\<b.owner>) can archive it | `src/market.ts` |
 | `403` | only the owner of \<name> (\<b.owner>) can set what it costs | `src/market.ts` |
 | `403` | prove possession of the node key before requesting a node link | `src/api.ts` |
+| `403` | storage_not_allowed | `src/project-storage-manager.ts` |
 | `403` | this payout is owed to a different address | `src/payouts.ts` |
 | `404` | \<address> does not own this node | `src/api.ts` |
 | `404` | \<delegate> does not act as you | `src/api.ts` |
+| `404` | backup_not_found | `src/project-storage-backups.ts` |
+| `404` | not_attached | `src/project-storage-manager.ts` |
+| `404` | not_found | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
 | `404` | patch not found | `src/api.ts` |
 | `404` | payout \<id> not found | `src/payouts.ts` |
 | `409` | \<name> is curated by \<b.owner>, not by this node | `src/api.ts` |
 | `409` | \<name> is free to follow: it has no curation fee | `src/api.ts` |
 | `409` | active_version_missing | `src/agent-archive-restore.ts` |
+| `409` | backup_running | `src/project-storage-backups.ts` |
+| `409` | binding_taken | `src/project-storage-manager.ts` |
+| `409` | cross_org | `src/project-storage-manager.ts` |
 | `409` | id_taken | `src/agent-archive-restore.ts` |
+| `409` | kind_mismatch | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
+| `409` | name_taken | `src/project-storage-manager.ts` |
 | `409` | node link was revoked or replaced | `src/api.ts` |
 | `409` | not sold here; gateway is … | `src/api.ts` |
+| `409` | nothing_to_undo | `src/project-storage-backups.ts` |
 | `409` | patch body not present on this node | `src/api.ts` |
 | `409` | payout \<id> is already paid (\<row.tx_hash>) | `src/payouts.ts` |
+| `409` | prefix_taken | `src/project-storage-manager.ts` |
+| `409` | safety_backup_failed | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
 | `409` | state_exists | `src/agent-archive-restore.ts` |
+| `409` | store_attached | `src/project-storage-manager.ts` |
+| `409` | store_busy | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
+| `409` | store_not_ready | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
+| `409` | store_owned_elsewhere | `src/project-storage-manager.ts` |
 | `409` | this payout was already sent (\<row.tx_hash>) | `src/payouts.ts` |
+| `409` | too_many_attachments | `src/project-storage-manager.ts` |
+| `409` | too_many_stores | `src/project-storage-manager.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
+| `422` | checksum_mismatch | `src/project-storage-backups.ts` |
+| `422` | extension_not_offered | `src/project-storage-backups.ts` |
+| `422` | invalid_dump | `src/project-storage-backups.ts` |
 | `423` | patch not listed yet (verification \<e.passed>/\<e.quorum>) | `src/api.ts` |
 | `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
+| `500` | credentials_missing | `src/project-storage-manager.ts` |
 | `501` | docker_unavailable | `src/server.ts` |
+| `502` | aindrive_error | `src/project-storage-backups.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
 | `502` | restore_cleanup_failed | `src/agent-archive-restore.ts` |
 | `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |

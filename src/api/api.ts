@@ -2,6 +2,12 @@ import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibl
 import type { AppDomain, AppDomainsResponse } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
 import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
+import {
+  backupTargetUrl, orgStoresUrl, parseAttachResult, parseBackups, parseDetachResult, parseObjects, parseProjectStorage, parseQueryResult, parseRestoreResult, parseRevealed, parseRotateResult, parseRows, parseStore,
+  parseStoreDetail, parseStoreLogs, parseStores, parseTables, projectStorageUrl, storeObjectsUrl, storeRowsUrl, storeUrl,
+  type AttachResult, type BackupSchedule, type DetachResult, type OrgStoresResponse, type ProjectStorageResponse, type QueryResult, type RestoreResult, type RevealedEnv, type RotateResult, type Store, type StoreBackupsResponse,
+  type StoreDetail, type StoreEngine, type StoreKind, type StoreLogs, type StoreObjects, type StoreRows, type StoreTablesResponse,
+} from './projectStorage';
 /**
  * RTK Query API slice — the modern replacement for ainize-web's redux-saga + fetch managers.
  * One endpoint per node API route; tags give cache invalidation after operator actions.
@@ -70,6 +76,8 @@ const toQuery = (params: Record<string, unknown>) => {
   return s ? `?${s}` : '';
 };
 
+/** The one organization's store list (`orgStores`) — not the bare 'Org' tag, which would refetch every organization query. */
+const orgStoresTags = (orgId: string | null) => (orgId ? [{ type: 'Org' as const, id: `${orgId}/stores` }] : []);
 type TeacherScope = { teacherIdentity: string };
 type TeacherResource = TeacherScope & { id: string };
 const teacherRead = (url: string, teacherIdentity: string) => ({ url, headers: { [SIGN_MARKER]: teacherIdentity } });
@@ -83,7 +91,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org', 'Project'],
+  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org', 'Project', 'Store'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -217,6 +225,81 @@ export const api = createApi({
     deleteProjectSecret: b.mutation<SecretRemoved, { id: string; name: string; redeploy?: boolean }>({
       query: ({ id, name, redeploy }) => secretDeleteRequest(id, name, redeploy), transformResponse: parseSecretRemoved,
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
+    }),
+    /**
+     * Managed storage (src/api/projectStorage.ts): the organization's stores, a project's connections to them, the
+     * data browser, backups and restores. Every answer is read through its parser; a node without storage answers 503
+     * `storage_off`, a node from before storage 404 — `storageAccessOf` tells them apart. Writes that `redeploy`
+     * also refresh the project (its env changed) and its secrets list (the `managed` names).
+     */
+    projectStorage: b.query<ProjectStorageResponse, string>({ query: (id) => projectStorageUrl(id), transformResponse: parseProjectStorage, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/storage` }] }),
+    orgStores: b.query<OrgStoresResponse, string>({ query: (orgId) => orgStoresUrl(orgId), transformResponse: parseStores, providesTags: (_r, _e, orgId) => [{ type: 'Org', id: `${orgId}/stores` }] }),
+    createStore: b.mutation<Store | null, { orgId: string; name: string; kind: StoreKind; engine?: StoreEngine; resources?: { memory?: string; cpus?: number }; extensions?: string[]; backups?: { schedule?: BackupSchedule; hour?: number; retainDays?: number; retainCount?: number } }>({
+      query: ({ orgId, ...body }) => ({ url: orgStoresUrl(orgId), method: 'POST', body }), transformResponse: parseStore,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.orgId}/stores` }],
+    }),
+    store: b.query<StoreDetail | null, string>({ query: (sid) => storeUrl(sid), transformResponse: parseStoreDetail, providesTags: (_r, _e, sid) => [{ type: 'Store', id: sid }] }),
+    updateStore: b.mutation<Store | null, { sid: string; orgId: string; name?: string; backups?: { schedule?: BackupSchedule; hour?: number; retainDays?: number; retainCount?: number }; resources?: { memory?: string; cpus?: number } }>({
+      query: ({ sid, orgId: _o, ...body }) => ({ url: storeUrl(sid), method: 'PATCH', body }),
+      transformResponse: (raw: unknown) => parseStore((raw as { store?: unknown } | null)?.store ?? raw),
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Store', id: `${a.sid}/backups` }, { type: 'Org', id: `${a.orgId}/stores` }],
+    }),
+    storeAction: b.mutation<Store | null, { sid: string; orgId: string; action: 'start' | 'stop' | 'recreate' }>({
+      query: ({ sid, action }) => ({ url: storeUrl(sid, action), method: 'POST' }), transformResponse: parseStore,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Org', id: `${a.orgId}/stores` }],
+    }),
+    deleteStore: b.mutation<{ deleting: boolean; backupId?: string }, { sid: string; orgId: string; confirm: string; skipFinalBackup?: boolean }>({
+      query: ({ sid, confirm, skipFinalBackup }) => ({ url: storeUrl(sid), method: 'DELETE', body: { confirm, ...(skipFinalBackup ? { skipFinalBackup } : {}) } }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Org', id: `${a.orgId}/stores` }],
+    }),
+    connectStore: b.mutation<AttachResult, { sid: string; projectId: string; /** the store's organization: only its store list is refetched */ orgId: string | null; binding?: string; envPrefix?: string; database?: string; redeploy?: boolean }>({
+      query: ({ sid, redeploy, orgId: _o, ...body }) => ({ url: `${storeUrl(sid, 'attachments')}${redeploy ? '?redeploy=1' : ''}`, method: 'POST', body }), transformResponse: parseAttachResult,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Project', id: `${a.projectId}/storage` }, { type: 'Project', id: `${a.projectId}/secrets` }, ...orgStoresTags(a.orgId), ...(a.redeploy ? [{ type: 'Project' as const, id: a.projectId }] : [])],
+    }),
+    disconnectStore: b.mutation<DetachResult, { sid: string; projectId: string; orgId: string | null; redeploy?: boolean }>({
+      query: ({ sid, projectId, redeploy }) => ({ url: `${storeUrl(sid, `attachments/${encodeURIComponent(projectId)}`)}${redeploy ? '?redeploy=1' : ''}`, method: 'DELETE' }), transformResponse: parseDetachResult,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Project', id: `${a.projectId}/storage` }, { type: 'Project', id: `${a.projectId}/secrets` }, ...orgStoresTags(a.orgId), ...(a.redeploy ? [{ type: 'Project' as const, id: a.projectId }] : [])],
+    }),
+    /**
+     * A mutation on purpose: every reveal is logged by the node and the values must never sit in the query cache.
+     * A mutation's answer still sits in `state.api.mutations` until it is reset — callers go through `unwrapUncached`.
+     */
+    revealStoreEnv: b.mutation<RevealedEnv, { sid: string; projectId?: string }>({
+      query: ({ sid, projectId }) => ({ url: storeUrl(sid, 'reveal'), method: 'POST', body: projectId ? { projectId } : {} }), transformResponse: parseRevealed,
+    }),
+    rotateStore: b.mutation<RotateResult, { sid: string; all?: boolean; projectIds?: string[] }>({
+      query: ({ sid, all }) => ({ url: `${storeUrl(sid, 'rotate')}${all ? '?all=1' : ''}`, method: 'POST' }), transformResponse: parseRotateResult,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, ...(a.projectIds ?? []).flatMap((id) => [{ type: 'Project' as const, id }, { type: 'Project' as const, id: `${id}/storage` }])],
+    }),
+    storeTables: b.query<StoreTablesResponse, { sid: string; database?: string }>({ query: ({ sid, database }) => `${storeUrl(sid, 'tables')}${database ? `?database=${encodeURIComponent(database)}` : ''}`, transformResponse: parseTables, keepUnusedDataFor: 0 }),
+    storeRows: b.query<StoreRows, { sid: string; schema: string; table: string; database?: string; limit?: number; offset?: number; order?: string; dir?: 'asc' | 'desc' }>({
+      query: ({ sid, schema, table, ...q }) => storeRowsUrl(sid, schema, table, q), transformResponse: parseRows, keepUnusedDataFor: 0,
+    }),
+    /** A mutation on purpose: a query is a request a person makes, not state to cache. */
+    storeQuery: b.mutation<QueryResult, { sid: string; sql: string; database?: string }>({
+      query: ({ sid, sql, database }) => ({ url: storeUrl(sid, 'query'), method: 'POST', body: { sql, ...(database ? { database } : {}) } }), transformResponse: parseQueryResult,
+    }),
+    storeObjects: b.query<StoreObjects, { sid: string; prefix?: string; after?: string; limit?: number }>({ query: ({ sid, ...q }) => storeObjectsUrl(sid, q), transformResponse: parseObjects, keepUnusedDataFor: 0 }),
+    storeBackups: b.query<StoreBackupsResponse, string>({ query: (sid) => storeUrl(sid, 'backups'), transformResponse: parseBackups, providesTags: (_r, _e, sid) => [{ type: 'Store', id: `${sid}/backups` }] }),
+    runStoreBackup: b.mutation<{ backupId: string | null; running: boolean }, string>({
+      query: (sid) => ({ url: storeUrl(sid, 'backups'), method: 'POST' }), invalidatesTags: (_r, _e, sid) => [{ type: 'Store', id: `${sid}/backups` }, { type: 'Store', id: sid }],
+    }),
+    deleteStoreBackup: b.mutation<{ ok: boolean }, { sid: string; backupId: string }>({
+      query: ({ sid, backupId }) => ({ url: storeUrl(sid, `backups/${encodeURIComponent(backupId)}`), method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: `${a.sid}/backups` }, { type: 'Store', id: a.sid }],
+    }),
+    restoreStore: b.mutation<RestoreResult | null, { sid: string; orgId: string; source: { backupId: string } | { path: string }; mode: 'in-place' | 'new'; confirm: string; newName?: string; database?: string }>({
+      query: ({ sid, orgId: _o, ...body }) => ({ url: storeUrl(sid, 'restore'), method: 'POST', body }), transformResponse: parseRestoreResult,
+      invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }, { type: 'Store', id: `${a.sid}/backups` }, { type: 'Org', id: `${a.orgId}/stores` }],
+    }),
+    undoRestore: b.mutation<RestoreResult | null, { sid: string }>({
+      query: ({ sid }) => ({ url: storeUrl(sid, 'restore/undo'), method: 'POST' }), transformResponse: parseRestoreResult, invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }],
+    }),
+    storeLogs: b.query<StoreLogs, { sid: string; tail: number }>({ query: ({ sid, tail }) => `${storeUrl(sid, 'logs')}?tail=${Math.max(1, Math.min(1000, Math.floor(tail)))}`, transformResponse: parseStoreLogs, keepUnusedDataFor: 0 }),
+    setOrgBackupTarget: b.mutation<{ driveId: string; verifiedAt: number }, { orgId: string; driveId: string; token: string }>({
+      query: ({ orgId, driveId, token }) => ({ url: backupTargetUrl(orgId), method: 'PUT', body: { driveId, token } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.orgId}/stores` }],
+    }),
+    clearOrgBackupTarget: b.mutation<{ ok: boolean }, { orgId: string }>({
+      query: ({ orgId }) => ({ url: backupTargetUrl(orgId), method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.orgId}/stores` }],
     }),
     /** The running service's own stdout/stderr, on the node or its deployment peer (src/api/runtimeLogs.ts). Owner/members only. */
     projectRuntimeLogs: b.query<RuntimeLogs, { id: string; tail: number }>({ query: ({ id, tail }) => runtimeLogsUrl(id, tail), transformResponse: parseRuntimeLogs, keepUnusedDataFor: 0 }),
@@ -678,6 +761,9 @@ export const {
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
   useProjectTriggersQuery, useEnableTriggerMutation, useDisableTriggerMutation, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery, useInstallTriggerAinRuleMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
+  useProjectStorageQuery, useOrgStoresQuery, useCreateStoreMutation, useStoreQuery, useUpdateStoreMutation, useStoreActionMutation, useDeleteStoreMutation, useConnectStoreMutation, useDisconnectStoreMutation,
+  useRevealStoreEnvMutation, useRotateStoreMutation, useStoreTablesQuery, useStoreRowsQuery, useStoreQueryMutation, useStoreObjectsQuery, useStoreBackupsQuery, useRunStoreBackupMutation, useDeleteStoreBackupMutation,
+  useRestoreStoreMutation, useUndoRestoreMutation, useStoreLogsQuery, useSetOrgBackupTargetMutation, useClearOrgBackupTargetMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
