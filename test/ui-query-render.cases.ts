@@ -82,6 +82,8 @@ import type { Deployment, Project } from '../src/api/projects';
 import { SignOutNotice } from '../src/components/ui/SignOutNotice';
 import { Header } from '../src/components/ui/Header';
 import MyPage from '../src/screens/MyPage';
+import ModelsPage from '../src/screens/ModelsPage';
+import ModelDetailPage from '../src/screens/ModelDetailPage';
 import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel';
 import { CopyButton, SelectBox } from '../src/components/ui/Misc';
 import { CodeBlock as DocsCodeBlock } from '../src/components/docs/CodeBlock';
@@ -2569,4 +2571,91 @@ test('an unresolved cancellation can be checked or retried as cancellation, neve
   const Page = () => createElement(KeyCreationNotice, { action }), html = render(Page, appAccount, '/me');
   assert.match(html, /Check status|Cancel if unissued/);
   assert.doesNotMatch(html, /Retry same request|Done — close record/);
+});
+
+const catalogPeer = '0x' + 'b'.repeat(40);
+const catalogOwn = { id: 'selected-model', modality: 'chat', available: true };
+const catalogRows = [
+  { ...catalogOwn, ref: `selected-model@${keyNode}`, node: { address: keyNode, name: 'Local node' }, local: true },
+  { ...catalogOwn, ref: `selected-model@${catalogPeer}`, node: { address: catalogPeer, name: 'Selected peer' }, local: false },
+];
+const modelCatalogFixtures: Fixture[] = [
+  ...signedOut, { name: 'models', value: { data: [catalogOwn] } }, { name: 'networkModels', value: { data: catalogRows } },
+  { name: 'modelDetail', arg: catalogOwn.id, value: { ...catalogOwn, agents: 0 } },
+  { name: 'agentsByModel', arg: catalogOwn.id, value: { agents: [] } },
+];
+
+test('model lists show errors and retry for malformed responses instead of configuration tips or an empty catalogue', () => {
+  const bad = render(ModelsPage, modelCatalogFixtures.map(f => ['models', 'networkModels'].includes(f.name) ? { ...f, value: {} } : f), '/models');
+  assert.match(bad, /models-list-incomplete|Retry now/);
+  assert.doesNotMatch(bad, /No models to display|backends|model-card-selected-model/);
+  const empty = render(ModelsPage, modelCatalogFixtures.map(f => ['models', 'networkModels'].includes(f.name) ? { ...f, value: { data: [] } } : f), '/models');
+  assert.match(empty, /No models to display/); assert.doesNotMatch(empty, /models-list-incomplete/);
+});
+
+test('model list refresh errors do not render cached providers as currently answering', () => {
+  const failed = render(ModelsPage, modelCatalogFixtures.map(f => f.name === 'networkModels' ? { ...f, status: 'rejected' as const } : f), '/models');
+  assert.match(failed, /models-list-incomplete/); assert.doesNotMatch(failed, /Selected peer/);
+  assert.match(failed, /node=local/); assert.match(failed, /model-card-selected-model/);
+});
+
+test('provider-specific model pages cannot fall back after the selected provider disappears or its list fails', () => {
+  for (const network of [{ value: { data: [catalogRows[0]] } }, { status: 'rejected' as const, value: { data: catalogRows } }, { value: {} }]) {
+    const html = render(ModelDetailPage, modelCatalogFixtures.map(f => f.name === 'networkModels' ? { ...f, ...network } : f),
+      `/models/selected-model?node=${catalogPeer}&modality=chat`, '/models/:id');
+    assert.match(html, /model-detail-provider_missing/); assert.match(html, /Retry now/);
+    assert.doesNotMatch(html, /data-testid="models-run"|model-create-agent/);
+  }
+});
+
+test('a chosen peer uses its own availability and reference even when a local model has the same name', () => {
+  const html = render(ModelDetailPage, modelCatalogFixtures.map(f => f.name === 'models' ? { ...f, value: { data: [{ ...catalogOwn, available: false }] } }
+    : f.name === 'modelDetail' ? { ...f, value: { ...catalogOwn, available: false, agents: 0 } } : f),
+    `/models/selected-model?node=${catalogPeer}&modality=chat`, '/models/:id');
+  assert.match(html, /advertised by provider/); assert.match(html, /data-testid="models-run"/);
+  assert.ok(html.includes(`selected-model@${catalogPeer}`));
+  assert.doesNotMatch(html, /model-create-agent|This model’s backend is not answering/);
+});
+
+test('unsupported model types and incomplete search results never claim no models exist', () => {
+  const future = render(ModelsPage, modelCatalogFixtures.map(f => f.name === 'models' ? { ...f, value: { data: [{ id: 'future', modality: 'video' }] } }
+    : f.name === 'networkModels' ? { ...f, value: { data: [] } } : f), '/models');
+  assert.match(future, /not supported by this screen/); assert.doesNotMatch(future, /No models to display/);
+  const failed = render(ModelsPage, modelCatalogFixtures.map(f => f.name === 'networkModels' ? { ...f, status: 'rejected' as const } : f), '/models?q=missing');
+  assert.match(failed, /models-list-incomplete/); assert.doesNotMatch(failed, /No model matches/);
+});
+
+test('an ambiguous model name requires an explicit type instead of choosing the first matching entry', () => {
+  const html = render(ModelDetailPage, modelCatalogFixtures.map(f => f.name === 'networkModels' ? { ...f, value: { data: [catalogRows[1], { ...catalogRows[1], modality: 'image' }] } } : f),
+    `/models/selected-model?node=${catalogPeer}`, '/models/:id');
+  assert.match(html, /model-detail-ambiguous/); assert.doesNotMatch(html, /data-testid="models-run"/);
+});
+
+test('an unresolved or unavailable target does not enable Run while preserving its input', () => {
+  for (const ready of [false, true]) {
+    const Page = () => createElement(ModelPlaygroundPanel, { model: { ...catalogOwn, available: !ready }, signInNext: '/models/selected-model', targetReady: ready, confirmTarget: async () => {} });
+    const html = render(Page, signedOut, '/models/selected-model');
+    assert.match(html, /Hello! Introduce yourself in one sentence/);
+    assert.match(html, /<button(?=[^>]*data-testid="models-run")(?=[^>]*disabled)[^>]*>/);
+  }
+});
+
+test('an older model response with no availability probe is unknown, not a confirmed outage or a runnable model', () => {
+  const fixtures = modelCatalogFixtures.map(f => f.name === 'models' ? { ...f, value: { data: [{ id: catalogOwn.id, modality: 'chat' }] } }
+    : f.name === 'modelDetail' ? { ...f, value: { id: catalogOwn.id, modality: 'chat', agents: 0 } }
+    : f.name === 'networkModels' ? { ...f, value: { data: [] } } : f);
+  const html = render(ModelDetailPage, fixtures, '/models/selected-model?node=local&modality=chat', '/models/:id');
+  assert.match(html, /availability unknown/); assert.doesNotMatch(html, /backend is not answering/);
+  assert.match(html, /<button(?=[^>]*data-testid="models-run")(?=[^>]*disabled)[^>]*>/);
+});
+
+test('the AinCode link describes opening a workspace without claiming it selects this model', () => {
+  const id = 'DeepSeek-V4.1-Flash-1017';
+  const fixtures = modelCatalogFixtures.map(f => f.name === 'models' ? { ...f, value: { data: [{ ...catalogOwn, id }] } }
+    : f.name === 'modelDetail' ? { ...f, arg: id, value: { ...catalogOwn, id, agents: 0 } }
+    : f.name === 'networkModels' ? { ...f, value: { data: [] } } : f.name === 'agentsByModel' ? { ...f, arg: id } : f);
+  const html = render(ModelDetailPage, fixtures, `/models/${id}?node=local&modality=chat`, '/models/:id');
+  assert.match(html, /Go to an AinCode workspace/); assert.match(html, /does not carry this page/);
+  assert.match(html, /href="\/code\/"[^>]*data-testid="model-harness-open"|data-testid="model-harness-open"[^>]*href="\/code\/"/);
+  assert.doesNotMatch(html, /Every AinCode workspace|default model/);
 });

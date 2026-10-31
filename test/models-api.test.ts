@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseModelsResponse, modelsByModality, modelsFetchState } from '../src/api/models';
+import { parseModelsResponse, modelsByModality, modelsFetchState, readModelsResponse, modelDetailViewState } from '../src/api/models';
 
 test('embedding and speech models remain visible in their own groups', () => {
   const cards = parseModelsResponse({ data: [
@@ -39,7 +39,7 @@ test('an empty list is a node that serves nothing, not a failure', () => {
   assert.deepEqual(parseModelsResponse({ object: 'list', data: [] }), []);
 });
 
-test('a malformed answer is an empty list rather than a crash', () => {
+test('array-only legacy consumers fail closed on malformed answers', () => {
   assert.deepEqual(parseModelsResponse(null), []);
   assert.deepEqual(parseModelsResponse(undefined), []);
   assert.deepEqual(parseModelsResponse({ data: 'nonsense' }), []);
@@ -112,4 +112,21 @@ test('any other error is a node that is not answering', () => {
 
 test('no error at all is a node that answered', () => {
   assert.equal(modelsFetchState(undefined), 'ok');
+});
+
+test('list evidence separates valid empty lists, unsupported types and corrupt or ambiguous entries', () => {
+  assert.deepEqual(readModelsResponse({ data: [] }), { models: [], unsupported: 0 });
+  assert.deepEqual(readModelsResponse({ data: [{ id: 'future', modality: 'video', available: true }] }), { models: [], unsupported: 1 });
+  const model = { id: 'chosen', modality: 'chat', available: true };
+  for (const value of [null, {}, { data: [null] }, { data: [model, model] }, { data: [{ ...model, available: 'true' }] }]) assert.equal(readModelsResponse(value), null);
+});
+
+test('detail failures cannot reuse stale successful data or claim a malformed list proves absence', () => {
+  const model = { id: 'chosen', modality: 'chat', available: true };
+  const base = { id: 'chosen', detail: model, detailError: undefined, detailLoading: false, list: { data: [model] }, listError: undefined, listLoading: false };
+  assert.equal(modelDetailViewState({ ...base, detailError: { status: 503 } }).kind, 'offline');
+  assert.equal(modelDetailViewState({ ...base, detail: { ...model, id: 'wrong' } }).kind, 'invalid');
+  assert.equal(modelDetailViewState({ ...base, detailError: { status: 404 }, list: {} }).kind, 'invalid');
+  assert.equal(modelDetailViewState({ ...base, detailError: { status: 404 }, listError: { status: 503 } }).kind, 'offline');
+  assert.equal(modelsFetchState({ status: 'PARSING_ERROR', originalStatus: 200 }), 'invalid');
 });

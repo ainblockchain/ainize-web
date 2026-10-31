@@ -93,7 +93,7 @@ export const api = createApi({
      * What this node serves over the LLM API. Public, unlike `/v1/models`, because the page asking has no
      * visitor to authenticate — see `src/api/models.ts` for how a newer or older node's answer is read.
      */
-    models: b.query<unknown, void>({ query: () => 'api/models' }),
+    models: b.query<unknown, void>({ query: () => ({ url: 'api/models', timeout: 15_000, cache: 'no-store' }) }),
     /**
      * What speed a caller can expect from a chat model now, and after depositing `amount` of `token` (the billing
      * page, `/billing`). Public; `you` is filled from the wallet site-session cookie. Returned as `unknown` and read
@@ -108,7 +108,7 @@ export const api = createApi({
       query: ({ txHash, chain }) => `api/throughput/deposits/${encodeURIComponent(txHash)}${toQuery({ chain })}`,
     }),
     // Every model the node can reach, its own and its peers' (ainize-node peer-models.ts). An older node answers 404.
-    networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),
+    networkModels: b.query<unknown, void>({ query: () => ({ url: 'api/network/models', timeout: 15_000, cache: 'no-store' }) }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
     // These cache arguments distinguish viewers; authorization still comes only from the session cookie.
     apiKeys: b.query<unknown, string>({
@@ -162,7 +162,7 @@ export const api = createApi({
      * that trusted the declared type would render an older node's answer as blanks instead of saying what is missing.
      */
     /** One model: `{ id, modality, available, agents }`, 404 when this node does not serve it. */
-    modelDetail: b.query<unknown, string>({ query: (id) => `api/models/${encodeURIComponent(id)}`, providesTags: ['Agents'] }),
+    modelDetail: b.query<unknown, string>({ query: (id) => ({ url: `api/models/${encodeURIComponent(id)}`, timeout: 15_000, cache: 'no-store' }), providesTags: ['Agents'] }),
     /** The agents built on one model. An older node ignores `?model=`, so the page filters again (`agentsBuiltOnModel`). */
     agentsByModel: b.query<AgentsResponse, string>({ query: (model) => `api/agents${toQuery({ model })}`, providesTags: ['Agents'] }),
     /** The signed-in person's own hosted agents (summaries). */

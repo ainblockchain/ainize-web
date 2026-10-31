@@ -56,6 +56,12 @@ not the key secret, and belongs to that account and node in this browser.
 A program that already holds a wallet — an agent that also sends transactions — can pass `private_key=` instead
 and be issued a key automatically. That is the exception, not the quickstart.
 
+Model links retain the selected provider and model type. A peer being advertised is not a successful health
+check. Before **Run**, the page rechecks that the selected provider still offers that exact model/type; it
+does not substitute another node if the provider disappears. A failed or malformed catalogue is shown as
+unavailable information, not an empty network. Models with an unknown availability probe cannot run locally.
+The AinCode workspace link opens the workspace only; it does not pass the selected model/provider into AinCode.
+
 ## Chat
 
 Select a chat model returned by this node. The public deployment serves `Qwen3.8-Flash-Next`.

@@ -14,12 +14,13 @@ import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { useModelsQuery, useNetworkModelsQuery } from '@/api/api';
-import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse } from '@/api/networkModels';
-import { MODEL_MODALITIES, modelsFetchState, parseModelsResponse } from '@/api/models';
+import { networkModelCatalogue, networkModelHref, networkProviderLabel, readNetworkModelsResponse } from '@/api/networkModels';
+import { MODEL_MODALITIES, modelsFetchState, readModelsResponse } from '@/api/models';
 import { Button } from '@/components/ui/Button';
-import { CardGrid, CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, SectionTitle } from '@/components/ui/Misc';
+import { CardGrid, CenterProgress, Description, Empty, PageWrapper, SubTitle, SectionTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { useAuth } from '@/auth/AuthContext';
 import { docsFromModels, matchingSearchIds } from '@/lib/globalSearch';
 
 /** huggingface.co's card grid (Misc.CardGrid), the same columns every listing steps through. */
@@ -35,7 +36,7 @@ const ModelsPageCard = styled(Link)<{ $available: boolean }>`
 `;
 
 const CardId = styled.div`font-weight: 600; font-size: 14px; word-break: break-all;`;
-const CardMeta = styled.div`margin-top: 6px; font-size: 12px; color: #6b7280;`;
+const CardMeta = styled.div`margin-top: 6px; font-size: 12px; color: #6b7280; overflow-wrap: anywhere;`;
 const Dot = styled.span<{ $up: boolean }>`
   display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px;
   background: ${(p) => (p.$up ? '#1ea672' : '#c2c6cf')};
@@ -43,51 +44,48 @@ const Dot = styled.span<{ $up: boolean }>`
 
 export default function ModelsPage() {
   const { t } = useT();
+  const { address } = useAuth();
   useTitle(t('models.title'));
   /** `?q=` is how the header's search hands over its query ("See all models"); the box here edits the same text. */
   const [params] = useSearchParams();
   const q = params.get('q') ?? '';
-  const { data, isLoading, isFetching, error, refetch } = useModelsQuery(undefined, { pollingInterval: 15_000, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
+  const { currentData: data, isLoading, isFetching, error, refetch } = useModelsQuery(undefined, { pollingInterval: 15_000, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   const fetchState = modelsFetchState(error as { status?: number | string; originalStatus?: number } | undefined);
-  const cards = useMemo(() => parseModelsResponse(data), [data]);
+  const ownRead = useMemo(() => error ? null : readModelsResponse(data), [data, error]);
   // The network's models, not only this node's: every node that joined brings its own (api/networkModels.ts).
   const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000, skipPollingIfUnfocused: true, refetchOnFocus: true, refetchOnReconnect: true });
-  const catalogue = useMemo(() => networkModelCatalogue(cards, parseNetworkModelsResponse(network.data)), [cards, network.data]);
+  const networkRead = useMemo(() => network.isError ? null : readNetworkModelsResponse(network.currentData, address), [network.currentData, network.isError, address]);
+  const catalogue = useMemo(() => networkModelCatalogue(ownRead?.models ?? [], networkRead?.models ?? [], address), [ownRead, networkRead, address]);
+  const networkState = modelsFetchState(network.error as never);
+  const pending = isLoading || network.isLoading;
+  const invalid = (!isLoading && !error && !ownRead) || (!network.isLoading && !network.isError && !networkRead) || fetchState === 'invalid' || networkState === 'invalid';
+  const incomplete = invalid || fetchState === 'offline' || networkState === 'offline';
+  const unsupported = (ownRead?.unsupported ?? 0) + (networkRead?.unsupported ?? 0);
+  const complete = (!!ownRead && (!!networkRead || networkState === 'outdated')) || (!!networkRead && fetchState === 'outdated');
+  const empty = !pending && !incomplete && complete && !catalogue.length && !unsupported;
+  const retry = () => { void refetch(); void network.refetch(); };
   const needle = q.trim().toLowerCase();
   const matchingIds = useMemo(() => matchingSearchIds(docsFromModels(catalogue), q), [catalogue, q]);
   const groups = useMemo(() => MODEL_MODALITIES
     .map((modality) => ({ modality, models: catalogue.filter((m) => m.modality === modality && matchingIds.has(m.id)) }))
     .filter((g) => g.models.length > 0), [catalogue, matchingIds]);
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (pending && !catalogue.length) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   return (
     <PageWrapper>
       <SectionTitle>{t('nav.models')}</SectionTitle>
       {q && <Description>{t('search.query', { q })}</Description>}
-      {needle && catalogue.length > 0 && !groups.length && <Empty>{t('models.search_none', { q: q.trim() })}</Empty>}
+      {!pending && !incomplete && needle && catalogue.length > 0 && !groups.length && <Empty>{t('models.search_none', { q: q.trim() })}</Empty>}
 
-      {/* The two states production is in when its node is down. Neither pretends to be a model list. */}
-      {fetchState === 'offline' && (
-        <Empty>
-          <SubTitle>{t('models.offline.title')}</SubTitle>
-          <Description>{t('models.offline.body')}</Description>
-          <Button type="button" disabled={isFetching} onClick={() => { void refetch(); void network.refetch(); }}>{t('models.offline.retry')}</Button>
-        </Empty>
-      )}
-      {fetchState === 'outdated' && (
-        <Empty>
-          <SubTitle>{t('models.outdated.title')}</SubTitle>
-          <Description>{t('models.outdated.body')}</Description>
-        </Empty>
-      )}
-      {fetchState === 'ok' && catalogue.length === 0 && (
-        <Empty>
-          <SubTitle>{t('models.empty.title')}</SubTitle>
-          <Description>{t('models.empty.body')}</Description>
-          <Mono>{'"backends": [{ "id": "llm", "modality": "chat", "upstream": "http://127.0.0.1:8000", "models": ["…"] }]'}</Mono>
-        </Empty>
-      )}
+      {pending && <Description role="status">{t('models.list.loading')}</Description>}
+      {incomplete && <Empty data-testid="models-list-incomplete" role="alert">
+        <Description>{t(invalid ? 'models.list.invalid' : 'models.list.incomplete')}</Description>
+        <Button type="button" disabled={isFetching || network.isFetching} onClick={retry}>{t('models.offline.retry')}</Button>
+      </Empty>}
+      {!pending && !incomplete && fetchState === 'outdated' && !networkRead && <Empty>{t('models.outdated.title')}</Empty>}
+      {!!unsupported && <Description role="status">{t('models.list.unsupported')}</Description>}
+      {empty && <Empty data-testid="models-list-empty">{t('models.empty.title')}</Empty>}
 
       {groups.map((group) => (
         <div key={group.modality}>
@@ -98,12 +96,12 @@ export default function ModelsPage() {
               return (
                 <ModelsPageCard
                   key={model.id}
-                  to={`/models/${encodeURIComponent(model.id)}`}
+                  to={networkModelHref(model)}
                   data-testid={`model-card-${model.id}`}
                   $available={available}
                 >
                   <CardId>{model.id}</CardId>
-                  <CardMeta><Dot $up={available} />{t(available ? 'models.available' : 'models.unavailable')}</CardMeta>
+                  <CardMeta><Dot $up={available} />{t(!available ? model.providers.every(p => p.availabilityKnown === false) ? 'models.status_unknown' : 'models.unavailable' : model.providers.some(p => p.local && p.available) ? 'models.available' : 'models.advertised')}</CardMeta>
                   {/* Which nodes serve it — the same id on two nodes is two models, and this is where that shows. */}
                   {model.providers.some((p) => p.node.address) && (
                     <CardMeta data-testid={`model-card-providers-${model.id}`}>

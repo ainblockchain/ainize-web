@@ -2,13 +2,24 @@
 import type { Dict } from '../index';
 
 export const models: Dict = {
+  'models.advertised': { ko: '제공 노드에 등록됨', en: 'advertised by provider' },
+  'models.status_unknown': { ko: '제공 상태 미확인', en: 'availability unknown' },
+  'models.list.loading': { ko: '다른 제공 노드의 목록을 확인 중입니다.', en: 'Checking the remaining providers.' },
+  'models.list.invalid': { ko: '모델 목록의 형식을 확인하지 못했습니다.', en: 'The model list could not be verified.' },
+  'models.list.incomplete': { ko: '일부 모델 목록을 불러오지 못했습니다. 확인된 항목만 표시합니다.', en: 'Some model lists could not be loaded. Only verified entries are shown.' },
+  'models.list.unsupported': { ko: '이 화면이 아직 지원하지 않는 유형의 모델도 있습니다.', en: 'Some listed model types are not supported by this screen yet.' },
+  'modelDetail.provider_missing.title': { ko: '선택한 제공 노드를 확인할 수 없습니다', en: 'The selected provider could not be confirmed' },
+  'modelDetail.provider_missing.body': { ko: '목록을 다시 확인하거나 모델 목록에서 제공 노드를 선택하세요. 다른 노드로 자동 전환하지 않습니다.', en: 'Refresh or choose a provider from the model list. This page will not switch to another provider automatically.' },
+  'modelDetail.ambiguous.title': { ko: '모델 유형을 선택해 주세요', en: 'Choose the model type' },
+  'modelDetail.ambiguous.body': { ko: '같은 이름으로 여러 유형의 모델이 등록되어 있습니다. 모델 목록에서 원하는 항목을 선택하세요.', en: 'This name is used for multiple model types. Choose the intended entry from the model list.' },
+  'models.try.error.target_changed': { ko: '제공 상태가 바뀌어 응답 대기를 중단했습니다. 이미 전송한 요청은 서버에서 처리 중일 수 있습니다.', en: 'Stopped waiting because provider availability changed. A request already sent may still be processing.' },
   'models.served_by': { ko: '제공 노드: {nodes}', en: 'Served by {nodes}' },
   'modelDetail.providers': { ko: '제공 노드', en: 'Served by' },
   'modelDetail.provider_here': { ko: '이 노드', en: 'this node' },
   'modelDetail.harness.title': { ko: '하네스', en: 'Harness' },
   'modelDetail.harness.lede': {
-    ko: '이 모델은 {name}에 맞춰 최적화되었습니다. ainize.ai/code의 모든 AinCode 워크스페이스에 {name}가 들어 있고, 네트워크의 이 모델(온프렘)에 연결되어 있습니다. AinCode 에이전트의 기본 모델도 이 모델입니다.',
-    en: 'This model is optimized for {name}. Every AinCode workspace on ainize.ai/code ships {name}, connected to this model on the network (on-prem). It is also the AinCode agent’s default model.',
+    ko: '{name}의 참고 설정입니다. 아래 링크는 AinCode 작업 공간으로 이동하며, 이 화면의 모델·제공 노드 선택을 전달하지 않습니다.',
+    en: 'Reference settings for {name}. The link below opens an AinCode workspace; it does not carry this page’s model or provider selection.',
   },
   'modelDetail.harness.fact.harness': { ko: '하네스', en: 'Harness' },
   'modelDetail.harness.fact.sampling': { ko: '샘플링', en: 'Sampling' },
@@ -16,7 +27,7 @@ export const models: Dict = {
   'modelDetail.harness.fact.context': { ko: '컨텍스트', en: 'Context' },
   'modelDetail.harness.reasoning_value': { ko: '{effort} (선택: {efforts})', en: '{effort} ({efforts} accepted)' },
   'modelDetail.harness.context_value': { ko: '{context} 토큰 · {compact}에서 자동 압축', en: '{context} tokens · auto-compacts at {compact}' },
-  'modelDetail.harness.open': { ko: 'AinCode에서 열기', en: 'Open in AinCode' },
+  'modelDetail.harness.open': { ko: 'AinCode 작업 공간으로 이동', en: 'Go to an AinCode workspace' },
   'modelDetail.harness.howto': {
     ko: '워크스페이스 터미널에서 실행하면 하네스 웹 UI가 비공개 미리보기 링크로 열립니다. 한 번만 실행하려면:',
     en: 'Run it in the workspace terminal to open the harness Web UI at a private preview link. For one headless task:',
@@ -41,7 +52,7 @@ export const models: Dict = {
   'models.select': { ko: '선택', en: 'Select' },
   'models.selected': { ko: '선택됨', en: 'Selected' },
 
-  'models.empty.title': { ko: '아직 네트워크에서 제공되는 모델이 없습니다', en: 'No node on the network serves a model yet' },
+  'models.empty.title': { ko: '표시할 모델이 없습니다', en: 'No models to display' },
   'models.empty.body': {
     ko: '노드 운영자가 자기 노드의 config.json에 backends 블록을 넣고 네트워크에 연결하면 여기에 나타납니다. 노드는 설정된 것만 알리고 무엇이 떠 있는지 추측하지 않으므로, 이 목록은 비어 있을 수 있습니다.',
     en: 'A model appears here once a node operator adds a backends block to their node\'s config.json and connects it to the network. Nodes advertise what was configured rather than guessing what happens to be running, so this list can be empty.',
@@ -68,7 +79,7 @@ export const models: Dict = {
   'models.try.error.stream_model': { ko: '응답의 모델이 선택한 모델과 다릅니다.', en: 'The response names a different model from the one selected.' },
   'models.try.error.request_failed': { ko: '서버가 요청을 완료하지 못했습니다.', en: 'The server did not complete the request.' },
   'models.try.error.key_unavailable': { ko: '키가 현재 사용 가능한지 확인하지 못해 실행하지 않았습니다. 키 목록을 다시 확인해 주세요.', en: 'The call was not sent because this key could not be confirmed as usable. Reload your key list.' },
-  'models.try.error.model_unavailable': { ko: '선택한 모델이 지금 응답하지 않습니다.', en: 'The selected model is not responding right now.' },
+  'models.try.error.model_unavailable': { ko: '선택한 모델의 제공 상태를 확인하지 못했습니다. 목록을 다시 확인해 주세요.', en: 'The selected model’s availability could not be confirmed. Refresh the model list.' },
   'models.try.error.cancelled': { ko: '응답 대기를 중단했습니다. 서버 처리가 이미 시작됐을 수 있습니다.', en: 'Stopped waiting for the response. Server processing may already have started.' },
   'models.try.error.response': { ko: '유효한 실행 결과를 확인하지 못했습니다.', en: 'Could not verify a valid result.' },
   'models.try.title': { ko: '눌러보기', en: 'Try it' },

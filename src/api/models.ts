@@ -8,8 +8,7 @@
  *     than an absent one, and a newer node may serve something this page has never heard of.
  *   • `available` defaults to **false**, not true. An older node that does not send the field must not have its
  *     models drawn as ready — a button that does nothing is a worse answer than a label saying so.
- *   • A malformed answer is an empty list. The empty state is already written, and it is the honest thing to
- *     render when we cannot understand what came back.
+ *   • A malformed answer is unknown, not an empty catalogue. Unknown future modalities are counted separately.
  */
 
 export type ModelModality = 'chat' | 'transcription' | 'image' | 'decision' | 'embedding' | 'speech' | 'music';
@@ -18,6 +17,8 @@ export interface PublicModelCard {
   id: string;
   modality: ModelModality;
   available: boolean;
+  /** Older nodes may omit the probe; false availability then means unknown, not a failed health check. */
+  availabilityKnown?: boolean;
 }
 
 /** The order the page shows them in — and the only modalities it knows how to drive. */
@@ -26,19 +27,27 @@ export const MODEL_MODALITIES: readonly ModelModality[] = ['chat', 'transcriptio
 const isModality = (value: unknown): value is ModelModality =>
   typeof value === 'string' && (MODEL_MODALITIES as readonly string[]).includes(value);
 
-export function parseModelsResponse(raw: unknown): PublicModelCard[] {
+export function readModelsResponse(raw: unknown): { models: PublicModelCard[]; unsupported: number } | null {
   const data = (raw as { data?: unknown } | null | undefined)?.data;
-  if (!Array.isArray(data)) return [];
+  if (!Array.isArray(data)) return null;
   const cards: PublicModelCard[] = [];
+  const seen = new Set<string>();
+  let unsupported = 0;
   for (const entry of data) {
-    if (!entry || typeof entry !== 'object') continue;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
     const { id, modality, available } = entry as { id?: unknown; modality?: unknown; available?: unknown };
-    if (typeof id !== 'string' || !id) continue;
-    if (!isModality(modality)) continue;
-    cards.push({ id, modality, available: available === true });
+    if (typeof id !== 'string' || !id.trim() || id !== id.trim() || typeof modality !== 'string' || !modality
+      || (available !== undefined && typeof available !== 'boolean')) return null;
+    const identity = JSON.stringify([id, modality]);
+    if (seen.has(identity)) return null;
+    seen.add(identity);
+    if (!isModality(modality)) { unsupported++; continue; }
+    cards.push({ id, modality, available: available === true, ...(available === undefined ? { availabilityKnown: false } : {}) });
   }
-  return cards;
+  return { models: cards, unsupported };
 }
+/** Array-only compatibility for consumers that have not migrated to an explicit read state. */
+export const parseModelsResponse = (raw: unknown): PublicModelCard[] => readModelsResponse(raw)?.models ?? [];
 
 export interface ModelGroup {
   modality: ModelModality;
@@ -57,7 +66,7 @@ export function modelsByModality(cards: PublicModelCard[]): ModelGroup[] {
 }
 
 /** What the fetch told us about the node, beyond whether it worked. */
-export type ModelsFetchState = 'ok' | 'outdated' | 'offline';
+export type ModelsFetchState = 'ok' | 'outdated' | 'offline' | 'invalid';
 
 /**
  * Tell a node that is down from one that is merely older than this page.
@@ -71,6 +80,7 @@ export function modelsFetchState(error: { status?: number | string; originalStat
   // Express answers an unknown route with an HTML page, so RTK Query cannot parse it as JSON and moves the real
   // code to `originalStatus`. Reading only `status` reported a live node on an older build as unreachable.
   const code = typeof error.status === 'number' ? error.status : error.originalStatus;
+  if (code !== undefined && code >= 200 && code < 300) return 'invalid';
   return code === 404 ? 'outdated' : 'offline';
 }
 
@@ -86,7 +96,7 @@ export function parseModelDetailResponse(raw: unknown): PublicModelDetail | null
   const [card] = parseModelsResponse({ data: [raw] });
   if (!card) return null;
   const agents = (raw as { agents?: unknown }).agents;
-  return { ...card, agents: typeof agents === 'number' && agents >= 0 ? agents : null };
+  return { ...card, agents: typeof agents === 'number' && Number.isSafeInteger(agents) && agents >= 0 ? agents : null };
 }
 
 /** What the model page can say about the id in its URL. */
@@ -95,6 +105,7 @@ export type ModelDetailViewState =
   | { kind: 'ok'; model: PublicModelDetail }
   | { kind: 'not_served' }
   | { kind: 'outdated' }
+  | { kind: 'invalid' }
   | { kind: 'offline' };
 
 type RtkError = { status?: number | string; originalStatus?: number } | undefined | null;
@@ -112,16 +123,18 @@ export function modelDetailViewState(input: {
   detail: unknown; detailError: RtkError; detailLoading: boolean;
   list: unknown; listError: RtkError; listLoading: boolean;
 }): ModelDetailViewState {
-  const parsed = parseModelDetailResponse(input.detail);
+  const parsed = !input.detailError ? parseModelDetailResponse(input.detail) : null;
   if (parsed && parsed.id === input.id) return { kind: 'ok', model: parsed };
   if (input.detailLoading || input.listLoading) return { kind: 'loading' };
-  const fromList = parseModelsResponse(input.list).find((c) => c.id === input.id);
-  if (fromList) return { kind: 'ok', model: { ...fromList, agents: null } };
+  const listing = !input.listError ? readModelsResponse(input.list) : null;
+  const fromList = listing?.models.find((c) => c.id === input.id);
+  if (fromList && modelsFetchState(input.detailError) === 'outdated') return { kind: 'ok', model: { ...fromList, agents: null } };
   const listState = modelsFetchState(input.listError);
   if (listState === 'offline') return { kind: 'offline' };
-  if (!input.detailError) return { kind: 'not_served' };
+  if (!input.detailError) return { kind: 'invalid' };
   const detailState = modelsFetchState(input.detailError);
   if (detailState === 'offline') return { kind: 'offline' };
+  if (detailState === 'invalid' || listState === 'invalid' || (listState === 'ok' && !listing)) return { kind: 'invalid' };
   // The route answered 404 and the list does not carry the id. If the list is also missing, this is an old node.
   return listState === 'outdated' ? { kind: 'outdated' } : { kind: 'not_served' };
 }

@@ -96,12 +96,13 @@ type RunState =
  * `callModel` is what the calls and the snippet name: the bare id for this node's own model, `id@0x<node>` for a
  * peer's (api/networkModels.ts). `peer` turns off what is this node's alone — its speed and its deposits.
  */
-export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = false }: { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean }) {
+interface PlaygroundProps { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean; targetReady?: boolean; confirmTarget?: (current: () => boolean) => Promise<void> }
+export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = false, targetReady = false, confirmTarget }: PlaygroundProps) {
   const { cacheIdentity, address } = useAuth();
-  return <AccountModelPlayground key={JSON.stringify([cacheIdentity, address, model.id, model.modality, callModel, peer])} model={model} signInNext={signInNext} callModel={callModel} peer={peer} />;
+  return <AccountModelPlayground key={JSON.stringify([cacheIdentity, address, model.id, model.modality, callModel, peer])} model={model} signInNext={signInNext} callModel={callModel} peer={peer} targetReady={targetReady} confirmTarget={confirmTarget} />;
 }
 
-function AccountModelPlayground({ model, signInNext, callModel, peer = false }: { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean }) {
+function AccountModelPlayground({ model, signInNext, callModel, peer = false, targetReady, confirmTarget }: PlaygroundProps) {
   const modelRef = callModel ?? model.id;
   const { t } = useT();
   // Show the same initial sample that the code uses; clearing it is invalid rather than a silent fallback.
@@ -118,6 +119,13 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   const { google, sso, subject, isSignedIn: canHoldKeys, cacheIdentity } = auth;
   const [task] = useState(createPlaygroundTask);
   useEffect(() => () => task.cancel(), [task]);
+  useEffect(() => {
+    if (!model.available || !targetReady) {
+      task.cancel();
+      setRun(previous => previous.kind === 'running' || previous.kind === 'text' && previous.streaming
+        ? { kind: 'failed', why: t('models.try.error.target_changed'), ...(previous.kind === 'text' ? { text: previous.text, reasoning: previous.reasoning } : {}) } : previous);
+    }
+  }, [model.available, targetReady, task, t]);
   const current = () => active() && !auth.loading && !auth.signingOut && (!canHoldKeys || auth.isCurrentAccount());
   const signedIn = !!subject;
   const keyBusy = useRef(false);
@@ -164,13 +172,14 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   const changePrompt = (value: string) => { if (!task.busy()) { setPrompt(value); setRun({ kind: 'idle' }); } };
 
   async function press() {
-    if (!current() || task.busy() || !model.available || inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)) return;
+    if (!current() || task.busy() || !targetReady || !confirmTarget || !model.available || inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)) return;
     setRun({ kind: 'running' });
     try {
       await task.run(current, async (signal, live) => {
         if (needsKey && usableKey) {
           await confirmApiKeyForCall(usableKey, keyActor, () => keyQuery.refetch().unwrap(), () => live() && recallIssuedKey(keyContext) === usableKey);
         }
+        await confirmTarget(live);
         if (!live()) return;
         const res = await callPlayground({ model, modelRef, peer, prompt, audio, apiKey: usableKey }, signal);
         if (!live()) { await res.body?.cancel(); return; }
@@ -205,10 +214,11 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
 
   return (
     <>
-      {model.available && (
+      {(
         <>
           <SubTitle>{t('models.try.title')}</SubTitle>
           <Panel>
+            {!model.available && <Description role="status">{t(model.availabilityKnown === false ? 'models.status_unknown' : 'models.try.unavailable')}</Description>}
             {model.modality === 'transcription' ? (
               <input type="file" accept="audio/*" aria-label={t('models.try.audio')} disabled={busy} data-testid="models-audio" onChange={(e) => { setAudio(e.target.files?.[0] ?? null); setRun({ kind: 'idle' }); }} />
             ) : model.modality === 'decision' ? (
@@ -236,7 +246,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
               <Button
                 type="button"
                 data-testid="models-run"
-                disabled={auth.loading || busy || !!inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)}
+                disabled={auth.loading || !model.available || !targetReady || !confirmTarget || busy || !!inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)}
                 onClick={() => { void press(); }}
               >
                 {busy ? t('models.try.running') : t('models.try.run')}
