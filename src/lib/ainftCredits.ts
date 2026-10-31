@@ -2,7 +2,7 @@ import { AINFT_NETWORKS, AinftFactoryClient, stableJson, type AinftChain, type A
 
 /** Uses the dedicated wallet-authorized Factory read; legacy routes require an app-owner key. */
 export class AinftCreditClient {
-  constructor(private readonly chainId: AinftChain, private readonly wallet: AinftWallet, private readonly http: typeof fetch = (input, init) => fetch(input, init)) {}
+  constructor(private readonly chainId: AinftChain, private readonly wallet: AinftWallet, private readonly http: typeof fetch = (input, init) => fetch(input, init), private readonly isCurrent: () => boolean = () => true) {}
   async balance(address: string, appId: string, symbol: string, userId: string) {
     for (const value of [appId, symbol, userId]) {
       if (!value.trim() || value.trim() !== value || value.length > 128 || /[.#$\[\]/\u0000-\u001f\u007f]/.test(value)) throw new Error('Invalid Factory credit identity');
@@ -30,7 +30,7 @@ export class AinftCreditClient {
     for (const value of values) if (!value || value.trim() !== value || value.length > 128 || /[.#$\[\]/\u0000-\u001f\u007f]/.test(value) || ['__proto__', 'prototype', 'constructor'].includes(value)) throw new Error('Invalid Factory credit identity');
   }
   private async write(address: string, appId: string, symbol: string, agentId: string, userId: string, operation: 'purchase' | 'refund', input: Record<string, unknown>): Promise<unknown> {
-    const guard = new AinftFactoryClient(this.chainId, this.wallet, this.http);
+    const guard = new AinftFactoryClient(this.chainId, this.wallet, this.http, this.isCurrent);
     await guard.checkWallet(address);
     const path = `/credit/symbol/${encodeURIComponent(symbol)}/agent-benefits/${encodeURIComponent(agentId)}/${operation}/${encodeURIComponent(userId)}`;
     const body = { appId, walletAddress: address, ...input }, timestamp = Date.now();
@@ -46,7 +46,7 @@ export class AinftCreditClient {
     return envelope.data;
   }
   private async read(address: string, path: string, appId: string): Promise<unknown> {
-    const guard = new AinftFactoryClient(this.chainId, this.wallet, this.http);
+    const guard = new AinftFactoryClient(this.chainId, this.wallet, this.http, this.isCurrent);
     await guard.checkWallet(address);
     const timestamp = Date.now();
     const query = { appId, walletAddress: address };

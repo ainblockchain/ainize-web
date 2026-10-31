@@ -8,15 +8,19 @@ import type { AinftWallet } from '@/lib/ainftRegistration';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '@/auth/AuthContext';
+import { useActiveView } from '@/hooks/useActiveView';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
-interface Task { id: string; input: string; state: string; result: string | null; error: string | null; allowance?: { state: string; canRestore: boolean; canSettle: boolean } }
-interface Memory { id: string; text: string; state: string; sourceTask: string }
-interface LearningExample { id: string; prompt: string; answer: string; altPrompt?: string; state: string }
-interface Companion { tasks: Task[]; memories: Memory[]; learningExamples: LearningExample[]; experience: number; growthEvidence?: { id: string; kind: string; sourceId: string; experience: number; active: boolean }[]; growthPolicy?: { version: string } }
-interface Training { publications?: { id: string; runId: string; state: string; result: { status?: string } | null }[]; selectedRunId: string | null; capability: { available: boolean; model: string | null; reason: string | null; maxExamples?: number }; runs: { id: string; model: string; eligible: boolean; state: string; jobId: string | null; job: { status: string; error: string | null; draftId: string | null; applicationVerified?: boolean; verificationIssues?: string[]; progress?: { step: number; maxSteps: number; phase: string | null } | null } | null }[] }
+import { companionView, trainingView, trainingConsentKey, missingTrainingExamples, type Companion, type Training } from '@/lib/ainftCompanionViews';
 export function AinftCompanionPanel({ agentId }: { agentId: string }) {
+  const { cacheIdentity } = useAuth();
+  return <CompanionWorkspace key={JSON.stringify([agentId, cacheIdentity])} agentId={agentId} />;
+}
+function CompanionWorkspace({ agentId }: { agentId: string }) {
+  const active = useActiveView();
+  const flight = useRef(false);
+  const reads = useRef({ workspace: 0, training: 0, access: 0 });
   const auth = useAuth(), { locale } = useT();
   const text = (ko: string, en: string) => locale === 'ko' ? ko : en;
   const [snapshot, setSnapshot] = useState<{ identity: string; data: Companion } | null>(null);
@@ -26,8 +30,8 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
   const [source, setSource] = useState<string | null>(null);
   const [learning, setLearning] = useState<{ identity: string; key: string; memoryId: string; prompt: string; answer: string; altPrompt: string; consent: boolean } | null>(null);
   const [trainingSnapshot, setTrainingSnapshot] = useState<{ identity: string; data: Training } | null>(null);
-  const [trainingSelection, setTrainingSelection] = useState<string[]>([]), [trainingConsent, setTrainingConsent] = useState(false);
-  const trainingKey = useRef<string | null>(null);
+  const [trainingSelection, setTrainingSelection] = useState<string[]>([]), [trainingConsent, setTrainingConsent] = useState<string | null>(null);
+  const trainingKey = useRef<{ scope: string; key: string } | null>(null);
   const taskSubmission = useRef(new AinftTaskSubmission(undefined, (() => { try { return typeof window === 'undefined' ? undefined : window.localStorage; } catch { return undefined; } })()));
   const [selectedBenefit, setSelectedBenefit] = useState<{ identity: string; purchaseId: string; policyVersion: number } | null>(null);
   const [selectionIntent, setSelectionIntent] = useState<{ identity: string; key: string; runId: string | null; model: string; consent: boolean } | null>(null);
@@ -40,36 +44,51 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
   const setState = (data: Companion | null) => setSnapshot(data ? { identity, data } : null);
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
-  const isCurrent = () => currentIdentity.current === identity;
+  const isCurrent = () => active() && auth.isCurrentAccount() && currentIdentity.current === identity;
   const base = `/api/hosted-agents/${encodeURIComponent(agentId)}/companion`;
   const request = async (path = '', body?: unknown) => {
+    if (!isCurrent()) throw new Error('Holder workspace changed');
+    const epoch = reads.current.access;
     const response = await fetch(base + path, { credentials: 'include', cache: 'no-store', ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     if (!response.ok) {
-      if (isCurrent() && (response.status === 401 || response.status === 403)) setState(null);
-      throw new Error(result.error === 'ainft_release_mismatch' ? text('에이전트 릴리스가 변경되었습니다. 제작자가 AINFT metadata와 연결을 갱신해야 합니다.', 'The agent release changed. Its creator must refresh the AINFT metadata and binding.') : response.status === 403 ? text('현재 NFT 보유자 권한을 확인할 수 없습니다.', 'Current NFT holder access could not be verified.') : String(result.error ?? 'Request failed'));
+      if (isCurrent() && ([401, 403].includes(response.status) || ([404, 409].includes(response.status) && ['', '/learning', '/credits'].includes(path)))) {
+        reads.current.access++;
+        setState(null); setTrainingSnapshot(null); setCreditSnapshot(null); setSelectedBenefit(null);
+      }
+      throw new Error(result?.error === 'ainft_release_mismatch' ? text('에이전트 릴리스가 변경되었습니다. 제작자가 AINFT metadata와 연결을 갱신해야 합니다.', 'The agent release changed. Its creator must refresh the AINFT metadata and binding.') : response.status === 403 ? text('현재 NFT 보유자 권한을 확인할 수 없습니다.', 'Current NFT holder access could not be verified.') : String(result?.error?.message ?? result?.error ?? 'Request failed'));
     }
+    if (!isCurrent() || epoch !== reads.current.access) throw new DOMException('Holder workspace changed', 'AbortError');
     return result;
   };
-  const load = async () => { const result = await request(); if (isCurrent()) setState(result); };
-  const loadTraining = async () => { const result = await request('/learning'); if (isCurrent()) setTrainingSnapshot({ identity, data: result }); };
-  const action = async (fn: () => Promise<unknown>) => {
-    setBusy(true); setError(null);
-    try { await fn(); await load(); if (training) await loadTraining(); }
-    catch (failure) { if (isCurrent()) setError(failure instanceof Error ? failure.message : String(failure)); }
-    finally { if (isCurrent()) setBusy(false); }
+  const load = async () => {
+    const version = ++reads.current.workspace;
+    try { const result = companionView(await request()); if (isCurrent() && version === reads.current.workspace) setState(result); }
+    catch (failure) { if (!isCurrent() || version !== reads.current.workspace || (failure as Error)?.name === 'AbortError') return; if (isCurrent() && version === reads.current.workspace) setState(null); throw failure; }
   };
-  useEffect(() => { setState(null); setSource(null); setMemory(''); setInput(''); setCreditUser(''); setCreditSnapshot(null); setSelectedBenefit(null); setLearning(null); setTrainingSnapshot(null); setTrainingSelection([]); setTrainingConsent(false); setSelectionIntent(null); setPublicationIntent(null); trainingKey.current = null; setError(null); setBusy(false); }, [agentId, auth.subject]);
+  const loadTraining = async () => {
+    const version = ++reads.current.training;
+    try { const result = trainingView(await request('/learning')); if (isCurrent() && version === reads.current.training) setTrainingSnapshot({ identity, data: result }); }
+    catch (failure) { if (!isCurrent() || version !== reads.current.training || (failure as Error)?.name === 'AbortError') return; if (isCurrent() && version === reads.current.training) setTrainingSnapshot(null); throw failure; }
+  };
+  const action = async (fn: () => Promise<unknown>) => {
+    if (flight.current || !isCurrent()) return;
+    flight.current = true; reads.current.workspace++; reads.current.training++;
+    setBusy(true); setError(null);
+    try { await fn(); if (isCurrent()) await load(); if (isCurrent() && training) await loadTraining(); }
+    catch (failure) { if (isCurrent()) setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { flight.current = false; if (isCurrent()) setBusy(false); }
+  };
+  useEffect(() => { setState(null); setSource(null); setMemory(''); setInput(''); setCreditUser(''); setCreditSnapshot(null); setSelectedBenefit(null); setLearning(null); setTrainingSnapshot(null); setTrainingSelection([]); setTrainingConsent(null); setSelectionIntent(null); setPublicationIntent(null); trainingKey.current = null; setError(null); setBusy(false); }, [agentId, auth.subject]);
   const trainingRunning = training?.runs.some(run => ainftTrainingPending(run.job, run.state)) ?? false;
   useEffect(() => {
     if (!trainingRunning) return;
     let cancelled = false, pending = false;
     const timer = setInterval(async () => {
-      if (pending) return;
+      if (pending || flight.current || !isCurrent()) return;
       pending = true;
       try {
-        const data = await request('/learning') as Training;
-        if (!cancelled && isCurrent()) setTrainingSnapshot({ identity, data });
+        await loadTraining();
       } catch (failure) {
         if (!cancelled && isCurrent()) setError(failure instanceof Error ? failure.message : String(failure));
       } finally { pending = false; }
@@ -79,10 +98,17 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
   const running = state?.tasks.some((t) => t.state === 'queued' || t.state === 'running') ?? false;
   useEffect(() => {
     if (!running) return;
-    const timer = setInterval(() => { void load().catch((failure) => { if (isCurrent()) setError(String(failure)); }); }, 2000);
+    let pending = false;
+    const timer = setInterval(async () => {
+      if (pending || flight.current || !isCurrent()) return;
+      pending = true;
+      try { await load(); } catch (failure) { if (isCurrent()) setError(String(failure)); } finally { pending = false; }
+    }, 2000);
     return () => clearInterval(timer);
   }, [running, agentId, auth.subject]);
-  return <section style={{ marginTop: 24 }} data-testid="ainft-companion">
+  const trainingConsentScope = trainingConsentKey(training?.capability.model, trainingSelection);
+  const missingTrainingSelection = missingTrainingExamples(state?.learningExamples ?? [], trainingSelection);
+  return <section style={{ marginTop: 24, overflowWrap: 'anywhere' }} data-testid="ainft-companion">
     <h3>{text('보유자 전용 대화·작업', 'Holder conversations and work')}</h3>
     {!auth.subject ? <Link to={`/signing?wallet=1&next=${encodeURIComponent(`/agent/${agentId}`)}`}>{text('NFT 보유 지갑으로 로그인', 'Sign in with the holder wallet')}</Link>
       : !state ? <Button size="small" loading={busy} onClick={() => void action(async () => {})}>{text('내 공간 열기', 'Open my workspace')}</Button> : <>
@@ -98,14 +124,14 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
             const wallet = (window as unknown as { ainetwork?: AinftWallet }).ainetwork;
             if (!wallet) throw new Error(text('AIN Wallet을 설치하고 잠금을 해제하세요.', 'Install and unlock AIN Wallet.'));
             if (!isCurrent()) throw new Error('Holder workspace changed');
-            const balance = await new AinftCreditClient(policy.chainId, wallet).balance(auth.subject!, policy.community.appId, policy.community.symbol, creditUser.trim());
+            const balance = await new AinftCreditClient(policy.chainId, wallet, undefined, isCurrent).balance(auth.subject!, policy.community.appId, policy.community.symbol, creditUser.trim());
             const latest = await request('/credits');
             if (latest.version !== policy.version || latest.chainId !== policy.chainId || latest.community?.appId !== policy.community.appId || latest.community?.symbol !== policy.community.symbol) throw new Error(text('크레딧 연결이 변경되었습니다. 다시 조회하세요.', 'The credit connection changed. Check again.'));
             if (isCurrent()) setCreditSnapshot({ identity, ...balance });
           })}>{text('지갑으로 잔액 확인', 'Check balance with wallet')}</Button>
           {creditSnapshot?.identity === identity && creditSnapshot.userId === creditUser.trim() && <p>{creditSnapshot.appId}: {creditSnapshot.balance} {creditSnapshot.symbol} · {text('마지막 조회 잔액', 'Balance at last check')}</p>}
-          <AinftRewardsPanel agentId={agentId} address={auth.subject!} userId={creditUser.trim()} text={text} />
-          <AinftBenefitsPanel selectedPurchase={selectedBenefit?.identity === identity ? selectedBenefit.purchaseId : undefined} onSelect={(purchaseId, policyVersion) => { if (isCurrent()) setSelectedBenefit({ identity, purchaseId, policyVersion }); }} agentId={agentId} address={auth.subject!} userId={creditUser.trim()} text={text} />
+          <AinftRewardsPanel disabled={busy} key={JSON.stringify([identity, creditUser.trim()])} agentId={agentId} address={auth.subject!} userId={creditUser.trim()} text={text} />
+          <AinftBenefitsPanel disabled={busy} key={JSON.stringify([identity, creditUser.trim()])} onSelectionInvalid={(purchaseId) => { if (isCurrent()) setSelectedBenefit(current => current?.purchaseId === purchaseId ? null : current); }} selectedPurchase={selectedBenefit?.identity === identity ? selectedBenefit.purchaseId : undefined} onSelect={(purchaseId, policyVersion) => { if (isCurrent()) setSelectedBenefit({ identity, purchaseId, policyVersion }); }} agentId={agentId} address={auth.subject!} userId={creditUser.trim()} text={text} />
         </details>
         {state.growthEvidence && <details>
           <summary>{text('성장 활동 기록', 'Growth activity records')}</summary>
@@ -118,16 +144,16 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
             {!event.active && ` · ${text('기억 사용 철회됨', 'Memory use revoked')}`}
           </li>)}</ul>}
         </details>}
-        {selectedBenefit?.identity === identity && <p>{text('선택한 이용권', 'Selected allowance')}: {selectedBenefit.purchaseId.slice(0,12)} <Button size="small" variant="text" onClick={() => setSelectedBenefit(null)}>{text('선택 해제', 'Clear selection')}</Button></p>}
+        {selectedBenefit?.identity === identity && <p>{text('선택한 이용권', 'Selected allowance')}: {selectedBenefit.purchaseId.slice(0,12)} <Button size="small" variant="text" disabled={busy} onClick={() => setSelectedBenefit(null)}>{text('선택 해제', 'Clear selection')}</Button></p>}
         <textarea aria-label={text('대화 또는 작업 요청', 'Conversation or work request')} value={input} maxLength={12000} onChange={(event) => setInput(event.target.value)} style={{ width: '100%', minHeight: 80 }} />
-        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>
           {(['chat', 'task'] as const).map((kind) => <Button key={kind} size="small" disabled={!input.trim() || busy} onClick={() => void action(async () => {
             await taskSubmission.current.submit(identity, kind, input, (body) => request('/tasks', body), isCurrent, selectedBenefit?.identity === identity ? selectedBenefit.purchaseId : undefined, selectedBenefit?.identity === identity ? selectedBenefit.policyVersion : undefined); if (isCurrent()) { setInput((current) => current === input ? '' : current); setSelectedBenefit(null); }
           })}>{kind === 'chat' ? text('대화 보내기', 'Send message') : text('일 맡기기', 'Assign work')}</Button>)}
         </div>
         {state.tasks.slice(-20).map((task) => <article key={task.id} id={`companion-task-${task.id}`} style={{ padding: 12, marginTop: 12, border: '1px solid #ddd' }}>
           <p style={{ whiteSpace: 'pre-wrap' }}>{task.input}</p><small>{task.state}</small>
-          {task.state === 'queued' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/tasks/${task.id}/cancel`, {}))}>{text('대기 작업 취소', 'Cancel queued work')}</Button>}
+          {task.state === 'queued' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/tasks/${encodeURIComponent(task.id)}/cancel`, {}))}>{text('대기 작업 취소', 'Cancel queued work')}</Button>}
           {task.result && <p style={{ whiteSpace: 'pre-wrap' }}>{task.result}</p>}
           {task.error && <Alert $tone="error">{task.error}</Alert>}
           {task.allowance?.canRestore && <div>
@@ -141,30 +167,30 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
           {task.allowance?.state === 'restored' && <p>{text('예약 사용량 복구됨', 'Reserved allowance restored')}</p>}
           {task.allowance?.state === 'unknown' && <Alert $tone="error">{text('작업 실행 결과를 확인할 수 없습니다. 중복 실행이나 잘못된 환불을 막기 위해 운영자 확인이 필요합니다.', 'The execution outcome is unknown. Operator reconciliation is needed to prevent duplicate execution or an incorrect refund.')}</Alert>}
 
-          {task.state === 'completed' && <Button size="small" variant="text" onClick={() => { setSource(task.id); setMemory(task.result ?? ''); }}>{text('개인 기억 후보 만들기', 'Propose private memory')}</Button>}
+          {task.state === 'completed' && <Button size="small" variant="text" disabled={busy} onClick={() => { setSource(task.id); setMemory(task.result ?? ''); }}>{text('개인 기억 후보 만들기', 'Propose private memory')}</Button>}
         </article>)}
         {source && <div style={{ marginTop: 16 }}>
-          <textarea aria-label={text('기억할 내용 검토', 'Review memory content')} value={memory} maxLength={2000} onChange={(event) => setMemory(event.target.value)} style={{ width: '100%', minHeight: 80 }} />
+          <textarea aria-label={text('기억할 내용 검토', 'Review memory content')} value={memory} disabled={busy} maxLength={2000} onChange={(event) => setMemory(event.target.value)} style={{ width: '100%', minHeight: 80 }} />
           <Button size="small" disabled={!memory.trim() || busy} onClick={() => void action(async () => { await request('/memories', { sourceTask: source, text: memory }); if (isCurrent()) { setSource(null); setMemory(''); } })}>{text('기억 후보 저장', 'Save memory proposal')}</Button>
         </div>}
         {state.memories.length > 0 && <p>{text('요청과 관련된 승인 기억을 최대 8개 사용합니다. 승인 철회는 이후 기억 목록에서 제외하며, 과거 대화 기록은 유지됩니다.', 'Up to eight approved memories are selected for each request. Revoking approval excludes a memory from future memory context. Existing conversation records remain.')}</p>}
         {state.memories.map((item) => <div key={item.id} id={`companion-memory-${item.id}`} style={{ marginTop: 12 }}>
           <p>{item.text}</p><small>{item.state}</small>
           {item.state === 'approved' && <Button size="small" variant="text" disabled={busy} onClick={() => setLearning({ identity, key: crypto.randomUUID(), memoryId: item.id, prompt: state.tasks.find((task) => task.id === item.sourceTask)?.input ?? '', answer: item.text, altPrompt: '', consent: false })}>{text('학습 예제 검토', 'Review learning example')}</Button>}
-          {item.state === 'approved' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/memories/${item.id}/revoke`, {}))}>{text('기억 승인 철회', 'Revoke memory approval')}</Button>}
-          {item.state === 'proposed'  && <div style={{ display: 'flex', gap: 12 }}>
-            <Button size="small" disabled={busy} onClick={() => void action(() => request(`/memories/${item.id}/decision`, { approve: true }))}>{text('개인 기억 승인', 'Approve private memory')}</Button>
-            <Button size="small" disabled={busy} onClick={() => void action(() => request(`/memories/${item.id}/decision`, { approve: false }))}>{text('거절', 'Reject')}</Button>
+          {item.state === 'approved' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/memories/${encodeURIComponent(item.id)}/revoke`, {}))}>{text('기억 승인 철회', 'Revoke memory approval')}</Button>}
+          {item.state === 'proposed'  && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <Button size="small" disabled={busy} onClick={() => void action(() => request(`/memories/${encodeURIComponent(item.id)}/decision`, { approve: true }))}>{text('개인 기억 승인', 'Approve private memory')}</Button>
+            <Button size="small" disabled={busy} onClick={() => void action(() => request(`/memories/${encodeURIComponent(item.id)}/decision`, { approve: false }))}>{text('거절', 'Reject')}</Button>
           </div>}
         </div>)}
         {draft && <div style={{ marginTop: 16 }}>
           <h4>{text('학습 질문·답변 검토', 'Review learning question and answer')}</h4>
           <p>{text('검토한 예제를 내 공간에 저장합니다. 모델 학습이나 공개 공유는 실행되지 않습니다.', 'Save a reviewed example in your private workspace. This does not start model training or publish the example.')}</p>
-          <textarea aria-label={text('학습 질문', 'Learning question')} value={draft.prompt} maxLength={400} onChange={(event) => setLearning({ ...draft, prompt: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
-          <textarea aria-label={text('학습 답변', 'Learning answer')} value={draft.answer} maxLength={200} onChange={(event) => setLearning({ ...draft, answer: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
-          <textarea aria-label={text('다른 표현의 확인 질문', 'Unseen evaluation question')} value={draft.altPrompt} maxLength={400} onChange={(event) => setLearning({ ...draft, altPrompt: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
+          <textarea aria-label={text('학습 질문', 'Learning question')} value={draft.prompt} disabled={busy} maxLength={400} onChange={(event) => setLearning({ ...draft, prompt: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
+          <textarea aria-label={text('학습 답변', 'Learning answer')} value={draft.answer} disabled={busy} maxLength={200} onChange={(event) => setLearning({ ...draft, answer: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
+          <textarea aria-label={text('다른 표현의 확인 질문', 'Unseen evaluation question')} value={draft.altPrompt} disabled={busy} maxLength={400} onChange={(event) => setLearning({ ...draft, altPrompt: event.target.value, consent: false, key: crypto.randomUUID() })} style={{ width: '100%', minHeight: 80 }} />
           <p>{text('같은 답변을 기대하는 다른 표현의 질문을 입력하세요. 이 질문은 학습에 사용하지 않고, 배운 내용을 이해했는지 평가할 때만 사용합니다.', 'Write a different question that should have the same answer. It is kept out of training and used only to check whether the lesson generalizes.')}</p>
-          <label><input type="checkbox" checked={draft.consent} onChange={(event) => setLearning({ ...draft, consent: event.target.checked })} />{text('학습 질문·답변과 확인 질문을 검토했고 개인 예제로 저장하는 데 동의합니다.', 'I reviewed the training question, answer and evaluation question and agree to save this private example.')}</label>
+          <label><input type="checkbox" checked={draft.consent} disabled={busy} onChange={(event) => setLearning({ ...draft, consent: event.target.checked })} />{text('학습 질문·답변과 확인 질문을 검토했고 개인 예제로 저장하는 데 동의합니다.', 'I reviewed the training question, answer and evaluation question and agree to save this private example.')}</label>
           <div><Button size="small" disabled={busy || !draft.consent || !draft.prompt.trim() || !draft.answer.trim() || !draft.altPrompt.trim() || draft.altPrompt.trim() === draft.prompt.trim() || draft.prompt.length > 400 || draft.answer.length > 200} onClick={() => void action(async () => { await request('/learning/examples', { key: draft.key, memoryId: draft.memoryId, prompt: draft.prompt, answer: draft.answer, altPrompt: draft.altPrompt, consent: true }); if (isCurrent()) setLearning(null); })}>{text('검토한 예제 저장', 'Save reviewed example')}</Button>
           <Button size="small" variant="text" disabled={busy} onClick={() => setLearning(null)}>{text('취소', 'Cancel')}</Button></div>
         </div>}
@@ -172,7 +198,7 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
           <p style={{ whiteSpace: 'pre-wrap' }}>{example.prompt}</p><p style={{ whiteSpace: 'pre-wrap' }}>{example.answer}</p>
           {example.altPrompt ? <p style={{ whiteSpace: 'pre-wrap' }}>{text('확인 질문', 'Evaluation question')}: {example.altPrompt}</p> : <p>{text('학습하려면 승인한 기억에서 예제를 다시 검토하고 다른 표현의 확인 질문을 추가하세요.', 'To train this memory, review a new example and add a different evaluation question.')}</p>}
           <small>{example.state === 'reviewed' ? text('검토한 예제 · 저장됨', 'Reviewed example · saved') : text('사용 철회', 'Withdrawn')}</small>
-          {example.state === 'reviewed' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/learning/examples/${example.id}/withdraw`, {}))}>{text('예제 사용 철회', 'Withdraw example')}</Button>}
+          {example.state === 'reviewed' && <Button size="small" variant="text" disabled={busy} onClick={() => void action(() => request(`/learning/examples/${encodeURIComponent(example.id)}/withdraw`, {}))}>{text('예제 사용 철회', 'Withdraw example')}</Button>}
         </article>)}
         <details style={{ marginTop: 16 }}>
           <summary>{text('고급: 모델 학습과 공유 (선택사항)', 'Advanced: model training and sharing (optional)')}</summary>
@@ -184,11 +210,12 @@ export function AinftCompanionPanel({ agentId }: { agentId: string }) {
             {training.capability.available && <>
               <p>{text('한 번에 선택할 수 있는 예제', 'Examples per training job')}: {training.capability.maxExamples ?? 100}</p>
               <p>{text('학습할 예제를 선택하세요. 작업은 노드의 학습 자원을 사용하며, 평가된 초안을 만들지만 자동으로 에이전트에 적용하거나 자료를 공개하지 않습니다. 연결된 블록체인에는 지갑 주소·작업 상태·자료 해시가 기록될 수 있습니다.', 'Select examples to train. The job uses node training resources and creates an evaluated draft; it does not automatically apply it to the agent or publish its contents. A connected blockchain may record your wallet address, job status and dataset hash.')}</p>
-              {(state.learningExamples ?? []).filter((example) => example.state === 'reviewed' && example.altPrompt?.trim()).map((example) => <label key={example.id} style={{ display: 'block' }}><input type="checkbox" disabled={busy || (!trainingSelection.includes(example.id) && trainingSelection.length >= (training.capability.maxExamples ?? 100))} checked={trainingSelection.includes(example.id)} onChange={(event) => { setTrainingSelection(event.target.checked ? [...trainingSelection, example.id] : trainingSelection.filter((id) => id !== example.id)); setTrainingConsent(false); trainingKey.current = null; }} />{example.prompt}</label>)}
-              <label style={{ display: 'block' }}><input type="checkbox" disabled={busy} checked={trainingConsent} onChange={(event) => setTrainingConsent(event.target.checked)} />{text('선택한 예제와 모델을 확인했고 학습 실행에 동의합니다.', 'I reviewed the selected examples and model and agree to run training.')}</label>
-              <Button size="small" disabled={busy || !trainingConsent || !trainingSelection.length || trainingSelection.length > (training.capability.maxExamples ?? 100)} onClick={() => void action(async () => {
-                trainingKey.current ??= crypto.randomUUID();
-                try { await request('/learning/train', { key: trainingKey.current, exampleIds: trainingSelection, model: training.capability.model, consent: true }); }
+              {(state.learningExamples ?? []).filter((example) => example.state === 'reviewed' && example.altPrompt?.trim()).map((example) => <label key={example.id} style={{ display: 'block' }}><input type="checkbox" disabled={busy || (!trainingSelection.includes(example.id) && trainingSelection.length >= (training.capability.maxExamples ?? 100))} checked={trainingSelection.includes(example.id)} onChange={(event) => { setTrainingSelection(event.target.checked ? [...trainingSelection, example.id] : trainingSelection.filter((id) => id !== example.id)); setTrainingConsent(null); trainingKey.current = null; }} />{example.prompt}</label>)}
+              <label style={{ display: 'block' }}><input type="checkbox" disabled={busy} checked={trainingConsent === trainingConsentScope} onChange={(event) => setTrainingConsent(event.target.checked ? trainingConsentScope : null)} />{text('선택한 예제와 모델을 확인했고 학습 실행에 동의합니다.', 'I reviewed the selected examples and model and agree to run training.')}</label>
+              {missingTrainingSelection && <p role="alert">{text('선택한 예제 중 사용할 수 없는 항목이 있습니다.', 'Some selected examples are unavailable.')} <Button size="small" disabled={busy} onClick={() => { setTrainingSelection([]); setTrainingConsent(null); trainingKey.current = null; }}>{text('선택 초기화', 'Clear selection')}</Button></p>}
+              <Button size="small" disabled={busy || trainingConsent !== trainingConsentScope || missingTrainingSelection || !trainingSelection.length || trainingSelection.length > (training.capability.maxExamples ?? 100)} onClick={() => void action(async () => {
+                if (trainingKey.current?.scope !== trainingConsentScope) trainingKey.current = { scope: trainingConsentScope, key: crypto.randomUUID() };
+                try { await request('/learning/train', { key: trainingKey.current.key, exampleIds: trainingSelection, model: training.capability.model, consent: true }); }
                 finally { await loadTraining(); }
               })}>{text('선택한 예제 학습', 'Train selected examples')}</Button>
             </>}

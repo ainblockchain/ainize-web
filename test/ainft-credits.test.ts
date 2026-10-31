@@ -116,3 +116,20 @@ test('an uncertain purchase is sent once and account changes during approval pre
   await assert.rejects(changed.refund(identity.address,'app','POINT','agent','user','receipt'),/account changed/);
   assert.equal(calls,1);
 });
+
+test('leaving the holder view while signing prevents a later purchase or balance request', async () => {
+  for (const write of [false, true]) {
+    let active = true, requests = 0;
+    const signer = wallet({ signMessage: async () => { active = false; return 'signature'; } });
+    const client = new AinftCreditClient(0, signer, async () => { requests++; return Response.json({ code: 0, data: {} }); }, () => active);
+    await assert.rejects(write ? client.purchase(identity.address, 'community', 'POINT', 'agent', 'user', 'intent', 2, 1) : client.balance(identity.address, 'community', 'POINT', 'user'), /view or account changed/);
+    assert.equal(requests, 0);
+  }
+});
+
+test('a write already sent before departure is never retried automatically', async () => {
+  let active = true, requests = 0;
+  const client = new AinftCreditClient(0, wallet(), async () => { requests++; active = false; return Response.json({ code: 0, data: { id: 'receipt' } }); }, () => active);
+  await assert.rejects(client.purchase(identity.address, 'community', 'POINT', 'agent', 'user', 'intent', 2, 1), /view or account changed/);
+  assert.equal(requests, 1);
+});

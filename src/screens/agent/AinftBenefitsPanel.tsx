@@ -1,31 +1,41 @@
 import { useRef, useState } from 'react';
+import { rewardsView, rewardAccountMatches } from '@/lib/ainftCompanionViews';
+import { useAuth } from '@/auth/AuthContext';
+import { useActiveView } from '@/hooks/useActiveView';
 import { AinftCreditClient } from '@/lib/ainftCredits';
-import { AinftBenefitPurchase, benefitCatalog, type BenefitCatalog } from '@/lib/ainftBenefitPurchase';
+import { AinftBenefitPurchase, benefitCatalog, benefitUsable, selectedBenefit, type BenefitCatalog } from '@/lib/ainftBenefitPurchase';
 import type { AinftChain, AinftWallet } from '@/lib/ainftRegistration';
 import { Button } from '@/components/ui/Button';
 interface Connection { chainId: AinftChain; version: number; executionAvailable?: boolean; allowedPolicyVersions?: number[]; community: { appId: string; symbol: string } | null }
-export function AinftBenefitsPanel({ agentId, address, userId, text, selectedPurchase, onSelect }: { agentId: string; address: string; userId: string; selectedPurchase?: string; onSelect?: (purchaseId: string, policyVersion: number) => void; text: (ko: string, en: string) => string }) {
-  const identity = JSON.stringify([agentId, address.toLowerCase(), userId]);
+export function AinftBenefitsPanel({ agentId, address, userId, text, selectedPurchase, onSelect, onSelectionInvalid, disabled = false }: { agentId: string; address: string; userId: string; disabled?: boolean; selectedPurchase?: string; onSelect?: (purchaseId: string, policyVersion: number) => void; onSelectionInvalid?: (purchaseId: string) => void; text: (ko: string, en: string) => string }) {
+  const auth = useAuth(), active = useActiveView();
+  const flight = useRef(false);
+  const identity = JSON.stringify([agentId, address.toLowerCase(), userId, auth.cacheIdentity]);
   const current = useRef(identity); current.current = identity;
+  const isCurrent = () => active() && auth.isCurrentAccount() && current.current === identity;
+  const check = () => { if (!isCurrent()) throw new Error('Holder workspace changed'); };
   const [snapshot, setSnapshot] = useState<{ identity: string; connection: Connection; catalog: BenefitCatalog; pending: boolean } | null>(null);
   const [operation, setOperation] = useState<{ identity: string; busy: boolean; error: string | null } | null>(null);
   const state = snapshot?.identity === identity ? snapshot : null;
-  const busy = operation?.identity === identity && operation.busy;
+  const busy = disabled || (operation?.identity === identity && operation.busy);
   const config = async (): Promise<Connection> => {
+    check();
     const response = await fetch(`/api/hosted-agents/${encodeURIComponent(agentId)}/companion/credits`, { credentials: 'include', cache: 'no-store', redirect: 'error' });
     if (!response.ok) throw new Error(text('현재 보유자와 크레딧 연결을 확인할 수 없습니다.', 'Cannot verify the holder and credit connection.'));
     const value = await response.json() as Connection;
-    if (![0,1].includes(value.chainId) || !Number.isSafeInteger(value.version) || !value.community) throw new Error(text('크레딧 연결이 없습니다.', 'No credit connection.'));
+    if (!value || ![0,1].includes(value.chainId) || !Number.isSafeInteger(value.version) || value.version < 0 || !value.community || typeof value.community.appId !== 'string' || !value.community.appId.trim() || typeof value.community.symbol !== 'string' || !value.community.symbol.trim()) throw new Error(text('크레딧 연결이 없습니다.', 'No credit connection.'));
     if (value.allowedPolicyVersions !== undefined && (!Array.isArray(value.allowedPolicyVersions) || value.allowedPolicyVersions.some(version => !Number.isSafeInteger(version) || version < 1))) throw new Error('Invalid allowed benefit policies');
-    if (current.current !== identity) throw new Error('Holder workspace changed');
+    check();
     return value;
   };
   const resources = (connection: Connection) => {
     const wallet = (window as unknown as { ainetwork?: AinftWallet }).ainetwork;
     if (!wallet) throw new Error(text('AIN Wallet을 설치하고 잠금을 해제하세요.', 'Install and unlock AIN Wallet.'));
     const { appId, symbol } = connection.community!;
-    const key = 'ainft-benefit-intent:' + JSON.stringify([identity, connection.chainId, appId, symbol]);
-    return { client: new AinftCreditClient(connection.chainId, wallet), intent: new AinftBenefitPurchase(localStorage, key), appId, symbol };
+    // Keep the original wallet/user journal key so an uncertain purchase never becomes a new request.
+    const journalIdentity = JSON.stringify([agentId, address.toLowerCase(), userId]);
+    const key = 'ainft-benefit-intent:' + JSON.stringify([journalIdentity, connection.chainId, appId, symbol]);
+    return { client: new AinftCreditClient(connection.chainId, wallet, undefined, isCurrent), intent: new AinftBenefitPurchase(localStorage, key), appId, symbol };
   };
   const sameConnection = async (before: Connection) => {
     const after = await config();
@@ -36,12 +46,18 @@ export function AinftBenefitsPanel({ agentId, address, userId, text, selectedPur
     const catalog = benefitCatalog(await client.catalog(address, appId, symbol, agentId, userId), agentId, userId);
     await sameConnection(connection);
     await intent.reconcile(catalog, userId);
-    if (current.current === identity) setSnapshot({ identity, connection, catalog, pending: !!intent.pending() });
+    check();
+    setSnapshot({ identity, connection, catalog, pending: !!intent.pending() });
+    if (selectedPurchase && !catalog.purchases.some((receipt) => receipt.id === selectedPurchase && benefitUsable(receipt, connection))) onSelectionInvalid?.(selectedPurchase);
+    return catalog;
   };
-  const run = async (fn: () => Promise<void>) => {
+  const run = async (fn: () => Promise<unknown>) => {
+    if (disabled || flight.current || !isCurrent()) return;
+    flight.current = true;
     setOperation({ identity, busy: true, error: null });
-    try { await fn(); if (current.current === identity) setOperation({ identity, busy: false, error: null }); }
-    catch (error) { if (current.current === identity) setOperation({ identity, busy: false, error: error instanceof Error ? error.message : String(error) }); }
+    try { await fn(); if (isCurrent()) setOperation({ identity, busy: false, error: null }); }
+    catch (error) { if (isCurrent()) { setSnapshot(null); if (selectedPurchase) onSelectionInvalid?.(selectedPurchase); setOperation({ identity, busy: false, error: error instanceof Error ? error.message : String(error) }); } }
+    finally { flight.current = false; }
   };
   return <div>
     <Button size="small" disabled={busy || !userId} onClick={() => void run(async () => refresh(await config()))}>{text('혜택과 구매 내역 확인', 'Check benefits and purchases')}</Button>
@@ -59,17 +75,28 @@ export function AinftBenefitsPanel({ agentId, address, userId, text, selectedPur
           const pending = intent.pending();
           if (!state.connection.allowedPolicyVersions?.includes(pending?.policyVersion ?? state.catalog.policy!.version)) throw new Error(text('이 정책은 작업에 사용할 수 없습니다. 구매 내역을 확인하세요.', 'This policy is not authorized for execution. Check purchase history.'));
           const request = intent.prepare(state.catalog.policy!.version);
-          if (current.current !== identity) throw new Error('Holder workspace changed');
+          check();
           try {
             await client.purchase(address, appId, symbol, agentId, userId, request.requestKey, request.policyVersion, request.quantity);
             await refresh(state.connection);
           } finally {
-            if (current.current === identity) setSnapshot(previous => previous?.identity === identity ? { ...previous, pending: !!intent.pending() } : previous);
+            if (isCurrent()) setSnapshot(previous => previous?.identity === identity ? { ...previous, pending: !!intent.pending() } : previous);
           }
         })}>{state.pending ? text('같은 구매 요청 재확인', 'Retry the same purchase') : text('크레딧으로 1개 구매', 'Buy one with credits')}</Button>
       </div> : <p>{text('게시된 혜택이 없습니다.', 'No published benefits.')}</p>}
       {state.catalog.purchases.map(receipt => <div key={receipt.id}>
-        {state.connection.executionAvailable === true && receipt.status === 'active' && receipt.remaining > 0 && state.connection.allowedPolicyVersions?.includes(receipt.policyVersion) && <Button size="small" disabled={busy || selectedPurchase === receipt.id} onClick={() => onSelect?.(receipt.id, receipt.policyVersion)}>{selectedPurchase === receipt.id ? text('선택한 이용권', 'Selected allowance') : text('이 이용권으로 작업하기', 'Use this allowance for work')}</Button>}
+        {benefitUsable(receipt, state.connection) && <Button size="small" disabled={busy || !onSelect || selectedPurchase === receipt.id} onClick={() => void run(async () => {
+          const connection = await config();
+          const fresh = await refresh(connection);
+          const chosen = selectedBenefit(fresh, connection, receipt.id, receipt.policyVersion);
+          if (!chosen) throw new Error(text('이 이용권은 현재 사용할 수 없습니다. 구매 내역을 다시 확인하세요.', 'This allowance is no longer available. Refresh purchase history.'));
+          check();
+          const response = await fetch(`/api/hosted-agents/${encodeURIComponent(agentId)}/companion/credits/rewards`, { credentials: 'include', cache: 'no-store', redirect: 'error' });
+          if (!response.ok) throw new Error(text('보상 계정 연결을 확인하지 못했습니다. 다시 확인하세요.', 'Could not verify the reward account connection. Try again.'));
+          const rewards = rewardsView(await response.json());
+          if (!rewardAccountMatches(rewards, userId, connection.community!)) throw new Error(text('먼저 위의 보상 연결 설정에서 이 Factory 사용자 계정을 연결하세요.', 'First connect this Factory user account using the reward connection controls above.'));
+          check(); onSelect?.(chosen.id, chosen.policyVersion);
+        })}>{selectedPurchase === receipt.id ? text('선택한 이용권', 'Selected allowance') : text('이 이용권으로 작업하기', 'Use this allowance for work')}</Button>}
         <p>{receipt.id.slice(0,12)} · {receipt.cost} {state.connection.community!.symbol} · {receipt.remaining}/{receipt.units} · {receipt.status}</p>
         {receipt.status === 'active' && !receipt.settled && receipt.remaining === receipt.units && receipt.refundUntil >= Date.now() && <Button size="small" disabled={busy} onClick={() => void run(async () => {
           await sameConnection(state.connection);

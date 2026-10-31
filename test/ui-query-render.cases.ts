@@ -25,6 +25,9 @@ import MyAgentsPage from '../src/screens/MyAgentsPage';
 import AinCodePage from '../src/screens/AinCodePage';
 import AgentCreatePage from '../src/screens/AgentCreatePage';
 import AgentLinkPage from '../src/screens/AgentLinkPage';
+import { AinftBenefitsPanel } from '../src/screens/agent/AinftBenefitsPanel';
+import { AinftRewardsPanel } from '../src/screens/agent/AinftRewardsPanel';
+import { AinftCompanionPanel } from '../src/screens/agent/AinftCompanionPanel';
 import { AinftBindingPanel } from '../src/screens/agent/AinftBindingPanel';
 import { HostedAgentOwnerPanel } from '../src/screens/agent/HostedAgentOwnerPanel';
 import { AgentPage } from '../src/screens/AgentPage';
@@ -964,4 +967,18 @@ test('agent editors and organization admins do not receive creator-only NFT regi
   }
   const owner = render(() => createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Agent', isCreator: true }), appAccount);
   assert.match(owner, /ainft-registration/); assert.match(owner, /ainft-community/);
+});
+
+
+test('holder credit actions stay disabled while parent work runs and ordinary accounts see the holder sign-in path', () => {
+  const props = { agentId: 'chosen', address: '0x' + 'a'.repeat(40), userId: 'holder-user', text: (_ko: string, en: string) => en, disabled: true };
+  for (const Panel of [AinftBenefitsPanel, AinftRewardsPanel]) {
+    const html = render(() => createElement(Panel, props), appAccount);
+    assert.match(html, /<button[^>]*disabled=""/);
+    assert.doesNotMatch(html, /Refund unused purchase|Buy one with credits|Connect this reward account/);
+  }
+  const workspace = render(() => createElement(AinftCompanionPanel, { agentId: 'chosen' }), appAccount);
+  assert.match(workspace, /Sign in with the holder wallet/);
+  assert.ok(workspace.includes('next=%2Fagent%2Fchosen'));
+  assert.doesNotMatch(workspace, /Send message|Assign work|Train selected examples/);
 });
