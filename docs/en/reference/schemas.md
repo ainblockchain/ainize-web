@@ -9,7 +9,7 @@ summary: The reusable request and response shapes of the node HTTP API
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-The 33 named shapes the [HTTP API](./http-api.md) refers to.
+The 36 named shapes the [HTTP API](./http-api.md) refers to.
 
 ## How to read this page
 
@@ -40,6 +40,9 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`ChatApplied`](#chatapplied) |   |
 | [`ChatPatches`](#chatpatches) |   |
 | [`Error`](#error) |   |
+| [`Store`](#store) | A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or MinIO container the node runs for an organization on an NFS volume, reached by connected projects as `<name>.store.internal`. Never carries a credential — `POST /api/stores/{sid}/reveal` does, once. |
+| [`StoreAttachment`](#storeattachment) | A project connected to a store: the ainize.json `storage` binding it answers, the env prefix its variables carry, and (Postgres) the database it uses — `app` or one of its own. |
+| [`StoreBackup`](#storebackup) | One backup of a store: a verified `pg_dump -Fc` per database (or a `tar.gz` of the mirrored bucket) on the NAS under `backups/<YYYY-MM-DD>/`, and its copy on the organization's AinDrive when a backup target is set. |
 | [`Payout`](#payout) | One royalty transfer owed by this node for one settle record (spec §7.5 / §9.3). Written `pending` BEFORE the AIN transfer is attempted; `paid` carries the tx hash, `failed` the last error and is retried every 60 s (max 20 attempts, then by hand). |
 | [`PayoutSummary`](#payoutsummary) |   |
 | [`TeacherProfile`](#teacherprofile) |   |
@@ -452,6 +455,133 @@ Where one live test is in the queue behind the shared serving model.
 | Field | Type |
 |---|---|
 | `error` | `string` |
+
+## `Store`
+
+A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or MinIO container the node runs for an organization on an NFS volume, reached by connected projects as `<name>.store.internal`. Never carries a credential — `POST /api/stores/{sid}/reveal` does, once.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes |   |
+| `orgId` | `string` | yes |   |
+| `name` | `string` | yes | unique per organization; the DNS alias `<name>.store.internal` and the default binding name |
+| `kind` | `"postgres"` \| `"blob"` | yes |   |
+| `engine` | `"postgres16"` \| `"postgres16-pgvector"` \| `"minio"` | yes |   |
+| `image` | `string` |   | the image digest the store is pinned to |
+| `generation` | `integer` |   | bumped on each recreate (resources, rename) |
+| `status` | `"provisioning"` \| `"ready"` \| `"stopped"` \| `"error"` \| `"restoring"` \| `"deleting"` | yes |   |
+| `error` | `string` \| `null` |   |   |
+| `warning` | `"over_quota"` \| `"drive_unauthorized"` \| `null` |   |   |
+| `host` | `string` | yes | `<name>.store.internal` |
+| `port` | `integer` | yes | 5432 or 9000 |
+| `alias` | `string` |   |   |
+| `network` | `string` |   |   |
+| `volume` | `string` |   |   |
+| `nfsPath` | `string` |   |   |
+| `containerName` | `string` |   |   |
+| `resources` | `object` | yes |   |
+| `resources.memory` | `string` |   |   |
+| `resources.cpus` | `number` |   |   |
+| `resources.diskGiB` | `integer` |   | soft quota |
+| `postgres` | `object` \| `null` |   |   |
+| `postgres.databases` | `string`[] |   |   |
+| `postgres.extensions` | `string`[] |   |   |
+| `blob` | `object` \| `null` |   |   |
+| `blob.bucket` | `string` |   |   |
+| `blob.accessKeyId` | `string` |   |   |
+| `backups` | `object` | yes |   |
+| `backups.schedule` | `"off"` \| `"daily"` \| `"hourly"` |   |   |
+| `backups.hour` | `integer` |   | (0–23) |
+| `backups.retainDays` | `integer` |   |   |
+| `backups.retainCount` | `integer` |   |   |
+| `backups.lastAt` | `integer` \| `null` |   |   |
+| `backups.lastId` | `string` \| `null` |   |   |
+| `backups.lastStatus` | `"ok"` \| `"error"` \| `null` |   |   |
+| `backups.lastError` | `string` \| `null` |   |   |
+| `restores` | `object`[] |   | in-place restores still inside their undo window |
+| `restores[].at` | `integer` |   |   |
+| `restores[].backupId` | `string` |   |   |
+| `restores[].database` | `string` |   |   |
+| `restores[].undoDatabase` | `string` |   |   |
+| `restores[].undoUntil` | `integer` |   |   |
+| `credentialsVersion` | `integer` | yes |   |
+| `usage` | `object` \| `null` |   |   |
+| `usage.bytes` | `integer` |   |   |
+| `usage.at` | `integer` |   |   |
+| `operation` | `object` \| `null` |   | what runs on the store now (the last 20 log lines) |
+| `operation.kind` | `"provision"` \| `"backup"` \| `"restore"` \| `"rotate"` \| `"recreate"` \| `"delete"` |   |   |
+| `operation.startedAt` | `integer` |   |   |
+| `operation.log` | `string`[] |   |   |
+| `connectionNames` | `string`[] |   | the env names a project connected under the default prefix receives |
+| `attachedProjects` | `object`[] |   |   |
+| `attachedProjects[].projectId` | `string` |   |   |
+| `attachedProjects[].binding` | `string` |   |   |
+| `attachedProjects[].envPrefix` | `string` |   |   |
+| `attachedProjects[].database` | `string` |   |   |
+| `lastBackup` | `object` \| `null` |   |   |
+| `lastBackup.id` | `string` |   |   |
+| `lastBackup.status` | `string` |   |   |
+| `lastBackup.startedAt` | `integer` |   |   |
+| `lastBackup.finishedAt` | `integer` \| `null` |   |   |
+| `lastBackup.bytes` | `integer` \| `null` |   |   |
+| `lastBackup.trigger` | `string` |   |   |
+| `health` | `object` \| `null` |   | the health loop's last probe (null until the first) |
+| `health.state` | `string` |   | docker's state, `missing` or `unreachable` |
+| `health.ready` | `boolean` \| `null` |   |   |
+| `health.checkedAt` | `integer` |   |   |
+| `health.error` | `string` |   |   |
+| `createdAt` | `integer` | yes |   |
+| `createdBy` | `string` |   |   |
+| `updatedAt` | `integer` |   |   |
+
+## `StoreAttachment`
+
+A project connected to a store: the ainize.json `storage` binding it answers, the env prefix its variables carry, and (Postgres) the database it uses — `app` or one of its own.
+
+| Field | Type | Required |
+|---|---|---|
+| `storeId` | `string` | yes |
+| `projectId` | `string` | yes |
+| `binding` | `string` | yes |
+| `envPrefix` | `string` | yes |
+| `database` | `string` | yes |
+| `createdAt` | `integer` |   |
+| `createdBy` | `string` |   |
+
+## `StoreBackup`
+
+One backup of a store: a verified `pg_dump -Fc` per database (or a `tar.gz` of the mirrored bucket) on the NAS under `backups/<YYYY-MM-DD>/`, and its copy on the organization's AinDrive when a backup target is set.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes |   |
+| `storeId` | `string` | yes |   |
+| `orgId` | `string` |   |   |
+| `storeName` | `string` |   |   |
+| `kind` | `"postgres"` \| `"blob"` | yes |   |
+| `engine` | `string` | yes |   |
+| `trigger` | `"schedule"` \| `"manual"` \| `"pre-restore"` \| `"pre-delete"` \| `"pre-rotate"` | yes |   |
+| `status` | `"running"` \| `"ok"` \| `"error"` | yes |   |
+| `error` | `string` \| `null` |   |   |
+| `startedAt` | `integer` | yes |   |
+| `finishedAt` | `integer` \| `null` |   |   |
+| `bytes` | `integer` \| `null` |   |   |
+| `sha256` | `string` \| `null` |   |   |
+| `pgVersion` | `string` |   |   |
+| `local` | `string` \| `null` |   | the default database's file under the store volume (`backups/<date>/<bk>-<db>.dump` or `<bk>.tar.gz`) |
+| `files` | `object`[] |   | every file when a Postgres store has several databases |
+| `files[].database` | `string` |   |   |
+| `files[].local` | `string` |   |   |
+| `files[].bytes` | `integer` |   |   |
+| `files[].sha256` | `string` |   |   |
+| `files[].drive` | `string` \| `null` |   |   |
+| `drive` | `object` \| `null` |   | `{ driveId, path, uploadedAt }` once on the drive; `{ error, retryAt }` when the upload failed (`too_large_for_drive`, `drive_unauthorized`, `aindrive_error`); null without a target |
+| `drive.driveId` | `string` |   |   |
+| `drive.path` | `string` |   |   |
+| `drive.uploadedAt` | `integer` |   |   |
+| `drive.error` | `string` |   |   |
+| `drive.retryAt` | `integer` |   |   |
+| `keepUntil` | `integer` |   | a safety backup (pre-restore/pre-delete/pre-rotate) stays until then whatever retention says |
 
 ## `Payout`
 
