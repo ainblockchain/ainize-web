@@ -44,6 +44,7 @@ const OrgCreatePage = lazy(() => import('./screens/org/OrgCreatePage'));
 const OrgPage = lazy(() => import('./screens/org/OrgPage'));
 const OrgJoinPage = lazy(() => import('./screens/org/OrgJoinPage'));
 const OrgSettingsPage = lazy(() => import('./screens/org/OrgSettingsPage'));
+const StorePage = lazy(() => import('./screens/org/StorePage'));
 // Throughput billing (ainize-node throughput-billing design): now N tok/s → deposit X → M tok/s, and the deposit.
 const BillingPage = lazy(() => import('./screens/BillingPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
@@ -194,6 +195,8 @@ export default function App() {
                 <Route path="/org" element={<Layout><OrgsPage /></Layout>} />
                 <Route path="/org/new" element={<SignedInLayout><OrgCreatePage /></SignedInLayout>} />
                 <Route path="/org/join/:token" element={<Layout><OrgJoinPage /></Layout>} />
+                {/* a managed store's page (src/screens/org/StorePage.tsx) — the org settings Storage tab links here */}
+                <Route path="/org/:id/storage/:storeId" element={<SignedInLayout><StorePage /></SignedInLayout>} />
                 <Route path="/org/:id/settings" element={<SignedInLayout><OrgSettingsPage /></SignedInLayout>} />
                 <Route path="/org/:id" element={<Layout><OrgPage /></Layout>} />
                 {/* Operator pages (SigningCheckLayout) */}

@@ -222,8 +222,8 @@ export function parseOrgSecurity(raw: unknown): OrgSecurityView | null {
 
 export type OrgApiErrorCode =
   | 'not_signed_in' | 'not_found' | 'not_member' | 'insufficient_role' | 'invalid_request' | 'id_taken' | 'domain_taken' | 'domain_not_yours'
-  | 'has_agents' | 'already_member' | 'last_admin' | 'limit_reached' | 'invite_for_someone_else' | 'org_not_found' | 'org_role' | 'unreachable' | 'unknown';
-const KNOWN: readonly OrgApiErrorCode[] = ['not_signed_in', 'not_found', 'not_member', 'insufficient_role', 'invalid_request', 'id_taken', 'domain_taken', 'domain_not_yours', 'has_agents', 'already_member', 'last_admin', 'limit_reached', 'invite_for_someone_else', 'org_not_found', 'org_role'];
+  | 'has_agents' | 'has_stores' | 'already_member' | 'last_admin' | 'limit_reached' | 'invite_for_someone_else' | 'org_not_found' | 'org_role' | 'unreachable' | 'unknown';
+const KNOWN: readonly OrgApiErrorCode[] = ['not_signed_in', 'not_found', 'not_member', 'insufficient_role', 'invalid_request', 'id_taken', 'domain_taken', 'domain_not_yours', 'has_agents', 'has_stores', 'already_member', 'last_admin', 'limit_reached', 'invite_for_someone_else', 'org_not_found', 'org_role'];
 
 export interface OrgApiError { status: number | null; code: OrgApiErrorCode; message: string | null; /** 403 `not_member` carries the organization's name and whether asking to join is open */ org: { id: string; name: string; description: string } | null; can_request: boolean; requested: boolean }
 

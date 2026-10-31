@@ -39,3 +39,5 @@ export const projectPath = (p: { org: string; repoName: string; id?: string; sou
   `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}${p.sourcePath ? `?project=${encodeURIComponent(p.sourcePath)}` : ''}`;
 /** The organization's page, `/<org>`. */
 export const orgPath = (org: string): string => `/${encodeURIComponent(org)}`;
+/** A managed store's page, `/org/<orgId>/storage/<storeId>` (src/screens/org/StorePage.tsx) — `org` is a reserved first segment. */
+export const storePath = (orgId: string, storeId: string): string => `/org/${encodeURIComponent(orgId)}/storage/${encodeURIComponent(storeId)}`;

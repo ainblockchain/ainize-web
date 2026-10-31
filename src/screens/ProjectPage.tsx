@@ -2,7 +2,7 @@
  * `/<org>/<repo>` — the project console: the deployment and run page of a repository, modelled on Vercel's project
  * dashboard. aindrive's ▶ Run is the short form; this is the full one ("aindrive의 Run은 약식이고 ainize의 run/deploy가
  * 본 페이지"). Header: `org / repo`, the kind, the production branch, the repo, the status dot and the primary
- * actions — Code (the repo in ainize.ai/code), Run (script), Visit (service / agent / nextjs), Redeploy. Four tabs, deep-linked through `?tab=`:
+ * actions — Code (the repo in ainize.ai/code), Run (script), Visit (service / agent / nextjs), Redeploy. Five tabs, deep-linked through `?tab=`:
  *
  *   Deployments  the Vercel-shaped rows (status dot, sha + subject, branch, who, when, how long); a row opens the
  *                full log (polled while it runs), exit code, output link, Redeploy — "roll back to this one" for a
@@ -15,10 +15,14 @@
  *   Logs         a service/nextjs app's RUNTIME log — what the running container prints, on the node or the deployment
  *                peer it was placed on; owner/members only, followed live — and the newest deployment's or run's
  *                build log (`?log=build`), downloadable.
+ *   Storage      service/nextjs: the managed stores (Postgres, Blob) connected to the project — what ainize.json
+ *                declares under `storage`, which bindings are connected and which are not, the env names each store
+ *                sets, Show values / Copy .env.local, Connect and Disconnect (ProjectStorage).
  *   Settings     environment variables (write-only values, .env paste, redeploy after saving — ProjectEnvVars),
  *                branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
  *
- * A banner over the tabs names the environment variables ainize.json declares and nobody has set yet.
+ * Banners over the tabs name the environment variables ainize.json declares and nobody has set yet, and the storage
+ * bindings it declares and nobody has connected.
  *
  * Reading is public (ainize-node docs/PROJECTS.md "Who sees what"); the node says with `canManage` / `canOperate`
  * which buttons this caller gets. `/projects/:id` still resolves and forwards here.
@@ -52,6 +56,7 @@ import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
 import ProjectDomains from '@/components/ProjectDomains';
 import ProjectEnvVars, { ENV_SECTION_ID, MissingEnvBanner } from '@/components/ProjectEnvVars';
+import ProjectStorage, { MissingStorageBanner } from '@/components/storage/ProjectStorage';
 
 // ------------------------------------------------------------------------------------------------ pieces
 
@@ -448,8 +453,8 @@ function TriggersSection({ project, onOpenRun }: { project: Project; onOpenRun: 
 
 // ------------------------------------------------------------------------------------------------ the console
 
-type Tab = 'deployments' | 'runs' | 'logs' | 'settings';
-const TABS: Tab[] = ['deployments', 'runs', 'logs', 'settings'];
+type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings';
+const TABS: Tab[] = ['deployments', 'runs', 'logs', 'storage', 'settings'];
 
 /**
  * One project's console. `switcher`: on a repository's page with several deployments (the root and its monorepo
@@ -459,8 +464,8 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const { t } = useT();
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
-  const tab: Tab = (TABS as string[]).includes(sp.get('tab') ?? '') ? (sp.get('tab') as Tab) : 'deployments';
-  const setTab = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); if (id === 'deployments') n.delete('tab'); else n.set('tab', id); n.delete('open'); return n; });
+  const asked: Tab = (TABS as string[]).includes(sp.get('tab') ?? '') ? (sp.get('tab') as Tab) : 'deployments';
+  const setTab = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); if (id === 'deployments') n.delete('tab'); else n.set('tab', id); n.delete('open'); return n; }, { replace: true });
   const open = sp.get('open');
   const setOpen = (id: string | null) => setSp((prev) => { const n = new URLSearchParams(prev); if (id) n.set('open', id); else n.delete('open'); return n; });
 
@@ -470,13 +475,16 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const deployments = useProjectDeploymentsQuery(p.id, { pollingInterval: live ? 2000 : 15_000 });
   const kind = p.kind ?? p.manifest?.kind ?? null;
   const isScript = isScriptProject(p);
-  const runs = useProjectRunsQuery(p.id, { skip: !isScript, pollingInterval: tab === 'runs' ? 2000 : 0 });
+  const runs = useProjectRunsQuery(p.id, { skip: !isScript, pollingInterval: asked === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
   const newest = deployments.data?.deployments[0]?.status;
   useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
 
   const rows = deployments.currentData?.deployments ?? [];
   const runRows = runs.currentData?.runs ?? [];
+  const hasStorage = kind === 'nextjs' || kind === 'service';
+  // `?tab=storage` on a script or agent: there is no such tab to select, so the console opens on Deployments
+  const tab: Tab = asked === 'storage' && !hasStorage ? 'deployments' : asked;
   const visitUrl = activeProjectUrl(p, rows);
   const latest = rows[0];
 
@@ -548,6 +556,8 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
     ...(isScript ? [{ id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` }] : []),
     { id: 'logs', label: t('projects.tabs.logs') },
+    // managed storage is for a container app (service / nextjs) — a script or agent has nothing to connect a store to
+    ...(hasStorage ? [{ id: 'storage', label: `${t('projects.tabs.storage')}${p.storage?.attached ? ` (${p.storage.attached})` : ''}` }] : []),
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
 
@@ -580,6 +590,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}
       <MissingEnvBanner project={p} onGo={goToEnv} />
+      {hasStorage && <MissingStorageBanner project={p} onGo={() => setTab('storage')} />}
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
       {tab === 'deployments' && (
@@ -640,9 +651,15 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         </TabBody>
       )}
 
+      {tab === 'storage' && hasStorage && (
+        <TabBody>
+          <ProjectStorage project={p} onOpenDeployment={openDeployment} />
+        </TabBody>
+      )}
+
       {tab === 'settings' && (
         <TabBody>
-          <ProjectEnvVars project={p} onOpenDeployment={openDeployment} />
+          <ProjectEnvVars project={p} onOpenDeployment={openDeployment} onOpenStorage={hasStorage ? () => setTab('storage') : undefined} />
           {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
           <KeyValue>
             {p.upstreamRepo && <><dt>GitHub</dt><dd><ExternalLink href={p.upstreamRepo} target="_blank" rel="noreferrer">{p.upstreamRepo}</ExternalLink></dd></>}

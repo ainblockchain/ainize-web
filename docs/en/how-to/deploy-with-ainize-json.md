@@ -43,6 +43,8 @@ shows each commit's deployment next to it.
 | `port` | `nextjs`, `service` | The port the container listens on. Default 3000 for Next.js. |
 | `healthcheck` | `nextjs`, `service` | Path polled until it answers 200; the deployment is `ready` when it does. Default `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — fields of the published agent card. |
+| `storage` | `nextjs`, `service` | The organization's managed stores the code expects — `["db"]` or `[{ "name": "db", "kind": "postgres", "env": "MAIN", "required": true }]`, at most 4. Each is connected to a store on the project's Storage tab; the app then gets `DATABASE_URL`, `S3_ENDPOINT`, … at deploy. An unconnected `required` entry fails the deploy before the build. See [Give a project a database and file storage](./managed-storage.md). |
+| `release` | `nextjs`, `service` | A command run from the built image before the new container takes traffic — migrations: `{ "command": ["pnpm", "db:migrate"], "target"?, "entrypoint"?, "timeoutSeconds"?, "when"? }`. A non-zero exit fails the deployment and the previous one keeps serving. |
 
 A repo with **no `ainize.json`** deploys only if it is a Next.js app (a `next` dependency in `package.json`);
 anything else ends as `error: no ainize.json`. The file is the contract — nothing is guessed beyond that one default.

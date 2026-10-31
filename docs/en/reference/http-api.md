@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-328 operations on 273 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+354 operations on 294 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -318,6 +318,37 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/requests`](#get-apiprojectsidrequests) | operator | What visitors asked the running app through this node (owner or member) |
 | `GET` | [`/api/projects/{id}/runtime-logs`](#get-apiprojectsidruntime-logs) | operator | The running service's own stdout/stderr, wherever it was placed (owner or member) |
 | `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
+
+**Storage** — managed Postgres and S3-compatible Blob (RustFS) stores an organization's projects connect to — provisioned by the node as containers on NFS, credentials injected as env, scheduled backups to the organization's AinDrive (docs/PROJECTS.md "Managed storage")
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | [`/api/orgs/{id}/stores`](#get-apiorgsidstores) | operator | The organization's stores, its backup target and this node's limits (org read) |
+| `POST` | [`/api/orgs/{id}/stores`](#post-apiorgsidstores) | operator | Create a store (org write) — provisioned in the background, poll its status |
+| `GET` | [`/api/stores/{sid}`](#get-apistoressid) | operator | One store with its attachments, health and usage (org read) |
+| `PATCH` | [`/api/stores/{sid}`](#patch-apistoressid) | operator | Change a store's backup settings or name (org write), or its resources (admin) |
+| `DELETE` | [`/api/stores/{sid}`](#delete-apistoressid) | operator | Delete a store (admin): refused while connected; name confirm; final backup; data to the trash for 30 days |
+| `POST` | [`/api/stores/{sid}/start`](#post-apistoressidstart) | operator | Start a stopped store (admin) |
+| `POST` | [`/api/stores/{sid}/stop`](#post-apistoressidstop) | operator | Stop a store (admin) — connected projects fail to deploy until it is started |
+| `POST` | [`/api/stores/{sid}/recreate`](#post-apistoressidrecreate) | operator | Recreate the container (admin): the next generation on the same volume and alias |
+| `POST` | [`/api/stores/{sid}/attachments`](#post-apistoressidattachments) | operator | Connect a project to the store (org write and project writer); `?redeploy=1` queues the redeploy that delivers the env |
+| `DELETE` | [`/api/stores/{sid}/attachments/{projectId}`](#delete-apistoressidattachmentsprojectid) | operator | Disconnect a project (org write and project writer); `?redeploy=1` queues the redeploy that removes the env |
+| `POST` | [`/api/stores/{sid}/reveal`](#post-apistoressidreveal) | operator | The connection env, once (org write) — logged |
+| `POST` | [`/api/stores/{sid}/rotate`](#post-apistoressidrotate) | operator | New credentials (admin): a pre-rotate backup, new passwords/keys, every connected project redeployed |
+| `GET` | [`/api/stores/{sid}/tables`](#get-apistoressidtables) | operator | Data browser: the tables of a Postgres database (org write) |
+| `GET` | [`/api/stores/{sid}/tables/{schema}/{table}/rows`](#get-apistoressidtablesschematablerows) | operator | Data browser: a page of rows (org write) |
+| `POST` | [`/api/stores/{sid}/query`](#post-apistoressidquery) | operator | Data browser: one read-only statement (org write) — 10 s, 200 rows |
+| `GET` | [`/api/stores/{sid}/objects`](#get-apistoressidobjects) | operator | Data browser: the objects of a Blob store under a prefix (org write) |
+| `GET` | [`/api/stores/{sid}/objects/download`](#get-apistoressidobjectsdownload) | operator | Data browser: download one object (org write), at most 256 MiB through the node |
+| `GET` | [`/api/stores/{sid}/backups`](#get-apistoressidbackups) | operator | The store's backups, newest first, with its schedule and the organization's drive target (org read) |
+| `POST` | [`/api/stores/{sid}/backups`](#post-apistoressidbackups) | operator | Back up now (org write) — 202, idempotent while one runs |
+| `DELETE` | [`/api/stores/{sid}/backups/{bk}`](#delete-apistoressidbackupsbk) | operator | Delete a backup on the NAS and the drive (admin) |
+| `POST` | [`/api/stores/{sid}/restore`](#post-apistoressidrestore) | operator | Restore a backup into a new store (default) or in place with a 7-day undo (admin) |
+| `POST` | [`/api/stores/{sid}/restore/undo`](#post-apistoressidrestoreundo) | operator | Undo the newest in-place restore (admin): the kept database comes back, the restored one is set aside |
+| `GET` | [`/api/stores/{sid}/logs`](#get-apistoressidlogs) | operator | The store container's own log (org write) |
+| `PUT` | [`/api/orgs/{id}/storage/backup-target`](#put-apiorgsidstoragebackup-target) | operator | Set the organization's AinDrive backup target (admin): a drive id and an account token |
+| `DELETE` | [`/api/orgs/{id}/storage/backup-target`](#delete-apiorgsidstoragebackup-target) | operator | Clear the backup target (admin) — backups stay on the NAS only |
+| `GET` | [`/api/projects/{id}/storage`](#get-apiprojectsidstorage) | operator | The project's Storage tab: connected stores, what ainize.json declares, what is missing (owner or member) |
 
 **Operator** — wallet, settings, purchases, branches, peers, chain, drive
 
@@ -6185,6 +6216,723 @@ The node proxies the request to the container on its internal network; the `outp
 | Code | Description |
 |---|---|
 | `200` | whatever the service answers |
+
+## Storage
+
+managed Postgres and S3-compatible Blob (RustFS) stores an organization's projects connect to — provisioned by the node as containers on NFS, credentials injected as env, scheduled backups to the organization's AinDrive (docs/PROJECTS.md "Managed storage")
+
+### `GET /api/orgs/{id}/stores`
+
+The organization's stores, its backup target and this node's limits (org read)
+
+Any role in the organization. `{ stores: Store[], backupDrive: { configured, driveId?, lastOkAt?, lastError?, defaultDriveId }, limits: { perOrg, memoryMax, cpusMax, attachmentsPerStore, extensions }, deletedStores: [{ storeId, name, kind, engine, backups }] }`. A non-member is told 404; 503 `storage_off` on a node without managed storage; 403 `storage_not_allowed` for an organization the operator did not allow.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the stores | `object` |
+| `403` | `storage_not_allowed` |   |
+| `404` | `not_found` |   |
+| `503` | `storage_off` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `stores` | [`Store`](./schemas.md#store)[] |
+| `backupDrive` | `object` |
+| `limits` | `object` |
+| `deletedStores` | `object`[] |
+
+### `POST /api/orgs/{id}/stores`
+
+Create a store (org write) — provisioned in the background, poll its status
+
+The container, its NFS directory, network and credentials are made in the background: the answer is the `provisioning` store; poll `GET /api/stores/{sid}` until `ready` (or `error` with the reason — `POST …/recreate` is not a retry; create again after fixing the cause). `kind` picks the engine (`postgres` → `postgres16`, or `postgres16-pgvector` with `engine`; `blob` → `minio`). `extensions` (Postgres) from the node's allow-list; `resources` within `limits`; `backups` defaults to daily at 04:00, 30 days / 60 copies.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | yes |   |
+| `kind` | `"postgres"` \| `"blob"` | yes |   |
+| `engine` | `"postgres16"` \| `"postgres16-pgvector"` \| `"minio"` |   |   |
+| `resources` | `object` |   |   |
+| `resources.memory` | `string` |   | (e.g. `"1g"`) |
+| `resources.cpus` | `number` |   |   |
+| `extensions` | `string`[] |   | (at most 16 items) |
+| `backups` | `object` |   |   |
+| `backups.schedule` | `"off"` \| `"daily"` \| `"hourly"` |   |   |
+| `backups.hour` | `integer` |   | (0–23) |
+| `backups.retainDays` | `integer` |   |   |
+| `backups.retainCount` | `integer` |   |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | the store, `provisioning` | [`Store`](./schemas.md#store) |
+| `400` | `invalid_request` |   |
+| `403` | `insufficient_role` \| `storage_not_allowed` |   |
+| `409` | `name_taken` (with `storeId`) \| `too_many_stores` |   |
+
+### `GET /api/stores/{sid}`
+
+One store with its attachments, health and usage (org read)
+
+The `Store` plus `attachments: [{ projectId, org, repoName, binding, envPrefix, database }]`. Never a credential.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the store | [`Store`](./schemas.md#store) |
+| `404` | `not_found` |   |
+
+### `PATCH /api/stores/{sid}`
+
+Change a store's backup settings or name (org write), or its resources (admin)
+
+`backups` is a record change (200). `name` and `resources` mean the next generation of the container on the same volume (a short interruption; a rename also redeploys the connected projects for their new host) — 202 `{ recreating: true, store }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Request body** — `application/json`, required
+
+| Field | Type |
+|---|---|
+| `name` | `string` |
+| `resources` | `object` |
+| `resources.memory` | `string` |
+| `resources.cpus` | `number` |
+| `backups` | `object` |
+| `backups.schedule` | `"off"` \| `"daily"` \| `"hourly"` |
+| `backups.hour` | `integer` |
+| `backups.retainDays` | `integer` |
+| `backups.retainCount` | `integer` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the store | [`Store`](./schemas.md#store) |
+| `202` | `{ recreating: true, store }` |   |
+| `400` | `invalid_request` |   |
+| `403` | `insufficient_role` |   |
+| `409` | `store_busy` \| `store_not_ready` \| `name_taken` |   |
+
+### `DELETE /api/stores/{sid}`
+
+Delete a store (admin): refused while connected; name confirm; final backup; data to the trash for 30 days
+
+`{ confirm: "<store name>", skipFinalBackup?: boolean }`. 409 `store_attached` (`projects`) while any project is connected; 400 `confirm_mismatch`. A `pre-delete` backup is taken unless skipped — and when it fails the store is NOT deleted (its `error` says why; 409 `safety_backup_failed` when that is known within the answer); the container, network and volume go and the NAS directory moves to `.trash/` (purged after `AINIZE_STORAGE_TRASH_DAYS`); the sealed credentials are dropped; backup rows stay under the organization's "Deleted stores". 202 `{ deleting: true, backupId? }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `confirm` | `string` | yes |
+| `skipFinalBackup` | `boolean` |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | `{ deleting: true, backupId? }` |
+| `400` | `confirm_mismatch` |
+| `409` | `store_attached` \| `store_busy` |
+
+### `POST /api/stores/{sid}/start`
+
+Start a stopped store (admin)
+
+After the owner-lease check (another node holding the directory refuses with 409 `store_owned_elsewhere`). 202 with the store.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `202` | the store | [`Store`](./schemas.md#store) |
+| `409` | `store_busy` \| `store_owned_elsewhere` |   |
+
+### `POST /api/stores/{sid}/stop`
+
+Stop a store (admin) — connected projects fail to deploy until it is started
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `202` | the store | [`Store`](./schemas.md#store) |
+| `409` | `store_busy` \| `store_stopped` |   |
+
+### `POST /api/stores/{sid}/recreate`
+
+Recreate the container (admin): the next generation on the same volume and alias
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `202` | the store | [`Store`](./schemas.md#store) |
+| `409` | `store_busy` \| `store_not_ready` |   |
+
+### `POST /api/stores/{sid}/attachments`
+
+Connect a project to the store (org write and project writer); `?redeploy=1` queues the redeploy that delivers the env
+
+`{ projectId, binding?, envPrefix?, database? }` — `binding` defaults to the store's name (the ainize.json `storage` entry it answers), `envPrefix` to the binding upper-cased, `database` (Postgres) to `app` or a new database owned by `app` created now. The live container joins the store's network at once; its env arrives with the redeploy. 201 `{ attachment, envNames, redeploy }`; the same triple again is 200. 404 when the project is invisible to the caller; 403 `not_writer`; 409 `cross_org` (another organization's project), `binding_taken`, `kind_mismatch` (ainize.json says another kind), `prefix_taken`, `store_not_ready`, `too_many_attachments`; 400 `invalid_prefix`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+| `redeploy` | `query` | `"1"` \| `"true"` |   |   |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `projectId` | `string` | yes |
+| `binding` | `string` |   |
+| `envPrefix` | `string` |   |
+| `database` | `string` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the attachment existed | `object` |
+| `201` | connected | `object` |
+| `403` | `not_writer` \| `insufficient_role` |   |
+| `404` | `not_found` |   |
+| `409` | `cross_org` \| `binding_taken` \| `kind_mismatch` \| `prefix_taken` \| `store_not_ready` \| `too_many_attachments` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `attachment` | [`StoreAttachment`](./schemas.md#storeattachment) |
+| `envNames` | `string`[] |
+| `redeploy` | `object` \| `null` |
+
+**`201` response body**
+
+| Field | Type |
+|---|---|
+| `attachment` | [`StoreAttachment`](./schemas.md#storeattachment) |
+| `envNames` | `string`[] |
+| `redeploy` | `object` \| `null` |
+
+### `DELETE /api/stores/{sid}/attachments/{projectId}`
+
+Disconnect a project (org write and project writer); `?redeploy=1` queues the redeploy that removes the env
+
+The live container leaves the store's network now; nothing in the store is dropped (a per-attachment database stays until the store is deleted). `{ ok, redeploy }`; 404 `not_attached`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+| `projectId` | `path` | `string` | yes |   |
+| `redeploy` | `query` | `"1"` \| `"true"` |   |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | disconnected | `object` |
+| `404` | `not_found` \| `not_attached` |   |
+
+### `POST /api/stores/{sid}/reveal`
+
+The connection env, once (org write) — logged
+
+`{ projectId? }` → `{ env, dotenv }`: the variables a project connected to this store receives (with `projectId`, exactly that project's binding and prefix). The only answer that carries a credential; `private, no-store`; every reveal is logged with who asked. 409 `store_busy` during a rotation.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Request body** — `application/json`, optional
+
+| Field | Type |
+|---|---|
+| `projectId` | `string` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | env and a .env rendering | `object` |
+| `409` | `store_busy` \| `store_not_ready` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `env` | `object` |
+| `dotenv` | `string` |
+
+### `POST /api/stores/{sid}/rotate`
+
+New credentials (admin): a pre-rotate backup, new passwords/keys, every connected project redeployed
+
+Postgres: new `app`/`app_ro` passwords (`?all=1` also the superuser — key-loss recovery). Blob: a new key pair and the next generation of the container (the old pair stops working at once; the redeploys bring the new one). The `pre-rotate` backup must succeed, else nothing changes (409 `safety_backup_failed`). `{ credentialsVersion, redeploys: [{ projectId, deploymentId }] }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+| `all` | `query` | `"1"` \| `"true"` |   |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | rotated | `object` |
+| `409` | `store_busy` \| `store_not_ready` \| `safety_backup_failed` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `credentialsVersion` | `integer` |
+| `redeploys` | `object`[] |
+| `redeploys[].projectId` | `string` |
+| `redeploys[].deploymentId` | `string` |
+
+### `GET /api/stores/{sid}/tables`
+
+Data browser: the tables of a Postgres database (org write)
+
+As the read-only role `app_ro`. `{ database, tables: [{ schema, name, rows, bytes }] }` from `pg_stat_user_tables`. 400 `not_postgres`; 409 `store_not_ready`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+| `database` | `query` | `string` |   | one of the store's databases (default `app`) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the tables | `object` |
+| `400` | `not_postgres` \| `invalid_request` |   |
+| `409` | `store_not_ready` |   |
+
+### `GET /api/stores/{sid}/tables/{schema}/{table}/rows`
+
+Data browser: a page of rows (org write)
+
+Identifiers go through `format('%I')`; `limit` ≤ 200 (default 50), `offset`, `order` (a column), `dir` asc|desc. `{ columns: [{ name, type }], rows: unknown[][], total }` — `total` is the planner's estimate, or null. 404 `table_not_found`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default | Description |
+|---|---|---|---|---|---|
+| `sid` | `path` | `string` | yes |   | store id |
+| `schema` | `path` | `string` | yes |   |   |
+| `table` | `path` | `string` | yes |   |   |
+| `database` | `query` | `string` |   |   | one of the store's databases (default `app`) |
+| `limit` | `query` | `integer` |   | `50` |   |
+| `offset` | `query` | `integer` |   | `0` |   |
+| `order` | `query` | `string` |   |   |   |
+| `dir` | `query` | `"asc"` \| `"desc"` |   |   |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the rows | `object` |
+| `404` | `table_not_found` |   |
+
+### `POST /api/stores/{sid}/query`
+
+Data browser: one read-only statement (org write) — 10 s, 200 rows
+
+`{ sql, database? }` (≤ 16 KiB). As `app_ro` with `default_transaction_read_only` and a 10 s statement timeout; the statement is wrapped in `SELECT … LIMIT 201`, so `truncated` says when there was more. `{ columns, rows, rowCount, truncated, ms }`. The text reaches the server as ONE SQL string, never a psql script. A `;` outside a string → 400 `multi_statement`; a backslash outside a string (a psql meta-command) → 400 `sql_error`; 400 `sql_error` (the server's message); 408 `sql_timeout`; 413 `result_too_large` (1 MiB).
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sql` | `string` | yes | (at most 16384 characters) |
+| `database` | `string` |   |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the result | `object` |
+| `400` | `multi_statement` \| `sql_error` \| `not_postgres` |   |
+| `408` | `sql_timeout` |   |
+| `413` | `result_too_large` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `database` | `string` |
+| `columns` | `string`[] |
+| `rows` | `object`[][] |
+| `rowCount` | `integer` |
+| `truncated` | `boolean` |
+| `ms` | `integer` |
+
+### `GET /api/stores/{sid}/objects`
+
+Data browser: the objects of a Blob store under a prefix (org write)
+
+`mc ls --json` of the `app` bucket at `prefix`. `{ prefix, objects: [{ key, size, lastModified }], prefixes: string[], next }` — `after` continues from a key, `limit` ≤ 1000 (default 200). 400 `not_blob`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default | Description |
+|---|---|---|---|---|---|
+| `sid` | `path` | `string` | yes |   | store id |
+| `prefix` | `query` | `string` |   |   |   |
+| `after` | `query` | `string` |   |   |   |
+| `limit` | `query` | `integer` |   | `200` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the listing | `object` |
+| `400` | `not_blob` \| `invalid_request` |   |
+
+### `GET /api/stores/{sid}/objects/download`
+
+Data browser: download one object (org write), at most 256 MiB through the node
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+| `key` | `query` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | application/octet-stream |
+| `404` | `not_found` |
+| `413` | `object_too_large` |
+
+### `GET /api/stores/{sid}/backups`
+
+The store's backups, newest first, with its schedule and the organization's drive target (org read)
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the backups | `object` |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `backups` | [`StoreBackup`](./schemas.md#storebackup)[] |
+| `schedule` | `object` |
+| `drive` | `object` |
+
+### `POST /api/stores/{sid}/backups`
+
+Back up now (org write) — 202, idempotent while one runs
+
+Joins the node-wide backup queue (one at a time). `{ backupId, running: true }`; asking again while one runs answers that one. 409 `store_not_ready` | `store_busy`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | `{ backupId, running }` |
+| `409` | `store_not_ready` \| `store_busy` |
+
+### `DELETE /api/stores/{sid}/backups/{bk}`
+
+Delete a backup on the NAS and the drive (admin)
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+| `bk` | `path` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deleted | `object` |
+| `404` | `not_found` |   |
+| `409` | `backup_running` |   |
+
+### `POST /api/stores/{sid}/restore`
+
+Restore a backup into a new store (default) or in place with a 7-day undo (admin)
+
+`{ source: { backupId } | { path: "import/<file>" }, mode: "new" | "in-place", confirm: "<store name>", newName?, database? }`. The file is found (NAS, else the drive) and its sha256 verified BEFORE anything changes — a mismatch is 422 `checksum_mismatch`. `new`: a store of the same engine and resources named `newName` (default `<name>-r<yyyymmdd>`) is created and filled; the original is untouched. `in-place`: a `pre-restore` backup that must succeed (else nothing changes), then the app is locked out of the database, a fresh one under another name is filled by `pg_restore` (the dump's extensions created first by the superuser), and only then the current database is RENAMED to `<db>_prerestore_<ts>` (never dropped); connected apps see errors while it runs; a Blob store is mirrored back from its archive (objects the backup lacks are removed); `POST …/restore/undo` swaps the names back within 7 days. `import/<file>` is a dump copied onto the NAS by hand (the compose cut-over). 202 `{ store, newStore? }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `source` | `object` | yes |   |
+| `source.backupId` | `string` |   |   |
+| `source.path` | `string` |   |   |
+| `mode` | `"new"` \| `"in-place"` |   | (default `"new"`) |
+| `confirm` | `string` | yes |   |
+| `newName` | `string` |   |   |
+| `database` | `string` |   |   |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | `{ store, newStore? }` |
+| `400` | `confirm_mismatch` \| `invalid_request` |
+| `404` | `backup_not_found` |
+| `409` | `store_busy` \| `kind_mismatch` |
+| `422` | `checksum_mismatch` |
+
+### `POST /api/stores/{sid}/restore/undo`
+
+Undo the newest in-place restore (admin): the kept database comes back, the restored one is set aside
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | `{ store }` |
+| `409` | `nothing_to_undo` \| `store_busy` |
+
+### `GET /api/stores/{sid}/logs`
+
+The store container's own log (org write)
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default | Description |
+|---|---|---|---|---|---|
+| `sid` | `path` | `string` | yes |   | store id |
+| `tail` | `query` | `integer` |   | `200` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ storeId, tail, fetchedAt, lines: [{ ts, stream, text }], truncated }` | `object` |
+
+### `PUT /api/orgs/{id}/storage/backup-target`
+
+Set the organization's AinDrive backup target (admin): a drive id and an account token
+
+`{ driveId, token }` — a drive on the operator's AinDrive (`AINDRIVE_URL`; a caller never chooses where the node sends backups) and an AinDrive account token (`aind_aat_…`) with `drives:write`. A probe file is uploaded and removed before the token is sealed; `{ driveId, verifiedAt }` — the token is never echoed. 400 `drive_unauthorized`, 502 `aindrive_error`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `driveId` | `string` | yes |
+| `token` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | verified | `object` |
+| `400` | `invalid_request` \| `drive_unauthorized` |   |
+| `502` | `aindrive_error` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `driveId` | `string` |
+| `verifiedAt` | `integer` |
+
+### `DELETE /api/orgs/{id}/storage/backup-target`
+
+Clear the backup target (admin) — backups stay on the NAS only
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | cleared | `object` |
+
+### `GET /api/projects/{id}/storage`
+
+The project's Storage tab: connected stores, what ainize.json declares, what is missing (owner or member)
+
+`{ attached: [{ store, binding, envPrefix, database, envNames }], declared, missing, optionalMissing, orgStores (writers only), orgId, canManage }`. 404 for a project the caller may not see; 403 `not_member`; 403 `storage_not_allowed` for an organization the operator did not allow; 503 `storage_off`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the project's storage | `object` |
+| `403` | `not_member` \| `storage_not_allowed` |   |
+| `404` | `not_found` |   |
+| `503` | `storage_off` |   |
 
 ## Operator
 

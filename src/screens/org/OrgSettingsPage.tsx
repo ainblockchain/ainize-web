@@ -1,13 +1,15 @@
 /**
- * `/org/:id/settings` — what the people who run an organization control, in five tabs:
+ * `/org/:id/settings` — what the people who run an organization control, in six tabs:
  *
  *   General          name · description · README · admitting domains · linked AIN SSO organizations · delete
  *   Members          roles changed in the list · remove · add by principal · pending join requests · invite links
  *   Resource groups  "these agents are for these members"
  *   Billing          the organization's API keys · calls to its agents · the recorded spend cap
  *   Security & SSO   how sign-in applies here · who got in how · the audit log
+ *   Storage          the organization's managed Postgres / Blob stores, Create store, backups to AinDrive (StorageTab)
  *
- * Admins see everything; write members see Resource groups (the node gates the rest). Each tab talks to the node
+ * Admins see everything; write members see Resource groups and Storage; any other member sees Storage only, read-only
+ * (the node lists stores to every role and gates the rest). Each tab talks to the node
  * through `src/api/api.ts` and reads the answer through `src/api/organizations.ts`; nothing here decides anything
  * the node would not — the last-admin rule, the domain rule, the roles are the node's, and refusals are shown as
  * they come back.
@@ -29,6 +31,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select, SelectField, Textarea } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, Empty, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import StorageTab from '@/screens/org/storage/StorageTab';
 import { useTitle } from '@/utils/useTitle';
 
 const Panel = styled.section`
@@ -48,8 +51,8 @@ const Chip = styled.span<{ $tone?: 'warn' | 'ok' }>`
 `;
 const Danger = styled(Panel)`border-color: #e8b4b4;`;
 
-type Tab = 'general' | 'members' | 'groups' | 'billing' | 'security';
-const TABS: Tab[] = ['general', 'members', 'groups', 'billing', 'security'];
+type Tab = 'general' | 'members' | 'groups' | 'billing' | 'security' | 'storage';
+const TABS: Tab[] = ['general', 'members', 'groups', 'billing', 'security', 'storage'];
 const when = (ts: number | null | undefined) => (ts ? new Date(ts).toLocaleString() : '—');
 
 export default function OrgSettingsPage() {
@@ -69,8 +72,9 @@ export default function OrgSettingsPage() {
   }
   const admin = roleAtLeast(org.my_role, 'admin');
   const write = roleAtLeast(org.my_role, 'write');
-  if (!write) return <PageWrapper><TitleRow><Title>{org.name}</Title></TitleRow><Empty data-testid="org-settings-denied">{t('orgSettings.admin_only')} <StyledLink to={`/org/${encodeURIComponent(org.id)}`}>{org.name}</StyledLink></Empty></PageWrapper>;
-  const visible = admin ? TABS : (['groups'] as Tab[]);
+  // a member below write has nothing here but the store list (read-only); a non-member nothing at all
+  if (!org.my_role) return <PageWrapper><TitleRow><Title>{org.name}</Title></TitleRow><Empty data-testid="org-settings-denied">{t('orgSettings.admin_only')} <StyledLink to={`/org/${encodeURIComponent(org.id)}`}>{org.name}</StyledLink></Empty></PageWrapper>;
+  const visible = admin ? TABS : write ? (['groups', 'storage'] as Tab[]) : (['storage'] as Tab[]);
   const current: Tab = visible.includes(tab) ? tab : visible[0];
 
   return (
@@ -83,6 +87,7 @@ export default function OrgSettingsPage() {
       {current === 'groups' && <GroupsTab org={org} />}
       {current === 'billing' && <BillingTab org={org} />}
       {current === 'security' && <SecurityTab org={org} />}
+      {current === 'storage' && <StorageTab org={org} />}
     </PageWrapper>
   );
 }
