@@ -21,6 +21,7 @@
  * Reading is public (ainize-node docs/PROJECTS.md "Who sees what"); the node says with `canManage` / `canOperate`
  * which buttons this caller gets. `/projects/:id` still resolves and forwards here.
  */
+import { createProjectManagement, ProjectManagementError, projectSyncTarget, sameProjectManagementTarget, type ProjectManagementAction } from '@/lib/projectManagement';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
@@ -389,7 +390,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
 
 function ProjectConsoleContent({ project: initial, switcher }: { project: Project; switcher?: ReactNode }) {
   const { t } = useT();
-  const { cacheIdentity } = useAuth();
+  const { cacheIdentity, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const active = useActiveView();
   const [sp, setSp] = useSearchParams();
@@ -400,7 +401,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
 
   const live = isLive(initial.status);
   const projectQ = useProjectQuery({ id: initial.id, identity: cacheIdentity }, { pollingInterval: live ? 2000 : 15_000 });
-  const p = projectQ.currentData ?? initial;
+  const p = projectQ.currentData?.id === initial.id ? projectQ.currentData : initial;
   const deployments = useProjectDeploymentsQuery({ id: p.id, identity: cacheIdentity }, { pollingInterval: live ? 2000 : 15_000 });
   const kind = p.kind ?? p.manifest?.kind ?? null;
   const canRun = hasProjectRunTargets(p);
@@ -438,13 +439,10 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   const [accepted, setAccepted] = useState<string | null>(null);
   const [syncFromGithub, { isLoading: syncing }] = useSyncFromGithubMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
-  const [synced, setSynced] = useState(false);
+  const [synced, setSynced] = useState<{ target: Project; requestedAt: string } | null>(null);
+  const syncConfirmed = !!synced && sameProjectManagementTarget(p, synced.target, 'sync');
   // GitHub → AIN Drive runs on a backoff; this asks for it now. The push to AIN Drive then deploys as usual.
-  const syncNow = async () => {
-    setHeadErr(null);
-    try { await syncFromGithub(p.id).unwrap(); setSynced(true); }
-    catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
-  };
+  const syncNow = () => manage('sync', () => syncFromGithub(p.id).unwrap());
   const redeployRecord = async (selected: Deployment) => {
     if (!p.canOperate || !rows.some(row => row.id === selected.id && row.sha === selected.sha) || redeployment.blocked()) return;
     setHeadErr(null);
@@ -472,20 +470,39 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   // Settings
   const [remove, { isLoading: removing }] = useDeleteProjectMutation();
   const [rotate, { isLoading: rotating }] = useRotateProjectSecretMutation();
-  const [rotated, setRotated] = useState<string | null>(null);
+  const [rotated, setRotated] = useState<{ target: Project; secret: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const del = async () => {
-    if (!window.confirm(t('projects.page.delete_confirm', { name: p.name }))) return;
-    setError(null);
-    try { await remove(p.id).unwrap(); if (active()) navigate('/me/projects', { replace: true }); }
-    catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
+  const [management] = useState(createProjectManagement);
+  const [managementBusy, setManagementBusy] = useState(false);
+  const [managementUnknown, setManagementUnknown] = useState(false);
+  const managementReady = isSignedIn && !projectQ.isError && projectQ.currentData?.id === initial.id;
+  const managementDisabled = !managementReady || managementBusy || managementUnknown;
+  const manage = async (action: ProjectManagementAction, send: () => Promise<unknown>) => {
+    if (managementDisabled || management.blocked() || (action === 'sync' ? !p.canOperate : !p.canManage)) return;
+    setManagementBusy(true); setError(null); setHeadErr(null);
+    if (action === 'rotate') setRotated(null);
+    try {
+      const result = await management.run(p, action, { read: () => projectQ.refetch().unwrap(), send, active });
+      if (!active() || !result) return;
+      if (result.kind === 'delete') navigate('/me/projects', { replace: true });
+      if (result.kind === 'rotate') setRotated({ target: p, secret: result.receipt.webhookSecret });
+      if (result.kind === 'sync') setSynced({ target: p, requestedAt: result.requestedAt });
+    } catch (err) {
+      if (!active()) return;
+      const failure = projectApiErrorOf(err);
+      setError(management.uncertain() ? t('projects.settings.unconfirmed') : err instanceof ProjectManagementError
+        ? t('projects.settings.changed') : failure.message ?? t(`projects.api.${failure.code}`));
+    } finally { if (active()) { setManagementBusy(false); setManagementUnknown(management.uncertain()); } }
   };
-  const doRotate = async () => {
-    if (!window.confirm(t('projects.settings.rotate_confirm'))) return;
-    setError(null);
-    try { const r = await rotate(p.id).unwrap(); setRotated(r.webhookSecret); }
-    catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
+  const del = () => {
+    if (managementDisabled || management.blocked() || !p.canManage) return;
+    if (window.confirm(t('projects.page.delete_confirm', { name: p.name }))) void manage('delete', () => remove(p.id).unwrap());
   };
+  const doRotate = () => {
+    if (managementDisabled || management.blocked() || !p.canManage) return;
+    if (window.confirm(t('projects.settings.rotate_confirm'))) void manage('rotate', () => rotate(p.id).unwrap());
+  };
+  useEffect(() => { if (!isSignedIn || !p.canManage || projectQ.isError) setRotated(null); }, [isSignedIn, p.canManage, projectQ.isError]);
 
   const goToEnv = () => {
     setTab('settings');
@@ -504,7 +521,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
 
-  if (projectQ.isError) return <PageWrapper><Alert role="alert" $tone="error">{t('projects.page.load_failed')} <Button loading={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button></Alert></PageWrapper>;
+  if (projectQ.isError || projectQ.currentData && projectQ.currentData.id !== initial.id) return <PageWrapper><Alert role="alert" $tone="error">{error ?? t('projects.page.load_failed')} <Button loading={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button></Alert></PageWrapper>;
 
   return (
     <PageWrapper $wide>
@@ -530,12 +547,13 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
           {canRun && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
           {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest && <Button size="small" loading={redeploying} disabled={redeployUnknown} title={t('projects.page.redeploy_hint')} onClick={() => void redeployRecord(latest)}>{t('projects.page.redeploy_commit', { sha: shortSha(latest.sha) })}</Button>}
-          {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
+          {isSignedIn && p.canOperate && projectSyncTarget(p) && <Button size="small" loading={syncing} disabled={syncConfirmed || managementDisabled} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{syncConfirmed ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}
       {accepted && <Alert role="status" $tone="info">{t('projects.page.redeploy_accepted')} <Mono>{accepted}</Mono> <Button size="small" onClick={() => openDeployment(accepted)}>{t('projects.env.deploy.open')}</Button></Alert>}
       {redeployUnknown && <Alert role="alert" $tone="warning">{t('projects.page.redeploy_unconfirmed')} <Button size="small" loading={deployments.isFetching} onClick={() => { setTab('deployments'); void deployments.refetch(); }}>{t('projects.page.retry')}</Button></Alert>}
+      {error && <Alert role="alert" $tone="error">{error} <Button loading={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button></Alert>}
       <MissingEnvBanner project={p} onGo={goToEnv} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
@@ -632,13 +650,12 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
             {p.canManage && p.hookUrl && <><dt>{t('projects.settings.webhook')}</dt><dd><Mono>{p.hookUrl}</Mono> <CopyButton text={p.hookUrl} /><Help>{t('projects.settings.webhook_help')}</Help></dd></>}
           </KeyValue>
           <Help>{t('projects.settings.readonly')} <ExternalLink href={p.repo} target="_blank" rel="noreferrer">{t('projects.settings.edit_in_aindrive')} ↗</ExternalLink></Help>
-          {rotated && <Alert $tone="warning"><strong>{t('projects.settings.rotated')}</strong> <Mono>{rotated}</Mono> <CopyButton text={rotated} /></Alert>}
-          {error && <Alert $tone="error">{error}</Alert>}
-          {p.canManage && (
+          {isSignedIn && rotated && sameProjectManagementTarget(p, rotated.target, 'rotate') && <Alert $tone="warning"><strong>{t('projects.settings.rotated')}</strong> <Mono>{rotated.secret}</Mono> <CopyButton text={rotated.secret} /></Alert>}
+          {isSignedIn && p.canManage && (
             <Actions style={{ marginTop: 16 }}>
-              <Button size="small" loading={rotating} onClick={doRotate}>{t('projects.settings.rotate')}</Button>
+              <Button size="small" loading={rotating} disabled={managementDisabled || !sameProjectManagementTarget(p, p, 'rotate')} onClick={doRotate}>{t('projects.settings.rotate')}</Button>
               <Spacer />
-              <Button size="small" color="secondary" loading={removing} onClick={del}>{t('projects.page.delete')}</Button>
+              <Button size="small" color="secondary" loading={removing} disabled={managementDisabled} onClick={del}>{t('projects.page.delete')}</Button>
             </Actions>
           )}
           <Actions style={{ marginTop: 16 }}><StyledLink to="/me/projects">← {t('projects.mine.title')}</StyledLink></Actions>

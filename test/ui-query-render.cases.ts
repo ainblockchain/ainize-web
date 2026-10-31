@@ -3249,3 +3249,33 @@ test('signed-out domain settings do not display cached ownership proof or editab
   const html = render(Page, signedOut);
   assert.match(html, /Sign in to see domain settings/); assert.doesNotMatch(html, /ainize-verification|Check configuration|placeholder="app.example.com"/);
 });
+
+
+test('project sync is offered only for an explicitly linked GitHub source', () => {
+  for (const upstreamRepo of [undefined, 'https://github.com/team/app', 'https://github.com/team/app/issues']) {
+    const project = { ...rootProject, upstreamRepo };
+    const Page = () => createElement(ProjectConsole, { project });
+    const html = render(Page, deploymentHistoryFixtures(project, []), '/studio/mono');
+    if (upstreamRepo === 'https://github.com/team/app') assert.match(html, /Sync from GitHub now/);
+    else assert.doesNotMatch(html, /Sync from GitHub now/);
+    assert.doesNotMatch(html, /starts within a minute/);
+  }
+});
+
+test('project management controls wait for the current project and hide on failed or foreign reads', () => {
+  const project = { ...rootProject, url: `https://node.example/svc/${rootProject.id}/`, hookUrl: `https://node.example/api/projects/${rootProject.id}/hook` };
+  const Page = () => createElement(ProjectConsole, { project });
+  const pending = render(Page, [...appAccount, { name: 'project', arg: projectArg, status: 'pending' }], '/studio/mono?tab=settings');
+  assert.match(pending, /<button[^>]*disabled[^>]*>Rotate webhook secret/);
+  for (const replacement of [{ value: { ...project, id: 'other' } }, { status: 'rejected' as const, value: project }]) {
+    const html = render(Page, deploymentHistoryFixtures(project, []).map(f => f.name === 'project' ? { ...f, ...replacement } : f), '/studio/mono?tab=settings');
+    assert.match(html, /role="alert"/); assert.doesNotMatch(html, /Rotate webhook secret|Delete project/);
+  }
+});
+
+test('signed-out project views do not inherit private management buttons from supplied props', () => {
+  const project = { ...rootProject, url: `https://node.example/svc/${rootProject.id}/`, upstreamRepo: 'https://github.com/team/app' };
+  const Page = () => createElement(ProjectConsole, { project });
+  const html = render(Page, signedOut, '/studio/mono?tab=settings');
+  assert.doesNotMatch(html, /Rotate webhook secret|Delete project|Sync from GitHub now/);
+});

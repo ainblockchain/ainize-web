@@ -71,8 +71,8 @@ export const projects: Dict = {
   'projects.page.output': { ko: '출력', en: 'Output' },
   'projects.page.redeploy': { ko: '다시 배포', en: 'Redeploy' },
   'projects.page.github_sync': { ko: 'GitHub에서 지금 동기화', en: 'Sync from GitHub now' },
-  'projects.page.github_sync_requested': { ko: '동기화 요청됨 (1분 안에 시작)', en: 'Sync requested (starts within a minute)' },
-  'projects.page.github_sync_hint': { ko: 'GitHub의 최신 커밋을 AIN Drive로 바로 가져옵니다. 바뀐 것이 있으면 이어서 배포됩니다.', en: 'Bring the latest GitHub commits to AIN Drive now; a change then deploys as usual.' },
+  'projects.page.github_sync_requested': { ko: '동기화 요청 접수됨', en: 'Sync request accepted' },
+  'projects.page.github_sync_hint': { ko: 'GitHub → AIN Drive 동기화를 요청합니다. 요청 접수는 동기화나 배포 완료를 뜻하지 않습니다.', en: 'Request GitHub → AIN Drive synchronization. Acceptance does not confirm synchronization or deployment.' },
   'projects.page.repo_deployments': { ko: '이 저장소의 배포', en: 'Deployments in this repository' },
   'projects.page.code': { ko: 'Code', en: 'Code' },
   'projects.page.code_hint': { ko: 'ainize.ai/code에서 이 저장소를 열어 수정합니다', en: 'Open this repository in ainize.ai/code to fix or change it' },
@@ -179,6 +179,8 @@ export const projects: Dict = {
   'projects.aindrive.open_logs': { ko: 'AinDrive 로그', en: 'AinDrive logs' },
   'projects.settings.rotate': { ko: '웹훅 비밀값 교체', en: 'Rotate webhook secret' },
   'projects.settings.rotate_confirm': { ko: '새 비밀값을 만들까요? 이전 값은 즉시 무효가 되고, 새 값을 드라이브의 리포 설정에 넣어야 push가 다시 배포됩니다.', en: 'Make a new secret? The old one stops working at once; paste the new one into the repo\'s settings in the drive or pushes stop deploying.' },
+  'projects.settings.changed': { ko: '프로젝트나 권한이 변경되었습니다. 최신 내용을 확인한 뒤 다시 선택해 주세요.', en: 'The project or your permissions changed. Review the current details before choosing again.' },
+  'projects.settings.unconfirmed': { ko: '작업 결과를 확인하지 못했습니다. 중복 실행을 막기 위해 이 화면의 관리 작업을 잠갔습니다. 새로고침만으로 비밀값 교체나 삭제 결과가 확인되지는 않습니다.', en: 'The operation could not be confirmed. Management actions are locked in this view to avoid repeating it. Refreshing details does not confirm a secret rotation or deletion.' },
   'projects.settings.rotated': { ko: '새 웹훅 비밀값 — 지금 한 번만 보여 줍니다:', en: 'New webhook secret — shown only now:' },
 
   // ── /<org>
