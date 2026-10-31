@@ -89,9 +89,9 @@ SDK ─► Store ─► AinDrive: put body → sha256
 ### Rules
 
 ```text
-/apps/donga/writes/articles/.rule.write:
-  getValue('/apps/ain_sso/sessions/' + auth.addr + '/org') === 'org_donga'
-  && ['editor','admin'].includes(getValue('/apps/ain_sso/orgs/org_donga/members/'
+/apps/<app>/writes/articles/.rule.write:
+  getValue('/apps/ain_sso/sessions/' + auth.addr + '/org') === '<orgId>'
+  && ['editor','admin'].includes(getValue('/apps/ain_sso/orgs/<orgId>/members/'
        + getValue('/apps/ain_sso/sessions/' + auth.addr + '/addr')))
   && util.isDict(newData) && ['set','merge','delete'].includes(newData.op)
 ```
@@ -108,7 +108,7 @@ finalized tx ─► chain .function (REST, whitelisted URL) ─► ainize node
    Run's writes go through the same chain rules
 ```
 
-- **Declaring a trigger:** `ainize.json` declares, per trigger, the paths it may write and the AinDrive objects it may read. For example: `"on-article": { "type": "ain", "path": "/apps/donga/writes/articles/$key", "as": "app", "writes": ["/apps/donga/writes/translations"] }`.
+- **Declaring a trigger:** `ainize.json` declares, per trigger, the paths it may write and the AinDrive objects it may read. For example: `"on-article": { "type": "ain", "path": "/apps/<app>/writes/articles/$key", "as": "app", "writes": ["/apps/<app>/writes/translations"] }`.
 - **Running as the app (`as: "app"`):** the Run acts as the project's own SSO service account, owned by the org. Its permission is the declared scope, limited to the roles the org grants that account.
 - **Running as the caller (`as: "caller"`):** the Run acts for the account that signed the triggering transaction. It can never do more than that user could.
 - **Verified events:** the node checks the event against the chain before running anything. The per-trigger URL token stays only as rate-limit protection.
@@ -119,29 +119,16 @@ finalized tx ─► chain .function (REST, whitelisted URL) ─► ainize node
 
 Chain state grows with log₂ of the number of writes, not with the number of documents.
 
-| Project | Documents (measured 2026-10-31) | Writes | Chain state |
-| --- | --- | --- | --- |
-| Donga Science | 214,566 | About 440 new articles in October 2026, each with a translation and an evaluation | MMR over all past writes: ⌊log₂ n⌋ + 1 ≤ 20 peaks while n < 1M, about 4 KB; plus one state root |
-| Baby Shark | 8,669 top-level | Low | Under 4 KB |
-| a2a orchestrator | About 6,000 | Low | Under 4 KB |
-
-- Per-document entries would have needed about 64 MB for Donga. The MMR needs about 4 KB, and only about 6 KB at a billion writes.
-- The write slot is erased in the same transaction, so write records never accumulate on chain. The records themselves (about 100 B each; Donga writes about 15k per 30 days, about 1.5 MB a month) are stored on AinDrive.
+- After n writes the chain holds at most ⌊log₂ n⌋ + 1 peaks: about 4 KB below a million writes, about 6 KB at a billion. Storing an entry per document would instead grow with the number of documents, about 300 B each.
+- The write slot is erased in the same transaction, so write records never accumulate on chain. The records themselves, about 100 B each, are stored on AinDrive.
 - **Per-app budgets** (decision D2) remain the isolation mechanism.
 - **Writes:** one transaction per write or batch, acknowledged at finality (a few seconds) behind the SDK's pending state.
 - **Reads** never touch the chain.
-- **Monitoring:** every 5 minutes, check per-app budget use, apply lag (the Store's position against the MMR's `n`), archive completeness (every leaf up to `n` is on AinDrive), state-root lag, and trigger failures. Alert AIN Teams #comcom at 70% and 85%.
+- **Monitoring:** every 5 minutes, check per-app budget use, apply lag (the Store's position against the MMR's `n`), archive completeness (every leaf up to `n` is on AinDrive), state-root lag, and trigger failures. Alert the app owner at 70% and 85%.
 
-## Migrating existing projects
+## Migrating existing data
 
-| Project | Gate before the old project's billing is unlinked |
-| --- | --- |
-| Baby Shark (`babyshark-187c9`) | A game on https://nft.babyshark.com/game grants its reward; the utility page loads images |
-| nft-server (`nft-server-prod`) | Every hosted token URI returns byte-identical JSON |
-| Donga Science (`donga-science-prod`) | New articles flow from collection through translation and review to publication on https://dongascience.com/en; the admin dashboard works |
-| a2a orchestrator | ainspace report and chat flows give identical results; its encrypted state is removed from chain |
-
-Each move follows the same steps: export → import → dual-run and compare → switch → verify the live service → remove the old copy → unlink billing.
+Each migration follows the same steps: export → import → dual-run and compare → switch → verify the live service → remove the old copy. A migration is complete only when the live service has been verified end to end.
 
 ## What ainize Runs still needs
 
@@ -161,12 +148,12 @@ Today a triggered Run runs with the key of whoever last pushed the project, whic
 2. SSO: publish the directory (`/apps/ain_sso` orgs, members, sessions); session keys at sign-in.
 3. Store: SDK, write follower and deterministic apply, SQLite indexes, sparse Merkle state root and proofs, AinDrive bodies and leaf archive, SSE, rule helpers.
 4. Runs: verified events, delegations, `as` and `writes`, on-chain install.
-5. Migrate Baby Shark, then nft-server, then Donga Science with one week of dual-run, then the orchestrator.
+5. Migrate existing apps, smallest first, with dual-run for the largest.
 
 ## Decisions (approved 2026-10-31)
 
 - **D1. On-chain index is O(log n).** A consensus-maintained Merkle Mountain Range over every write, through a new native function `_storeAppend`, plus a state root. SQLite is the only query index; AinDrive holds bodies and the write records. This is a mainnet consensus change.
-- **D2. Per-app state budgets** set by governance replace the shared free pool, and deletions are always accepted. This is a mainnet consensus change. Donga's increase is approved.
+- **D2. Per-app state budgets** set by governance replace the shared free pool, and deletions are always accepted. This is a mainnet consensus change.
 - **D3. SSO publishes orgs, members and sessions on chain, and users sign with SSO-issued session keys.**
 - **D4. Runs execute `as: "app"` (default) or `as: "caller"`, scoped by SSO resource delegations to declared paths.**
 - **D5. Data-dependent rules run on deterministic replay by default. A later option: verify them in consensus by having the transaction carry the document's O(log n) state proof.**

@@ -2,7 +2,7 @@
 title: "설계: AIN Store"
 summary: 상태 — 2026-10-31 승인. AIN 블록체인이 권한(규칙, 트리거, 모든 쓰기에 대한 O(log n) 머클 마운틴 레인지, 상태 루트)을 맡고, AinDrive가 문서와 쓰기 기록을 담고, 프로젝트별 SQLite가 유일한 인덱스이며, AIN SSO가 모든 권한의 신원이고, ainize Runs가 같은 신원으로 트리거를 실행하는 ainize 앱용 문서 데이터베이스입니다.
 source: en/design/ain-data-platform.md
-source_sha256: 4d822bf174cf92607e9f7826fbf83ce55c65c262b2f826c9ebfc7584a109e95f
+source_sha256: 3247b559d8a7e40dc420405f1e76e759000049615d682c51ffa05f6deb4f10cc
 ---
 
 # 설계: AIN Store
@@ -90,9 +90,9 @@ SDK ─► Store ─► AinDrive: 본문 저장 → sha256
 ### 규칙
 
 ```text
-/apps/donga/writes/articles/.rule.write:
-  getValue('/apps/ain_sso/sessions/' + auth.addr + '/org') === 'org_donga'
-  && ['editor','admin'].includes(getValue('/apps/ain_sso/orgs/org_donga/members/'
+/apps/<app>/writes/articles/.rule.write:
+  getValue('/apps/ain_sso/sessions/' + auth.addr + '/org') === '<orgId>'
+  && ['editor','admin'].includes(getValue('/apps/ain_sso/orgs/<orgId>/members/'
        + getValue('/apps/ain_sso/sessions/' + auth.addr + '/addr')))
   && util.isDict(newData) && ['set','merge','delete'].includes(newData.op)
 ```
@@ -109,7 +109,7 @@ SDK는 `role in ['editor','admin']`을 이 형태로 바꿔 주는 도우미를 
    Run의 쓰기도 같은 체인 규칙을 통과해야 함
 ```
 
-- **트리거 선언:** `ainize.json`에 트리거마다 쓸 수 있는 경로와 읽을 수 있는 AinDrive 객체를 선언합니다. 예: `"on-article": { "type": "ain", "path": "/apps/donga/writes/articles/$key", "as": "app", "writes": ["/apps/donga/writes/translations"] }`.
+- **트리거 선언:** `ainize.json`에 트리거마다 쓸 수 있는 경로와 읽을 수 있는 AinDrive 객체를 선언합니다. 예: `"on-article": { "type": "ain", "path": "/apps/<app>/writes/articles/$key", "as": "app", "writes": ["/apps/<app>/writes/translations"] }`.
 - **앱으로 실행 (`as: "app"`):** Run은 조직이 소유한 프로젝트 자신의 SSO 서비스 계정으로 동작합니다. 권한은 선언한 범위이며, 조직이 그 계정에 준 역할을 넘지 않습니다.
 - **호출자로 실행 (`as: "caller"`):** Run은 트리거한 트랜잭션에 서명한 계정을 대신해 동작합니다. 그 사용자가 할 수 있는 것 이상은 할 수 없습니다.
 - **검증된 이벤트:** 노드는 무엇이든 실행하기 전에 이벤트를 체인에 대고 확인합니다. 트리거별 URL 토큰은 요청 수 제한 용도로만 남깁니다.
@@ -120,29 +120,17 @@ SDK는 `role in ['editor','admin']`을 이 형태로 바꿔 주는 도우미를 
 
 체인 상태는 문서 수가 아니라 쓰기 횟수의 log₂로 늘어납니다.
 
-| 프로젝트 | 문서 수 (2026-10-31 실측) | 쓰기 | 체인 상태 |
-| --- | --- | --- | --- |
-| 동아사이언스 | 214,566 | 2026년 10월 새 기사 약 440건, 기사마다 번역 1건과 평가 1건 | 모든 과거 쓰기의 MMR: n < 100만이면 봉우리 ⌊log₂ n⌋ + 1 ≤ 20개, 약 4KB. 상태 루트 하나 추가 |
-| 베이비샤크 | 최상위 8,669 | 적음 | 4KB 미만 |
-| a2a orchestrator | 약 6,000 | 적음 | 4KB 미만 |
 
-- 문서마다 항목을 두면 동아에 약 64MB가 필요했지만, MMR은 약 4KB이고 쓰기가 10억 번이어도 약 6KB입니다.
-- 쓰기 슬롯은 같은 트랜잭션에서 지우므로 쓰기 기록이 체인에 쌓이지 않습니다. 기록 자체(건당 약 100B, 동아는 30일에 약 1만 5천 건, 한 달 약 1.5MB)는 AinDrive에 저장합니다.
+- 쓰기가 n번이면 체인에는 봉우리가 최대 ⌊log₂ n⌋ + 1개 있습니다. 쓰기 100만 번 미만이면 약 4KB, 10억 번이면 약 6KB입니다. 문서마다 항목을 두면 문서 수에 비례해 문서당 약 300B씩 늘어납니다.
+- 쓰기 슬롯은 같은 트랜잭션에서 지우므로 쓰기 기록이 체인에 쌓이지 않습니다. 기록 자체(건당 약 100B)는 AinDrive에 저장합니다.
 - **앱별 예산**(결정 D2)은 계속 격리 장치입니다.
 - **쓰기:** 쓰기나 batch마다 트랜잭션 하나이고, 확정 시점(수 초)에 응답하며 SDK의 대기 상태가 그 시간을 가립니다.
 - **읽기**는 체인에 닿지 않습니다.
-- **모니터링:** 5분마다 앱별 예산 사용량, 적용 지연(Store의 위치와 MMR `n`의 차이), 보관 완전성(`n`까지의 모든 잎이 AinDrive에 있는지), 상태 루트 지연, 트리거 실패를 확인해 70%, 85%에서 AIN Teams #comcom에 알립니다.
+- **모니터링:** 5분마다 앱별 예산 사용량, 적용 지연(Store의 위치와 MMR `n`의 차이), 보관 완전성(`n`까지의 모든 잎이 AinDrive에 있는지), 상태 루트 지연, 트리거 실패를 확인해 70%, 85%에서 앱 소유자에게 알립니다.
 
-## 기존 프로젝트 이전
+## 기존 데이터 이전
 
-| 프로젝트 | 기존 프로젝트 빌링 해제 전 게이트 |
-| --- | --- |
-| 베이비샤크 (`babyshark-187c9`) | https://nft.babyshark.com/game 에서 게임하면 보상이 지급됨. utility 페이지 이미지 로드 |
-| nft-server (`nft-server-prod`) | 호스팅하는 모든 토큰 URI가 바이트까지 같은 JSON을 반환 |
-| 동아사이언스 (`donga-science-prod`) | 새 기사가 수집 → 번역 → 검토 → https://dongascience.com/en 게시까지 흐름. 관리자 대시보드 정상 |
-| a2a orchestrator | ainspace 리포트·채팅 흐름이 같은 결과를 냄. 체인의 암호화 상태 제거 |
-
-모든 이전은 같은 단계를 따릅니다: 내보내기 → 가져오기 → 병행 운영하며 비교 → 전환 → 실서비스 검증 → 기존 사본 제거 → 빌링 해제.
+모든 이전은 같은 단계를 따릅니다: 내보내기 → 가져오기 → 병행 운영하며 비교 → 전환 → 실서비스 검증 → 기존 사본 제거. 실서비스를 처음부터 끝까지 검증해야 이전이 끝납니다.
 
 ## ainize Runs에 더 필요한 것
 
@@ -162,12 +150,12 @@ SDK는 `role in ['editor','admin']`을 이 형태로 바꿔 주는 도우미를 
 2. SSO: 디렉터리 게시(`/apps/ain_sso`의 조직·멤버·세션), 로그인 시 세션 키 발급.
 3. Store: SDK, 쓰기 추적과 결정적 적용, SQLite 인덱스, 희소 머클 상태 루트와 증명, AinDrive 본문과 잎 보관, SSE, 규칙 도우미.
 4. Runs: 이벤트 검증, 위임, `as`와 `writes`, 체인 설치.
-5. 베이비샤크 → nft-server → 동아사이언스(1주일 병행 운영) → orchestrator 순으로 이전.
+5. 기존 앱 이전: 작은 앱부터, 가장 큰 앱은 병행 운영.
 
 ## 결정 (2026-10-31 승인)
 
 - **D1. 체인 인덱스는 O(log n).** 새 native 함수 `_storeAppend`로 합의가 유지하는 모든 쓰기의 머클 마운틴 레인지와 상태 루트. SQLite가 유일한 질의 인덱스이고, AinDrive가 본문과 쓰기 기록을 담습니다. 메인넷 합의 변경입니다.
-- **D2. 공용 무료 풀 대신 거버넌스로 정하는 앱별 상태 예산, 삭제는 항상 허용.** 메인넷 합의 변경입니다. 동아 한도 상향은 승인됨.
+- **D2. 공용 무료 풀 대신 거버넌스로 정하는 앱별 상태 예산, 삭제는 항상 허용.** 메인넷 합의 변경입니다.
 - **D3. SSO가 조직·멤버·세션을 체인에 게시하고, 사용자는 SSO가 발급한 세션 키로 서명.**
 - **D4. Runs는 `as: "app"`(기본) 또는 `as: "caller"`로 실행하고, SSO 리소스 위임으로 선언한 경로에 한정.**
 - **D5. 데이터에 달린 규칙은 기본적으로 결정적 재생에서 실행. 이후 선택지: 트랜잭션에 문서의 O(log n) 상태 증명을 실어 합의에서 검증.**
