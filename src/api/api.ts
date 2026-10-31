@@ -404,7 +404,7 @@ export const api = createApi({
       query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/diff${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number; identity: string }>({ query: ({ identity: _identity, ...q }) => `api/events${toQuery(q)}`, providesTags: ['Events'] }),
+    events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; level?: string; since?: number; identity: string }>({ query: ({ identity: _identity, ...q }) => `api/events${toQuery(q)}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
     runtime: b.query<RuntimeResponse, { identity: string } | void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
     runtimeOperationCapabilities: b.query<unknown, { identity: string }>({ query: () => ({ url: 'api/runtime/jobs/capabilities', timeout: 15_000 }) }),

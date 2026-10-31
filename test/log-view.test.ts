@@ -68,3 +68,51 @@ test('account-specific event responses use separate caches without putting ident
     assert.deepEqual(paths, ['/api/events', '/api/events', '/api/patches/selected%2Fa%3F%23/events']);
   } finally { store.dispatch(api.util.resetApiState()); globalThis.fetch = nativeFetch; globalThis.Request = NativeRequest; }
 });
+
+test('log addresses restore filters, polling and expanded windows without substituting defaults', async () => {
+  const { readLogSelection, logSelectionHref } = await import('../src/lib/logView');
+  assert.deepEqual(readLogSelection(new URLSearchParams('limit=600&level=warn&kind=verify&follow=0'), 'node'), { valid: true, limit: 600, level: 'warn', kind: 'verify', follow: false });
+  assert.equal(readLogSelection(new URLSearchParams(), 'knowledge').limit, 100);
+  for (const query of ['limit=0', 'limit=2.5', 'limit=NaN', 'limit=9007199254740991', 'level=fatal', 'follow=false', 'follow=0&follow=1', 'kind=', 'kind=x%0Ay']) assert.equal(readLogSelection(new URLSearchParams(query), 'node').valid, false, query);
+  assert.equal(readLogSelection(new URLSearchParams('kind=verify'), 'knowledge').valid, false);
+  const location = { pathname: '/logs', search: '?limit=600&level=warn&follow=0&other=keep', hash: '#record' };
+  const next = logSelectionHref(location, { level: 'error' });
+  assert.equal(next, '/logs?limit=600&level=error&follow=0&other=keep#record');
+  assert.equal(logSelectionHref(location, { limit: null, level: null, follow: null, kind: null }), '/logs?other=keep#record');
+});
+
+test('new-log markers are scoped to account and node and advance only through observed server timestamps', async () => {
+  const { logSeenKey, readLogSeen, logSeenThrough } = await import('../src/lib/logView');
+  assert.notEqual(logSeenKey('alice', 'node-a'), logSeenKey('bob', 'node-a'));
+  assert.notEqual(logSeenKey('alice', 'node-a'), logSeenKey('alice', 'node-b'));
+  assert.equal(logSeenKey('alice', undefined), null);
+  for (const value of [null, '', '-1', 'NaN', 'Infinity', '1.5', '9007199254740992']) assert.equal(readLogSeen(value), 0);
+  assert.equal(readLogSeen('1234'), 1234);
+  assert.equal(logSeenThrough([]), null);
+  assert.equal(logSeenThrough([event('info', 3), event('warn', 1)]), 103);
+});
+
+test('the log command includes the selected window as well as kind/severity', () => {
+  assert.equal(logCommand('error', 'verify', false, 600), "ainize logs --level error --kind 'verify' --limit 600");
+});
+
+test('node log query passes filters before the server selects its window', async () => {
+  const { configureStore } = await import('@reduxjs/toolkit');
+  const { api } = await import('../src/api/api');
+  const nativeFetch = globalThis.fetch, NativeRequest = globalThis.Request;
+  globalThis.Request = class extends NativeRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) { super(typeof input === 'string' ? new URL(input, 'https://fixture.invalid') : input, init); }
+  };
+  let requested = false;
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init), url = new URL(request.url);
+    assert.equal(url.pathname, '/api/events');
+    assert.deepEqual(Object.fromEntries(url.searchParams), { limit: '600', level: 'warn', kind: 'peer push' });
+    requested = true; return Response.json({ events: [event('warn')] });
+  };
+  const store = configureStore({ reducer: { [api.reducerPath]: api.reducer }, middleware: gdm => gdm().concat(api.middleware) });
+  try {
+    await store.dispatch(api.endpoints.events.initiate({ limit: 600, level: 'warn', kind: 'peer push', identity: 'operator' }, { subscribe: false })).unwrap();
+    assert.equal(requested, true);
+  } finally { store.dispatch(api.util.resetApiState()); globalThis.fetch = nativeFetch; globalThis.Request = NativeRequest; }
+});

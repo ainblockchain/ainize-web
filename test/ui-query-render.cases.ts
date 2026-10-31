@@ -3811,3 +3811,29 @@ test('refreshing malformed agent data waits for the response instead of renderin
   assert.doesNotMatch(orgHtml, /agents-make/);
   assert.match(orgHtml, /agents-filter-org/);
 });
+
+test('node log deep links request their exact window and restore severity, kind and polling controls', () => {
+  const html = render(() => createElement(NodeLogs, { identity: '' }), [...signedOut,
+    { name: 'events', arg: { limit: 600, identity: '', level: 'warn', kind: logRow.kind }, value: { events: [logRow, { ...logRow, seq: 2, level: 'info', message: 'Below selected severity' }, { ...logRow, seq: 3, kind: 'other', message: 'Outside selected kind' }] } },
+  ], `/logs?limit=600&level=warn&kind=${encodeURIComponent(logRow.kind)}&follow=0`);
+  assert.match(html, /Selected event message/); assert.doesNotMatch(html, /Below selected severity|Outside selected kind/);
+  assert.match(html, /newest 600 matching events/); assert.match(html, /event-log-refresh/);
+  assert.match(html, /ainize logs --level warn/); assert.match(html, /--limit 600/); assert.doesNotMatch(html, /--follow|checked=""/);
+});
+test('invalid log selections show reset recovery instead of reading a different window', () => {
+  for (const path of ['/logs?level=fatal', '/logs?limit=100&limit=200', '/logs?follow=maybe']) {
+    const html = render(() => createElement(NodeLogs, { identity: '' }), [...signedOut,
+      { name: 'events', arg: { limit: 200, identity: '' }, value: { events: [logRow] } },
+    ], path);
+    assert.match(html, /log-selection-invalid/); assert.doesNotMatch(html, /Selected event message|event-log-refresh/);
+  }
+  const html = render(LogsPage, [...signedOut, ...knowledgeLogs], logPath + '?kind=verify', logRoute);
+  assert.match(html, /log-selection-invalid/); assert.doesNotMatch(html, /Selected event message/);
+});
+test('knowledge log window and severity come from its URL and manual refresh remains available when follow is off', () => {
+  const html = render(LogsPage, [...signedOut, ...knowledgeLogs,
+    { name: 'patchEvents', arg: { id: 'selected', limit: 500, identity: '' }, value: { events: [logRow, { ...logRow, seq: 5, level: 'info', message: 'Below selected severity' }] } },
+  ], logPath + '?limit=500&level=warn&follow=0', logRoute);
+  assert.match(html, /Selected event message/); assert.doesNotMatch(html, /Below selected severity|checked=""/);
+  assert.match(html, /newest 500 events/); assert.match(html, /event-log-refresh/);
+});

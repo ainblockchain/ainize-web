@@ -48,11 +48,12 @@ const Footer = styled.div`padding: 4px 8px; font-size: 10px; color: ${(p) => p.t
 
 export const LEVEL_COLOR: Record<EventRow['level'], string> = { debug: '#828282', info: '#333333', warn: '#f6981d', error: '#e7711b' };
 
-export function EventLog({ rows, loading, fetching, onOlder, empty, footer, controls, subject, freshAfter }: {
+export function EventLog({ rows, loading, fetching, onOlder, onRefresh, empty, footer, controls, subject, freshAfter }: {
   rows: EventRow[];
   loading: boolean;
   fetching: boolean;
   onOlder: () => void;
+  onRefresh?: () => void;
   empty: ReactNode;
   footer: string;
   /** extra filters rendered in the panel header (kind picker, follow switch) */
@@ -69,6 +70,7 @@ export function EventLog({ rows, loading, fetching, onOlder, empty, footer, cont
         <HeaderLabel>{t('op.logs.rows', { n: rows.length })}{fetching ? t('op.logs.refreshing') : ''}</HeaderLabel>
         {controls}
         <Filler />
+        {onRefresh && <LoadOlder type="button" disabled={loading || fetching} onClick={onRefresh} data-testid="event-log-refresh">{t('op.logs.refresh')}</LoadOlder>}
         <LoadOlder type="button" disabled={loading || fetching} onClick={onOlder}>{t('op.logs.older')}</LoadOlder>
       </ViewerHeader>
       <Body>

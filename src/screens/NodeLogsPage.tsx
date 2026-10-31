@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { useEventsQuery } from '@/api/api';
+import { useEventsQuery, useInfoQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { Checkbox } from '@/components/ui/Form';
+import { Alert, Checkbox } from '@/components/ui/Form';
 import { Description, PageWrapper, SelectBox, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { EventLog } from '@/components/operator/EventLog';
-import { filterLogEvents, logCommand, logEvents } from '@/lib/logView';
+import { filterLogEvents, logCommand, logEvents, logSeenKey, readLogSeen, logSeenThrough, readLogSelection, logSelectionHref } from '@/lib/logView';
 import { knowledgeLookupPath } from '@/lib/detailRoutes';
 import { DevBox, MonoBox, QueryError, Row } from '@/components/operator/common';
 
@@ -19,8 +19,7 @@ import { DevBox, MonoBox, QueryError, Row } from '@/components/operator/common';
  * that is not about one knowledge (peer pushes, self-registration failures, payout retries, `trainer slot busy`)
  * had nowhere to appear, and an operator who runs this node from the browser could not see that anything was wrong.
  */
-const SEEN_KEY = 'ainize.nodelog.seen';
-const readSeen = (): number => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; } };
+const readSeen = (key: string | null): number => { try { return key ? readLogSeen(localStorage.getItem(key)) : 0; } catch { return 0; } };
 
 const Summary = styled.p<{ $bad: boolean }>`
   margin: 16px 0 0; font-size: 14px; font-weight: ${(p) => (p.$bad ? 600 : 400)};
@@ -38,27 +37,32 @@ const HeaderCheck = styled.span`
 
 export default function NodeLogsPage() {
   const { cacheIdentity, loading } = useAuth();
-  return <NodeLogs key={cacheIdentity} identity={cacheIdentity} authLoading={loading} />;
+  const info = useInfoQuery();
+  const nodeIdentity = !info.isError && typeof info.currentData?.node?.address === 'string' ? info.currentData.node.address : undefined;
+  return <NodeLogs key={JSON.stringify([cacheIdentity, nodeIdentity])} identity={cacheIdentity} nodeIdentity={nodeIdentity} authLoading={loading} />;
 }
 
-export function NodeLogs({ identity, authLoading = false }: { identity: string; authLoading?: boolean }) {
+export function NodeLogs({ identity, nodeIdentity, authLoading = false }: { identity: string; nodeIdentity?: string; authLoading?: boolean }) {
   const { t } = useT();
   useTitle(t('op.nodelog.title'));
-  const [limit, setLimit] = useState(200);
-  const [level, setLevel] = useState('all');
-  const [kind, setKind] = useState('all');
-  const [follow, setFollow] = useState(true);
+  const [params] = useSearchParams();
+  const location = useLocation(), navigate = useNavigate();
+  const { limit, level, kind, follow, valid } = readLogSelection(params, 'node');
+  const change = (values: Parameters<typeof logSelectionHref>[1]) => navigate(logSelectionHref(location, values));
+  const seenKey = logSeenKey(identity, nodeIdentity);
   // Frozen once on mount: the marker must not walk forward under the operator's eyes while they read the screen.
-  const [seen] = useState(readSeen);
-  const markedSeen = useRef(false);
+  const [seen] = useState(() => readSeen(seenKey));
 
-  const events = useEventsQuery({ limit, identity }, { pollingInterval: follow ? 5000 : 0, skip: authLoading });
-  const eventRows = !authLoading && !events.isError ? logEvents(events.currentData) : null;
+  const events = useEventsQuery({ limit, identity, ...(level !== 'all' ? { level } : {}), ...(kind !== 'all' ? { kind } : {}) }, { pollingInterval: follow ? 5000 : 0, skip: authLoading || !valid });
+  const eventRows = !authLoading && valid && !events.isError ? logEvents(events.currentData) : null;
   useEffect(() => {
-    if (!eventRows || markedSeen.current) return;
-    markedSeen.current = true;
-    try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch { /* private windows can still read */ }
-  }, [eventRows]);
+    const through = eventRows && logSeenThrough(eventRows);
+    if (!seenKey || through == null) return;
+    try {
+      const previous = readSeen(seenKey), next = Math.max(seen, previous, through);
+      if (next > previous) localStorage.setItem(seenKey, String(next));
+    } catch { /* private windows can still read */ }
+  }, [eventRows, seenKey, seen]);
   const all = eventRows ?? [];
   const kinds = [...new Set([...all.map(e => e.kind), ...(kind === 'all' ? [] : [kind])])].sort();
   const rows = filterLogEvents(all, level, kind);
@@ -71,7 +75,7 @@ export function NodeLogs({ identity, authLoading = false }: { identity: string; 
   const filtered = kind !== 'all' || level !== 'all';
 
   const LEVELS = [
-    { value: 'all', label: t('op.logs.level.all') }, { value: 'info', label: t('op.logs.level.info') },
+    { value: 'all', label: t('op.logs.level.all') }, { value: 'debug', label: 'DEBUG' }, { value: 'info', label: t('op.logs.level.info') },
     { value: 'warn', label: t('op.logs.level.warn') }, { value: 'error', label: t('op.logs.level.error') },
   ];
   const KINDS = [{ value: 'all', label: t('op.nodelog.kind.all') }, ...kinds.map((k) => ({ value: k, label: k }))];
@@ -81,18 +85,20 @@ export function NodeLogs({ identity, authLoading = false }: { identity: string; 
     return <Subject><Link to={knowledgeLookupPath(id)} title={t('op.nodelog.of', { id })}>{id}</Link></Subject>;
   };
 
+  if (!valid) return <PageWrapper><Alert $tone="error" role="alert" data-testid="log-selection-invalid">{t('op.logs.selection_invalid')} <StyledLink to={logSelectionHref(location, { limit: null, level: null, kind: null, follow: null })}>{t('op.logs.selection_reset')}</StyledLink></Alert></PageWrapper>;
+
   return (
     <PageWrapper $wide>
       <TitleRow>
         <Title>{t('op.nodelog.title')}</Title>
-        <SelectBox options={LEVELS} value={level} onChange={setLevel} label={t('common.level_aria')} />
+        <SelectBox options={LEVELS} value={level} onChange={(value) => change({ level: value === 'all' ? null : value })} label={t('common.level_aria')} />
       </TitleRow>
       <Description>{t('op.nodelog.desc')} <StyledLink to="/dashboard">{t('op.nodelog.back')}</StyledLink></Description>
 
       <Row $gap={10}>
-        <SelectBox options={KINDS} value={kind} onChange={setKind} label={t('op.nodelog.kind')} prefix={t('op.nodelog.kind')} />
+        <SelectBox options={KINDS} value={kind} onChange={(value) => change({ kind: value === 'all' ? null : value })} label={t('op.nodelog.kind')} prefix={t('op.nodelog.kind')} />
         <HeaderCheck title={t('op.nodelog.follow.help')}>
-          <Checkbox label={t('op.nodelog.follow')} checked={follow} onChange={(e) => setFollow(e.target.checked)} />
+          <Checkbox label={t('op.nodelog.follow')} checked={follow} onChange={(e) => change({ follow: e.target.checked ? null : '0' })} />
         </HeaderCheck>
       </Row>
 
@@ -109,16 +115,17 @@ export function NodeLogs({ identity, authLoading = false }: { identity: string; 
         rows={rows}
         loading={authLoading || !eventRows && events.isFetching}
         fetching={events.isFetching}
-        onOlder={() => setLimit((l) => l + 200)}
+        onOlder={() => change({ limit: String(limit + 200) })}
+        onRefresh={() => void events.refetch()}
         empty={filtered ? t('op.nodelog.empty.filtered') : t('op.nodelog.empty')}
-        footer={t('op.logs.footer', { n: limit })}
+        footer={t('op.logs.footer_filtered', { n: limit })}
         subject={(e) => subject(e.patch_id)}
         freshAfter={seen || undefined}
       />}
 
       <DevBox>
         <span style={{ fontSize: 13, color: '#8d8d8f', display: 'block', marginBottom: 6 }}>{t('op.nodelog.cli')}</span>
-        <MonoBox>{logCommand(level, kind, follow)}</MonoBox>
+        <MonoBox>{logCommand(level, kind, follow, limit)}</MonoBox>
       </DevBox>
     </PageWrapper>
   );

@@ -1,16 +1,16 @@
-import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { usePatchEventsQuery, usePatchQuery, usePatchRecordsQuery } from '@/api/api';
 import type { LedgerRecord } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { CenterProgress, Description, PageWrapper, SelectBox, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
+import { Alert, Checkbox } from '@/components/ui/Form';
 import { EventLog } from '@/components/operator/EventLog';
 import { QueryError, useMoney } from '@/components/operator/common';
 import { useAuth } from '@/auth/AuthContext';
 import { resolvedKnowledgePath } from '@/lib/detailRoutes';
-import { filterLogEvents, logEvents, patchLogRecords } from '@/lib/logView';
+import { filterLogEvents, logEvents, patchLogRecords, readLogSelection, logSelectionHref } from '@/lib/logView';
 import { dateTime, shortAddr, shortHash } from '@/utils/format';
 
 const Timeline = styled.ol`list-style: none; margin: 16px 0 0; padding: 0; border-left: 2px solid #e0e0e0;`;
@@ -28,20 +28,22 @@ export default function LogsPage() {
 export function KnowledgeLogs({ patchId, identity, authLoading = false }: { patchId: string; identity: string; authLoading?: boolean }) {
   const { t } = useT();
   const money = useMoney();
-  const [limit, setLimit] = useState(100);
-  const [level, setLevel] = useState('all');
+  const [params] = useSearchParams();
+  const location = useLocation(), navigate = useNavigate();
+  const { limit, level, follow, valid } = readLogSelection(params, 'knowledge');
+  const change = (values: Parameters<typeof logSelectionHref>[1]) => navigate(logSelectionHref(location, values));
   const patch = usePatchQuery(patchId);
   const missing = patch.error && 'status' in patch.error && patch.error.status === 404;
   const destination = resolvedKnowledgePath(patch.currentData, patchId);
-  const ready = !authLoading && !patch.isError && !!destination;
-  const events = usePatchEventsQuery({ id: patchId, limit, identity }, { pollingInterval: ready ? 5000 : 0, skip: !ready });
+  const ready = valid && !authLoading && !patch.isError && !!destination;
+  const events = usePatchEventsQuery({ id: patchId, limit, identity }, { pollingInterval: ready && follow ? 5000 : 0, skip: !ready });
   const records = usePatchRecordsQuery(patchId, { skip: !ready });
   const eventRows = ready && !events.isError ? logEvents(events.currentData, patchId) : null;
   const recordRows = ready && !records.isError ? patchLogRecords(records.currentData, patchId) : null;
   useTitle(t('op.logs.title', { id: patchId }));
 
   const LEVELS = [
-    { value: 'all', label: t('op.logs.level.all') }, { value: 'info', label: t('op.logs.level.info') },
+    { value: 'all', label: t('op.logs.level.all') }, { value: 'debug', label: 'DEBUG' }, { value: 'info', label: t('op.logs.level.info') },
     { value: 'warn', label: t('op.logs.level.warn') }, { value: 'error', label: t('op.logs.level.error') },
   ];
 
@@ -75,6 +77,8 @@ export function KnowledgeLogs({ patchId, identity, authLoading = false }: { patc
     }
   };
 
+  if (!valid) return <PageWrapper><Alert $tone="error" role="alert" data-testid="log-selection-invalid">{t('op.logs.selection_invalid')} <StyledLink to={logSelectionHref(location, { limit: null, level: null, kind: null, follow: null })}>{t('op.logs.selection_reset')}</StyledLink></Alert></PageWrapper>;
+
   if (authLoading || !patch.currentData && patch.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
   if (missing) {
     return (
@@ -95,18 +99,21 @@ export function KnowledgeLogs({ patchId, identity, authLoading = false }: { patc
     <PageWrapper $wide>
       <TitleRow>
         <Title>{t('op.logs.title', { id: patchId })}</Title>
-        <SelectBox options={LEVELS} value={level} onChange={setLevel} label={t('common.level_aria')} />
+        <SelectBox options={LEVELS} value={level} onChange={(value) => change({ level: value === 'all' ? null : value })} label={t('common.level_aria')} />
       </TitleRow>
       <Description>
         {t('op.logs.desc')} <StyledLink to={`/project${destination}`}>{t('op.logs.back')}</StyledLink>
         {' · '}<StyledLink to="/logs">{t('op.logs.notfound.node')}</StyledLink>
       </Description>
 
+      <Checkbox label={t('op.nodelog.follow')} checked={follow} onChange={(e) => change({ follow: e.target.checked ? null : '0' })} />
+
       {events.isError || !eventRows && !events.isFetching ? <QueryError error={events.error} what={t('op.logs.title', { id: patchId })} retrying={events.isFetching} onRetry={() => void events.refetch()} /> : <EventLog
         rows={rows}
         loading={!eventRows && events.isFetching}
         fetching={events.isFetching}
-        onOlder={() => setLimit((l) => l + 200)}
+        onOlder={() => change({ limit: String(limit + 200) })}
+        onRefresh={() => void events.refetch()}
         empty={t(level === 'all' ? 'op.logs.empty' : 'op.nodelog.empty.filtered')}
         footer={t('op.logs.footer', { n: limit })}
       />}
