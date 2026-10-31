@@ -3,13 +3,15 @@
  * "secrets"). Sealed at rest, delivered to the project's container and its script runs as env, and never read back:
  * the console sees names and when each was set, the way Vercel shows a sensitive variable.
  *
- *   GET    /api/projects/:id/secrets                     → { secrets: [{ name, updatedAt }], declared, missing }
+ *   GET    /api/projects/:id/secrets                     → { secrets: [{ name, updatedAt }], declared, missing, managed }
  *   PUT    /api/projects/:id/secrets/:name[?redeploy=1]  { value } → 201 | 200 { name, updatedAt, created, redeploy }
  *   DELETE /api/projects/:id/secrets/:name[?redeploy=1]  → { ok, name, redeploy }
  *
  * Who: the owner, or a member of the project's organization with the write role; any other member gets 403
  * `not_writer`, everyone else 404. `declared` is what the newest deployment's ainize.json lists under `secrets`;
- * `missing` the declared names not set yet.
+ * `missing` the declared names not set yet. `managed` (a node with managed storage) the names a connected store sets
+ * at deploy — they win over a secret of the same name, so those rows are greyed and a PUT of one is refused
+ * `managed_by_store` (src/api/projectStorage.ts).
  *
  * What is here is what tests can hold still: the node's rules (name, reserved names, one line, 32 KiB, 64 per
  * project) checked before the request, the `.env` paste parser and the plan it turns into, the request shapes, the
@@ -29,7 +31,7 @@ export const RESERVED_SECRET_NAMES: readonly string[] = [
 ];
 
 export interface ProjectSecret { name: string; updatedAt: number | null }
-export interface ProjectSecretsResponse { secrets: ProjectSecret[]; declared: string[]; missing: string[] }
+export interface ProjectSecretsResponse { secrets: ProjectSecret[]; declared: string[]; missing: string[]; managed: string[] }
 export interface SecretSaved { name: string; updatedAt: number | null; created: boolean; redeploy: Queued | null }
 export interface SecretRemoved { ok: boolean; name: string; redeploy: Queued | null }
 
@@ -42,16 +44,19 @@ const timeOf = (v: unknown): number | null => (typeof v === 'number' && Number.i
 
 /** `GET …/secrets`, read defensively: rows without a name are dropped, the list comes back sorted by name. */
 export function parseProjectSecretsResponse(raw: unknown): ProjectSecretsResponse {
-  const r = (raw ?? {}) as { secrets?: unknown; declared?: unknown; missing?: unknown };
+  const r = (raw ?? {}) as { secrets?: unknown; declared?: unknown; missing?: unknown; managed?: unknown };
   const secrets = (Array.isArray(r.secrets) ? r.secrets : [])
     .map((s) => s as { name?: unknown; updatedAt?: unknown })
     .filter((s) => typeof s?.name === 'string')
     .map((s) => ({ name: s.name as string, updatedAt: timeOf(s.updatedAt) }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const declared = names(r.declared);
-  // An older answer without `missing` still gets one: declared and not set.
-  const missing = Array.isArray(r.missing) ? names(r.missing) : declared.filter((n) => !secrets.some((s) => s.name === n));
-  return { secrets, declared, missing };
+  // An older node sends no `managed`: nothing is set by a store there.
+  const managed = names(r.managed);
+  // An older answer without `missing` still gets one: declared and not set. A name a connected store provides is not
+  // missing — the app gets it at deploy whether or not a secret is set.
+  const missing = (Array.isArray(r.missing) ? names(r.missing) : declared.filter((n) => !secrets.some((s) => s.name === n))).filter((n) => !managed.includes(n));
+  return { secrets, declared, missing, managed };
 }
 export function parseSecretSaved(raw: unknown): SecretSaved {
   const r = (raw ?? {}) as { name?: unknown; updatedAt?: unknown; created?: unknown; redeploy?: unknown };
@@ -62,13 +67,20 @@ export function parseSecretRemoved(raw: unknown): SecretRemoved {
   return { ok: r.ok !== false, name: typeof r.name === 'string' ? r.name : '', redeploy: queuedOf(r.redeploy) };
 }
 
-/** One row of the table: a variable that is set, or one ainize.json declares and nobody has set. */
-export interface EnvRow { name: string; updatedAt: number | null; set: boolean; declared: boolean }
+/**
+ * One row of the table: a variable that is set, or one ainize.json declares and nobody has set. `managed`: a connected
+ * store sets this name at deploy, so the secret's value (if any) is not what the app sees — the row is greyed.
+ */
+export interface EnvRow { name: string; updatedAt: number | null; set: boolean; declared: boolean; managed: boolean }
 export function envRowsOf(r: ProjectSecretsResponse): EnvRow[] {
-  const rows: EnvRow[] = r.secrets.map((s) => ({ name: s.name, updatedAt: s.updatedAt, set: true, declared: r.declared.includes(s.name) }));
-  for (const n of r.missing) if (!rows.some((x) => x.name === n)) rows.push({ name: n, updatedAt: null, set: false, declared: true });
-  // The missing ones first: they are what keeps the app from starting.
-  return rows.sort((a, b) => Number(a.set) - Number(b.set) || a.name.localeCompare(b.name));
+  const managed = r.managed ?? [];
+  const rows: EnvRow[] = r.secrets.map((s) => ({ name: s.name, updatedAt: s.updatedAt, set: true, declared: r.declared.includes(s.name), managed: managed.includes(s.name) }));
+  for (const n of r.missing) if (!rows.some((x) => x.name === n)) rows.push({ name: n, updatedAt: null, set: false, declared: true, managed: false });
+  // a declared name a store provides is shown (greyed) rather than silently dropped from the list
+  for (const n of r.declared) if (managed.includes(n) && !rows.some((x) => x.name === n)) rows.push({ name: n, updatedAt: null, set: false, declared: true, managed: true });
+  // The missing ones first: they are what keeps the app from starting (a store-provided one is not missing).
+  const ok = (x: EnvRow) => Number(x.set || x.managed);
+  return rows.sort((a, b) => ok(a) - ok(b) || a.name.localeCompare(b.name));
 }
 
 // ------------------------------------------------------------------------------------------------ the rules
@@ -199,10 +211,10 @@ export async function saveSecretsSequentially(
 
 export type SecretErrorCode =
   | 'not_signed_in' | 'not_writer' | 'not_found' | 'secrets_off' | 'invalid_name' | 'reserved_name' | 'invalid_value' | 'value_too_large'
-  | 'too_many_secrets' | 'invalid_request' | 'not_member' | 'forbidden' | 'network' | 'unknown';
+  | 'too_many_secrets' | 'invalid_request' | 'not_member' | 'forbidden' | 'managed_by_store' | 'network' | 'unknown';
 export const SECRET_ERROR_CODES: readonly SecretErrorCode[] = [
   'not_signed_in', 'not_writer', 'not_found', 'secrets_off', 'invalid_name', 'reserved_name', 'invalid_value', 'value_too_large',
-  'too_many_secrets', 'invalid_request', 'not_member', 'forbidden', 'network', 'unknown',
+  'too_many_secrets', 'invalid_request', 'not_member', 'forbidden', 'managed_by_store', 'network', 'unknown',
 ];
 export interface SecretApiError { status: number | null; code: SecretErrorCode; message: string | null }
 
