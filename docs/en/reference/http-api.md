@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-330 operations on 275 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+331 operations on 276 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -355,6 +355,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/patches/{id}/buy-review`](#post-apipatchesidbuy-review) | operator | Review the exact purchase family and per-currency maximums without purchasing |
 | `POST` | [`/api/patches/{id}/buy-reviewed`](#post-apipatchesidbuy-reviewed) | operator | Execute an exact reviewed purchase with a durable request identifier |
 | `GET` | [`/api/purchases/requests/{id}`](#get-apipurchasesrequestsid) | operator | Read this operator’s saved purchase request without resubmitting |
+| `GET` | [`/api/purchases/requests/{id}/reconciliation`](#get-apipurchasesrequestsidreconciliation) | operator | Inspect request-specific payment evidence and current selected files without resubmitting |
 | `POST` | [`/api/patches/{id}/buy`](#post-apipatchesidbuy) | operator | Buy as this node (x402 handled automatically) |
 | `POST` | [`/api/patches/{id}/collect-reviewed`](#post-apipatchesidcollect-reviewed) | operator | Collect the exact selected file without submitting an unresolved payment |
 | `POST` | [`/api/patches/{id}/collect`](#post-apipatchesidcollect) | operator | Recover a purchased file or an unresolved recorded payment |
@@ -6992,6 +6993,27 @@ Request IDs are scoped to node and operator. A running row with no active worker
 |---|---|---|
 | `200` | {request} | `object` |
 | `404` | No request found for the current operator and node |   |
+
+### `GET /api/purchases/requests/{id}/reconciliation`
+
+Inspect request-specific payment evidence and current selected files without resubmitting
+
+Read-only, scoped to the current node/operator/request. New requests persist evidence_version:1, the exact review and attempted item IDs before item work; new pending payment rows carry an opaque request association. Returns reconciliation version:1 with request_id, node, subject, patch_id, revision, evidence_revision, state and ordered items. Item states are complete, paid_missing_file, not_started, unconfirmed or changed. Payment evidence distinguishes a saved request result, an exact linked local purchase, a matching ledger settlement and free access. Older unrelated purchases or a pending status alone cannot complete Buy Again. Conflicting transactions/amounts/units remain unconfirmed. can_collect is true only for a missing file with current settlement/free collection access and non-running work; a local receipt alone does not advertise unsupported collection. Overall running cannot be completed or resumed by reading; legacy requests without item evidence return unavailable. This does not submit a payment, collect a file, load a model, cancel an intent or prove absence of a remote charge. A seller response lost before local purchase persistence may remain unconfirmed; continuation of missing purchases requires a separate explicit review, not a new automatic purchase.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {reconciliation} | `object` |
+| `404` | No request found for the current operator and node; absence is not proof of no payment |   |
 
 ### `POST /api/patches/{id}/buy`
 

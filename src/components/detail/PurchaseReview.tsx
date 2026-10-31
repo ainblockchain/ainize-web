@@ -1,3 +1,5 @@
+import { CollectKnowledge } from './CollectKnowledge';
+import { confirmReconciledFiles, parsePurchaseReconciliation, type PurchaseReconciliation } from '@/lib/purchaseReconciliation';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, errorMessage } from '@/api/api';
@@ -13,11 +15,19 @@ import { Sheet, SheetFooter, SheetNote } from '@/components/chat/Sheet';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 
-export function PurchaseReviewSheet({ review, request, busy, error, submitted, verified, onConfirm, onRefresh, onInspect, onClose, onDone }: {
-  review: PurchaseReview | null; request: PurchaseRequest | null; busy: boolean; error: string | null; submitted: boolean; verified: boolean;
+export function PurchaseReviewSheet({ review, request, reconciliation = null, busy, error, submitted, verified, onConfirm, onRefresh, onInspect, onClose, onDone }: {
+  review: PurchaseReview | null; request: PurchaseRequest | null; reconciliation?: PurchaseReconciliation | null; busy: boolean; error: string | null; submitted: boolean; verified: boolean;
   onConfirm: () => void; onRefresh: () => void; onInspect: () => void; onClose: () => void; onDone: () => void;
 }) {
   const { t } = useT();
+  const recorded = request && <div data-testid="purchase-request">
+    <p>{t(`detail.purchaseReview.state.${request.state}`)}</p>
+    {request.result && <>
+      <p>{t('detail.purchaseReview.charges', { amount: request.result.confirmed_totals.map(v => `${v.amount} ${v.currency}`).join(' + ') || '0' })}</p>
+      <ul>{request.result.items.map(i => <li key={i.id}>{i.id} · {t(`detail.purchaseReview.item.${i.state}`)}{i.error && <p>{i.error}</p>}</li>)}</ul>
+    </>}
+    {request.error && <Alert $tone="error">{request.error}</Alert>}
+  </div>;
   return <Sheet title={t(review?.again ? 'detail.purchaseReview.again' : 'detail.purchaseReview.title')} onClose={onClose} width={560} testId="purchase-review">
     {busy && <p role="status">{t('detail.purchaseReview.busy')}</p>}
     {review && <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
@@ -32,14 +42,17 @@ export function PurchaseReviewSheet({ review, request, busy, error, submitted, v
         </li>)}</ul>
       </details>
     </div>}
-    {request && <div data-testid="purchase-request">
-      <p>{t(`detail.purchaseReview.state.${request.state}`)}</p>
-      {request.result && <>
-        <p>{t('detail.purchaseReview.charges', { amount: request.result.confirmed_totals.map(v => `${v.amount} ${v.currency}`).join(' + ') || '0' })}</p>
-        <ul>{request.result.items.map(i => <li key={i.id}>{i.id} · {t(`detail.purchaseReview.item.${i.state}`)}{i.error && <p>{i.error}</p>}</li>)}</ul>
-      </>}
-      {request.error && <Alert $tone="error">{request.error}</Alert>}
+    {reconciliation && <div data-testid="purchase-reconciliation">
+      <p>{t(`detail.purchaseRecovery.state.${reconciliation.state}`)}</p>
+      <ul>{reconciliation.items.map(item => <li key={item.id} style={{ overflowWrap: 'anywhere' }}>
+        {item.id} · {t(`detail.purchaseRecovery.item.${item.state}`)}
+        {item.payment && <p>{t(`detail.purchaseRecovery.evidence.${item.payment.evidence}`)} · {t('detail.purchaseRecovery.receipt', { amount: `${item.payment.amount}${item.payment.currency ? ` ${item.payment.currency}` : ''}`, tx: item.payment.tx_hash || '—' })}</p>}
+        {item.can_collect && !busy && <CollectKnowledge target={item.anchor} hasBody={false} />}
+        {item.state === 'paid_missing_file' && !item.can_collect && <SheetNote>{t('detail.purchaseRecovery.collectionUnavailable')}</SheetNote>}
+      </li>)}</ul>
+      {reconciliation.items.some(i => i.can_collect) && <SheetNote>{t('detail.purchaseRecovery.afterCollect')}</SheetNote>}
     </div>}
+    {reconciliation && recorded ? <details data-testid="purchase-recorded-history"><summary>{t('detail.purchaseRecovery.history')}</summary>{recorded}</details> : recorded}
     {submitted && !verified && request?.state !== 'refused' && <Alert $tone="warning">{t('detail.purchaseReview.inspectNote')}</Alert>}
     {error && <Alert role="alert" $tone="error">{error}</Alert>}
     {verified && <Alert role="status" $tone="success">{t('detail.purchaseReview.done')}</Alert>}
@@ -64,9 +77,11 @@ export function usePurchaseReview(target: PurchaseSelection) {
   const owner = purchaseOwner(auth.cacheIdentity, auth.address, target.id);
   const [ready, setReady] = useState(false), [open, setOpen] = useState(false), [again, setAgain] = useState(false);
   const [review, setReview] = useState<PurchaseReview | null>(null), [operation, setOperation] = useState<PurchaseOperation | null>(null);
+  const [reconciliation, setReconciliation] = useState<PurchaseReconciliation | null>(null);
   const [request, setRequest] = useState<PurchaseRequest | null>(null), [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [access] = api.useLazyMeQuery(), [readReview] = api.useLazyPurchaseReviewQuery(), [write] = api.usePurchaseReviewedMutation();
+  const [readReconciliation] = api.useLazyPurchaseReconciliationQuery();
   const [readRequest] = api.useLazyPurchaseRequestQuery(), [readItem] = api.useLazyManagedPatchQuery();
   const report = (e: unknown) => e instanceof PurchaseReviewError ? t(`detail.purchaseReview.error.${e.code}`)
     : e instanceof LoadKnowledgeError ? t(`detail.apply.error.${e.code}`) : errorMessage(e);
@@ -86,7 +101,7 @@ export function usePurchaseReview(target: PurchaseSelection) {
     catch (e) { setError(report(e)); setOpen(true); return; }
     if (stored && mode !== 'inspect') { setOperation(stored); setReview(stored.review); setOpen(true); return; }
     if (mode === 'confirm' && !review) return;
-    setBusy(true); setError(null); setOpen(true); let stillCurrent = current;
+    setBusy(true); setError(null); setVerified(false); setReconciliation(null); setOpen(true); let stillCurrent = current;
     try {
       await task.run(current, async check => {
         stillCurrent = check;
@@ -114,8 +129,17 @@ export function usePurchaseReview(target: PurchaseSelection) {
           }
           if (value && check()) {
             setRequest(value);
-            const complete = await confirmPurchasedFiles(op, value, { current: check,
-              read: id => readItem({ id, identity: auth.cacheIdentity }, false).unwrap() });
+            const fileReads = { current: check, read: (id: string) => readItem({ id, identity: auth.cacheIdentity }, false).unwrap() };
+            let complete = false;
+            try { complete = await confirmPurchasedFiles(op, value, fileReads); }
+            catch (e) { if (!(e instanceof PurchaseReviewError) || e.code !== 'files') throw e; }
+            if (!complete && value.state !== 'running' && value.evidence_version === 1) {
+              const evidence = parsePurchaseReconciliation(await readReconciliation({ id: op.id, identity: auth.cacheIdentity }, false).unwrap(), op);
+              if (!check()) return null;
+              if (!evidence) throw new PurchaseReviewError('unconfirmed');
+              setReconciliation(evidence);
+              complete = await confirmReconciledFiles(op, evidence, fileReads);
+            }
             if (check()) setVerified(complete);
           }
         }
@@ -131,14 +155,14 @@ export function usePurchaseReview(target: PurchaseSelection) {
   }, [open, operation?.id, request?.state]);
   const finish = () => {
     if (!operation || !verified && request?.state !== 'refused' || !current()) return;
-    try { clearPurchaseOperation(localStorage, operation); setOperation(null); setRequest(null); setReview(null); setOpen(false); setVerified(false); }
+    try { clearPurchaseOperation(localStorage, operation); setOperation(null); setRequest(null); setReconciliation(null); setReview(null); setOpen(false); setVerified(false); }
     catch (e) { setError(report(e)); }
   };
   return { ready, busy, submitted: !!operation,
     launch: (repeat: boolean) => { if (operation) { setOpen(true); void run('inspect'); } else void run('review', repeat); },
     dialog: <>
       {!ready && error && <Alert role="alert" $tone="error">{error}</Alert>}
-      {open && <PurchaseReviewSheet review={review} request={request} busy={busy} error={error} submitted={!!operation} verified={verified}
+      {open && <PurchaseReviewSheet review={review} request={request} reconciliation={reconciliation} busy={busy} error={error} submitted={!!operation} verified={verified}
         onConfirm={() => void run('confirm')} onRefresh={() => void run('review')} onInspect={() => void run('inspect')}
         onClose={() => { if (!task.pending()) setOpen(false); }} onDone={finish} />}
     </> };

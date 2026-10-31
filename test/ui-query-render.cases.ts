@@ -1,4 +1,5 @@
 import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
+import { reconciliationFixture } from './purchase-reconciliation-fixture';
 import { purchaseReviewFixture, purchaseRequestFixture } from './purchase-review-fixture';
 const purchaseSheetProps = () => ({ review: null, request: null, busy: false, error: null, submitted: false, verified: false,
   onConfirm() {}, onRefresh() {}, onInspect() {}, onClose() {}, onDone() {} });
@@ -2353,4 +2354,25 @@ test('chat picker offers a purchase review and preserves small exact prices', ()
     onToggle() {}, onClear() {}, elsewhere: [row], operator: true }), accessAuth, '/chat');
   assert.match(html, /0.00000001 AIN/); assert.match(html, /Review purchase/);
   assert.doesNotMatch(html, /Buy for 0 AIN/);
+});
+
+test('purchase reconciliation distinguishes evidence and offers collection only with confirmed access', () => {
+  const { op, request, reconciliation } = reconciliationFixture(); request.state = 'interrupted'; request.result = null;
+  reconciliation.state = 'incomplete';
+  Object.assign(reconciliation.items[0], { state: 'paid_missing_file', has_body: false, can_collect: true });
+  Object.assign(reconciliation.items[1], { state: 'unconfirmed', payment: null });
+  const view = () => createElement(PurchaseReviewSheet, { ...purchaseSheetProps(), review: op.review, request, reconciliation, submitted: true });
+  const html = render(view, accessAuth);
+  assert.match(html, /Ledger settlement record/); assert.match(html, /Outcome unknown/);
+  assert.match(html, /data-testid="collect-knowledge"/); assert.doesNotMatch(html, /purchase-review-confirm/);
+  reconciliation.items[0].can_collect = false;
+  const noAccess = render(view, accessAuth);
+  assert.doesNotMatch(noAccess, /data-testid="collect-knowledge"/); assert.match(noAccess, /current download access is unconfirmed/);
+});
+test('recovered current status precedes a collapsed historical failure and no new confirmation', () => {
+  const { op, request, reconciliation } = reconciliationFixture(); request.state = 'failed'; request.error = 'Old interrupted execution';
+  const html = render(() => createElement(PurchaseReviewSheet, { ...purchaseSheetProps(), review: op.review, request, reconciliation, submitted: true, verified: true }), accessAuth);
+  assert.match(html, /<details data-testid="purchase-recorded-history"><summary>View earlier execution result/);
+  assert.ok(html.indexOf('purchase-reconciliation') < html.indexOf('purchase-recorded-history'));
+  assert.match(html, /storage of the selected files are confirmed/); assert.doesNotMatch(html, /purchase-review-confirm/);
 });

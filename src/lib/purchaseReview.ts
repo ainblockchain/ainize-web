@@ -22,6 +22,7 @@ export interface PurchaseOutcome {
 }
 export interface PurchaseOperation { owner: string; id: string; subject: string | null; review: PurchaseReview }
 export interface PurchaseRequest {
+  evidence_version?: 1;
   version: 1; id: string; node: string; subject: string; patch_id: string; again: boolean; revision: string;
   state: 'running' | 'finished' | 'failed' | 'interrupted' | 'refused'; created_at: number; updated_at: number;
   result: PurchaseOutcome | null; error: string | null;
