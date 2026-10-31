@@ -2436,3 +2436,19 @@ test('deposit credit feedback retains exact units without promising throughput r
   const failed = render(() => createElement(BillingSentStatus, { send, credited: false, sain: null, error: { status: 503 } }), signedOut);
   assert.match(failed, /Could not check/); assert.doesNotMatch(failed, /No node credit confirmed yet/);
 });
+
+test('model playground displays its runnable sample and key-dependent actions are unavailable without a key', () => {
+  const chat = () => createElement(ModelPlaygroundPanel, { model: { id: 'selected-chat', modality: 'chat', available: true }, signInNext: '/models/selected-chat' });
+  const html = render(chat, signedOut, '/models/selected-chat');
+  assert.match(html, /Hello! Introduce yourself in one sentence/); assert.match(html, /API code for the selected model and current input/);
+  for (const modality of ['embedding', 'speech', 'music'] as const) {
+    const page = () => createElement(ModelPlaygroundPanel, { model: { id: 'selected', modality, available: true }, signInNext: '/models/selected' });
+    const html = render(page, signedOut, '/models/selected');
+    assert.match(html, /data-testid="models-key-required"/); assert.match(html, /<button(?=[^>]*data-testid="models-run")(?=[^>]*disabled)[^>]*>/);
+    assert.doesNotMatch(html, /tries left this hour/);
+  }
+});
+test('model page key creation clearly identifies a personal key and points organization management to the account', () => {
+  const html = render(Playground, [...appAccount, noKeys], '/models/fixture-model');
+  assert.match(html, /Create a personal key/);
+});

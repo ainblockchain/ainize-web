@@ -1,7 +1,8 @@
 # Call the model from your own code
 
-> Want to press one rather than read about it? The [Models page](/models) lists what this node serves and runs
-> all three in the browser, with no key and no deposit — then hands you this same code with the model filled in.
+> Want to press one rather than read about it? The [Models page](/models) lists available models and providers. Chat, transcription,
+> image and decision trials use the free routes; embeddings, speech and music require your API key. The detail
+> page copies code for the selected model and current input, with explicit request limits.
 
 > This page is about **using** a node's model — chat, speech and images — from your own program.
 > Teaching one is [Teach by correcting the model](../tutorials/teach-in-chat.md); buying somebody's knowledge is
@@ -25,8 +26,8 @@ models = client.models.list().data
 print([model.id for model in models])
 ```
 
-**You get the key from the site.** Sign in there with your wallet and create one on the
-[Models page](/models), which also writes it into the snippet it shows you. Your private key never leaves the
+**You get the key from the site.** Sign in with your AIN account or wallet. A model detail page can create a personal key and fill it into the snippet;
+[Manage your keys](/me) also lets eligible accounts choose an organization. Your private key never leaves the
 browser: a key that can sign a transfer has no business in a source file, a CI variable or a screenshot, and no
 other model API asks you to put one in any of them.
 

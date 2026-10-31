@@ -36,7 +36,7 @@ test('music snippets post to /v1/audio/music through the SDK client and save the
   assert.match(ts, /connectAinize/);
   assert.match(ts, /client\.post<Response>\('\/audio\/music'/);
   assert.match(ts, /__binaryResponse: true/);
-  const curl = modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'music', model: 'ace-step-1.5', prompt: '' });
+  const curl = modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'music', model: 'ace-step-1.5', prompt: undefined });
   assert.match(curl, /\/v1\/audio\/music/);
   assert.match(curl, /"prompt":"calm lo-fi piano, soft rain"/, 'an empty box still sends a real prompt');
   assert.match(curl, /--output out\.mp3/);
@@ -63,7 +63,7 @@ test('the model and the node URL are the ones on screen, not placeholders', () =
 
 test('each modality calls its own method', () => {
   assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat' }), /chat\.completions\.create/);
-  assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'decision' }), /client\.decide\(/);
+  assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'decision', prompt: DECISION_EXAMPLE }), /client\.decide\(/);
   assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'transcription' }), /audio\.transcriptions\.create/);
   assert.match(modelsPageCodeSnippet({ ...base, language: 'python', modality: 'image' }), /images\.generate/);
 });
@@ -105,16 +105,17 @@ test('a prompt with a backslash survives every language', () => {
   }
 });
 
-test('an empty prompt still produces a snippet that gets an answer — never an empty message', () => {
+test('the initial sample is explicit; clearing the input never substitutes another prompt', () => {
   for (const language of SNIPPET_LANGUAGES) {
-    for (const prompt of ['', '   ', undefined]) {
+    for (const prompt of ['', '   ']) assert.throws(() => modelsPageCodeSnippet({ ...base, language, modality: 'chat', prompt }), /prompt/);
+    for (const prompt of [undefined]) {
       const s = modelsPageCodeSnippet({ ...base, language, modality: 'chat', prompt });
       assert.ok(!s.includes('undefined'), `${language} leaked an undefined into the snippet`);
       // `"content": ""` sends nothing to answer; the pasted code then prints nothing and looks broken.
       assert.ok(!/content["']?:\s*""/.test(s), `${language} sends an empty message`);
       assert.ok(s.includes(JSON.stringify(SNIPPET_SAMPLE_PROMPT.chat)), `${language} asks the sample question`);
     }
-    const image = modelsPageCodeSnippet({ ...base, language, modality: 'image', prompt: '' });
+    const image = modelsPageCodeSnippet({ ...base, language, modality: 'image', prompt: undefined });
     assert.ok(image.includes(JSON.stringify(SNIPPET_SAMPLE_PROMPT.image)), `${language} draws the sample picture`);
   }
   const typed = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'chat', prompt: 'What is 2+2?' });
@@ -193,7 +194,7 @@ test('the decision snippet carries the same example the playground shows, state 
   assert.deepEqual(JSON.parse(body), { model: 'clef-flash', state: example.state, questions: example.questions });
 });
 
-test('what the visitor typed in the decision box is what the snippet sends; a half-typed box falls back to the example', () => {
+test('what the visitor typed in the decision box is what the snippet sends; invalid input refuses instead of substituting an example', () => {
   const typed = '{"state": {"ticket": "refund", "vip": true, "note": null}, "questions": {"q": {"type": "noul", "instructions": "Escalate?"}}}';
   const py = modelsPageCodeSnippet({ ...decision, language: 'python', prompt: typed });
   assert.ok(py.includes('"ticket": "refund"') && py.includes('"Escalate?"'));
@@ -203,11 +204,11 @@ test('what the visitor typed in the decision box is what the snippet sends; a ha
   const ts = modelsPageCodeSnippet({ ...decision, language: 'typescript', prompt: typed });
   assert.ok(ts.includes('vip: true') && ts.includes('note: null'));
   for (const language of SNIPPET_LANGUAGES) {
-    for (const prompt of ['', '{"state": 1', '{"state": 1}', '{"state": 1, "questions": {}}', undefined]) {
-      const s = modelsPageCodeSnippet({ ...decision, language, prompt });
-      assert.ok(s.includes('payment webhook'), `${language} with ${JSON.stringify(prompt)} did not fall back to the example`);
-      assert.ok(!s.includes('undefined'));
+    for (const prompt of ['', '{"state": 1', '{"state": 1}', '{"state": 1, "questions": {}}']) {
+      assert.throws(() => modelsPageCodeSnippet({ ...decision, language, prompt }), /decision/);
     }
+    assert.ok(modelsPageCodeSnippet({ ...decision, language, prompt: undefined }).includes('payment webhook'));
+
   }
 });
 
@@ -223,4 +224,11 @@ test('pythonLiteral renders JSON as Python', () => {
   assert.equal(pythonLiteral([true, false, 1.5, 'x']), '[True, False, 1.5, "x"]');
   assert.equal(pythonLiteral({}), '{}');
   assert.equal(pythonLiteral({ a: [] }), '{\n    "a": [],\n}');
+});
+
+test('image snippets use the same steps, format and quantity as the playground', () => {
+  for (const language of SNIPPET_LANGUAGES) {
+    const code = modelsPageCodeSnippet({ ...base, language, modality: 'image' });
+    assert.match(code, /steps["']?\s*:\s*12/); assert.match(code, /b64_json/);
+  }
 });

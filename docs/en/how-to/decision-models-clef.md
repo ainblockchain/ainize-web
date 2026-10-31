@@ -41,8 +41,12 @@ request are answered against the same `state` in one call.
 
 ## Call it from your code
 
-Install the SDK and get an API key from the site — sign in with your wallet and create one on the
-[Models page](/models); the page writes it into the snippet it shows you.
+Install the SDK and get an API key from the site. Sign in with your AIN account or wallet, open a model from
+the [Models page](/models), and create a personal key. For organization keys, use [Manage your keys](/me).
+
+The playground and copied code retain your `state`, exact `questions`, and optional fields such as media or
+`debug`. Invalid JSON or choice criteria supplied as an array is shown as an input error; it is never replaced
+with the introductory example. If you include `model`, it must match the selected model/provider reference.
 
 In [AinCode](/code), the SDK is provided through the workspace’s offline package cache. The workspace sets `AINIZE_URL` and routes calls through your signed-in account. Open each Python block as a `.py` file and run it with `python your-file.py`; the examples below include their own connection and sample inputs. Save the files and progress in your selected AinDrive Git repository.
 
