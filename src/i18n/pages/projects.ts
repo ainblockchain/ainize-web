@@ -61,6 +61,8 @@ export const projects: Dict = {
   'projects.page.inspect': { ko: '로그', en: 'Inspect' },
   'projects.page.hide_log': { ko: '로그 닫기', en: 'Hide log' },
   'projects.page.visit': { ko: '열기', en: 'Visit' },
+  'projects.page.open_agent': { ko: '에이전트 열기', en: 'Open agent' },
+  'projects.page.output_unconfirmed': { ko: '현재 실행 주소를 확인하지 못했습니다.', en: 'The current runtime address could not be confirmed.' },
   'projects.page.log_empty': { ko: '(아직 로그가 없습니다)', en: '(no log yet)' },
   'projects.page.delete': { ko: '프로젝트 삭제', en: 'Delete project' },
   'projects.page.delete_confirm': { ko: '"{name}" 을 삭제할까요? 배포 기록과 로그가 함께 지워지고, 실행 중인 서비스는 멈춥니다. 리포는 드라이브에 그대로 남습니다.', en: 'Delete "{name}"? Its deployments and logs go with it and a running service stops. The repository stays in the drive.' },

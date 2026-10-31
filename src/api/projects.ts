@@ -155,6 +155,8 @@ export interface Deployment {
   error?: string;
   logUrl: string;
   outputUrl?: string;
+  outputState?: 'current' | 'artifact' | 'historical' | 'unconfirmed';
+  visitUrl?: string;
 }
 
 export interface ProjectsResponse { projects: Project[] }

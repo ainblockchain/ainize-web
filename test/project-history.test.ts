@@ -6,14 +6,15 @@ import { activeProjectUrl } from '../src/lib/projectActions';
 import type { Deployment, Project } from '../src/api/projects';
 
 const record = (id: string, createdAt = 1): Deployment => ({ id, projectId: 'project', trigger: 'push', sha: 'a'.repeat(40), ref: 'refs/heads/main', status: 'ready',
-  createdAt, startedAt: null, finishedAt: null, ms: null, pusher: null, logUrl: 'https://node.example/log', outputUrl: `https://app.example/${id}` });
+  createdAt, startedAt: null, finishedAt: null, ms: null, pusher: null, logUrl: 'https://node.example/log', outputUrl: `https://app.example/${id}`, outputState: 'current', visitUrl: `https://app.example/${id}` });
 
 test('deployment history refuses wrong project, wrong category, malformed and duplicate records instead of treating them as empty', () => {
   const good = record('selected');
   assert.deepEqual(readProjectDeploymentHistory({ deployments: [] }, 'project'), []);
   for (const raw of [null, {}, { deployments: {} }, { deployments: [null] }, { deployments: [good, good] },
     ...[{ projectId: 'other' }, { trigger: 'run' }, { trigger: 'unknown' }, { trigger: { toString: 'push' } }, { status: 'unknown' }, { sha: 'a'.repeat(41) }, { ref: null },
-      { createdAt: NaN }, { logUrl: 'javascript:alert(1)' }, { outputUrl: 'https://user:password@app.example/' }].map(patch => ({ deployments: [{ ...good, ...patch }] }))]) {
+      { createdAt: NaN }, { logUrl: 'javascript:alert(1)' }, { outputUrl: 'https://user:password@app.example/' },
+      { visitUrl: 'javascript:alert(1)' }, { outputState: ['current'] }, { outputState: 'historical' }, { outputState: 'artifact' }, { kind: 'script' }].map(patch => ({ deployments: [{ ...good, ...patch }] }))]) {
     assert.equal(readProjectDeploymentHistory(raw, 'project'), null);
   }
   assert.equal(readProjectRunHistory({ runs: [good] }, 'project'), null);

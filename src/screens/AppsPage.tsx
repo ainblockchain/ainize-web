@@ -93,6 +93,7 @@ function AppCard({ project: p }: { project: Project }) {
       <footer><StyledLink to={projectPath(p)}>{t('apps.project')}</StyledLink>
         {url && <a href={url} target="_blank" rel="noreferrer">{t('apps.open')} ↗</a>}
         {failed && <span>{t('apps.url_failed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
+        {!url && needsHistory && !failed && !history.isFetching && <span role="status">{t('projects.page.output_unconfirmed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
       </footer>
     </Card>
   );

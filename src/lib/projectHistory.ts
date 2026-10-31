@@ -23,6 +23,11 @@ function readHistory(raw: unknown, projectId: string, key: 'runs' | 'deployments
       || typeof row.status !== 'string' || !['queued', 'building', 'ready', 'error'].includes(row.status)
       || !number(row.createdAt) || !optionalNumber(row.startedAt) || !optionalNumber(row.finishedAt) || !optionalNumber(row.ms)
       || !url(row.logUrl) || row.outputUrl !== undefined && !url(row.outputUrl)
+      || row.visitUrl !== undefined && !url(row.visitUrl)
+      || row.outputState !== undefined && (typeof row.outputState !== 'string' || !['current', 'artifact', 'historical', 'unconfirmed'].includes(row.outputState))
+      || row.visitUrl !== undefined && !['current', 'artifact'].includes(String(row.outputState))
+      || row.outputState === 'artifact' && row.trigger !== 'run' && row.kind !== 'script'
+      || row.outputState === 'current' && (row.trigger === 'run' || row.kind === 'script')
       || row.kind !== undefined && (typeof row.kind !== 'string' || !['script', 'nextjs', 'service', 'agent'].includes(row.kind))
       || row.entry != null && !entryPath(row.entry) || row.subject !== undefined && !optionalText(row.subject)
       || row.error !== undefined && !optionalText(row.error) || row.exitCode !== undefined && !Number.isInteger(row.exitCode)

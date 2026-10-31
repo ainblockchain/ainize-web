@@ -778,7 +778,7 @@ test('Apps shows only app kinds and preserves the selected monorepo folder', () 
 });
 
 test('App Open uses the active deployment after rollback, not the newest successful build', () => {
-  const html = render(AppsPage, [...appAccount, appsFixture([webApp]), { name: 'projectDeployments', arg: { id: 'web', identity: appsArg.principal }, value: { deployments: [{ id: 'previous', projectId: 'web', trigger: 'push', status: 'ready', sha: 'a'.repeat(40), ref: 'main', createdAt: 1, logUrl: 'https://node.example/log', outputUrl: 'https://active.example.test' }] } }], '/apps');
+  const html = render(AppsPage, [...appAccount, appsFixture([webApp]), { name: 'projectDeployments', arg: { id: 'web', identity: appsArg.principal }, value: { deployments: [{ id: 'previous', projectId: 'web', trigger: 'push', status: 'ready', sha: 'a'.repeat(40), ref: 'main', createdAt: 1, logUrl: 'https://node.example/log', outputUrl: 'https://active.example.test', outputState: 'current' as const, visitUrl: 'https://active.example.test' }] } }], '/apps');
   assert.match(html, /href="https:\/\/active.example.test"/);
   assert.doesNotMatch(html, /href="https:\/\/newest.example.test"/);
 });
@@ -1389,7 +1389,7 @@ test('repository-list failures preserve known project rows without claiming the 
 
 test('organization Visit links only use the active deployment, never an unrelated successful build', () => {
   const arg = { org: 'studio', identity: accountIdentity };
-  const lastDeployment = { id: 'latest-build', projectId: rootProject.id, trigger: 'push', sha: 'latest', status: 'ready', outputUrl: 'https://latest-build.example', createdAt: 1 } as Deployment;
+  const lastDeployment = { id: 'latest-build', projectId: rootProject.id, trigger: 'push', sha: 'latest', status: 'ready', outputUrl: 'https://latest-build.example', outputState: 'current', visitUrl: 'https://latest-build.example', createdAt: 1 } as Deployment;
   for (const activeDeploymentId of ['latest-build', 'rolled-back-build']) {
     const html = render(OrgRepositoriesPage, [...appAccount,
       { name: 'orgProjects', arg, value: { org: 'studio', projects: [{ ...rootProject, activeDeploymentId, lastDeployment }] } },
@@ -2977,7 +2977,7 @@ const deploymentHistoryFixtures = (project: Project, rows: Deployment[]): Fixtur
 ];
 
 test('deployment reads cannot crash on malformed rows or advertise zero records, redeploy or stale Visit on failure', () => {
-  const old = { ...deploymentFixture('cached'), outputUrl: 'https://stale.example/' };
+  const old = { ...deploymentFixture('cached'), outputUrl: 'https://stale.example/', outputState: 'current' as const, visitUrl: 'https://stale.example/' };
   const project = { ...rootProject, lastDeploymentId: old.id, activeDeploymentId: old.id, lastDeployment: old };
   const Page = () => createElement(ProjectConsole, { project });
   for (const value of [{}, { deployments: [null] }, { deployments: [{ ...old, projectId: 'foreign' }] }]) {
@@ -3051,7 +3051,7 @@ test('failed or malformed log reads hide cached content and download rather than
 });
 
 test('historical app records do not expose Visit links to the currently running version', () => {
-  const old = { ...deploymentFixture('old', 1), outputUrl: 'https://live-app.example/' }, current = { ...deploymentFixture('current', 2), outputUrl: 'https://live-app.example/' };
+  const old = { ...deploymentFixture('old', 1), outputUrl: 'https://live-app.example/', outputState: 'current' as const, visitUrl: 'https://live-app.example/' }, current = { ...deploymentFixture('current', 2), outputUrl: 'https://live-app.example/', outputState: 'current' as const, visitUrl: 'https://live-app.example/' };
   const project = { ...rootProject, activeDeploymentId: 'current', lastDeploymentId: 'current' };
   const Page = () => createElement(ProjectConsole, { project });
   const html = render(Page, deploymentHistoryFixtures(project, [old, current]), '/studio/mono?open=old');
@@ -3062,13 +3062,13 @@ test('historical app records do not expose Visit links to the currently running 
 });
 
 test('App Open can use a matching embedded active record without waiting for an unnecessary history fetch', () => {
-  const app = { ...webApp, activeDeploymentId: 'current', lastDeployment: { ...deploymentFixture('current'), projectId: 'web', outputUrl: 'https://known-active.example/' } };
+  const app = { ...webApp, activeDeploymentId: 'current', lastDeployment: { ...deploymentFixture('current'), projectId: 'web', outputUrl: 'https://known-active.example/', outputState: 'current' as const, visitUrl: 'https://known-active.example/' } };
   const html = render(AppsPage, [...appAccount, appsFixture([app])], '/apps');
   assert.match(html, /href="https:\/\/known-active.example\/"/);
 });
 
 test('App Open cannot reuse cached active history after failure or accept malformed history', () => {
-  const row = { ...deploymentFixture('previous'), projectId: 'web', outputUrl: 'https://cached-active.example/' };
+  const row = { ...deploymentFixture('previous'), projectId: 'web', outputUrl: 'https://cached-active.example/', outputState: 'current' as const, visitUrl: 'https://cached-active.example/' };
   for (const fixture of [{ value: { deployments: [row] }, status: 'rejected' as const }, { value: {} }]) {
     const html = render(AppsPage, [...appAccount, appsFixture([webApp]),
       { name: 'projectDeployments', arg: { id: 'web', identity: appsArg.principal }, ...fixture },
@@ -3076,6 +3076,29 @@ test('App Open cannot reuse cached active history after failure or accept malfor
     assert.doesNotMatch(html, /href="https:\/\/cached-active.example\/"/);
     assert.match(html, /Try again/);
   }
+});
+
+test('an unconfirmed app address offers a refresh without an Open link even when a stored output URL exists', () => {
+  const row = { ...deploymentFixture('previous'), projectId: 'web', outputState: 'unconfirmed' as const, outputUrl: 'https://unconfirmed.example/' };
+  const html = render(AppsPage, [...appAccount, appsFixture([webApp]),
+    { name: 'projectDeployments', arg: { id: 'web', identity: appsArg.principal }, value: { deployments: [row] } },
+  ], '/apps');
+  assert.match(html, /current runtime address could not be confirmed/); assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /href="https:\/\/unconfirmed.example\/"/);
+});
+
+test('an agent deployment opens its conversation page and an unconfirmed runtime offers recovery', () => {
+  const current = { ...deploymentFixture('agent-build'), kind: 'agent' as const, outputState: 'current' as const,
+    outputUrl: 'https://node.example/agents/project-agent', visitUrl: 'https://node.example/agent/project-agent' };
+  const project = { ...rootProject, kind: 'agent' as const, activeDeploymentId: current.id };
+  const Page = () => createElement(ProjectConsole, { project });
+  const html = render(Page, deploymentHistoryFixtures(project, [current]), '/studio/mono?open=agent-build');
+  assert.match(html, /Open agent/); assert.match(html, /href="https:\/\/node.example\/agent\/project-agent"/);
+  assert.doesNotMatch(html, /href="https:\/\/node.example\/agents\/project-agent"/);
+  const unavailable = { ...current, outputState: 'unconfirmed' as const, visitUrl: undefined };
+  const missing = render(Page, deploymentHistoryFixtures(project, [unavailable]), '/studio/mono?open=agent-build');
+  assert.match(missing, /current runtime address could not be confirmed/);
+  assert.doesNotMatch(missing, /href="https:\/\/node.example\/agent\/project-agent"|>Open agent/);
 });
 
 const runtimeLogFixture = { projectId: rootProject.id, deploymentId: 'active-build', sha: 'a'.repeat(40), placement: 'peer', tail: 200,

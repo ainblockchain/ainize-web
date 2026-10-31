@@ -214,7 +214,8 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain, onRedeploy, red
           {d.trigger === 'run' && d.entry && <Meta>{t('projects.runs.entry')}: <Mono>{d.entry}</Mono></Meta>}
           {d.trigger === 'run' && runInputNames(d).length > 0 && <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}</Meta>}
           <Actions>
-            {d.status === 'ready' && output && <ExternalLink href={output} target="_blank" rel="noreferrer">{d.trigger === 'run' || d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
+            {d.status === 'ready' && output && <ExternalLink href={output} target="_blank" rel="noreferrer">{d.trigger === 'run' || d.kind === 'script' ? t('projects.page.output') : d.kind === 'agent' ? t('projects.page.open_agent') : t('projects.page.visit')} ↗</ExternalLink>}
+            {d.status === 'ready' && d.outputState === 'unconfirmed' && <Meta>{t('projects.page.output_unconfirmed')}</Meta>}
             <ExternalLink href={deploymentLogHref(d.id)} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
             <Spacer />
             {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" disabled={!/^[a-f0-9]{40,64}$/.test(d.sha)} onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
@@ -555,11 +556,12 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
         <Actions>
           <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
           {canRun && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
-          {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
+          {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t(kind === 'agent' ? 'projects.page.open_agent' : 'projects.page.visit')} ↗</Button>}
           {p.canOperate && latest && <Button size="small" loading={redeploying} disabled={redeployUnknown} title={t('projects.page.redeploy_hint')} onClick={() => void redeployRecord(latest)}>{t('projects.page.redeploy_commit', { sha: shortSha(latest.sha) })}</Button>}
           {isSignedIn && p.canOperate && projectSyncTarget(p) && <Button size="small" loading={syncing} disabled={syncConfirmed || managementDisabled} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{syncConfirmed ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
       </HeaderRow>
+      {p.activeDeploymentId && !visitUrl && !deployments.isFetching && !deploymentsFailed && ['service', 'nextjs', 'agent'].includes(kind ?? '') && <Meta role="status">{t('projects.page.output_unconfirmed')} <Button size="small" variant="text" onClick={() => { void projectQ.refetch(); void deployments.refetch(); }}>{t('projects.page.retry')}</Button></Meta>}
       {headErr && <Alert $tone="error">{headErr}</Alert>}
       {accepted && <Alert role="status" $tone="info">{t('projects.page.redeploy_accepted')} <Mono>{accepted}</Mono> <Button size="small" onClick={() => openDeployment(accepted)}>{t('projects.env.deploy.open')}</Button></Alert>}
       {redeployUnknown && <Alert role="alert" $tone="warning">{t('projects.page.redeploy_unconfirmed')} <Button size="small" loading={deployments.isFetching} onClick={() => { setTab('deployments'); void deployments.refetch(); }}>{t('projects.page.retry')}</Button></Alert>}
