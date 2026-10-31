@@ -9,7 +9,7 @@ summary: The reusable request and response shapes of the node HTTP API
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-The 33 named shapes the [HTTP API](./http-api.md) refers to.
+The 35 named shapes the [HTTP API](./http-api.md) refers to.
 
 ## How to read this page
 
@@ -18,6 +18,8 @@ Fields are listed with their full path, so a nested field appears as its own row
 
 | Schema | What it is |
 |---|---|
+| [`AgentAliasReview`](#agentaliasreview) |   |
+| [`AgentAliasMutationResult`](#agentaliasmutationresult) |   |
 | [`OwnerRef`](#ownerref) | Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in. |
 | [`AgentRef`](#agentref) | One agent in the cross-product registry shape (ain-integration contract 1.0). Identity is `registryIssuer + agentId`; a change to the definition is a new `releaseId`. |
 | [`AgentListResponse`](#agentlistresponse) |   |
@@ -51,6 +53,29 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`TeachDatasetRow`](#teachdatasetrow) | One SOURCE row, accepted or not. `line` is the 1-based logical row in the uploaded file (a quoted CSV newline is one row, not two); `index` is the position in the dataset, null when the row was not accepted. |
 | [`TeachDatasetRef`](#teachdatasetref) | What a lesson was trained from. A lesson taught before datasets existed renders `{id: null, source: "derived"}` and still publishes and pays out. |
 | [`TeachPolicy`](#teachpolicy) |   |
+
+## `AgentAliasReview`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes |   |
+| `kind` | `"config"` \| `"hosted"` \| `"linked"` | yes |   |
+| `owner` | `string` | yes |   |
+| `actor` | `string` | yes |   |
+| `registry` | `string` | yes |   |
+| `alias` | `string,null` | yes |   |
+| `revision` | `string` | yes | Opaque revision of the registration/configuration and current alias; copy the entire review unchanged. |
+
+## `AgentAliasMutationResult`
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | `string` | yes |
+| `alias` | `string,null` | yes |
+| `review` | [`AgentAliasReview`](#agentaliasreview) | yes |
+| `applied` | `object` | yes |
+| `applied.expected` | [`AgentAliasReview`](#agentaliasreview) | yes |
+| `applied.alias` | `string,null` | yes |
 
 ## `OwnerRef`
 

@@ -66,6 +66,14 @@ export const sharedAgents: Dict = {
   },
   'agentAlias.taken': { ko: '다른 에이전트가 쓰는 이름입니다.', en: 'Another agent already uses that name.' },
   'agentAlias.unsupported': { ko: '이 노드는 주소 이름을 지원하지 않습니다.', en: 'This node does not support address names.' },
+  'agentAlias.read_failed': { ko: '현재 주소 설정을 확인하지 못했습니다. 다시 불러와 주세요.', en: 'Could not verify the current address settings. Load them again.' },
+  'agentAlias.not_saved': { ko: '주소 변경 요청이 거절됐습니다. 현재 설정과 권한을 확인해 주세요.', en: 'The address change was refused. Check the current settings and permissions.' },
+  'agentAlias.changed': { ko: '에이전트나 주소 설정이 변경됐습니다. 입력 내용은 보존했습니다.', en: 'The agent or its address settings changed. Your draft has been kept.' },
+  'agentAlias.reload': { ko: '입력 취소 후 최신 설정 불러오기', en: 'Discard draft and load latest settings' },
+  'agentAlias.unconfirmed': { ko: '주소 변경 결과를 확인하지 못했습니다. 중복 변경을 막기 위해 다시 저장할 수 없습니다. 현재 주소 조회만으로 이전 요청의 완료 여부는 알 수 없습니다.', en: 'The address change could not be confirmed. Saving again is disabled to avoid a duplicate change. Reading the current address does not prove the earlier request completed.' },
+  'agentAlias.check': { ko: '현재 주소 확인', en: 'Check current address' },
+  'agentAlias.reviewed': { ko: '마지막으로 확인한 주소:', en: 'Last verified address:' },
+  'agentAlias.remove_confirm': { ko: '주소 이름 {alias}을 지울까요? 에이전트는 {id} 주소로 계속 열 수 있습니다.', en: 'Remove the address name {alias}? The agent remains available at {id}.' },
   'agentAlias.failed': { ko: '저장하지 못했습니다: {why}', en: 'It could not be saved: {why}' },
 
   // ── the marketplace chips

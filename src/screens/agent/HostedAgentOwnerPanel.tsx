@@ -96,7 +96,7 @@ export function HostedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
       {deleteError && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{deleteError}</Alert>}
       {cleanupPending && !deleteError && <Alert $tone="error" role="status">{t('agentOwner.delete_pending')}</Alert>}
       {!cleanupPending && !deleting && !deletion.started() && <>
-      <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
+      <AgentAliasControl kind="hosted" owner={owner} agentId={agentId} agentName={agentName} alias={alias} />
       {isCreator && <AinftRegistrationPanel agentId={agentId} />}
       {isCreator && <AinftCommunityPanel agentId={agentId} />}
       {canAdminister && <AgentVisibilityControl kind="hosted" owner={owner} agentId={agentId} visibility={visibility} orgId={orgId} />}

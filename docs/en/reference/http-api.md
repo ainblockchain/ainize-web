@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-348 operations on 288 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+349 operations on 288 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -228,6 +228,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/shared-agents/{id}/visibility`](#get-apishared-agentsidvisibility) | none | Review current sharing and authority for an exact agent |
 | `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
 | `GET` | [`/api/agent-aliases/{name}`](#get-apiagent-aliasesname) | none | Resolve an agent alias (or id) to the agent's canonical id |
+| `GET` | [`/api/agents/{id}/alias`](#get-apiagentsidalias) | none | Review current agent address settings before editing |
 | `PUT` | [`/api/agents/{id}/alias`](#put-apiagentsidalias) | none | Give an agent a readable alias (replaces its current one) |
 | `DELETE` | [`/api/agents/{id}/alias`](#delete-apiagentsidalias) | none | Remove an agent's alias |
 | `GET` | [`/api/shared-agents/events`](#get-apishared-agentsevents) | operator | Changes to the shared agent registry since a cursor (contract 1.0) |
@@ -4465,11 +4466,41 @@ An alias is a readable second address for an agent whose id is not one (`externa
 | `id` | `string` | yes |
 | `alias` | `string,null` | yes |
 
+### `GET /api/agents/{id}/alias`
+
+Review current agent address settings before editing
+
+Authorized managers only; private, no-store. Returns {review} binding canonical id, kind, owner, acting account, registry, current alias and revision. Public name resolution remains GET /api/agent-aliases/{name}.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | current review | `object` |
+| `401` | not_signed_in |   |
+| `403` | not_owner |   |
+| `404` | not_found |   |
+| `409` | resource_busy — removal is pending |   |
+
+**`200` response body**
+
+| Field | Type | Required |
+|---|---|---|
+| `review` | [`AgentAliasReview`](./schemas.md#agentaliasreview) | yes |
+
 ### `PUT /api/agents/{id}/alias`
 
 Give an agent a readable alias (replaces its current one)
 
-The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`).
+The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`). First GET this path, then pass the entire review as expected. The response contains applied.expected, applied.alias and the new review; verify these before claiming success or navigating. A lost response is uncertain: do not automatically retry, and a later matching read is not a historical receipt.
 
 **Auth** — none
 
@@ -4483,31 +4514,26 @@ The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]
 
 | Field | Type | Required |
 |---|---|---|
+| `expected` | [`AgentAliasReview`](./schemas.md#agentaliasreview) | yes |
 | `alias` | `string` | yes |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | the alias now set | `object` |
-| `400` | invalid_request — breaks the id rule, or is the agent's own id |   |
+| `200` | the confirmed alias change | [`AgentAliasMutationResult`](./schemas.md#agentaliasmutationresult) |
+| `400` | invalid_request — invalid alias; review_required — missing expected review |   |
 | `401` | not_signed_in |   |
 | `403` | not_owner |   |
 | `404` | not_found — no such agent, or one the caller may not see |   |
-| `409` | alias_taken — another agent's id or alias |   |
-
-**`200` response body**
-
-| Field | Type |
-|---|---|
-| `id` | `string` |
-| `alias` | `string` |
+| `409` | alias_taken, review_changed or resource_busy — reread and explicitly review before trying again |   |
+| `503` | temporary_failure, retryable:false — outcome unconfirmed |   |
 
 ### `DELETE /api/agents/{id}/alias`
 
 Remove an agent's alias
 
-Same permissions as setting one. The agent keeps its id; `/agents/{alias}` stops reaching it and the name is free again.
+Same permissions and reviewed-write protocol as setting one. Send expected from GET this path. The agent keeps its id; `/agents/{alias}` stops reaching it and the name is free again. Check the exact result; a lost reply is uncertain, not permission to retry.
 
 **Auth** — none
 
@@ -4517,21 +4543,23 @@ Same permissions as setting one. The agent keeps its id; `/agents/{alias}` stops
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected` | [`AgentAliasReview`](./schemas.md#agentaliasreview) | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | the alias removed | `object` |
+| `200` | the confirmed alias removal | [`AgentAliasMutationResult`](./schemas.md#agentaliasmutationresult) |
+| `400` | review_required |   |
 | `401` | not_signed_in |   |
 | `403` | not_owner |   |
 | `404` | not_found |   |
-
-**`200` response body**
-
-| Field | Type |
-|---|---|
-| `id` | `string` |
-| `alias` | `null` |
+| `409` | review_changed or resource_busy |   |
+| `503` | temporary_failure, retryable:false — outcome unconfirmed |   |
 
 ### `GET /api/shared-agents/events`
 

@@ -71,7 +71,7 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
           {t('linkedOwner.delete')}
         </Button>
       </LinkedAgentOwnerRow>
-      <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
+      <AgentAliasControl kind="linked" owner={owner} agentId={agentId} agentName={agentName} alias={alias} />
       <AgentVisibilityControl kind="linked" owner={owner} agentId={agentId} visibility={visibility} orgId={orgId} />
       </fieldset>
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}

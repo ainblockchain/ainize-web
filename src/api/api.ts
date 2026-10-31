@@ -1,3 +1,4 @@
+import { agentAliasChangeConfirmed, type AgentAliasChange } from '@/lib/agentAliasChange';
 import { agentSharingConfirmed } from '@/lib/agentSharing';
 import { linkedAgentRemovalConfirmed, type LinkedAgentUnlinkRequest } from '@/lib/linkedAgentRemoval';
 import { readDeviceRequest, type DeviceApprovalReview } from '@/lib/deviceApproval';
@@ -338,13 +339,14 @@ export const api = createApi({
      * (hosted) or the node operator.
      */
     agentAlias: b.query<unknown, { name: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ name }) => `api/agent-aliases/${encodeURIComponent(name)}`, providesTags: ['Agents'] }),
-    setAgentAlias: b.mutation<unknown, { id: string; alias: string }>({
-      query: ({ id, alias }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'PUT', body: { alias } }),
-      invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'HostedAgent', id: a.id }, { type: 'LinkedAgent', id: a.id }, 'HostedAgent', 'LinkedAgent'],
+    agentAliasReview: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/agents/${encodeURIComponent(id)}/alias`, providesTags: ['Agents'] }),
+    setAgentAlias: b.mutation<unknown, AgentAliasChange & { alias: string }>({
+      query: ({ id, alias, expected }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'PUT', body: { alias, expected } }),
+      invalidatesTags: (r, _e, a) => agentAliasChangeConfirmed(r, a) ? ['Agents', 'Org', 'HostedAgent', 'LinkedAgent'] : [],
     }),
-    clearAgentAlias: b.mutation<unknown, string>({
-      query: (id) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'DELETE' }),
-      invalidatesTags: (_r, _e, id) => ['Agents', 'Org', { type: 'HostedAgent', id }, { type: 'LinkedAgent', id }, 'HostedAgent', 'LinkedAgent'],
+    clearAgentAlias: b.mutation<unknown, Omit<AgentAliasChange, 'alias'>>({
+      query: ({ id, expected }) => ({ url: `api/agents/${encodeURIComponent(id)}/alias`, method: 'DELETE', body: { expected } }),
+      invalidatesTags: (r, _e, a) => agentAliasChangeConfirmed(r, { ...a, alias: null }) ? ['Agents', 'Org', 'HostedAgent', 'LinkedAgent'] : [],
     }),
     /** Every linked agent the caller may see (the registry's listing rows, not the owner's records). */
     linkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents', providesTags: ['LinkedAgent', 'Agents'] }),
@@ -727,7 +729,7 @@ export const {
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useLazyLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useLazyAgentVisibilityQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useLazyLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useLazyAgentVisibilityQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useLazyAgentAliasReviewQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
   usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useOrgGroupsQuery, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
