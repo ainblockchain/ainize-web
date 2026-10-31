@@ -1,10 +1,15 @@
+import { useActiveView } from '@/hooks/useActiveView';
+import { managedKnowledge, managementMatchesAuthor, runManagedAction, ManagementSelectionError } from '@/lib/manageKnowledge';
+import { knowledgePath, knowledgeLookupPath, isKnowledgeAuthor } from '@/lib/detailRoutes';
+import { accountPeers, accountRuntime, createNodeActionTask } from '@/lib/accountNodeActions';
+import { paidSales, dashboardInventory } from '@/lib/dashboardView';
 import { readBenchmarkDraft } from '@/lib/benchmarkEditor';
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAnnounceMutation, useCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, usePatchQuery,
+  errorMessage, useAnnounceMutation, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery,
   useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import type { PatchAnchor } from '@/api/types';
@@ -15,7 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, FormRow, Select, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
-import { CheckItem, Checklist, DevBox, ExternalAnchor, ExternalRow, ExternalTitle, MonoBox, Muted, Row, SectionBody, SmallSpinner, Stack, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { CheckItem, Checklist, DevBox, ExternalAnchor, ExternalRow, ExternalTitle, MonoBox, Muted, Row, SectionBody, SmallSpinner, Stack, Tip, QueryError, isInFlight, useMoney } from '@/components/operator/common';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { Sheet, SheetFooter } from '@/components/chat/Sheet';
 import { bytes, dateTime, num, scoreText, shortAddr, shortHash } from '@/utils/format';
@@ -50,19 +55,36 @@ const Consequences = styled.ul`
 interface Holder { address: string; name: string | null; why: 'author' | 'buyer' | 'verifier' | 'mirror'; last_seen: number; self: boolean }
 
 export default function ManagePage() {
+  const auth = useAuth();
+  const { author = '', patchId = '' } = useParams();
+  const { t } = useT();
+  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!auth.isOwner) return <PageWrapper><Description>{t('op.manage.owner_required')} <StyledLink to={knowledgePath(author, patchId)}>{t('op.manage.viewpage')}</StyledLink></Description></PageWrapper>;
+  return <ManageView key={JSON.stringify([auth.cacheIdentity, author, patchId])} />;
+}
+
+function ManageView() {
   const { t, term, help, tech } = useT();
   const money = useMoney();
   const { author = '', patchId = '' } = useParams();
   const navigate = useNavigate();
-  const { roles, address } = useAuth();
+  const auth = useAuth();
+  const { roles, address, cacheIdentity } = auth;
+  const active = useActiveView();
+  const current = () => active() && auth.isCurrentAccount();
+  const [task] = useState(createNodeActionTask);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => () => task.abandon(), [task]);
   const [poll, setPoll] = useState(false);
-  const patch = usePatchQuery(patchId, { pollingInterval: poll ? 5000 : 0 });
-  const p = patch.data;
+  const patch = useManagedPatchQuery({ id: patchId, identity: cacheIdentity }, { pollingInterval: poll ? 5000 : 0 });
+  const p = !patch.isError ? managedKnowledge(patch.currentData, patchId) : null;
   const inFlight = !!p && isInFlight(p.status);
   useEffect(() => { setPoll(inFlight); }, [inFlight]);
-  const runtime = useRuntimeQuery();
+  const runtime = useRuntimeQuery({ identity: cacheIdentity });
+  const runtimeData = !runtime.isError ? accountRuntime(runtime.currentData) : null;
   // The retired items are knowledge this node already knows: their names, sales and revenue are on the catalogue.
-  const catalog = useCatalogQuery({ limit: 200, include_drafts: true });
+  const catalog = useManagedCatalogQuery({ identity: cacheIdentity });
+  const catalogItems = !catalog.isError ? dashboardInventory(catalog.currentData) : null;
   useTitle(p ? p.anchor.name || p.anchor.id : undefined);
 
   const [update, updateState] = useUpdatePatchMutation();
@@ -73,9 +95,9 @@ export default function ManagePage() {
    * SC-15 — an add-on is loaded with what it was trained on top of, and unloading something with a knowledge on top
    * of it says which one. The bare apply this page used to send answered `needs_base` with a code and no way out.
    */
-  const chain = useLoadChain((id) => catalog.data?.items.find((e) => e.anchor.id === id)?.anchor.name || id, {
-    onLoaded: () => setNotice(t('op.manage.runtime.loaded_ok')),
-    onUnloaded: () => setNotice(t('op.manage.runtime.unloaded_ok')),
+  const chain = useLoadChain((id) => catalogItems?.find((e) => e.anchor.id === id)?.anchor.name || id, {
+    onLoaded: () => { if (current()) setNotice(t('op.manage.runtime.loaded_ok')); },
+    onUnloaded: () => { if (current()) setNotice(t('op.manage.runtime.unloaded_ok')); },
   });
   const [del, delState] = useDeletePatchMutation();
   const [retire, retireState] = useRetireMutation();
@@ -129,7 +151,8 @@ export default function ManagePage() {
    * so every holder can be named with the reason it has the file. A node holding it for no recorded reason is
    * called what it is — a mirror — rather than being left out.
    */
-  const nodesQ = useNodesQuery(undefined, { pollingInterval: 30_000 });
+  const nodesQ = useNodesQuery({ identity: cacheIdentity }, { pollingInterval: 30_000 });
+  const nodeData = !nodesQ.isError ? accountPeers(nodesQ.currentData) : null;
   const holders = useMemo(() => {
     const sha = p?.anchor.patch_sha256;
     if (!sha) return [] as Holder[];
@@ -142,16 +165,16 @@ export default function ManagePage() {
       const low = address.toLowerCase();
       if (seen.has(low)) return;
       const why: Holder['why'] = low === author ? 'author' : buyers.has(low) ? 'buyer' : verifiers.has(low) ? 'verifier' : 'mirror';
-      seen.set(low, { address, name, why, last_seen, self: !!nodesQ.data && low === nodesQ.data.self.toLowerCase() });
+      seen.set(low, { address, name, why, last_seen, self: !!nodeData && low === nodeData.self.toLowerCase() });
     };
-    for (const n of nodesQ.data?.nodes ?? []) add(n.address, n.name ?? null, n.last_seen, n.blobs ?? []);
-    for (const pr of nodesQ.data?.peers ?? []) add(pr.address ?? '', pr.info?.name ?? null, pr.last_seen, pr.info?.blobs ?? []);
+    for (const n of nodeData?.nodes ?? []) add(n.address, n.name ?? null, n.last_seen, n.blobs ?? []);
+    for (const pr of nodeData?.peers ?? []) add(pr.address ?? '', pr.info?.name ?? null, pr.last_seen, pr.info?.blobs ?? []);
     return [...seen.values()].sort((a, b) => (a.self === b.self ? 0 : a.self ? -1 : 1) || a.why.localeCompare(b.why));
-  }, [p?.anchor.patch_sha256, p?.anchor.author, p?.settlements, p?.attestations, nodesQ.data]);
+  }, [p?.anchor.patch_sha256, p?.anchor.author, p?.settlements, p?.attestations, nodeData]);
 
   const isDraft = p?.status === 'DRAFT';
   const isVerifier = roles.includes('verifier');
-  const alreadyAttested = !!p && !!address && p.attestations.some((a) => a.verifier === address);
+  const alreadyAttested = !!p && !!address && p.attestations.some((a) => a.verifier.toLowerCase() === address.toLowerCase());
   // Item 146: this is the author's own manage page — a "verify" here would be a self-attestation, which the node
   // now refuses to write and the catalogue never counts. The button is gone and the reason is on the page.
   const isMine = !!p && !!address && p.anchor.author.toLowerCase() === address.toLowerCase();
@@ -165,35 +188,37 @@ export default function ManagePage() {
   const snippet = useMemo(() => {
     if (!p) return '';
     const alt = t('op.manage.badge.alt', { name: p.anchor.name || p.anchor.id });
-    return `[![${alt}](${window.location.origin}/static/images/badge-knowledge.svg)](${window.location.origin}/${p.anchor.author}/${p.anchor.id})`;
+    return `[![${alt}](${window.location.origin}/static/images/badge-knowledge.svg)](${window.location.origin}/${encodeURIComponent(p.anchor.author)}/${encodeURIComponent(p.anchor.id)})`;
   }, [p, t]);
 
-  const run = async (fn: () => Promise<unknown>, ok?: string) => {
-    setError(null); setNotice(null);
-    try { await fn(); if (ok) setNotice(ok); } catch (err) { setError(errorMessage(err)); }
+  const run = async (fn: (stillCurrent: () => boolean) => Promise<unknown>, ok?: string) => {
+    if (task.pending() || chain.busy || !current()) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const finished = await task.run(current, async stillCurrent => {
+        return runManagedAction(patchId, author, { current: stillCurrent, read: () => patch.refetch().unwrap(), action: fn });
+      });
+      if (finished && current() && ok) setNotice(ok);
+    } catch (err) { if (current()) setError(err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err)); }
+    finally { if (current()) setBusy(false); }
   };
 
-  if (patch.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (patch.isError || !p) {
-    return (
-      <PageWrapper>
-        <Title>{t('op.manage.notfound')}</Title>
-        <Description>{patch.error ? errorMessage(patch.error) : t('op.manage.notfound.desc')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description>
-      </PageWrapper>
-    );
-  }
+  if (patch.isFetching && !patch.currentData) return <PageWrapper><CenterProgress /></PageWrapper>;
+  const missing = patch.isError && patch.error && 'status' in patch.error && patch.error.status === 404;
+  if (missing || p && !managementMatchesAuthor(p, author)) return <PageWrapper><Title>{t('op.manage.notfound')}</Title><Description>{t(missing ? 'op.manage.notfound.desc' : 'op.manage.route_mismatch')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description></PageWrapper>;
+  if (!p) return <PageWrapper><QueryError error={patch.error} what={t('op.knowledge')} onRetry={() => void patch.refetch()} retrying={patch.isFetching} /></PageWrapper>;
   if (!p.owned) {
     return (
       <PageWrapper>
         <Title>{p.anchor.name || p.anchor.id}</Title>
-        <Description>{t('op.manage.notowned', { owner: p.anchor.author_name ?? shortAddr(p.anchor.author) })} <StyledLink to={`/${author}/${patchId}`}>{t('op.manage.viewpage')}</StyledLink>.</Description>
+        <Description>{t('op.manage.notowned', { owner: p.anchor.author_name ?? shortAddr(p.anchor.author) })} <StyledLink to={knowledgePath(author, patchId)}>{t('op.manage.viewpage')}</StyledLink>.</Description>
       </PageWrapper>
     );
   }
 
   const a = p.anchor;
-  const patchPage = `${window.location.origin}/${a.author}/${a.id}`;
-  const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${a.id}`;
+  const patchPage = `${window.location.origin}${knowledgePath(a.author, a.id)}`;
+  const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${encodeURIComponent(a.id)}`;
   /**
    * What `announce` will actually retire. The node records `pending_supersede` from the same-schema overlaps that are
    * NOT cross-branch and are still VERIFIED / VERIFYING / ANNOUNCED (market.ts:499), and `reconcileSupersedes` turns
@@ -205,7 +230,7 @@ export default function ManagePage() {
   // `supersedable()` skips it, so the checklist must not promise a retirement that will not happen.
   const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && !c.lineage && ['VERIFIED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
   const coexisting = p.conflicts.filter((c) => c.same_schema && c.cross_branch).length;
-  const byId = new Map((catalog.data?.items ?? []).map((e) => [e.anchor.id, e]));
+  const byId = new Map((catalogItems ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
 
   // An attestation this node wrote on its own anchor and excluded from the count (item 146).
@@ -220,11 +245,12 @@ export default function ManagePage() {
    * The three conditions below are exactly the ones verifier.ts:51 uses to choose between the two.
    */
   const sampleCount = a.benchmark.samples?.length ?? 0;
-  const canExecute = !!runtime.data?.available && !!runtime.data.model && a.model.id_M.startsWith(runtime.data.model) && sampleCount > 0;
+  const canExecute = !!runtimeData?.available && !!runtimeData.model && a.model.id_M.startsWith(runtimeData.model) && sampleCount > 0;
   const elapsed = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
   const doVerify = () => {
+    if (task.pending() || !current()) return;
     setVerifyStart(Date.now());
-    void run(() => verify(a.id).unwrap(), t('op.manage.verified_ok')).finally(() => setVerifyStart(null));
+    void run(() => verify(a.id).unwrap(), t('op.manage.verified_ok')).finally(() => { if (current()) setVerifyStart(null); });
   };
 
   const saveFields = () => run(() => update({ id: a.id, patch: { description: desc, price: priceV, branch: branch || undefined, license: license || undefined, billing } }).unwrap(), t('op.saved'));
@@ -237,6 +263,7 @@ export default function ManagePage() {
 
   return (
     <PageWrapper>
+      <fieldset disabled={busy || chain.busy} aria-busy={busy || chain.busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ProjectName>{a.name || a.id}</ProjectName>
       <Row $gap={10} style={{ marginTop: 8 }}><StatusChip status={p.status} /><Muted><Mono>{a.id}</Mono></Muted></Row>
       {/* Finding 167: the row that carries the real shareable link was plain text, while the only CopyButton on the
@@ -365,6 +392,7 @@ export default function ManagePage() {
             <li>{t('op.manage.publish.why.file')}</li>
           </Consequences>
 
+          {retires.length > 0 && !catalogItems && <QueryError error={catalog.error} what={t('op.manage.retire.title')} onRetry={() => void catalog.refetch()} retrying={catalog.isFetching} />}
           {retires.length > 0 && (<>
             <strong style={{ fontSize: 14, marginTop: 8 }}>{t('op.manage.retire.title')}</strong>
             <span>{t('op.manage.retire.body', { schema: a.benchmark.schema, id: a.id })}</span>
@@ -374,13 +402,13 @@ export default function ManagePage() {
                 return (
                   <RetireRow key={c.patch_id} data-testid="retire-row" data-id={c.patch_id}>
                     <RetireWhat>
-                      <Row $gap={8} $wrap><StyledLink to={`/${e?.anchor.author ?? a.author}/${c.patch_id}`}>{e?.anchor.name || c.patch_id}</StyledLink><StatusChip status={e?.status ?? c.status} /></Row>
+                      <Row $gap={8} $wrap><StyledLink to={e ? knowledgePath(e.anchor.author, c.patch_id) : knowledgeLookupPath(c.patch_id)}>{e?.anchor.name || c.patch_id}</StyledLink><StatusChip status={e?.status ?? c.status} /></Row>
                       <Muted><Mono>{c.patch_id}</Mono></Muted>
                       {e?.status === 'VERIFIED' && <Muted>{t('op.manage.retire.selling')}</Muted>}
                     </RetireWhat>
                     <RetireFacts>
-                      <span data-testid="retire-sales">{t('op.manage.retire.col.sales')}: {e && e.downloads > 0
-                        ? t('op.manage.retire.sold', { n: e.downloads, revenue: money.revenue(e.revenue, e.anchor.currency) })
+                      <span data-testid="retire-sales">{t('op.manage.retire.col.sales')}: {!e || paidSales(e) === null ? t('op.manage.sales_unknown') : paidSales(e)! > 0
+                        ? t('op.manage.retire.sold', { n: paidSales(e)!, revenue: money.revenue(e.revenue, e.anchor.currency) })
                         : t('op.manage.retire.sold_none')}</span>
                       <Muted>{t('op.manage.retire.col.overlap')}: {t('units.rows', { n: num(c.overlap_rows) })}</Muted>
                     </RetireFacts>
@@ -399,7 +427,7 @@ export default function ManagePage() {
               disabled={retires.length > 0 && retireText.trim() !== a.id}
               loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
               data-testid="publish-confirm"
-              onClick={() => run(async () => { await announce(a.id).unwrap(); setPublishOpen(false); }, t('op.manage.announced'))}>
+              onClick={() => run(async stillCurrent => { await announce(a.id).unwrap(); if (stillCurrent()) setPublishOpen(false); }, t('op.manage.announced'))}>
               {retires.length > 0 ? t('op.manage.retire.confirm') : t('op.manage.publish.confirm')}
             </Button>
           </SheetFooter>
@@ -440,7 +468,7 @@ export default function ManagePage() {
       {/* ------------------------------------------------------------ who holds the file (item 367) */}
       <SubTitle $mt={40}>{t('op.manage.holders.title')}</SubTitle>
       <Description>{t('op.manage.holders.desc')}</Description>
-      {holders.length === 0 ? (
+      {nodesQ.isFetching && !nodesQ.currentData ? <CenterProgress /> : !nodeData ? <QueryError error={nodesQ.error} what={t('op.manage.holders.title')} onRetry={() => void nodesQ.refetch()} retrying={nodesQ.isFetching} /> : holders.length === 0 ? (
         <Description data-testid="holders-empty" style={{ marginTop: 8 }}>{t('op.manage.holders.empty')}</Description>
       ) : (
         <>
@@ -495,7 +523,7 @@ export default function ManagePage() {
               return (
                 <TableRow key={c.patch_id}>
                   <TableData $align="left" $padding="0 8px">
-                    <StyledLink to={`/${c.author ?? other?.anchor.author ?? a.author}/${c.patch_id}`}>{c.patch_id}</StyledLink>
+                    <StyledLink to={c.author && isKnowledgeAuthor(c.author) ? knowledgePath(c.author, c.patch_id) : other ? knowledgePath(other.anchor.author, c.patch_id) : knowledgeLookupPath(c.patch_id)}>{c.patch_id}</StyledLink>
                     {copy && <Muted style={{ display: 'block' }} data-testid="conflict-copy">{t('op.manage.conflict.copy')}</Muted>}
                   </TableData>
                   <TableData>{c.same_author === false
@@ -554,12 +582,12 @@ export default function ManagePage() {
       {/* ------------------------------------------------------------ lineage */}
       <SubTitle $mt={56}><Tip tech={tech('lineage')}>{t('op.manage.lineage.title')}</Tip></SubTitle>
       <KeyValue>
-        <dt>{t('op.manage.lineage.parents')}</dt><dd>{p.lineage.parents.length ? p.lineage.parents.map((x) => <span key={x.id} style={{ marginRight: 12 }}><StyledLink to={`/${x.author}/${x.id}`}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} /></span>) : <Muted>{t('op.manage.lineage.root')}</Muted>}</dd>
+        <dt>{t('op.manage.lineage.parents')}</dt><dd>{p.lineage.parents.length ? p.lineage.parents.map((x) => <span key={x.id} style={{ marginRight: 12 }}><StyledLink to={knowledgePath(x.author, x.id)}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} /></span>) : <Muted>{t('op.manage.lineage.root')}</Muted>}</dd>
         {/* Items 195, 318: a child was a name and a chip. What its price is, and what it has actually paid the
             creator of the base, is the whole of what an ancestor needs — and it was on no screen at all. */}
         <dt>{t('op.manage.lineage.children')}</dt><dd data-testid="lineage-children">{p.lineage.children.length ? p.lineage.children.map((x) => (
           <span key={x.id} style={{ marginRight: 12, display: 'inline-block' }}>
-            <StyledLink to={`/${x.author}/${x.id}`}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} />
+            <StyledLink to={knowledgePath(x.author, x.id)}>{x.name || x.id}</StyledLink> <StatusChip status={x.status} />
             {x.price !== undefined && <Muted> · {money.fmt(x.price, x.currency ?? a.currency)}{Number(x.price) < Number(a.price) ? ` (${t('op.manage.lineage.cheaper')})` : ''}</Muted>}
             {x.author_name && x.author !== a.author && <Muted> · {x.author_name}</Muted>}
             {!!x.sales && <Muted> · {t('op.manage.lineage.child_earned', { amount: money.fmt(x.earned ?? '0', a.currency), n: x.sales })}</Muted>}
@@ -576,12 +604,13 @@ export default function ManagePage() {
       {/* ------------------------------------------------------------ runtime */}
       <SubTitle $mt={56}><Tip tech={`${tech('apply')} / ${tech('remove')}`}>{t('op.manage.runtime.title')}</Tip></SubTitle>
       <Description>{t('op.manage.runtime.desc')}</Description>
+      {runtime.isFetching && !runtime.currentData ? <CenterProgress /> : !runtimeData && <QueryError error={runtime.error} what={t('op.manage.runtime.title')} onRetry={() => void runtime.refetch()} retrying={runtime.isFetching} />}
       <SaveRow>
-        <Button disabled={!runtime.data?.available || !p.has_body || p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.loading')} onClick={() => { setError(null); setNotice(null); void chain.load(a.id); }}>{term('apply')}</Button>
-        <Button color="secondary" disabled={!runtime.data?.available || !p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.unloading')} onClick={() => { setError(null); setNotice(null); void chain.unload(a.id); }}>{term('remove')}</Button>
+        <Button disabled={!runtimeData?.available || !p.has_body || p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.loading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.load(a.id); }}>{term('apply')}</Button>
+        <Button color="secondary" disabled={!runtimeData?.available || !p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.unloading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.unload(a.id); }}>{term('remove')}</Button>
         <Muted>
           {p.applied ? t('op.manage.runtime.is_loaded') : t('op.manage.runtime.not_loaded')}
-          {runtime.data && !runtime.data.available ? ` · ${t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}` : runtime.data?.model ? ` · ${runtime.data.model}` : ''}
+          {runtimeData && !runtimeData.available ? ` · ${t('op.runtime.unavailable', { error: runtimeData.error ?? t('op.runtime.noapi') })}` : runtimeData?.model ? ` · ${runtimeData.model}` : ''}
         </Muted>
         <StyledLink to={`/chat/${encodeURIComponent(a.id)}`} title={help('liveTest')}>{t('op.manage.runtime.try')} →</StyledLink>
       </SaveRow>
@@ -659,7 +688,7 @@ export default function ManagePage() {
               <Row>
                 <Button color="secondary" data-testid="price-save" disabled={!/^\d+(\.\d+)?$/.test(newPrice.trim()) || newPrice.trim() === a.price}
                   loading={setPriceState.isLoading} loadingText={t('op.manage.price.working')}
-                  onClick={() => run(async () => { await setPrice({ id: a.id, price: newPrice.trim(), reason: priceReason.trim() || undefined }).unwrap(); setNewPrice(''); setPriceReason(''); }, t('op.manage.price.done'))}>
+                  onClick={() => run(async stillCurrent => { await setPrice({ id: a.id, price: newPrice.trim(), reason: priceReason.trim() || undefined }).unwrap(); if (stillCurrent()) { setNewPrice(''); setPriceReason(''); } }, t('op.manage.price.done'))}>
                   {t('op.manage.price.button')}
                 </Button>
               </Row>
@@ -684,13 +713,13 @@ export default function ManagePage() {
           ) : (
             <Stack $gap={16} style={{ maxWidth: 560 }}>
               <DeleteDesc style={{ margin: 0 }}>{t('op.manage.takedown.desc')}</DeleteDesc>
-              {p.downloads > 0 && <Muted>{t('op.manage.takedown.sales', { n: p.downloads })}</Muted>}
+              {paidSales(p) === null ? <Muted>{t('op.manage.sales_unknown')}</Muted> : paidSales(p)! > 0 && <Muted>{t('op.manage.takedown.sales', { n: paidSales(p)! })}</Muted>}
               <TextField label={t('op.manage.takedown.reason')} placeholder={t('op.manage.takedown.reason.ph')} value={downReason} onChange={(e) => setDownReason(e.target.value)} data-testid="takedown-reason" />
               <TextField label={t('op.manage.takedown.type', { id: a.id })} value={downText} onChange={(e) => setDownText(e.target.value)} data-testid="takedown-type" />
               <Row $gap={12}>
                 <Button variant="contained" color="secondary" disabled={downText.trim() !== a.id} loading={retireState.isLoading} loadingText={t('op.manage.takedown.working')}
                   data-testid="takedown-confirm"
-                  onClick={() => run(async () => { await retire({ id: a.id, reason: downReason.trim() || undefined }).unwrap(); setDownMode(false); }, t('op.manage.takedown.done'))}>{t('op.manage.takedown.confirm')}</Button>
+                  onClick={() => run(async stillCurrent => { await retire({ id: a.id, reason: downReason.trim() || undefined }).unwrap(); if (stillCurrent()) setDownMode(false); }, t('op.manage.takedown.done'))}>{t('op.manage.takedown.confirm')}</Button>
                 <Button variant="text" color="default" onClick={() => setDownMode(false)}>{t('op.manage.takedown.cancel')}</Button>
               </Row>
             </Stack>
@@ -718,7 +747,7 @@ export default function ManagePage() {
                 <Button variant="text" color="default" onClick={() => setConfirmMode(false)}>{t('op.manage.delete.cancel')}</Button>
                 <Button variant="contained" color="secondary" loading={delState.isLoading} loadingText={t('op.manage.delete.deleting')}
                   data-testid="delete-confirm"
-                  onClick={() => run(async () => { await del(a.id).unwrap(); navigate('/dashboard'); })}>{t('op.manage.delete.confirm')}</Button>
+                  onClick={() => run(async stillCurrent => { await del(a.id).unwrap(); if (stillCurrent()) navigate('/dashboard'); })}>{t('op.manage.delete.confirm')}</Button>
               </SheetFooter>
             </Sheet>
           )}
@@ -726,8 +755,9 @@ export default function ManagePage() {
       )}
       </>)}
       <MonoBox style={{ marginTop: 40 }}>
-        <Link to={`/project/${a.author}/${a.id}/logs`} style={{ color: '#8b3eeb', textDecoration: 'none' }}>{t('op.manage.logs_link', { id: a.id })}</Link>
+        <Link to={`/project/${encodeURIComponent(a.author)}/${encodeURIComponent(a.id)}/logs`} style={{ color: '#8b3eeb', textDecoration: 'none' }}>{t('op.manage.logs_link', { id: a.id })}</Link>
       </MonoBox>
+      </fieldset>
     </PageWrapper>
   );
 }

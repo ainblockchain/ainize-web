@@ -297,6 +297,10 @@ export const operatorDash: Dict = {
 };
 
 export const operatorManage: Dict = {
+  'op.manage.route_mismatch': { ko: '주소의 작성자와 조회된 지식의 작성자가 일치하지 않습니다.', en: 'The author in this URL does not match the selected knowledge.' },
+  'op.manage.selection_changed': { ko: '선택한 지식의 현재 관리 정보를 확인하지 못했습니다. 다시 불러온 뒤 시도해 주세요.', en: 'Could not confirm the selected knowledge and its current ownership. Reload before trying again.' },
+  'op.manage.owner_required': { ko: '이 지식을 관리하려면 노드 운영 권한이 필요합니다.', en: 'Node operator access is required to manage this knowledge.' },
+  'op.manage.sales_unknown': { ko: '판매 내역을 확인하지 못했습니다.', en: 'Sales information is unavailable.' },
   'op.manage.notfound': { ko: '지식을 찾을 수 없습니다', en: 'Knowledge not found' },
   'op.manage.notfound.desc': { ko: '이 노드가 알고 있는 지식 중에 해당 ID가 없습니다.', en: 'No knowledge with that id is known to this node.' },
   'op.manage.back': { ko: '내 지식으로 돌아가기', en: 'Back to my knowledge' },

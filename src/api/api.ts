@@ -121,6 +121,8 @@ export const api = createApi({
       query: (prefix) => ({ url: `api/keys/${encodeURIComponent(prefix)}`, method: 'DELETE' }), invalidatesTags: ['ApiKeys'],
     }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
+    managedPatch: b.query<PatchDetail, { id: string; identity: string }>({ query: ({ id }) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me'] }),
+    managedCatalog: b.query<CatalogResponse, { identity: string }>({ query: () => 'api/catalog?limit=200&include_drafts=true', providesTags: ['Catalog', 'Me'] }),
     patch: b.query<PatchDetail, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog'] }),
     patchRecords: b.query<{ records: LedgerRecord[] }, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/records`, providesTags: ['Ledger'] }),
     patchEvents: b.query<{ events: EventRow[] }, { id: string; limit?: number; identity: string }>({ query: ({ id, limit }) => `api/patches/${encodeURIComponent(id)}/events${toQuery({ limit })}`, providesTags: ['Events'] }),
@@ -664,7 +666,7 @@ export const api = createApi({
 export const {
   useTrackCatalogQuery,
   useCatalogSnapshotQuery,
-  useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
+  useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, useManagedPatchQuery, useManagedCatalogQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,

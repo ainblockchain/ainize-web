@@ -1,3 +1,5 @@
+import ManagePage from '../src/screens/ManagePage';
+import { manageFixture } from './fixtures/manageKnowledge';
 import { AccountOwners, AccountBindings } from '../src/components/operator/AccountAccess';
 import { AccountPeers } from '../src/components/operator/AccountPeers';
 import { AccountRuntime } from '../src/components/operator/AccountRuntime';
@@ -1780,4 +1782,55 @@ test('the current binding is marked case-insensitively and explains that ending 
   const html = render(AccountBindings, [...accessAuth, { name: 'bindings', arg: { identity: accessIdentity }, value: { bindings: [binding], via: accessTarget.toUpperCase().replace('0X', '0x') } }], '/account');
   assert.match(html, /this session/); assert.match(html, /Ending this connection also closes the current session/);
   assert.match(html, /End this login connection/);
+});
+
+
+function renderManage(fixtures: Fixture[], id = 'chosen', author = trackAuthor) {
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { location: { origin: 'https://ainize.ai' } } });
+  try { return render(ManagePage, fixtures, `/project/${encodeURIComponent(author)}/${encodeURIComponent(id)}`, '/project/:author/:patchId'); }
+  finally { if (before) Object.defineProperty(globalThis, 'window', before); else Reflect.deleteProperty(globalThis, 'window'); }
+}
+const manageRead = (id = 'chosen'): Fixture => ({ name: 'managedPatch', arg: { id, identity: accessIdentity }, value: manageFixture(id) });
+const manageAux: Fixture[] = [
+  { name: 'managedCatalog', arg: { identity: accessIdentity }, value: { items: [] } },
+  { name: 'nodes', arg: { identity: accessIdentity }, value: networkNodesFixture() },
+  { name: 'runtime', arg: { identity: accessIdentity }, value: { available: false, hook: false, model: null, applied: [] } },
+];
+test('knowledge management requires node operator permission even for a node-owned resource', () => {
+  for (const auth of [signedOut, accessAuth.map(f => f.name === 'me' ? { ...f, value: { ...f.value as object, isOwner: false } } : f)]) {
+    const html = renderManage([...auth, manageRead(), ...manageAux]);
+    assert.match(html, /Node operator access is required/); assert.doesNotMatch(html, /data-testid="announce"|delete-draft|price-save|billing-select/);
+  }
+});
+test('management respects the full route and keeps failed reads distinct from missing knowledge', () => {
+  const wrongAuthor = renderManage([...accessAuth, manageRead(), ...manageAux], 'chosen', accessTarget);
+  assert.match(wrongAuthor, /author in this URL does not match/); assert.doesNotMatch(wrongAuthor, /data-testid="announce"/);
+  for (const override of [{ status: 'rejected' as const }, { value: { ...manageFixture(), conflicts: [null] } }, { value: manageFixture('different') }]) {
+    const html = renderManage([...accessAuth, { ...manageRead(), ...override }, ...manageAux]);
+    assert.match(html, /query-error/); assert.match(html, /query-retry/); assert.doesNotMatch(html, /Knowledge not found|data-testid="announce"/);
+  }
+  const missing = renderManage([...accessAuth, { ...manageRead(), status: 'rejected', errorStatus: 404 }, ...manageAux]);
+  assert.match(missing, /Knowledge not found/); assert.doesNotMatch(missing, /data-testid="announce"/);
+});
+test('knowledge management cannot reuse another account detail or the public unscoped cache', () => {
+  const html = renderManage([...accessAuth, { ...manageRead(), arg: { id: 'chosen', identity: 'other account' } }, { name: 'patch', arg: 'chosen', value: manageFixture() }, ...manageAux]);
+  assert.doesNotMatch(html, /Knowledge chosen|billing-select|delete-draft|data-testid="announce"/);
+});
+test('management links preserve encoded identifiers and unknown conflict authors use lookup', () => {
+  const id = 'folder/item?x#hash'; const p = manageFixture(id);
+  p.conflicts = [{ patch_id: 'external/id?x', status: 'VERIFIED', overlap_rows: 2, same_schema: true, same_author: false }] as any;
+  p.lineage.parents = [{ id: 'base/id', author: accessTarget, name: 'Base item', status: 'VERIFIED' }];
+  const html = renderManage([...accessAuth, { ...manageRead(id), value: p }, ...manageAux], id);
+  assert.match(html, /data-testid="announce"/);
+  assert.ok(html.includes(`/project/${trackAuthor}/folder%2Fitem%3Fx%23hash/logs`));
+  assert.ok(html.includes('/patch/external%2Fid%3Fx'));
+  assert.ok(html.includes(`/${accessTarget}/base%2Fid`));
+  assert.ok(!html.includes(`/${trackAuthor}/external`));
+});
+test('management holders and runtime failures offer recovery instead of empty or cached controls', () => {
+  const fixtures = manageAux.map(f => f.name === 'nodes' || f.name === 'runtime' ? { ...f, status: 'rejected' as const } : f);
+  const html = renderManage([...accessAuth, manageRead(), ...fixtures]);
+  assert.equal((html.match(/data-testid="query-retry"/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /data-testid="holders-empty"/);
 });
