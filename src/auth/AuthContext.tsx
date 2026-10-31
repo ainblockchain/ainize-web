@@ -3,7 +3,7 @@ import { api } from '@/api/api';
 import { signOutSessions } from './signOutSessions';
 import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { useGoogleLogoutMutation, useGoogleSessionQuery, useLogoutMutation, useMeQuery, useSsoStatusQuery } from '@/api/api';
-import { activateIssuedKeyOwner } from '@/screens/models/issuedKeyMemory';
+import { activateIssuedKeyOwner, issuedKeyScope } from '@/screens/models/issuedKeyMemory';
 import type { GoogleIdentityView, SsoSessionView } from '@/api/types';
 
 /**
@@ -99,14 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const cacheIdentity = live || sso || google
     ? JSON.stringify([live ? data?.subject ?? null : null, sso?.principal ?? null, sitePrincipal, google?.sub ?? null]) : '';
   useEffect(() => {
-    if (!isLoading && !googleLoading) activateIssuedKeyOwner(cacheIdentity || null);
-  }, [cacheIdentity, isLoading, googleLoading]);
+    if (!isLoading && !googleLoading) activateIssuedKeyOwner(issuedKeyScope(cacheIdentity, data?.address) || null);
+  }, [cacheIdentity, data?.address, isLoading, googleLoading]);
+  const currentNode = useRef(data?.address);
+  currentNode.current = data?.address;
   const currentIdentity = useRef<string | null>(cacheIdentity);
   currentIdentity.current = cacheIdentity;
   useEffect(() => { currentIdentity.current = cacheIdentity; return () => { currentIdentity.current = null; }; }, [cacheIdentity]);
   const value: AuthState = {
     cacheIdentity,
-    isCurrentAccount: () => !!cacheIdentity && currentIdentity.current === cacheIdentity && !signOutPending.current,
+    isCurrentAccount: () => !!cacheIdentity && currentIdentity.current === cacheIdentity && currentNode.current === data?.address && !signOutPending.current,
     loading: isLoading || googleLoading,
     isSignedIn: live || !!google || !!sso,
     subject: live ? data?.subject ?? null : null,

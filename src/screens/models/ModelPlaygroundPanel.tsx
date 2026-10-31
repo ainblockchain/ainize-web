@@ -6,7 +6,7 @@
  * same `data-testid`s — rather than being rewritten beside the list. The rule it was built on still holds: the
  * snippet is built from the state the playground just used, so the code copied is the call made.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useThroughputQuoteQuery } from '@/api/api';
 import { billingView } from '@/lib/billingView';
@@ -21,6 +21,8 @@ import { useActiveView } from '@/hooks/useActiveView';
 import { callPlayground, createPlaygroundTask, playgroundJson } from './playgroundCall';
 import { decisionInput, playgroundBody, playgroundInitialPrompt, playgroundNeedsKey, PlaygroundInputError } from './modelPlaygroundInput';
 import { readChatStream } from './playgroundStream';
+import { apiKeyList, createdApiKey } from '@/api/apiKeyEvidence';
+import { issuedKeyScope } from './issuedKeyMemory';
 import { useIssuedKey } from './useIssuedKey';
 import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedPriorityOfferOf } from './modelSpeedHints';
@@ -116,10 +118,14 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   useEffect(() => () => task.cancel(), [task]);
   const current = () => active() && !auth.loading && !auth.signingOut && (!canHoldKeys || auth.isCurrentAccount());
   const signedIn = !!subject;
-  const keyQuery = useApiKeysQuery(cacheIdentity, { skip: !canHoldKeys });
-  const keyList = keyQuery.currentData;
+  const keyBusy = useRef(false);
+  const keyContext = issuedKeyScope(cacheIdentity, auth.address);
+  const keyQuery = useApiKeysQuery(keyContext, { skip: !canHoldKeys || !keyContext, refetchOnMountOrArgChange: true });
+  const keyList = apiKeyList(keyQuery.currentData);
+  const invalidKeys = keyQuery.currentData !== undefined && !keyList;
+  const keysReady = !!keyList && !keyQuery.isFetching && !keyQuery.isError && !!keyContext;
   const [createKey, createState] = useCreateApiKeyMutation();
-  const { key: issuedKey, remember, forget } = useIssuedKey(cacheIdentity);
+  const { key: issuedKey, remember, forget } = useIssuedKey(cacheIdentity, auth.address, keysReady ? keyQuery.currentData : undefined);
   const [keyName, setKeyName] = useState('');
   const keyLabel = keyName.trim();
   const duplicateKeyName = !!keyLabel && !!keyList?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === keyLabel.toLocaleLowerCase());
@@ -267,6 +273,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             but the page must not pretend there is nothing: list what exists and point at the account page, and
             make "create" the secondary action ("another"), not a reset to square one. */}
         {canHoldKeys && keyQuery.isLoading && <Description role="status">{t('me.keys.loading')}</Description>}
+        {canHoldKeys && invalidKeys && <Alert role="alert" $tone="error">{t('me.keys.invalid')} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
         {canHoldKeys && keyQuery.error && <Alert role="alert" $tone="error">{t('common.error', { message: errorMessage(keyQuery.error) })} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
         {canHoldKeys && !issuedKey && (keyList?.keys.length ?? 0) > 0 && (
           <Description data-testid="models-existing-keys">
@@ -280,18 +287,25 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
         {canHoldKeys && !issuedKey && (
           <form onSubmit={(event) => {
             event.preventDefault();
-            if (!keyLabel || duplicateKeyName || createState.isLoading) return;
+            if (!current() || keyBusy.current || !keysReady || !keyLabel || duplicateKeyName) return;
+            keyBusy.current = true;
             setKeyError(null);
             void createKey({ label: keyLabel, org_id: null }).unwrap()
-              .then((r) => { if (remember(r.api_key)) setKeyName(''); })
-              .catch((e: unknown) => setKeyError(errorMessage(e)));
+              .then((r) => {
+                if (!auth.isCurrentAccount()) return;
+                const secret = createdApiKey(r, keyLabel, null);
+                if (!secret) throw new Error(t('me.keys.receipt'));
+                if (remember(secret) && current()) setKeyName('');
+              })
+              .catch((e: unknown) => { if (current()) setKeyError(t('me.keys.create_unknown', { why: errorMessage(e) })); })
+              .finally(() => { keyBusy.current = false; });
           }}>
             <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
               helper={duplicateKeyName ? t('me.keys.name_duplicate') : t('me.keys.name_hint')} error={duplicateKeyName}
               data-testid="models-key-name" value={keyName} onChange={(event) => setKeyName(event.target.value)}
               maxLength={60} required disabled={createState.isLoading} />
             <Row>
-              <Button type="submit" data-testid="models-create-key" disabled={createState.isLoading || !keyLabel || duplicateKeyName}>
+              <Button type="submit" data-testid="models-create-key" disabled={!keysReady || createState.isLoading || !keyLabel || duplicateKeyName}>
                 {createState.isLoading ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
               </Button>
               <StyledLink to="/me">{t('models.key.manage')}</StyledLink>
@@ -311,7 +325,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             </Row>
           </>
         )}
-        {keyError && <Alert>{t('models.key.failed', { why: keyError })}</Alert>}
+        {keyError && <Alert role="alert" $tone="error">{keyError} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
         {/* A deposit applies to exactly the calls a key makes, so this is where it is said — with this visitor's
             own busy-time number, not a general "faster". */}
         {isChat && offer && (

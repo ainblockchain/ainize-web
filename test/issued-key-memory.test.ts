@@ -86,3 +86,67 @@ test('blocked session storage keeps a current-account copy only until sign-out',
   activateIssuedKeyOwner(null);
   assert.equal(recallIssuedKey('account-a'), null);
 });
+
+test('revocation forgets a held secret by its hash identifier, never its raw prefix', async () => {
+  const { apiKeyHash, apiKeyPrefix } = await import('../src/api/apiKeyEvidence');
+  const { forgetIssuedKeyByPrefix } = await import('../src/screens/models/issuedKeyMemory');
+  const secret = 'ainize-sk-' + 'a'.repeat(32);
+  activateIssuedKeyOwner('account-a');
+  rememberIssuedKey('account-a', secret);
+  assert.equal(forgetIssuedKeyByPrefix('account-a', secret.slice(0, 8)), false);
+  assert.equal(forgetIssuedKeyByPrefix('account-b', apiKeyPrefix(secret)), false);
+  assert.equal(recallIssuedKey('account-a'), secret);
+  assert.equal(forgetIssuedKeyByPrefix('account-a', apiKeyPrefix(secret)), true);
+  assert.equal(recallIssuedKey('account-a'), null);
+  assert.equal(storage.has(slot), false);
+});
+
+test('held secrets cannot cross nodes even when the account is unchanged', async () => {
+  const { issuedKeyScope } = await import('../src/screens/models/issuedKeyMemory');
+  const a = issuedKeyScope('same-account', '0x' + 'a'.repeat(40));
+  const b = issuedKeyScope('same-account', '0x' + 'b'.repeat(40));
+  assert.equal(a, issuedKeyScope('same-account', '0x' + 'A'.repeat(40)));
+  assert.equal(issuedKeyScope('same-account', null), '');
+  assert.equal(issuedKeyScope('same-account', 'unknown'), '');
+  activateIssuedKeyOwner(a);
+  rememberIssuedKey(a, 'fixture-a');
+  assert.equal(recallIssuedKey(b), null);
+  activateIssuedKeyOwner(b);
+  assert.equal(rememberIssuedKey(a, 'late-fixture-a'), false);
+  assert.equal(recallIssuedKey(b), null);
+  activateIssuedKeyOwner(a);
+  assert.equal(recallIssuedKey(a), null);
+});
+
+test('upgrading account-only storage preserves the sole secret until the owned node list proves it', async () => {
+  const { apiKeyHash, apiKeyPrefix } = await import('../src/api/apiKeyEvidence');
+  const { issuedKeyScope, adoptLegacyIssuedKey } = await import('../src/screens/models/issuedKeyMemory');
+  const secret = 'ainize-sk-' + 'a'.repeat(32);
+  const scope = issuedKeyScope('account-a', '0x' + 'a'.repeat(40));
+  storage.set(slot, JSON.stringify({ owner: 'account-a', key: secret }));
+  activateIssuedKeyOwner(scope);
+  assert.equal(recallIssuedKey(scope), null, 'not yet bound to this node');
+  assert.equal(storage.has(slot), true, 'do not lose the only copy on upgrade');
+  for (const listing of [null, {}, { keys: [] }, { keys: [{ prefix: apiKeyPrefix(secret), issuedAt: 1, label: null }] }, { keys: [{ prefix: apiKeyPrefix(secret), key_id: apiKeyHash(secret), issuedAt: 1, label: null, disabled: true }] }]) {
+    assert.equal(adoptLegacyIssuedKey(scope, listing), false);
+    assert.equal(recallIssuedKey(scope), null);
+  }
+  const listing = { keys: [{ prefix: apiKeyPrefix(secret), key_id: apiKeyHash(secret), issuedAt: 1, label: null }] };
+  assert.equal(adoptLegacyIssuedKey('other-account', listing), false);
+  assert.equal(adoptLegacyIssuedKey(scope, listing), true);
+  assert.equal(recallIssuedKey(scope), secret);
+  assert.equal(JSON.parse(storage.get(slot)!).owner, scope);
+  assert.equal(adoptLegacyIssuedKey(scope, listing), false, 'no recursive adoption on storage notifications');
+});
+
+test('an unconfirmed legacy secret is cleared on logout or account change', async () => {
+  const { issuedKeyScope, adoptLegacyIssuedKey } = await import('../src/screens/models/issuedKeyMemory');
+  const scope = issuedKeyScope('account-a', '0x' + 'a'.repeat(40));
+  for (const next of [null, issuedKeyScope('account-b', '0x' + 'a'.repeat(40))]) {
+    storage.set(slot, JSON.stringify({ owner: 'account-a', key: 'fixture' }));
+    activateIssuedKeyOwner(scope);
+    activateIssuedKeyOwner(next);
+    assert.equal(storage.has(slot), false);
+    assert.equal(adoptLegacyIssuedKey(scope, { keys: [] }), false);
+  }
+});

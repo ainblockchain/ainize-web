@@ -40,7 +40,11 @@ export const me: Dict = {
   'me.keys.loading': { ko: '키를 불러오는 중…', en: 'Loading keys…' },
   'me.keys.revoking': { ko: '폐기 중…', en: 'Revoking…' },
   'me.keys.revoked': { ko: '{label} 키를 폐기했습니다.', en: 'Revoked key: {label}.' },
-  'me.keys.revoke_failed': { ko: '키를 폐기하지 못했습니다: {why}', en: 'Could not revoke the key: {why}' },
+  'me.keys.invalid': { ko: '키 목록을 확인할 수 없습니다. 다시 불러와 주세요.', en: 'The key list could not be verified. Reload it before making changes.' },
+  'me.keys.receipt': { ko: '응답이 선택한 키와 일치하지 않습니다.', en: 'The response does not match the selected key.' },
+  'me.keys.create_unknown': { ko: '발급 결과를 확인하지 못했습니다. 키가 생성되었을 수 있으니 목록을 확인하세요: {why}', en: 'Creation could not be confirmed. A key may have been created; check the list: {why}' },
+  'me.keys.revoke_unknown': { ko: '폐기 결과를 확인하지 못했습니다. 목록을 다시 확인하세요: {why}', en: 'Revocation could not be confirmed. Reload the key list: {why}' },
+  'me.keys.revoke_failed': { ko: '폐기 결과를 확인하지 못했습니다: {why}', en: 'Revocation could not be confirmed: {why}' },
   'me.keys.copy_failed': { ko: '복사하지 못했습니다. 위의 키를 선택해 직접 복사해 주세요.', en: 'Could not copy. Select the key above and copy it manually.' },
   'me.keys.revoke': { ko: '폐기', en: 'Revoke' },
   'me.keys.once': {

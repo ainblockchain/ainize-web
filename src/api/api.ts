@@ -117,7 +117,7 @@ export const api = createApi({
     createApiKey: b.mutation<{ api_key: string; prefix: string; label: string | null; org_id?: string | null }, { label?: string; org_id?: string | null }>({
       query: (body) => ({ url: 'api/keys', method: 'POST', body }), invalidatesTags: ['ApiKeys'],
     }),
-    revokeApiKey: b.mutation<{ revoked: boolean }, string>({
+    revokeApiKey: b.mutation<{ revoked: boolean; prefix: string }, string>({
       query: (prefix) => ({ url: `api/keys/${encodeURIComponent(prefix)}`, method: 'DELETE' }), invalidatesTags: ['ApiKeys'],
     }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),

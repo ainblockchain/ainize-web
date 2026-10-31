@@ -1,3 +1,4 @@
+import { issuedKeyScope } from '../src/screens/models/issuedKeyMemory';
 import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
 import { reconciliationFixture } from './purchase-reconciliation-fixture';
 import { RequestKnowledgeFeedback } from '../src/components/chat/RequestKnowledge';
@@ -750,9 +751,10 @@ test('unavailable AIN sign-in options show a retry and retain the wallet fallbac
   assert.match(html, /data-testid="wallet-options"/);
 });
 
+const keyNode = '0x' + 'a'.repeat(40);
 const appAccount: Fixture[] = [
   ...signedOut.filter((f) => f.name !== 'me'),
-  { name: 'me', value: { sso: { sub: 'viewer', principal: 'sso:viewer', orgs: [{ id: 'studio', slug: 'studio' }] } } },
+  { name: 'me', value: { address: keyNode, sso: { sub: 'viewer', principal: 'sso:viewer', orgs: [{ id: 'studio', slug: 'studio' }] } } },
 ];
 const appsArg = { principal: JSON.stringify([null, 'sso:viewer', null, null]), orgs: ['studio'] };
 const webApp = { id: 'web', name: 'Storefront', org: 'studio', repoName: 'mono', sourcePath: 'packages/web', kind: 'nextjs', branch: 'main', status: 'ready', updatedAt: Date.now(), lastDeployment: { id: 'newest', status: 'ready', outputUrl: 'https://newest.example.test' }, activeDeploymentId: 'previous' };
@@ -805,7 +807,7 @@ test('search retains partial app matches while reporting the incomplete source',
 
 const accountIdentity = JSON.stringify([null, 'sso:viewer', null, null]);
 const accountOrgs: Fixture = { name: 'myOrgs', arg: accountIdentity, value: { signed_in: true, orgs: [] } };
-const noKeys: Fixture = { name: 'apiKeys', arg: accountIdentity, value: { keys: [] } };
+const noKeys: Fixture = { name: 'apiKeys', arg: issuedKeyScope(accountIdentity, keyNode), value: { keys: [] } };
 
 test('account keys do not claim empty during loading or failure and failed refresh preserves the list', () => {
   for (const status of ['pending', 'rejected'] as const) {
@@ -816,7 +818,7 @@ test('account keys do not claim empty during loading or failure and failed refre
       assert.match(html, /Try again/);
     }
   }
-  const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, status: 'rejected', value: { keys: [{ prefix: 'fixture-prefix', label: 'Existing account key', issuedAt: 1 }] } }], '/me');
+  const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, status: 'rejected', value: { keys: [{ prefix: '1234abcd', label: 'Existing account key', issuedAt: 1 }] } }], '/me');
   assert.match(html, /Existing account key/);
   assert.match(html, /data-testid="me-keys-error"/);
   assert.doesNotMatch(html, /No keys yet/);
@@ -834,11 +836,11 @@ test('account key, organization and node caches cannot be borrowed from another 
   const wallet = '0x1111111111111111111111111111111111111111';
   const current = JSON.stringify([wallet, null, null, null]);
   const html = render(MyPage, [
-    ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet } },
+    ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet, address: keyNode } },
     { ...noKeys, arg: 'previous-account', value: { keys: [{ prefix: 'old-key', label: 'Previous secret label', issuedAt: 1 }] } },
     { ...accountOrgs, arg: 'previous-account', value: { signed_in: true, orgs: [{ id: 'private-org', name: 'Previous private organization' }] } },
     { name: 'myNodes', arg: 'other-wallet', value: { nodes: [{ address: 'other-wallet', name: 'Previous private node' }] } },
-    { name: 'apiKeys', arg: current, status: 'pending' },
+    { name: 'apiKeys', arg: issuedKeyScope(current, keyNode), status: 'pending' },
     { name: 'myOrgs', arg: current, status: 'pending' },
     { name: 'myNodes', arg: current, status: 'pending' },
   ], '/me');
@@ -850,8 +852,8 @@ test('failed wallet node lookup shows recovery while retaining cached current-wa
   const wallet = '0x1111111111111111111111111111111111111111';
   const current = JSON.stringify([wallet, null, null, null]);
   const html = render(MyPage, [
-    ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet } },
-    { ...noKeys, arg: current }, { ...accountOrgs, arg: current },
+    ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet, address: keyNode } },
+    { ...noKeys, arg: issuedKeyScope(current, keyNode) }, { ...accountOrgs, arg: current },
     { name: 'myNodes', arg: current, status: 'rejected', value: { nodes: [{ address: wallet, name: 'Current wallet node' }] } },
   ], '/me');
   assert.match(html, /data-testid="me-nodes-error"/);
@@ -865,7 +867,7 @@ const Playground = () => createElement(ModelPlaygroundPanel, {
   signInNext: '/models/fixture-model',
 });
 test('model key management goes to the personal account, and list failure has recovery', () => {
-  const html = render(Playground, [...appAccount, { ...noKeys, value: { keys: [{ prefix: 'fixture-prefix', label: 'Existing key' }] } }], '/models/fixture-model');
+  const html = render(Playground, [...appAccount, { ...noKeys, value: { keys: [{ prefix: '1234abcd', issuedAt: 1, label: 'Existing key' }] } }], '/models/fixture-model');
   assert.match(html, /href="\/me"[^>]*>Manage your keys/);
   assert.doesNotMatch(html, /href="\/account"/);
   const failed = render(Playground, [...appAccount, { ...noKeys, status: 'rejected', value: undefined }], '/models/fixture-model');
@@ -2451,4 +2453,24 @@ test('model playground displays its runnable sample and key-dependent actions ar
 test('model page key creation clearly identifies a personal key and points organization management to the account', () => {
   const html = render(Playground, [...appAccount, noKeys], '/models/fixture-model');
   assert.match(html, /Create a personal key/);
+});
+
+
+test('malformed API key lists show recovery rather than crashing or claiming no keys', () => {
+  for (const value of [{}, { keys: null }, { keys: [{}] }, { keys: [{ prefix: 'deadbeef', issuedAt: 1, label: {} }] }]) {
+    for (const Page of [MyPage, Playground]) {
+      const html = render(Page, [...appAccount, accountOrgs, { ...noKeys, value }], '/me');
+      assert.match(html, /The key list could not be verified/);
+      assert.doesNotMatch(html, /No keys yet/);
+      assert.match(html, /Try again/);
+    }
+  }
+});
+
+test('a new node cannot borrow the previous node key list for the same account', () => {
+  const html = render(MyPage, [
+    ...appAccount.map((fixture) => fixture.name === 'me' ? { ...fixture, value: { ...(fixture.value as object), address: '0x' + 'b'.repeat(40) } } : fixture),
+    accountOrgs, { ...noKeys, value: { keys: [{ prefix: 'deadbeef', issuedAt: 1, label: 'Old node key' }] } },
+  ], '/me');
+  assert.doesNotMatch(html, /Old node key|No keys yet/);
 });

@@ -344,7 +344,7 @@ export interface SsoStatusResponse {
   legacyGoogleAvailable: boolean;
 }
 
-export interface ApiKeySummary { prefix: string; issuedAt: number; label: string | null; org_id?: string | null; disabled?: boolean }
+export interface ApiKeySummary { key_id?: string; prefix: string; issuedAt: number; label: string | null; org_id?: string | null; disabled?: boolean }
 
 export interface AuthMe {
   /** an AIN SSO session, or null/absent (a node from before AIN SSO) */
