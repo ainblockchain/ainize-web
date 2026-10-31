@@ -4489,7 +4489,7 @@ Owner only. Requires successful complete export first; serialized with export an
 
 Restore your deleted agent at the same address
 
-Owner only. No body overrides. Restores the last successful active version when recorded, preserving newer failed history under an archive branch. Retains review/execution history and original source identity; project source SHAs remain distinct from projection SHAs. Reinstalls Git validation hooks, issues a fresh PoP key and waits for the runtime to be ready. Runtime secret values are not restored; secretsRequired names what the owner must set again. Current model/media/Docker availability and organization contributor permission are revalidated. A collision never overwrites an existing agent. Failed application removes the attempted restored state while retaining the archive for retry.
+Owner only. No body overrides. Restores the last successful active version when recorded, preserving newer failed history under an archive branch. Retains review/execution history and original source identity; project source SHAs remain distinct from projection SHAs. Reinstalls Git validation hooks, issues a fresh PoP key and waits for the runtime to be ready. Hosted-agent secret values are not restored; secretsRequired names what the owner must set again. Project-agent environment snapshots are excluded from archives and removed on agent deletion. A project agent with a snapshot reference requires the matching readable encrypted snapshot and active version before any restore mutation; otherwise 409 project_environment_required directs the owner to recover the snapshot or redeploy from project settings. Current model/media/Docker availability and organization contributor permission are revalidated. A collision never overwrites an existing agent. Failed application removes the attempted restored state while retaining the archive for retry.
 
 **Auth** — none
 
@@ -4508,7 +4508,7 @@ Owner only. No body overrides. Restores the last successful active version when 
 | `401` | Sign-in required |
 | `403` | Current organization sharing permission required |
 | `404` | Archive not found |
-| `409` | id_taken, state_exists or active_version_missing |
+| `409` | id_taken, state_exists, active_version_missing, project_binding_conflict or project_environment_required |
 | `429` | Hosted agent quota reached |
 | `501` | docker_unavailable |
 | `502` | restore_failed or restore_cleanup_failed |
@@ -5672,7 +5672,7 @@ The owner (of an org-private project, while still a member), or an active member
 
 Set or replace one project secret (owner or org writer)
 
-Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable to the project's container on its next deploy and to its script runs, over ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. Optional body `redeploy: { deploymentId, sha }` pins the reviewed source and full commit, validated before the secret write. Legacy `?redeploy=1` without that target is refused. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status, projectId, redeployOf, sha } | null }`. A failure after writing starts returns 500 `secret_mutation_outcome_unknown`; the value or deployment may already have changed. Values are read when the worker prepares execution, not from a versioned snapshot.
+Sealed at rest (AES-256-GCM, node key) and delivered on the next container or code-agent deployment and to script runs, overriding ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. Optional body `redeploy: { deploymentId, sha }` pins the reviewed source and full commit, validated before the secret write. Legacy `?redeploy=1` without that target is refused. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status, projectId, redeployOf, sha } | null }`. A failure after writing starts returns 500 `secret_mutation_outcome_unknown`; the value or deployment may already have changed. The worker reads current values when preparing execution, not when the write is admitted. Project-agent deployment then seals an immutable revision tied to the agent and project; container restarts reuse that revision. Missing or unreadable revisions refuse execution. App/service/script execution does not yet retain a versioned environment snapshot.
 
 **Auth** — operator
 

@@ -36,7 +36,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `kind` | 전체 | `nextjs`(`package.json`에 `next`가 있으면 기본), `script`, `service`, `agent`. |
 | `runtime` | `script` | `python3.11` 또는 `node20`. 기본은 entry 확장자로 정해짐. |
 | `entry` | `script` | 실행할 파일, 리포 루트 기준. |
-| `env` | 전체 | 빌드와 실행에 들어가는 환경변수. **비밀값 금지** — 파일이 리포에 있습니다. 샌드박스가 `AINIZE_URL`과 `AINIZE_API_KEY`(push한 사람 본인의 키)를 스스로 넣어 주므로, 스크립트는 `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])`로 모델에 닿고 키는 절대 커밋되지 않습니다. |
+| `env` | 전체 | 비밀이 아닌 실행 기본값이며, 앱 빌드에도 전달됩니다. **비밀값 금지** — 파일이 리포에 있습니다. 프로젝트 설정의 값이 기본값보다 우선합니다. 스크립트 샌드박스는 `AINIZE_URL`과 `AINIZE_API_KEY`를 제공하고, 에이전트는 호스팅 런타임의 게이트웨이를 사용합니다. |
 | `inputs` | 전체(`script` 실행에서 사용) | 실행 전에 사람이 정하는 매개변수. GitHub Actions `workflow_dispatch` inputs와 같은 모양이며, `INPUT_<NAME>` 환경변수로 전달됩니다. [Inputs](#inputs) 참고. |
 | `timeoutMs` | `script` | 실행 1회의 제한 시간. 기본 120 000, 최대 300 000. |
 | `build.dockerfile`, `build.context` | `service` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
@@ -66,6 +66,17 @@ capability 제거, 자원 제한)로 실행한 뒤, `port`의 `healthcheck`를 �
 **`agent`** — 리포를 [hosted agent](./host-an-agent.md)로 빌드해 노드의 A2A 주소 `https://<node>/agents/<id>`에
 공개합니다. 에이전트 카드는 파일의 `agent` 항목으로 만들어집니다. A2A를 말하는 무엇이든 그 URL로 호출할 수 있고,
 마켓플레이스에도 다른 에이전트처럼 올라갑니다. 에이전트는 노드의 hosted-agent 런타임 이미지로 실행되며(그 이미지가 A2A 계약), 이 kind에서는 리포의 `Dockerfile`을 무시합니다.
+
+새 **에이전트 배포**는 작업자가 배포를 준비할 때 `env`와 프로젝트 환경변수를 합쳐 저장하며, 프로젝트 설정이
+우선합니다. 코드 에이전트는 이미지 빌드가 아닌 실행 시 `process.env`와 `ctx.secret(name)`으로 값을 받습니다.
+이 값은 에이전트 설정·Git 이력과 분리해 암호화합니다. 이후 설정을 바꿔도 이미 배포된 값은 바뀌지 않으므로
+새 값을 적용하려면 다시 배포하세요. 유휴 컨테이너를 재시작할 때도 같은 배포의 값을 사용합니다. 저장된 값을
+읽지 못하면 기본값으로 바꿔 실행하지 않고 시작을 중단합니다. 기존 에이전트에는 다음 프로젝트 배포부터 적용됩니다.
+
+에이전트를 삭제하면 배포 당시 환경변수도 삭제됩니다. 내려받은 에이전트 보관본에는 비밀값이 없으므로, 복원하려면
+일치하는 암호화 원본을 복구하거나 설정을 확인한 뒤 프로젝트에서 새로 배포해야 합니다. 설정 저장과 커밋 선택은
+별도 작업입니다. 값이 고정되는 시점은 설정 저장 시점이 아니라 작업자의 배포 준비 시점입니다. 앱·서비스·스크립트는
+실행 준비 시 값을 읽으며, 이 에이전트용 환경변수 이력을 보관하지 않습니다.
 
 ## Inputs
 

@@ -41,12 +41,12 @@ function ArchiveContent({ principal }: { principal: string }) {
         if (active.current) setRestored(result);
       }
       else await remove(record.id).unwrap();
-    } catch (err) { if (!active.current) return; const failure = hostedAgentApiErrorOf(err); setError(failure.message || (ko ? '작업을 완료하지 못했습니다. 다시 시도해 주세요.' : 'Could not complete this action. Please retry.')); }
+    } catch (err) { if (!active.current) return; const failure = hostedAgentApiErrorOf(err); setError(failure.code === 'project_environment_required' ? (ko ? '이 에이전트의 배포 당시 환경변수를 확인하지 못했습니다. 원본 암호화 데이터를 복구하거나 프로젝트에서 다시 배포하세요.' : 'The original deployed environment is unavailable. Restore its encrypted snapshot or deploy again from the project.') : failure.message || (ko ? '작업을 완료하지 못했습니다. 다시 시도해 주세요.' : 'Could not complete this action. Please retry.')); }
     finally { if (active.current) setBusy(''); }
   };
   return <Panel aria-label={ko ? '삭제한 에이전트 복구' : 'Recover deleted agents'}>
     <h3>{ko ? '삭제한 에이전트' : 'Deleted agents'}</h3>
-    <p>{ko ? '보관된 이력으로 같은 주소에 복구합니다. 비밀 값은 다시 설정해야 합니다. 영구 삭제 전에 보관본을 내려받아 주세요.' : 'Restore the same address from retained history. Set secret values again after recovery. Download an archive before permanently removing it.'}</p>
+    <p>{ko ? '보관본에는 비밀 값이 없습니다. 프로젝트 에이전트는 배포 당시 환경변수 원본을 복구하거나 프로젝트에서 다시 배포해야 합니다. 영구 삭제 전에 보관본을 내려받아 주세요.' : 'Archives exclude secret values. Project agents need their original deployed environment recovered, or a new deployment from the project. Download an archive before permanently removing it.'}</p>
     {error && <Alert $tone="error" role="alert">{error}</Alert>}
     {restored && <p role="status">{ko ? '복구되었습니다.' : 'Restored.'} <StyledLink to={`/agent/${encodeURIComponent(restored.agentId)}/edit`}>{ko ? '에이전트 설정 열기' : 'Open agent settings'}</StyledLink>{restored.secretsRequired.length > 0 && <> · {ko ? '다시 설정할 비밀 값' : 'Secrets to set again'}: {restored.secretsRequired.join(', ')}</>}</p>}
     {!query.currentData && query.isFetching && <p role="status">{ko ? '보관본을 불러오는 중…' : 'Loading archives…'}</p>}

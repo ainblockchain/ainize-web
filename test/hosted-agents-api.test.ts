@@ -203,6 +203,15 @@ test('refusals: a named code wins, the status fills in, and no answer is offline
   assert.equal(hostedAgentApiErrorOf(undefined).code, 'unknown');
 });
 
+test('conflicts need explicit address evidence and unknown named refusals never become another cause', () => {
+  for (const data of [undefined, '<html>', { error: 'state_exists' }, { error: { code: 'state_exists', message: 'Reconcile existing metadata.' } }]) {
+    assert.equal(hostedAgentApiErrorOf({ status: 409, data }).code, 'unknown');
+  }
+  assert.deepEqual(hostedAgentApiErrorOf({ status: 409, data: { error: 'id_taken' } }), { status: 409, code: 'id_taken', message: 'id_taken' });
+  assert.equal(hostedAgentApiErrorOf({ status: 429, data: { error: { code: 'peer_capacity', message: 'Try later.' } } }).code, 'unknown');
+  assert.equal(hostedAgentApiErrorOf({ status: 409, data: { error: 'project_environment_required' } }).code, 'project_environment_required');
+});
+
 // ── /api/models/:id
 
 test('one model parses, with its agent count when the node gives one', () => {
@@ -264,4 +273,10 @@ test('model agent list evidence distinguishes empty from malformed rows and dupl
   }
   assert.equal(readModelAgentList({ agents: [row({ id: 'same' }), row({ id: 'same' })] }), null);
   assert.equal(readModelAgentList({ agents: [row({ id: 'same' }), row({ id: 'same', node: { address: 'peer', name: 'Peer' } })] })?.length, 2);
+});
+
+
+test('an unavailable project environment is not misclassified as an occupied agent id', () => {
+  const error = hostedAgentApiErrorOf({ status: 409, data: { error: { code: 'project_environment_required', message: 'Restore the encrypted snapshot or redeploy.' } } });
+  assert.equal(error.code, 'project_environment_required');
 });

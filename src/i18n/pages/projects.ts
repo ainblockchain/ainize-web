@@ -277,8 +277,8 @@ export const projects: Dict = {
   // ── Settings → Environment Variables (src/components/ProjectEnvVars.tsx; the node calls them project secrets)
   'projects.env.title': { ko: '환경 변수', en: 'Environment Variables' },
   'projects.env.help': {
-    ko: '앱 컨테이너와 스크립트 실행에 환경 변수로 전달됩니다. 값은 암호화되어 저장되고 다시 보여 주지 않습니다(쓰기 전용). 값은 한 줄, 최대 32 KiB — PEM 키 같은 여러 줄 값은 base64로 인코딩해 넣으세요.',
-    en: 'Passed to the app\'s container and to script runs as environment variables. Values are stored encrypted and never shown again (write-only). One line, up to 32 KiB — base64-encode a PEM key or any multi-line value.',
+    ko: '새 배포부터 앱·코드 에이전트와 스크립트에 환경변수로 전달됩니다. 값은 암호화되어 저장되고 다시 보여 주지 않습니다(쓰기 전용). 값은 한 줄, 최대 32 KiB — PEM 키 같은 여러 줄 값은 base64로 인코딩해 넣으세요.',
+    en: 'Passed to app and code-agent deployments and script runs as environment variables. Values are stored encrypted and never shown again (write-only). One line, up to 32 KiB — base64-encode a PEM key or any multi-line value.',
   },
   'projects.env.loading': { ko: '불러오는 중…', en: 'Loading…' },
   'projects.env.load_failed': { ko: '환경변수 목록을 확인하지 못했습니다. 다시 불러오세요.', en: 'Could not confirm the environment variable list. Refresh to try again.' },

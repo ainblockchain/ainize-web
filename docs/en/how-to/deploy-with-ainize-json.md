@@ -35,7 +35,7 @@ shows each commit's deployment next to it.
 | `kind` | all | `nextjs` (default when `package.json` depends on `next`), `script`, `service`, `agent`. |
 | `runtime` | `script` | `python3.11` or `node20`. Defaults from the entry's extension. |
 | `entry` | `script` | The file to run, relative to the repo root. |
-| `env` | all | Environment variables for the build and the run. **Not for secrets** — the file is in the repo. The sandbox adds `AINIZE_URL` and `AINIZE_API_KEY` (the pusher's own key) itself, so a script reaches the models with `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])` and no key is ever committed. |
+| `env` | all | Non-secret runtime defaults; app builds also receive them. **Not for secrets** — the file is in the repo. Project settings override these defaults. The script sandbox supplies `AINIZE_URL` and `AINIZE_API_KEY`; agents use their hosted-runtime gateway. |
 | `inputs` | all (used by `script` runs) | Parameters a person fills in before a run — the same shape as GitHub Actions `workflow_dispatch` inputs, delivered as `INPUT_<NAME>` environment variables. See [Inputs](#inputs). |
 | `timeoutMs` | `script` | Wall-clock limit for one run. Default 120 000, maximum 300 000. |
 | `build.dockerfile`, `build.context` | `service` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
@@ -66,6 +66,19 @@ under the node's public URL with a zero-downtime swap.
 `https://<node>/agents/<id>`, with an agent card assembled from `agent` in the file. Anything that speaks A2A can call
 it from that URL; the marketplace lists it like any other agent. The agent runs on the node's hosted-agent runtime image (that image is the A2A contract); a
 `Dockerfile` in the repo is ignored for this kind.
+
+For new **agent deployments**, project environment values override `env` and are captured when the worker
+prepares the deployment. Code agents receive them in `process.env` and `ctx.secret(name)` at runtime, not during
+the image build. The node encrypts that revision separately from the agent spec and Git history. Later settings
+edits do not change that deployed revision; redeploy to apply them. An idle container restart uses the same
+revision. An unreadable or missing revision blocks startup instead of silently using defaults. Existing agents
+without a revision acquire one on their next project deployment.
+
+Deleting an agent removes its captured environment. Downloaded agent archives contain no secret values; restore
+requires recovery of the matching encrypted snapshot or a new project deployment using reviewed settings.
+Saving settings and selecting a commit are separate operations: values are captured by the worker, not pinned
+at the time the settings form is saved. App, service and script paths currently read values when preparing
+execution and do not retain these agent-specific environment revisions.
 
 ## Inputs
 

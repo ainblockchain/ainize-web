@@ -427,10 +427,10 @@ export function parseHostedAgentLogsResponse(raw: unknown): string[] {
 /** The refusals the hosted-agent routes name, plus `unknown` for anything this build has not heard of. */
 export type HostedAgentApiErrorCode =
   | 'invalid_request' | 'not_signed_in' | 'forbidden' | 'not_found' | 'id_taken' | 'limit_reached'
-  | 'docker_unavailable' | 'model_not_served' | 'offline' | 'unknown';
+  | 'docker_unavailable' | 'model_not_served' | 'project_environment_required' | 'offline' | 'unknown';
 
 const KNOWN_ERROR_CODES: readonly HostedAgentApiErrorCode[] = [
-  'invalid_request', 'not_signed_in', 'forbidden', 'not_found', 'id_taken', 'limit_reached', 'docker_unavailable', 'model_not_served',
+  'invalid_request', 'not_signed_in', 'forbidden', 'not_found', 'id_taken', 'limit_reached', 'docker_unavailable', 'model_not_served', 'project_environment_required',
 ];
 
 export interface HostedAgentApiError {
@@ -444,8 +444,8 @@ export interface HostedAgentApiError {
 /**
  * One shape for every way a hosted-agent call can fail.
  *
- * The code comes from the body when the node names one, and otherwise from the status — an older node or a proxy
- * that only says "409" still means the id is taken. `offline` is a request that got no answer at all.
+ * Named refusals take precedence over status guesses. A bare conflict cannot establish that an address is
+ * taken: restore, provenance and deletion conflicts also use 409. `offline` means no answer was received.
  */
 export function hostedAgentApiErrorOf(err: unknown): HostedAgentApiError {
   const e = (err ?? {}) as { status?: unknown; originalStatus?: unknown; data?: unknown; error?: unknown };
@@ -459,6 +459,7 @@ export function hostedAgentApiErrorOf(err: unknown): HostedAgentApiError {
       named = typeof inner.code === 'string' ? inner.code : null;
       message = typeof inner.message === 'string' ? inner.message : null;
     } else if (typeof body.error === 'string') {
+      named = oneOf(KNOWN_ERROR_CODES, body.error);
       message = body.error;
     }
     if (!message && typeof body.message === 'string') message = body.message;
@@ -466,8 +467,9 @@ export function hostedAgentApiErrorOf(err: unknown): HostedAgentApiError {
   if (!message && typeof e.error === 'string') message = e.error;
   const known = oneOf(KNOWN_ERROR_CODES, named);
   if (known) return { status, code: known, message };
+  if (named) return { status, code: 'unknown', message };
   const byStatus: Record<number, HostedAgentApiErrorCode> = {
-    400: 'invalid_request', 401: 'not_signed_in', 403: 'forbidden', 404: 'not_found', 409: 'id_taken', 429: 'limit_reached', 501: 'docker_unavailable',
+    400: 'invalid_request', 401: 'not_signed_in', 403: 'forbidden', 404: 'not_found', 429: 'limit_reached', 501: 'docker_unavailable',
   };
   if (status === null) return { status, code: e.status === 'FETCH_ERROR' ? 'offline' : 'unknown', message };
   return { status, code: byStatus[status] ?? 'unknown', message };

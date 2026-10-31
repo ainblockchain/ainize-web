@@ -188,7 +188,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 176 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 178 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 115 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -271,6 +271,7 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `null` | path refused: \<raw> (paths are relative to the repository root; .., .git, .env files and absolute paths outside the repository are not allowed) | `src/hosted-qa-engine.ts` |
 | `null` | pattern is required | `src/hosted-qa-engine.ts` |
 | `null` | project agent binding changed while waiting; retry deployment | `src/project-agents.ts` |
+| `null` | project agent environment delivery is unavailable | `src/project-agents.ts` |
 | `null` | project_deleting | `src/project-redeploy.ts` |
 | `null` | redeploy_target_changed | `src/project-redeploy.ts` |
 | `null` | repository id already exists | `src/agent-git.ts` |
@@ -354,6 +355,7 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `409` | patch body not present on this node | `src/api.ts` |
 | `409` | payout \<id> is already paid (\<row.tx_hash>) | `src/payouts.ts` |
 | `409` | project_binding_conflict | `src/agent-archive-restore.ts` |
+| `409` | project_environment_required | `src/agent-archive-restore.ts` |
 | `409` | state_exists | `src/agent-archive-restore.ts` |
 | `409` | this payout was already sent (\<row.tx_hash>) | `src/payouts.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
