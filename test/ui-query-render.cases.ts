@@ -1195,12 +1195,12 @@ test('sign-out exposes pending and retryable failure states without claiming suc
 
 const codeOverview = {
   workspaces: [{ kind: 'organization', org: { id: 'studio', name: 'Studio', role: 'write' }, base: '/code/org/studio', running: true, newSessionUrl: '/code/_workspaces/choose?to=studio' }],
-  sessions: [{ workspace: 'studio', id: 'session-current', title: 'Current account session', directory: '/projects/demo', workingDirectory: '/projects/demo', updatedAt: 1, status: 'idle', openUrl: '/code/org/studio/demo/session/session-current' }],
+  sessions: [{ workspace: 'studio', id: 'session-current', title: 'Current account session', directory: '/projects/demo', workingDirectory: '/projects/demo', updatedAt: 1, status: 'idle', openUrl: '/code/org/studio/L3Byb2plY3RzL2RlbW8/session/session-current' }],
 };
 
 test('AinCode shows exact session/workspace destinations without repeated title or introduction', () => {
   const html = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: codeOverview }], '/aincode');
-  assert.match(html, /href="\/code\/org\/studio\/demo\/session\/session-current"/);
+  assert.match(html, /href="\/code\/org\/studio\/L3Byb2plY3RzL2RlbW8\/session\/session-current"/);
   assert.match(html, /href="\/code\/_workspaces\/choose\?to=studio"/);
   assert.match(html, /Current account session/);
   assert.doesNotMatch(html, /Which workspace and which repository|AinCode sessions<\/h1>/);
@@ -4137,5 +4137,43 @@ test('setup exact view distinguishes current verified rules from an unresolved s
     const html = render(AccountPage, [...chainAccountFixtures(), { name: 'chainSetupRequest', arg: { identity: accountIdentity, context: setupContextFixture, id }, value: { ...setupStatusFixture, verification: { valid: true, errors: [] }, operation: savedSetupOperation(state) } }], '/account?chainRequest=' + id);
     assert.match(html, /market rules are verified/); assert.match(html, state === 'running' ? /saved setup request is still running/ : /saved request is unconfirmed/);
     assert.doesNotMatch(html, />Set up app on chain<|>Retry setup</);
+  }
+});
+
+test('AinCode long histories start with five recent rows and keep older repository groups collapsed', () => {
+  const sessions = Array.from({ length: 18 }, (_, i) => ({ ...codeOverview.sessions[0], id: 'session-' + i, title: 'History row ' + i + ' END', updatedAt: 100 - i,
+    openUrl: '/code/org/studio/L3Byb2plY3RzL2RlbW8/session/session-' + i }));
+  sessions.push({ ...sessions[0], id: 'other-folder', title: 'Other folder', directory: '/projects/other', workingDirectory: '/projects/other', updatedAt: 1 });
+  const html = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: { ...codeOverview, sessions } }], '/aincode');
+  assert.equal((html.match(/data-testid="aincode-open"/g) ?? []).length, 6);
+  assert.match(html, /5 of 18/); assert.match(html, /Show more/); assert.doesNotMatch(html, /History row (5|6|17) END/);
+  assert.equal((html.match(/<details open=""/g) ?? []).length, 1);
+  assert.equal((html.match(/<details/g) ?? []).length, 2);
+  assert.match(html, /18 sessions/); assert.match(html, /\/projects\/other/);
+});
+
+test('AinCode mobile row retains branch, state and recent activity and names each open link', () => {
+  const html = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: { ...codeOverview, sessions: [{ ...codeOverview.sessions[0], branch: 'feature/mobile' }] } }], '/aincode');
+  assert.match(html, /data-testid="aincode-mobile-meta"/); assert.match(html, /feature\/mobile/);
+  assert.match(html, /aria-label="Open session: Current account session"/); assert.match(html, />Refresh</);
+});
+
+test('AinCode failed or refreshing retained lists cannot keep active navigation or live-state claims', () => {
+  for (const status of ['rejected', 'pending'] as const) {
+    const html = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, status, value: { ...codeOverview, sessions: [{ ...codeOverview.sessions[0], status: 'working' }] } }], '/aincode');
+    assert.match(html, /Current account session/); assert.match(html, /Saved list/); assert.match(html, /Unknown/);
+    assert.doesNotMatch(html, /data-testid="aincode-open"|href="\/code\/|1 working|>Running</);
+  }
+  const stopped = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: { ...codeOverview, workspaces: [{ ...codeOverview.workspaces[0], running: false }], sessions: [{ ...codeOverview.sessions[0], status: 'working' }] } }], '/aincode');
+  assert.match(stopped, /Stopped — last seen list/); assert.match(stopped, /Unknown/); assert.doesNotMatch(stopped, /1 working|>Working</);
+});
+
+test('AinCode repository disclosure does not turn its heading into unexpected navigation', () => {
+  for (const project of [true, false]) {
+    const repo = { org: 'studio', name: 'demo', aindriveUrl: 'https://aindrive.ainetwork.ai/studio/git/demo', ...(project ? { projectPageUrl: 'https://ainize.ai/studio/demo' } : {}) };
+    const html = render(AinCodePage, [...appAccount, { name: 'aincodeOverview', arg: accountIdentity, value: { ...codeOverview, sessions: [{ ...codeOverview.sessions[0], repo }] } }], '/aincode');
+    const summary = html.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1];
+    assert.ok(summary); assert.doesNotMatch(summary!, /<a\b/); assert.match(summary!, /demo/);
+    assert.match(html, project ? />View project<\/a>/ : />View repository<\/a>/);
   }
 });
