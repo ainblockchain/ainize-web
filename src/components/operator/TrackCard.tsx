@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
 import styled from 'styled-components';
 import { api, errorMessage, useLedgerQuery, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
-import type { BranchesResponse, SubscribeResult, TrackItem, TrackOverlap } from '@/api/types';
+import type { BranchesResponse, SubscribeResult, TrackActionReview } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { accountRuntime, createNodeActionTask } from '@/lib/accountNodeActions';
 import { useActiveView } from '@/hooks/useActiveView';
 import { LoadKnowledgeError, requireRuntimeOperator } from '@/lib/loadKnowledge';
-import { knowledgePath } from '@/lib/detailRoutes';
-import { trackAcquisitionFailure, trackActionConfirmed, trackActionResult, trackOutcomeText, trackOverlapRefusal } from '@/lib/trackAction';
+import { parseTrackReview } from '@/lib/trackReview';
+import { TrackReviewSheet } from './TrackReviewSheet';
+import { trackAcquisitionFailure, trackActionConfirmed, trackActionResult, trackOutcomeText } from '@/lib/trackAction';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
-import { Sheet, SheetFooter, SheetNote } from '@/components/chat/Sheet';
-import { SubText } from '@/components/ui/Table';
-import { Muted, QueryError, Row, SmallSpinner, Stack, useMoney } from '@/components/operator/common';
-import { num, shortAddr } from '@/utils/format';
+import { Sheet, SheetFooter } from '@/components/chat/Sheet';
+import { Muted, Row, useMoney } from '@/components/operator/common';
+import { shortAddr } from '@/utils/format';
 
 const Card = styled.div`
   min-width: 0; overflow-wrap: anywhere; padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; display: flex; flex-direction: column; gap: 8px;
@@ -23,31 +22,8 @@ const Card = styled.div`
 const Tag = styled.span`
   display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #f5eefc; color: #5b1ca8; font-family: ${(p) => p.theme.font.mono};
 `;
-const Cost = styled.span<{ $spend?: boolean }>`
-  font-size: 13px; font-weight: ${(p) => (p.$spend ? 700 : 500)}; color: ${(p) => (p.$spend ? '#a0102c' : p.theme.color.GREY)};
-`;
 const Consequences = styled.ul`
   margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.55; color: ${(p) => p.theme.color.BLACK};
-`;
-/** The item list reads at 360 as well as at 1280: two stacked columns, never a table the phone has to scroll sideways. */
-const ItemList = styled.ul`
-  flex: none; margin: 0; padding: 0; list-style: none; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
-`;
-const ItemRow = styled.li`
-  display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline;
-  padding: 10px 2px; border-bottom: 1px solid #f4f4f4;
-`;
-/** The load order of a track's items (item 214): later is on top, and wins on any row two of them share. */
-const OrderBadge = styled.span`
-  display: inline-block; min-width: 18px; margin-right: 6px; padding: 0 4px; border-radius: 9px;
-  background: ${(p) => p.theme.color.LIGHT_GREY}; color: ${(p) => p.theme.color.DARK_GREY};
-  font-size: 11px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums;
-`;
-const ItemName = styled.div`min-width: 0; flex: 1 1 180px; font-size: 14px; a { color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; } a:hover { text-decoration: underline; }`;
-const ItemPlan = styled.div<{ $tone: 'spend' | 'warn' | 'muted' }>`
-  flex: 0 0 auto; text-align: right; font-size: 13px;
-  color: ${(p) => (p.$tone === 'spend' ? '#a0102c' : p.$tone === 'warn' ? '#8a4b00' : p.theme.color.GREY)};
-  strong { display: block; font-size: 14px; color: ${(p) => p.theme.color.BLACK}; }
 `;
 /**
  * Finding 262 — the card said "{n} knowledge · {subs} subscriber(s)" and nothing about THIS node, so a subscriber
@@ -83,8 +59,10 @@ function TrackCardView({ branch, subscribed: subscribedProp, currency, address }
   const [task] = useState(createNodeActionTask);
   useEffect(() => () => task.abandon(), [task]);
   const [readAccess] = api.useLazyMeQuery();
+  const [readReview] = api.useLazyTrackReviewQuery();
+  const [review, setReview] = useState<TrackActionReview | null>(null);
   const money = useMoney();
-  const [open, setOpen] = useState<null | 'subscribe' | 'unsubscribe'>(null);
+  const [open, setOpen] = useState<null | 'subscribe' | 'sync' | 'unsubscribe'>(null);
   const [subscribe, subState] = useSubscribeMutation();
   const [syncTrack, syncState] = useSyncBranchMutation();
   const [error, setError] = useState<string | null>(null);
@@ -95,11 +73,6 @@ function TrackCardView({ branch, subscribed: subscribedProp, currency, address }
   const quote = useTrackQuoteQuery({ name: branch.name, identity: auth.cacheIdentity });
   const q = !quote.isError && quote.currentData?.quote.branch === branch.name ? quote.currentData.quote : undefined;
   const items = q?.items ?? [];
-  const toBuy = items.filter((i) => i.plan === 'buy');
-  const totalText = q && q.total.length ? q.total.map((x) => money.fmt(Number(x.amount), x.currency)).join(' + ') : money.fmt(0, currency);
-  const balance = q?.balance ?? null;
-  /** The balance is held in ONE currency: only compare it with a total priced in that same currency. */
-  const short = !!q && q.total.length === 1 && q.total[0].currency === currency && typeof balance === 'number' && Number(q.total[0].amount) > balance;
   const mine = !!address && branch.owner.toLowerCase() === address.toLowerCase();
   /** Item 257 — `patch_ids` is the whole history of the track; `current` is what a subscriber actually loads. */
   const current = branch.current ?? q?.current ?? branch.patch_ids;
@@ -144,28 +117,21 @@ function TrackCardView({ branch, subscribed: subscribedProp, currency, address }
     return { joined, left, sales, revenue: [...revenue.entries()].map(([cur, amount]) => money.fmt(Math.round(amount * 1e6) / 1e6, cur)).join(' + ') };
   }, [ledger.data, branch.name, branch.patch_ids, currency, money]);
 
-  const planLabel = (i: TrackItem) => t(`op.dash.branches.plan.${i.plan}`);
   const [checking, setChecking] = useState(false);
   const busy = checking || subState.isLoading || syncState.isLoading;
-  const loading = quote.isFetching || !q;
   const canAct = auth.isOwner && !auth.loading && !busy;
 
-  /**
-   * Item 214 — a track is loaded ON TOP of what is already in the model, and the model is last-wins on a shared row.
-   * The node refuses when that would write over something already loaded; the offer to do it anyway is explicit,
-   * beside the sentence naming what would be overridden, rather than a silent 409 the card swallowed.
-   */
-  const [overrides, setOverrides] = useState<TrackOverlap[] | null>(null);
   const run = async (action: SubscribeResult['action'], replace = false) => {
-    if (!canAct || task.pending() || !currentView()) return;
-    setChecking(true); setError(null); setOverrides(null);
+    if (!canAct || task.pending() || !currentView() || action !== 'unsubscribe' && (!review || review.action !== action)) return;
+    setChecking(true); setError(null);
     setOutcome(previous => previous?.action === 'unsubscribe' && !trackActionConfirmed(previous) ? previous : null);
     let stillCurrent = currentView;
     try {
       await task.run(currentView, async check => {
         stillCurrent = check;
         if (!await requireRuntimeOperator({ current: check, node: address, subject: auth.subject, readAccess: () => readAccess(undefined, false).unwrap() })) return null;
-        const raw = await (action === 'sync' ? syncTrack(branch.name) : subscribe({ name: branch.name, action, replace })).unwrap();
+        const raw = await (action === 'sync' ? syncTrack({ name: branch.name, expected_review: review!.revision, replace })
+          : subscribe({ name: branch.name, action, replace, expected_review: action === 'subscribe' ? review!.revision : undefined })).unwrap();
         if (!check()) return null;
         const result = trackActionResult(raw, branch.name, action);
         if (!result) throw new Error(t('op.dash.branches.done.unconfirmed'));
@@ -175,17 +141,30 @@ function TrackCardView({ branch, subscribed: subscribedProp, currency, address }
       });
     } catch (err) {
       if (!stillCurrent()) return;
-      if (action === 'subscribe') setOverrides(trackOverlapRefusal(err, branch.name));
       const partial = action === 'subscribe' ? trackAcquisitionFailure(err, branch.name) : null;
       if (partial) setOutcome(partial);
       setError(err instanceof LoadKnowledgeError ? t(`detail.apply.error.${err.code}`) : errorMessage(err));
     } finally { if (stillCurrent()) setChecking(false); }
   };
-  const doSubscribe = (replace = false) => run('subscribe', replace);
-  const doSync = () => run('sync');
   const doUnsubscribe = () => run('unsubscribe');
   const close = () => { if (!task.pending()) setOpen(null); };
-  const reviewSubscribe = () => { if (!task.pending()) { setOutcome(null); setError(null); setOverrides(null); setOpen('subscribe'); } };
+  const beginReview = async (action: 'subscribe' | 'sync') => {
+    if (!canAct || task.pending() || !currentView()) return;
+    setOpen(action); setReview(null); setOutcome(null); setError(null); setChecking(true);
+    let stillCurrent = currentView;
+    try {
+      await task.run(currentView, async check => {
+        stillCurrent = check;
+        if (!await requireRuntimeOperator({ current: check, node: address, subject: auth.subject, readAccess: () => readAccess(undefined, false).unwrap() })) return null;
+        const raw = await readReview({ name: branch.name, action, identity: auth.cacheIdentity }, false).unwrap();
+        if (!check()) return null;
+        const value = parseTrackReview(raw, branch.name, action, address);
+        if (!value) throw new Error(t('op.trackReview.unavailable'));
+        setReview(value); return true;
+      });
+    } catch (e) { if (stillCurrent()) setError(e instanceof LoadKnowledgeError ? t(`detail.apply.error.${e.code}`) : errorMessage(e)); }
+    finally { if (stillCurrent()) setChecking(false); }
+  };
 
   return (
     <Card data-testid="track-card" data-branch={branch.name}>
@@ -229,14 +208,6 @@ function TrackCardView({ branch, subscribed: subscribedProp, currency, address }
           })}
         </span>
       )}
-      {/* The price of the track, before the click (item 9): what subscribing would spend, right now, from this node. */}
-      {!subscribed && (
-        <Cost $spend={toBuy.length > 0} data-testid="track-cost">
-          {quote.isError || !q && !quote.isFetching ? t('op.dash.branches.cost.unknown') : loading ? <SmallSpinner />
-            : toBuy.length === 0 ? t('op.dash.branches.cost.nothing', { n: current.length })
-              : t('op.dash.branches.cost.buy', { n: toBuy.length, total: totalText })}
-        </Cost>
-      )}
       {/* Finding 262 — "loaded 1 of 2 current · still missing: …" beside the button that closes the gap. */}
       {subscribed && (
         <Standing $behind={runtimeKnown && missing.length > 0} data-testid="track-standing">
@@ -251,94 +222,19 @@ function TrackCardView({ branch, subscribed: subscribedProp, currency, address }
       <Row $gap={8}>
         {subscribed
           ? <>
-            <Button size="small" disabled={!canAct} onClick={doSync} loading={syncState.isLoading} loadingText={t('op.dash.branches.syncing')} data-testid="track-sync">{t('op.dash.branches.sync')}</Button>
+            <Button size="small" disabled={!canAct} onClick={() => void beginReview('sync')} loading={syncState.isLoading} loadingText={t('op.dash.branches.syncing')} data-testid="track-sync">{t('op.dash.branches.sync')}</Button>
             <Button size="small" disabled={!canAct} color="secondary" onClick={() => setOpen('unsubscribe')} data-testid="track-unsubscribe">{t('op.dash.branches.unsubscribe')}</Button>
           </>
-          : <Button size="small" onClick={reviewSubscribe} disabled={loading || !canAct || cleanupPending} data-testid="track-subscribe">{t('op.dash.branches.subscribe')}</Button>}
+          : <Button size="small" onClick={() => void beginReview('subscribe')} disabled={!canAct || cleanupPending} data-testid="track-subscribe">{t('op.dash.branches.subscribe')}</Button>}
         {cleanupPending && <Button size="small" disabled={!canAct} onClick={() => setOpen('unsubscribe')} data-testid="track-cleanup">{t('op.dash.branches.cleanup')}</Button>}
       </Row>
       {subscribed && <Muted>{t('op.dash.branches.keepsup')}</Muted>}
       {!open && error && <Alert $tone="error" role="alert">{error}</Alert>}
       {!open && outcome && <TrackActionFeedback outcome={outcome} />}
 
-      {open === 'subscribe' && (
-        <Sheet title={t('op.dash.branches.sheet.title', { name: branch.name })} sub={t('op.dash.branches.sheet.sub')} onClose={close} width={720} testId="subscribe-sheet">
-          {quote.isError
-            ? <QueryError error={quote.error} what={t('op.dash.branches.sheet.items')} retrying={quote.isFetching} onRetry={() => void quote.refetch()} />
-            : (
-              <ItemList>
-                {items.map((i) => (
-                  <ItemRow key={i.patch_id} data-testid="subscribe-item" data-plan={i.plan}>
-                    <ItemName>
-                      {/* Item 214: a track is LOADED in this order, and the later item wins on any row two of them share. */}
-                      {current.includes(i.patch_id) && <OrderBadge title={t('op.dash.branches.sheet.order')}>{current.indexOf(i.patch_id) + 1}</OrderBadge>}
-                      {i.author ? <Link to={knowledgePath(i.author, i.patch_id)}>{i.name ?? i.patch_id}</Link> : <span>{i.name ?? i.patch_id}</span>}
-                      <SubText>{i.patch_id}{i.author ? ` · ${i.author_name ?? shortAddr(i.author)}` : ''}</SubText>
-                    </ItemName>
-                    <ItemPlan $tone={i.plan === 'buy' ? 'spend' : i.plan === 'held' || i.plan === 'own' ? 'muted' : 'warn'}>
-                      {i.plan === 'buy' && <strong title={money.note(i.currency)}>{money.fmt(i.price, i.currency)}</strong>}
-                      {planLabel(i)}
-                    </ItemPlan>
-                  </ItemRow>
-                ))}
-              </ItemList>
-            )}
-
-          <Stack $gap={8}>
-            <strong data-testid="subscribe-total">{t('op.dash.branches.sheet.total', { n: toBuy.length, total: totalText }, toBuy.length)}</strong>
-            {typeof balance === 'number' && <Muted>{t('op.dash.branches.sheet.balance', { balance: money.fmt(balance, currency) })}</Muted>}
-          </Stack>
-          {short && <Alert $tone="error" role="alert" data-testid="subscribe-short">{t('op.dash.branches.sheet.short')}</Alert>}
-
-          <Consequences>
-            <li>{t('op.dash.branches.sheet.why.record')}</li>
-            <li>{q && !q.runtime_available ? t('op.dash.branches.sheet.why.model_off') : t('op.dash.branches.sheet.why.model')}</li>
-            <li>{t('op.dash.branches.sheet.why.partial')}</li>
-            <li>{t('op.dash.branches.sheet.why.keepsup')}</li>
-            <li>{t('op.dash.branches.sheet.why.route')}</li>
-            <li>{t('op.dash.branches.sheet.why.refund')}</li>
-            <li>{t('op.dash.branches.sheet.why.allornothing')}</li>
-          </Consequences>
-
-          {error && <Alert $tone="error" role="alert" data-testid="subscribe-error">{error}</Alert>}
-          {/* Item 214: what this track would write over, and the one button that says yes to it. */}
-          {overrides && (
-            <Alert $tone="warning" role="alert" data-testid="subscribe-overrides">
-              <div>{t('op.dash.branches.sheet.overrides')}</div>
-              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                {overrides.map((o) => (
-                  <li key={`${o.track_id}|${o.loaded_id}`}>{o.rows !== null
-                    ? t('op.dash.branches.sheet.overrides.line', {
-                      track: o.track_id, loaded: o.loaded_id, rows: num(o.rows),
-                      how: o.loaded_reason === 'manual' ? t('op.dash.branches.loadedby.manual') : t('op.dash.branches.loadedby.track', { track: o.loaded_reason.replace(/^subscription:/, '') }),
-                    })
-                    /* The body is not on this node yet, so the count is an estimate from the published sketches and says so. */
-                    : t('op.dash.branches.sheet.overrides.line_est', {
-                      track: o.track_id, loaded: o.loaded_id, pct: Math.round((o.jaccard ?? 0) * 100),
-                      how: o.loaded_reason === 'manual' ? t('op.dash.branches.loadedby.manual') : t('op.dash.branches.loadedby.track', { track: o.loaded_reason.replace(/^subscription:/, '') }),
-                    })}</li>
-                ))}
-              </ul>
-              <Button size="small" color="secondary" style={{ marginTop: 8 }} disabled={!canAct || loading} loading={busy} onClick={() => void doSubscribe(true)} data-testid="subscribe-replace">
-                {t('op.dash.branches.sheet.overrides.anyway')}
-              </Button>
-            </Alert>
-          )}
-          {outcome && <TrackActionFeedback outcome={outcome} />}
-
-          <SheetNote>{t('op.dash.branches.sheet.note')}</SheetNote>
-          <SheetFooter>
-            <Button variant="text" color="default" onClick={close}>{outcome ? t('op.close') : t('common.cancel')}</Button>
-            {!outcome && (
-              <Button variant="contained" disabled={!canAct || loading || quote.isError} loading={busy} loadingText={t('op.dash.branches.sheet.subscribing')} onClick={() => void doSubscribe(false)} data-testid="subscribe-confirm">
-                {toBuy.length === 0 ? t('op.dash.branches.sheet.confirm.free')
-                  : short ? t('op.dash.branches.sheet.confirm.anyway', { total: totalText })
-                    : t('op.dash.branches.sheet.confirm', { total: totalText })}
-              </Button>
-            )}
-          </SheetFooter>
-        </Sheet>
-      )}
+      {(open === 'subscribe' || open === 'sync') && <TrackReviewSheet branch={branch.name} action={open} review={review}
+        busy={busy} error={error} onRetry={() => void beginReview(open)} onConfirm={replace => void run(open, replace)} onClose={close}
+        feedback={outcome ? <TrackActionFeedback outcome={outcome} /> : undefined} />}
 
       {open === 'unsubscribe' && (
         <Sheet title={t('op.dash.branches.unsub.title', { name: branch.name })} onClose={close} width={520} testId="unsubscribe-sheet">

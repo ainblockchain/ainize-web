@@ -235,6 +235,7 @@ export interface TrackItem {
 }
 export interface TrackQuote {
   action_receipts?: 1;
+  runtime_model?: string | null;
   branch: string; owner: string; description: string; subscribed: boolean;
   items: TrackItem[]; current: string[]; retired: string[]; buy: string[];
   total: { currency: string; amount: string }[]; currency: string; balance: number | null;
@@ -264,6 +265,13 @@ export interface SubscribeResult {
     runtime: { state: 'recorded' | 'unavailable' | 'failed'; error: string | null; pending: string[];
       records: { patch_id: string; sha256: string; reason: string }[] };
   };
+}
+export interface TrackActionReview {
+  version: 1; revision: string; node: string; action: 'subscribe' | 'sync'; quote: TrackQuote;
+  before: { patch_id: string; sha256: string; reason: string }[];
+  after: { patch_id: string; sha256: string; reason: string }[];
+  anchors: PatchAnchor[]; overlaps: TrackOverlap[];
+  fee: { amount: string; currency: string }; total: { amount: string; currency: string }[];
 }
 /**
  * `/api/route` (item 234): which track answered, which of the caller's attributes it matched, what else came close,

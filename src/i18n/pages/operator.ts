@@ -80,6 +80,23 @@ export const operatorSign: Dict = {
 };
 
 export const operatorDash: Dict = {
+  'op.trackReview.title.subscribe': { ko: '{name} 구독 검토', en: 'Review subscription · {name}' },
+  'op.trackReview.title.sync': { ko: '{name} 동기화 검토', en: 'Review sync · {name}' },
+  'op.trackReview.loading': { ko: '현재 가격과 모델 변경 내용을 확인하고 있습니다…', en: 'Checking current prices and model changes…' },
+  'op.trackReview.total': { ko: '이번 요청의 최대 결제액: {total}', en: 'Maximum spend for this request: {total}' },
+  'op.trackReview.fee': { ko: '포함된 구독료: {total}', en: 'Included curation fee: {total}' },
+  'op.trackReview.changes': { ko: '모델 항목 추가 {add}개 · 제거 {remove}개 · 유지 {keep}개', en: 'Model layers: add {add} · remove {remove} · keep {keep}' },
+  'op.trackReview.items': { ko: '항목별 가격과 처리 내용', en: 'Item prices and actions' },
+  'op.trackReview.model': { ko: '변경 후 모델 적용 순서', en: 'Model load order after this change' },
+  'op.trackReview.removed': { ko: '제거할 항목: {ids}', en: 'Layers to remove: {ids}' },
+  'op.trackReview.modelOffline': { ko: '현재 모델에 연결할 수 없습니다. 파일 확보나 구독 등록이 끝나도 모델 적용은 완료되지 않을 수 있습니다.', en: 'The model is unavailable. Acquisitions or subscription registration may finish without completing model changes.' },
+  'op.trackReview.overlap': { ko: '다음 항목이 기존 모델 항목과 겹치는 부분을 덮어씁니다.', en: 'These items override overlapping parts of retained model layers.' },
+  'op.trackReview.acceptOverlap': { ko: '위 항목의 덮어쓰기를 허용합니다.', en: 'Allow the overrides listed above.' },
+  'op.trackReview.partial': { ko: '가격이나 대상·모델 기록이 바뀌면 다시 검토해야 합니다. 일부 파일이나 구독료가 결제된 뒤 다음 단계가 실패해도 앞선 결제는 환불되지 않습니다.', en: 'Changed prices, targets or model records require a new review. If a later step fails, earlier file purchases or curation payments are not refunded.' },
+  'op.trackReview.refresh': { ko: '다시 검토', en: 'Refresh review' },
+  'op.trackReview.confirm.subscribe': { ko: '구독 · 최대 {total}', en: 'Subscribe · up to {total}' },
+  'op.trackReview.confirm.sync': { ko: '동기화 · 최대 {total}', en: 'Sync · up to {total}' },
+  'op.trackReview.unavailable': { ko: '현재 노드에서 일치하는 결제·모델 변경 검토를 받지 못했습니다. 새 검토를 불러온 뒤 실행하세요.', en: 'This node did not return a matching spending and model review. Load a new review before running the action.' },
   // Item 335: the console showed verification as no work at all — 203 attestations under "No knowledge yet".
   'op.dash.questions': { ko: '등록 질문 {n}개', en: '{n} declared questions' },
   'op.dash.verify.title': { ko: '검증 실적', en: 'Verification activity' },
@@ -212,7 +229,7 @@ export const operatorDash: Dict = {
   'op.dash.branches.meta.retired': { ko: '(+ 지난 판 {n}개는 더 이상 받지 않습니다)', en: '(+{n} older version(s) that subscribers no longer load)' },
   // Item 358 — a track name cannot change hands, so whose track this is belongs on the card.
   'op.dash.branches.owner.you': { ko: '이 노드', en: 'this node' },
-  'op.dash.branches.sync': { ko: '지금 최신으로', en: 'Sync now' },
+  'op.dash.branches.sync': { ko: '동기화 검토', en: 'Review sync' },
   'op.dash.branches.syncing': { ko: '받는 중…', en: 'Syncing…' },
   // Finding 262 — the card counted the track's knowledge and never said what THIS node had loaded of it, so a
   // subscriber a day behind had to correlate three screens to find out. The comparison is on the card now.

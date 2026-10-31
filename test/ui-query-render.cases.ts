@@ -11,6 +11,8 @@ import { AccountOwners, AccountBindings } from '../src/components/operator/Accou
 import { AccountPeers } from '../src/components/operator/AccountPeers';
 import { AccountRuntime } from '../src/components/operator/AccountRuntime';
 import { TrackActionFeedback, TrackCard } from '../src/components/operator/TrackCard';
+import { TrackReviewSheet } from '../src/components/operator/TrackReviewSheet';
+import { trackReviewFixture } from './track-review-fixture';
 import { AccountSettings } from '../src/components/operator/AccountSettings';
 import AccountPage from '../src/screens/AccountPage';
 import { newPatchDraftKey } from '../src/lib/newPatchDraft';
@@ -2105,6 +2107,25 @@ test('track receipts show fee-only spend, incomplete cleanup and legacy uncertai
   assert.match(html, /retained dependency/); assert.match(html, /old-layer/); assert.doesNotMatch(html, /nothing new|were confirmed/);
   const legacy = render(() => createElement(TrackActionFeedback, { outcome: { ...value, receipt: undefined, ok: true } as any }), signedOut);
   assert.match(legacy, /data-confirmed="false"/); assert.match(legacy, /states are unconfirmed/);
+});
+test('track review shows fee-inclusive spend and model changes before subscribe or sync', () => {
+  const review = trackReviewFixture();
+  const props = { branch: 'selected', action: 'subscribe' as const, review, busy: false, error: null, onRetry() {}, onConfirm() {}, onClose() {} };
+  const html = render(() => createElement(TrackReviewSheet, props), signedOut);
+  assert.match(html, /Maximum spend for this request/); assert.match(html, /Included curation fee/); assert.match(html, /New knowledge/);
+  assert.match(html, /Model layers: add 1/); assert.match(html, /automatically/); assert.match(html, /track-review-confirm/);
+  assert.doesNotMatch(html.match(/<button[^>]*data-testid="track-review-confirm"[^>]*>/)![0], /disabled/);
+  const sync = { ...review, action: 'sync' as const, quote: { ...review.quote, subscribed: true }, fee: { amount: '0', currency: 'CREDIT' }, total: [{ amount: '2', currency: 'CREDIT' }] };
+  const text = render(() => createElement(TrackReviewSheet, { ...props, action: 'sync', review: sync }), signedOut);
+  assert.match(text, /Review sync/); assert.match(text, /Sync · up to/); assert.doesNotMatch(text, /automatically, until you unsubscribe/);
+});
+test('missing, pending, failed and overlapping track reviews keep confirmation disabled', () => {
+  const base = { branch: 'selected', action: 'sync' as const, review: trackReviewFixture(), busy: false, error: null as string | null, onRetry() {}, onConfirm() {}, onClose() {} };
+  for (const props of [{ ...base, review: null }, { ...base, busy: true }, { ...base, error: 'price changed' },
+    { ...base, review: { ...base.review, overlaps: [{ track_id: 'new', loaded_id: 'manual', loaded_reason: 'manual', rows: 2, estimated: false }] } }]) {
+    const html = render(() => createElement(TrackReviewSheet, props), signedOut);
+    assert.match(html.match(/<button[^>]*data-testid="track-review-confirm"[^>]*>/)![0], /disabled/);
+  }
 });
 test('track cards cannot use another account’s quote or offer signed-out mutations', () => {
   const branch = trackBranches(['selected']).branches[0];

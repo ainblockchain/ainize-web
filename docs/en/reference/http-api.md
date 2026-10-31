@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-323 operations on 268 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+324 operations on 269 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -363,6 +363,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/patches/{id}/forget`](#post-apipatchesidforget) | operator | Delete this node's copy of the knowledge file. NOT a takedown — the listing stays and the gateway keeps charging; POST /api/patches/{id}/retire is the takedown. 409 with `also_affects` when other items share the same file — repeat with `{"all_sharing": true}` to stop serving all of them |
 | `GET` | [`/api/ledger/inference`](#get-apiledgerinference) | operator | Read native inference batch submissions and local receipts |
 | `POST` | [`/api/branches`](#post-apibranches) | operator | Create a branch |
+| `POST` | [`/api/branches/{name}/review`](#post-apibranchesnamereview) | operator | Review track spending and the model transition without executing it |
 | `POST` | [`/api/branches/{name}/subscribe`](#post-apibranchesnamesubscribe) | operator | Subscribe to a track: buy its current knowledge, load it, and keep it up to date |
 | `POST` | [`/api/branches/{name}/quote`](#post-apibranchesnamequote) | operator | What subscribing to a track would spend, item by item, before anything is spent |
 | `POST` | [`/api/branches/{name}/sync`](#post-apibranchesnamesync) | operator | Bring a subscribed track up to date now |
@@ -7186,6 +7187,33 @@ Create a branch
 |---|---|---|
 | `200` | branch | `object` |
 
+### `POST /api/branches/{name}/review`
+
+Review track spending and the model transition without executing it
+
+Returns a version 1 review with a revision, node, action, quote, exact decimal fee-inclusive maximum total, ordered before/after model records, prerequisite anchors and retained-layer overlaps. A fee read failure or unavailable prerequisite cannot become a free/empty review. Pass the revision as expected_review to subscribe or sync. The server rechecks it before any payment, bounds each actual purchase/curation request, and compares the reviewed model plan under the lock. Price, artifact, terms, account-node, serving-model or load-record changes require a new review. This is not a durable job or a rollback guarantee.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `action` | `"subscribe"` \| `"sync"` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | immutable reviewed spend, targets and model plan | `object` |
+| `409` | Review unavailable or changed; no action was executed |   |
+
 ### `POST /api/branches/{name}/subscribe`
 
 Subscribe to a track: buy its current knowledge, load it, and keep it up to date
@@ -7200,12 +7228,19 @@ Buys current items before writing a new subscription record. A partial acquisiti
 |---|---|---|---|
 | `name` | `path` | `string` | yes |
 
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `expected_review` | `string` | Revision from the subscribe review; changed decisions refuse before spending |
+| `replace` | `boolean` | Explicitly accept the reviewed retained-layer overlaps |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | acquisitions, spend and separate subscription/model receipt; inspect ok and receipt.runtime.state | `object` |
-| `409` | subscription_incomplete, overlaps_loaded or track_action_busy; acquisition errors retain actual reported spend and prior subscription state |   |
+| `409` | track_review_changed, subscription_incomplete, overlaps_loaded or track_action_busy; acquisition errors retain actual reported spend and prior subscription state |   |
 
 ### `POST /api/branches/{name}/quote`
 
@@ -7240,6 +7275,13 @@ Requires an active subscription before purchasing. Buys new items and transition
 | Name | In | Type | Required |
 |---|---|---|---|
 | `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `expected_review` | `string` | Revision from the sync review |
+| `replace` | `boolean` | Explicitly allow reviewed overlaps; automatic sync never opts in |
 
 **Responses**
 

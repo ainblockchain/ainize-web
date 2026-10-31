@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 77 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 78 codes a client can match on.
 
 ## The error envelope
 
@@ -30,13 +30,14 @@ Where the message begins with a lower-case word and a colon — `dataset_not_fou
 | `ValidationError` | `400` |   |
 | `ConflictError` | `409` | `(err.details ?? {})` |
 | `NotFoundError` | `404` |   |
+| `TrackReviewError` | the error's own status |   |
 | `MarketError`, `RuntimeStackPlanError` | the error's own status | `(err.details ?? {})` |
 
 Anything else is a fault in the node and comes back as `500` with the raw message.
 
 ## Codes
 
-77 codes are raised by name, in 136 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+78 codes are raised by name, in 137 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -167,6 +168,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `too_many_attempts` | `429` | \<rec.n> signatures from this address did not check out — wait \<wait>s before trying again. | `src/api.ts` |
 | `too_many_bases` | `400` | one base to build on (two only for a merge) | `src/teach.ts` |
 | `track_action_busy` | `409` | another action for this track is still running; inspect it before trying again | `src/track-action.ts` |
+| `track_review_changed` | `409` | \<message>; review the current track before continuing | `src/track-review.ts` |
 | `trainer_paused` | `503` | … | `src/teach.ts` |
 | `trainer_paused` | `503` | \<rowsWaiting> questions are already waiting on this node — try again later | `src/teach.ts` |
 | `trainer_paused` | `503` | the training queue is full — try again later | `src/teach.ts` |
