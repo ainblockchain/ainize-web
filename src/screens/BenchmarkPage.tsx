@@ -11,6 +11,8 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { benchmarkFormats, bytes, num } from '@/utils/format';
 import NotFoundPage from './NotFoundPage';
+import { Offline } from '@/components/ui/Offline';
+import { benchmarkView } from '@/lib/benchmarkView';
 
 // Finding 74: Price is back. /explore offers it and the page whose whole job is "which of these should I buy?"
 // was the one place that silently dropped it.
@@ -80,11 +82,17 @@ const PriceCell = styled(TableData)`color: ${(p) => p.theme.color.PRIMARY}; font
  */
 export default function BenchmarkPage() {
   const { schema = '' } = useParams();
+  return <BenchmarkContent key={schema} schema={schema} />;
+}
+
+function BenchmarkContent({ schema }: { schema: string }) {
   const { t, help, tech } = useT();
   const [sort, setSort] = useState<Sort>('popular');
   const [page, setPage] = useState(1);
   const { data: info } = useInfoQuery();
-  const { data, isLoading, error } = useBenchmarkQuery(schema);
+  const query = useBenchmarkQuery(schema);
+  const { error } = query;
+  const data = useMemo(() => query.isError ? null : benchmarkView(query.currentData, schema), [query.currentData, query.isError, schema]);
   const priceLabel = usePriceLabel();
   useTitle(`${t('bench.title')} ${schema}`);
 
@@ -124,8 +132,9 @@ export default function BenchmarkPage() {
     return (id: string) => m.get(id);
   }, [items]);
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (error || !data) return <NotFoundPage message={t('bench.notfound', { schema })} />;
+  if (!query.currentData && query.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (error && 'status' in error && error.status === 404) return <NotFoundPage message={t('bench.notfound', { schema })} />;
+  if (error || !data) return <PageWrapper><Offline error={error} what={t('offline.what.benchmark')} retrying={query.isFetching} onRetry={() => { void query.refetch(); }} /></PageWrapper>;
 
   const pageCount = Math.max(1, Math.ceil(items.length / ITEM_LIMIT));
   const current = Math.min(page, pageCount);

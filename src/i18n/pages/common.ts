@@ -44,6 +44,7 @@ export const common: Dict = {
   'offline.retry': { ko: '다시 시도', en: 'Try again' },
   'offline.what.ledger': { ko: '공개 기록', en: 'The public record' },
   'offline.what.network': { ko: '네트워크', en: 'The network view' },
+  'offline.what.benchmark': { ko: '벤치마크 비교 목록', en: 'The benchmark comparison' },
   'common.free': { ko: '무료', en: 'Free' },
   'common.price': { ko: '가격', en: 'Price' },
   'common.model': { ko: '대상 모델', en: 'Target model' },

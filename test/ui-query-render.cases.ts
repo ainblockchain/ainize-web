@@ -53,6 +53,7 @@ import MyPage from '../src/screens/MyPage';
 import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel';
 import { CopyButton } from '../src/components/ui/Misc';
 import { CodeBlock as DocsCodeBlock } from '../src/components/docs/CodeBlock';
+import BenchmarkPage from '../src/screens/BenchmarkPage';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -94,6 +95,38 @@ test('shared copy controls cannot copy empty values or accidentally submit surro
   assert.doesNotMatch(filled, /disabled=""|>Copied</);
   const docs = render(() => createElement(DocsCodeBlock, { code: '', lang: 'bash' }), signedOut);
   assert.match(docs, /<button[^>]*type="button"[^>]*disabled=""/);
+});
+
+test('benchmark outages and malformed responses offer retry instead of claiming the topic does not exist', () => {
+  for (const fixture of [
+    { name: 'benchmark', arg: 'chosen', status: 'rejected' as const },
+    { name: 'benchmark', arg: 'chosen', value: { schema: 'other', items: [] } },
+    { name: 'benchmark', arg: 'chosen', value: { schema: 'chosen', items: [{}] } },
+  ]) {
+    const html = render(BenchmarkPage, [...signedOut, fixture], '/benchmarks/chosen', '/benchmarks/:schema');
+    assert.match(html, /data-testid="offline-retry"/);
+    assert.doesNotMatch(html, /No knowledge is registered|No knowledge on this topic yet|data-testid="bench-row"/);
+  }
+  const missing = render(BenchmarkPage, [...signedOut, { name: 'benchmark', arg: 'chosen', status: 'rejected', errorStatus: 404 }], '/benchmarks/chosen', '/benchmarks/:schema');
+  assert.match(missing, /No knowledge is registered/);
+  assert.doesNotMatch(missing, /data-testid="offline-retry"/);
+});
+
+test('a new benchmark route does not show another topic cached results or claim an empty result while loading', () => {
+  const html = render(BenchmarkPage, [...signedOut, { name: 'benchmark', arg: 'previous', value: { schema: 'Previous topic', items: [] } }], '/benchmarks/chosen', '/benchmarks/:schema');
+  assert.doesNotMatch(html, /Previous topic|No knowledge on this topic yet|No knowledge is registered/);
+  const empty = render(BenchmarkPage, [...signedOut, { name: 'benchmark', arg: 'chosen', value: { schema: 'chosen', items: [] } }], '/benchmarks/chosen', '/benchmarks/:schema');
+  assert.match(empty, /No knowledge on this topic yet/);
+});
+
+test('valid benchmark entries retain their chosen author/id destination and comparison values', () => {
+  const item = { anchor: { id: 'knowledge-id', author: 'chosen-author', name: 'Selected knowledge', created_at: 1, rows: 10, size_bytes: 20, price: '0', model: { id_M: 'base' }, benchmark: { schema: 'chosen', queries: 3, format: ['chat'] } },
+    status: 'VERIFIED', attestations: [], passed: 2, quorum: 2, quorum_ok: true, downloads: 1 };
+  const html = render(BenchmarkPage, [...signedOut, { name: 'benchmark', arg: 'chosen', value: { schema: 'chosen', items: [item] } }], '/benchmarks/chosen', '/benchmarks/:schema');
+  assert.match(html, /data-testid="bench-row"/);
+  assert.match(html, /href="\/chosen-author\/knowledge-id"/);
+  assert.match(html, /Selected knowledge/);
+  assert.doesNotMatch(html, /data-testid="offline-retry"/);
 });
 const lists = (datasets: Fixture, jobs: Fixture) => [...signedOut, policy, ...[datasets, jobs].map(f => ({ ...f, arg: currentTeacherKey()?.address.toLowerCase() ?? '' }))];
 const dsEmpty: Fixture = { name: 'teachDatasets', value: { items: [] } };
