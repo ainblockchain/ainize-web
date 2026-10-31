@@ -2137,16 +2137,52 @@ test('track cards cannot use another account’s quote or offer signed-out mutat
   assert.doesNotMatch(html, /9876543/);
   const button = html.match(/<button[^>]*data-testid="track-subscribe"[^>]*>/)?.[0]; assert.ok(button); assert.match(button, /disabled/);
 });
-test('track cards recognize server applied IDs and do not mistake failed or foreign runtime reads for missing knowledge', () => {
-  const branch = trackBranches(['selected']).branches[0];
-  const fixture: Fixture = { name: 'runtime', arg: { identity: accountIdentity }, value: { available: true, hook: true, applied: ['selected'] } };
+test('track cards confirm current file aliases and keep failed, foreign or ID-only evidence unknown', () => {
+  const branch = trackBranches(['new']).branches[0];
+  const q = trackReviewFixture().quote; q.branch = q.subscription!.branch = branch.name; q.owner = q.subscription!.owner = branch.owner;
+  const quote: Fixture = { name: 'trackQuote', arg: { name: branch.name, identity: accountIdentity }, value: { quote: q } };
+  const fixture: Fixture = { name: 'runtime', arg: { identity: accountIdentity }, value: { available: true, hook: true, applied: ['physical-alias'], stack: [{ patch_id: 'physical-alias', sha256: 'file', reason: 'manual', applied_at: 1, position: 0 }] } };
   const card = () => createElement(TrackCard, { branch, subscribed: true, currency: 'AIN', address: walletAddress });
-  const loaded = render(card, [...appAccount, fixture], '/dashboard');
+  const loaded = render(card, [...appAccount, quote, fixture], '/dashboard');
   assert.match(loaded, /Recorded as loaded on this node: 1 of 1 current track items/); assert.doesNotMatch(loaded, /no load record for/);
-  for (const failure of [{ ...fixture, status: 'rejected' as const }, { ...fixture, arg: { identity: 'other account' } }]) {
-    const unknown = render(card, [...appAccount, failure], '/dashboard');
-    assert.match(unknown, /what is loaded cannot be read/); assert.doesNotMatch(unknown, /Recorded as loaded|no load record for/);
+  for (const failure of [{ ...fixture, status: 'rejected' as const }, { ...fixture, arg: { identity: 'other account' } }, { ...fixture, value: { available: true, hook: true, applied: ['new'] } }]) {
+    const unknown = render(card, [...appAccount, quote, failure], '/dashboard');
+    assert.match(unknown, /current track files and model load records could not be confirmed/); assert.doesNotMatch(unknown, /Recorded as loaded|no load record for/);
   }
+});
+test('track cards label bounded settlement statistics and suppress stale or foreign history', () => {
+  const branch = trackBranches(['new']).branches[0];
+  const history = ledgerFixture([ledgerRecord('subscribe', { node: 'n', branch: branch.name, action: 'subscribe' }),
+    ledgerRecord('settle', { patch_id: 'new', buyer: 'buyer', seller: 'seller', scheme: 'local-credit', tx_hash: 'tx', currency: 'CREDIT', amount: '0.00000001' })]);
+  history.info.records = 9000;
+  const ledger: Fixture = { name: 'ledger', arg: { limit: 5000, identity: accountIdentity }, value: history };
+  const card = () => createElement(TrackCard, { branch, subscribed: true, currency: 'AIN', address: walletAddress });
+  const html = render(card, [...appAccount, ledger], '/dashboard');
+  assert.match(html, /latest 2 of 9000 records/); assert.match(html, /1 subscription records/); assert.match(html, /gross amount 0\.00000001/);
+  assert.doesNotMatch(html, /ever joined|earned/);
+  for (const failure of [{ ...ledger, status: 'rejected' as const }, { ...ledger, arg: { limit: 5000, identity: 'foreign' } }]) {
+    const unknown = render(card, [...appAccount, failure], '/dashboard');
+    assert.doesNotMatch(unknown, /9000|gross amount|1 subscription records/); assert.match(unknown, /track-stats-unknown/);
+  }
+});
+test('dashboard track lists ignore foreign membership and malformed responses instead of rendering arbitrary cards', () => {
+  const foreign = render(DashboardContent, [...signedOut, ...inventoryFixtures.filter(f => f.name !== 'branches'),
+    { name: 'branches', arg: { identity: 'foreign' }, value: trackBranches() }], '/dashboard');
+  assert.doesNotMatch(foreign, /data-testid="track-card"/);
+  const malformed = render(DashboardContent, [...signedOut, ...inventoryFixtures.filter(f => f.name !== 'branches'),
+    { name: 'branches', arg: { identity: '' }, value: { branches: [{ name: 'Wrong malformed track' }], mine: [] } }], '/dashboard');
+  assert.doesNotMatch(malformed, /Wrong malformed track|data-testid="track-card"/); assert.match(malformed, /query-retry/);
+});
+test('track cards distinguish no runnable items from retirement and never invent paid coverage or a spending forecast', () => {
+  const branch = trackBranches(['new']).branches[0]; branch.current = [];
+  const q = trackReviewFixture().quote; q.branch = q.subscription!.branch = branch.name; q.owner = q.subscription!.owner = branch.owner;
+  q.items[0].plan = 'blocked'; q.current = []; q.buy = []; q.subscription!.due = false; q.subscription!.paid_until = null;
+  q.subscription!.run_rate.knowledge_added = 3; q.subscription!.run_rate.per_30_days = '987654321';
+  const quote: Fixture = { name: 'trackQuote', arg: { name: branch.name, identity: accountIdentity }, value: { quote: q } };
+  const runtime: Fixture = { name: 'runtime', arg: { identity: accountIdentity }, value: { available: true, hook: true, applied: [], stack: [] } };
+  const html = render(() => createElement(TrackCard, { branch, subscribed: true, currency: 'AIN', address: 'another-node' }), [...appAccount, quote, runtime], '/dashboard');
+  assert.match(html, /no current items to load/); assert.match(html, /Paid coverage is unconfirmed/); assert.match(html, /3 knowledge items added/);
+  assert.doesNotMatch(html, /1970-01-01|987654321|0 of 0|retired/);
 });
 
 const runtimeStatusOperation = () => prepareRuntimeOperation('test-owner', manageFixture().anchor, 'load', false, [],

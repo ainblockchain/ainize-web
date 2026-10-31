@@ -8,6 +8,7 @@ import {
 import type { CatalogEntry } from '@/api/types';
 import { dashboardInventory, inventoryRows, paidSales, statusRank } from '@/lib/dashboardView';
 import { knowledgePath } from '@/lib/detailRoutes';
+import { trackBranches } from '@/lib/trackView';
 import { VerificationWork } from '@/components/operator/VerificationWork';
 import { logEvents } from '@/lib/logView';
 import { useAuth } from '@/auth/AuthContext';
@@ -112,7 +113,8 @@ export function DashboardContent() {
    * that knows something.
    */
   const chain = useLoadChain((id) => purchases.data?.items.find((x) => x.patch_id === id)?.entry?.anchor.name || id);
-  const branches = useBranchesQuery();
+  const branches = useBranchesQuery({ identity: cacheIdentity }, { skip: authLoading });
+  const branchData = !branches.isError ? trackBranches(branches.currentData) : null;
   const [createBranch, createState] = useCreateBranchMutation();
   const [addToBranch, addState] = useAddToBranchMutation();
 
@@ -126,7 +128,7 @@ export function DashboardContent() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const listedMine = useMemo(() => items.filter((e) => e.status === 'VERIFIED'), [items]);
-  const ownedBranches = useMemo(() => (branches.data?.branches ?? []).filter((b) => b.owner === address), [branches.data, address]);
+  const ownedBranches = useMemo(() => (branchData?.branches ?? []).filter((b) => b.owner.toLowerCase() === address?.toLowerCase()), [branchData, address]);
 
   // ---------------------------------------------------------------- finding 31: search, status filter, sort, paging
   const [q, setQ] = useState('');
@@ -405,13 +407,13 @@ export function DashboardContent() {
       {/* ---------------------------------------------------------------- knowledge tracks (branches) */}
       <SubTitle $mt={56}><Tip tech={tech('branch')}>{t('op.dash.branches.title')}</Tip></SubTitle>
       <Description>{t('op.dash.branches.desc')}</Description>
-      {branches.isError && <QueryError error={branches.error} what={t('op.error.what.branches')} retrying={branches.isFetching} onRetry={() => void branches.refetch()} />}
-      {branches.isLoading ? <CenterProgress /> : branches.isError ? null : (
+      {(branches.isError || branches.currentData && !branchData) && <QueryError error={branches.error} what={t('op.error.what.branches')} retrying={branches.isFetching} onRetry={() => void branches.refetch()} />}
+      {branches.isLoading || !branches.currentData && !branches.isError ? <CenterProgress /> : !branchData ? null : (
         <BranchGrid>
-          {(branches.data?.branches ?? []).map((b) => (
-            <TrackCard key={b.name} branch={b} subscribed={!!branches.data?.mine.includes(b.name)} currency={currency} address={address} />
+          {branchData.branches.map((b) => (
+            <TrackCard key={b.name} branch={b} subscribed={branchData.mine.includes(b.name)} currency={currency} address={address} />
           ))}
-          {(branches.data?.branches ?? []).length === 0 && <span style={{ color: '#8d8d8f', fontSize: 14 }}>{t('op.dash.branches.empty')}</span>}
+          {branchData.branches.length === 0 && <span style={{ color: '#8d8d8f', fontSize: 14 }}>{t('op.dash.branches.empty')}</span>}
         </BranchGrid>
       )}
 
