@@ -1,19 +1,20 @@
 import { api } from './api';
-export interface AgentArchiveSummary {
-  id: string; agent: string; name: string; createdAt: number; bytes: number;
-  repository: boolean; repositoryFormat: 'bundle' | 'bare-tar';
-  exportedAt: number | null; restoredAt: number | null; secretNames: string[];
-  source: { provider: string; url?: string; commit?: string } | null;
-}
+import { readAgentArchivePage, type AgentArchivePage } from './agentArchiveEvidence';
+export type { AgentArchiveSummary } from './agentArchiveEvidence';
 export const archiveApi = api.injectEndpoints({ endpoints: (b) => ({
-  agentArchives: b.query<{ archives: AgentArchiveSummary[]; total: number; limit: number; offset: number }, { offset: number; principal: string }>({
+  agentArchives: b.query<AgentArchivePage, { offset: number; principal: string }>({
     keepUnusedDataFor: 0,
-    query: ({ offset }) => `api/agent-archives?limit=10&offset=${offset}`, providesTags: ['HostedAgent'],
+    queryFn: async ({ offset }, _api, _extra, baseQuery) => {
+      const result = await baseQuery(`api/agent-archives?limit=10&offset=${offset}`);
+      if (result.error) return { error: result.error };
+      const data = readAgentArchivePage(result.data, offset);
+      return data ? { data } : { error: { status: 'CUSTOM_ERROR', error: 'Invalid archive list' } };
+    }, providesTags: ['HostedAgent'],
   }),
-  restoreAgentArchive: b.mutation<{ agentId: string; version: number; secretsRequired: string[] }, string>({
+  restoreAgentArchive: b.mutation<unknown, string>({
     query: (id) => ({ url: `api/agent-archives/${encodeURIComponent(id)}/restore`, method: 'POST' }), invalidatesTags: ['Agents', 'HostedAgent'],
   }),
-  deleteAgentArchive: b.mutation<{ deleted: string }, string>({
+  deleteAgentArchive: b.mutation<unknown, string>({
     query: (id) => ({ url: `api/agent-archives/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['HostedAgent'],
   }),
 }) });

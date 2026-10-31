@@ -4503,7 +4503,7 @@ Owner only. No body overrides. Restores the last successful active version when 
 
 | Code | Description |
 |---|---|
-| `201` | agentId, version, commit, sourceCommit, status=ready, secretsRequired |
+| `201` | archiveId (the selected archive), agentId, version, commit, sourceCommit, status=ready, secretsRequired |
 | `400` | invalid_request or model_not_served |
 | `401` | Sign-in required |
 | `403` | Current organization sharing permission required |

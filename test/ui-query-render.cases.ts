@@ -1,4 +1,6 @@
 import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
+import { AgentArchivePanel, agentArchiveScope } from '../src/screens/agent/AgentArchivePanel';
+import { archivedAgent } from './fixtures/agentArchive';
 import { KeyCreationNotice } from '../src/components/KeyCreationNotice';
 import { issuedKeyScope } from '../src/screens/models/issuedKeyMemory';
 import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
@@ -996,8 +998,47 @@ const agentLists: Fixture[] = [
   { name: 'agents', value: { agents: [] } },
   { name: 'manageableHostedAgents', arg: accountIdentity, value: { agents: [] } },
   { name: 'myLinkedAgents', arg: accountIdentity, value: { agents: [] } },
-  { name: 'agentArchives', arg: { offset: 0, principal: accountIdentity }, value: { archives: [], total: 0, limit: 10, offset: 0 } },
+  { name: 'agentArchives', arg: { offset: 0, principal: agentArchiveScope(accountIdentity, keyNode) }, value: { archives: [], total: 0, limit: 10, offset: 0 } },
 ];
+
+const archiveFixture = (archives = [archivedAgent()]): Fixture => ({ name: 'agentArchives', arg: { offset: 0, principal: agentArchiveScope(accountIdentity, keyNode) }, value: { archives, total: archives.length, limit: 10, offset: 0 } });
+test('archives show reviewed rows, export prerequisite and exact actions without claiming a download was saved', () => {
+  const html = render(AgentArchivePanel, [...appAccount, archiveFixture()]);
+  assert.match(html, /Retained assistant/); assert.match(html, /saved-agent/);
+  assert.match(html, />Download archive<\/button>/);
+  assert.match(html, />Restore same address<\/button>/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Permanently delete archive<\/button>/);
+  assert.doesNotMatch(html, /Restored\.|Restore confirmed|Remove downloaded archive|No retained agents/);
+  const exported = render(AgentArchivePanel, [...appAccount, archiveFixture([{ ...archivedAgent(), exportedAt: 1700000000100 }])]);
+  assert.match(exported, /<button(?![^>]*disabled)[^>]*>Permanently delete archive<\/button>/);
+});
+
+test('failed and malformed archive reads hide cached actions and never claim an empty list', () => {
+  for (const fixture of [{ ...archiveFixture(), status: 'rejected' as const }, { ...archiveFixture([]), status: 'rejected' as const },
+    { ...archiveFixture(), value: { archives: [null], total: 1, offset: 0, limit: 10 } },
+    { ...archiveFixture(), value: { archives: [], total: 1, offset: 0, limit: 10 } }]) {
+    const html = render(AgentArchivePanel, [...appAccount, fixture]);
+    assert.match(html, /Could not load archives/); assert.match(html, /Refresh archives/);
+    assert.doesNotMatch(html, /Retained assistant|>Download archive<|>Restore same address<|No retained agents/);
+  }
+});
+
+test('archive refresh keeps observed rows disabled and confirmed empty differs from pending empty', () => {
+  const pending = render(AgentArchivePanel, [...appAccount, { ...archiveFixture(), status: 'pending' }]);
+  assert.match(pending, /Refreshing archives/);
+  for (const label of ['Download archive', 'Restore same address', 'Permanently delete archive']) assert.match(pending, new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`));
+  const empty = render(AgentArchivePanel, [...appAccount, archiveFixture([])]);
+  assert.match(empty, /No retained agents/);
+  assert.doesNotMatch(render(AgentArchivePanel, [...appAccount, { ...archiveFixture([]), status: 'pending' }]), /No retained agents/);
+});
+
+test('archive cache is separated by account and node and hidden during sign-out', () => {
+  const anotherNode = appAccount.map(f => f.name === 'me' ? { ...f, value: { ...(f.value as object), address: '0x' + 'b'.repeat(40) } } : f);
+  for (const auth of [signedOut, anotherNode]) {
+    const html = render(AgentArchivePanel, [...auth, archiveFixture()]);
+    assert.doesNotMatch(html, /Retained assistant|>Restore same address<|No retained agents/);
+  }
+});
 
 test('My agents includes private linked agents and routes Open and Edit to that exact resource', () => {
   const fixtures = agentLists.map(f => f.name === 'myLinkedAgents' ? { ...f, value: { agents: [privateLinked] } } : f);
