@@ -711,6 +711,13 @@ export const operatorNew: Dict = {
 };
 
 export const operatorAccount: Dict = {
+  'op.account.settings.error.input': { ko: '이름은 공백을 제외해 1~64자로 입력하고 알림 범위를 선택해 주세요.', en: 'Enter a name of 1–64 characters after trimming and select a notification level.' },
+  'op.account.settings.error.read': { ko: '현재 설정을 확인하지 못해 저장하지 않았습니다. 다시 불러와 주세요.', en: 'Could not read the current settings; no update was sent. Try loading them again.' },
+  'op.account.settings.error.conflict': { ko: '다른 곳에서 설정이 변경되어 저장하지 않았습니다. 현재 서버값과 내 수정을 확인해 주세요.', en: 'The settings changed elsewhere; no update was sent. Review the current values and your edits.' },
+  'op.account.settings.error.unconfirmed': { ko: '요청한 설정이 저장됐는지 확인하지 못했습니다. 입력은 유지됩니다. 다시 불러와 현재 값을 확인해 주세요.', en: 'Could not confirm that your requested settings were saved. Your input is preserved. Reload to check the current values.' },
+  'op.account.settings.conflict': { ko: '서버 설정이 변경되었습니다. 현재 이름: {name} · 알림: {notifications}. 내 수정은 유지됩니다.', en: 'The server settings changed. Current name: {name} · notifications: {notifications}. Your edits are preserved.' },
+  'op.account.settings.use_server': { ko: '서버값 사용', en: 'Use server values' },
+  'op.account.settings.keep_edits': { ko: '내 수정 유지 후 저장 준비', en: 'Keep my edits for saving' },
   'op.account.amounts.currency_unknown': { ko: '통화 미확인', en: 'Currency unavailable' },
   'op.account.sales.unresolved_col': { ko: '수령인 미확인 배분액', en: 'Unresolved allocation' },
   'op.account.amounts.unavailable': { ko: '통화·지급 내역을 확인하지 못했습니다.', en: 'Currency or payment details are unavailable.' },

@@ -1,29 +1,28 @@
+import { AccountSettings } from '@/components/operator/AccountSettings';
 import { accountWallet, accountSales, accountPayouts, accountOwed, accountPayments, type OwedRow } from '@/lib/accountWallet';
 import { useAuth } from '@/auth/AuthContext';
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import {
   errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
-  useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery, useWalletSendMutation,
+  useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useWalletQuery, useWalletSendMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation, useBindingsQuery, useRemoveBindingMutation,
 } from '@/api/api';
-import type { NodeOwner, Settings } from '@/api/types';
+import type { NodeOwner } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
-import { DevBox, MonoBox, Muted, Pre, QueryError, RadioGroup, Row, Stack, Tip, useElapsed, useMoney } from '@/components/operator/common';
+import { DevBox, MonoBox, Muted, Pre, QueryError, Row, Stack, Tip, useElapsed, useMoney } from '@/components/operator/common';
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
 import { networkKindOf } from '@/utils/useNetwork';
 
 const Section = styled.div`margin-top: 16px;`;
 const Balance = styled.div`font-size: 28px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; margin-top: 12px; span { font-size: 14px; font-weight: 400; color: ${(p) => p.theme.color.GREY}; margin-left: 8px; }`;
 const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 24px; margin-top: 16px;`;
-const SettingsForm = styled.form`margin-top: 16px; display: flex; flex-direction: column; gap: 18px; max-width: 640px;`;
 
-const NOTIF: Settings['notifications'][] = ['all', 'sales', 'none'];
 /** How many rows of an accounting table are on screen before "show more" (item 94). */
 const PAGE = 20;
 const TableFoot = styled.div`
@@ -224,7 +223,6 @@ function AccountView() {
   const settings = useSettingsQuery(scope);
   const payouts = usePayoutsQuery({ limit: 500, identity: auth.cacheIdentity });
   const myPatches = useMyPatchesQuery(scope);
-  const [updateSettings, settingsState] = useUpdateSettingsMutation();
   const [chainSetup, chainState] = useChainSetupMutation();
   const [addPeer, addState] = useAddPeerMutation();
   const [removePeer, removeState] = useRemovePeerMutation();
@@ -239,27 +237,11 @@ function AccountView() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // settings form — seeded from the node, saved back with PATCH /api/me/settings
-  const [form, setForm] = useState<Settings>({ notifications: 'all', display_name: '', payout_address: '' });
   /** Item 320: the only outward money action in the product. */
   const [walletSend, sendState] = useWalletSendMutation();
   const [sendTo, setSendTo] = useState('');
   const [sendAmount, setSendAmount] = useState('');
-  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  useEffect(() => { if (settings.currentData) setForm(settings.currentData.settings); }, [settings.currentData]);
   const saved = settings.currentData?.settings;
-  const dirty = !!saved && (saved.notifications !== form.notifications || saved.display_name !== form.display_name);
-  // item 34 — changing the one credential that guards this node, from the console
-  const onSaveSettings = async (e: FormEvent) => {
-    e.preventDefault();
-    setSettingsNotice(null); setSettingsError(null);
-    if (!saved || !dirty) { setSettingsNotice(t('op.account.settings.unchanged')); return; }
-    const patch: Partial<Settings> = {};
-    if (saved.notifications !== form.notifications) patch.notifications = form.notifications;
-    if (saved.display_name !== form.display_name) patch.display_name = form.display_name.trim();
-    try { await updateSettings(patch).unwrap(); setSettingsNotice(t('op.account.settings.saved')); } catch (err) { setSettingsError(errorMessage(err)); }
-  };
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => { setError(null); setNotice(null); try { await fn(); if (ok) setNotice(ok); } catch (err) { setError(errorMessage(err)); } };
   const onAddPeer = (e: FormEvent) => { e.preventDefault(); if (!endpoint.trim()) return; void run(async () => { await addPeer({ endpoint: endpoint.trim().replace(/\/+$/, '') }).unwrap(); setEndpoint(''); }, t('op.account.peers.added')); };
@@ -341,50 +323,7 @@ function AccountView() {
       )}
 
       {/* ------------------------------------------------------------ notifications & payout (persisted on the node) */}
-      <SubTitle $mt={56}>{t('op.account.settings.title')}</SubTitle>
-      <Description>{t('op.account.settings.desc')}</Description>
-      {settings.isLoading ? <CenterProgress /> : settings.isError ? (
-        <Alert $tone="warning" style={{ marginTop: 16 }}>{t('common.error', { message: errorMessage(settings.error) })}</Alert>
-      ) : (
-        <SettingsForm onSubmit={onSaveSettings}>
-          <TextField label={t('op.account.display_name')} helper={t('op.account.display_name.helper')} value={form.display_name} maxLength={64} required onChange={(e) => setForm({ ...form, display_name: e.target.value })} />
-          {/*
-            * Item 166 — this was a free-text "Payout address" field, saved successfully, consumed by nothing: every
-            * payment still went to the node key (`payTo: this.address` in the x402 requirement and in the signed
-            * intent hash, `royaltySplit` paying `anchor.author`). A form that promises where money arrives and does
-            * not decide it is worse than no form, so the promise is gone and the fact is stated instead. Routing
-            * sales to a second wallet needs the settlement path to verify against that address, which is a change to
-            * how payments are checked, not a text box.
-            */}
-          <div data-testid="account-payout">
-            <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}><Tip tech={tech('lineage')}>{t('op.account.payout')}</Tip></span>
-            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <Mono>{me?.address ?? '—'}</Mono>
-              {me?.address && <CopyButton text={me.address} label={t('common.copy')} />}
-            </div>
-            <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.payout.fact')}</Muted>
-            {/* A value an earlier build stored is not silently honoured — it never was, and now the screen says so. */}
-            {!!saved?.payout_address && me?.address && saved.payout_address.toLowerCase() !== me.address.toLowerCase() && (
-              <Muted style={{ display: 'block', marginTop: 4, color: '#8a4b00' }} data-testid="account-payout-stale">
-                {t('op.account.payout.stored', { address: saved.payout_address })}
-              </Muted>
-            )}
-          </div>
-          <div>
-            <span style={{ fontSize: 12, color: '#8d8d8f', fontWeight: 500 }}>{t('op.account.notif')}</span>
-            <RadioGroup role="radiogroup" aria-label={t('op.account.notif')}>
-              {NOTIF.map((o) => (
-                <label key={o}><input type="radio" name="notifications" value={o} checked={form.notifications === o} onChange={() => setForm({ ...form, notifications: o })} />{t(`op.account.notif.${o}`)}</label>
-              ))}
-            </RadioGroup>
-          </div>
-          {settingsError && <Alert $tone="error">{settingsError}</Alert>}
-          <Row $gap={12}>
-            <Button type="submit" variant="contained" disabled={!dirty} loading={settingsState.isLoading} loadingText={t('op.saving')}>{t('op.account.settings.save')}</Button>
-            {settingsNotice && !dirty && <Muted style={{ color: '#44a45f' }}>{settingsNotice}</Muted>}
-          </Row>
-        </SettingsForm>
-      )}
+      <AccountSettings address={me?.address ?? null} />
 
       {/* --------------------------------------------------- what acts as you, and who owns this node */}
       <Bindings />

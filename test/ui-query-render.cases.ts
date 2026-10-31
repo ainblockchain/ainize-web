@@ -1,3 +1,4 @@
+import { AccountSettings } from '../src/components/operator/AccountSettings';
 import AccountPage from '../src/screens/AccountPage';
 import { newPatchDraftKey } from '../src/lib/newPatchDraft';
 import { afterEach, test } from 'node:test';
@@ -1701,4 +1702,26 @@ test('account ignores another identity financial caches and unknown payment curr
   assert.doesNotMatch(foreign, /Wallet selected item|Royalty selected item|sales-total/);
   const unknown = render(AccountPage, fixtures.map(f => f.name === 'wallet' ? { ...f, value: { ...accountWalletValue(), verification: undefined, royalties: [{ patch_id: 'Unknown currency', amount: '3', created_at: 1 }] } } : f), '/account');
   assert.match(unknown, /Currency or payment details are unavailable/); assert.match(unknown, /Kind unavailable/);
+});
+
+
+test('account settings starts from the actual saved values and keeps the payout destination read-only', () => {
+  const settings = { display_name: 'Server chosen name', notifications: 'sales', payout_address: recipientAddress };
+  const html = render(() => createElement(AccountSettings, { address: walletAddress }), [...appAccount, { name: 'settings', arg: { identity: accountIdentity }, value: { settings } }], '/account');
+  assert.match(html, /value="Server chosen name"/); assert.match(html.match(/<input[^>]*value="sales"[^>]*>/)?.[0] ?? '', /checked=""/);
+  assert.match(html, /account-payout-stale/); assert.match(html, new RegExp(walletAddress));
+  assert.doesNotMatch(html, /name="payout_address"|value="stored legacy value"/);
+  assert.match(html, /type="submit"[^>]*disabled=""|disabled=""[^>]*type="submit"/);
+});
+test('settings failed, malformed or foreign cached reads cannot turn into a blank editable default form', () => {
+  const saved = { settings: { display_name: 'Foreign saved name', notifications: 'none', payout_address: '' } };
+  for (const fixture of [
+    { name: 'settings', arg: { identity: accountIdentity }, value: saved, status: 'rejected' as const },
+    { name: 'settings', arg: { identity: accountIdentity }, value: { settings: { ...saved.settings, notifications: 'unknown' } } },
+    { name: 'settings', arg: { identity: 'another account' }, value: saved },
+  ]) {
+    const html = render(() => createElement(AccountSettings, { address: walletAddress }), [...appAccount, fixture], '/account');
+    assert.doesNotMatch(html, /account-settings-form|Foreign saved name/);
+    if (fixture.arg.identity === accountIdentity) { assert.match(html, /query-error/); assert.match(html, /query-retry/); }
+  }
 });
