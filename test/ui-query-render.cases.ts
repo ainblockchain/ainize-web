@@ -1,3 +1,4 @@
+import { AccountOwners, AccountBindings } from '../src/components/operator/AccountAccess';
 import { AccountPeers } from '../src/components/operator/AccountPeers';
 import { AccountRuntime } from '../src/components/operator/AccountRuntime';
 import { AccountSettings } from '../src/components/operator/AccountSettings';
@@ -1751,4 +1752,32 @@ test('account runtime has failed-read recovery and disables inference when the m
     const html = render(AccountRuntime, [...appAccount, { ...fixture, ...override }], '/account');
     assert.match(html, /query-error/); assert.match(html, /query-retry/); assert.doesNotMatch(html, /Exact runtime model|runtime-answer/);
   }
+});
+
+
+const accessActor = '0x' + 'bb'.repeat(20), accessTarget = '0x' + 'cc'.repeat(20);
+const accessIdentity = JSON.stringify([accessActor, null, null, null]);
+const accessAuth: Fixture[] = [...signedOut.filter(f => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: accessActor, address: walletAddress, scheme: 'ain', isOwner: true, scope: ['owner'] } }];
+const ownerRow = (address: string, source = 'granted') => ({ address, source, added_at: 1, added_by: walletAddress, note: null });
+const accessOwners = { owners: [ownerRow(walletAddress, 'node'), ownerRow(accessActor), ownerRow(accessTarget)] };
+test('ownership controls exclude self and protected claims and identify the actual removable address', () => {
+  const html = render(AccountOwners, [...accessAuth, { name: 'owners', arg: { identity: accessIdentity }, value: accessOwners }], '/account');
+  assert.match(html, /You cannot remove your own ownership/);
+  assert.match(html, new RegExp(`aria-label="Remove ${accessTarget}"`));
+  assert.doesNotMatch(html, new RegExp(`aria-label="Remove (${walletAddress}|${accessActor})"`));
+});
+test('access lists distinguish invalid or foreign records from empty results', () => {
+  const badOwners = render(AccountOwners, [...accessAuth, { name: 'owners', arg: { identity: accessIdentity }, value: { owners: [] } }], '/account');
+  assert.match(badOwners, /query-error/); assert.match(badOwners, /query-retry/); assert.doesNotMatch(badOwners, /data-testid="operators"/);
+  const binding = { delegate: accessTarget, owner: accessActor, label: 'Private terminal label', created_at: 1, last_seen_at: null };
+  for (const override of [{ status: 'rejected' as const }, { value: { bindings: [{ ...binding, owner: walletAddress }], via: null } }]) {
+    const html = render(AccountBindings, [...accessAuth, { name: 'bindings', arg: { identity: accessIdentity }, value: { bindings: [binding], via: null }, ...override }], '/account');
+    assert.match(html, /query-error/); assert.doesNotMatch(html, /Private terminal label|data-testid="bindings"/);
+  }
+});
+test('the current binding is marked case-insensitively and explains that ending it closes this login', () => {
+  const binding = { delegate: accessTarget, owner: accessActor, label: 'Selected terminal', created_at: 1, last_seen_at: null };
+  const html = render(AccountBindings, [...accessAuth, { name: 'bindings', arg: { identity: accessIdentity }, value: { bindings: [binding], via: accessTarget.toUpperCase().replace('0X', '0x') } }], '/account');
+  assert.match(html, /this session/); assert.match(html, /Ending this connection also closes the current session/);
+  assert.match(html, /End this login connection/);
 });

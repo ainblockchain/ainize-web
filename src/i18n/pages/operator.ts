@@ -711,6 +711,16 @@ export const operatorNew: Dict = {
 };
 
 export const operatorAccount: Dict = {
+  'op.account.access_error.address': { ko: '올바른 지갑 주소를 입력해 주세요.', en: 'Enter a valid wallet address.' },
+  'op.account.access_error.read': { ko: '현재 권한·연결 목록을 확인하지 못해 변경하지 않았습니다.', en: 'Could not read the current access list; no change was sent.' },
+  'op.account.access_error.protected': { ko: '노드 키와 설정 파일의 권한은 이 화면에서 해제할 수 없습니다.', en: 'The node key and config-file ownership cannot be removed here.' },
+  'op.account.access_error.unknown_actor': { ko: '현재 로그인 주소를 확인하지 못해 해제를 사용할 수 없습니다.', en: 'Removal is unavailable until the current signed-in address is known.' },
+  'op.account.access_error.self': { ko: '자기 운영 권한은 직접 해제할 수 없습니다. 다른 운영자가 해제할 수 있습니다.', en: 'You cannot remove your own ownership here. Another owner can remove it.' },
+  'op.account.access_error.missing': { ko: '선택한 대상이 현재 목록에 없습니다. 목록을 다시 확인해 주세요.', en: 'The selected target is no longer listed. Check the current list.' },
+  'op.account.access_error.unconfirmed': { ko: '선택한 대상의 변경을 확인하지 못했습니다. 다시 요청하기 전에 목록을 확인해 주세요.', en: 'Could not confirm the change to the selected target. Check the list before retrying.' },
+  'op.account.operators.added': { ko: '{addr}의 운영 권한을 확인했습니다.', en: 'Confirmed ownership for {addr}.' },
+  'op.account.bindings.self_note': { ko: '이 연결을 해제하면 이 연결로 로그인한 현재 세션도 종료됩니다.', en: 'Ending this connection also closes the current session signed in through it.' },
+  'op.account.bindings.end_self': { ko: '현재 로그인 연결 해제', en: 'End this login connection' },
   'op.account.node_error.endpoint': { ko: '쿼리·인증정보·조각 식별자가 없는 HTTP(S) 노드 주소를 입력해 주세요.', en: 'Enter an HTTP(S) node endpoint without credentials, query parameters or a fragment.' },
   'op.account.node_error.read': { ko: '현재 연결 목록을 확인하지 못해 변경하지 않았습니다.', en: 'Could not read the current peer list; no change was sent.' },
   'op.account.node_error.missing': { ko: '이 주소가 현재 목록에 없어 연결 차단을 확인하지 못했습니다. 목록을 새로 불러와 주세요.', en: 'This endpoint is no longer listed, so blocking was not confirmed. Refresh the list.' },

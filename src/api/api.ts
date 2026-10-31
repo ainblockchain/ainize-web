@@ -455,14 +455,14 @@ export const api = createApi({
      */
     unlinkNode: b.mutation<{ ok: boolean }, string>({ query: (address) => ({ url: `api/my/nodes/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     myNodes: b.query<{ nodes: MyNode[]; hub: string }, string>({ keepUnusedDataFor: 0, query: () => 'api/my/nodes', providesTags: ['Me'] }),
-    removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
+    removeBinding: b.mutation<{ ok: boolean; delegate: string; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
     }),
     // Who owns this node. An owner may add another from here; only what was added from here may be removed from
     // here, because the other two claims live in the node's identity and in a file on its machine.
     owners: b.query<{ owners: NodeOwner[] }, { identity: string } | void>({ query: () => 'api/auth/owners', providesTags: ['Me'] }),
-    addOwner: b.mutation<{ ok: boolean; already: boolean; owners: NodeOwner[] }, { address: string; note?: string }>({ query: (body) => ({ url: 'api/auth/owners', method: 'POST', body }), invalidatesTags: ['Me'] }),
-    removeOwner: b.mutation<{ ok: boolean; sessions_ended: number; owners: NodeOwner[] }, string>({ query: (address) => ({ url: `api/auth/owners/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
+    addOwner: b.mutation<{ ok: boolean; address: string; already: boolean; owners: NodeOwner[] }, { address: string; note?: string }>({ query: (body) => ({ url: 'api/auth/owners', method: 'POST', body }), invalidatesTags: ['Me'] }),
+    removeOwner: b.mutation<{ ok: boolean; address: string; sessions_ended: number; owners: NodeOwner[] }, string>({ query: (address) => ({ url: `api/auth/owners/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
     // Google sign-in lives in this app, not on the node (src/lib/googleOAuth.ts). The session is read here; signing in
     // is a full-page redirect to /api/auth/google/start, because Google's consent screen is not something to fetch.

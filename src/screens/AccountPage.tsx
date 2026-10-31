@@ -1,17 +1,16 @@
+import { AccountOwners, AccountBindings } from '@/components/operator/AccountAccess';
 import { AccountPeers } from '@/components/operator/AccountPeers';
 import { AccountRuntime } from '@/components/operator/AccountRuntime';
 import { accountPeers } from '@/lib/accountNodeActions';
 import { AccountSettings } from '@/components/operator/AccountSettings';
 import { accountWallet, accountSales, accountPayouts, accountOwed, accountPayments, type OwedRow } from '@/lib/accountWallet';
 import { useAuth } from '@/auth/AuthContext';
-import { Fragment, useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import {
   errorMessage, useChainSetupMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
   useSettingsQuery, useWalletQuery, useWalletSendMutation,
-  useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation, useBindingsQuery, useRemoveBindingMutation,
 } from '@/api/api';
-import type { NodeOwner } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
@@ -62,147 +61,6 @@ function downloadCsv(name: string, rows: (string | number)[][]): void {
 
 /** ISO-8601 in the CSV: a spreadsheet cannot sort "1d ago". */
 const iso = (ts: number) => new Date(ts).toISOString();
-
-/**
- * Who owns this node — the three kinds of claim, and the one kind this page may take back.
- *
- * It used to be a read-only list under the heading "who may sign in", because signing in and owning the node
- * were the same thing and neither could be changed from a browser. Both of those have stopped being true: anyone
- * may sign in, and an owner can now vouch for another address from here.
- *
- * What it still cannot do is remove the other two. The node's own key owns what the node published, and the
- * config file is the way back when every session is lost — a button that appeared to delete either would be
- * lying, since the address would still own the node on the next request.
- */
-function Owners() {
-  const { t } = useT();
-  const auth = useAuth();
-  const owners = useOwnersQuery({ identity: auth.cacheIdentity });
-  const { isLoading } = owners;
-  const data = !owners.isError ? owners.currentData : undefined;
-  const [addOwner, addState] = useAddOwnerMutation();
-  const [removeOwner, removeState] = useRemoveOwnerMutation();
-  const [draft, setDraft] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const valid = /^0x[0-9a-fA-F]{40}$/.test(draft.trim());
-  const busy = !data || owners.isFetching || addState.isLoading || removeState.isLoading;
-
-  const add = async (e: FormEvent) => {
-    e.preventDefault();
-    setNotice(null); setError(null);
-    try {
-      const r = await addOwner({ address: draft.trim() }).unwrap();
-      setNotice(r.already ? t('op.account.operators.already', { addr: shortAddr(draft.trim(), 6) }) : null);
-      setDraft('');
-    } catch (err) { setError(errorMessage(err)); }
-  };
-  const remove = async (address: string) => {
-    setNotice(null); setError(null);
-    try {
-      const r = await removeOwner(address).unwrap();
-      setNotice(t('op.account.operators.removed', { addr: shortAddr(address, 6), n: r.sessions_ended }));
-    } catch (err) { setError(errorMessage(err)); }
-  };
-
-  const label = (o: NodeOwner) => o.source === 'node' ? t('op.account.operators.own')
-    : o.source === 'config' ? t('op.account.operators.src_config')
-    : t('op.account.operators.src_granted', { by: shortAddr(o.added_by, 6) || '—' });
-
-  return (
-    <>
-      <SubTitle $mt={56}>{t('op.account.operators.title')}</SubTitle>
-      <Description>{t('op.account.operators.desc')}</Description>
-      {isLoading && <CenterProgress />}
-      {owners.isError && <QueryError error={owners.error} what={t('op.account.operators.title')} onRetry={() => void owners.refetch()} retrying={owners.isFetching} />}
-      <KeyValue data-testid="operators">
-        {(data?.owners ?? []).map((o) => (
-          <Fragment key={o.address}>
-            <dt>{label(o)}</dt>
-            <dd>
-              <Mono>{o.address}</Mono> <CopyButton text={o.address} label={t('common.copy')} />
-              {/* Offered only for a grant: the other two are not this page's to undo, and a button that removed a
-                  row while the address kept owning the node would be worse than no button. */}
-              {o.source === 'granted' && (
-                <Button variant="text" size="small" type="button" disabled={busy} onClick={() => void remove(o.address)} style={{ marginLeft: 10 }}>
-                  {t('op.account.operators.remove')}
-                </Button>
-              )}
-            </dd>
-          </Fragment>
-        ))}
-      </KeyValue>
-      <Row as="form" onSubmit={add} style={{ marginTop: 14, alignItems: 'flex-end', gap: 10 }}>
-        <TextField value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('op.account.operators.add_ph')} style={{ maxWidth: 420 }} />
-        <Button type="submit" disabled={!valid || busy}>{t('op.account.operators.add')}</Button>
-      </Row>
-      {notice && <Muted style={{ display: 'block', marginTop: 10 }}>{notice}</Muted>}
-      {error && <Alert $tone="error" role="alert" style={{ marginTop: 10 }}>{error}</Alert>}
-      <Muted style={{ display: 'block', marginTop: 10 }}>{t('op.account.operators.how')}</Muted>
-    </>
-  );
-}
-
-/**
- * Every command line that acts as you, and ending one.
- *
- * A binding outlives a session on purpose — that is what stops `ainize login` from being something you do every
- * morning — so it has to be visible and it has to be revocable. Ending one closes the sessions that key already
- * collected, because a 30-day cookie would otherwise outlive the revocation by a month.
- *
- * This is yours, not the node's: it lists what acts as YOU, which is why it is shown to anyone signed in rather
- * than only to whoever owns the machine.
- */
-function Bindings() {
-  const { t } = useT();
-  const auth = useAuth();
-  const bindings = useBindingsQuery({ identity: auth.cacheIdentity });
-  const { isLoading } = bindings;
-  const data = !bindings.isError ? bindings.currentData : undefined;
-  const [removeBinding, removeState] = useRemoveBindingMutation();
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const end = async (delegate: string) => {
-    setNotice(null); setError(null);
-    try {
-      const r = await removeBinding(delegate).unwrap();
-      setNotice(t('op.account.bindings.ended', { addr: shortAddr(delegate, 6), n: r.sessions_ended }));
-    } catch (e) { setError(errorMessage(e)); }
-  };
-  const rows = data?.bindings ?? [];
-  return (
-    <>
-      <SubTitle $mt={56}>{t('op.account.bindings.title')}</SubTitle>
-      <Description>{t('op.account.bindings.desc')}</Description>
-      {bindings.isError && <QueryError error={bindings.error} what={t('op.account.bindings.title')} onRetry={() => void bindings.refetch()} retrying={bindings.isFetching} />}
-      {isLoading && <CenterProgress />}
-      {!isLoading && !bindings.isError && rows.length === 0 && <Muted style={{ display: 'block' }}>{t('op.account.bindings.none')}</Muted>}
-      <KeyValue data-testid="bindings">
-        {rows.map((b) => (
-          <Fragment key={b.delegate}>
-            <dt>{b.label || shortAddr(b.delegate, 6)}</dt>
-            <dd>
-              <Mono>{b.delegate}</Mono>
-              {/* Which of these is the one reading this page. Without it, ending the right key is guesswork, and
-                  ending the wrong one signs you out of the terminal you were about to fix it from. */}
-              {data?.via === b.delegate && <Muted style={{ marginLeft: 8 }}>({t('op.account.bindings.this')})</Muted>}
-              <Muted style={{ marginLeft: 8 }}>
-                {t('op.account.bindings.since', { when: dateTime(b.created_at) })}
-                {' · '}
-                {b.last_seen_at ? t('op.account.bindings.seen', { when: dateTime(b.last_seen_at) }) : t('op.account.bindings.never')}
-              </Muted>
-              <Button variant="text" size="small" type="button" disabled={removeState.isLoading} onClick={() => void end(b.delegate)} style={{ marginLeft: 10 }}>
-                {t('op.account.bindings.end')}
-              </Button>
-            </dd>
-          </Fragment>
-        ))}
-      </KeyValue>
-      {notice && <Muted style={{ display: 'block', marginTop: 10 }}>{notice}</Muted>}
-      {error && <Alert $tone="error" role="alert" style={{ marginTop: 10 }}>{error}</Alert>}
-    </>
-  );
-}
 
 export default function AccountPage() {
   const auth = useAuth();
@@ -318,8 +176,8 @@ function AccountView() {
       <AccountSettings address={me?.address ?? null} />
 
       {/* --------------------------------------------------- what acts as you, and who owns this node */}
-      <Bindings />
-      <Owners />
+      <AccountBindings />
+      <AccountOwners />
 
       {/* ------------------------------------------------------------ teaching (settings live on My knowledge → Teaching, spec §5.13) */}
       <SubTitle $mt={56}>{t('op.account.teach.title')}</SubTitle>
