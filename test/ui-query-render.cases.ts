@@ -809,6 +809,44 @@ test('search retains partial app matches while reporting the incomplete source',
   assert.match(html, /Try again/);
 });
 
+test('model search and see-all cards open the searched provider and type, including same-name modalities', () => {
+  const peer = '0x' + 'b'.repeat(40);
+  const query = 'shared south chat';
+  const modelFixtures: Fixture[] = [
+    { name: 'models', value: { data: [{ id: 'shared', modality: 'chat', available: true }] } },
+    { name: 'networkModels', value: { data: [
+      { id: 'shared', modality: 'chat', local: true, node: { address: keyNode, name: 'North provider' } },
+      { id: 'shared', modality: 'chat', local: false, node: { address: peer, name: 'South provider' } },
+      { id: 'shared', modality: 'image', local: false, node: { address: peer, name: 'South provider' } },
+    ] } },
+  ];
+  const search = render(SearchPage, [...appAccount, ...modelFixtures, appsFixture([]), { name: 'agents', value: { agents: [] } },
+    { name: 'catalog', arg: { q: query, status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: 8 }, value: { items: [], total: 0 } },
+  ], `/search?q=${encodeURIComponent(query)}`);
+  const list = render(ModelsPage, [...appAccount, ...modelFixtures], `/models?q=${encodeURIComponent(query)}`);
+  for (const html of [search, list]) {
+    assert.ok(html.includes(`href="/models/shared?modality=chat&amp;node=${peer}"`));
+    assert.doesNotMatch(html, /href="\/models\/shared\?modality=image|North provider/);
+    assert.ok(!html.includes(`href="/models/shared?modality=chat&amp;node=${keyNode}"`));
+  }
+});
+
+test('model search reports unreadable catalogues and removes failed cached provider matches', () => {
+  for (const modelFixture of [
+    { name: 'models', value: {} },
+    { name: 'models', value: { data: [{ id: 'stale-model', modality: 'chat', available: true }] }, status: 'rejected' as const },
+  ]) {
+    const html = render(SearchPage, [...appAccount, appsFixture([]), modelFixture,
+      { name: 'networkModels', value: { data: [{ id: 'stale-model', modality: 'chat', local: false, node: { address: '0x' + 'b'.repeat(40), name: 'Stale provider' } }] }, status: 'rejected' },
+      { name: 'agents', value: { agents: [] } },
+      { name: 'catalog', arg: { q: 'stale-model', status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: 8 }, value: { items: [], total: 0 } },
+    ], '/search?q=stale-model');
+    assert.match(html, /role="alert"/);
+    assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /href="\/models\/stale-model|Stale provider|No results/);
+  }
+});
+
 const accountIdentity = JSON.stringify([null, 'sso:viewer', null, null]);
 const accountOrgs: Fixture = { name: 'myOrgs', arg: accountIdentity, value: { signed_in: true, orgs: [] } };
 const keyEvidence = { version: 1, complete: true, node: keyNode, owner: 'sso:viewer' };
@@ -1498,6 +1536,60 @@ test('agent creation respects closed organization requests and failed organizati
   const failed = render(AgentCreatePage, [...appAccount, { ...fixture, errorStatus: 503, errorData: 'unavailable' }], '/agent/new?org=studio');
   assert.match(failed, /Could not load organization information|Try again/);
   assert.doesNotMatch(failed, /agent-create-form/);
+});
+
+test('agent creation keeps an explicit missing selection instead of displaying the first available model', () => {
+  const models: Fixture = { name: 'models', value: { data: [{ id: 'other-model', modality: 'chat', available: true }] } };
+  const network: Fixture = { name: 'networkModels', value: { data: [] } };
+  const html = render(AgentCreatePage, [...appAccount, models, network], '/agent/new?model=missing-model');
+  assert.match(html, /<option[^>]*value="missing-model"[^>]*selected=""/);
+  assert.doesNotMatch(html, /<option[^>]*value="other-model"[^>]*selected=""/);
+  assert.match(html, /selected model is missing from the current list/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="agent-create-submit"/);
+  const blank = render(AgentCreatePage, [...appAccount, models, network], '/agent/new');
+  assert.match(blank, /<option[^>]*value=""[^>]*selected=""/);
+  assert.doesNotMatch(blank, /<option[^>]*value="other-model"[^>]*selected=""/);
+});
+
+test('agent model links retain the exact peer and chat modality; local-qualified prefills stay selected', () => {
+  const peer = '0x' + 'b'.repeat(40), ref = `chosen@${peer}`;
+  const models: Fixture = { name: 'models', value: { data: [{ id: 'chosen', modality: 'chat', available: true }] } };
+  const network: Fixture = { name: 'networkModels', value: { data: [{ id: 'chosen', modality: 'chat', node: { address: peer }, local: false }] } };
+  const html = render(AgentCreatePage, [...appAccount, models, network], `/agent/new?model=${ref}`);
+  assert.match(html, new RegExp(`<option[^>]*value="${ref}"[^>]*selected=""`));
+  assert.ok(html.includes(`href="/models/chosen?modality=chat&amp;node=${peer}"`));
+  assert.doesNotMatch(html, /href="\/models\/chosen%40/);
+  const local = render(AgentCreatePage, [...appAccount, models, network], `/agent/new?model=chosen@${keyNode}`);
+  assert.match(local, new RegExp(`<option[^>]*value="chosen@${keyNode}"[^>]*selected=""`));
+  assert.ok(local.includes(`href="/models/chosen?modality=chat&amp;node=${keyNode}"`));
+  assert.doesNotMatch(local, /selected model is missing/);
+});
+
+test('agent creation distinguishes failed cached catalogues from a confirmed empty list', () => {
+  const models: Fixture = { name: 'models', value: { data: [{ id: 'old-model', modality: 'chat', available: true }] }, status: 'rejected' };
+  for (const failed of [models, { name: 'models', value: {} }]) {
+    const html = render(AgentCreatePage, [...appAccount, failed, { name: 'networkModels', value: { data: [] } }], '/agent/new');
+    assert.match(html, /Some or all models could not be checked/);
+    assert.match(html, /Reload models/);
+    assert.doesNotMatch(html, /value="old-model"|There are no chat models to select/);
+    assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="agent-create-submit"/);
+  }
+  const empty = render(AgentCreatePage, [...appAccount, { name: 'models', value: { data: [] } }, { name: 'networkModels', value: { data: [] } }], '/agent/new');
+  assert.match(empty, /There are no chat models to select/);
+  assert.doesNotMatch(empty, /Some or all models could not be checked/);
+});
+
+test('agent creation keeps registered configuration possible without claiming model health', () => {
+  const html = render(AgentCreatePage, [...appAccount, { name: 'models', value: { data: [
+    { id: 'down', modality: 'chat', available: false }, { id: 'stt', modality: 'transcription', available: false },
+  ] } }, { name: 'networkModels', value: { data: [] } }], '/agent/new?model=down');
+  assert.match(html, /<option[^>]*value="down"[^>]*selected=""/);
+  assert.doesNotMatch(html, /<option[^>]*value="down"[^>]*disabled/);
+  assert.match(html, /This model is not answering/);
+  assert.match(html, /You can save the configuration/);
+  assert.doesNotMatch(html, /You can still create the agent/);
+  assert.doesNotMatch(html, /<input(?=[^>]*disabled="")(?=[^>]*data-testid="agent-create-media-transcription")[^>]*>/);
+  assert.match(html, /<input(?=[^>]*disabled="")(?=[^>]*data-testid="agent-create-media-image")[^>]*>/);
 });
 
 function renderAgent(fixtures: Fixture[], path = '/agent/chosen') {

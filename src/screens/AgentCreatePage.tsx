@@ -26,7 +26,7 @@ import {
   useOrgQuery, useRequestJoinOrgMutation, useCreateHostedAgentMutation, useHostedAgentQuery, useModelsQuery, useNetworkModelsQuery, useSetHostedAgentSecretMutation, useUpdateHostedAgentMutation,
 } from '@/api/api';
 import {
-  chatModelsForHostedAgent, hostedAgentMediaServed, HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_LIMITS, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
+  HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_LIMITS, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
   hostedAgentFormProblems, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
   isHostedAgentCodeMode, parseHostedAgentSpecResponse,
   type HostedAgentApiError, type HostedAgentFormDraft, type HostedAgentFormProblem, type HostedAgentMode,
@@ -35,8 +35,7 @@ import { saveHostedAgent } from '@/lib/saveHostedAgent';
 import { viewerPrincipals } from '@/api/linkedAgents';
 import { canEditHostedAgentSpec } from '@/api/hostedAgents';
 import { orgApiErrorOf, parseOrgProfile } from '@/api/organizations';
-import { parseModelsResponse } from '@/api/models';
-import { parseNetworkModelsResponse } from '@/api/networkModels';
+import { confirmHostedAgentSelection, hostedAgentModels, hostedAgentModelChoice, hostedAgentModelHref, hostedAgentSelectionUsable, type AgentModelSelection } from '@/api/hostedAgentModels';
 import { useActiveView } from '@/hooks/useActiveView';
 import { signInHref } from '@/lib/uiNavigation';
 import { useAuth } from '@/auth/AuthContext';
@@ -91,7 +90,7 @@ const emptyHostedAgentDraft = (model: string): HostedAgentFormDraft => ({
 export default function AgentCreatePage() {
   const auth = useAuth();
   const location = useLocation();
-  return <AgentCreatePageContent key={`${auth.cacheIdentity}:${location.pathname}:${location.search}`} />;
+  return <AgentCreatePageContent key={`${auth.cacheIdentity}:${auth.address}:${location.pathname}:${location.search}`} />;
 }
 
 function AgentCreatePageContent() {
@@ -105,6 +104,7 @@ function AgentCreatePageContent() {
   const navigate = useNavigate();
   const auth = useAuth();
   const shareable = useShareableOrgs();
+  const current = () => active() && !auth.loading && !auth.signingOut && auth.isCurrentAccount();
   useTitle(editing ? t('agentCreate.title_edit') : t('agentCreate.title'));
 
   const requestedOrg = params.get('org') ?? '';
@@ -116,15 +116,12 @@ function AgentCreatePageContent() {
   const prefilledModel = params.get('model') ?? '';
   const modelsQuery = useModelsQuery(undefined, { refetchOnMountOrArgChange: true });
   const networkModelsQuery = useNetworkModelsQuery(undefined, { refetchOnMountOrArgChange: true });
-  const modelOptions = useMemo(
-    () => chatModelsForHostedAgent([...parseModelsResponse(modelsQuery.data), ...parseNetworkModelsResponse(networkModelsQuery.data).filter((m) => !m.local).map((m) => ({ id: m.ref, modality: m.modality, available: m.available }))], prefilledModel || null),
-    [modelsQuery.data, networkModelsQuery.data, prefilledModel],
-  );
-  // Speech and pictures may come from a peer node, so the switches follow the network's models, not only this node's.
-  const mediaServed = useMemo(
-    () => hostedAgentMediaServed([...parseModelsResponse(modelsQuery.data), ...parseNetworkModelsResponse(networkModelsQuery.data)]),
-    [modelsQuery.data, networkModelsQuery.data],
-  );
+  const modelRead = useMemo(() => hostedAgentModels({ own: modelsQuery.currentData, ownError: modelsQuery.error,
+    network: networkModelsQuery.currentData, networkError: networkModelsQuery.error, self: auth.address }),
+    [modelsQuery.currentData, modelsQuery.error, networkModelsQuery.currentData, networkModelsQuery.error, auth.address]);
+  const mediaServed = modelRead.media;
+  const savedSelection = useRef<AgentModelSelection | null>(null);
+  const [modelError, setModelError] = useState(false);
 
   // An AIN account (SSO) may own a hosted agent now, so "somebody who can own one" is `principal`, not `subject`.
   const stored = useHostedAgentQuery({ id: editId ?? '', identity: auth.cacheIdentity }, { skip: !editing || !auth.principal || auth.loading });
@@ -154,17 +151,13 @@ function AgentCreatePageContent() {
   useEffect(() => {
     if (editing && !stored.error && editable && storedSpec && loadedFrom !== storedSpec.id) {
       setDraft(hostedAgentDraftFromSpec(storedSpec));
+      savedSelection.current = { model: storedSpec.model, media: storedSpec.media ?? { transcription: false, image: false } };
       setLoadedFrom(storedSpec.id);
     }
   }, [editing, storedSpec, stored.error, editable, loadedFrom]);
 
-  // No model chosen and none prefilled: the first answering chat model is the sensible default.
-  useEffect(() => {
-    if (!editing && !draft.model && modelOptions.length) {
-      const first = modelOptions.find((m) => m.available) ?? modelOptions[0];
-      setDraft((d) => (d.model ? d : { ...d, model: first.id }));
-    }
-  }, [editing, draft.model, modelOptions]);
+  const selection: AgentModelSelection = { model: draft.model, media: { transcription: draft.mediaTranscription, image: draft.mediaImage } };
+  const selectionUsable = hostedAgentSelectionUsable(selection, modelRead, savedSelection.current);
 
   const problems = useMemo(() => hostedAgentFormProblems(draft, shareable.orgs), [draft, shareable.orgs]);
   const problemFor = (field: HostedAgentFormProblem['field']) => (showProblems ? problems.find((p) => p.field === field) : undefined);
@@ -180,9 +173,10 @@ function AgentCreatePageContent() {
   }));
 
   const submit = async () => {
-    if (pending.current || !active() || (editing && (stored.error || !editable))) return;
+    if (pending.current || !current() || (editing && (stored.error || !editable))) return;
     setShowProblems(true);
     setApiError(null);
+    setModelError(false);
     setSecretFailures([]);
     if (problems.length) {
       const field = problems[0].field;
@@ -191,27 +185,31 @@ function AgentCreatePageContent() {
       target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return;
     }
+    if (!selectionUsable) { setModelError(true); return; }
     pending.current = true;
     setSaving(true);
     try {
+      await confirmHostedAgentSelection({ selection, existing: savedSelection.current, self: auth.address, current,
+        own: () => modelsQuery.refetch().unwrap(), network: () => networkModelsQuery.refetch().unwrap() });
       const result = await saveHostedAgent({
         body: hostedAgentSpecInputFromDraft(draft), savedId: savedId.current, suggestedId: !idTouched,
-        secrets: hostedAgentSecretsToSend(draft), active,
+        secrets: hostedAgentSecretsToSend(draft), active: current,
         create: (body) => createAgent(body).unwrap(), update: (body) => updateAgent(body).unwrap(),
         setSecret: (secret) => setSecret(secret).unwrap(),
-        onSaved: (id) => { savedId.current = id; setHasSaved(true); setDraft((d) => ({ ...d, id })); },
+        onSaved: (id) => { savedSelection.current = selection; savedId.current = id; setHasSaved(true); setDraft((d) => ({ ...d, id })); },
       });
-      if (!result || !active()) return;
+      if (!result || !current()) return;
       if (result.failed.length) { setSecretFailures(result.failed); return; }
       navigate(`/agent/${encodeURIComponent(result.id)}`);
     } catch (err) {
-      if (!active()) return;
+      if (!current()) return;
+      if (err instanceof Error && err.message === 'model_selection_unavailable') { setModelError(true); return; }
       const error = hostedAgentApiErrorOf(err);
       if (error.code === 'docker_unavailable') setDockerUnavailable(true);
       setApiError(error);
     } finally {
       pending.current = false;
-      if (active()) setSaving(false);
+      if (current()) setSaving(false);
     }
   };
 
@@ -276,7 +274,9 @@ function AgentCreatePageContent() {
   if (editing && loadedFrom !== editId) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   const code = isHostedAgentCodeMode(draft.mode);
-  const selectedModel = modelOptions.find((m) => m.id === draft.model);
+  const selectedModel = hostedAgentModelChoice(modelRead.choices, draft.model);
+  const extraModelIds = [...new Set([draft.model, savedSelection.current?.model].filter((id): id is string => !!id))]
+    .filter(id => !modelRead.choices.some(choice => choice.id === id));
 
   return (
     <PageWrapper>
@@ -312,20 +312,28 @@ function AgentCreatePageContent() {
           </Field>
           <Field>
             <FieldLabel htmlFor="agent-create-model">{t('agentCreate.field.model')}</FieldLabel>
-            {(modelsQuery.isError || networkModelsQuery.isError) && <Button type="button" size="small" variant="text" onClick={() => { void modelsQuery.refetch(); void networkModelsQuery.refetch(); }}>{t('agentCreate.field.model_retry')}</Button>}
+            {(!modelRead.complete) && <Button type="button" size="small" variant="text" disabled={modelsQuery.isFetching || networkModelsQuery.isFetching} onClick={() => { void modelsQuery.refetch(); void networkModelsQuery.refetch(); }}>{t('agentCreate.field.model_retry')}</Button>}
             <Select id="agent-create-model" value={draft.model} onChange={(e) => set('model', e.target.value)} data-testid="agent-create-model">
               {!draft.model && <option value="">{t('agentCreate.field.model_pick')}</option>}
-              {modelOptions.map((m) => (
-                <option key={m.id} value={m.id}>{m.id}{m.available ? '' : ` — ${t('models.unavailable')}`}</option>
+              {extraModelIds.map(id => {
+                const choice = hostedAgentModelChoice(modelRead.choices, id);
+                return <option key={id} value={id} disabled={!(choice && (choice.provider.local || choice.available)) && savedSelection.current?.model !== id}>
+                  {id}{choice?.available ? choice.provider.local ? '' : ` — ${t('models.advertised')}` : ` — ${t(!choice || choice.availabilityKnown === false ? 'models.status_unknown' : 'models.unavailable')}`}
+                </option>;
+              })}
+              {modelRead.choices.map((m) => (
+                <option key={m.id} value={m.id} disabled={!m.provider.local && !m.available && savedSelection.current?.model !== m.id}>{m.id}{m.available ? m.provider.local ? '' : ` — ${t('models.advertised')}` : ` — ${t(m.availabilityKnown === false ? 'models.status_unknown' : 'models.unavailable')}`}</option>
               ))}
             </Select>
             <HelperText $error={!!problemFor('model')}>
               {problemFor('model') ? t(problemFor('model')!.key)
                 : modelsQuery.isFetching || networkModelsQuery.isFetching ? t('agentCreate.field.model_loading')
-                  : modelsQuery.isError && networkModelsQuery.isError ? t('agentCreate.field.model_failed')
-                  : modelOptions.length === 0 ? t('agentCreate.field.model_none')
-                  : selectedModel && !selectedModel.available ? t('agentCreate.field.model_down')
-                    : <>{t('agentCreate.field.model_help')} {draft.model && <StyledLink to={`/models/${encodeURIComponent(draft.model)}`}>{t('agentCreate.field.model_link')}</StyledLink>}</>}
+                  : !modelRead.complete ? t('agentCreate.field.model_failed')
+                  : draft.model && !selectedModel ? t('agentCreate.field.model_missing')
+                  : modelRead.choices.length === 0 ? t('agentCreate.field.model_none')
+                  : selectedModel && !selectedModel.available ? t(selectedModel.availabilityKnown === false ? 'agentCreate.field.model_unknown' : 'agentCreate.field.model_down')
+                    : t('agentCreate.field.model_help')}
+              {draft.model && <> <StyledLink to={selectedModel?.href ?? hostedAgentModelHref(draft.model)}>{t('agentCreate.field.model_link')}</StyledLink></>}
             </HelperText>
           </Field>
         </AgentCreateSection>
@@ -443,12 +451,12 @@ function AgentCreatePageContent() {
               stays switchable off even if the model went away, so an agent is never stuck with a promise it cannot keep. */}
           <Checkbox
             label={t('agentCreate.field.media_transcription')} checked={draft.mediaTranscription} data-testid="agent-create-media-transcription"
-            disabled={!mediaServed.transcription && !draft.mediaTranscription}
+            disabled={!mediaServed.transcription && !draft.mediaTranscription && !savedSelection.current?.media.transcription}
             onChange={(e) => set('mediaTranscription', e.target.checked)}
           />
           <Checkbox
             label={t('agentCreate.field.media_image')} checked={draft.mediaImage} data-testid="agent-create-media-image"
-            disabled={!mediaServed.image && !draft.mediaImage}
+            disabled={!mediaServed.image && !draft.mediaImage && !savedSelection.current?.media.image}
             onChange={(e) => set('mediaImage', e.target.checked)}
           />
           {(!mediaServed.transcription || !mediaServed.image) && <HelperText>{t('agentCreate.field.media_unavailable')}</HelperText>}
@@ -510,10 +518,11 @@ function AgentCreatePageContent() {
             <Link to={`/agent/${encodeURIComponent(draft.id)}`}>{t('agentCreate.secret.continue')}</Link>
           </Alert>
         )}
+        {modelError && <Alert role="alert" $tone="error">{t('agentCreate.field.model_changed')}</Alert>}
         {showProblems && problems.length > 0 && <Alert $tone="error">{t('agentCreate.err.fix_fields')}</Alert>}
 
         <AgentCreateActions>
-          <Button type="submit" variant="contained" size="large" loading={saving} data-testid="agent-create-submit">
+          <Button type="submit" variant="contained" size="large" loading={saving} disabled={!selectionUsable || auth.signingOut} data-testid="agent-create-submit">
             {hasSaved ? t('agentCreate.save') : t('agentCreate.submit')}
           </Button>
           <Button type="button" variant="text" onClick={() => navigate(-1)}>{t('agentCreate.cancel')}</Button>

@@ -8,6 +8,7 @@
 import { projectPath } from './reservedRoutes';
 import { agentPagePath } from '../api/agentIds';
 import { agentListKey } from '../api/sharedAgents';
+import { networkModelHref, networkProviderLabel, type NetworkModel } from '../api/networkModels';
 
 export type SearchKind = 'app' | 'model' | 'agent' | 'knowledge';
 export const searchHref = (query: string): string => `/search?q=${encodeURIComponent(query.trim())}`;
@@ -107,11 +108,15 @@ export function docsFromProjects(projects: readonly { id: string; org: string; r
   }));
 }
 
-export function docsFromModels(models: readonly { id: string; modality: string; providers?: readonly { node: { name: string | null; address: string } }[] }[]): SearchDoc[] {
-  return models.map((m) => ({
-    kind: 'model', id: m.id, title: m.id, subtitle: m.modality,
-    href: `/models/${encodeURIComponent(m.id)}`,
-    keywords: (m.providers ?? []).flatMap((p) => [p.node.name ?? '', p.node.address]),
+/** Each result names one provider and type, so a provider-name match cannot open another default. */
+export function docsFromModels(models: readonly NetworkModel[]): SearchDoc[] {
+  return models.flatMap(m => m.providers.map(provider => {
+    const href = networkModelHref(m, provider);
+    return {
+      kind: 'model' as const, id: href, title: m.id,
+      subtitle: [m.modality, networkProviderLabel(provider)].filter(Boolean).join(' · '),
+      href, keywords: [provider.node.name ?? '', provider.node.address],
+    };
   }));
 }
 

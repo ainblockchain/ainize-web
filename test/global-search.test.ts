@@ -10,13 +10,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { SEARCH_KINDS, docsFromAgents, docsFromCatalog, docsFromModels, docsFromProjects, flattenHits, matchingSearchIds, scoreDoc, searchDocs, searchHref, seeAllHref, type SearchDoc } from '../src/lib/globalSearch.ts';
+import { networkModelCatalogue } from '../src/api/networkModels';
 import { common } from '../src/i18n/pages/common.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
 
 const docs: SearchDoc[] = [
-  ...docsFromModels([{ id: 'dsv41', modality: 'chat', providers: [{ node: { name: 'ainspace', address: '0x' + '1'.repeat(40) } }] }, { id: 'whisper-large', modality: 'transcription' }]),
+  ...docsFromModels(networkModelCatalogue([{ id: 'whisper-large', modality: 'transcription', available: true }], [{ id: 'dsv41', modality: 'chat', ref: `dsv41@${'0x' + '1'.repeat(40)}`, available: true, local: false, node: { name: 'ainspace', address: '0x' + '1'.repeat(40) } }])),
   ...docsFromAgents([{ id: 'ag1', name: 'Docent', description: 'museum guide', alias: 'docent', skills: [{ name: 'tour', tags: ['art', 'museum'] }] }, { id: 'ag2', name: 'Chat helper', description: null }]),
   ...docsFromCatalog([{ anchor: { id: 'k1', name: 'Korean tax facts', author: '0xabc', author_name: 'Kim', description: 'income tax rules', topic_path: 'finance/tax' } }]),
   ...docsFromProjects([{ id: 'p1', org: 'comcom', repoName: 'nextjs-hello-world', name: 'Hello World', kind: 'nextjs' }]),
@@ -63,7 +64,7 @@ test('search is case-insensitive and reaches skills, tags, aliases, authors and 
   assert.deepEqual(by('MUSEUM'), ['self#ag1']);
   assert.deepEqual(by('kim'), ['k1']);
   assert.deepEqual(by('finance'), ['k1']);
-  assert.deepEqual(by('ainspace'), ['dsv41']);
+  assert.deepEqual(by('ainspace'), [`/models/dsv41?modality=chat&node=${'0x' + '1'.repeat(40)}`]);
   assert.deepEqual(by('comcom'), ['p1']);
 });
 
@@ -76,11 +77,27 @@ test('perKind caps the rows but total still counts them', () => {
 
 test('adapters link where the site already links', () => {
   const href = (id: string) => docs.find((d) => d.id === id)!.href;
-  assert.equal(href('dsv41'), '/models/dsv41');
+  assert.equal(docs.find(d => d.title === 'dsv41')!.href, `/models/dsv41?modality=chat&node=${'0x' + '1'.repeat(40)}`);
   assert.equal(href('self#ag1'), '/agent/docent', 'an aliased agent links by its alias');
   assert.equal(href('self#ag2'), '/agent/ag2');
   assert.equal(href('k1'), '/0xabc/k1');
   assert.equal(href('p1'), '/comcom/nextjs-hello-world');
+});
+
+test('same-name model results retain the matching provider and modality independently', () => {
+  const first = '0x' + 'a'.repeat(40), second = '0x' + 'b'.repeat(40);
+  const rows = docsFromModels(networkModelCatalogue([], [
+    { id: 'shared', modality: 'chat', ref: `shared@${first}`, local: false, available: true, node: { address: first, name: 'North provider' } },
+    { id: 'shared', modality: 'chat', ref: `shared@${second}`, local: false, available: true, node: { address: second, name: 'South provider' } },
+    { id: 'shared', modality: 'image', ref: `shared@${second}`, local: false, available: true, node: { address: second, name: 'South provider' } },
+  ]));
+  assert.equal(new Set(rows.map(row => row.id)).size, 3);
+  const hits = flattenHits(searchDocs(rows, 'shared south chat'));
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].href, `/models/shared?modality=chat&node=${second}`);
+  assert.match(hits[0].subtitle!, /chat · South provider/);
+  assert.deepEqual(flattenHits(searchDocs(rows, 'north south')), [], 'keywords from distinct providers cannot manufacture a match');
+  assert.deepEqual([...matchingSearchIds(rows, 'shared south chat')], [hits[0].id]);
 });
 
 test('"see all" carries the query to the page that lists that kind', () => {

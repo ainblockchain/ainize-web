@@ -55,12 +55,15 @@ export const hostedAgents: Dict = {
   'agentCreate.field.model_help': { ko: '에이전트는 대화 모델로만 만들 수 있습니다.', en: 'Agents are built on chat models.' },
   'agentCreate.field.model_link': { ko: '모델 보기 →', en: 'See the model →' },
   'agentCreate.field.model_loading': { ko: '모델 목록을 불러오는 중입니다.', en: 'Loading available models.' },
-  'agentCreate.field.model_failed': { ko: '모델 목록을 불러오지 못했습니다. 다시 시도해 주세요.', en: 'Could not load models. Please retry.' },
+  'agentCreate.field.model_failed': { ko: '모델 목록의 일부 또는 전부를 확인하지 못했습니다. 다시 불러와 주세요.', en: 'Some or all models could not be checked. Reload the list.' },
   'agentCreate.field.model_retry': { ko: '모델 목록 다시 불러오기', en: 'Reload models' },
-  'agentCreate.field.model_none': { ko: '이 노드는 대화 모델을 서빙하지 않아 에이전트를 만들 수 없습니다.', en: 'This node serves no chat model, so no agent can be built on it.' },
+  'agentCreate.field.model_none': { ko: '선택할 대화 모델이 없습니다.', en: 'There are no chat models to select.' },
+  'agentCreate.field.model_missing': { ko: '선택한 모델이 현재 목록에 없습니다. 기존 설정은 유지되며, 다른 모델로 자동 변경하지 않습니다.', en: 'The selected model is missing from the current list. Your selection is kept; no other model is substituted.' },
+  'agentCreate.field.model_changed': { ko: '선택한 모델 또는 새로 켠 음성·이미지 기능을 확인하지 못해 저장하지 않았습니다. 모델 목록과 선택을 확인해 주세요.', en: 'The selected model or a newly enabled media capability could not be confirmed, so nothing was saved. Review the model list and your selection.' },
+  'agentCreate.field.model_unknown': { ko: '등록된 모델이지만 응답 상태는 확인되지 않았습니다. 설정 저장이 실행 성공을 뜻하지는 않습니다.', en: 'This model is registered, but its response status is unknown. Saving the configuration does not confirm it can answer.' },
   'agentCreate.field.model_down': {
-    ko: '이 모델은 지금 응답하지 않습니다. 만들 수는 있지만, 모델이 돌아올 때까지 에이전트도 답하지 못합니다.',
-    en: 'This model is not answering right now. You can still create the agent, but it cannot answer until the model is back.',
+    ko: '이 모델은 현재 응답하지 않습니다. 설정은 저장할 수 있지만 모델이 복구되어야 에이전트가 답할 수 있습니다.',
+    en: 'This model is not answering. You can save the configuration, but the model must recover before the agent can answer.',
   },
   'agentCreate.field.system_prompt': { ko: '시스템 프롬프트', en: 'System prompt' },
   'agentCreate.field.system_prompt_placeholder': {
@@ -94,7 +97,7 @@ export const hostedAgents: Dict = {
   'agentPage.audio.too_large': { ko: '여기서는 {kb}KB까지 보낼 수 있습니다. 더 긴 녹음은 aindrive처럼 링크로 보내는 워크스페이스를 쓰세요.', en: 'Up to {kb} KB can be sent from here. Longer recordings go through a workspace that sends links, like aindrive.' },
   'agentCreate.field.media_transcription': { ko: '음성 메시지를 받아씀 (STT) — 첨부된 음성을 글로 바꿔 모델에게 전합니다', en: 'Hears voice messages (speech-to-text) — attached audio is transcribed before the model reads it' },
   'agentCreate.field.media_image': { ko: '이미지를 그림 — 모델이 필요할 때 이미지를 만들어 답에 첨부합니다', en: 'Draws images — the model can generate a picture and attach it to its answer' },
-  'agentCreate.field.media_unavailable': { ko: '이 노드와 연결된 노드 어디에도 해당 모델(STT·이미지)이 없는 항목은 켤 수 없습니다.', en: 'An option is unavailable when neither this node nor any connected node serves a model of that kind (speech-to-text, image).' },
+  'agentCreate.field.media_unavailable': { ko: '등록된 모델을 확인한 음성·이미지 기능만 새로 켤 수 있습니다. 기존 설정은 유지하거나 끌 수 있습니다. 실제 응답 여부는 모델 상태에 따라 달라집니다.', en: 'New media capabilities require a confirmed registered model. Existing settings can be kept or turned off. Responses depend on model health.' },
   'agentCreate.field.a2ui': { ko: '답을 화면(A2UI)으로도 보냄 — 에이전트 카드에 A2UI 확장을 선언합니다', en: 'Answers can carry a surface (A2UI) — declares the A2UI extension on the card' },
   'agentCreate.field.hosts': { ko: '허용 호스트', en: 'Allowed hosts' },
   'agentCreate.field.hosts_help': {

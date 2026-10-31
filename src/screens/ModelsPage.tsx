@@ -67,7 +67,9 @@ export default function ModelsPage() {
   const needle = q.trim().toLowerCase();
   const matchingIds = useMemo(() => matchingSearchIds(docsFromModels(catalogue), q), [catalogue, q]);
   const groups = useMemo(() => MODEL_MODALITIES
-    .map((modality) => ({ modality, models: catalogue.filter((m) => m.modality === modality && matchingIds.has(m.id)) }))
+    .map((modality) => ({ modality, models: catalogue.filter(m => m.modality === modality)
+      .map(m => ({ ...m, providers: m.providers.filter(p => matchingIds.has(networkModelHref(m, p))) }))
+      .filter(m => m.providers.length > 0) }))
     .filter((g) => g.models.length > 0), [catalogue, matchingIds]);
 
   if (pending && !catalogue.length) return <PageWrapper><CenterProgress /></PageWrapper>;
