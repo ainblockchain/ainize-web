@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-325 operations on 270 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+326 operations on 271 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -395,6 +395,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/auth/bindings`](#get-apiauthbindings) | none | Every key that acts as you, and which one is acting now |
 | `DELETE` | [`/api/auth/bindings/{delegate}`](#delete-apiauthbindingsdelegate) | none | End one, and the sessions it collected |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | none | Log out |
+| `POST` | [`/api/branches/{name}/patches/review`](#post-apibranchesnamepatchesreview) | operator | Review adding knowledge to an owned active track |
 | `POST` | [`/api/branches/{name}/patches`](#post-apibranchesnamepatches) | operator | Add knowledge to a branch (owner only) |
 | `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Stop a subscription and clean up its owned model layers |
 | `GET` | [`/api/runtime`](#get-apiruntime) | none | Serving runtime state (model, hook, the ordered stack of loaded knowledge) |
@@ -7794,9 +7795,37 @@ Log out
 |---|---|---|
 | `200` | ok | `object` |
 
+### `POST /api/branches/{name}/patches/review`
+
+Review adding knowledge to an owned active track
+
+Read-only version 1 review binds node, full track metadata, artifact and status to revision; item identifies the exact file and current price, replaces lists existing superseded items, and already identifies a no-op. No purchase, model load or public write occurs.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `name` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `patch_id` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | review | `object` |
+
 ### `POST /api/branches/{name}/patches`
 
 Add knowledge to a branch (owner only)
+
+expected_review binds the current track and artifact to a prior addition review. Changed state refuses before writing. Same-track local actions are gated, and already-present IDs do not append duplicate records. Legacy callers may omit expected_review.
 
 **Auth** — operator
 
@@ -7811,6 +7840,7 @@ Add knowledge to a branch (owner only)
 | Field | Type |
 |---|---|
 | `patch_id` | `string` |
+| `expected_review` | `string` |
 
 **Responses**
 

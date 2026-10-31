@@ -1,3 +1,5 @@
+import { TrackAdditionSheet } from '../src/components/operator/TrackAdditionForm';
+import { additionFixture } from './track-addition-fixture';
 import { runtimeReviewFixture } from './fixtures/runtimeReview';
 import { RuntimeApplyReview } from '../src/components/detail/RuntimeApplyReview';
 import { ManagePublication } from '../src/components/operator/ManagePublication';
@@ -2234,5 +2236,26 @@ test('track creation requires current operator access and both validated current
     [...accessAuth, data[0], { ...data[1], status: 'rejected' as const }]]) {
     const unavailable = render(DashboardContent, fixtures, '/dashboard');
     assert.match(unavailable, /<fieldset disabled/);
+  }
+});
+
+
+test('track addition review identifies the chosen item, replacement effects and exact price', () => {
+  const review = additionFixture();
+  const html = render(() => createElement(TrackAdditionSheet, { review, busy: false, error: null, done: false, onClose() {}, onConfirm() {}, onRefresh() {} }), signedOut);
+  assert.match(html, /law\/KR/); assert.match(html, /Selected knowledge/); assert.match(html, /new%2Fid%3F%23/);
+  assert.match(html, /0.00000001 AIN/); assert.match(html, /Replaces: old/); assert.match(html, /Subscribers may buy and load/);
+  assert.match(html, /data-testid="track-add-confirm"/);
+});
+test('track addition cannot confirm missing, failed, already-present or completed reviews', () => {
+  const review = additionFixture();
+  for (const props of [{ review: null, busy: true, error: null, done: false },
+    { review, busy: false, error: 'Review changed', done: false }]) {
+    const html = render(() => createElement(TrackAdditionSheet, { ...props, onClose() {}, onConfirm() {}, onRefresh() {} }), signedOut);
+    const button = html.match(/<button[^>]*data-testid="track-add-confirm"[^>]*>/)?.[0]; assert.ok(button); assert.match(button, /disabled/);
+  }
+  for (const props of [{ review: { ...review, already: true, replaces: [] }, done: false }, { review, done: true }]) {
+    const html = render(() => createElement(TrackAdditionSheet, { ...props, busy: false, error: null, onClose() {}, onConfirm() {}, onRefresh() {} }), signedOut);
+    assert.doesNotMatch(html, /data-testid="track-add-confirm"/);
   }
 });

@@ -531,7 +531,8 @@ export const api = createApi({
       invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: typeof a === 'string' ? a : a.id }, 'Runtime', 'Events', 'Me'],
     }),
     createBranch: b.mutation<unknown, { name: string; description: string; context: Record<string, string>; patch_ids: string[] }>({ query: (body) => ({ url: 'api/branches/create', method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger'] }),
-    addToBranch: b.mutation<unknown, { name: string; patch_id: string }>({ query: ({ name, patch_id }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches`, method: 'POST', body: { patch_id } }), invalidatesTags: ['Branches', 'Ledger'] }),
+    trackAdditionReview: b.query<unknown, { name: string; patch_id: string; identity: string }>({ query: ({ name, patch_id }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches/review`, method: 'POST', body: { patch_id } }), keepUnusedDataFor: 0 }),
+    addToBranch: b.mutation<unknown, { name: string; patch_id: string; expected_review: string }>({ query: ({ name, patch_id, expected_review }) => ({ url: `api/branches/${encodeURIComponent(name)}/patches`, method: 'POST', body: { patch_id, expected_review } }), invalidatesTags: ['Branches', 'Ledger'] }),
     // `replace` (item 214): the node refuses to load a track over knowledge already in the model unless it is passed.
     subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe'; replace?: boolean; expected_review?: string }>({ query: ({ name, action, replace, expected_review }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST', body: action === 'subscribe' ? { replace: !!replace, expected_review } : {} }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
     /** Item 357 — what subscribing would spend, decided by the node with the same rules `subscribe` follows. */

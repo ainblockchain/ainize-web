@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from 're
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  api, errorMessage, useAddToBranchMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMeQuery, useMyPatchesQuery,
+  api, errorMessage, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMeQuery, useMyPatchesQuery,
   useMyPurchasesQuery, useRuntimeQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
@@ -24,6 +24,7 @@ import { LogIcon, ManageIcon, OpenWindowIcon } from '@/components/ui/Icons';
 import { CenterProgress, Empty, Pagination, PageWrapper, SelectBox, StatusChip, SubTitle, Tabs, Title, TitleRow, Description } from '@/components/ui/Misc';
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
 import { IconButton, LiveTestIcon, QueryError, Row, SmallSpinner, Stack, StatusText, Tip, isInFlight, useMoney } from '@/components/operator/common';
+import { TrackAdditionForm } from '@/components/operator/TrackAdditionForm';
 import { TrackCard } from '@/components/operator/TrackCard';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { num, shortAddr, shortHash } from '@/utils/format';
@@ -130,15 +131,12 @@ export function DashboardContent() {
   const branches = useBranchesQuery({ identity: cacheIdentity }, { skip: authLoading });
   const branchData = !branches.isError ? trackBranches(branches.currentData) : null;
   const [createBranch, createState] = useCreateBranchMutation();
-  const [addToBranch, addState] = useAddToBranchMutation();
 
   // create branch mini form
   const [bName, setBName] = useState('');
   const [bDesc, setBDesc] = useState('');
   const [ctx, setCtx] = useState<{ k: string; v: string }[]>([{ k: 'jurisdiction', v: '' }]);
   const [bPatches, setBPatches] = useState<string[]>([]);
-  const [addBranch, setAddBranch] = useState('');
-  const [addPatch, setAddPatch] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
 
   const listedMine = useMemo(() => items.filter((e) => e.status === 'VERIFIED'), [items]);
@@ -196,11 +194,6 @@ export function DashboardContent() {
       if (stillCurrent()) setCreationError(err instanceof TrackCreationError ? t(`op.dash.branch.error.${err.code}`)
         : err instanceof LoadKnowledgeError ? t(`detail.apply.error.${err.code}`) : errorMessage(err));
     } finally { if (stillCurrent()) setCreationBusy(false); }
-  };
-  const onAddToBranch = async (e: FormEvent) => {
-    e.preventDefault();
-    setActionError(null);
-    try { await addToBranch({ name: addBranch, patch_id: addPatch }).unwrap(); setAddPatch(''); } catch (err) { setActionError(errorMessage(err)); }
   };
   const run = async (fn: () => Promise<unknown>) => { setActionError(null); try { await fn(); } catch (err) { setActionError(errorMessage(err)); } };
 
@@ -478,23 +471,7 @@ export function DashboardContent() {
         </fieldset>
       </MiniForm>
 
-      {ownedBranches.length > 0 && (
-        <MiniForm onSubmit={onAddToBranch}>
-          <strong style={{ fontSize: 14 }}>{t('op.dash.branch.addto')}</strong>
-          <ContextRow>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <FieldLabel>{t('op.dash.branch.pick')}</FieldLabel>
-              <Select value={addBranch} onChange={(e) => setAddBranch(e.target.value)} required>
-                <option value="">{t('op.select')}</option>
-                {ownedBranches.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
-              </Select>
-            </label>
-            <TextField label={t('op.dash.branch.patchid')} placeholder="krx-all-2761" value={addPatch} onChange={(e) => setAddPatch(e.target.value)} required />
-            <Button type="submit" loading={addState.isLoading}>{t('op.add')}</Button>
-          </ContextRow>
-          <span style={{ fontSize: 12, color: '#8d8d8f' }}>{t('op.dash.branch.owner_note')}</span>
-        </MiniForm>
-      )}
+      <TrackAdditionForm branches={ownedBranches} available={!!branchData} />
       </>)}
     </PageWrapper>
   );
