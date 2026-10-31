@@ -21,7 +21,7 @@ export function sameConnectionReview(a: SsoConnectionReview, b: SsoConnectionRev
   return JSON.stringify(a) === JSON.stringify(b);
 }
 export class SsoConnectionError extends Error {
-  constructor(readonly code: 'changed' | 'unconfirmed') { super(code); }
+  constructor(readonly code: 'changed' | 'unconfirmed' | 'resources' | 'inventory') { super(code); }
 }
 
 /** Browser read-back must show the reviewed AIN account and, for linking, the selected legacy principal. */
@@ -47,9 +47,13 @@ export async function connectReviewedAccount(review: SsoConnectionReview, choice
   try { answer = await deps.write(choice, review); }
   catch (error) {
     if (!deps.current()) return false;
+    const reason = record(error) && record(error.data) ? error.data.error : null;
+    // The node refused before relinking. Keep ordinary continuation available even during an inventory outage.
+    if (reason === 'account_inventory_unavailable') { deps.refused(); throw new SsoConnectionError('inventory'); }
     if (record(error) && typeof error.status === 'number' && error.status >= 400 && error.status < 500) {
       deps.refused();
-      if (error.status === 409) throw new SsoConnectionError('changed');
+      if (reason === 'connection_changed') throw new SsoConnectionError('changed');
+      if (reason === 'account_has_resources') throw new SsoConnectionError('resources');
       throw error;
     }
     // A lost reply can still have installed the session cookie. Only a read may follow it.

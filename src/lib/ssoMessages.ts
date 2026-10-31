@@ -6,6 +6,8 @@ export function ssoRefusalMessage(e: NodeCallError): string {
     case 'account_suspended': return 'this account is suspended by its organization';
     case 'legacy_conflict': return 'that ainize.ai account is already connected to another AIN account';
     case 'already_linked': return 'this AIN account already has its own ainize.ai account';
+    case 'account_has_resources': return 'this AIN account already has work, access or recovery history — continue without connecting to keep using it';
+    case 'account_inventory_unavailable': return 'could not check the existing account data — continue without connecting, or try again later';
     case 'wrong_issuer': case 'sso_disabled': return 'AIN sign-in is not set up on this node';
     case 'unreachable': return 'the node is not answering — try again';
     default: return 'AIN sign-in failed';

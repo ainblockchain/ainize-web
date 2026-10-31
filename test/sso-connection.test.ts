@@ -57,7 +57,7 @@ test('mismatched acknowledgements never become success even if a cached account 
 test('explicit refusal enables review again, whereas read failure after a write remains unconfirmed', async () => {
   const r = review(); let refused = 0;
   await assert.rejects(connectReviewedAccount(r, 'legacy', node, { current: () => true, read: async () => ({ connectionReview: r }), attempting() {}, refused: () => { refused++; },
-    write: async () => { throw { status: 409 }; }, session: async () => assert.fail('refused'),
+    write: async () => { throw { status: 409, data: { error: 'connection_changed' } }; }, session: async () => assert.fail('refused'),
   }), code('changed')); assert.equal(refused, 1);
   await assert.rejects(connectReviewedAccount(r, 'legacy', node, { current: () => true, read: async () => ({ connectionReview: r }), attempting() {}, refused: () => assert.fail('uncertain'),
     write: async () => receipt(r), session: async () => { throw new Error('offline'); },
@@ -81,4 +81,16 @@ test('continue without a new link still requires the selected AIN account, inclu
   assert.ok(connectionSessionMatches({ address: node, sso: { sub: r.subject, principal: 'sso:' + r.subject } }, r, 'new', node));
   assert.ok(connectionSessionMatches(session(r), r, 'new', node));
   assert.equal(connectionSessionMatches({ address: node, sso: { sub: 'another', principal: 'sso:' + r.subject } }, r, 'new', node), false);
+});
+
+
+test('existing work and an unreadable inventory are explicit refusals with a usable ordinary-login path', async () => {
+  const r = review();
+  for (const [reason, expected] of [['account_has_resources', 'resources'], ['account_inventory_unavailable', 'inventory']]) {
+    let refused = 0;
+    await assert.rejects(connectReviewedAccount(r, 'legacy', node, { current: () => true, read: async () => ({ connectionReview: r }), attempting() {}, refused: () => { refused++; },
+      write: async () => { throw { status: reason === 'account_has_resources' ? 409 : 502, data: { error: reason } }; }, session: async () => assert.fail('explicit pre-link refusal'),
+    }), code(expected));
+    assert.equal(refused, 1, 'clear the uncertain-attempt state so ordinary continuation is available');
+  }
 });

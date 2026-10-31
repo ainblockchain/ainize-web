@@ -1302,6 +1302,8 @@ export const operatorTeach: Dict = {
   'op.sign.sso.connect.new': { ko: '연결하지 않고 계속', en: 'Continue without connecting' },
   'op.sign.sso.connect.busy': { ko: '처리 중…', en: 'Working…' },
   'op.sign.sso.connect.changed': { ko: '로그인 요청이나 연결할 계정이 바뀌었습니다. 계정 새로고침 후 다시 확인하세요.', en: 'The sign-in request or account changed. Refresh the accounts and review them again.' },
+  'op.sign.sso.connect.resources': { ko: '이 AIN 계정에 기존 작업이나 권한·복구 기록이 있습니다. 이를 유지하려면 ‘연결하지 않고 계속’을 선택하세요. 계정은 자동으로 합쳐지지 않습니다.', en: 'This AIN account already has work, access or recovery history. Choose “Continue without connecting” to keep using it. Accounts are not merged automatically.' },
+  'op.sign.sso.connect.inventory': { ko: '기존 계정의 작업을 확인하지 못해 연결하지 않았습니다. ‘연결하지 않고 계속’을 선택하거나 나중에 다시 시도하세요.', en: 'The accounts were not linked because existing work could not be checked. Continue without connecting, or try again later.' },
   'op.sign.sso.connect.unconfirmed': { ko: '연결 결과를 확인하지 못했습니다. 다시 연결을 요청하지 않고 현재 로그인 상태를 확인할 수 있습니다.', en: 'Could not confirm the connection. Check the current sign-in state without submitting another connection.' },
   'op.sign.sso.connect.unavailable': { ko: '연결할 계정을 확인할 수 없습니다. 계정을 새로고침하세요.', en: 'Could not verify the accounts to connect. Refresh the accounts.' },
   'op.sign.sso.connect.node_unavailable': { ko: '로그인 서버를 확인하지 못했습니다. 계정 새로고침으로 다시 확인하세요.', en: 'Could not verify the sign-in server. Refresh accounts to try again.' },
