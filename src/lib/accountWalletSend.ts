@@ -5,9 +5,12 @@ export interface WalletSendReceipt {
   currency: 'AIN'; tx_hash: string; state: 'prepared' | 'submitted' | 'confirmed' | 'rejected' | 'cancelled'; created_at: number; updated_at: number;
 }
 export interface WalletSendStatus { version: 1; context: WalletSendContext; operation: WalletSendReceipt | null; read_error: string | null }
+export interface WalletSendHistory { version: 1; context: WalletSendContext; cursor: string | null; items: WalletSendReceipt[]; next_cursor: string | null }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
 export const sendAddress = (v: unknown): v is string => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
 const id = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{32}$/.test(v);
+export const walletSendRequestId = id;
+export const walletSendHistoryCursor = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{1,512}$/.test(v);
 export const walletSendContextKey = (c: WalletSendContext) => JSON.stringify([c.node.toLowerCase(), c.rpc_url, c.chain_id, c.gas_price]);
 const contextValid = (v: unknown): v is WalletSendContext => {
   if (!object(v) || !sendAddress(v.node) || !Number.isSafeInteger(v.chain_id) || v.chain_id < 0 || !Number.isFinite(v.gas_price) || v.gas_price < 0) return false;
@@ -41,6 +44,18 @@ export function readWalletSend(raw: unknown, expected: WalletSendContext): Walle
     || !Number.isSafeInteger(op.created_at) || op.created_at < 0 || !Number.isSafeInteger(op.updated_at) || op.updated_at < op.created_at
     || 'signature' in op || 'tx_body' in op)) return null;
   return raw as WalletSendStatus;
+}
+export function readWalletSendHistory(raw: unknown, expected: WalletSendContext, cursor: string | null, limit = 20): WalletSendHistory | null {
+  if (!object(raw) || raw.version !== 1 || !contextValid(raw.context) || walletSendContextKey(raw.context) !== walletSendContextKey(expected)
+    || raw.cursor !== cursor || !Array.isArray(raw.items) || raw.items.length > limit
+    || raw.next_cursor !== null && (!walletSendHistoryCursor(raw.next_cursor) || raw.next_cursor === cursor || raw.items.length !== limit)) return null;
+  const ids = new Set<string>(); let previous: WalletSendReceipt | null = null;
+  for (const op of raw.items) {
+    if (!op || !readWalletSend({ version: 1, context: raw.context, operation: op, read_error: null }, expected)
+      || ids.has(op.id) || previous && (op.created_at > previous.created_at || op.created_at === previous.created_at && op.id >= previous.id)) return null;
+    ids.add(op.id); previous = op;
+  }
+  return raw as WalletSendHistory;
 }
 export type WalletSendAction = { kind: 'prepare'; request_id: string; to: string; amount: string } | { kind: 'submit' | 'cancel'; operation: WalletSendReceipt };
 const receiptKey = (op: WalletSendReceipt) => JSON.stringify([op.id, walletSendContextKey(op.context), op.actor.toLowerCase(), op.to.toLowerCase(), op.amount, op.tx_hash, op.state, op.created_at, op.updated_at]);

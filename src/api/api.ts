@@ -86,7 +86,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org', 'Project'],
+  tagTypes: ['WalletSends', 'WalletSendHistory', 'WalletBalance', 'Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org', 'Project'],
   endpoints: (b) => ({
     info: b.query<InfoResponse, { identity: string } | void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
@@ -495,7 +495,7 @@ export const api = createApi({
     // operator
     myPatches: b.query<{ items: CatalogEntry[] }, { identity: string } | void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
     myPurchases: b.query<{ items: PurchaseRow[] }, { identity: string } | void>({ query: () => 'api/me/purchases', providesTags: ['Me', 'Catalog'] }),
-    wallet: b.query<WalletResponse, { identity: string } | void>({ query: () => 'api/me/wallet', providesTags: ['Me', 'Ledger'] }),
+    wallet: b.query<WalletResponse, { identity: string } | void>({ query: () => 'api/me/wallet', providesTags: ['Me', 'Ledger', 'WalletBalance'] }),
     createPatch: b.mutation<{ anchor: PatchAnchor }, FormData>({ query: (body) => ({ url: 'api/patches', method: 'POST', body }), invalidatesTags: ['Catalog', 'Me'] }),
     updatePatch: b.mutation<{ anchor: PatchAnchor }, { id: string; patch: Partial<PatchAnchor> }>({ query: ({ id, patch }) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'PATCH', body: patch }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me'] }),
     deletePatch: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Catalog', 'Me'] }),
@@ -513,13 +513,19 @@ export const api = createApi({
       invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     /** Item 320: money that has been earned can leave the node — the only outward money verb there is. */
     walletSendStatus: b.query<unknown, { identity: string; context: import('../lib/accountWalletSend').WalletSendContext }>({
-      query: () => 'api/me/wallet/send-requests', keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger'],
+      query: () => 'api/me/wallet/send-requests', keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger', 'WalletSends'],
+    }),
+    walletSendHistory: b.query<unknown, { identity: string; context: import('../lib/accountWalletSend').WalletSendContext; cursor: string | null }>({
+      query: ({ cursor }) => ({ url: 'api/me/wallet/send-history', params: { limit: 20, ...(cursor ? { cursor } : {}) } }), keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger', 'WalletSendHistory'],
+    }),
+    walletSendRequest: b.query<unknown, { identity: string; context: import('../lib/accountWalletSend').WalletSendContext; id: string }>({
+      query: ({ id }) => `api/me/wallet/send-requests/${encodeURIComponent(id)}`, keepUnusedDataFor: 0, providesTags: ['Me', 'Ledger', 'WalletSends'],
     }),
     prepareWalletSend: b.mutation<unknown, { request_id: string; expected: import('../lib/accountWalletSend').WalletSendContext; to: string; amount: string }>({
-      query: body => ({ url: 'api/me/wallet/send-requests', method: 'POST', body }),
+      query: body => ({ url: 'api/me/wallet/send-requests', method: 'POST', body }), invalidatesTags: ['WalletSends', 'WalletSendHistory'],
     }),
-    submitWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/submit`, method: 'POST' }), invalidatesTags: ['Me', 'Ledger', 'Events'] }),
-    cancelWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/cancel`, method: 'POST' }) }),
+    submitWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/submit`, method: 'POST' }), invalidatesTags: ['Me', 'Ledger', 'Events', 'WalletSends', 'WalletSendHistory'] }),
+    cancelWalletSend: b.mutation<unknown, string>({ query: id => ({ url: `api/me/wallet/send-requests/${encodeURIComponent(id)}/cancel`, method: 'POST' }), invalidatesTags: ['WalletSends', 'WalletSendHistory'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     /** Item 270 / design §12.4 — `bundle` buys the bases this knowledge needs underneath it too, deepest first,
      * one settlement each. */
@@ -715,7 +721,7 @@ export const {
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useApproveAccountDeviceMutation, useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
-  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendStatusQuery, usePrepareWalletSendMutation, useSubmitWalletSendMutation, useCancelWalletSendMutation,
+  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendStatusQuery, useWalletSendHistoryQuery, useWalletSendRequestQuery, usePrepareWalletSendMutation, useSubmitWalletSendMutation, useCancelWalletSendMutation,
   useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useChainSetupStatusQuery, useReviewedChainSetupMutation, useDriveActionMutation,

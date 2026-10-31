@@ -1,3 +1,4 @@
+import { AccountWalletSendHistory, WalletSendHistoryList, WalletSendHistoryDetail } from '../src/components/operator/AccountWalletSendHistory';
 import ProjectNewPage, { ProjectCreationResult, ProjectCreationUnknown } from '../src/screens/ProjectNewPage';
 import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
 import { AgentArchivePanel, agentArchiveScope } from '../src/screens/agent/AgentArchivePanel';
@@ -4018,4 +4019,57 @@ test('send confirmation belongs to the reviewing operator, not the node wallet a
     assert.equal(/disabled/.test(button), actor !== subject);
     if (actor !== subject) assert.match(html, /Another operator prepared this transfer/);
   }
+});
+
+const transferHistoryFixture = (items: unknown[] = [savedSendOperation('cancelled')], cursor: string | null = null): Fixture => ({ name: 'walletSendHistory', arg: { identity: accountIdentity, context: sendContextFixture, cursor }, value: { version: 1, context: sendContextFixture, cursor, items, next_cursor: null } });
+const TransferHistory = () => createElement(WalletSendHistoryList, { context: sendContextFixture, cursor: null });
+const transferRequestFixture = (state = 'cancelled', id = 'd'.repeat(32)): Fixture => ({ name: 'walletSendRequest', arg: { identity: accountIdentity, context: sendContextFixture, id }, value: { ...sendStatusFixture, operation: { ...savedSendOperation(state), id } } });
+const TransferDetail = () => createElement(WalletSendHistoryDetail, { context: sendContextFixture, id: 'd'.repeat(32) });
+test('manual transfer history shows exact amounts and saved states with links to the exact request', () => {
+  const html = render(TransferHistory, [...chainAccountFixtures(), transferHistoryFixture()], '/account?keep=1&sendHistory=1');
+  assert.match(html, /send-history-list/); assert.match(html, /Saved transfer states/); assert.match(html, /0.125 AIN/); assert.match(html, /Preparation cancelled/);
+  const target = [...html.matchAll(/href="([^"]+)"/g)].map(m => new URL(m[1].replaceAll('&amp;', '&'), 'https://fixture.invalid')).find(u => u.searchParams.has('sendRequest'))!;
+  assert.equal(target.pathname, '/account'); assert.equal(target.searchParams.get('sendRequest'), 'd'.repeat(32)); assert.equal(target.searchParams.get('keep'), '1'); assert.equal(target.hash, '#wallet-send-history');
+  assert.doesNotMatch(html, /send-go|send-review|Send reviewed amount/);
+});
+test('history failures, wrong cursors, foreign nodes and former-account caches cannot become empty history', () => {
+  for (const fixture of [{ ...transferHistoryFixture(), status: 'rejected' as const }, { ...transferHistoryFixture(), arg: { identity: 'former-owner', context: sendContextFixture, cursor: null } }, { ...transferHistoryFixture(), value: { ...(transferHistoryFixture().value as any), cursor: 'wrong' } }, { ...transferHistoryFixture(), value: { ...(transferHistoryFixture().value as any), context: { ...sendContextFixture, node: recipientAddress } } }]) {
+    const html = render(TransferHistory, [...chainAccountFixtures(), fixture], '/account?sendHistory=1');
+    assert.doesNotMatch(html, /send-history-empty|send-history-list|0.125 AIN/); assert.match(html, /query-retry|aria-label="loading"/);
+  }
+  const empty = render(TransferHistory, [...chainAccountFixtures(), transferHistoryFixture([])], '/account');
+  assert.match(empty, /No saved transfers yet/);
+});
+test('exact transfer detail is read-only and preserves the list cursor when returning', () => {
+  const html = render(TransferDetail, [...chainAccountFixtures(), transferRequestFixture('confirmed')], '/account?sendHistory=1&sendCursor=older_page&sendRequest=' + 'd'.repeat(32));
+  assert.match(html, /send-confirmed/); assert.match(html, /view is read-only/); assert.match(html, /Check transfer status/);
+  const back = [...html.matchAll(/href="([^"]+)"/g)].map(m => new URL(m[1].replaceAll('&amp;', '&'), 'https://fixture.invalid')).find(u => u.searchParams.get('sendCursor') === 'older_page')!;
+  assert.equal(back.searchParams.get('sendHistory'), '1'); assert.equal(back.searchParams.has('sendRequest'), false);
+  assert.doesNotMatch(html, /send-go|send-review|Cancel prepared transfer/);
+});
+test('missing or mismatched exact receipts never substitute the latest transfer', () => {
+  for (const fixture of [{ ...transferRequestFixture(), status: 'rejected' as const, errorStatus: 404 }, { ...transferRequestFixture(), value: { ...sendStatusFixture, operation: { ...savedSendOperation('confirmed'), id: 'f'.repeat(32) } } }, { ...transferRequestFixture(), value: { ...sendStatusFixture, operation: null } }]) {
+    const html = render(TransferDetail, [...chainAccountFixtures(), fixture], '/account?sendRequest=' + 'd'.repeat(32));
+    assert.doesNotMatch(html, /send-confirmed|send-cancelled|0.125 AIN/); assert.match(html, /not found on the current node|query-retry/);
+  }
+});
+test('history opens from a retained URL and rejects duplicate selected IDs without fetching arbitrary receipts', () => {
+  const History = () => createElement(AccountWalletSendHistory, { context: sendContextFixture });
+  const open = render(History, [...chainAccountFixtures(), transferRequestFixture()], '/account?sendRequest=' + 'd'.repeat(32));
+  assert.match(open, /send-history-detail/); assert.match(open, /aria-expanded="true"/);
+  for (const url of ['/account?sendRequest=bad', '/account?sendRequest=' + 'd'.repeat(32) + '&sendRequest=' + 'f'.repeat(32), '/account?sendCursor=bad%2Fcursor']) {
+    const html = render(History, chainAccountFixtures(), url); assert.match(html, /history link is invalid/); assert.doesNotMatch(html, /send-history-detail|send-history-list/);
+  }
+});
+test('history paging keeps the current account URL options and distinguishes the end from an empty wallet', () => {
+  const cursor = 'current_page', next = 'older_page';
+  const items = Array.from({ length: 20 }, (_, i) => ({ ...savedSendOperation('confirmed'), id: i.toString(16).padStart(32, '0'), created_at: 100 - i, updated_at: 101 }));
+  const fixture = transferHistoryFixture(items, cursor); (fixture.value as any).next_cursor = next;
+  const Page = () => createElement(WalletSendHistoryList, { context: sendContextFixture, cursor });
+  const html = render(Page, [...chainAccountFixtures(), fixture], '/account?keep=1&sendHistory=1&sendCursor=' + cursor);
+  const urls = [...html.matchAll(/href="([^"]+)"/g)].map(m => new URL(m[1].replaceAll('&amp;', '&'), 'https://fixture.invalid'));
+  const older = urls.find(u => u.searchParams.get('sendCursor') === next)!; assert.ok(older); assert.equal(older.searchParams.get('keep'), '1'); assert.equal(older.searchParams.has('sendRequest'), false);
+  const latest = urls.find(u => !u.searchParams.has('sendCursor') && !u.searchParams.has('sendRequest'))!; assert.ok(latest); assert.equal(latest.searchParams.get('sendHistory'), '1');
+  const end = render(Page, [...chainAccountFixtures(), transferHistoryFixture([], cursor)], '/account?sendCursor=' + cursor);
+  assert.match(end, /No older transfers/); assert.doesNotMatch(end, /No saved transfers yet/);
 });

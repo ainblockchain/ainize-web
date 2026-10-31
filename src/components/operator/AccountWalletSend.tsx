@@ -1,23 +1,28 @@
+import { AccountWalletSendHistory } from './AccountWalletSendHistory';
+import { WalletSendResult } from './WalletSendResult';
 import { useEffect, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import type { AppDispatch } from '@/store';
+import { syncWalletSendReceipt } from '@/lib/walletSendCache';
 import type { InfoResponse } from '@/api/types';
 import { useWalletSendStatusQuery, usePrepareWalletSendMutation, useSubmitWalletSendMutation, useCancelWalletSendMutation } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useActiveView } from '@/hooks/useActiveView';
 import { useT } from '@/i18n';
 import { createNodeActionTask } from '@/lib/accountNodeActions';
-import { actOnWalletSend, readWalletSend, sendAddress, walletSendAmount, walletSendContext, walletSendContextKey, walletSendPending, WalletSendActionError, type WalletSendAction, type WalletSendContext, type WalletSendStatus } from '@/lib/accountWalletSend';
+import { actOnWalletSend, readWalletSend, sendAddress, walletSendAmount, walletSendContext, walletSendContextKey, walletSendPending, WalletSendActionError, type WalletSendAction, type WalletSendContext } from '@/lib/accountWalletSend';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
-import { CenterProgress, Mono } from '@/components/ui/Misc';
+import { CenterProgress } from '@/components/ui/Misc';
 import { Muted, QueryError, Row } from './common';
 
 export function AccountWalletSend({ info, canPrepare }: { info: InfoResponse; canPrepare: boolean }) {
   const context = walletSendContext(info), auth = useAuth();
   if (!auth.isOwner || !context) return null;
-  return <Send key={auth.cacheIdentity + walletSendContextKey(context)} context={context} canPrepare={canPrepare} />;
+  return <div key={auth.cacheIdentity + walletSendContextKey(context)}><Send context={context} canPrepare={canPrepare} /><AccountWalletSendHistory context={context} /></div>;
 }
 function Send({ context, canPrepare }: { context: WalletSendContext; canPrepare: boolean }) {
-  const auth = useAuth(), active = useActiveView(), { t } = useT();
+  const auth = useAuth(), active = useActiveView(), { t } = useT(), dispatch = useDispatch<AppDispatch>();
   const query = useWalletSendStatusQuery({ identity: auth.cacheIdentity, context });
   const value = !query.isError ? readWalletSend(query.currentData, context) : null;
   const [prepare] = usePrepareWalletSendMutation(), [submit] = useSubmitWalletSendMutation(), [cancel] = useCancelWalletSendMutation();
@@ -35,7 +40,7 @@ function Send({ context, canPrepare }: { context: WalletSendContext; canPrepare:
     } catch (e) { if (current()) setError(t(`op.account.send.error.${e instanceof WalletSendActionError ? e.code : 'read'}`)); }
     finally { if (current()) setBusy(false); }
   };
-  const refresh = async () => { try { const result = readWalletSend(await query.refetch().unwrap(), context); if (current() && result) setError(null); } catch { /* recovery shown by query */ } };
+  const refresh = async () => { try { const result = readWalletSend(await query.refetch().unwrap(), context); if (current() && result) { setError(null); syncWalletSendReceipt(dispatch, { identity: auth.cacheIdentity, context }, result, value); } } catch { /* recovery shown by query */ } };
   if (!value) return query.isFetching ? <CenterProgress /> : <QueryError error={query.error} what={t('op.account.send.title')} onRetry={() => void refresh()} retrying={query.isFetching} />;
   const op = value.operation, canonical = walletSendAmount(amount), disabled = busy || query.isFetching;
   return <section style={{ marginTop: 16, minWidth: 0, overflowWrap: 'anywhere' }} data-testid="wallet-send">
@@ -58,21 +63,4 @@ function Send({ context, canPrepare }: { context: WalletSendContext; canPrepare:
       <Button size="small" variant="text" disabled={disabled} onClick={() => void refresh()}>{t('op.account.send.refresh')}</Button>
     </Row>
   </section>;
-}
-export function WalletSendResult({ value }: { value: WalletSendStatus }) {
-  const { t } = useT(), op = value.operation;
-  if (!op) return null;
-  return <div data-testid={`send-${op.state}`}>
-    <Alert $tone={op.state === 'confirmed' ? 'success' : 'warning'} role="status">{t(`op.account.send.state.${op.state}`)}</Alert>
-    <div style={{ marginTop: 6 }}>{t('op.account.send.amount', { currency: 'AIN' })}: <strong>{op.amount} AIN</strong></div>
-    <div>{t('op.account.send.to')}: <Mono>{op.to}</Mono></div>
-    {op.state === 'prepared' && <><div>{t('op.account.send.from')}: <Mono>{op.context.node}</Mono></div><div>Chain ID {op.context.chain_id} · <Mono>{op.context.rpc_url}</Mono></div><Muted>{t('op.account.send.desc')} {t('op.account.send.fees')}</Muted></>}
-    <details style={{ marginTop: 6 }}><summary>{t('op.account.send.details')}</summary>
-      <div>{t('op.account.send.from')}: <Mono>{op.context.node}</Mono></div>
-      <div>Chain ID {op.context.chain_id} · <Mono>{op.context.rpc_url}</Mono></div>
-      <div>{t('op.account.send.request')}: <Mono>{op.id}</Mono></div>
-      <div>{t('op.account.send.hash')}: <Mono>{op.tx_hash}</Mono></div>
-    </details>
-    {value.read_error && <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.send.error.unconfirmed')}</Muted>}
-  </div>;
 }
