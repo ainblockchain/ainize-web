@@ -513,6 +513,30 @@ test('organization request and invite failures cannot claim there are no pending
   assert.doesNotMatch(malformed, /No pending requests|No open invite/);
 });
 
+test('open invitations exclude used and expired links, and legacy labels never enable a broken revoke button', () => {
+  const now = Date.now();
+  const invite = { id: `inv_${'a'.repeat(64)}`, token_prefix: 'active', role: 'read', email: null, created_at: now - 1000, expires_at: now + 60_000, used_by: null };
+  const fixture = (invites: unknown[]) => [{ name: 'orgInvites', arg: orgScope, value: { invites } }, { name: 'orgRequests', arg: orgScope, value: { requests: [] } }];
+  const active = settings('members', fixture([invite]));
+  assert.match(active, /active…/);
+  assert.match(active, /<button(?![^>]*disabled)[^>]*>Revoke<\/button>/);
+  const old = settings('members', fixture([{ ...invite, id: undefined }]));
+  assert.match(old, /<button[^>]*disabled=""[^>]*>Revoke<\/button>/);
+  assert.match(old, /Refresh invitations/);
+  const closed = settings('members', fixture([{ ...invite, used_by: 'sso:used' }, { ...invite, id: `inv_${'b'.repeat(64)}`, token_prefix: 'expire', expires_at: now - 1 }]));
+  assert.match(closed, /No open invites/);
+  assert.doesNotMatch(closed, /active…|expire…|>Revoke<\/button>/);
+});
+
+test('invalid invitation roles or expiry show recovery instead of guessed permissions or an empty list', () => {
+  const invite = { id: `inv_${'a'.repeat(64)}`, token_prefix: 'active', role: 'read', created_at: 1, expires_at: Date.now() + 60_000, used_by: null };
+  for (const patch of [{ role: 'unknown' }, { expires_at: null }, { used_by: 123 }]) {
+    const html = settings('members', [{ name: 'orgInvites', arg: orgScope, value: { invites: [{ ...invite, ...patch }] } }, { name: 'orgRequests', arg: orgScope, value: { requests: [] } }]);
+    assert.match(html, /data-testid="org-read-error"/);
+    assert.doesNotMatch(html, /No open invites|active…|>Revoke<\/button>/);
+  }
+});
+
 test('writers manage the full group endpoint even when the profile only includes their own groups', () => {
   const group = { id: 'another-group', name: 'Managed group outside my memberships', members: [], agents: [] };
   const html = render(OrgSettingsPage, [...appAccount,

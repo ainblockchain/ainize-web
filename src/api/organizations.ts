@@ -177,12 +177,14 @@ export function parseOrgList(raw: unknown): OrgListView {
   };
 }
 
-export interface OrgInviteView { token: string | null; token_prefix: string; role: OrgRole; email: string | null; created_by: string; created_at: number | null; expires_at: number | null; used_by: string | null; url: string | null }
+export interface OrgInviteView { id: string | null; token: string | null; token_prefix: string; role: OrgRole; email: string | null; created_by: string; created_at: number | null; expires_at: number | null; used_by: string | null; url: string | null }
 export function parseOrgInvite(raw: unknown): OrgInviteView | null {
   const r = obj((raw as { invite?: unknown } | null | undefined)?.invite ?? raw);
-  if (!r || !str(r.token_prefix)) return null;
+  if (!r || !str(r.token_prefix) || !isOrgRole(r.role)) return null;
+  if (r.id != null && (typeof r.id !== 'string' || !/^inv_[a-f0-9]{64}$/.test(r.id))) return null;
+  if (['email', 'used_by', 'token', 'url'].some(key => r[key] != null && typeof r[key] !== 'string')) return null;
   return {
-    token: str(r.token), token_prefix: str(r.token_prefix) as string, role: isOrgRole(r.role) ? r.role : 'read', email: str(r.email), created_by: str(r.created_by) ?? '',
+    id: str(r.id), token: str(r.token), token_prefix: str(r.token_prefix) as string, role: r.role, email: str(r.email), created_by: str(r.created_by) ?? '',
     created_at: num(r.created_at), expires_at: num(r.expires_at), used_by: str(r.used_by), url: str(r.url),
   };
 }

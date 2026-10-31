@@ -12,7 +12,7 @@
  * the node would not — the last-admin rule, the domain rule, the roles are the node's, and refusals are shown as
  * they come back.
  */
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
@@ -21,8 +21,8 @@ import {
   useRevokeOrgInviteMutation, useSetOrgMemberRoleMutation, useUpdateOrgGroupMutation, useUpdateOrgMutation, useOrgGroupsQuery,
 } from '@/api/api';
 import {
-  ORG_ROLES, emailDomain, orgApiErrorOf, orgSpendCap, parseOrgAudit, parseOrgBilling, parseOrgInvite, parseOrgInvites, parseOrgProfile, parseOrgRequests, parseOrgSecurity, roleAtLeast,
-  type OrgGroupView, type OrgProfile, type OrgRole,
+  ORG_ROLES, emailDomain, orgApiErrorOf, orgSpendCap, parseOrgAudit, parseOrgBilling, parseOrgInvites, parseOrgProfile, parseOrgRequests, parseOrgSecurity, roleAtLeast,
+  type OrgGroupView, type OrgProfile, type OrgRole, type OrgInviteView,
 } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -33,6 +33,7 @@ import { useTitle } from '@/utils/useTitle';
 import { OrgReadStatus } from './OrgReadStatus';
 import { useActiveView } from '@/hooks/useActiveView';
 import { orgGroups, sameOrgGroup, missingGroupSelections, saveSelectedOrgGroup, confirmGroupDeletion, OrgGroupError } from '@/lib/orgGroups';
+import { createdOrgInvite, listedOrgInvite, confirmedInviteRevocation, openOrgInvite } from '@/lib/orgInvites';
 
 const Panel = styled.section`
   display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; background: #fff; margin-top: 16px;
@@ -242,26 +243,44 @@ function MembersTab({ org }: { org: OrgProfile }) {
   const [makeInvite, inviteState] = useCreateOrgInviteMutation();
   const [revoke] = useRevokeOrgInviteMutation();
   const requestsQuery = useOrgRequestsQuery({ id: org.id, identity: cacheIdentity });
-  const invitesQuery = useOrgInvitesQuery({ id: org.id, identity: cacheIdentity });
+  const invitesQuery = useOrgInvitesQuery({ id: org.id, identity: cacheIdentity }, { refetchOnMountOrArgChange: true, pollingInterval: 30_000 });
   const parsedRequests = parseOrgRequests(requestsQuery.currentData);
   const parsedInvites = parseOrgInvites(invitesQuery.currentData);
   const requestsValid = completeList(requestsQuery.currentData, 'requests', parsedRequests);
-  const invitesValid = completeList(invitesQuery.currentData, 'invites', parsedInvites);
+  const invitesValid = completeList(invitesQuery.currentData, 'invites', parsedInvites)
+    && parsedInvites.every(i => i.created_at !== null && i.expires_at !== null && i.expires_at > i.created_at)
+    && new Set(parsedInvites.map(i => i.id ?? i.token_prefix)).size === parsedInvites.length;
   const requests = requestsQuery.isError || !requestsValid ? [] : parsedRequests;
-  const invites = invitesQuery.isError || !invitesValid ? [] : parsedInvites;
+  const [now, setNow] = useState(Date.now);
+  const invites = invitesQuery.isError || !invitesValid ? [] : parsedInvites.filter(i => openOrgInvite(i, now));
   const [q, setQ] = useState('');
   const [newPrincipal, setNewPrincipal] = useState('');
   const [newRole, setNewRole] = useState<OrgRole>('read');
   const [inviteRole, setInviteRole] = useState<OrgRole>('read');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteDays, setInviteDays] = useState(7);
-  const [freshInvite, setFreshInvite] = useState<{ url: string; prefix: string } | null>(null);
+  const [freshInvite, setFreshInvite] = useState<OrgInviteView | null>(null);
   const [approveRole, setApproveRole] = useState<Record<string, OrgRole>>({});
   const needle = q.trim().toLowerCase();
   const members = org.members.filter((m) => !needle || [m.name, m.email, m.principal].some((s) => (s ?? '').toLowerCase().includes(needle)));
+  const copyableInvite = !invitesQuery.isError && !invitesQuery.isFetching && invitesValid && listedOrgInvite(freshInvite, parsedInvites, now);
+  useEffect(() => {
+    const next = Math.min(...[...parsedInvites, ...(freshInvite ? [freshInvite] : [])].map(i => i.expires_at ?? 0).filter(expiry => expiry > now));
+    if (!Number.isFinite(next)) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(2_147_483_647, Math.max(0, next - Date.now() + 1)));
+    return () => clearTimeout(timer);
+  }, [invitesQuery.currentData, freshInvite, now]);
+  const createInvitation = () => run(async () => {
+    setFreshInvite(null);
+    const expected = { role: inviteRole, email: inviteEmail.trim() || null, ttlHours: inviteDays * 24 };
+    const result = await makeInvite({ id: org.id, ...expected }).unwrap();
+    const made = createdOrgInvite(result, expected, Date.now());
+    if (!made) throw new Error(t('orgSettings.invites.missing_url'));
+    return made;
+  }, setFreshInvite);
 
   return (
-    <Controls disabled={action.pending}>
+    <Controls disabled={action.pending} onChange={action.reset}>
       <Panel data-testid="org-settings-members">
         <Description style={{ margin: 0 }}>{t('orgSettings.members.lede')}</Description>
         <Input value={q} placeholder={t('orgSettings.members.search')} onChange={(e) => setQ(e.target.value)} data-testid="org-members-search" />
@@ -309,25 +328,27 @@ function MembersTab({ org }: { org: OrgProfile }) {
           <Select value={String(inviteDays)} onChange={(e) => setInviteDays(Number(e.target.value))} style={{ width: 'auto', padding: '4px 8px' }}>
             {[1, 7, 30].map((d) => <option key={d} value={d}>{t('orgSettings.invites.ttl_days', { n: d })}</option>)}
           </Select>
-          <Button size="small" variant="contained" loading={inviteState.isLoading} data-testid="org-invite-make" onClick={() => void run(() => makeInvite({ id: org.id, role: inviteRole, email: inviteEmail.trim() || null, ttlHours: inviteDays * 24 }).unwrap(), (result) => {
-            const made = parseOrgInvite(result);
-            if (!made?.url) throw new Error(t('orgSettings.invites.missing_url'));
-            setFreshInvite({ url: made.url, prefix: made.token_prefix });
-          })}>{t('orgSettings.invites.make')}</Button>
+          <Button size="small" variant="contained" loading={inviteState.isLoading} data-testid="org-invite-make" onClick={() => void createInvitation()}>{t('orgSettings.invites.make')}</Button>
         </Row>
-        {freshInvite && (
+        {freshInvite?.url && copyableInvite ? (
           <Alert $tone="success" data-testid="org-invite-url">
+            <Row><Chip>{t(`org.role.${freshInvite.role}`)}</Chip>{freshInvite.email && <span>{freshInvite.email}</span>}<span>{t('orgSettings.invites.expires', { date: when(freshInvite.expires_at) })}</span></Row>
             {t('orgSettings.invites.new')} <Mono>{freshInvite.url}</Mono> <CopyButton text={freshInvite.url} label={t('orgSettings.invites.copy')} />
           </Alert>
-        )}
+        ) : freshInvite && <Alert $tone="info" role="status">{t(invitesQuery.isFetching ? 'orgSettings.invites.checking' : 'orgSettings.invites.unavailable')}</Alert>}
         <SubTitle $mt={4} style={{ fontSize: 14 }}>{t('orgSettings.invites.open')}</SubTitle>
+        <Row><Button type="button" size="small" variant="text" disabled={invitesQuery.isFetching} onClick={() => void invitesQuery.refetch()}>{t('orgSettings.invites.refresh')}</Button></Row>
         <OrgReadStatus query={invitesQuery} valid={invitesValid} />
         {invitesValid && !invitesQuery.isError && invites.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.invites.empty')}</Description>}
         {invites.map((i) => (
-          <Row key={i.token_prefix}>
+          <Row key={i.id ?? i.token_prefix}>
             <Mono>{i.token_prefix}…</Mono><Chip>{t(`org.role.${i.role}`)}</Chip>{i.email && <span>{i.email}</span>}
             <span style={{ color: '#777', fontSize: 12 }}>{i.used_by ? t('orgSettings.invites.used') : t('orgSettings.invites.expires', { date: when(i.expires_at) })}</span>
-            {!i.used_by && <Button size="small" variant="text" color="secondary" onClick={() => void run(() => revoke({ id: org.id, token: i.token_prefix }).unwrap(), () => { if (freshInvite?.prefix === i.token_prefix) setFreshInvite(null); })}>{t('orgSettings.invites.revoke')}</Button>}
+            <Button size="small" variant="text" color="secondary" disabled={!i.id || invitesQuery.isFetching} onClick={() => { if (i.id) void run(async () => {
+              const result = await revoke({ id: org.id, token: i.id! }).unwrap();
+              if (!confirmedInviteRevocation(result, i.id!)) throw new Error(t('org.entry.unconfirmed'));
+            }, () => { if (freshInvite?.id === i.id) setFreshInvite(null); }); }}>{t('orgSettings.invites.revoke')}</Button>
+            {!i.id && <HelperText>{t('orgSettings.invites.no_revoke_id')}</HelperText>}
           </Row>
         ))}
       </Panel>
