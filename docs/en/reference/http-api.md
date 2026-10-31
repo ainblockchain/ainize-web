@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-324 operations on 269 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+325 operations on 270 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -362,7 +362,8 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/patches/{id}/check`](#get-apipatchesidcheck) | operator | Are the rows this knowledge was trained on the ones on the table right now? |
 | `POST` | [`/api/patches/{id}/forget`](#post-apipatchesidforget) | operator | Delete this node's copy of the knowledge file. NOT a takedown — the listing stays and the gateway keeps charging; POST /api/patches/{id}/retire is the takedown. 409 with `also_affects` when other items share the same file — repeat with `{"all_sharing": true}` to stop serving all of them |
 | `GET` | [`/api/ledger/inference`](#get-apiledgerinference) | operator | Read native inference batch submissions and local receipts |
-| `POST` | [`/api/branches`](#post-apibranches) | operator | Create a branch |
+| `POST` | [`/api/branches`](#post-apibranches) | operator | Create or replace an owned branch (legacy) |
+| `POST` | [`/api/branches/create`](#post-apibranchescreate) | operator | Create a new track without replacing an existing name |
 | `POST` | [`/api/branches/{name}/review`](#post-apibranchesnamereview) | operator | Review track spending and the model transition without executing it |
 | `POST` | [`/api/branches/{name}/subscribe`](#post-apibranchesnamesubscribe) | operator | Subscribe to a track: buy its current knowledge, load it, and keep it up to date |
 | `POST` | [`/api/branches/{name}/quote`](#post-apibranchesnamequote) | operator | What subscribing to a track would spend, item by item, before anything is spent |
@@ -7168,7 +7169,7 @@ Read-only operator journal, newest batches first. No submission, retry or flush 
 
 ### `POST /api/branches`
 
-Create a branch
+Create or replace an owned branch (legacy)
 
 **Auth** — operator
 
@@ -7186,6 +7187,29 @@ Create a branch
 | Code | Description | Body |
 |---|---|---|
 | `200` | branch | `object` |
+
+### `POST /api/branches/create`
+
+Create a new track without replacing an existing name
+
+Rejects every existing name, including own, hidden and archived tracks. Initial knowledge must still be VERIFIED. Same-name creation is serialized with track actions. Legacy POST /api/branches retains its update behavior.
+
+**Auth** — operator
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `name` | `string` | yes |
+| `description` | `string` |   |
+| `context` | `object` |   |
+| `patch_ids` | `string`[] |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | new branch | `object` |
 
 ### `POST /api/branches/{name}/review`
 

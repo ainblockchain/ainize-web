@@ -2,13 +2,17 @@ import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from 're
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddToBranchMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMeQuery, useMyPatchesQuery,
+  api, errorMessage, useAddToBranchMutation, useBranchesQuery, useCreateBranchMutation, useEventsQuery, useInfoQuery, useMeQuery, useMyPatchesQuery,
   useMyPurchasesQuery, useRuntimeQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { dashboardInventory, inventoryRows, paidSales, statusRank } from '@/lib/dashboardView';
 import { knowledgePath } from '@/lib/detailRoutes';
 import { trackBranches } from '@/lib/trackView';
+import { createNodeActionTask } from '@/lib/accountNodeActions';
+import { createTrack, trackCreationInput, TrackCreationError } from '@/lib/trackCreation';
+import { LoadKnowledgeError } from '@/lib/loadKnowledge';
+import { useActiveView } from '@/hooks/useActiveView';
 import { VerificationWork } from '@/components/operator/VerificationWork';
 import { logEvents } from '@/lib/logView';
 import { useAuth } from '@/auth/AuthContext';
@@ -89,7 +93,17 @@ export function DashboardContent() {
   const { t, term, help, tech } = useT();
   useTitle(t('op.dash.title'));
   const money = useMoney();
-  const { address, cacheIdentity, loading: authLoading } = useAuth();
+  const auth = useAuth();
+  const { address, cacheIdentity, loading: authLoading } = auth;
+  const active = useActiveView();
+  const [creationTask] = useState(createNodeActionTask);
+  useEffect(() => () => creationTask.abandon(), [creationTask]);
+  const [creationBusy, setCreationBusy] = useState(false);
+  const [creationError, setCreationError] = useState<string | null>(null);
+  const [createdName, setCreatedName] = useState<string | null>(null);
+  const [readBranchAccess] = api.useLazyMeQuery();
+  const [readBranches] = api.useLazyBranchesQuery();
+  const [readInventory] = api.useLazyMyPatchesQuery();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab: 'knowledge' | 'teaching' = params.get('tab') === 'teaching' ? 'teaching' : 'knowledge';
@@ -159,13 +173,29 @@ export function DashboardContent() {
 
   const onCreateBranch = async (e: FormEvent) => {
     e.preventDefault();
-    setActionError(null);
-    const context: Record<string, string> = {};
-    for (const c of ctx) if (c.k.trim()) context[c.k.trim()] = c.v.trim();
+    const current = () => active() && auth.isCurrentAccount();
+    if (creationTask.pending() || !current() || !auth.isOwner || !branchData || !inventory) return;
+    setCreationError(null); setCreatedName(null); setCreationBusy(true);
+    let stillCurrent = current;
     try {
-      await createBranch({ name: bName.trim(), description: bDesc.trim(), context, patch_ids: bPatches }).unwrap();
-      setBName(''); setBDesc(''); setBPatches([]); setCtx([{ k: 'jurisdiction', v: '' }]);
-    } catch (err) { setActionError(errorMessage(err)); }
+      const input = trackCreationInput(bName, bDesc, ctx, bPatches);
+      const name = await creationTask.run(current, async check => {
+        stillCurrent = check;
+        return createTrack(input, {
+          current: check, node: address, subject: auth.subject,
+          readAccess: () => readBranchAccess(undefined, false).unwrap(),
+          readBranches: () => readBranches({ identity: cacheIdentity }, false).unwrap(),
+          readInventory: () => readInventory({ identity: cacheIdentity }, false).unwrap(),
+          write: value => createBranch(value).unwrap(),
+        });
+      });
+      if (name && stillCurrent()) {
+        setCreatedName(name); setBName(''); setBDesc(''); setBPatches([]); setCtx([{ k: 'jurisdiction', v: '' }]);
+      }
+    } catch (err) {
+      if (stillCurrent()) setCreationError(err instanceof TrackCreationError ? t(`op.dash.branch.error.${err.code}`)
+        : err instanceof LoadKnowledgeError ? t(`detail.apply.error.${err.code}`) : errorMessage(err));
+    } finally { if (stillCurrent()) setCreationBusy(false); }
   };
   const onAddToBranch = async (e: FormEvent) => {
     e.preventDefault();
@@ -418,6 +448,9 @@ export function DashboardContent() {
       )}
 
       <MiniForm onSubmit={onCreateBranch}>
+        {creationError && <Alert $tone="error" role="alert">{creationError}</Alert>}
+        {createdName && <Alert $tone="success" role="status">{t('op.dash.branch.created', { name: createdName })}</Alert>}
+        <fieldset disabled={creationBusy || !auth.isOwner || !branchData || !inventory} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <strong style={{ fontSize: 14 }}>{t('op.dash.branch.create')}</strong>
         <TextField label={t('op.dash.branch.name')} placeholder="law/KR" value={bName} onChange={(e) => setBName(e.target.value)} required />
         <TextField label={t('op.dash.branch.desc')} placeholder={t('op.dash.branch.desc.ph')} value={bDesc} onChange={(e) => setBDesc(e.target.value)} />
@@ -441,7 +474,8 @@ export function DashboardContent() {
             ))}
           </Stack>
         )}
-        <div><Button type="submit" loading={createState.isLoading} loadingText={t('op.dash.branch.creating')}>{t('op.dash.branch.submit')}</Button></div>
+        <div><Button type="submit" loading={creationBusy || createState.isLoading} loadingText={t('op.dash.branch.creating')}>{t('op.dash.branch.submit')}</Button></div>
+        </fieldset>
       </MiniForm>
 
       {ownedBranches.length > 0 && (

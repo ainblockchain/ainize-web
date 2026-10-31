@@ -2222,3 +2222,17 @@ test('runtime review distinguishes an existing alias and keeps confirmation disa
   assert.match(html, /Already loaded/); assert.match(html, /Same file · layer: physical-alias/); assert.match(html, /Keep 1 existing layers/);
   assert.match(html, /disabled=""/);
 });
+
+test('track creation requires current operator access and both validated current lists', () => {
+  const data: Fixture[] = [
+    { name: 'myPatches', arg: { identity: accessIdentity }, value: { items: [] } },
+    { name: 'branches', arg: { identity: accessIdentity }, value: { branches: [], mine: [] } },
+  ];
+  const enabled = render(DashboardContent, [...accessAuth, ...data], '/dashboard');
+  assert.match(enabled, /<fieldset style=/); assert.doesNotMatch(enabled, /<fieldset disabled/);
+  for (const fixtures of [appAccount, [...accessAuth, data[0]], [...accessAuth, data[1]],
+    [...accessAuth, data[0], { ...data[1], status: 'rejected' as const }]]) {
+    const unavailable = render(DashboardContent, fixtures, '/dashboard');
+    assert.match(unavailable, /<fieldset disabled/);
+  }
+});
