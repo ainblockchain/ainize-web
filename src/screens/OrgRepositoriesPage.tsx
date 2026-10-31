@@ -101,7 +101,7 @@ export default function OrgRepositoriesPage() {
             const canRun = !!p && hasProjectRunTargets(p);
             const visitUrl = p ? activeProjectUrl(p) : null;
             return (
-              <Item key={r.name}>
+              <Item key={p ? `project:${p.id}` : `repo:${r.name}`}>
                 <Name>
                   <Dot $tone={p ? statusToneOf(p.status) : 'muted'} />
                   {to ? <StyledLink to={to}>{r.name}</StyledLink> : <span>{r.name}</span>}

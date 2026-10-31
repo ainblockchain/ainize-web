@@ -94,7 +94,7 @@ test('every link to a project is the pretty URL /<org>/<repo> (a monorepo folder
   for (const file of ['screens/ProjectNewPage.tsx', 'screens/MyProjectsPage.tsx', 'screens/ProjectPage.tsx', 'screens/OrgRepositoriesPage.tsx']) {
     assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} still builds a /projects/<id> link`);
   }
-  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{withSearch\(projectPath\(q\.currentData\), location\.search\)\}/, '/projects/:id forwards to the pretty URL');
+  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{projectRedirectPath\(q\.currentData, location\.search\)\}/, '/projects/:id forwards to the pretty URL');
   assert.match(read('screens/ProjectPage.tsx'), /<Link to=\{orgPath\(p\.org\)\}>\{p\.org\}<\/Link>/, 'the breadcrumb\'s org links to /<org>');
 });
 
@@ -113,8 +113,8 @@ test('a monorepo folder project is its own row; its page is the repository\'s, s
   const indexer = { ...base, id: 'prj_idx', name: 'aindrive-indexer', updatedAt: 20, sourcePath: 'indexer' } as unknown as Project;
   const rows = mergeOrgRepos([indexer, root], [{ name: 'aindrive', cloneUrl: 'c', headSha: 'a', headSubject: 's', updatedAt: 5, hasManifest: true }]);
   assert.deepEqual(rows.map((r) => [r.name, r.project?.id ?? null]), [['aindrive/indexer', 'prj_idx'], ['aindrive', 'prj_root']]);
-  assert.equal(projectPath(root), '/comcom/aindrive');
-  assert.equal(projectPath(indexer), '/comcom/aindrive?project=indexer');
+  assert.equal(projectPath(root), '/comcom/aindrive?projectId=prj_root');
+  assert.equal(projectPath(indexer), '/comcom/aindrive?project=indexer&projectId=prj_idx');
   // every deployment of the repository on its one page: the root first, then folders; ?project= picks one
   const other = { ...base, id: 'prj_other', name: 'x', updatedAt: 1, sourcePath: 'web', repo: 'https://aindrive.ainetwork.ai/comcom/git/other' } as unknown as Project;
   const docs = { ...base, id: 'prj_docs', name: 'aindrive-docs', updatedAt: 30, sourcePath: 'docs' } as unknown as Project;
@@ -124,7 +124,7 @@ test('a monorepo folder project is its own row; its page is the repository\'s, s
   assert.equal(selectRepoProject(all, 'indexer')?.id, 'prj_idx');
   assert.equal(selectRepoProject(all, 'nope'), undefined, 'an unavailable folder never selects a different project');
   assert.deepEqual(repoProjects(root, [root]).map((p) => p.id), ['prj_root'], 'no folder projects: no switcher');
-  assert.equal(repoProjectLabel(indexer), 'aindrive/indexer');
+  assert.equal(repoProjectLabel(indexer), 'aindrive/indexer · main');
   const page = read('screens/ProjectPage.tsx');
   assert.match(page, /const switcher = all\.length > 1 \? <RepoDeployments/, 'the switcher only when the repository has folder projects');
   assert.match(page, /<ProjectConsole key=\{`\$\{cacheIdentity\}:\$\{selected\.id\}`\} project=\{selected\} switcher=\{switcher\} \/>/);

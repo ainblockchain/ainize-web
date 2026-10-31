@@ -46,6 +46,8 @@ export const projects: Dict = {
   'projects.page.unavailable': { ko: '프로젝트를 열 수 없습니다', en: 'This project is unavailable' },
   'projects.page.load_failed': { ko: '프로젝트를 불러오지 못했습니다', en: 'Could not load this project' },
   'projects.page.folder_unavailable': { ko: '선택한 프로젝트({folder})를 찾을 수 없거나 접근 권한이 없습니다.', en: 'The selected project ({folder}) could not be found or is not accessible.' },
+  'projects.page.choose_project': { ko: '열 프로젝트의 폴더와 브랜치를 선택하세요.', en: 'Choose the project folder and branch to open.' },
+  'projects.page.siblings_failed': { ko: '이 저장소의 다른 프로젝트를 불러오지 못했습니다.', en: 'Could not load the other projects in this repository.' },
   'projects.page.repository': { ko: '저장소 프로젝트로 이동', en: 'Go to repository project' },
   'projects.org.list_failed': { ko: '저장소 목록을 불러오지 못했습니다. 표시된 프로젝트가 전체 목록이 아닐 수 있습니다.', en: 'Could not load repositories. The displayed projects may be incomplete.' },
   'projects.page.signin_check': { ko: '주소가 올바른지 확인하세요. 비공개 프로젝트라면 접근 권한이 있는 계정으로 로그인해야 합니다.', en: 'Check the address. If this is a private project, sign in with an account that has access.' },

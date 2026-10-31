@@ -81,7 +81,7 @@ test('adapters link where the site already links', () => {
   assert.equal(href('self#ag1'), '/agent/docent', 'an aliased agent links by its alias');
   assert.equal(href('self#ag2'), '/agent/ag2');
   assert.equal(href('k1'), '/0xabc/k1');
-  assert.equal(href('p1'), '/comcom/nextjs-hello-world');
+  assert.equal(href('p1'), '/comcom/nextjs-hello-world?projectId=p1');
 });
 
 test('same-name model results retain the matching provider and modality independently', () => {
@@ -116,8 +116,8 @@ test('app search has the same kinds and exact monorepo destinations as the Apps 
     { id: 'agent', org: 'team', repoName: 'mono', name: 'Assistant', kind: 'agent' },
   ]);
   assert.deepEqual(rows.map((r) => r.id), ['web', 'api']);
-  assert.equal(rows[0]!.href, '/team/mono?project=apps%2Fweb');
-  assert.equal(searchDocs(rows, 'services/api')[0]!.hits[0]!.href, '/team/mono?project=services%2Fapi');
+  assert.equal(rows[0]!.href, '/team/mono?project=apps%2Fweb&projectId=web');
+  assert.equal(searchDocs(rows, 'services/api')[0]!.hits[0]!.href, '/team/mono?project=services%2Fapi&projectId=api');
 });
 
 test('every string the search box reads exists in English and in Korean', () => {

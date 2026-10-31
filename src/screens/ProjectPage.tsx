@@ -26,7 +26,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import {
-  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
+  useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
   useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
 import { readModelsResponse } from '@/api/models';
@@ -41,14 +41,14 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRoutes';
+import { isReservedFirstSegment, orgPath, projectPath, projectRedirectPath } from '@/lib/reservedRoutes';
 import { activeProjectUrl, hasProjectRunTargets } from '@/lib/projectActions';
 import { deploymentLogHref, deploymentPage, projectRedeployTarget, readProjectDeploymentHistory } from '@/lib/projectHistory';
 import { createProjectRedeployment } from '@/lib/projectRedeploy';
 import { createProjectRunSubmission, prepareProjectRun, projectRunSelection, readProjectRunSource, readProjectRunHistory, type ProjectRunDraft } from '@/lib/projectRun';
 import { signInHref } from '@/lib/uiNavigation';
 import { isKnowledgeAuthor } from '@/lib/detailRoutes';
-import { repoProjectLabel, repoProjects, selectRepoProject } from '@/lib/repoProjects';
+import { repoProjectLabel, repoProjects, selectRepoProject, readRepoProjectList } from '@/lib/repoProjects';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
@@ -688,15 +688,6 @@ function RepoDeployments({ projects, selected, onPick }: { projects: Project[]; 
   );
 }
 
-/** `path` (which may carry its own query) with `search` (`?a=b`) merged in; the path's own parameters win. */
-const withSearch = (path: string, search: string) => {
-  const [base, own = ''] = path.split('?');
-  const merged = new URLSearchParams(search);
-  for (const [k, v] of new URLSearchParams(own)) merged.set(k, v);
-  const q = merged.toString();
-  return q ? `${base}?${q}` : base!;
-};
-
 // ------------------------------------------------------------------------------------------------ routes
 
 /** `/:org/:repo` — a project by name; when none is bound here, the knowledge page that used to own this shape. */
@@ -708,46 +699,47 @@ export function ProjectByNamePage() {
   useTitle(`${org}/${repo}`);
   const reserved = isReservedFirstSegment(org);
   const knowledge = isKnowledgeAuthor(org);
-  const q = useProjectByNameQuery({ org, repo, identity: cacheIdentity }, { skip: reserved || knowledge });
-  // A monorepo's folder projects share this address: the organization's list names them (the ones this viewer may see).
-  const orgQ = useOrgProjectsQuery({ org, identity: cacheIdentity }, { skip: reserved || knowledge || !q.currentData });
   const [sp, setSp] = useSearchParams();
+  const id = sp.get('projectId'), folder = sp.get('project');
+  const invalid = sp.getAll('projectId').length > 1 || sp.getAll('project').length > 1 || id === '';
+  const exact = useProjectQuery({ id: id ?? '', identity: cacheIdentity }, { skip: reserved || knowledge || !id || invalid });
+  const orgQ = useOrgProjectsQuery({ org, identity: cacheIdentity }, { skip: reserved || knowledge });
   if (reserved) return <NotFoundPage />;
   if (knowledge) return <PatchPage author={org} patchId={repo} />;
-  if (q.isLoading || (q.isFetching && !q.currentData)) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (q.currentData && !q.error) {
-    const folder = sp.get('project');
-    if (folder && !orgQ.currentData && orgQ.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
-    const validProjects = Array.isArray(orgQ.currentData?.projects);
-    if (folder && (orgQ.isError || !validProjects)) return <PageWrapper><Alert role="alert" $tone="error">{t('projects.page.load_failed')} <Button loading={orgQ.isFetching} onClick={() => void orgQ.refetch()}>{t('projects.page.retry')}</Button></Alert></PageWrapper>;
-    const all = repoProjects(q.currentData, !orgQ.error && validProjects ? orgQ.currentData!.projects : []);
-    const selected = selectRepoProject(all, folder);
-    if (!selected) return <PageWrapper>
-      <Crumbs><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span><span className="sep">/</span><span>{folder}</span></Crumbs>
-      <Empty data-testid="project-selection-unavailable">{t('projects.page.folder_unavailable', { folder: folder ?? '' })}</Empty>
-      <Actions><Button loading={orgQ.isFetching} onClick={() => void orgQ.refetch()}>{t('projects.page.retry')}</Button><StyledLink to={projectPath(q.currentData)}>{t('projects.page.repository')}</StyledLink></Actions>
-    </PageWrapper>;
-    const pick = (id: string) => setSp(() => { const n = new URLSearchParams(); const folder = all.find((p) => p.id === id)?.sourcePath; if (folder) n.set('project', folder); return n; });
+  const listed = orgQ.isError ? null : readRepoProjectList<Project>(orgQ.currentData, org, repo);
+  const waiting = id && !invalid ? !exact.currentData && exact.isFetching : !orgQ.currentData && orgQ.isFetching;
+  if (!invalid && waiting) return <PageWrapper><CenterProgress /></PageWrapper>;
+  const failed = !invalid && (id ? !!exact.error : orgQ.isError || listed === null);
+  const known = id && !invalid && !exact.error ? readRepoProjectList<Project>({ projects: exact.currentData ? [exact.currentData] : [] }, org, repo)?.find(p => p.id === id) : undefined;
+  const all = known ? repoProjects(known, listed ?? []) : listed ?? [];
+  const selected = invalid || failed ? undefined : selectRepoProject(id ? (known ? [known] : []) : all, folder, id);
+  const retry = () => { if (id && !invalid) void exact.refetch(); void orgQ.refetch(); };
+  const pick = (chosen: string) => {
+    const p = all.find(p => p.id === chosen);
+    if (p) setSp(new URLSearchParams(projectPath(p).split('?')[1] ?? ''));
+  };
+  if (selected) {
     const switcher = all.length > 1 ? <RepoDeployments projects={all} selected={selected.id} onPick={pick} /> : undefined;
-    return <ProjectConsole key={`${cacheIdentity}:${selected.id}`} project={selected} switcher={switcher} />;
+    return <>{id && listed === null && !orgQ.isFetching && <Alert role="status" $tone="warning">{t('projects.page.siblings_failed')} <Button onClick={() => void orgQ.refetch()}>{t('projects.page.retry')}</Button></Alert>}<ProjectConsole key={`${cacheIdentity}:${selected.id}`} project={selected} switcher={switcher} /></>;
   }
-  const why = projectApiErrorOf(q.error);
+  const why = projectApiErrorOf(id ? exact.error : orgQ.error);
   const unavailable = why.status === 404 || why.status === 401 || why.status === 403;
   return <PageWrapper>
-    <Crumbs aria-label={t('projects.page.title')}><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span></Crumbs>
-    <SubTitle>{t(unavailable ? 'projects.page.unavailable' : 'projects.page.load_failed')}</SubTitle>
-    <Empty>{t(unavailable ? (isSignedIn ? 'projects.page.check_access' : 'projects.page.signin_check') : 'projects.page.retry_help')}</Empty>
+    <Crumbs><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span></Crumbs>
+    {failed ? <Alert role="alert" $tone="error">{t(unavailable ? 'projects.page.unavailable' : 'projects.page.load_failed')}</Alert>
+      : <Empty data-testid="project-selection-unavailable">{t(!invalid && !id && all.filter(p => folder === null || (p.sourcePath ?? '') === folder).length > 1 ? 'projects.page.choose_project' : 'projects.page.folder_unavailable', { folder: id ?? folder ?? repo })}</Empty>}
     <Actions>
-      {!isSignedIn && unavailable && <StyledLink to={signInHref(location)}>{t('projects.runs.sign_in_button')}</StyledLink>}
-      <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('projects.page.retry')}</Button>
+      {!isSignedIn && (!all.length || unavailable) && <StyledLink to={signInHref(location)}>{t('projects.runs.sign_in_button')}</StyledLink>}
+      <Button onClick={retry} loading={orgQ.isFetching || exact.isFetching}>{t('projects.page.retry')}</Button>
       <StyledLink to="/apps">{t('projects.page.apps')}</StyledLink>
     </Actions>
+    {all.length > 0 && <Actions data-testid="project-choices">{all.map(p => <StyledLink key={p.id} to={projectPath(p)}>{repoProjectLabel(p)}</StyledLink>)}</Actions>}
   </PageWrapper>;
 }
 
 /**
- * `/projects/:id` — the old address; forwards to `/<org>/<repo>` once the project is known. A monorepo folder's project
- * has no name of its own (it shares the repository's), so this is its page: it renders here.
+ * `/projects/:id` keeps exact identity when forwarding to the repository's pretty address.
+ * Folder and branch ambiguity cannot replace the selected project; record/run parameters ride along.
  */
 export default function ProjectPage() {
   const { t } = useT();
@@ -756,7 +748,7 @@ export default function ProjectPage() {
   const q = useProjectQuery({ id, identity: useAuth().cacheIdentity });
   if (!q.currentData && q.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
   // A folder project's page is its repository's, with it selected (`?project=<folder>`); other parameters ride along.
-  if (q.currentData && !q.error) return <Navigate to={withSearch(projectPath(q.currentData), location.search)} replace />;
+  if (q.currentData?.id === id && !q.error) return <Navigate to={projectRedirectPath(q.currentData, location.search)} replace />;
   const why = projectApiErrorOf(q.error);
   return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty><Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></PageWrapper>;
 }

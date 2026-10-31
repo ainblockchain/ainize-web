@@ -773,7 +773,7 @@ test('signed-out Apps never renders organization-specific cached results', () =>
 test('Apps shows only app kinds and preserves the selected monorepo folder', () => {
   const html = render(AppsPage, [...appAccount, appsFixture([webApp, { ...webApp, id: 'script', kind: 'script', name: 'Hidden script' }, { ...webApp, id: 'agent', kind: 'agent', name: 'Hidden agent' }])], '/apps');
   assert.match(html, /Storefront/);
-  assert.match(html, /href="\/studio\/mono\?project=packages%2Fweb"/);
+  assert.match(html, /href="\/studio\/mono\?project=packages%2Fweb&amp;projectId=web"/);
   assert.doesNotMatch(html, /Hidden script|Hidden agent/);
 });
 
@@ -1344,6 +1344,61 @@ test('folder selection reads and displays the selected project rather than root 
   assert.doesNotMatch(html, /Root-only project/);
 });
 
+test('ambiguous root and folder branches show choices without rendering arbitrary project controls', () => {
+  const preview = { ...rootProject, id: 'root-preview', branch: 'preview' };
+  const folderPreview = { ...folderProject, id: 'folder-preview', branch: 'preview' };
+  for (const search of ['', '?project=worker']) {
+    const html = render(ProjectByNamePage, [...appAccount,
+      { name: 'orgProjects', arg: { org: 'studio', identity: accountIdentity }, value: { projects: [preview, folderProject, rootProject, folderPreview] } },
+    ], `/studio/mono${search}`, '/:org/:repo');
+    assert.match(html, /Choose the project folder and branch/);
+    assert.match(html, /projectId=root-preview/); assert.match(html, /projectId=folder-preview/);
+    assert.match(html, /mono · main/); assert.match(html, /mono\/worker · preview/);
+    assert.doesNotMatch(html, /Root-only project|Selected worker project|Rotate webhook secret|>Redeploy/);
+  }
+});
+
+test('exact project links open the selected branch even when sibling discovery fails', () => {
+  const preview = { ...folderProject, id: 'folder-preview', branch: 'preview', name: 'Preview worker' };
+  const html = render(ProjectByNamePage, [...appAccount,
+    { name: 'orgProjects', arg: { org: 'studio', identity: accountIdentity }, status: 'rejected' },
+    { name: 'project', arg: { id: preview.id, identity: accountIdentity }, value: preview },
+    { name: 'projectDeployments', arg: { id: preview.id, identity: accountIdentity }, value: { deployments: [] } },
+  ], '/studio/mono?project=worker&projectId=folder-preview', '/:org/:repo');
+  assert.match(html, /Preview worker/); assert.match(html, /other projects in this repository/);
+  assert.doesNotMatch(html, /Root-only project|Selected worker project/);
+});
+
+test('explicit ids cannot display a different repository, conflicting folder, malformed record or denied cached project', () => {
+  const listed = { name: 'orgProjects', arg: { org: 'studio', identity: accountIdentity }, value: { projects: [rootProject, folderProject] } };
+  for (const record of [{ ...folderProject, org: 'other' }, { ...folderProject, repoName: 'other' }, { ...folderProject, repo: null }]) {
+    const html = render(ProjectByNamePage, [...appAccount, listed,
+      { name: 'project', arg: { id: folderProject.id, identity: accountIdentity }, value: record },
+    ], '/studio/mono?projectId=folder-project', '/:org/:repo');
+    assert.match(html, /project-selection-unavailable/); assert.doesNotMatch(html, /Selected worker project|Root-only project/);
+  }
+  const denied = render(ProjectByNamePage, [...appAccount, listed,
+    { name: 'project', arg: { id: folderProject.id, identity: accountIdentity }, value: folderProject, status: 'rejected', errorStatus: 403 },
+  ], '/studio/mono?projectId=folder-project', '/:org/:repo');
+  assert.match(denied, /role="alert"/); assert.doesNotMatch(denied, /Selected worker project|Root-only project/);
+  for (const search of ['?projectId=folder-project&projectId=root-project', '?projectId=folder-project&project=other', '?project=&project=worker']) {
+    const html = render(ProjectByNamePage, [...appAccount, listed,
+      { name: 'project', arg: { id: folderProject.id, identity: accountIdentity }, value: folderProject },
+    ], `/studio/mono${search}`, '/:org/:repo');
+    assert.match(html, /project-selection-unavailable/); assert.doesNotMatch(html, /Selected worker project|Root-only project/);
+  }
+});
+
+test('organization listing retains both root branches with distinct exact links', () => {
+  const arg = { org: 'studio', identity: accountIdentity }, preview = { ...rootProject, id: 'root-preview', branch: 'preview' };
+  const html = render(OrgRepositoriesPage, [...appAccount,
+    { name: 'orgProjects', arg, value: { org: 'studio', projects: [rootProject, preview] } },
+    { name: 'orgRepositories', arg, value: { repositories: [] } },
+  ], '/studio', '/:org');
+  assert.match(html, /projectId=root-project/); assert.match(html, /projectId=root-preview/);
+  assert.match(html, />main</); assert.match(html, />preview</);
+});
+
 test('My projects distinguishes failed reads from empty and excludes another account cache', () => {
   for (const fixture of [{ name: 'myProjects', arg: accountIdentity, status: 'rejected' as const }, { name: 'myProjects', arg: accountIdentity, value: {} }]) {
     const html = render(MyProjectsPage, [...appAccount, fixture], '/me/projects');
@@ -1382,7 +1437,7 @@ test('repository-list failures preserve known project rows without claiming the 
       { name: 'orgRepositories', arg, status: 'rejected' },
     ], '/studio', '/:org');
     assert.match(html, /Could not load repositories/); assert.match(html, /Try again/);
-    if (projects.length) assert.match(html, /href="\/studio\/mono"/);
+    if (projects.length) assert.match(html, /href="\/studio\/mono\?projectId=root-project"/);
     assert.doesNotMatch(html, /No repositories/);
   }
 });
@@ -1395,7 +1450,7 @@ test('organization Visit links only use the active deployment, never an unrelate
       { name: 'orgProjects', arg, value: { org: 'studio', projects: [{ ...rootProject, activeDeploymentId, lastDeployment }] } },
       { name: 'orgRepositories', arg, value: { repositories: [] } },
     ], '/studio', '/:org');
-    assert.match(html, /href="\/studio\/mono"/, 'the project console is always reachable');
+    assert.match(html, /href="\/studio\/mono\?projectId=root-project"/, 'the project console is always reachable');
     if (activeDeploymentId === lastDeployment.id) assert.match(html, /href="https:\/\/latest-build.example"/);
     else assert.doesNotMatch(html, /href="https:\/\/latest-build.example"/);
   }

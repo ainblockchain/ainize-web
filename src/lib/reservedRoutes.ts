@@ -33,9 +33,22 @@ export const looksLikeSlug = (s: string): boolean => SLUG_PATTERN.test(s) && !is
 /**
  * The address of a project — every link to a project goes through here. `/<org>/<repo>` for a repository's own
  * project; a monorepo folder's project (`sourcePath`, a folder with its own ainize.json) is shown on that same page,
- * selected with `?project=<folder>` (src/lib/repoProjects.ts).
+ * selected with `project=<folder>` and its exact `projectId` (src/lib/repoProjects.ts).
  */
-export const projectPath = (p: { org: string; repoName: string; id?: string; sourcePath?: string }): string =>
-  `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}${p.sourcePath ? `?project=${encodeURIComponent(p.sourcePath)}` : ''}`;
+export const projectPath = (p: { org: string; repoName: string; id?: string; sourcePath?: string }): string => {
+  const query = new URLSearchParams();
+  if (p.sourcePath) query.set('project', p.sourcePath);
+  if (p.id) query.set('projectId', p.id);
+  return `/${encodeURIComponent(p.org)}/${encodeURIComponent(p.repoName)}${query.size ? `?${query}` : ''}`;
+};
+
+/** Redirecting an id URL retains record/run context but cannot inherit a conflicting project selection. */
+export function projectRedirectPath(p: Parameters<typeof projectPath>[0], search: string): string {
+  const [path, own = ''] = projectPath(p).split('?');
+  const merged = new URLSearchParams(search);
+  merged.delete('project'); merged.delete('projectId');
+  for (const [k, v] of new URLSearchParams(own)) merged.set(k, v);
+  return `${path}${merged.size ? `?${merged}` : ''}`;
+}
 /** The organization's page, `/<org>`. */
 export const orgPath = (org: string): string => `/${encodeURIComponent(org)}`;

@@ -172,25 +172,26 @@ export interface Queued { deploymentId: string; status: DeploymentStatus; runId?
 export interface RotatedSecret { id: string; webhookSecret: string; hookUrl: string }
 
 /**
- * The `/<org>` page shows the drive's repositories beside the projects bound here, one row per repo: a project row
+ * The `/<org>` page shows the drive's repositories beside the projects bound here, one row per project (including same-folder branches): a project row
  * when the repo is bound (its status, its page), a plain row ("not deployed yet · push to deploy") when aindrive has
  * it and this node does not. Matched by name, case-insensitively; a project whose repo aindrive no longer lists
  * still shows (it is still deployed here).
  */
 export interface OrgRepoRow { name: string; project: Project | null; repo: OrgRepository | null }
 export function mergeOrgRepos(projects: Project[], repos: OrgRepository[]): OrgRepoRow[] {
-  const rows = new Map<string, OrgRepoRow>();
-  for (const r of repos) rows.set(r.name.toLowerCase(), { name: r.name, project: null, repo: r });
-  // A monorepo folder's project is its own row, `<repo>/<folder>` — never the repository's row, which is the root's.
+  const repositories = new Map(repos.map(r => [r.name.toLowerCase(), r]));
+  const seen = new Set<string>(), rows: OrgRepoRow[] = [], roots = new Set<string>();
   for (const p of projects) {
-    const name = p.sourcePath ? `${p.repoName}/${p.sourcePath}` : p.repoName;
-    const k = name.toLowerCase();
-    const row = rows.get(k);
-    if (row) { if (!row.project) row.project = p; }
-    else rows.set(k, { name, project: p, repo: null });
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    const key = p.repoName.toLowerCase();
+    if (!p.sourcePath) roots.add(key);
+    rows.push({ name: p.sourcePath ? `${p.repoName}/${p.sourcePath}` : repositories.get(key)?.name ?? p.repoName,
+      project: p, repo: !p.sourcePath ? repositories.get(key) ?? null : null });
   }
+  for (const [key, repo] of repositories) if (!roots.has(key)) rows.push({ name: repo.name, project: null, repo });
   const when = (r: OrgRepoRow) => Math.max(r.project?.updatedAt ?? 0, r.repo?.updatedAt ?? 0);
-  return [...rows.values()].sort((a, b) => when(b) - when(a) || a.name.localeCompare(b.name));
+  return rows.sort((a, b) => when(b) - when(a) || a.name.localeCompare(b.name) || (a.project?.branch ?? '').localeCompare(b.project?.branch ?? '') || (a.project?.id ?? '').localeCompare(b.project?.id ?? ''));
 }
 
 /** The one-line inputs form: a manifest input's answer as text, from the person's answer or the input's default. */
