@@ -1,21 +1,21 @@
 ---
-title: "Design: AIN Store — a web3 Firestore"
-summary: Status — approved 2026-10-31. A Firestore replacement where AIN Blockchain carries the authority (rules, triggers, an O(log n) Merkle Mountain Range over every write, and a state root), AinDrive holds the documents and the write records, the per-project SQLite is the only index, AIN SSO is the identity behind every permission, and ainize Runs execute triggers under that identity.
+title: "Design: AIN Store"
+summary: Status — approved 2026-10-31. The document database for apps on ainize: AIN Blockchain carries the authority (rules, triggers, an O(log n) Merkle Mountain Range over every write, and a state root), AinDrive holds the documents and the write records, the per-project SQLite is the only index, AIN SSO is the identity behind every permission, and ainize Runs execute triggers under that identity.
 ---
 
-# Design: AIN Store — a web3 Firestore
+# Design: AIN Store
 
 **Status: approved 2026-10-31.**
 
-AIN Store is the database apps on ainize use in place of Firestore. It keeps what made Firestore easy: documents and collections, queries, realtime listeners, security rules and triggers. The difference is where the authority lives. Firestore's rules and triggers run inside Google, and you trust Google to apply them. In AIN Store they run in **AIN Blockchain consensus**: every node checks every write against the rules, and every trigger fires from a finalized transaction. Nobody, the operator included, can skip a rule or bypass a trigger unnoticed.
+AIN Store is the document database for apps on ainize: documents and collections, queries, realtime listeners, security rules and triggers, with no backend to write. Its rules and triggers run in **AIN Blockchain consensus**. Every node checks every write against the rules, and every trigger fires from a finalized transaction. Nobody, the operator included, can skip a rule or bypass a trigger unnoticed.
 
-| Part | Role | Firestore equivalent |
-| --- | --- | --- |
-| AIN Blockchain | **Authority**: rules (`.rule`), triggers (`.function`), a consensus-maintained **Merkle Mountain Range** over every write (O(log n) state), and the database's **state root** | Security rules, function triggers, the commit order Google keeps internally |
-| AinDrive | **Document bodies and files** stored under their hash, plus the **write records** | Document contents, Cloud Storage |
-| Store (per project) | **SQLite: the only index.** Built by replaying the write records and AinDrive bodies; answers gets, queries and realtime | Firestore's storage and indexes |
-| AIN SSO | **Identity and roles** for users, orgs and services; delegations to sessions, agents and Runs | Firebase Auth, custom claims |
-| ainize Runs | **Executes triggers** under a scoped identity issued by SSO | Cloud Functions |
+| Part | Role |
+| --- | --- |
+| AIN Blockchain | **Authority**: rules (`.rule`), triggers (`.function`), a consensus-maintained **Merkle Mountain Range** over every write (O(log n) state), and the database's **state root** |
+| AinDrive | **Document bodies and files** stored under their hash, plus the **write records** |
+| Store (per project) | **SQLite: the only index.** Built by replaying the write records and AinDrive bodies; answers gets, queries and realtime |
+| AIN SSO | **Identity and roles** for users, orgs and services; delegations to sessions, agents and Runs |
+| ainize Runs | **Executes triggers** under a scoped identity issued by SSO |
 
 ## Principles
 
@@ -59,10 +59,10 @@ SDK ─► Store ─► AinDrive: put body → sha256
                      └ finalized → Store applies it to SQLite → realtime listeners
 ```
 
-1. The SDK applies the write locally at once and marks it pending, like Firestore's latency compensation.
+1. The SDK applies the write locally at once and marks it pending.
 2. The Store puts the body on AinDrive. The chain transaction is signed with the user's **session key**; a batch goes in one transaction.
 3. Consensus checks the rule. A rejected write rolls back on the client with the rule's error.
-4. When the entry is finalized, the Store applies it. A stale `base` is reported to the client as a conflict, as Firestore reports a failed transaction.
+4. When the entry is finalized, the Store applies it. A stale `base` is reported to the client as a conflict.
 
 **What rules can check.**
 - **Enforced by consensus:** who is writing (SSO account, org, role, session expiry), what is written (shape, sizes, allowed ops), and the collection's limits.
@@ -96,7 +96,7 @@ SDK ─► Store ─► AinDrive: put body → sha256
   && util.isDict(newData) && ['set','merge','delete'].includes(newData.op)
 ```
 
-The SDK ships helpers that compile `role in ['editor','admin']` to this form. Rules are reviewed and deployed with the app, like Firestore rules.
+The SDK ships helpers that compile `role in ['editor','admin']` to this form. Rules are reviewed and deployed with the app.
 
 ### Triggers and ainize Runs
 
@@ -132,18 +132,9 @@ Chain state grows with log₂ of the number of writes, not with the number of do
 - **Reads** never touch the chain.
 - **Monitoring:** every 5 minutes, check per-app budget use, apply lag (the Store's position against the MMR's `n`), archive completeness (every leaf up to `n` is on AinDrive), state-root lag, and trigger failures. Alert AIN Teams #comcom at 70% and 85%.
 
-## Moving off Firebase
+## Migrating existing projects
 
-| Firebase | AIN Store |
-| --- | --- |
-| Firestore documents and collections | SQLite in the Store, bodies on AinDrive, writes as chain transactions |
-| Queries, `onSnapshot` | Store queries and SSE listeners |
-| Security rules | Chain `.rule`, with SSO roles through `/apps/ain_sso` |
-| Cloud Functions triggers | Chain `.function` to ainize Runs, with SSO delegations |
-| Firebase Auth | AIN SSO; existing Firebase Auth users are exported and kept |
-| Cloud Storage | AinDrive objects |
-
-| Project | Gate before billing is unlinked |
+| Project | Gate before the old project's billing is unlinked |
 | --- | --- |
 | Baby Shark (`babyshark-187c9`) | A game on https://nft.babyshark.com/game grants its reward; the utility page loads images |
 | nft-server (`nft-server-prod`) | Every hosted token URI returns byte-identical JSON |

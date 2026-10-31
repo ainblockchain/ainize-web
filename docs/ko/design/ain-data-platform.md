@@ -1,23 +1,23 @@
 ---
-title: "설계: AIN Store — web3 Firestore"
-summary: 상태 — 2026-10-31 승인. AIN 블록체인이 권한(규칙, 트리거, 모든 쓰기에 대한 O(log n) 머클 마운틴 레인지, 상태 루트)을 맡고, AinDrive가 문서와 쓰기 기록을 담고, 프로젝트별 SQLite가 유일한 인덱스이며, AIN SSO가 모든 권한의 신원이고, ainize Runs가 같은 신원으로 트리거를 실행하는 Firestore 대체제입니다.
+title: "설계: AIN Store"
+summary: 상태 — 2026-10-31 승인. AIN 블록체인이 권한(규칙, 트리거, 모든 쓰기에 대한 O(log n) 머클 마운틴 레인지, 상태 루트)을 맡고, AinDrive가 문서와 쓰기 기록을 담고, 프로젝트별 SQLite가 유일한 인덱스이며, AIN SSO가 모든 권한의 신원이고, ainize Runs가 같은 신원으로 트리거를 실행하는 ainize 앱용 문서 데이터베이스입니다.
 source: en/design/ain-data-platform.md
-source_sha256: 038d0be7e082fa012b4c6688eee056839fd2d65512b1cfc575b93387899a743f
+source_sha256: 4d822bf174cf92607e9f7826fbf83ce55c65c262b2f826c9ebfc7584a109e95f
 ---
 
-# 설계: AIN Store — web3 Firestore
+# 설계: AIN Store
 
 **상태: 2026-10-31 승인.**
 
-AIN Store는 ainize 앱이 Firestore 대신 쓰는 데이터베이스입니다. 문서와 컬렉션, 질의, 실시간 리스너, 보안 규칙, 트리거처럼 Firestore를 편하게 만든 것은 그대로 둡니다. 다른 것은 권한이 어디에 있느냐입니다. Firestore의 규칙과 트리거는 Google 안에서 돌고, Google이 제대로 적용한다고 믿어야 합니다. AIN Store에서는 **AIN 블록체인 합의** 안에서 돕니다. 모든 노드가 모든 쓰기를 규칙에 대고 확인하고, 모든 트리거는 확정된 트랜잭션에서 발동합니다. 운영자를 포함해 누구도 규칙을 건너뛰거나 트리거를 우회하면 드러납니다.
+AIN Store는 ainize 앱의 문서 데이터베이스입니다. 문서와 컬렉션, 질의, 실시간 리스너, 보안 규칙, 트리거를 제공하며 백엔드를 따로 짤 필요가 없습니다. 규칙과 트리거는 **AIN 블록체인 합의** 안에서 돕니다. 모든 노드가 모든 쓰기를 규칙에 대고 확인하고, 모든 트리거는 확정된 트랜잭션에서 발동합니다. 운영자를 포함해 누구도 규칙을 건너뛰거나 트리거를 우회하면 드러납니다.
 
-| 구성요소 | 역할 | Firestore에서는 |
-| --- | --- | --- |
-| AIN 블록체인 | **권한**: 규칙(`.rule`), 트리거(`.function`), 합의로 유지하는 모든 쓰기의 **머클 마운틴 레인지**(상태 O(log n)), DB의 **상태 루트** | 보안 규칙, 함수 트리거, Google이 내부에 두는 커밋 순서 |
-| AinDrive | 해시 주소로 저장하는 **문서 본문과 파일**, **쓰기 기록** | 문서 내용, Cloud Storage |
-| Store (프로젝트별) | **SQLite: 유일한 인덱스.** 쓰기 기록과 AinDrive 본문을 재생해 만들고, 조회·질의·실시간을 처리 | Firestore의 저장소와 인덱스 |
-| AIN SSO | 사용자·조직·서비스의 **신원과 역할**, 세션·에이전트·Runs에 대한 위임 | Firebase Auth, custom claims |
-| ainize Runs | SSO가 발급한 범위 한정 신원으로 **트리거 실행** | Cloud Functions |
+| 구성요소 | 역할 |
+| --- | --- |
+| AIN 블록체인 | **권한**: 규칙(`.rule`), 트리거(`.function`), 합의로 유지하는 모든 쓰기의 **머클 마운틴 레인지**(상태 O(log n)), DB의 **상태 루트** |
+| AinDrive | 해시 주소로 저장하는 **문서 본문과 파일**, **쓰기 기록** |
+| Store (프로젝트별) | **SQLite: 유일한 인덱스.** 쓰기 기록과 AinDrive 본문을 재생해 만들고, 조회·질의·실시간을 처리 |
+| AIN SSO | 사용자·조직·서비스의 **신원과 역할**, 세션·에이전트·Runs에 대한 위임 |
+| ainize Runs | SSO가 발급한 범위 한정 신원으로 **트리거 실행** |
 
 ## 원칙
 
@@ -61,10 +61,10 @@ SDK ─► Store ─► AinDrive: 본문 저장 → sha256
                      └ 확정 → Store가 SQLite에 적용 → 실시간 리스너
 ```
 
-1. SDK는 쓰기를 즉시 로컬에 반영하고 대기 중으로 표시합니다. Firestore의 지연 보정과 같습니다.
+1. SDK는 쓰기를 즉시 로컬에 반영하고 대기 중으로 표시합니다.
 2. Store가 본문을 AinDrive에 올립니다. 체인 트랜잭션은 사용자의 **세션 키**로 서명하고, batch는 트랜잭션 하나로 묶습니다.
 3. 합의에서 규칙을 검사합니다. 거부되면 클라이언트는 규칙의 오류와 함께 되돌립니다.
-4. 쓰기가 확정되면 Store가 적용합니다. `base`가 오래됐으면 Firestore가 실패한 트랜잭션을 알리듯 클라이언트에 충돌로 알립니다.
+4. 쓰기가 확정되면 Store가 적용합니다. `base`가 오래됐으면 클라이언트에 충돌로 알립니다.
 
 **규칙이 검사할 수 있는 것.**
 - **합의로 강제:** 누가 쓰는지(SSO 계정, 조직, 역할, 세션 만료), 무엇을 쓰는지(형태, 크기, 허용된 연산), 컬렉션의 한도.
@@ -97,7 +97,7 @@ SDK ─► Store ─► AinDrive: 본문 저장 → sha256
   && util.isDict(newData) && ['set','merge','delete'].includes(newData.op)
 ```
 
-SDK는 `role in ['editor','admin']`을 이 형태로 바꿔 주는 도우미를 제공합니다. 규칙은 Firestore 규칙처럼 앱과 함께 리뷰하고 배포합니다.
+SDK는 `role in ['editor','admin']`을 이 형태로 바꿔 주는 도우미를 제공합니다. 규칙은 앱과 함께 리뷰하고 배포합니다.
 
 ### 트리거와 ainize Runs
 
@@ -133,18 +133,9 @@ SDK는 `role in ['editor','admin']`을 이 형태로 바꿔 주는 도우미를 
 - **읽기**는 체인에 닿지 않습니다.
 - **모니터링:** 5분마다 앱별 예산 사용량, 적용 지연(Store의 위치와 MMR `n`의 차이), 보관 완전성(`n`까지의 모든 잎이 AinDrive에 있는지), 상태 루트 지연, 트리거 실패를 확인해 70%, 85%에서 AIN Teams #comcom에 알립니다.
 
-## Firebase에서 옮기기
+## 기존 프로젝트 이전
 
-| Firebase | AIN Store |
-| --- | --- |
-| Firestore 문서와 컬렉션 | Store의 SQLite, AinDrive의 본문, 체인 트랜잭션으로서의 쓰기 |
-| 질의, `onSnapshot` | Store 질의와 SSE 리스너 |
-| 보안 규칙 | 체인 `.rule`, `/apps/ain_sso`를 통한 SSO 역할 |
-| Cloud Functions 트리거 | 체인 `.function` → ainize Runs, SSO 위임 |
-| Firebase Auth | AIN SSO. 기존 Firebase Auth 사용자는 내보내서 보존 |
-| Cloud Storage | AinDrive 객체 |
-
-| 프로젝트 | 빌링 해제 전 게이트 |
+| 프로젝트 | 기존 프로젝트 빌링 해제 전 게이트 |
 | --- | --- |
 | 베이비샤크 (`babyshark-187c9`) | https://nft.babyshark.com/game 에서 게임하면 보상이 지급됨. utility 페이지 이미지 로드 |
 | nft-server (`nft-server-prod`) | 호스팅하는 모든 토큰 URI가 바이트까지 같은 JSON을 반환 |
