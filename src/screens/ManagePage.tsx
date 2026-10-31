@@ -563,8 +563,8 @@ function ManageView() {
       <Description>{t('op.manage.runtime.desc')}</Description>
       {runtime.isFetching && !runtime.currentData ? <CenterProgress /> : !runtimeData && <QueryError error={runtime.error} what={t('op.manage.runtime.title')} onRetry={() => void runtime.refetch()} retrying={runtime.isFetching} />}
       <SaveRow>
-        <Button disabled={!runtimeData?.available || !p.has_body || p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.loading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.load(a.id); }}>{term('apply')}</Button>
-        <Button color="secondary" disabled={!runtimeData?.available || !p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.unloading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.unload(a.id); }}>{term('remove')}</Button>
+        <Button data-testid="manage-load" disabled={!runtimeData?.available || !p.has_body || p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.loading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.load(a.id); }}>{term('apply')}</Button>
+        <Button data-testid="manage-unload" color="secondary" disabled={!runtimeData?.available || !p.applied} loading={chain.busy} loadingText={t('op.manage.runtime.unloading')} onClick={() => { if (task.pending() || !current()) return; setError(null); setNotice(null); void chain.unload(a.id); }}>{term('remove')}</Button>
         <Muted>
           {p.applied ? t('op.manage.runtime.is_loaded') : t('op.manage.runtime.not_loaded')}
           {runtimeData && !runtimeData.available ? ` · ${t('op.runtime.unavailable', { error: runtimeData.error ?? t('op.runtime.noapi') })}` : runtimeData?.model ? ` · ${runtimeData.model}` : ''}

@@ -8,6 +8,7 @@ import { manageFixture } from './fixtures/manageKnowledge';
 import { AccountOwners, AccountBindings } from '../src/components/operator/AccountAccess';
 import { AccountPeers } from '../src/components/operator/AccountPeers';
 import { AccountRuntime } from '../src/components/operator/AccountRuntime';
+import { TrackCard } from '../src/components/operator/TrackCard';
 import { AccountSettings } from '../src/components/operator/AccountSettings';
 import AccountPage from '../src/screens/AccountPage';
 import { newPatchDraftKey } from '../src/lib/newPatchDraft';
@@ -2017,4 +2018,43 @@ test('a stale failed verification does not create a current failure chip or head
   const detail = renderScoreDetail(p);
   assert.match(detail, /No current score/); assert.doesNotMatch(detail, /data-testid="failed-chip"/);
   assert.match(detail, /data-kind="stale"/);
+});
+
+test('account runtime displays server applied IDs with their own stack metadata', () => {
+  const value = { available: true, hook: true, model: 'Actual server model', applied: ['parent/id', 'child'], stack: [
+    { patch_id: 'parent/id', sha256: 'base-sha', position: 0, applied_at: 100, reason: 'manual' },
+    { patch_id: 'child', sha256: 'child-sha', position: 1, applied_at: 200, reason: 'branch-specific' },
+  ] };
+  const fixture = { name: 'runtime', arg: { identity: accountIdentity }, value };
+  const html = render(AccountRuntime, [...appAccount, fixture], '/account');
+  assert.match(html, /Actual server model/); assert.match(html, /parent\/id/); assert.match(html, /branch-specific/);
+  assert.doesNotMatch(html, /query-error/);
+  const missing = render(AccountRuntime, [...appAccount, { ...fixture, value: { ...value, stack: undefined } }], '/account');
+  assert.match(missing, /parent\/id/); assert.match(missing, /load reason and time unavailable/); assert.doesNotMatch(missing, /branch-specific|query-error/);
+});
+test('account runtime cannot pair applied IDs with another layer’s metadata', () => {
+  const value = { available: true, hook: true, model: 'Hidden inconsistent model', applied: ['chosen'], stack: [{ patch_id: 'wrong', sha256: 'sha', applied_at: 100, position: 0, reason: 'Wrong layer reason' }] };
+  const html = render(AccountRuntime, [...appAccount, { name: 'runtime', arg: { identity: accountIdentity }, value }], '/account');
+  assert.match(html, /query-error/); assert.match(html, /query-retry/); assert.doesNotMatch(html, /Hidden inconsistent model|Wrong layer reason/);
+});
+test('knowledge management accepts a nonempty server runtime and enables the corresponding load or unload control', () => {
+  const p = manageFixture(); p.status = 'VERIFIED';
+  const runtime = { available: true, hook: true, model: p.anchor.model.id_M, applied: ['base'], stack: [{ patch_id: 'base', sha256: 'base-sha', applied_at: 100, position: 0, reason: 'manual' }] };
+  const fixtures = [...accessAuth, { ...manageRead(), value: p }, ...manageAux.map(f => f.name === 'runtime' ? { ...f, value: runtime } : f)];
+  const load = renderManage(fixtures).match(/<button[^>]*data-testid="manage-load"[^>]*>/)?.[0];
+  assert.ok(load); assert.doesNotMatch(load, /disabled/);
+  const unload = renderManage(fixtures.map(f => f.name === 'managedPatch' ? { ...f, value: { ...p, applied: true } } : f)).match(/<button[^>]*data-testid="manage-unload"[^>]*>/)?.[0];
+  assert.ok(unload); assert.doesNotMatch(unload, /disabled/);
+});
+
+test('track cards recognize server applied IDs and do not mistake failed or foreign runtime reads for missing knowledge', () => {
+  const branch = trackBranches(['selected']).branches[0];
+  const fixture: Fixture = { name: 'runtime', arg: { identity: accountIdentity }, value: { available: true, hook: true, applied: ['selected'] } };
+  const card = () => createElement(TrackCard, { branch, subscribed: true, currency: 'AIN', address: walletAddress });
+  const loaded = render(card, [...appAccount, fixture], '/dashboard');
+  assert.match(loaded, /Recorded as loaded on this node: 1 of 1 current track items/); assert.doesNotMatch(loaded, /no load record for/);
+  for (const failure of [{ ...fixture, status: 'rejected' as const }, { ...fixture, arg: { identity: 'other account' } }]) {
+    const unknown = render(card, [...appAccount, failure], '/dashboard');
+    assert.match(unknown, /what is loaded cannot be read/); assert.doesNotMatch(unknown, /Recorded as loaded|no load record for/);
+  }
 });

@@ -216,8 +216,8 @@ export const operatorDash: Dict = {
   'op.dash.branches.syncing': { ko: '받는 중…', en: 'Syncing…' },
   // Finding 262 — the card counted the track's knowledge and never said what THIS node had loaded of it, so a
   // subscriber a day behind had to correlate three screens to find out. The comparison is on the card now.
-  'op.dash.branches.loaded': { ko: '이 노드 모델에 {n}/{total}개 들어가 있음 — 최신 상태입니다', en: 'This node has {n} of {total} loaded — up to date' },
-  'op.dash.branches.behind': { ko: '이 노드 모델에 {n}/{total}개만 들어가 있습니다 — 아직 안 들어간 지식: {ids}', en: 'This node has only {n} of {total} loaded — still missing: {ids}' },
+  'op.dash.branches.loaded': { ko: '현재 트랙의 {n}/{total}개가 이 노드에 적용된 것으로 기록돼 있습니다', en: 'Recorded as loaded on this node: {n} of {total} current track items' },
+  'op.dash.branches.behind': { ko: '현재 트랙의 적용 기록 {n}/{total}개 — 적용 기록이 없는 지식: {ids}', en: 'Recorded as loaded: {n} of {total} — no load record for: {ids}' },
   'op.dash.branches.behind.more': { ko: '{ids} 외 {n}개', en: '{ids} and {n} more' },
   'op.dash.branches.behind.help': { ko: '“지금 최신으로”를 누르면 이 트랙의 현재 지식 중 없는 것을 사서 모델에 넣고, 교체된 지난 판을 빼냅니다.', en: '“Sync now” buys what is missing from the track’s current knowledge, loads it, and unloads the versions it replaces.' },
   'op.dash.branches.loaded.unknown': { ko: '모델 실행 환경을 쓸 수 없어 무엇이 들어가 있는지 확인할 수 없습니다.', en: 'The model runtime is unavailable, so what is loaded cannot be read.' },
@@ -912,7 +912,8 @@ export const operatorAccount: Dict = {
   'op.account.runtime.hook': { ko: '넣기/빼기 연결', en: 'Load/unload hook' },
   'op.account.runtime.connected': { ko: '연결됨', en: 'connected' },
   'op.account.runtime.disconnected': { ko: '연결 안 됨', en: 'not connected' },
-  'op.account.runtime.loaded': { ko: '지금 들어 있는 지식', en: 'Knowledge loaded now' },
+  'op.account.runtime.loaded': { ko: '적용된 것으로 기록된 지식', en: 'Knowledge recorded as loaded' },
+  'op.account.runtime.layer_unknown': { ko: '적용 사유·시각 확인 불가', en: 'load reason and time unavailable' },
   'op.account.runtime.try': { ko: '모델에 직접 물어보기', en: 'Ask the model directly' },
   'op.account.runtime.try.desc': { ko: '지금 모델이 뭐라고 답하는지 봅니다. 넣기 전/후를 나란히 비교하려면 {link}를 쓰세요.', en: 'See what the model answers right now. To compare before/after side by side, use {link}.' },
   'op.account.runtime.prompt': { ko: '질문', en: 'Prompt' },

@@ -65,3 +65,23 @@ test('runtime status validates displayed fields and never interprets an invalid 
   assert.ok(accountRuntime(valid));
   for (const patch of [{ available: 'yes' }, { hook: null }, { applied: null }, { applied: [{}] }, { model: {} }]) assert.equal(accountRuntime({ ...valid, ...patch }), null);
 });
+
+test('runtime accepts the server ID list and reads metadata from the matching ordered stack', () => {
+  const stack = [{ patch_id: 'base/id', sha256: 'base-sha', applied_at: 100, reason: 'manual', position: 0 }, { patch_id: 'child', sha256: 'child-sha', applied_at: 200, reason: 'branch', position: 1 }];
+  const actual = { available: true, hook: true, model: 'selected', applied: ['base/id', 'child'], stack };
+  const parsed = accountRuntime(actual);
+  assert.ok(parsed); assert.deepEqual(parsed.applied, ['base/id', 'child']); assert.equal(parsed.stack?.[1].reason, 'branch');
+  const withoutMetadata = accountRuntime({ ...actual, stack: undefined });
+  assert.ok(withoutMetadata); assert.deepEqual(withoutMetadata.applied, actual.applied); assert.equal(withoutMetadata.stack, undefined);
+  assert.ok(accountRuntime({ ...actual, applied: [], stack: [] }));
+});
+
+test('runtime rejects mismatched, reordered or malformed layer metadata rather than displaying the wrong resource', () => {
+  const layer = { patch_id: 'chosen', sha256: 'sha', applied_at: 100, reason: 'manual', position: 0 };
+  const actual = { available: true, hook: true, applied: ['chosen'], stack: [layer] };
+  for (const patch of [{ applied: [layer] }, { applied: ['chosen', 'chosen'] }, { stack: [] }, { stack: null }, { stack: [{ ...layer, patch_id: 'other' }] },
+    { stack: [{ ...layer, applied_at: NaN }] }, { stack: [{ ...layer, applied_at: -1 }] }, { stack: [{ ...layer, reason: {} }] }, { stack: [{ ...layer, sha256: '' }] }, { stack: [{ ...layer, position: -1 }] }]) {
+    assert.equal(accountRuntime({ ...actual, ...patch }), null);
+  }
+  assert.equal(accountRuntime({ ...actual, applied: ['chosen', 'other'], stack: [{ ...layer, patch_id: 'other' }, layer] }), null);
+});

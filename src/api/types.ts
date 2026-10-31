@@ -467,7 +467,8 @@ export interface StackLayer {
   journal: boolean; journal_path: string | null; stack_sha256: string | null; body_present: boolean;
 }
 export interface RuntimeResponse extends Omit<RuntimeStatus, 'applied'> {
-  applied: { patch_id: string; sha256: string; applied_at: number; reason: string }[];
+  /** GET /api/runtime reports ids here; per-layer metadata is in stack. */
+  applied: string[];
   /** SC-18: the same layers in the order they were applied. */
   stack?: StackLayer[];
   journal_dir?: string;

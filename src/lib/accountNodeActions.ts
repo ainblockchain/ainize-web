@@ -18,10 +18,18 @@ export function accountRuntime(raw: unknown): RuntimeResponse | null {
   if (!object(raw) || typeof raw.available !== 'boolean' || typeof raw.hook !== 'boolean'
     || ['api', 'model', 'error'].some(k => raw[k] != null && typeof raw[k] !== 'string') || !Array.isArray(raw.applied)) return null;
   const ids = new Set<string>();
-  for (const a of raw.applied) {
-    if (!object(a) || typeof a.patch_id !== 'string' || !a.patch_id || ids.has(a.patch_id) || typeof a.sha256 !== 'string'
-      || typeof a.reason !== 'string' || !Number.isFinite(a.applied_at) || a.applied_at < 0 || a.applied_at > 8.64e15) return null;
-    ids.add(a.patch_id);
+  for (const id of raw.applied) {
+    if (typeof id !== 'string' || !id || ids.has(id)) return null;
+    ids.add(id);
+  }
+  // The endpoint derives both arrays from one ordered stack. A mismatch is not an empty model.
+  if (raw.stack !== undefined) {
+    if (!Array.isArray(raw.stack) || raw.stack.length !== raw.applied.length) return null;
+    for (const [index, layer] of raw.stack.entries()) {
+      if (!object(layer) || layer.patch_id !== raw.applied[index] || typeof layer.sha256 !== 'string' || !layer.sha256
+        || typeof layer.reason !== 'string' || !Number.isSafeInteger(layer.applied_at) || layer.applied_at < 0 || layer.applied_at > 8.64e15
+        || !Number.isSafeInteger(layer.position) || layer.position < 0) return null;
+    }
   }
   return raw as RuntimeResponse;
 }

@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useLedgerQuery, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
 import type { BranchesResponse, SubscribeResult, TrackItem, TrackOverlap } from '@/api/types';
+import { useAuth } from '@/auth/AuthContext';
+import { accountRuntime } from '@/lib/accountNodeActions';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -67,6 +69,7 @@ type Branch = BranchesResponse['branches'][number];
  */
 export function TrackCard({ branch, subscribed, currency, address }: { branch: Branch; subscribed: boolean; currency: string; address: string | null }) {
   const { t } = useT();
+  const auth = useAuth();
   const money = useMoney();
   const [open, setOpen] = useState<null | 'subscribe' | 'unsubscribe'>(null);
   const [subscribe, subState] = useSubscribeMutation();
@@ -88,19 +91,19 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
   const retiredCount = branch.patch_ids.length - current.length;
 
   /**
-   * Finding 262 — what this node actually holds of the track's current knowledge. `applied` is the runtime's own
-   * answer (what is on the model right now), never a guess from the catalogue: a subscription that half-failed,
-   * a body this node owns but never loaded and a version superseded overnight all read the same on the ledger.
+   * Runtime `applied` is the node's ordered load record, not a fresh probe of model weights. Compare exact ids
+   * with the current track and label the evidence accordingly; a failed read cannot become an empty stack.
    */
-  const runtime = useRuntimeQuery();
-  const loadedIds = new Set((runtime.data?.applied ?? []).map((x) => x.patch_id));
+  const runtime = useRuntimeQuery({ identity: auth.cacheIdentity });
+  const runtimeData = !runtime.isError ? accountRuntime(runtime.currentData) : null;
+  const loadedIds = new Set(runtimeData?.applied ?? []);
   const loaded = current.filter((id) => loadedIds.has(id));
   const missing = current.filter((id) => !loadedIds.has(id));
   const nameOf = (id: string) => items.find((i) => i.patch_id === id)?.name ?? id;
   const missingText = missing.length <= 2
     ? missing.map(nameOf).join(', ')
     : t('op.dash.branches.behind.more', { ids: missing.slice(0, 2).map(nameOf).join(', '), n: missing.length - 2 });
-  const runtimeKnown = !!runtime.data?.available;
+  const runtimeKnown = !!runtimeData?.available;
 
   /**
    * Item 361 — `subscribers` is derived from live subscribe/unsubscribe state, so a node that leaves simply

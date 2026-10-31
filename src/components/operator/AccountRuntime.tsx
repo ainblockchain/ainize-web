@@ -23,9 +23,12 @@ export function AccountRuntime() {
         <dt>{t('op.account.runtime.api')}</dt><dd><Mono>{data.api ?? '—'}</Mono></dd>
         <dt>{t('op.account.runtime.model')}</dt><dd>{data.model ?? '—'}</dd>
         <dt><Tip tech="patch hook">{t('op.account.runtime.hook')}</Tip></dt><dd>{t(data.hook ? 'op.account.runtime.connected' : 'op.account.runtime.disconnected')}</dd>
-        <dt>{t('op.account.runtime.loaded')}</dt><dd>{data.applied.length ? data.applied.map(a => <span key={a.patch_id} style={{ marginRight: 12 }}>{a.patch_id} <Muted>({a.reason}, {elapsed(a.applied_at)})</Muted></span>) : <Muted>{t('op.none')}</Muted>}</dd>
+        <dt>{t('op.account.runtime.loaded')}</dt><dd>{data.applied.length ? data.applied.map((id, index) => {
+          const layer = data.stack?.[index];
+          return <span key={id} style={{ marginRight: 12 }}>{id} {layer ? <Muted>({layer.reason}, {elapsed(layer.applied_at)})</Muted> : <Muted>({t('op.account.runtime.layer_unknown')})</Muted>}</span>;
+        }) : <Muted>{t('op.none')}</Muted>}</dd>
       </KeyValue>
-      <RuntimeTest key={JSON.stringify([auth.cacheIdentity, data.available, data.api, data.model, data.applied.map(a => [a.patch_id, a.sha256, a.applied_at])])}
+      <RuntimeTest key={JSON.stringify([auth.cacheIdentity, data.available, data.api, data.model, data.applied, data.stack?.map(a => [a.patch_id, a.sha256, a.applied_at])])}
         enabled={data.available && !!data.model?.trim() && !query.isFetching} prompt={prompt} setPrompt={setPrompt} />
     </div>}
   </>;
