@@ -18,6 +18,7 @@ const LandingPage = lazy(() => import('./screens/LandingPage'));
 const ExplorePage = lazy(() => import('./screens/ExplorePage'));
 const PatchPage = lazy(() => import('./screens/PatchPage'));
 const BenchmarkPage = lazy(() => import('./screens/BenchmarkPage'));
+const KnowledgeByIdPage = lazy(() => import('./screens/KnowledgeByIdPage'));
 const LedgerPage = lazy(() => import('./screens/LedgerPage'));
 const NetworkPage = lazy(() => import('./screens/NetworkPage'));
 const ModelsPage = lazy(() => import('./screens/ModelsPage'));
@@ -170,6 +171,7 @@ export default function App() {
                 <Route path="/verifier/:address" element={<Layout><VerifierPage /></Layout>} />
                 <Route path="/benchmarks/:schema" element={<Layout><BenchmarkPage /></Layout>} />
                 <Route path="/patch/:author/:patchId" element={<LegacyKnowledgeRoute />} />
+                <Route path="/patch/:patchId" element={<Layout><KnowledgeByIdPage /></Layout>} />
 
                 {/* Signed in is enough: these are the caller's own things, not this node's. */}
                 <Route path="/me" element={<SignedInLayout><MyPage /></SignedInLayout>} />

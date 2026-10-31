@@ -1,6 +1,6 @@
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useVerifierQuery } from '@/api/api';
+import { useVerifierQuery } from '@/api/api';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
@@ -9,6 +9,9 @@ import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWra
 import { isAddress } from '@/lib/teacherKey';
 import { num, shortAddr } from '@/utils/format';
 import { useDateTime, useElapsed } from '@/utils/useFormat';
+import { verifierView } from '@/lib/providerViews';
+import { knowledgeLookupPath } from '@/lib/detailRoutes';
+import { Offline } from '@/components/ui/Offline';
 
 const Stats = styled.div`margin-top: 16px; display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 20px 24px; background: #fff; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY};`;
 const Stat = styled.div<{ $tone?: string }>`
@@ -37,12 +40,13 @@ export default function VerifierPage() {
   const elapsed = useElapsed();
   const dateTime = useDateTime();
   const valid = isAddress(address);
-  const { data, error, isLoading } = useVerifierQuery(address, { skip: !valid, pollingInterval: 30_000 });
+  const query = useVerifierQuery(address.toLowerCase(), { skip: !valid, pollingInterval: 30_000 });
+  const data = query.isError ? null : verifierView(query.currentData, address);
   useTitle(data?.name ? `${t('verifier.title')} · ${data.name}` : t('verifier.title'));
 
   if (!valid) return <PageWrapper><Alert $tone="error">{t('verifier.not_found')}</Alert></PageWrapper>;
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (error || !data) return <PageWrapper><Alert $tone="error">{t('common.error', { message: errorMessage(error) })}</Alert></PageWrapper>;
+  if (!query.currentData && query.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!data) return <PageWrapper><Offline error={query.error} what={t('offline.what.verifier')} retrying={query.isFetching} onRetry={() => { void query.refetch(); }} /></PageWrapper>;
 
   const minutes = Math.round(data.model_seconds / 6) / 10;
   return (
@@ -106,7 +110,7 @@ export default function VerifierPage() {
                 {data.items.map((it) => (
                   <TableRow key={`${it.patch_id}-${it.created_at}`}>
                     <TableData $align="left" $padding="0 0 0 32px">
-                      <StyledLink as={Link} to={`/${it.patch_id}`}>{it.name || it.patch_id}</StyledLink>
+                      <StyledLink to={knowledgeLookupPath(it.patch_id)}>{it.name || it.patch_id}</StyledLink>
                       {it.recheck ? <Tag>{t('verifier.recheck_tag')}</Tag> : null}
                       {it.challenged_after ? <Tag $tone="bad">{t('verifier.challenged_tag')}</Tag> : null}
                     </TableData>

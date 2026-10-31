@@ -54,6 +54,10 @@ import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel
 import { CopyButton } from '../src/components/ui/Misc';
 import { CodeBlock as DocsCodeBlock } from '../src/components/docs/CodeBlock';
 import BenchmarkPage from '../src/screens/BenchmarkPage';
+import TeacherPage from '../src/screens/TeacherPage';
+import VerifierPage from '../src/screens/VerifierPage';
+import KnowledgeByIdPage from '../src/screens/KnowledgeByIdPage';
+import { teacherProfile, verifierProfile, providerAddress } from './fixtures/providerProfiles';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -127,6 +131,45 @@ test('valid benchmark entries retain their chosen author/id destination and comp
   assert.match(html, /href="\/chosen-author\/knowledge-id"/);
   assert.match(html, /Selected knowledge/);
   assert.doesNotMatch(html, /data-testid="offline-retry"/);
+});
+
+test('provider detail reads isolate addresses and show recovery for outages and malformed histories', () => {
+  for (const [Page, endpoint, profile] of [[TeacherPage, 'teacher', teacherProfile()], [VerifierPage, 'verifier', verifierProfile()]] as const) {
+    const route = `/${endpoint}/:address`, path = `/${endpoint}/${providerAddress}`;
+    for (const fixture of [
+      { name: endpoint, arg: providerAddress, value: profile, status: 'rejected' as const },
+      { name: endpoint, arg: providerAddress, value: { ...profile, address: `0x${'b'.repeat(40)}` } },
+      { name: endpoint, arg: providerAddress, value: {} },
+    ]) {
+      const html = render(Page, [...signedOut, fixture], path, route);
+      assert.match(html, /data-testid="offline-retry"/);
+      assert.doesNotMatch(html, /Selected teacher|Selected verifier|No knowledge published|No sales yet/);
+    }
+    const changed = render(Page, [...signedOut, { name: endpoint, arg: `0x${'b'.repeat(40)}`, value: profile }], path, route);
+    assert.doesNotMatch(changed, /Selected teacher|Selected verifier|No knowledge published|No sales yet/);
+  }
+});
+
+test('provider knowledge names link to the exact id lookup rather than an organization or search', () => {
+  const teacher = teacherProfile();
+  teacher.lessons.push({ id: 'chosen/id', name: 'Chosen lesson', status: 'VERIFIED', verified: true, downloads: 0, revenue: '0' });
+  const verifier = verifierProfile(); verifier.attested = 1;
+  verifier.items.push({ patch_id: 'chosen/id', name: 'Chosen lesson', status: 'VERIFIED', passed: true, verified_on: 'model', score: {}, created_at: 1, recheck: false, samples_run: null, samples_available: null, duration_ms: null, challenged_after: false });
+  for (const [Page, endpoint, profile] of [[TeacherPage, 'teacher', teacher], [VerifierPage, 'verifier', verifier]] as const) {
+    const html = render(Page, [...signedOut, { name: endpoint, arg: providerAddress, value: profile }], `/${endpoint}/${providerAddress}`, `/${endpoint}/:address`);
+    assert.match(html, /href="\/patch\/chosen%2Fid"/);
+    assert.doesNotMatch(html, /href="\/chosen\/id"|href="\/explore\?q=/);
+  }
+});
+
+test('id-only knowledge lookup offers recovery for failed or mismatched data and preserves true 404 behavior', () => {
+  for (const fixture of [{ name: 'patch', arg: 'chosen', status: 'rejected' as const }, { name: 'patch', arg: 'chosen', value: { anchor: { id: 'other', author: providerAddress } } }]) {
+    const html = render(KnowledgeByIdPage, [...signedOut, fixture], '/patch/chosen', '/patch/:patchId');
+    assert.match(html, /data-testid="offline-retry"/);
+    assert.doesNotMatch(html, /This knowledge could not be found/);
+  }
+  const missing = render(KnowledgeByIdPage, [...signedOut, { name: 'patch', arg: 'chosen', status: 'rejected', errorStatus: 404 }], '/patch/chosen', '/patch/:patchId');
+  assert.match(missing, /This knowledge could not be found/);
 });
 const lists = (datasets: Fixture, jobs: Fixture) => [...signedOut, policy, ...[datasets, jobs].map(f => ({ ...f, arg: currentTeacherKey()?.address.toLowerCase() ?? '' }))];
 const dsEmpty: Fixture = { name: 'teachDatasets', value: { items: [] } };
