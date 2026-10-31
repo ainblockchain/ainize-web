@@ -165,9 +165,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 198 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 202 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 109 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 111 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -225,6 +225,7 @@ A further 109 throw sites build their message at the time (a validator's own wor
 | `null` | content must be a string | `src/hosted-qa-engine.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
+| `null` | http_\<res.status> | `src/project-storage-s3.ts` |
 | `null` | invalid agent source path | `src/agent-git.ts` |
 | `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
@@ -345,6 +346,7 @@ A further 109 throw sites build their message at the time (a validator's own wor
 | `409` | patch body not present on this node | `src/api.ts` |
 | `409` | payout \<id> is already paid (\<row.tx_hash>) | `src/payouts.ts` |
 | `409` | prefix_taken | `src/project-storage-manager.ts` |
+| `409` | safety_backup_failed | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
 | `409` | state_exists | `src/agent-archive-restore.ts` |
 | `409` | store_attached | `src/project-storage-manager.ts` |
 | `409` | store_busy | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
@@ -355,10 +357,12 @@ A further 109 throw sites build their message at the time (a validator's own wor
 | `409` | too_many_stores | `src/project-storage-manager.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
 | `422` | checksum_mismatch | `src/project-storage-backups.ts` |
+| `422` | extension_not_offered | `src/project-storage-backups.ts` |
+| `422` | invalid_dump | `src/project-storage-backups.ts` |
 | `423` | patch not listed yet (verification \<e.passed>/\<e.quorum>) | `src/api.ts` |
 | `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
-| `500` | credentials_missing | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
+| `500` | credentials_missing | `src/project-storage-manager.ts` |
 | `501` | docker_unavailable | `src/server.ts` |
 | `502` | aindrive_error | `src/project-storage-backups.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |

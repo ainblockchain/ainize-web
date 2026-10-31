@@ -311,7 +311,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/runtime-logs`](#get-apiprojectsidruntime-logs) | operator | The running service's own stdout/stderr, wherever it was placed (owner or member) |
 | `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
 
-**Storage** — managed Postgres and S3-compatible (MinIO) stores an organization's projects connect to — provisioned by the node as containers on NFS, credentials injected as env, scheduled backups to the organization's AinDrive (docs/PROJECTS.md "Managed storage")
+**Storage** — managed Postgres and S3-compatible Blob (RustFS) stores an organization's projects connect to — provisioned by the node as containers on NFS, credentials injected as env, scheduled backups to the organization's AinDrive (docs/PROJECTS.md "Managed storage")
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
@@ -6010,7 +6010,7 @@ The node proxies the request to the container on its internal network; the `outp
 
 ## Storage
 
-managed Postgres and S3-compatible (MinIO) stores an organization's projects connect to — provisioned by the node as containers on NFS, credentials injected as env, scheduled backups to the organization's AinDrive (docs/PROJECTS.md "Managed storage")
+managed Postgres and S3-compatible Blob (RustFS) stores an organization's projects connect to — provisioned by the node as containers on NFS, credentials injected as env, scheduled backups to the organization's AinDrive (docs/PROJECTS.md "Managed storage")
 
 ### `GET /api/orgs/{id}/stores`
 
@@ -6147,7 +6147,7 @@ Change a store's backup settings or name (org write), or its resources (admin)
 
 Delete a store (admin): refused while connected; name confirm; final backup; data to the trash for 30 days
 
-`{ confirm: "<store name>", skipFinalBackup?: boolean }`. 409 `store_attached` (`projects`) while any project is connected; 400 `confirm_mismatch`. A `pre-delete` backup is taken unless skipped; the container, network and volume go and the NAS directory moves to `.trash/` (purged after `AINIZE_STORAGE_TRASH_DAYS`); the sealed credentials are dropped; backup rows stay under the organization's "Deleted stores". 202 `{ deleting: true, backupId? }`.
+`{ confirm: "<store name>", skipFinalBackup?: boolean }`. 409 `store_attached` (`projects`) while any project is connected; 400 `confirm_mismatch`. A `pre-delete` backup is taken unless skipped — and when it fails the store is NOT deleted (its `error` says why; 409 `safety_backup_failed` when that is known within the answer); the container, network and volume go and the NAS directory moves to `.trash/` (purged after `AINIZE_STORAGE_TRASH_DAYS`); the sealed credentials are dropped; backup rows stay under the organization's "Deleted stores". 202 `{ deleting: true, backupId? }`.
 
 **Auth** — operator
 
@@ -6342,7 +6342,7 @@ The connection env, once (org write) — logged
 
 New credentials (admin): a pre-rotate backup, new passwords/keys, every connected project redeployed
 
-Postgres: new `app`/`app_ro` passwords (`?all=1` also the superuser — key-loss recovery). Blob: a new service account; the old one is removed after a grace period. `{ credentialsVersion, redeploys: [{ projectId, deploymentId }] }`.
+Postgres: new `app`/`app_ro` passwords (`?all=1` also the superuser — key-loss recovery). Blob: a new key pair and the next generation of the container (the old pair stops working at once; the redeploys bring the new one). The `pre-rotate` backup must succeed, else nothing changes (409 `safety_backup_failed`). `{ credentialsVersion, redeploys: [{ projectId, deploymentId }] }`.
 
 **Auth** — operator
 
@@ -6358,7 +6358,7 @@ Postgres: new `app`/`app_ro` passwords (`?all=1` also the superuser — key-loss
 | Code | Description | Body |
 |---|---|---|
 | `200` | rotated | `object` |
-| `409` | `store_busy` \| `store_not_ready` |   |
+| `409` | `store_busy` \| `store_not_ready` \| `safety_backup_failed` |   |
 
 **`200` response body**
 
@@ -6424,7 +6424,7 @@ Identifiers go through `format('%I')`; `limit` ≤ 200 (default 50), `offset`, `
 
 Data browser: one read-only statement (org write) — 10 s, 200 rows
 
-`{ sql, database? }` (≤ 16 KiB). As `app_ro` with `default_transaction_read_only` and a 10 s statement timeout; the statement is wrapped in `SELECT … LIMIT 201`, so `truncated` says when there was more. `{ columns, rows, rowCount, truncated, ms }`. A `;` outside a string → 400 `multi_statement`; 400 `sql_error` (psql's message); 408 `sql_timeout`; 413 `result_too_large` (1 MiB).
+`{ sql, database? }` (≤ 16 KiB). As `app_ro` with `default_transaction_read_only` and a 10 s statement timeout; the statement is wrapped in `SELECT … LIMIT 201`, so `truncated` says when there was more. `{ columns, rows, rowCount, truncated, ms }`. The text reaches the server as ONE SQL string, never a psql script. A `;` outside a string → 400 `multi_statement`; a backslash outside a string (a psql meta-command) → 400 `sql_error`; 400 `sql_error` (the server's message); 408 `sql_timeout`; 413 `result_too_large` (1 MiB).
 
 **Auth** — operator
 
@@ -6578,7 +6578,7 @@ Delete a backup on the NAS and the drive (admin)
 
 Restore a backup into a new store (default) or in place with a 7-day undo (admin)
 
-`{ source: { backupId } | { path: "import/<file>" }, mode: "new" | "in-place", confirm: "<store name>", newName?, database? }`. The file is found (NAS, else the drive) and its sha256 verified BEFORE anything changes — a mismatch is 422 `checksum_mismatch`. `new`: a store of the same engine and resources named `newName` (default `<name>-r<yyyymmdd>`) is created and filled; the original is untouched. `in-place`: a `pre-restore` backup, then the current database is RENAMED to `<db>_prerestore_<ts>` (never dropped), a fresh one filled by `pg_restore`; connected apps see errors while it runs; `POST …/restore/undo` swaps the names back within 7 days. `import/<file>` is a dump copied onto the NAS by hand (the compose cut-over). 202 `{ store, newStore? }`.
+`{ source: { backupId } | { path: "import/<file>" }, mode: "new" | "in-place", confirm: "<store name>", newName?, database? }`. The file is found (NAS, else the drive) and its sha256 verified BEFORE anything changes — a mismatch is 422 `checksum_mismatch`. `new`: a store of the same engine and resources named `newName` (default `<name>-r<yyyymmdd>`) is created and filled; the original is untouched. `in-place`: a `pre-restore` backup that must succeed (else nothing changes), then the app is locked out of the database, a fresh one under another name is filled by `pg_restore` (the dump's extensions created first by the superuser), and only then the current database is RENAMED to `<db>_prerestore_<ts>` (never dropped); connected apps see errors while it runs; a Blob store is mirrored back from its archive (objects the backup lacks are removed); `POST …/restore/undo` swaps the names back within 7 days. `import/<file>` is a dump copied onto the NAS by hand (the compose cut-over). 202 `{ store, newStore? }`.
 
 **Auth** — operator
 
@@ -6652,7 +6652,7 @@ The store container's own log (org write)
 
 Set the organization's AinDrive backup target (admin): a drive id and an account token
 
-`{ driveId, token, origin? }` — an AinDrive account token (`aind_aat_…`) with `drives:write`. A probe file is uploaded and removed before the token is sealed; `{ driveId, verifiedAt }` — the token is never echoed. 400 `drive_unauthorized`, 502 `aindrive_error`.
+`{ driveId, token }` — a drive on the operator's AinDrive (`AINDRIVE_URL`; a caller never chooses where the node sends backups) and an AinDrive account token (`aind_aat_…`) with `drives:write`. A probe file is uploaded and removed before the token is sealed; `{ driveId, verifiedAt }` — the token is never echoed. 400 `drive_unauthorized`, 502 `aindrive_error`.
 
 **Auth** — operator
 
@@ -6668,7 +6668,6 @@ Set the organization's AinDrive backup target (admin): a drive id and an account
 |---|---|---|
 | `driveId` | `string` | yes |
 | `token` | `string` | yes |
-| `origin` | `string (uri)` |   |
 
 **Responses**
 

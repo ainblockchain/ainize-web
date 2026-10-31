@@ -40,7 +40,7 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`ChatApplied`](#chatapplied) |   |
 | [`ChatPatches`](#chatpatches) |   |
 | [`Error`](#error) |   |
-| [`Store`](#store) | A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or MinIO container the node runs for an organization on an NFS volume, reached by connected projects as `<name>.store.internal`. Never carries a credential — `POST /api/stores/{sid}/reveal` does, once. |
+| [`Store`](#store) | A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or S3-compatible Blob (RustFS) container the node runs for an organization on an NFS volume, reached by connected projects as `<name>.store.internal`. Never carries a credential — `POST /api/stores/{sid}/reveal` does, once. |
 | [`StoreAttachment`](#storeattachment) | A project connected to a store: the ainize.json `storage` binding it answers, the env prefix its variables carry, and (Postgres) the database it uses — `app` or one of its own. |
 | [`StoreBackup`](#storebackup) | One backup of a store: a verified `pg_dump -Fc` per database (or a `tar.gz` of the mirrored bucket) on the NAS under `backups/<YYYY-MM-DD>/`, and its copy on the organization's AinDrive when a backup target is set. |
 | [`Payout`](#payout) | One royalty transfer owed by this node for one settle record (spec §7.5 / §9.3). Written `pending` BEFORE the AIN transfer is attempted; `paid` carries the tx hash, `failed` the last error and is retried every 60 s (max 20 attempts, then by hand). |
@@ -458,7 +458,7 @@ Where one live test is in the queue behind the shared serving model.
 
 ## `Store`
 
-A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or MinIO container the node runs for an organization on an NFS volume, reached by connected projects as `<name>.store.internal`. Never carries a credential — `POST /api/stores/{sid}/reveal` does, once.
+A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or S3-compatible Blob (RustFS) container the node runs for an organization on an NFS volume, reached by connected projects as `<name>.store.internal`. Never carries a credential — `POST /api/stores/{sid}/reveal` does, once.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -466,7 +466,7 @@ A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionall
 | `orgId` | `string` | yes |   |
 | `name` | `string` | yes | unique per organization; the DNS alias `<name>.store.internal` and the default binding name |
 | `kind` | `"postgres"` \| `"blob"` | yes |   |
-| `engine` | `"postgres16"` \| `"postgres16-pgvector"` \| `"minio"` | yes |   |
+| `engine` | `"postgres16"` \| `"postgres16-pgvector"` \| `"minio"` | yes | `minio` is the Blob engine (S3-compatible, served by RustFS; the id and the `MINIO_*` env predate it) |
 | `image` | `string` |   | the image digest the store is pinned to |
 | `generation` | `integer` |   | bumped on each recreate (resources, rename) |
 | `status` | `"provisioning"` \| `"ready"` \| `"stopped"` \| `"error"` \| `"restoring"` \| `"deleting"` | yes |   |
