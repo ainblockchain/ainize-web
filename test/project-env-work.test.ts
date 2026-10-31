@@ -60,3 +60,11 @@ test('manual redeploy pre-admission refusals leave environment editing available
   await assert.rejects(gate.run(async () => { throw { status: 500, data: { error: { code: 'redeploy_outcome_unknown' } } }; }));
   assert.equal(gate.uncertain(), true);
 });
+
+
+test('a server-confirmed partial environment operation locks writes even when the later deployment was refused', async () => {
+  const gate = createProjectEnvWork();
+  await assert.rejects(gate.run(async () => { throw { status: 500, data: { error: { code: 'secret_mutation_outcome_unknown' } } }; }));
+  assert.equal(gate.uncertain(), true);
+  assert.equal(await gate.run(async () => assert.fail('do not repeat a partially saved operation')), undefined);
+});

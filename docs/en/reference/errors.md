@@ -249,12 +249,12 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `null` | invalid agent source path | `src/agent-git.ts` |
 | `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
-| `null` | invalid_redeploy_target | `src/project-redeploy.ts` |
+| `null` | invalid_redeploy_target | `src/project-redeploy.ts`, `src/project-routes.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
 | `null` | Model backend failed | `src/peer-models.ts` |
 | `null` | no such file or directory: \<rel> | `src/hosted-qa-engine.ts` |
 | `null` | not a directory: … | `src/hosted-qa-engine.ts` |
-| `null` | not_found | `src/project-redeploy.ts` |
+| `null` | not_found | `src/project-redeploy.ts`, `src/project-routes.ts` |
 | `null` | not_yet_cloned | `src/project-redeploy.ts` |
 | `null` | old_string and new_string are identical | `src/hosted-qa-engine.ts` |
 | `null` | old_string and new_string must be strings | `src/hosted-qa-engine.ts` |

@@ -5672,23 +5672,26 @@ The owner (of an org-private project, while still a member), or an active member
 
 Set or replace one project secret (owner or org writer)
 
-Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable to the project's container on its next deploy and to its script runs, over ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. No redeploy unless `?redeploy=1`, which queues one of the newest commit. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status } | null }`.
+Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable to the project's container on its next deploy and to its script runs, over ainize.json `env`. Body `{ value }`: one line, at most 32 KiB; name `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, not one the node sets (`PORT`, `HOSTNAME`, proxy variables, `AINIZE_*`: 400 `reserved_name`); at most 64 per project (409 `too_many_secrets`). The value is never echoed, logged or shown in a view. Optional body `redeploy: { deploymentId, sha }` pins the reviewed source and full commit, validated before the secret write. Legacy `?redeploy=1` without that target is refused. 201 created / 200 replaced `{ name, updatedAt, created, redeploy: { deploymentId, status, projectId, redeployOf, sha } | null }`. A failure after writing starts returns 500 `secret_mutation_outcome_unknown`; the value or deployment may already have changed. Values are read when the worker prepares execution, not from a versioned snapshot.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required |
-|---|---|---|---|
-| `id` | `path` | `string` | yes |
-| `name` | `path` | `string` | yes |
-| `redeploy` | `query` | `"1"` \| `"true"` |   |
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes |   |
+| `redeploy` | `query` | `"1"` \| `"true"` |   | Requires the explicit target in the JSON body; cannot select latest. |
 
 **Request body** — `application/json`, required
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `value` | `string` | yes | (at most 32768 characters) |
+| `redeploy` | `object` |   |   |
+| `redeploy.deploymentId` | `string` | yes |   |
+| `redeploy.sha` | `string` | yes |   |
 
 **Responses**
 
@@ -5699,24 +5702,33 @@ Sealed at rest (AES-256-GCM, node key) and delivered as an environment variable 
 | `400` | `invalid_name` · `reserved_name` · `invalid_value` · `invalid_request` |
 | `403` | `not_writer` |
 | `404` | `not_found` |
-| `409` | `too_many_secrets` |
+| `409` | `too_many_secrets` · `project_deleting` · `invalid_redeploy_target` · `redeploy_target_changed` |
 | `413` | `value_too_large` |
+| `500` | `secret_mutation_outcome_unknown` |
 
 ### `DELETE /api/projects/{id}/secrets/{name}`
 
 Remove one project secret (owner or org writer)
 
-Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, redeploy }`; 404 when the secret is not set.
+Takes effect on the next deployment. Optional JSON body `redeploy: { deploymentId, sha }` requests the reviewed commit, validated before removal. Legacy `?redeploy=1` alone is refused. `{ ok, name, redeploy: { deploymentId, status, projectId, redeployOf, sha } | null }`; 404 when unset. A failure after writing starts returns 500 `secret_mutation_outcome_unknown`; inspect environment and history before retrying.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required |
-|---|---|---|---|
-| `id` | `path` | `string` | yes |
-| `name` | `path` | `string` | yes |
-| `redeploy` | `query` | `"1"` \| `"true"` |   |
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes |   |
+| `redeploy` | `query` | `"1"` \| `"true"` |   | Requires the explicit target in the JSON body; cannot select latest. |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `redeploy` | `object` |   |
+| `redeploy.deploymentId` | `string` | yes |
+| `redeploy.sha` | `string` | yes |
 
 **Responses**
 
@@ -5725,6 +5737,8 @@ Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, 
 | `200` | removed | `object` |
 | `403` | `not_writer` |   |
 | `404` | `not_found` |   |
+| `409` | `project_deleting` · `invalid_redeploy_target` · `redeploy_target_changed` |   |
+| `500` | `secret_mutation_outcome_unknown` |   |
 
 ### `PATCH /api/projects/{id}/rotate-secret`
 

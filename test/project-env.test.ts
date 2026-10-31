@@ -13,10 +13,12 @@ import { fileURLToPath } from 'node:url';
 import {
   envAccessOf, envRowsOf, isReservedSecretName, parseDotEnv, parseProjectSecretsResponse, readProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, planBulk,
   saveSecretsSequentially, secretApiErrorOf, secretDeleteRequest, secretNameProblem, secretPutRequest, secretsListUrl, secretValueProblem,
-  SECRET_ERROR_CODES, type SecretSaved,
+  SECRET_ERROR_CODES, type SecretSaved, type SecretRedeployTarget,
 } from '../src/api/projectSecrets.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
 
+const target: SecretRedeployTarget = { projectId: 'prj_1', deploymentId: 'reviewed', sha: 'a'.repeat(40) };
+const receipt = (deploymentId = 'dep_9') => ({ deploymentId, status: 'queued' as const, projectId: target.projectId, redeployOf: target.deploymentId, sha: target.sha });
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`, import.meta.url)), 'utf8');
 
 test('.env paste: comments, blanks, export, quotes, inline comments, duplicates', () => {
@@ -79,12 +81,12 @@ test('the paste preview: create, update or why not — including the 64 limit', 
   assert.deepEqual(capped.map((r) => [r.name, r.action, r.problem]), [['K0', 'update', null], ['A', 'create', null], ['B', 'invalid', 'limit']]);
 });
 
-test('requests: list, PUT with { value } and ?redeploy=1 only when asked, DELETE; names are encoded', () => {
+test('requests carry the reviewed commit in PUT/DELETE bodies and encode names', () => {
   assert.equal(secretsListUrl('prj_1'), 'api/projects/prj_1/secrets');
   assert.deepEqual(secretPutRequest('prj_1', 'API_KEY', 's3cret'), { url: 'api/projects/prj_1/secrets/API_KEY', method: 'PUT', body: { value: 's3cret' } });
-  assert.deepEqual(secretPutRequest('prj_1', 'API_KEY', '', true), { url: 'api/projects/prj_1/secrets/API_KEY?redeploy=1', method: 'PUT', body: { value: '' } });
+  assert.deepEqual(secretPutRequest('prj_1', 'API_KEY', '', target), { url: 'api/projects/prj_1/secrets/API_KEY', method: 'PUT', body: { value: '', redeploy: { deploymentId: target.deploymentId, sha: target.sha } } });
   assert.deepEqual(secretDeleteRequest('prj/1', 'A B'), { url: 'api/projects/prj%2F1/secrets/A%20B', method: 'DELETE' });
-  assert.deepEqual(secretDeleteRequest('p', 'X', true), { url: 'api/projects/p/secrets/X?redeploy=1', method: 'DELETE' });
+  assert.deepEqual(secretDeleteRequest('prj_1', 'X', target), { url: 'api/projects/prj_1/secrets/X', method: 'DELETE', body: { redeploy: { deploymentId: target.deploymentId, sha: target.sha } } });
   // the RTK endpoints are built from these, with the readers below as transformResponse
   const api = read('api/api.ts');
   assert.match(api, /projectSecrets: b\.query<ProjectSecretsResponse, \{ id: string; identity: string \}>\(\{ keepUnusedDataFor: 0, query: \(\{ id \}\) => secretsListUrl\(id\), transformResponse: parseProjectSecretsResponse/);
@@ -118,32 +120,43 @@ test('incomplete, duplicate and contradictory environment snapshots cannot enabl
   assert.equal(envAccessOf({ isLoading: true }), 'loading');
 });
 
-test('environment mutation receipts retain current fields', () => {
-  assert.deepEqual(parseSecretSaved({ name: 'A', updatedAt: 9, created: true, redeploy: { deploymentId: 'dep_1', status: 'queued' } }), { name: 'A', updatedAt: 9, created: true, redeploy: { deploymentId: 'dep_1', status: 'queued' } });
-  assert.deepEqual(parseSecretSaved({ name: 'A', updatedAt: 9, created: false, redeploy: null }).redeploy, null);
-  assert.deepEqual(parseSecretRemoved({ ok: true, name: 'A', redeploy: { deploymentId: 'dep_2', status: 'queued' } }), { ok: true, name: 'A', redeploy: { deploymentId: 'dep_2', status: 'queued' } });
+test('environment mutation receipts identify the exact reviewed deployment and commit', () => {
+  const saved = { name: 'A', updatedAt: 9, created: true, redeploy: receipt() };
+  const removed = { name: 'A', ok: true, redeploy: receipt() };
+  assert.deepEqual(parseSecretSaved(saved, { name: 'A', redeploy: target }), saved);
+  assert.deepEqual(parseSecretRemoved(removed, { name: 'A', redeploy: target }), removed);
+  for (const redeploy of [null, { deploymentId: 'dep', status: 'queued' },
+    ...[{ projectId: 'foreign' }, { redeployOf: 'newer' }, { sha: 'b'.repeat(40) }, { deploymentId: target.deploymentId }].map(p => ({ ...receipt(), ...p }))]) {
+    assert.throws(() => parseSecretSaved({ ...saved, redeploy }, { name: 'A', redeploy: target }), /unconfirmed_secret_mutation/);
+    assert.throws(() => parseSecretRemoved({ ...removed, redeploy }, { name: 'A', redeploy: target }), /unconfirmed_secret_mutation/);
+  }
+  assert.equal(parseSecretSaved({ ...saved, redeploy: null }, { name: 'A' }).redeploy, null);
+  for (const bad of [{ ...target, projectId: 'foreign' }, { ...target, sha: 'main' }]) {
+    assert.throws(() => secretPutRequest(target.projectId, 'A', 'v', bad), /invalid_redeploy_target/);
+    assert.throws(() => secretDeleteRequest(target.projectId, 'A', bad), /invalid_redeploy_target/);
+  }
 });
 
 test('bulk save: one at a time, redeploy on the last write only, the first refusal stops it', async () => {
-  const calls: [string, string, boolean][] = [];
-  const ok = (name: string, rd: boolean): SecretSaved => ({ name, updatedAt: 1, created: true, redeploy: rd ? { deploymentId: 'dep_9', status: 'queued' } : null });
+  const calls: [string, string, SecretRedeployTarget | false][] = [];
+  const ok = (name: string, rd: SecretRedeployTarget | false): SecretSaved => ({ name, updatedAt: 1, created: true, redeploy: rd ? receipt() : null });
   const progress: number[] = [];
   const r = await saveSecretsSequentially([{ name: 'A', value: '1' }, { name: 'B', value: '2' }, { name: 'C', value: '3' }],
-    async (n, v, rd) => { calls.push([n, v, rd]); return ok(n, rd); }, { redeployLast: true, onProgress: (d) => progress.push(d) });
-  assert.deepEqual(calls, [['A', '1', false], ['B', '2', false], ['C', '3', true]]);
+    async (n, v, rd) => { calls.push([n, v, rd]); return ok(n, rd); }, { redeployLast: target, onProgress: (d) => progress.push(d) });
+  assert.deepEqual(calls, [['A', '1', false], ['B', '2', false], ['C', '3', target]]);
   assert.deepEqual(progress, [1, 2, 3]);
-  assert.deepEqual(r.redeploy, { deploymentId: 'dep_9', status: 'queued' });
+  assert.deepEqual(r.redeploy, receipt());
   assert.equal(r.failed, null);
 
   const seen: string[] = [];
   const stop = await saveSecretsSequentially([{ name: 'A', value: '1' }, { name: 'B', value: '2' }, { name: 'C', value: '3' }],
-    async (n, _v, rd) => { seen.push(n); if (n === 'B') throw { status: 409, data: { error: { code: 'too_many_secrets', message: 'max 64' } } }; return ok(n, rd); }, { redeployLast: true });
+    async (n, _v, rd) => { seen.push(n); if (n === 'B') throw { status: 409, data: { error: { code: 'too_many_secrets', message: 'max 64' } } }; return ok(n, rd); }, { redeployLast: target });
   assert.deepEqual(seen, ['A', 'B'], 'C is not attempted');
   assert.deepEqual(stop.saved.map((s) => s.name), ['A']);
   assert.equal(stop.failed?.name, 'B');
   assert.equal(stop.redeploy, null, 'no redeploy for an incomplete set');
 
-  const noRedeploy: boolean[] = [];
+  const noRedeploy: (SecretRedeployTarget | false)[] = [];
   await saveSecretsSequentially([{ name: 'A', value: '1' }], async (n, _v, rd) => { noRedeploy.push(rd); return ok(n, rd); });
   assert.deepEqual(noRedeploy, [false]);
 });
@@ -202,7 +215,7 @@ test('save/delete receipts must name the chosen variable and explicitly acknowle
   assert.deepEqual(parseSecretRemoved(removed, { name: 'TOKEN' }), removed);
   for (const raw of [null, {}, { ...saved, name: 'OTHER' }, { ...saved, created: undefined }, { ...saved, updatedAt: null },
     { ...saved, updatedAt: NaN }, { ...saved, redeploy: undefined }, { ...saved, redeploy: { deploymentId: 'dep', status: 'ready' } }]) {
-    assert.throws(() => parseSecretSaved(raw, { name: 'TOKEN', redeploy: true }), /unconfirmed_secret_mutation/);
+    assert.throws(() => parseSecretSaved(raw, { name: 'TOKEN', redeploy: target }), /unconfirmed_secret_mutation/);
   }
   for (const raw of [null, {}, { ...removed, name: 'OTHER' }, { ...removed, ok: false }, { ...removed, ok: undefined }, { ...removed, redeploy: undefined }]) {
     assert.throws(() => parseSecretRemoved(raw, { name: 'TOKEN' }), /unconfirmed_secret_mutation/);
@@ -215,7 +228,7 @@ test('bulk saving stops on the exact uncertain variable and never counts a misma
   const calls: string[] = [];
   const r = await saveSecretsSequentially([{ name: 'A', value: 'a' }, { name: 'B', value: 'b' }, { name: 'C', value: 'c' }], async name => {
     calls.push(name); return { name: name === 'B' ? 'WRONG' : name, updatedAt: 1, created: true, redeploy: null };
-  }, { redeployLast: true });
+  }, { redeployLast: target });
   assert.deepEqual(calls, ['A', 'B']); assert.deepEqual(r.saved.map(s => s.name), ['A']);
   assert.equal(r.failed?.name, 'B'); assert.equal(r.redeploy, null);
 });
@@ -225,6 +238,18 @@ test('leaving a project/account during bulk save prevents subsequent writes unde
   const calls: string[] = [];
   const r = await saveSecretsSequentially([{ name: 'A', value: 'a' }, { name: 'B', value: 'b' }], async name => {
     calls.push(name); active = false; return { name, updatedAt: 1, created: true, redeploy: null };
-  }, { isActive: () => active, redeployLast: true });
+  }, { isActive: () => active, redeployLast: target });
   assert.deepEqual(calls, ['A']); assert.equal(r.failed?.name, 'B'); assert.equal(r.redeploy, null);
+});
+
+
+test('a bulk sequence retains its initial reviewed target while later renders or callers update their selection', async () => {
+  const selected = { ...target };
+  const calls: (SecretRedeployTarget | false)[] = [];
+  const r = await saveSecretsSequentially([{ name: 'A', value: '1' }, { name: 'B', value: '2' }], async (name, _value, rd) => {
+    calls.push(rd);
+    selected.deploymentId = 'newer'; selected.sha = 'b'.repeat(40);
+    return { name, updatedAt: 1, created: true, redeploy: rd ? receipt() : null };
+  }, { redeployLast: selected });
+  assert.deepEqual(calls, [false, target]); assert.equal(r.failed, null); assert.deepEqual(r.redeploy, receipt());
 });

@@ -13,7 +13,7 @@ import styled from 'styled-components';
 import { useDeleteProjectSecretMutation, useDeploymentQuery, useProjectSecretsQuery, useRedeployMutation, useSetProjectSecretMutation } from '@/api/api';
 import {
   declaredSecretNames, envAccessOf, envRowsOf, parseDotEnv, planBulk, readProjectSecretsResponse, saveSecretsSequentially, secretApiErrorOf, secretNameProblem, secretValueProblem, SECRET_VALUE_MAX,
-  type BulkPlanRow, type EnvRow,
+  type BulkPlanRow, type EnvRow, type SecretRedeployTarget,
 } from '@/api/projectSecrets';
 import { relativeTime, statusToneOf, type Project, type Queued } from '@/api/projects';
 import { useAuth } from '@/auth/AuthContext';
@@ -105,7 +105,7 @@ export function DeployWatch({ projectId, queued, onOpen }: { projectId: string; 
   );
 }
 
-function EnvItem({ row, project, redeploy, work, onSaved }: { row: EnvRow; project: Project; redeploy: boolean; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
+function EnvItem({ row, project, redeploy, work, onSaved }: { row: EnvRow; project: Project; redeploy: SecretRedeployTarget | false; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
   const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
@@ -156,7 +156,7 @@ function EnvItem({ row, project, redeploy, work, onSaved }: { row: EnvRow; proje
   );
 }
 
-function AddForm({ project, existing, redeploy, work, onSaved }: { project: Project; existing: string[]; redeploy: boolean; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
+function AddForm({ project, existing, redeploy, work, onSaved }: { project: Project; existing: string[]; redeploy: SecretRedeployTarget | false; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
   const { t } = useT();
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
@@ -197,7 +197,7 @@ function AddForm({ project, existing, redeploy, work, onSaved }: { project: Proj
   );
 }
 
-function BulkPaste({ project, existing, redeploy, work, onSaved }: { project: Project; existing: string[]; redeploy: boolean; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
+function BulkPaste({ project, existing, redeploy, work, onSaved }: { project: Project; existing: string[]; redeploy: SecretRedeployTarget | false; work: ProjectEnvWork; onSaved: (q: Queued | null) => void }) {
   const { t } = useT();
   const [text, setText] = useState('');
   const [plan, setPlan] = useState<{ rows: BulkPlanRow[]; skipped: ReturnType<typeof parseDotEnv>['skipped'] } | null>(null);
@@ -284,7 +284,7 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   async function runWork<T>(task: () => Promise<T>): Promise<T | undefined> {
-    if (!active() || access !== 'writer' || controller.blocked()) return undefined;
+    if (!active() || access !== 'writer' || controller.blocked() || waitingForTarget) return undefined;
     setBusy(true);
     try {
       const result = await controller.run(task);
@@ -299,14 +299,16 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
   // A script reads its env when it runs; a deployed app only when it is deployed again.
   const deploys = kind !== 'script' && !!project.lastDeploymentId;
   const [redeployAfter, setRedeployAfter] = useState(true);
-  const redeploy = deploys && redeployAfter;
   const [pending, setPending] = useState(false);
   const [queued, setQueued] = useState<Queued | null>(null);
   const [redeployNow, redeploying] = useRedeployMutation();
   const [redeployErr, setRedeployErr] = useState<string | null>(null);
-  const redeployTargetQuery = useDeploymentQuery({ id: project.lastDeploymentId ?? '', identity: useAuth().cacheIdentity }, { skip: !pending || !project.lastDeploymentId || access !== 'writer', refetchOnMountOrArgChange: true });
+  const redeployTargetQuery = useDeploymentQuery({ id: project.lastDeploymentId ?? '', identity: useAuth().cacheIdentity }, { skip: !deploys || access !== 'writer', refetchOnMountOrArgChange: true });
   const redeployTarget = redeployTargetQuery.isError || !project.lastDeploymentId ? null : readProjectDeployment(redeployTargetQuery.currentData, project.id, project.lastDeploymentId);
-  const targetReady = redeployTarget && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(redeployTarget.sha);
+  const targetReady = redeployTarget && redeployTarget.trigger !== 'run' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(redeployTarget.sha);
+  const redeploy: SecretRedeployTarget | false = deploys && redeployAfter && targetReady && !redeployTargetQuery.isFetching
+    ? { projectId: project.id, deploymentId: redeployTarget.id, sha: redeployTarget.sha } : false;
+  const waitingForTarget = deploys && redeployAfter && !redeploy;
   const rows = useMemo(() => (data ? envRowsOf(data) : []), [data]);
   const existing = useMemo(() => data?.secrets.map((s) => s.name) ?? [], [data]);
 
@@ -356,6 +358,7 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
       {access === 'writer' && data && (
         <>
           <fieldset disabled={busy || uncertain} aria-busy={busy} style={{ border: 0, margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <fieldset disabled={waitingForTarget} style={{ border: 0, margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {rows.length === 0 ? <Help>{t('projects.env.empty')}</Help> : (
             <List aria-label={t('projects.env.title')}>
               {rows.map((r) => <EnvItem key={r.name} row={r} project={project} redeploy={redeploy} work={work} onSaved={onSaved} />)}
@@ -363,9 +366,11 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
           )}
           <AddForm project={project} existing={existing} redeploy={redeploy} work={work} onSaved={onSaved} />
           <BulkPaste project={project} existing={existing} redeploy={redeploy} work={work} onSaved={onSaved} />
+          </fieldset>
           {deploys
-            ? <Checkbox label={t('projects.env.redeploy_after')} checked={redeployAfter} onChange={(e) => setRedeployAfter(e.target.checked)} />
+            ? <Checkbox label={targetReady ? t('projects.env.redeploy_after_commit', { sha: redeployTarget.sha.slice(0, 7) }) : t('projects.env.redeploy_after')} checked={redeployAfter} onChange={(e) => setRedeployAfter(e.target.checked)} />
             : <Help>{kind === 'script' ? t('projects.env.script_note') : t('projects.env.no_deployment_note')}</Help>}
+          {waitingForTarget && <Help>{t('projects.env.target_needed')} <Button size="small" loading={redeployTargetQuery.isFetching} onClick={() => void redeployTargetQuery.refetch()}>{t('projects.page.retry')}</Button></Help>}
           {pending && !queued && !uncertain && (
             <Alert $tone="warning">
               <Actions>

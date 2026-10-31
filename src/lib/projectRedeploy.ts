@@ -1,7 +1,7 @@
 import type { Deployment } from '../api/projects';
 import { projectRunReceipt } from './projectRun';
 
-export function projectRedeployReceipt(result: unknown, target: Deployment, knownIds: readonly string[] = []): string | null {
+export function projectRedeployReceipt(result: unknown, target: Pick<Deployment, 'id' | 'projectId' | 'sha'>, knownIds: readonly string[] = []): string | null {
   const receipt = result as { projectId?: unknown; redeployOf?: unknown; sha?: unknown } | null;
   const id = projectRunReceipt(result);
   return id && id !== target.id && !knownIds.includes(id) && receipt?.projectId === target.projectId

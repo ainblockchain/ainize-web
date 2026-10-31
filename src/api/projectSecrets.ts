@@ -4,8 +4,8 @@
  * the console sees names and when each was set, the way Vercel shows a sensitive variable.
  *
  *   GET    /api/projects/:id/secrets                     → { secrets: [{ name, updatedAt }], declared, missing }
- *   PUT    /api/projects/:id/secrets/:name[?redeploy=1]  { value } → 201 | 200 { name, updatedAt, created, redeploy }
- *   DELETE /api/projects/:id/secrets/:name[?redeploy=1]  → { ok, name, redeploy }
+ *   PUT    /api/projects/:id/secrets/:name  { value, redeploy?: { deploymentId, sha } } → 201 | 200 { name, updatedAt, created, redeploy }
+ *   DELETE /api/projects/:id/secrets/:name  { redeploy?: { deploymentId, sha } } → { ok, name, redeploy }
  *
  * Who: the owner, or a member of the project's organization with the write role; any other member gets 403
  * `not_writer`, everyone else 404. `declared` is what the newest deployment's ainize.json lists under `secrets`;
@@ -15,7 +15,8 @@
  * project) checked before the request, the `.env` paste parser and the plan it turns into, the request shapes, the
  * error codes, and the sequential save the bulk paste uses.
  */
-import type { Queued } from './projects';
+import type { Redeployed } from './projects';
+import { projectRedeployReceipt } from '../lib/projectRedeploy';
 
 /** ainize-node project-manifest.ts `PROJECT_SECRET_NAME`. */
 export const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
@@ -30,18 +31,24 @@ export const RESERVED_SECRET_NAMES: readonly string[] = [
 
 export interface ProjectSecret { name: string; updatedAt: number | null }
 export interface ProjectSecretsResponse { secrets: ProjectSecret[]; declared: string[]; missing: string[] }
-export interface SecretSaved { name: string; updatedAt: number | null; created: boolean; redeploy: Queued | null }
-export interface SecretRemoved { ok: boolean; name: string; redeploy: Queued | null }
+export interface SecretSaved { name: string; updatedAt: number | null; created: boolean; redeploy: Redeployed | null }
+export interface SecretRemoved { ok: boolean; name: string; redeploy: Redeployed | null }
 
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const names = (v: unknown): v is string[] => Array.isArray(v) && v.length <= SECRETS_MAX
   && v.every(n => typeof n === 'string' && SECRET_NAME.test(n)) && new Set(v).size === v.length;
 export const declaredSecretNames = (raw: unknown): string[] | null => names(raw) ? [...raw] : null;
-const queuedOf = (v: unknown): Queued | null => {
-  if (v === null) return null;
-  if (!object(v) || typeof v.deploymentId !== 'string' || !v.deploymentId.trim() || v.deploymentId !== v.deploymentId.trim()
-    || v.status !== 'queued' && v.status !== 'building') throw new Error('unconfirmed_secret_mutation');
-  return { deploymentId: v.deploymentId, status: v.status };
+/** Reviewed source carried with the write. No secret value is retained here. */
+export interface SecretRedeployTarget { projectId: string; deploymentId: string; sha: string }
+const queuedOf = (v: unknown, expected?: SecretRedeployTarget | false): Redeployed | null => {
+  if (!expected) {
+    if (v !== null) throw new Error('unconfirmed_secret_mutation');
+    return null;
+  }
+  if (!projectRedeployReceipt(v, { id: expected.deploymentId, projectId: expected.projectId, sha: expected.sha }))
+    throw new Error('unconfirmed_secret_mutation');
+  const r = v as Redeployed;
+  return { deploymentId: r.deploymentId, status: r.status, projectId: r.projectId, redeployOf: r.redeployOf, sha: r.sha };
 };
 
 /** A malformed or contradictory snapshot cannot become an empty editable project. Never copy secret values. */
@@ -66,17 +73,17 @@ export function parseProjectSecretsResponse(raw: unknown): ProjectSecretsRespons
   if (!result) throw new Error('invalid_project_secrets');
   return result;
 }
-type SecretExpected = { name: string; redeploy?: boolean };
+type SecretExpected = { name: string; redeploy?: SecretRedeployTarget | false };
 export function parseSecretSaved(raw: unknown, expected?: SecretExpected): SecretSaved {
   if (!object(raw) || typeof raw.name !== 'string' || !SECRET_NAME.test(raw.name) || typeof raw.created !== 'boolean'
     || typeof raw.updatedAt !== 'number' || !Number.isFinite(raw.updatedAt) || raw.updatedAt < 0
     || expected && (raw.name !== expected.name || !expected.redeploy && raw.redeploy !== null)) throw new Error('unconfirmed_secret_mutation');
-  return { name: raw.name, updatedAt: raw.updatedAt, created: raw.created, redeploy: queuedOf(raw.redeploy) };
+  return { name: raw.name, updatedAt: raw.updatedAt, created: raw.created, redeploy: queuedOf(raw.redeploy, expected?.redeploy) };
 }
 export function parseSecretRemoved(raw: unknown, expected?: SecretExpected): SecretRemoved {
   if (!object(raw) || raw.ok !== true || typeof raw.name !== 'string' || !SECRET_NAME.test(raw.name)
     || expected && (raw.name !== expected.name || !expected.redeploy && raw.redeploy !== null)) throw new Error('unconfirmed_secret_mutation');
-  return { ok: true, name: raw.name, redeploy: queuedOf(raw.redeploy) };
+  return { ok: true, name: raw.name, redeploy: queuedOf(raw.redeploy, expected?.redeploy) };
 }
 
 /** One row of the table: a variable that is set, or one ainize.json declares and nobody has set. */
@@ -176,33 +183,40 @@ export function planBulk(entries: DotEnvEntry[], existing: readonly string[], ma
 
 const base = (projectId: string) => `api/projects/${encodeURIComponent(projectId)}/secrets`;
 export const secretsListUrl = (projectId: string) => base(projectId);
-export function secretPutRequest(projectId: string, name: string, value: string, redeploy = false) {
-  return { url: `${base(projectId)}/${encodeURIComponent(name)}${redeploy ? '?redeploy=1' : ''}`, method: 'PUT' as const, body: { value } };
+const redeployBody = (projectId: string, target?: SecretRedeployTarget | false) => {
+  if (!target) return {};
+  if (target.projectId !== projectId || !/^[A-Za-z0-9_-]{1,128}$/.test(target.deploymentId) || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(target.sha))
+    throw new Error('invalid_redeploy_target');
+  return { redeploy: { deploymentId: target.deploymentId, sha: target.sha } };
+};
+export function secretPutRequest(projectId: string, name: string, value: string, redeploy?: SecretRedeployTarget | false) {
+  return { url: `${base(projectId)}/${encodeURIComponent(name)}`, method: 'PUT' as const, body: { value, ...redeployBody(projectId, redeploy) } };
 }
-export function secretDeleteRequest(projectId: string, name: string, redeploy = false) {
-  return { url: `${base(projectId)}/${encodeURIComponent(name)}${redeploy ? '?redeploy=1' : ''}`, method: 'DELETE' as const };
+export function secretDeleteRequest(projectId: string, name: string, redeploy?: SecretRedeployTarget | false) {
+  return { url: `${base(projectId)}/${encodeURIComponent(name)}`, method: 'DELETE' as const, ...(redeploy ? { body: redeployBody(projectId, redeploy) } : {}) };
 }
 
-export interface BulkSaveResult { saved: SecretSaved[]; failed: { name: string; error: unknown } | null; redeploy: Queued | null }
+export interface BulkSaveResult { saved: SecretSaved[]; failed: { name: string; error: unknown } | null; redeploy: Redeployed | null }
 
 /**
- * Save rows one after another (the node has no batch write). `?redeploy=1` rides on the LAST write only, so the
- * project deploys once with every value in place. The first refusal stops the run — what was saved stays saved, and
+ * Save rows one after another (the node has no batch write). The reviewed target rides on the LAST write only.
+ * A concurrent deployment must not change which commit the sequence asks to redeploy. The first refusal stops the run — what was saved stays saved, and
  * no redeploy is asked for, since the set is incomplete.
  */
 export async function saveSecretsSequentially(
   rows: readonly { name: string; value: string }[],
-  put: (name: string, value: string, redeploy: boolean) => Promise<SecretSaved>,
-  opts: { redeployLast?: boolean; onProgress?: (done: number, total: number) => void; isActive?: () => boolean } = {},
+  put: (name: string, value: string, redeploy: SecretRedeployTarget | false) => Promise<SecretSaved>,
+  opts: { redeployLast?: SecretRedeployTarget | false; onProgress?: (done: number, total: number) => void; isActive?: () => boolean } = {},
 ): Promise<BulkSaveResult> {
+  const target = opts.redeployLast ? { ...opts.redeployLast } : false;
   const saved: SecretSaved[] = [];
-  let redeploy: Queued | null = null;
+  let redeploy: Redeployed | null = null;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!;
     const last = i === rows.length - 1;
     try {
       if (opts.isActive && !opts.isActive()) throw new Error('environment_view_left');
-      const s = parseSecretSaved(await put(r.name, r.value, !!opts.redeployLast && last), { name: r.name, redeploy: !!opts.redeployLast && last });
+      const s = parseSecretSaved(await put(r.name, r.value, last ? target : false), { name: r.name, redeploy: last ? target : false });
       saved.push(s);
       if (s.redeploy) redeploy = s.redeploy;
     } catch (error) {
@@ -217,9 +231,11 @@ export async function saveSecretsSequentially(
 
 export type SecretErrorCode =
   | 'not_signed_in' | 'not_writer' | 'not_found' | 'secrets_off' | 'invalid_name' | 'reserved_name' | 'invalid_value' | 'value_too_large'
+  | 'project_deleting' | 'not_yet_cloned' | 'invalid_redeploy_target' | 'redeploy_target_changed' | 'secret_mutation_outcome_unknown' | 'redeploy_outcome_unknown'
   | 'too_many_secrets' | 'invalid_request' | 'not_member' | 'forbidden' | 'network' | 'unknown';
 export const SECRET_ERROR_CODES: readonly SecretErrorCode[] = [
   'not_signed_in', 'not_writer', 'not_found', 'secrets_off', 'invalid_name', 'reserved_name', 'invalid_value', 'value_too_large',
+  'project_deleting', 'not_yet_cloned', 'invalid_redeploy_target', 'redeploy_target_changed', 'secret_mutation_outcome_unknown', 'redeploy_outcome_unknown',
   'too_many_secrets', 'invalid_request', 'not_member', 'forbidden', 'network', 'unknown',
 ];
 export interface SecretApiError { status: number | null; code: SecretErrorCode; message: string | null }

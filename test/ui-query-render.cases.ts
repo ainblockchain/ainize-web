@@ -3376,3 +3376,20 @@ test('pending deletion replaces normal project actions with cleanup status and o
   const denied = render(Viewer, deploymentHistoryFixtures(viewer, []), '/studio/mono');
   assert.doesNotMatch(denied, /Resume deletion/); assert.match(denied, /Project deletion cleanup/);
 });
+
+
+test('save-and-redeploy shows the reviewed commit and cannot edit against a missing or foreign deployment', () => {
+  const project = { ...rootProject, kind: 'service', lastDeploymentId: 'reviewed-env' } as Project;
+  const Page = () => createElement(ProjectEnvVars, { project });
+  const secrets: Fixture = { name: 'projectSecrets', arg: projectArg, value: { secrets: [], declared: [], missing: [] } };
+  const good = { ...deploymentFixture('reviewed-env'), sha: 'a'.repeat(40), trigger: 'push' };
+  const html = render(Page, [...appAccount, secrets, { name: 'deployment', arg: { id: 'reviewed-env', identity: accountIdentity }, value: good }]);
+  assert.match(html, /Redeploy aaaaaaa after saving/);
+  assert.doesNotMatch(html, /<fieldset disabled/);
+  for (const value of [{}, { ...good, projectId: 'foreign' }, { ...good, sha: '' }, { ...good, trigger: 'run' }]) {
+    const invalid = render(Page, [...appAccount, secrets, { name: 'deployment', arg: { id: 'reviewed-env', identity: accountIdentity }, value }]);
+    assert.match(invalid, /<fieldset disabled/);
+    assert.match(invalid, /Confirm the deployment commit before saving/);
+    assert.doesNotMatch(invalid, /Redeploy aaaaaaa after saving/);
+  }
+});

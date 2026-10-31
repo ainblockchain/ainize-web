@@ -205,14 +205,14 @@ export const api = createApi({
     deployment: b.query<Deployment, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/deployments/${encodeURIComponent(id)}` }),
     /**
      * The project's environment variables (src/api/projectSecrets.ts): names only — values are write-only. A write
-     * with `redeploy` asks the node to deploy the newest commit again, so the project's view refreshes too.
+     * with `redeploy` asks the node to redeploy the reviewed deployment and full commit, so the project's view refreshes too.
      */
     projectSecrets: b.query<ProjectSecretsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => secretsListUrl(id), transformResponse: parseProjectSecretsResponse, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/secrets` }] }),
-    setProjectSecret: b.mutation<SecretSaved, { id: string; name: string; value: string; redeploy?: boolean }>({
+    setProjectSecret: b.mutation<SecretSaved, { id: string; name: string; value: string; redeploy?: import('./projectSecrets').SecretRedeployTarget | false }>({
       query: ({ id, name, value, redeploy }) => secretPutRequest(id, name, value, redeploy), transformResponse: (raw, _meta, arg) => parseSecretSaved(raw, arg),
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
     }),
-    deleteProjectSecret: b.mutation<SecretRemoved, { id: string; name: string; redeploy?: boolean }>({
+    deleteProjectSecret: b.mutation<SecretRemoved, { id: string; name: string; redeploy?: import('./projectSecrets').SecretRedeployTarget | false }>({
       query: ({ id, name, redeploy }) => secretDeleteRequest(id, name, redeploy), transformResponse: (raw, _meta, arg) => parseSecretRemoved(raw, arg),
       invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/secrets` }, ...(a.redeploy ? [{ type: 'Project' as const, id: a.id }] : [])],
     }),
