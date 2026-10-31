@@ -4442,7 +4442,7 @@ Requires the exact review from GET as expected. Changes to actor, registry, kind
 
 Resolve an agent alias (or id) to the agent's canonical id
 
-An alias is a readable second address for an agent whose id is not one (`external-e20458854c448acf7809` → `agent-m`). `name` may be an alias or an id; the answer is the canonical `id` and its `alias` (null when it has none). An agent the caller may not see is 404, the same as by id — an alias never confirms an agent its id would not. `/agents/{alias}` (card and JSON-RPC) reaches the same agent; its card `url` stays the canonical id.
+An alias is a readable second address for an agent whose id is not one (`external-e20458854c448acf7809` → `agent-m`). `name` may be an alias or an id; the answer is the canonical `id` and its active `alias` (null when it has none). Aliases bind a specific registration, kind and owner; deleted/recreated/restored agents never inherit old aliases. Unverified legacy aliases do not resolve until an authorized manager explicitly connects them. Config aliases bind the exact operator-reviewed definition and require reassignment when that definition changes. An agent the caller may not see is 404, the same as by id — an alias never confirms an agent its id would not. `/agents/{alias}` (card and JSON-RPC) reaches the same agent; its card `url` stays the canonical id.
 
 **Auth** — none
 
@@ -4470,7 +4470,7 @@ An alias is a readable second address for an agent whose id is not one (`externa
 
 Review current agent address settings before editing
 
-Authorized managers only; private, no-store. Returns {review} binding canonical id, kind, owner, acting account, registry, current alias and revision. Public name resolution remains GET /api/agent-aliases/{name}.
+Authorized managers only; private, no-store. Returns {review} binding canonical id, kind, owner, acting account, registry, current alias, lifecycle state and revision. Unverified legacy names remain reserved while their id exists but are not served. Public name resolution remains GET /api/agent-aliases/{name}.
 
 **Auth** — none
 
@@ -4500,7 +4500,7 @@ Authorized managers only; private, no-store. Returns {review} binding canonical 
 
 Give an agent a readable alias (replaces its current one)
 
-The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`). First GET this path, then pass the entire review as expected. The response contains applied.expected, applied.alias and the new review; verify these before claiming success or navigating. A lost response is uncertain: do not automatically retry, and a later matching read is not a historical receipt.
+The id never changes; the alias is an extra address. Rules: 1–40 of `[a-z0-9-]`, not starting with a hyphen; not any agent's id (config, hosted, linked) and not another agent's alias; one per agent. Who: a hosted agent's owner or a `write` member of the organization it is shared with; a linked agent's registrant; the node's operator for any agent (a config agent only by the operator). A new agent cannot be created with an id that is a live alias (`id_taken`). First GET this path, then pass the entire review as expected. Setting an unverified legacy name explicitly binds it to the reviewed registration; normal hosted/linked edits preserve the binding. A successful non-null alias has review.state=active; clearing has review.state=none. The response contains applied.expected, applied.alias and the new review; verify these before claiming success or navigating. A lost response is uncertain: do not automatically retry, and a later matching read is not a historical receipt.
 
 **Auth** — none
 

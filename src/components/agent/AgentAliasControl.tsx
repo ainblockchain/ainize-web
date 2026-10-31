@@ -24,7 +24,7 @@ export function AgentAliasControl({ agentId, agentName, alias, kind, owner }: { 
   const [read] = useLazyAgentAliasReviewQuery(), [setAlias] = useSetAgentAliasMutation(), [clearAlias] = useClearAgentAliasMutation();
   const current = () => active() && auth.isCurrentAccount();
   const readFresh = () => read({ id: agentId, identity: auth.cacheIdentity }, false).unwrap();
-  const valid = mode === 'remove' ? !!review?.alias : AGENT_ALIAS_PATTERN.test(draft) && draft !== agentId && draft !== review?.alias;
+  const valid = mode === 'remove' ? !!review?.alias : AGENT_ALIAS_PATTERN.test(draft) && draft !== agentId && (draft !== review?.alias || review?.state === 'unverified');
 
   const load = async (next: 'set' | 'remove' | null) => {
     if (pending.current || !current() || next && unknown) return;
@@ -69,13 +69,15 @@ export function AgentAliasControl({ agentId, agentName, alias, kind, owner }: { 
       </>}
     </AliasRow>
     {unknown && <Alert $tone="error" data-testid="agent-alias-unconfirmed">{t('agentAlias.unconfirmed')}{' '}<Button size="small" disabled={busy} onClick={() => void load(null)}>{t('agentAlias.check')}</Button></Alert>}
-    {review && <AliasRow>{t('agentAlias.reviewed')} <Mono>{agentPagePath({ id: review.id, alias: review.alias })}</Mono></AliasRow>}
+    {review && <AliasRow>{t(review.state === 'unverified' ? 'agentAlias.recorded' : 'agentAlias.reviewed')} <Mono>{agentPagePath({ id: review.id, alias: review.alias })}</Mono></AliasRow>}
+    {review?.state === 'unverified' && <Alert $tone="error" data-testid="agent-alias-legacy">{t('agentAlias.unverified')}</Alert>}
     {mode && <>
       {mode === 'set' ? <Input disabled={busy || unknown} value={draft} maxLength={40} onChange={e => setDraft(e.target.value.toLowerCase())} aria-label={t('agentAlias.title')} data-testid="agent-alias-input" />
         : <span>{t('agentAlias.remove_confirm', { alias: review?.alias ?? '', id: agentId })}</span>}
       <span>{t('agentAlias.help', { id: agentId })}</span>
       <AliasRow>
-        <Button size="small" variant="contained" loading={busy} disabled={!valid || busy || conflict || unknown} onClick={() => void submit()} data-testid="agent-alias-save">{t(mode === 'remove' ? 'agentAlias.clear' : 'agentAlias.save')}</Button>
+        <Button size="small" variant="contained" loading={busy} disabled={!valid || busy || conflict || unknown} onClick={() => void submit()} data-testid="agent-alias-save">{t(mode === 'remove' ? 'agentAlias.clear' : review?.state === 'unverified' && draft === review.alias ? 'agentAlias.confirm' : 'agentAlias.save')}</Button>
+        {mode === 'set' && review?.state === 'unverified' && <Button size="small" disabled={busy || unknown} onClick={() => setMode('remove')}>{t('agentAlias.clear')}</Button>}
         {conflict && !unknown && <Button size="small" disabled={busy} onClick={() => void load(mode)}>{t('agentAlias.reload')}</Button>}
         <Button size="small" variant="text" disabled={busy} onClick={() => setMode(null)}>{t('agentAlias.cancel')}</Button>
       </AliasRow>

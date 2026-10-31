@@ -1,15 +1,16 @@
 import { AGENT_ALIAS_PATTERN } from '@/api/agentIds';
 export interface AgentAliasReview {
-  id: string; kind: 'hosted' | 'linked' | 'config'; owner: string; actor: string; registry: string; alias: string | null; revision: string;
+  id: string; kind: 'hosted' | 'linked' | 'config'; owner: string; actor: string; registry: string; alias: string | null; revision: string; state: 'none' | 'active' | 'unverified';
 }
 export interface AgentAliasChange { id: string; expected: AgentAliasReview; alias: string | null }
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const keys = ['id', 'kind', 'owner', 'actor', 'registry', 'alias', 'revision'] as const;
+const keys = ['id', 'kind', 'owner', 'actor', 'registry', 'alias', 'revision', 'state'] as const;
 export function readAgentAliasReview(raw: unknown): AgentAliasReview | null {
   const r = object(raw) && object(raw.review) ? raw.review : null;
   if (!r || Object.keys(r).length !== keys.length || !['hosted', 'linked', 'config'].includes(String(r.kind))
     || !['id', 'owner', 'actor', 'registry'].every(key => typeof r[key] === 'string' && !!r[key])
     || typeof r.revision !== 'string' || !/^[a-f0-9]{64}$/.test(r.revision)
+    || !['none', 'active', 'unverified'].includes(String(r.state)) || (r.state === 'none') !== (r.alias === null)
     || !(r.alias === null || typeof r.alias === 'string' && AGENT_ALIAS_PATTERN.test(r.alias) && r.alias !== r.id)) return null;
   return Object.fromEntries(keys.map(key => [key, r[key]])) as unknown as AgentAliasReview;
 }
@@ -19,6 +20,7 @@ export function agentAliasChangeConfirmed(raw: unknown, change: AgentAliasChange
   const after = readAgentAliasReview(raw), before = readAgentAliasReview({ review: raw.applied.expected });
   return after && sameAgentAliasReview(before, change.expected) && raw.id === change.id && change.id === change.expected.id
     && raw.alias === change.alias && raw.applied.alias === change.alias && after.alias === change.alias
+    && after.state === (change.alias === null ? 'none' : 'active')
     && after.revision !== change.expected.revision
     && (['id', 'kind', 'owner', 'actor', 'registry'] as const).every(key => after[key] === change.expected[key]) ? after : null;
 }

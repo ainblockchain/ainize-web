@@ -187,7 +187,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 220 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 221 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 122 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -280,6 +280,7 @@ A further 122 throw sites build their message at the time (a validator's own wor
 | `null` | result is larger than 1 MiB | `src/hosted-qa-engine.ts` |
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | shared workspace agents must stay in their organization | `src/agent-git-http.ts` |
+| `null` | the agent registration cannot be verified | `src/agent-aliases.ts` |
 | `null` | the alias is the agent's own id | `src/agent-aliases.ts` |
 | `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |

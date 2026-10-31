@@ -64,7 +64,8 @@ Fields are listed with their full path, so a nested field appears as its own row
 | `actor` | `string` | yes |   |
 | `registry` | `string` | yes |   |
 | `alias` | `string,null` | yes |   |
-| `revision` | `string` | yes | Opaque revision of the registration/configuration and current alias; copy the entire review unchanged. |
+| `state` | `"none"` \| `"active"` \| `"unverified"` | yes | unverified is an inactive legacy record, not a working address. An authorized manager can explicitly bind it to the reviewed registration or remove it. Old bound aliases never follow a new registration with the same id. |
+| `revision` | `string` | yes | Opaque revision of the registration/configuration and stored alias; copy the entire review unchanged. |
 
 ## `AgentAliasMutationResult`
 

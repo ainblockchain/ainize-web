@@ -1,21 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readAgentAliasReview, agentAliasChangeConfirmed, changeReviewedAlias, AgentAliasChangeError, type AgentAliasReview } from '../src/lib/agentAliasChange';
-const review: AgentAliasReview = { id: 'agent', kind: 'linked', owner: 'sso:owner', actor: 'sso:owner', registry: 'https://node.example', revision: 'a'.repeat(64), alias: 'old' };
+const review: AgentAliasReview = { id: 'agent', kind: 'linked', owner: 'sso:owner', actor: 'sso:owner', registry: 'https://node.example', revision: 'a'.repeat(64), alias: 'old', state: 'active' };
 const change = { id: 'agent', expected: review, alias: 'chosen' };
 const after = { ...review, revision: 'b'.repeat(64), alias: change.alias };
 const receipt = { id: review.id, alias: after.alias, applied: { expected: review, alias: after.alias }, review: after };
 const reason = (name: string) => (e: unknown) => e instanceof AgentAliasChangeError && e.reason === name;
 test('alias review rejects incomplete, malformed and self-referencing addresses instead of inventing an empty state', () => {
   assert.deepEqual(readAgentAliasReview({ review }), review);
-  for (const patch of [{ alias: undefined }, { alias: 'BAD' }, { alias: review.id }, { actor: '' }, { kind: 'other' }, { owner: '' }, { revision: 'bad' }, { registry: '' }, { extra: true }]) assert.equal(readAgentAliasReview({ review: { ...review, ...patch } }), null);
+  for (const patch of [{ state: undefined }, { state: 'none' }, { state: 'invalid' }, { alias: undefined }, { alias: 'BAD' }, { alias: review.id }, { actor: '' }, { kind: 'other' }, { owner: '' }, { revision: 'bad' }, { registry: '' }, { extra: true }]) assert.equal(readAgentAliasReview({ review: { ...review, ...patch } }), null);
 });
 test('save receipt must match the exact address, reviewed target and before/after identity', () => {
   assert.deepEqual(agentAliasChangeConfirmed(receipt, change), after);
   for (const raw of [null, {}, { id: 'agent', alias: 'chosen' }, { ...receipt, alias: 'other' }, { ...receipt, id: 'other' },
     { ...receipt, applied: { expected: review, alias: 'other' } }, { ...receipt, applied: { expected: { ...review, alias: 'other' }, alias: after.alias } },
     ...[{ id: 'other' }, { owner: 'other' }, { actor: 'other' }, { registry: 'https://other.example' }, { kind: 'hosted' }, { revision: review.revision }, { alias: 'other' }].map(patch => ({ ...receipt, review: { ...after, ...patch } }))]) assert.equal(agentAliasChangeConfirmed(raw, change), null);
-  const removed = { ...receipt, alias: null, applied: { expected: review, alias: null }, review: { ...after, alias: null } };
+  assert.equal(agentAliasChangeConfirmed({ ...receipt, review: { ...after, state: 'unverified' } }, change), null);
+  const removed = { ...receipt, alias: null, applied: { expected: review, alias: null }, review: { ...after, alias: null, state: 'none' } };
   assert.equal(agentAliasChangeConfirmed(removed, change), null);
   assert.deepEqual(agentAliasChangeConfirmed(removed, { ...change, alias: null }), removed.review);
 });
@@ -61,7 +62,7 @@ test('actual RTK alias transport includes reviewed state and invalidates catalog
     assert.deepEqual(await req.json(), remove ? { expected: review } : { alias: change.alias, expected: review });
     writes++;
     if (writes % 2 === 1) return Response.json({ id: 'agent', alias: remove ? null : change.alias });
-    return Response.json(remove ? { ...receipt, alias: null, applied: { expected: review, alias: null }, review: { ...after, alias: null } } : receipt);
+    return Response.json(remove ? { ...receipt, alias: null, applied: { expected: review, alias: null }, review: { ...after, alias: null, state: 'none' } } : receipt);
   };
   const store = configureStore({ reducer: { [api.reducerPath]: api.reducer }, middleware: gdm => gdm().concat(api.middleware) });
   const query = store.dispatch(api.endpoints.agentAliasReview.initiate({ id: review.id, identity: review.actor }));
@@ -77,4 +78,13 @@ test('actual RTK alias transport includes reviewed state and invalidates catalog
     }
     assert.equal(writes, 4);
   } finally { query.unsubscribe(); store.dispatch(api.util.resetApiState()); globalThis.fetch = nativeFetch; globalThis.Request = NativeRequest; }
+});
+
+test('a legacy alias requires explicit connection; its matching text alone is not an active address', async () => {
+  const legacy: AgentAliasReview = { ...review, state: 'unverified' };
+  assert.deepEqual(readAgentAliasReview({ review: legacy }), legacy);
+  const reconnect = { id: legacy.id, expected: legacy, alias: legacy.alias };
+  const confirmed = { id: legacy.id, alias: legacy.alias, applied: { expected: legacy, alias: legacy.alias }, review: { ...legacy, state: 'active', revision: 'b'.repeat(64) } };
+  assert.equal(agentAliasChangeConfirmed({ ...confirmed, review: legacy }, reconnect), null);
+  assert.deepEqual(await changeReviewedAlias(reconnect, { current: () => true, read: async () => ({ review: legacy }), send: async body => { assert.deepEqual(body, reconnect); return confirmed; } }), confirmed.review);
 });
