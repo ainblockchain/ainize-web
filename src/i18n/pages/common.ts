@@ -2,6 +2,8 @@ import type { Dict } from '../index';
 
 /** Strings shared by header/footer/layout and generic UI. */
 export const common: Dict = {
+  'common.select_option': { ko: '항목 선택', en: 'Choose an option' },
+  'common.selection_unavailable': { ko: '선택한 항목을 사용할 수 없음', en: 'Selected option unavailable' },
   'nav.train': { ko: 'Train', en: 'Train' },
   'train.start': { ko: '학습 시작', en: 'Start training' },
   'train.knowledge': { ko: '학습된 지식', en: 'Trained knowledge' },

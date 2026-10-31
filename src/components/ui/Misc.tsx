@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 import { STATUS_META } from '@/theme/theme';
@@ -156,47 +156,35 @@ const Center = styled.div`display: flex; align-items: center; justify-content: c
 
 // ------------------------------------------------------------------ select box (ainize SelectBox)
 export interface SelectOption { value: string; label: string; disabled?: boolean }
-const SelWrap = styled.div`position: relative; display: inline-flex; align-items: center; z-index: 2;`;
-const SelButton = styled.button`
-  display: inline-flex; align-items: center; gap: 8px; padding: 4px 8px; border: 0; border-radius: 4px; background: #fff; cursor: pointer;
-  font-size: 14px; color: ${(p) => p.theme.color.GREY}; transition: box-shadow 0.3s ease;
-  &:hover { box-shadow: 0 6px 16px 0 rgba(0,0,0,0.16), 0 17px 50px 0 rgba(0,0,0,0.12); }
-  img { width: 16px; height: 16px; }
+const SelWrap = styled.label`
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%;
+  & > span { min-width: 0; overflow-wrap: anywhere; font-size: 14px; color: ${(p) => p.theme.color.GREY}; }
 `;
-const SelMenu = styled.div<{ $open: boolean }>`
-  position: absolute; top: 100%; right: 0; margin-top: 4px; width: 171px; padding: 4px; border-radius: 4px; background: #fff;
-  box-shadow: 0 8px 16px 0 rgba(48, 49, 51, 0.15);
-  transform-origin: top; transition: transform 0.15s ease, opacity 0.15s ease;
-  transform: ${(p) => (p.$open ? 'scaleY(1)' : 'scaleY(0.3)')}; opacity: ${(p) => (p.$open ? 1 : 0)}; pointer-events: ${(p) => (p.$open ? 'auto' : 'none')};
-`;
-const SelOption = styled.button<{ $active?: boolean }>`
-  display: flex; width: 100%; height: 40px; align-items: center; padding: 0 12px; border: 0; background: ${(p) => (p.$active ? '#f5eefc' : 'transparent')}; border-radius: 4px;
-  font-size: 14px; color: ${(p) => (p.$active ? p.theme.color.BLACK : p.theme.color.GREY)}; cursor: pointer; text-align: left;
-  &:hover { color: ${(p) => p.theme.color.BLACK}; background: ${(p) => p.theme.color.PRESSED}; }
-  &:disabled { color: ${(p) => p.theme.color.GREY}; background: ${(p) => p.theme.color.LIGHT_GREY}; cursor: not-allowed; }
+const SelControl = styled.select`
+  min-width: 0; max-width: 100%; min-height: 40px; padding: 6px 8px; border: 1px solid transparent;
+  border-radius: 4px; background-color: #fff; color: ${(p) => p.theme.color.GREY}; font: inherit; font-size: 14px;
+  cursor: pointer; text-overflow: ellipsis;
+  &:hover:not(:disabled) { border-color: ${(p) => p.theme.color.LIGHT_GREY}; }
+  &:focus-visible { outline: 2px solid #5b3df5; outline-offset: 2px; }
+  &:disabled { cursor: default; opacity: .65; }
 `;
 
-/** `label` names the popup listbox for screen readers (axe `aria-input-field-name`); the button keeps its visible text as its name. */
+/** Native selection provides keyboard/typeahead and the platform's touch picker without hidden focus targets. */
 export function SelectBox({ options, value, onChange, prefix, label }: { options: SelectOption[]; value: string; onChange: (v: string) => void; prefix?: string; label?: string }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
-  const current = options.find((o) => o.value === value) ?? options[0];
+  const { t } = useT();
+  const current = options.find((o) => o.value === value);
+  const unavailable = !options.some((o) => !o.disabled);
   return (
-    <SelWrap ref={ref}>
-      <SelButton type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
-        {prefix && <span>{prefix}</span>}{current?.label}<img src="/static/images/arrow-down.svg" alt="" />
-      </SelButton>
-      <SelMenu $open={open} role="listbox" aria-label={label ?? prefix}>
-        {options.map((o) => (
-          <SelOption key={o.value} type="button" role="option" aria-selected={o.value === value} disabled={o.disabled} $active={o.value === value}
-            onClick={() => { onChange(o.value); setOpen(false); }}>{o.label}</SelOption>
-        ))}
-      </SelMenu>
+    <SelWrap>
+      {prefix && <span>{prefix}</span>}
+      <SelControl value={value} disabled={unavailable} aria-label={label ?? prefix ?? t('common.select_option')}
+        onChange={(event) => {
+          const next = options.find((o) => o.value === event.target.value);
+          if (next && !next.disabled && next.value !== value) onChange(next.value);
+        }}>
+        {!current && <option value={value} disabled>{value ? t('common.selection_unavailable') : t('common.select_option')}</option>}
+        {options.map((o) => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
+      </SelControl>
     </SelWrap>
   );
 }

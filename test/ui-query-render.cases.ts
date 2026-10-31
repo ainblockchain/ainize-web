@@ -51,7 +51,7 @@ import { SignOutNotice } from '../src/components/ui/SignOutNotice';
 import { Header } from '../src/components/ui/Header';
 import MyPage from '../src/screens/MyPage';
 import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel';
-import { CopyButton } from '../src/components/ui/Misc';
+import { CopyButton, SelectBox } from '../src/components/ui/Misc';
 import { CodeBlock as DocsCodeBlock } from '../src/components/docs/CodeBlock';
 import BenchmarkPage from '../src/screens/BenchmarkPage';
 import TeacherPage from '../src/screens/TeacherPage';
@@ -138,7 +138,7 @@ test('ledger lists current protocol kinds with useful price, retirement, dispute
   const html = render(LedgerPage, [...signedOut, ...ledgerFixtures.filter(f => f.name !== 'ledger'),
     { name: 'ledger', arg: { kind: undefined, limit: 1000 }, value: ledgerFixture(records) },
   ], '/ledger');
-  for (const label of ['Retirement', 'Price change', 'Trade dispute', 'Payout']) assert.match(html, new RegExp(`role="option"[^>]*>${label}</button>`));
+  for (const label of ['Retirement', 'Price change', 'Trade dispute', 'Payout']) assert.match(html, new RegExp(`<option[^>]*>${label}</option>`));
   assert.match(html, /price-id price changed to 7 AIN/);
   assert.match(html, /retire-id retired from sale · Superseded dataset/);
   assert.match(html, /dispute-id dispute response/); assert.match(html, /payout-id payout · 3 USDC/);
@@ -296,6 +296,24 @@ test('track subscription guidance includes recurring fees separately from knowle
   assert.match(html, /7 AIN/);
   assert.doesNotMatch(html, /100 sale\(s\)|100 ·/);
   assert.doesNotMatch(html, /No track subscription fee/);
+});
+
+test('shared filters expose one native selection control instead of invisible focusable option buttons', () => {
+  const html = render(() => createElement(SelectBox, { label: 'Record kind', value: 'price', options: [{ value: '', label: 'All records' }, { value: 'price', label: 'Price change' }], onChange() {} }), signedOut);
+  assert.match(html, /<select[^>]*aria-label="Record kind"/);
+  assert.match(html, /<option value="price" selected="">Price change<\/option>/);
+  assert.doesNotMatch(html, /role="listbox"|role="option"|<button/);
+});
+
+test('missing or disabled filter choices cannot silently select the first available option', () => {
+  const options = [{ value: 'first', label: 'First option' }, { value: 'blocked', label: 'Unavailable choice', disabled: true }];
+  const missing = render(() => createElement(SelectBox, { value: 'removed', options, onChange() {} }), signedOut);
+  assert.match(missing, /<option value="removed" disabled="" selected="">Selected option unavailable<\/option>/);
+  assert.doesNotMatch(missing, /<option value="first" selected/);
+  const empty = render(() => createElement(SelectBox, { value: '', options: [], onChange() {} }), signedOut);
+  assert.match(empty, /<select[^>]*disabled=""/);
+  const blocked = render(() => createElement(SelectBox, { value: 'blocked', options: [options[1]], onChange() {} }), signedOut);
+  assert.match(blocked, /<select[^>]*disabled=""/);
 });
 
 test('shared copy controls cannot copy empty values or accidentally submit surrounding forms', () => {
