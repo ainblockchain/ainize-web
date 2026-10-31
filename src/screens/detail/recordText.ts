@@ -91,7 +91,15 @@ export function useDetailFormat() {
         case 'subscribe':
           return t(b.action === 'unsubscribe' ? 'detail.rec.unsubscribe' : 'detail.rec.subscribe', { node: shortAddr(String(b.node)), branch: String(b.branch) });
         case 'node':
-          return t('detail.rec.node', { name: String(b.name), endpoint: String(b.endpoint), roles: ((b.roles as string[] | undefined) ?? []).map(roleLabel).join(', ') || '—' });
+          return t('detail.rec.node', { name: String(b.name), endpoint: String(b.endpoint ?? '—'), roles: ((b.roles as string[] | undefined) ?? []).map(roleLabel).join(', ') || '—' });
+        case 'retire':
+          return t('detail.rec.retire', { id: String(b.patch_id) }) + (b.reason ? ` · ${String(b.reason)}` : '');
+        case 'price':
+          return t('detail.rec.price', { id: String(b.patch_id), amount: priceLabel(String(b.price), String(b.currency)) });
+        case 'payout':
+          return t('detail.rec.payout', { id: String(b.patch_id), to: opts?.names?.(String(b.to)) ?? shortAddr(String(b.to)), amount: revenueLabel(String(b.amount), String(b.currency)) });
+        case 'dispute':
+          return t(b.role === 'answer' ? 'detail.rec.dispute_answer' : 'detail.rec.dispute_claim', { id: String(b.patch_id), who: opts?.names?.(String(b.author)) ?? shortAddr(String(b.author)), reason: String(b.reason) });
         default:
           return kindLabel(r.kind);
       }

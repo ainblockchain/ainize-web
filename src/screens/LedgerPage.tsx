@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import { useGraphQuery, useLedgerQuery, useLedgerVerifyQuery } from '@/api/api';
@@ -12,7 +12,8 @@ import { useTitle } from '@/utils/useTitle';
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 
-const KINDS = ['anchor', 'attest', 'settle', 'branch', 'node', 'supersede', 'subscribe', 'challenge'];
+import { LEDGER_KINDS, ledgerView, ledgerVerification, ledgerGraph, ledgerNames, ledgerSourceUrl } from '@/lib/ledgerView';
+import { knowledgePath } from '@/lib/detailRoutes';
 const PAGE = 20;
 
 const InfoCard = styled.div`
@@ -78,7 +79,7 @@ function layout(g: GraphResponse): { nodes: Placed[]; edges: { from: Placed; to:
   return { nodes: [...placed.values()], edges, w: PAD * 2 + Math.max(1, cols.size) * COL, h: PAD * 2 + maxRows * ROW };
 }
 
-function KnowledgeGraph({ g }: { g: GraphResponse }) {
+export function KnowledgeGraph({ g }: { g: GraphResponse }) {
   const { t } = useT();
   const L = useMemo(() => layout(g), [g]);
   const BW = 170, BH = 40;
@@ -103,7 +104,7 @@ function KnowledgeGraph({ g }: { g: GraphResponse }) {
             const m = STATUS_META[n.status] ?? { color: '#8d8d8f', bg: '#f2f2f2', label: n.status, hint: '' };
             const label = statusLabel(n.status);
             return (
-              <Link key={n.id} to={`/${encodeURIComponent(n.author)}/${encodeURIComponent(n.id)}`}>
+              <Link key={n.id} to={knowledgePath(n.author, n.id)}>
                 <g transform={`translate(${n.x} ${n.y})`}>
                   <title>{`${n.name}\n${n.id} · ${n.model} · ${label}`}</title>
                   <rect width={BW} height={BH} rx={4} fill="#fff" stroke={m.color} strokeWidth={1.5} />
@@ -127,61 +128,56 @@ function KnowledgeGraph({ g }: { g: GraphResponse }) {
 
 /* ---------------------------------------------------------------- page */
 export default function LedgerPage() {
+  const [kind, setKind] = useState('');
+  return <LedgerContent key={kind} kind={kind} onKindChange={setKind} />;
+}
+
+export function LedgerContent({ kind, onKindChange }: { kind: string; onKindChange: (kind: string) => void }) {
   const { t, help, tech } = useT();
   useTitle(t('detail.ledger.title'));
   const f = useDetailFormat();
-  const [kind, setKind] = useState('');
   const [page, setPage] = useState(1);
   const ledger = useLedgerQuery({ kind: kind || undefined, limit: 1000 }, { pollingInterval: 10_000 });
-  const { data, isLoading } = ledger;
-  /*
-   * Finding 77: with the node unreachable this page drew its whole frame anyway — every stat an em-dash,
-   * "Integrity checking…" for ever, and "No records yet." under it. On a public record an outage rendered as
-   * "no records" is the worst possible lie, so nothing derived from the record is drawn while the query is failing.
-   */
-  const unreachable = !data && (ledger.isError || (!ledger.isLoading && !ledger.isFetching));
-  const { data: verify } = useLedgerVerifyQuery(undefined, { pollingInterval: 30_000 });
-  const { data: graph } = useGraphQuery(undefined, { pollingInterval: 20_000 });
+  const data = ledger.isError ? null : ledgerView(ledger.currentData, kind);
+  const isLoading = !ledger.currentData && ledger.isFetching;
+  const unreachable = !data && !isLoading;
+  const verifyQ = useLedgerVerifyQuery(undefined, { pollingInterval: 30_000 });
+  const verify = verifyQ.isError ? null : ledgerVerification(verifyQ.currentData);
+  const graphQ = useGraphQuery(undefined, { pollingInterval: 20_000 });
+  const graph = graphQ.isError ? null : ledgerGraph(graphQ.currentData);
 
-  const kindOptions = useMemo(() => [{ value: '', label: t('detail.kind.all') }, ...KINDS.map((k) => ({ value: k, label: f.kindLabel(k) }))], [t, f]);
+  const kindOptions = useMemo(() => [{ value: '', label: t('detail.kind.all') }, ...LEDGER_KINDS.map((k) => ({ value: k, label: f.kindLabel(k) }))], [t, f]);
   const records = data?.records ?? [];   // API already returns newest first
   /**
    * Item 197 — the settle rows name the people they paid, and the record itself is where their names are: a `node`
    * record carries a node's name, an `anchor` carries the author's and its contributors'. No extra request, and
    * nothing invented: an address the record never named stays an address.
    */
-  const nameOf = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const r of records) {
-      const b = (r.body ?? {}) as Record<string, unknown>;
-      if (r.kind === 'node' && typeof b.address === 'string' && typeof b.name === 'string' && b.name) m.set(b.address.toLowerCase(), b.name);
-      if (r.kind === 'anchor') {
-        if (typeof b.author === 'string' && typeof b.author_name === 'string' && b.author_name) m.set(b.author.toLowerCase(), b.author_name);
-        for (const c of (b.contributors as { address?: string; signer?: string; name?: string }[] | undefined) ?? []) {
-          if (c.name && c.address) m.set(c.address.toLowerCase(), c.name);
-          if (c.name && c.signer) m.set(c.signer.toLowerCase(), c.name);
-        }
-      }
-    }
-    return (address: string) => m.get(address.toLowerCase());
-  }, [records]);
+  const names = useMemo(() => ledgerNames(records), [records]);
+  const nameOf = (address: string) => names.get(address.toLowerCase());
+
   const pageCount = Math.max(1, Math.ceil(records.length / PAGE));
+  useEffect(() => { if (data && page > pageCount) setPage(pageCount); }, [data, page, pageCount]);
   const current = Math.min(page, pageCount);
   const visible = records.slice((current - 1) * PAGE, current * PAGE);
   const info = data?.info;
   const ain = info?.kind === 'ain';
+  const sourceUrl = ledgerSourceUrl(info?.provider, info?.app);
+  const graphIds = new Set(graph?.nodes.map(n => n.id));
+  const hiddenEdges = graph?.edges.filter(e => !graphIds.has(e.from) || !graphIds.has(e.to)).length ?? 0;
 
   return (
     <PageWrapper $wide>
       <TitleRow>
         <Title title={tech('ledger')}>{t('detail.ledger.title')}</Title>
-        <SelectBox options={kindOptions} value={kind} onChange={(v) => { setKind(v); setPage(1); }} label={t('common.kind_aria')} />
+        <SelectBox options={kindOptions} value={kind} onChange={onKindChange} label={t('common.kind_aria')} />
       </TitleRow>
       <Description style={{ marginTop: -12 }}>{help('ledger')}</Description>
 
       {unreachable && <Offline error={ledger.error} what={t('offline.what.ledger')} retrying={ledger.isFetching} onRetry={() => { void ledger.refetch(); }} />}
 
-      {!unreachable && (<>
+      {isLoading && <div role="status" data-testid="ledger-loading"><CenterProgress /></div>}
+      {data && (<>
       <InfoCard>
         <InfoCell><div className="k">{t('detail.ledger.kind')}</div><div className="v">{info ? (ain ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local')) : '—'}</div></InfoCell>
         <InfoCell><div className="k">{t('detail.ledger.network')}</div><div className="v small">{info?.network ?? '—'}</div></InfoCell>
@@ -190,26 +186,26 @@ export default function LedgerPage() {
         <InfoCell><div className="k">{ain ? t('detail.ledger.provider') : t('detail.ledger.head')}</div><div className="v small">{ain ? info?.provider : shortHash(info?.head, 16)}</div></InfoCell>
         <InfoCell>
           <div className="k">{t('detail.ledger.integrity')}</div>
-          <div className="v"><Verify $ok={verify?.valid}>{verify ? (verify.valid ? t('detail.ledger.valid', { n: num(verify.checked) }) : t('detail.ledger.invalid', { n: verify.errors.length })) : t('detail.ledger.checking')}</Verify></div>
+          <div className="v"><Verify $ok={verify?.valid}>{verify ? (verify.valid ? t('detail.ledger.valid', { n: num(verify.checked) }) : t('detail.ledger.invalid', { n: verify.errors.length })) : t(verifyQ.isFetching ? 'detail.ledger.checking' : 'track.sales_unavailable')}</Verify></div>
           {verify && !verify.valid && <Errors>{verify.errors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}</Errors>}
         </InfoCell>
       </InfoCard>
+      {!verify && !(!verifyQ.currentData && verifyQ.isFetching) && <Offline error={verifyQ.error} what={t('detail.ledger.integrity')} retrying={verifyQ.isFetching} onRetry={() => { void verifyQ.refetch(); }} />}
       {ain && info?.app && (
         <KeyValue style={{ margin: '-8px 0 24px' }}>
           <dt title={t('detail.tech.app_path', { app: info.app })}>{t('detail.ledger.app_path')}</dt><dd><span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#8d8d8f', marginRight: 8 }}>{t('detail.ledger.dev_title')}</span><Mono>{info.app}</Mono> — {t('detail.ledger.app_note', { app: info.app })}</dd>
-          <dt>{t('detail.ledger.explorer')}</dt><dd><ExternalLink href={`${info.provider}/get_value?ref=${encodeURIComponent(info.app)}`} target="_blank" rel="noopener noreferrer">{info.provider}/get_value?ref={info.app}</ExternalLink></dd>
+          <dt>{t('detail.ledger.explorer')}</dt><dd>{sourceUrl ? <ExternalLink href={sourceUrl} target="_blank" rel="noopener noreferrer">{sourceUrl}</ExternalLink> : t('track.sales_unavailable')}</dd>
         </KeyValue>
       )}
 
-      {isLoading && <CenterProgress />}
       {!isLoading && records.length === 0 && <Empty>{kind ? t('detail.ledger.empty_kind', { kind: f.kindLabel(kind) }) : t('detail.ledger.empty')}</Empty>}
       {/*
         * The node returns the NEWEST `limit` records and cannot page further back. With an unfiltered view the card
         * above says how many records exist, so a table that can only ever hold 1,000 of them has to say which part
         * of the record it is showing instead of letting the two numbers contradict each other.
         */}
-      {!kind && records.length > 0 && (info?.records ?? 0) > records.length && (
-        <Description data-testid="ledger-window">{t('detail.ledger.window', { shown: num(records.length), total: num(info?.records) })}</Description>
+      {records.length > 0 && (kind || (info?.records ?? 0) > records.length) && (
+        <Description data-testid="ledger-window">{t(kind ? 'detail.ledger.filtered_window' : 'detail.ledger.window', { kind: f.kindLabel(kind), shown: num(records.length), total: num(info?.records) })}</Description>
       )}
       {records.length > 0 && (
         <>
@@ -242,12 +238,13 @@ export default function LedgerPage() {
 
       </>)}
 
-      {!unreachable && (<>
       <SubTitle $mt={40} title={tech('lineage')}>{t('detail.ledger.graph_title')}</SubTitle>
       <Description>{t('detail.ledger.graph_note')}</Description>
-      {!graph && <CenterProgress />}
+      {!graph && (!graphQ.currentData && graphQ.isFetching
+        ? <div role="status" data-testid="ledger-graph-loading"><CenterProgress /></div>
+        : <Offline error={graphQ.error} what={t('detail.ledger.graph_title')} retrying={graphQ.isFetching} onRetry={() => { void graphQ.refetch(); }} />)}
+      {hiddenEdges > 0 && <Description>{t('detail.ledger.graph_incomplete', { n: hiddenEdges })}</Description>}
       {graph && <KnowledgeGraph g={graph} />}
-      </>)}
     </PageWrapper>
   );
 }

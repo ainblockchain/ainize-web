@@ -63,6 +63,8 @@ import { trackName, trackEntry, trackBranches, trackHistory } from './fixtures/t
 import NetworkPage, { NetworkRouteResult } from '../src/screens/NetworkPage';
 import { matchedRoute, unmatchedRoute, routeCondition } from './fixtures/networkRoute';
 import { networkInfoFixture, networkNodesFixture, networkLedgerFixture } from './fixtures/networkView';
+import LedgerPage, { LedgerContent } from '../src/screens/LedgerPage';
+import { ledgerFixture, ledgerNode, ledgerRecord, ledgerGraphFixture } from './fixtures/ledger';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -95,6 +97,68 @@ const signedOut: Fixture[] = [
   { name: 'ssoStatus', value: { configured: true } },
 ];
 const policy: Fixture = { name: 'teachPolicy', value: { enabled: false, trainer: 'paused' } };
+
+const ledgerFixtures: Fixture[] = [
+  { name: 'ledger', arg: { kind: undefined, limit: 1000 }, value: ledgerFixture([ledgerNode()]) },
+  { name: 'ledgerVerify', value: { valid: true, checked: 1, errors: [] } },
+  { name: 'graph', value: ledgerGraphFixture() },
+];
+test('ledger filters do not show another filter cache or claim no records during loading', () => {
+  const html = render(() => createElement(LedgerContent, { kind: 'price', onKindChange() {} }), [...signedOut, ...ledgerFixtures], '/ledger');
+  assert.match(html, /ledger-loading/);
+  assert.doesNotMatch(html, /Selected node record|No &quot;Price change&quot; records yet/);
+  const mismatch = render(() => createElement(LedgerContent, { kind: 'price', onKindChange() {} }), [...signedOut, ...ledgerFixtures,
+    { name: 'ledger', arg: { kind: 'price', limit: 1000 }, value: ledgerFixture([ledgerNode()]) },
+  ], '/ledger');
+  assert.match(mismatch, /offline-retry/); assert.doesNotMatch(mismatch, /Selected node record/);
+});
+
+test('failed ledger refresh hides cached rows while the independent graph remains available', () => {
+  const html = render(LedgerPage, [...signedOut, ...ledgerFixtures.filter(f => f.name !== 'ledger'),
+    { ...ledgerFixtures[0], status: 'rejected' },
+  ], '/ledger');
+  assert.match(html, /offline-retry/); assert.match(html, /Selected graph knowledge/);
+  assert.doesNotMatch(html, /Selected node record|No records yet\./);
+});
+
+test('failed verification cannot retain a valid badge and failed graphs cannot look empty or spin forever', () => {
+  const html = render(LedgerPage, [...signedOut, ledgerFixtures[0],
+    { ...ledgerFixtures[1], status: 'rejected' }, { ...ledgerFixtures[2], status: 'rejected' },
+  ], '/ledger');
+  assert.equal((html.match(/data-testid="offline-retry"/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /valid · 1 checked|Selected graph knowledge|No knowledge registered on the public record yet|ledger-graph-loading/);
+  assert.match(html, /Unavailable/);
+});
+
+test('ledger lists current protocol kinds with useful price, retirement, dispute and payout summaries', () => {
+  const records = [ledgerRecord('price', { patch_id: 'price-id', price: '7', currency: 'AIN' }),
+    ledgerRecord('retire', { patch_id: 'retire-id', reason: 'Superseded dataset' }),
+    ledgerRecord('dispute', { patch_id: 'dispute-id', role: 'answer', author: 'peer', reason: 'Answer to claim' }),
+    ledgerRecord('payout', { patch_id: 'payout-id', to: 'recipient', amount: '3', currency: 'USDC' })];
+  const html = render(LedgerPage, [...signedOut, ...ledgerFixtures.filter(f => f.name !== 'ledger'),
+    { name: 'ledger', arg: { kind: undefined, limit: 1000 }, value: ledgerFixture(records) },
+  ], '/ledger');
+  for (const label of ['Retirement', 'Price change', 'Trade dispute', 'Payout']) assert.match(html, new RegExp(`role="option"[^>]*>${label}</button>`));
+  assert.match(html, /price-id price changed to 7 AIN/);
+  assert.match(html, /retire-id retired from sale · Superseded dataset/);
+  assert.match(html, /dispute-id dispute response/); assert.match(html, /payout-id payout · 3 USDC/);
+});
+
+test('filtered ledger windows distinguish matching rows from the whole ledger count', () => {
+  const data = ledgerFixture([ledgerRecord('price', { patch_id: 'id', price: '7', currency: 'AIN' })]); data.info.records = 2000;
+  const html = render(() => createElement(LedgerContent, { kind: 'price', onKindChange() {} }), [...signedOut, ...ledgerFixtures.filter(f => f.name !== 'ledger'),
+    { name: 'ledger', arg: { kind: 'price', limit: 1000 }, value: data },
+  ], '/ledger');
+  assert.match(html, /Showing 1 recent Price change records \(up to 1,000\)/);
+  assert.match(html, /ledger total of 2,000 includes all kinds/);
+});
+
+test('graph links preserve exact knowledge ids and explain unavailable relationships', () => {
+  const graph = ledgerGraphFixture(); graph.edges.push({ from: 'chosen/id', to: 'unavailable', type: 'extends' });
+  const html = render(LedgerPage, [...signedOut, ...ledgerFixtures.filter(f => f.name !== 'graph'), { name: 'graph', value: graph }], '/ledger');
+  assert.match(html, new RegExp(`href="/0x${'a'.repeat(40)}/chosen%2Fid"`));
+  assert.match(html, /1 relationships could not be drawn/);
+});
 
 test('routing results link to the chosen track and exact knowledge id, not the track owner', () => {
   const html = render(() => createElement(NetworkRouteResult, { routed: matchedRoute(), input: routeCondition }), signedOut, '/network');
