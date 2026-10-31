@@ -172,7 +172,7 @@ export const listing: Dict = {
   'price.ain_note.local_chain': { ko: 'AIN = AI Network 토큰 · 이 노드는 로컬 개발 체인에 붙어 있어 실제 가치가 없습니다', en: 'AIN = AI Network token · this node is attached to a local development chain, so it has no market value' },
   'price.ain_note.testnet': { ko: 'AIN = AI Network 토큰 · 테스트넷이라 실제 가치가 없습니다', en: 'AIN = AI Network token · this is a test network, so it has no market value' },
   'price.ain_note.mainnet': { ko: 'AIN = AI Network 메인넷 토큰', en: 'AIN = AI Network token, on the mainnet' },
-  'price.ain_note.unknown': { ko: 'AIN = AI Network 토큰 · 이 노드는 어느 체인에 붙어 있는지 밝히지 않았습니다', en: 'AIN = AI Network token · this node does not say which chain it is attached to' },
+  'price.ain_note.unknown': { ko: 'AIN = AI Network 토큰 · 이 노드의 네트워크 종류를 확인하지 못했습니다', en: 'AIN = AI Network token · this node’s network type could not be verified' },
   'explore.filter.track': { ko: '트랙', en: 'Track' },
   'explore.filter.show': { ko: '표시', en: 'Show' },
   'explore.filter.current': { ko: '최신 버전만', en: 'Current only' },

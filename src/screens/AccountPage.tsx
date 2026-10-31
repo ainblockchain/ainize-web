@@ -2,6 +2,7 @@ import { AccountOwners, AccountBindings } from '@/components/operator/AccountAcc
 import { AccountPeers } from '@/components/operator/AccountPeers';
 import { AccountRuntime } from '@/components/operator/AccountRuntime';
 import { accountPeers } from '@/lib/accountNodeActions';
+import { accountNode, accountOverview, accountChainReady, accountBalanceCurrency, accountKnowledgeReferences, type AccountNode } from '@/lib/accountOverview';
 import { AccountSettings } from '@/components/operator/AccountSettings';
 import { accountWallet, accountSales, accountPayouts, accountOwed, accountPayments, type OwedRow } from '@/lib/accountWallet';
 import { useAuth } from '@/auth/AuthContext';
@@ -63,20 +64,22 @@ function downloadCsv(name: string, rows: (string | number)[][]): void {
 const iso = (ts: number) => new Date(ts).toISOString();
 
 export default function AccountPage() {
-  const auth = useAuth();
-  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  return <AccountView key={auth.cacheIdentity} />;
+  const auth = useAuth(), { t } = useT(), query = useMeQuery();
+  const me = !query.isError ? accountNode(query.currentData) : null;
+  if (auth.loading || !me && query.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!me) return <PageWrapper><QueryError error={query.error} what={t('op.account.identity')} onRetry={() => void query.refetch()} retrying={query.isFetching} /></PageWrapper>;
+  return <AccountView key={JSON.stringify([auth.cacheIdentity, me.address])} me={me} />;
 }
 
-function AccountView() {
+function AccountView({ me }: { me: AccountNode }) {
   const auth = useAuth();
   const scope = { identity: auth.cacheIdentity };
   const { t, help, tech } = useT();
   useTitle(t('op.account.title'));
   const money = useMoney();
   const elapsed = useElapsed();
-  const { data: me } = useMeQuery();
-  const { currentData: info } = useInfoQuery(scope);
+  const infoQuery = useInfoQuery(scope);
+  const info = !infoQuery.isError ? accountOverview(infoQuery.currentData, me.address) : null;
   const wallet = useWalletQuery(scope);
   const nodes = useNodesQuery(scope, { pollingInterval: 15_000 });
   const settings = useSettingsQuery(scope);
@@ -99,16 +102,14 @@ function AccountView() {
   const run = async (fn: () => Promise<unknown>, ok?: string) => { setError(null); setNotice(null); try { await fn(); if (ok) setNotice(ok); } catch (err) { setError(errorMessage(err)); } };
 
   const walletView = !wallet.isError ? accountWallet(wallet.currentData, me?.address ?? '') : null;
-  const currency = info?.currency ?? '';
+  const currency = accountBalanceCurrency(walletView, info) ?? '';
   const payoutRows = !payouts.isError ? accountPayouts(payouts.currentData) : null;
   const isAin = info?.ledger.kind === 'ain';
-  /**
-   * Item 356: the largest number this screen shows was the one with no provenance. The kind is read off the
-   * provider the node reports — by the shared rule in utils/useNetwork, which every AIN figure in the product now
-   * uses, so the wallet total and a price on /explore can never disagree about which chain this is.
-   */
-  const netKind = info ? networkKindOf(info.ledger) : 'unknown';
-  const netNote = t(`op.account.wallet.network.${netKind}`);
+  const chainReady = accountChainReady(info);
+  // The wallet response and node metadata must agree before labeling a balance.
+  // Market price currency is independent of a native AIN balance.
+  const netKind = info ? networkKindOf(info.ledger, info.node.chain_id) : 'unknown';
+  const netNote = currency ? t(`op.account.wallet.network.${netKind}`) : t('op.account.wallet.context_unknown');
 
   const sales = walletView?.sales ?? [];
   const royalties = walletView?.royalties ?? [];
@@ -123,16 +124,17 @@ function AccountView() {
    * reconcile with the balance above it. A seller can finally price a derivative instead of distrusting the wallet.
    */
   const nodeView = !nodes.isError ? accountPeers(nodes.currentData) : null;
+  const references = !myPatches.isError ? accountKnowledgeReferences(myPatches.currentData) : null;
   const nameOfAddress = useMemo(() => {
     const m = new Map<string, string>();
     for (const n of nodeView?.nodes ?? []) if (n.name) m.set(n.address.toLowerCase(), n.name);
     for (const p of nodeView?.peers ?? []) if (p.info?.name && p.address) m.set(p.address.toLowerCase(), p.info.name);
-    for (const e of myPatches.currentData?.items ?? []) {
-      if (e.anchor.author_name) m.set(e.anchor.author.toLowerCase(), e.anchor.author_name);
-      for (const c of e.anchor.contributors ?? []) { if (c.name) m.set(c.address.toLowerCase(), c.name); if (c.name && c.signer) m.set(c.signer.toLowerCase(), c.name); }
+    for (const e of references ?? []) {
+      if (e.authorName) m.set(e.author.toLowerCase(), e.authorName);
+      for (const c of e.contributors) { if (c.name) m.set(c.address.toLowerCase(), c.name); if (c.name && c.signer) m.set(c.signer.toLowerCase(), c.name); }
     }
     return (a: string) => m.get(a.toLowerCase());
-  }, [nodeView, myPatches.currentData]);
+  }, [nodeView, references]);
   const saleSplit = useMemo(() => accountSales(sales, me?.address ?? ''), [sales, me?.address]);
   const royaltyGroups = accountPayments(royalties);
   const verificationGroups = accountPayments(walletView?.verification, 'verification');
@@ -140,10 +142,10 @@ function AccountView() {
     `${money.revenue(g.amount, g.currency)} · ${t(`op.dash.verify.payment.${g.state}`)}${g.evidence ? ` · ${t(`op.dash.verify.evidence.${g.evidence}`)}` : ''}`).join(' / ');
   /** Why this address is owed anything, from the sold anchor itself: it verified, it provided data, or it is upstream. */
   const owedWhy = (r: OwedRow): string => {
-    const e = (myPatches.currentData?.items ?? []).find((x) => x.anchor.id === r.patch_id);
+    const e = references?.find(x => x.id === r.patch_id);
     const low = r.address.toLowerCase();
     if (e?.verifiers?.some((v) => v.toLowerCase() === low)) return t('op.account.owed.why.verification', { id: r.patch_id });
-    if ((e?.anchor.contributors ?? []).some((c) => c.address?.toLowerCase() === low)) return t('op.account.owed.why.provider', { id: r.patch_id });
+    if ((e?.contributors ?? []).some((c) => c.address?.toLowerCase() === low)) return t('op.account.owed.why.provider', { id: r.patch_id });
     return t('op.account.owed.why.unknown', { id: r.patch_id });
   };
   const roleLabel = (r: string) => { const k = `op.role.${r}`; const v = t(k); return v === k ? r : v; };
@@ -158,7 +160,7 @@ function AccountView() {
 
       {/* ------------------------------------------------------------ identity */}
       <SubTitle $mt={48}>{t('op.account.identity')}</SubTitle>
-      {!me || !info ? <CenterProgress /> : (
+      {!info && infoQuery.isFetching ? <CenterProgress /> : !info ? <QueryError error={infoQuery.error} what={t('op.account.identity')} onRetry={() => void infoQuery.refetch()} retrying={infoQuery.isFetching} /> : (
         <KeyValue>
           <dt>{t('op.name')}</dt><dd>{me.name}</dd>
           <dt><Tip tech={tech('node')}>{t('op.address')}</Tip></dt><dd><Mono>{me.address}</Mono> <CopyButton text={me.address} label={t('common.copy')} /></dd>
@@ -185,12 +187,12 @@ function AccountView() {
 
       {/* ------------------------------------------------------------ wallet */}
       <SubTitle $mt={56}>{t('op.account.wallet')}</SubTitle>
-      <Description>{isAin ? t('op.account.wallet.desc.ain') : t('op.account.wallet.desc.credit')}</Description>
+      {info && <Description>{isAin ? t('op.account.wallet.desc.ain') : t('op.account.wallet.desc.credit')}</Description>}
       {wallet.isFetching && !wallet.currentData ? <CenterProgress /> : !walletView || !saleSplit ? <QueryError error={wallet.error} what={t('op.account.wallet')} onRetry={() => void wallet.refetch()} retrying={wallet.isFetching} /> : (
         <>
           <Balance title={netNote}>{walletView.balance === null || !currency ? '—' : num(walletView.balance)}<span>{money.unit(currency)}</span></Balance>
-          <Muted style={{ display: 'block' }} data-testid="wallet-network" title={currency === 'AIN' ? tech('ain') : tech('credit')}>
-            {netNote}{isAin && info?.ledger.provider ? <> · <Mono>{info.ledger.provider}</Mono></> : null}
+          <Muted style={{ display: 'block' }} data-testid={currency ? "wallet-network" : "wallet-context-unavailable"} title={currency === 'AIN' ? tech('ain') : currency === 'CREDIT' ? tech('credit') : undefined}>
+            {netNote}{isAin && info?.node.chain_id !== undefined ? <> · Chain ID {info.node.chain_id}</> : null}{isAin && info?.ledger.provider ? <> · <Mono>{info.ledger.provider}</Mono></> : null}
           </Muted>
           <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.wallet.summary', { purchases: walletView.purchases, sales: sales.length, royalties: royalties.length })}</Muted>
           {saleSplit.totals.filter(g => g.sharedTotal > 0).map(g => (
@@ -198,7 +200,7 @@ function AccountView() {
               {t('op.account.wallet.shared_out', { gross: money.revenue(g.grossTotal, g.currency), shared: money.revenue(g.sharedTotal, g.currency), net: money.revenue(g.netTotal, g.currency) })}
             </Muted>
           ))}
-          {isAin && (
+          {chainReady && auth.isOwner && !infoQuery.isFetching && (
             <Row $gap={12} style={{ marginTop: 12 }}>
               <Button size="small" loading={chainState.isLoading} loadingText={t('op.account.chain.setting')} onClick={() => run(() => chainSetup().unwrap(), t('op.account.chain.done'))}>{t('op.account.chain.setup')}</Button>
               <Muted title={t('op.account.dev.chain')}>{t('op.account.chain.note')}</Muted>
@@ -206,7 +208,7 @@ function AccountView() {
           )}
           {/* Item 320: a balance with no action beside it. Earnings could leave this node only as purchases made
               through it — no send, no withdraw, no way to pay a collaborator. */}
-          {isAin ? (
+          {chainReady && currency === 'AIN' && auth.isOwner && !infoQuery.isFetching && !wallet.isFetching ? (
             <div style={{ marginTop: 16 }} data-testid="wallet-send">
               <strong style={{ fontSize: 14 }}>{t('op.account.send.title')}</strong>
               <Muted style={{ display: 'block', marginTop: 4 }}>{t('op.account.send.desc')}</Muted>
@@ -221,11 +223,11 @@ function AccountView() {
                 </Button>
               </Row>
             </div>
-          ) : (
+          ) : currency && info?.ledger.kind === 'local' ? (
             <Muted style={{ display: 'block', marginTop: 12 }} data-testid="wallet-local-note">
               {t('op.account.send.local')} <StyledLink to="/terms">{t('op.account.send.local_terms')}</StyledLink>
             </Muted>
-          )}
+          ) : null}
           <Grid>
             <div>
               <strong style={{ fontSize: 14 }}>{t('op.account.sales')}</strong>

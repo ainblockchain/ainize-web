@@ -36,6 +36,7 @@ import { TrackReviewSheet } from '../src/components/operator/TrackReviewSheet';
 import { trackReviewFixture } from './track-review-fixture';
 import { AccountSettings } from '../src/components/operator/AccountSettings';
 import AccountPage from '../src/screens/AccountPage';
+import { useNetworkKind } from '../src/utils/useNetwork';
 import { newPatchDraftKey } from '../src/lib/newPatchDraft';
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -1998,7 +1999,7 @@ test('holder credit actions stay disabled while parent work runs and ordinary ac
 
 const walletAddress = '0x' + 'aa'.repeat(20), recipientAddress = '0x' + 'bb'.repeat(20);
 const accountSale = (currency: string, amount = '10') => ({ patch_id: 'Wallet selected item', tx_hash: currency, seller: walletAddress, buyer: recipientAddress, amount, currency, scheme: 'local-credit', created_at: 1, royalty: { [recipientAddress]: '2' }, royalty_unresolved: { missing: '1' } });
-const accountWalletValue = () => ({ address: walletAddress, balance: 20, purchases: 0, sales: [accountSale('AIN'), accountSale('CREDIT', '100')],
+const accountWalletValue = () => ({ address: walletAddress, balance: 20, kind: 'ain', provider: 'https://mainnet-api.ainetwork.ai', purchases: 0, sales: [accountSale('AIN'), accountSale('CREDIT', '100')],
   royalties: [{ patch_id: 'Royalty selected item', amount: '3', currency: 'AIN', state: 'paid', evidence: 'seller_reported', created_at: 1 }],
   royalty_totals: { owed: '99999', credited: '99999', paid: '99999', unconfirmed: '99999' },
   verification_total: '88888', verification: [{ amount: '4', currency: 'AIN', kind: 'verification', state: 'pending' }, { amount: '5', currency: 'CREDIT', kind: 'verification', state: 'paid', evidence: 'record' }],
@@ -2006,7 +2007,7 @@ const accountWalletValue = () => ({ address: walletAddress, balance: 20, purchas
 function accountWalletFixtures(): Fixture[] {
   const scope = { identity: accountIdentity };
   return [...appAccount.map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), address: walletAddress, name: 'Selected node', roles: [] } } : f),
-    { name: 'info', arg: scope, value: { currency: 'AIN', ledger: { kind: 'ain', records: 0 }, node: { endpoint: 'https://fixture.invalid', version: 'fixture' }, quorum: 1 } },
+    { name: 'info', arg: scope, value: { currency: 'AIN', ledger: { kind: 'ain', records: 0 }, node: { address: walletAddress, endpoint: 'https://fixture.invalid', version: 'fixture' }, quorum: 1 } },
     { name: 'wallet', arg: scope, value: accountWalletValue() },
     { name: 'payouts', arg: { ...scope, limit: 500 }, value: { items: [] } },
     { name: 'owners', arg: scope, value: { owners: [] } }, { name: 'bindings', arg: scope, value: { bindings: [] } },
@@ -3883,4 +3884,69 @@ test('Google-only My Nodes explicitly offers supported sign-in without a redirec
   assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fmy-nodes%3Fview%3Dall%23connections"/);
   assert.match(html, /href="\/signing\?next=%2Fmy-nodes%3Fview%3Dall%23connections&amp;wallet=1"/);
   assert.doesNotMatch(html, /data-testid="mynodes-empty"|>Disconnect</);
+});
+
+const chainAccountFixtures = (): Fixture[] => accountWalletFixtures().map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), signedIn: true, isOwner: true } }
+  : f.name === 'info' ? { ...f, value: { ...(f.value as any), node: { ...(f.value as any).node, chain_id: 1 }, ledger: { kind: 'ain', records: 0, provider: 'https://mainnet-api.ainetwork.ai' } } } : f);
+test('account identity failure and malformed roles cannot retain a cached wallet or write buttons', () => {
+  for (const patch of [{ status: 'rejected' as const }, { value: { address: walletAddress, name: 'Broken', roles: null } }]) {
+    const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'me' ? { ...f, ...patch } : f), '/account');
+    assert.match(html, /query-error/); assert.match(html, /query-retry/);
+    assert.doesNotMatch(html, /wallet-send|send-go|Set up app on chain|Wallet selected item/);
+  }
+});
+test('account info failures, foreign nodes and malformed ledgers show recovery instead of invented credit or chain actions', () => {
+  for (const patch of [{ status: 'rejected' as const }, { value: { ledger: null } }, { value: { ...((chainAccountFixtures().find(f => f.name === 'info')!.value) as any), node: { address: recipientAddress, endpoint: 'https://foreign.test', version: 'test' } } }]) {
+    const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'info' ? { ...f, ...patch } : f), '/account');
+    assert.match(html, /query-error/); assert.match(html, /query-retry/); assert.match(html, /wallet currency and network could not be verified/);
+    assert.doesNotMatch(html, /wallet-send|send-go|Set up app on chain|wallet-local-note|AIN on the AI Network mainnet/);
+    assert.match(html, /Wallet selected item/); // Valid historical rows still have their own currency.
+  }
+});
+test('account chain controls require current complete configuration and operator rights', () => {
+  const valid = render(AccountPage, chainAccountFixtures(), '/account');
+  assert.match(valid, /wallet-send/); assert.match(valid, /Set up app on chain/); assert.match(valid, /Chain ID 1/);
+  for (const fixtures of [
+    chainAccountFixtures().map(f => f.name === 'info' ? { ...f, status: 'pending' as const } : f),
+    chainAccountFixtures().map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), isOwner: false } } : f),
+    chainAccountFixtures().map(f => f.name === 'info' ? { ...f, value: { ...(f.value as any), node: { ...(f.value as any).node, chain_id: undefined } } } : f),
+  ]) {
+    const html = render(AccountPage, fixtures, '/account');
+    assert.doesNotMatch(html, /wallet-send|send-go|Set up app on chain/);
+  }
+});
+test('account missing chain metadata is explicit and local credit is identified only from a valid local ledger', () => {
+  const missing = render(AccountPage, accountWalletFixtures(), '/account');
+  assert.match(missing, /wallet-context-unavailable/); assert.doesNotMatch(missing, /wallet-local-note/);
+  const local = render(AccountPage, accountWalletFixtures().map(f => f.name === 'info' ? { ...f, value: { ...(f.value as any), currency: 'CREDIT', ledger: { kind: 'local', records: 0 } } } : f.name === 'wallet' ? { ...f, value: { ...(f.value as any), kind: 'local' } } : f), '/account');
+  assert.match(local, /wallet-local-note/); assert.doesNotMatch(local, /wallet-send|send-go|Set up app on chain/);
+});
+test('malformed optional account references cannot crash or relabel financial records', () => {
+  for (const fixture of [
+    { name: 'myPatches', arg: { identity: accountIdentity }, value: { items: [null] } },
+    { name: 'myPatches', arg: { identity: accountIdentity }, status: 'rejected' as const, value: { items: [{ anchor: { id: 'selected', author: walletAddress, author_name: 'Stale name', contributors: [] } }] } },
+  ]) {
+    const html = render(AccountPage, [...accountWalletFixtures(), fixture], '/account');
+    assert.match(html, /Wallet selected item/); assert.doesNotMatch(html, /Stale name/);
+  }
+});
+
+test('account native balance and send amount retain AIN when marketplace goods are priced in USDC', () => {
+  const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'info' ? { ...f, value: { ...(f.value as any), currency: 'USDC' } } : f), '/account');
+  assert.match(html, /20<span>AIN/); assert.match(html, /Amount \(AIN\)/); assert.doesNotMatch(html, /20<span>USDC|Amount \(USDC\)/);
+  const mismatch = render(AccountPage, chainAccountFixtures().map(f => f.name === 'wallet' ? { ...f, value: { ...(f.value as any), provider: 'https://another-chain.test' } } : f), '/account');
+  assert.match(mismatch, /wallet-context-unavailable/); assert.doesNotMatch(mismatch, /20<span>|send-go/);
+});
+
+test('shared price notes suppress failed, foreign and custom-network metadata instead of retaining a mainnet claim', () => {
+  const Note = () => createElement('p', null, useNetworkKind().note('AIN'));
+  const ready = render(Note, chainAccountFixtures());
+  assert.match(ready, /on the mainnet/);
+  for (const fixtures of [
+    chainAccountFixtures().map(f => f.name === 'info' ? { ...f, status: 'rejected' as const } : f),
+    chainAccountFixtures().map(f => f.name === 'info' ? { ...f, value: { ...(f.value as any), node: { ...(f.value as any).node, address: recipientAddress } } } : f),
+    chainAccountFixtures().map(f => f.name === 'info' ? { ...f, value: { ...(f.value as any), ledger: { ...(f.value as any).ledger, provider: 'https://private-rpc.test' } } } : f),
+  ]) {
+    const html = render(Note, fixtures); assert.match(html, /network type could not be verified/); assert.doesNotMatch(html, /on the mainnet/);
+  }
 });

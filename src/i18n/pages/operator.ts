@@ -950,7 +950,8 @@ export const operatorAccount: Dict = {
   'op.account.wallet.network.local_chain': { ko: '이 노드가 붙어 있는 로컬 개발 체인의 AIN입니다 — 시장 가치가 없습니다.', en: 'AIN on the local development chain this node is attached to — it has no market value.' },
   'op.account.wallet.network.testnet': { ko: '테스트넷 AIN입니다 — 시장 가치가 없습니다.', en: 'Testnet AIN — it has no market value.' },
   'op.account.wallet.network.mainnet': { ko: 'AI Network 메인넷의 AIN입니다.', en: 'AIN on the AI Network mainnet.' },
-  'op.account.wallet.network.unknown': { ko: 'AIN — 이 노드가 어느 체인에 붙어 있는지 알려 주지 않습니다.', en: 'AIN — this node does not say which chain it is attached to.' },
+  'op.account.wallet.context_unknown': { ko: '현재 노드의 지갑 통화와 체인 정보를 확인하지 못했습니다.', en: 'The current node’s wallet currency and network could not be verified.' },
+  'op.account.wallet.network.unknown': { ko: 'AIN — 이 노드의 네트워크 종류를 확인하지 못했습니다.', en: 'AIN — this node’s network type could not be verified.' },
   'op.account.wallet.network.credit': { ko: '노드 크레딧 = 이 노드가 발행한 개발용 가상 화폐 (실제 가치 없음)', en: 'node credit = development play money issued by this node (no real value)' },
   'op.account.royalties.explain': { ko: '정산 기록은 판매자 노드가 씁니다. "미확인"은 그 노드가 내 몫으로 적어두기만 하고 아직 옮겨졌다는 근거가 없다는 뜻입니다 — 이 노드가 판매자 노드에 직접 물어본 결과입니다.', en: 'A settle record is written by the party that owes the money. "Unconfirmed" means it wrote your share down and nothing has confirmed a transfer — this node asks each seller\u2019s node directly for the answer.' },
   // item 325 — verifying was unpaid work everywhere in the product.
