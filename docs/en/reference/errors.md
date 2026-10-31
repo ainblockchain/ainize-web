@@ -166,9 +166,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 171 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 197 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 110 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 111 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -205,14 +205,33 @@ A further 110 throw sites build their message at the time (a validator's own wor
 | `null` | \<rel> is not a directory | `src/hosted-qa-engine.ts` |
 | `null` | \<rel> is not a regular file | `src/hosted-qa-engine.ts` |
 | `null` | a file path is required | `src/hosted-qa-engine.ts` |
+| `null` | a run session needs at least one declared write path | `src/run-session.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
+| `null` | AIN JSON-RPC answered \<res.status> | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC error: … | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC refused: … | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC unreachable: … | `src/ain-chain.ts` |
+| `null` | AIN SSO answered the delegation request with a malformed addr | `src/run-session.ts` |
+| `null` | AIN SSO answered the delegation request without { jti, token } | `src/run-session.ts` |
+| `null` | AIN SSO bound the delegation to another key | `src/run-session.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: bad token_endpoint | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: issuer mismatch | `src/sso-service-token.ts` |
 | `null` | AIN SSO issued a \<json.token_type> token; only Bearer is usable | `src/sso-service-token.ts` |
+| `null` | AIN SSO refused \<path> (\<res.status> \<what>) | `src/run-session.ts` |
 | `null` | AIN SSO refused a machine token for \<resource> (\<what>) | `src/sso-service-token.ts` |
+| `null` | AIN SSO registered a different session address | `src/run-session.ts` |
+| `null` | AIN SSO registered a session that is not a run session | `src/run-session.ts` |
+| `null` | AIN SSO registered an as: caller session for someone other than the transaction's signer | `src/run-session.ts` |
+| `null` | AIN SSO registered the session for another account than the delegation's | `src/run-session.ts` |
+| `null` | AIN SSO registered the session without the account address it acts for | `src/run-session.ts` |
 | `null` | AIN SSO token endpoint unreachable: … | `src/sso-service-token.ts` |
+| `null` | AIN SSO unreachable at \<path>: … | `src/run-session.ts` |
+| `null` | AIN SSO's delegation id does not match its answer | `src/run-session.ts` |
+| `null` | AIN SSO's delegation is unreadable: … | `src/run-session.ts` |
+| `null` | AIN SSO's delegation names resources the trigger did not declare | `src/run-session.ts` |
+| `null` | AIN SSO's delegation outlives the run | `src/run-session.ts` |
 | `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | an alias is 1–40 lower-case letters, digits and hyphens, starting with a letter or digit | `src/agent-aliases.ts` |
@@ -220,6 +239,8 @@ A further 110 throw sites build their message at the time (a validator's own wor
 | `null` | an organization may have \<perOrg> projects on this node | `src/projects.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
+| `null` | as: caller needs the verified signer of the triggering transaction | `src/run-session.ts` |
+| `null` | at most 64 write paths per run | `src/run-session.ts` |
 | `null` | Audio response is too large | `src/peer-models.ts` |
 | `null` | binary content is not supported | `src/hosted-qa-engine.ts` |
 | `null` | cannot access \<rel> | `src/hosted-qa-engine.ts` |
@@ -232,8 +253,11 @@ A further 110 throw sites build their message at the time (a validator's own wor
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
 | `null` | Model backend failed | `src/peer-models.ts` |
+| `null` | no AIN service key is configured for this project's organization | `src/ain-chain.ts` |
 | `null` | no such file or directory: \<rel> | `src/hosted-qa-engine.ts` |
 | `null` | not a directory: … | `src/hosted-qa-engine.ts` |
+| `null` | not a transaction hash | `src/ain-chain.ts` |
+| `null` | not an uncompressed secp256k1 public key | `src/run-session.ts` |
 | `null` | old_string and new_string are identical | `src/hosted-qa-engine.ts` |
 | `null` | old_string and new_string must be strings | `src/hosted-qa-engine.ts` |
 | `null` | old_string must not be empty; use write_file to create a file | `src/hosted-qa-engine.ts` |
@@ -255,10 +279,12 @@ A further 110 throw sites build their message at the time (a validator's own wor
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | shared workspace agents must stay in their organization | `src/agent-git-http.ts` |
 | `null` | the alias is the agent's own id | `src/agent-aliases.ts` |
+| `null` | the chain refused the function (code ……) — the key \<signer> needs write_function owner permission on \<path> | `src/ain-chain.ts` |
 | `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
 | `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
 | `null` | the image backend answered \<up.status> | `src/peer-models.ts` |
+| `null` | the transaction was not accepted: … | `src/ain-chain.ts` |
 | `null` | the transcription backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | this node holds its maximum of \<this.limits.total> organizations | `src/organization-store.ts` |
 | `null` | this node holds its maximum of \<this.limits.total> projects | `src/projects.ts` |
