@@ -258,6 +258,6 @@ function TrackCardView({ branch, subscribed: subscribedProp, currency, address }
 export function TrackActionFeedback({ outcome }: { outcome: SubscribeResult }) {
   const { t } = useT(), money = useMoney();
   return <Alert $tone={trackActionConfirmed(outcome) ? 'success' : 'warning'} role="status" data-testid="track-outcome" data-confirmed={trackActionConfirmed(outcome)}>
-    {trackOutcomeText(outcome, t, (amount, currency) => money.fmt(amount, currency))}
+    {trackOutcomeText(outcome, t, (amount, currency) => `${amount} ${money.unit(currency)}`)}
   </Alert>;
 }

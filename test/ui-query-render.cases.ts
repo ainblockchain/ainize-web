@@ -2107,6 +2107,8 @@ test('track receipts show fee-only spend, incomplete cleanup and legacy uncertai
   assert.match(html, /retained dependency/); assert.match(html, /old-layer/); assert.doesNotMatch(html, /nothing new|were confirmed/);
   const legacy = render(() => createElement(TrackActionFeedback, { outcome: { ...value, receipt: undefined, ok: true } as any }), signedOut);
   assert.match(legacy, /data-confirmed="false"/); assert.match(legacy, /states are unconfirmed/);
+  const tiny = render(() => createElement(TrackActionFeedback, { outcome: { ...value, spent: [{ amount: '0.00000003', currency: 'CREDIT' }] } as any }), signedOut);
+  assert.match(tiny, /0\.00000003/);
 });
 test('track review shows fee-inclusive spend and model changes before subscribe or sync', () => {
   const review = trackReviewFixture();
