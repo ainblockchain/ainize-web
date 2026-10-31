@@ -227,12 +227,14 @@ export interface BranchesResponse {
 }
 /** One item of a track as the NODE resolves it (POST /api/branches/:name/quote) — the same rules `subscribe` follows. */
 export interface TrackItem {
+  patch_sha256?: string | null;
   patch_id: string; name: string | null; author: string | null; author_name: string | null;
   price: string; currency: string; status: string | null;
   plan: 'buy' | 'held' | 'own' | 'retired' | 'blocked' | 'wrong_model' | 'unknown';
   reason: string; superseded_by: string[];
 }
 export interface TrackQuote {
+  action_receipts?: 1;
   branch: string; owner: string; description: string; subscribed: boolean;
   items: TrackItem[]; current: string[]; retired: string[]; buy: string[];
   total: { currency: string; amount: string }[]; currency: string; balance: number | null;
@@ -254,9 +256,14 @@ export interface TrackQuote {
 export interface TrackOverlap { track_id: string; loaded_id: string; rows: number | null; estimated: boolean; jaccard?: number; loaded_reason: string }
 
 export interface SubscribeResult {
-  ok: true; branch: string; action: 'subscribe' | 'unsubscribe' | 'sync';
+  ok: boolean; branch: string; action: 'subscribe' | 'unsubscribe' | 'sync';
   acquired: string[]; failed: { patch_id: string; error: string }[]; applied: string[];
   skipped: { patch_id: string; reason: string }[]; removed: string[]; spent: { currency: string; amount: string }[];
+  receipt?: {
+    version: 1; subscribed: boolean; subscription_changed: boolean;
+    runtime: { state: 'recorded' | 'unavailable' | 'failed'; error: string | null; pending: string[];
+      records: { patch_id: string; sha256: string; reason: string }[] };
+  };
 }
 /**
  * `/api/route` (item 234): which track answered, which of the caller's attributes it matched, what else came close,

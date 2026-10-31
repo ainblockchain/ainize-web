@@ -535,7 +535,7 @@ export const api = createApi({
     // `replace` (item 214): the node refuses to load a track over knowledge already in the model unless it is passed.
     subscribe: b.mutation<SubscribeResult, { name: string; action: 'subscribe' | 'unsubscribe'; replace?: boolean }>({ query: ({ name, action, replace }) => ({ url: `api/branches/${encodeURIComponent(name)}/${action}`, method: 'POST', body: action === 'subscribe' ? { replace: !!replace } : {} }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
     /** Item 357 — what subscribing would spend, decided by the node with the same rules `subscribe` follows. */
-    trackQuote: b.query<{ quote: TrackQuote }, string>({ query: (name) => ({ url: `api/branches/${encodeURIComponent(name)}/quote`, method: 'POST' }), providesTags: ['Branches', 'Catalog', 'Me'] }),
+    trackQuote: b.query<{ quote: TrackQuote }, { name: string; identity: string }>({ query: ({ name }) => ({ url: `api/branches/${encodeURIComponent(name)}/quote`, method: 'POST' }), providesTags: ['Branches', 'Catalog', 'Me'] }),
     /** Item 255 — buy and load what the track added, unload what it retired. */
     syncBranch: b.mutation<SubscribeResult, string>({ query: (name) => ({ url: `api/branches/${encodeURIComponent(name)}/sync`, method: 'POST' }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
     /** Item 297 — a visitor asks the operator to get a knowledge this node does not hold. */

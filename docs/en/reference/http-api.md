@@ -394,7 +394,7 @@ See [Error codes](./errors.md) for the full list.
 | `DELETE` | [`/api/auth/bindings/{delegate}`](#delete-apiauthbindingsdelegate) | none | End one, and the sessions it collected |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | none | Log out |
 | `POST` | [`/api/branches/{name}/patches`](#post-apibranchesnamepatches) | operator | Add knowledge to a branch (owner only) |
-| `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Unsubscribe from a branch (unload its knowledge) |
+| `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Stop a subscription and clean up its owned model layers |
 | `GET` | [`/api/runtime`](#get-apiruntime) | none | Serving runtime state (model, hook, the ordered stack of loaded knowledge) |
 | `GET` | [`/api/runtime/stack`](#get-apiruntimestack) | none | The ordered stack loaded in the serving model |
 | `GET` | [`/api/runtime/jobs`](#get-apiruntimejobs) | operator | Recent runtime jobs |
@@ -7190,7 +7190,7 @@ Create a branch
 
 Subscribe to a track: buy its current knowledge, load it, and keep it up to date
 
-Buys every current item FIRST and appends the public subscription record only when all of them are in hand — a partial acquisition is 409 `subscription_incomplete` with `{acquired, failed[]}` and nothing is broadcast, so this node is never advertised as serving a track it holds a third of. Versions the track has retired (superseded by another member) and bakes that are not VERIFIED are skipped, never bought. Quote it first with POST /api/branches/{name}/quote. Once subscribed, the node buys and loads what the track adds and unloads what it retires (every 20 s, or on demand with POST /api/branches/{name}/sync).
+Buys current items before writing a new subscription record. A partial acquisition is 409 `subscription_incomplete`; its response body includes acquired, failed, spent and the prior subscribed state. Earlier acquisitions and curation fees are not rolled back. Existing subscriptions are not registered twice. A 200 response includes receipt.version=1: subscribed and subscription_changed describe the ledger, while runtime.state (recorded/unavailable/failed), error, pending and records describe model load evidence. ok is false when model changes are incomplete even if the subscription was recorded. These are load records, not a live model-weight probe. Retired and unverified items are skipped. Quote before spending. Active subscriptions continue acquiring future updates until unsubscribed. Concurrent actions for one track return 409 track_action_busy.
 
 **Auth** — operator
 
@@ -7204,14 +7204,14 @@ Buys every current item FIRST and appends the public subscription record only wh
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | what was bought, loaded and skipped | `object` |
-| `409` | subscription_incomplete — nothing was subscribed to; `acquired` was still bought |   |
+| `200` | acquisitions, spend and separate subscription/model receipt; inspect ok and receipt.runtime.state | `object` |
+| `409` | subscription_incomplete, overlaps_loaded or track_action_busy; acquisition errors retain actual reported spend and prior subscription state |   |
 
 ### `POST /api/branches/{name}/quote`
 
 What subscribing to a track would spend, item by item, before anything is spent
 
-Every id on the track with what this node would do with it (`buy` / `held` / `own` / `retired` / `blocked` / `wrong_model` / `unknown`), the price, the total per currency and this node’s balance.
+Every id on the track with what this node would do with it (`buy` / `held` / `own` / `retired` / `blocked` / `wrong_model` / `unknown`), its published file hash when known, the price, item total per currency and this node’s balance. Subscription fee terms are separate from item totals. action_receipts:1 advertises separate subscription and model outcome receipts; it does not promise execution at a reviewed price or durable request recovery.
 
 **Auth** — operator
 
@@ -7231,7 +7231,7 @@ Every id on the track with what this node would do with it (`buy` / `held` / `ow
 
 Bring a subscribed track up to date now
 
-Buys and loads what the track has added since, unloads the versions it has retired, in one runtime lock. The 20-second tick does the same thing for every subscribed track.
+Requires an active subscription before purchasing. Buys new items and transitions model layers under one lock. Failed or deferred purchases preserve existing model records. The receipt separates subscription state from model outcome; unavailable models or unresolved loads are not successful completion. Retained manual layers, physical aliases and dependent layers are preserved using lock-time records. The 20-second tick uses the same path. Concurrent same-track actions return 409 track_action_busy.
 
 **Auth** — operator
 
@@ -7754,7 +7754,9 @@ Add knowledge to a branch (owner only)
 
 ### `POST /api/branches/{name}/unsubscribe`
 
-Unsubscribe from a branch (unload its knowledge)
+Stop a subscription and clean up its owned model layers
+
+Records departure only if currently subscribed, then attempts cleanup under the model lock using current load reasons. Manual pins and other tracks are retained; missing retained files or retained dependents refuse cleanup. An inactive subscription may retry cleanup without appending another departure. receipt.subscribed=false does not mean cleanup succeeded: inspect ok, receipt.runtime.state, error and pending. Concurrent same-track actions return 409 track_action_busy.
 
 **Auth** — operator
 
@@ -7768,7 +7770,7 @@ Unsubscribe from a branch (unload its knowledge)
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | ok | `object` |
+| `200` | separate subscription departure and model cleanup receipt | `object` |
 
 ### `GET /api/runtime`
 

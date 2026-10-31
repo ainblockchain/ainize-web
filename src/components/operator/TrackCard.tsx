@@ -1,10 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useLedgerQuery, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
+import { api, errorMessage, useLedgerQuery, useRuntimeQuery, useSubscribeMutation, useSyncBranchMutation, useTrackQuoteQuery } from '@/api/api';
 import type { BranchesResponse, SubscribeResult, TrackItem, TrackOverlap } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
-import { accountRuntime } from '@/lib/accountNodeActions';
+import { accountRuntime, createNodeActionTask } from '@/lib/accountNodeActions';
+import { useActiveView } from '@/hooks/useActiveView';
+import { LoadKnowledgeError, requireRuntimeOperator } from '@/lib/loadKnowledge';
+import { knowledgePath } from '@/lib/detailRoutes';
+import { trackAcquisitionFailure, trackActionConfirmed, trackActionResult, trackOutcomeText, trackOverlapRefusal } from '@/lib/trackAction';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -14,7 +18,7 @@ import { Muted, QueryError, Row, SmallSpinner, Stack, useMoney } from '@/compone
 import { num, shortAddr } from '@/utils/format';
 
 const Card = styled.div`
-  padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; display: flex; flex-direction: column; gap: 8px;
+  min-width: 0; overflow-wrap: anywhere; padding: 16px 20px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; background: #fff; display: flex; flex-direction: column; gap: 8px;
 `;
 const Tag = styled.span`
   display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #f5eefc; color: #5b1ca8; font-family: ${(p) => p.theme.font.mono};
@@ -67,18 +71,29 @@ type Branch = BranchesResponse['branches'][number];
  * an unverified bake is skipped, and a body this node holds only because it verified it is not a licence to serve it.
  * Deriving that here from the catalogue was a second copy of those rules, and it disagreed with the node on every one.
  */
-export function TrackCard({ branch, subscribed, currency, address }: { branch: Branch; subscribed: boolean; currency: string; address: string | null }) {
+type TrackCardProps = { branch: Branch; subscribed: boolean; currency: string; address: string | null };
+export function TrackCard(props: TrackCardProps) {
+  const auth = useAuth();
+  return <TrackCardView key={JSON.stringify([auth.cacheIdentity, props.address, props.branch.name, props.branch.owner])} {...props} />;
+}
+function TrackCardView({ branch, subscribed: subscribedProp, currency, address }: TrackCardProps) {
   const { t } = useT();
   const auth = useAuth();
+  const active = useActiveView(), currentView = () => active() && auth.isCurrentAccount();
+  const [task] = useState(createNodeActionTask);
+  useEffect(() => () => task.abandon(), [task]);
+  const [readAccess] = api.useLazyMeQuery();
   const money = useMoney();
   const [open, setOpen] = useState<null | 'subscribe' | 'unsubscribe'>(null);
   const [subscribe, subState] = useSubscribeMutation();
   const [syncTrack, syncState] = useSyncBranchMutation();
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<SubscribeResult | null>(null);
+  const subscribed = outcome?.receipt?.subscribed ?? subscribedProp;
+  const cleanupPending = outcome?.action === 'unsubscribe' && !trackActionConfirmed(outcome);
 
-  const quote = useTrackQuoteQuery(branch.name);
-  const q = quote.data?.quote;
+  const quote = useTrackQuoteQuery({ name: branch.name, identity: auth.cacheIdentity });
+  const q = !quote.isError && quote.currentData?.quote.branch === branch.name ? quote.currentData.quote : undefined;
   const items = q?.items ?? [];
   const toBuy = items.filter((i) => i.plan === 'buy');
   const totalText = q && q.total.length ? q.total.map((x) => money.fmt(Number(x.amount), x.currency)).join(' + ') : money.fmt(0, currency);
@@ -130,8 +145,10 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
   }, [ledger.data, branch.name, branch.patch_ids, currency, money]);
 
   const planLabel = (i: TrackItem) => t(`op.dash.branches.plan.${i.plan}`);
-  const busy = subState.isLoading;
-  const loading = quote.isLoading;
+  const [checking, setChecking] = useState(false);
+  const busy = checking || subState.isLoading || syncState.isLoading;
+  const loading = quote.isFetching || !q;
+  const canAct = auth.isOwner && !auth.loading && !busy;
 
   /**
    * Item 214 — a track is loaded ON TOP of what is already in the model, and the model is last-wins on a shared row.
@@ -139,25 +156,36 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
    * beside the sentence naming what would be overridden, rather than a silent 409 the card swallowed.
    */
   const [overrides, setOverrides] = useState<TrackOverlap[] | null>(null);
-  const doSubscribe = async (replace = false) => {
-    setError(null); setOutcome(null); setOverrides(null);
-    try { setOutcome(await subscribe({ name: branch.name, action: 'subscribe', replace }).unwrap()); }
-    catch (err) {
-      const d = (err as { data?: { details?: { code?: string; pairs?: TrackOverlap[] } } }).data?.details;
-      if (d?.code === 'overlaps_loaded' && d.pairs?.length) setOverrides(d.pairs);
-      setError(errorMessage(err));
-    }
+  const run = async (action: SubscribeResult['action'], replace = false) => {
+    if (!canAct || task.pending() || !currentView()) return;
+    setChecking(true); setError(null); setOverrides(null);
+    setOutcome(previous => previous?.action === 'unsubscribe' && !trackActionConfirmed(previous) ? previous : null);
+    let stillCurrent = currentView;
+    try {
+      await task.run(currentView, async check => {
+        stillCurrent = check;
+        if (!await requireRuntimeOperator({ current: check, node: address, subject: auth.subject, readAccess: () => readAccess(undefined, false).unwrap() })) return null;
+        const raw = await (action === 'sync' ? syncTrack(branch.name) : subscribe({ name: branch.name, action, replace })).unwrap();
+        if (!check()) return null;
+        const result = trackActionResult(raw, branch.name, action);
+        if (!result) throw new Error(t('op.dash.branches.done.unconfirmed'));
+        setOutcome(result);
+        if (action === 'unsubscribe' && trackActionConfirmed(result)) setOpen(null);
+        return true;
+      });
+    } catch (err) {
+      if (!stillCurrent()) return;
+      if (action === 'subscribe') setOverrides(trackOverlapRefusal(err, branch.name));
+      const partial = action === 'subscribe' ? trackAcquisitionFailure(err, branch.name) : null;
+      if (partial) setOutcome(partial);
+      setError(err instanceof LoadKnowledgeError ? t(`detail.apply.error.${err.code}`) : errorMessage(err));
+    } finally { if (stillCurrent()) setChecking(false); }
   };
-  const doSync = async () => {
-    setError(null); setOutcome(null);
-    try { setOutcome(await syncTrack(branch.name).unwrap()); }
-    catch (err) { setError(errorMessage(err)); }
-  };
-  const doUnsubscribe = async () => {
-    setError(null);
-    try { await subscribe({ name: branch.name, action: 'unsubscribe' }).unwrap(); setOpen(null); } catch (err) { setError(errorMessage(err)); }
-  };
-  const close = () => { setOpen(null); setError(null); setOutcome(null); };
+  const doSubscribe = (replace = false) => run('subscribe', replace);
+  const doSync = () => run('sync');
+  const doUnsubscribe = () => run('unsubscribe');
+  const close = () => { if (!task.pending()) setOpen(null); };
+  const reviewSubscribe = () => { if (!task.pending()) { setOutcome(null); setError(null); setOverrides(null); setOpen('subscribe'); } };
 
   return (
     <Card data-testid="track-card" data-branch={branch.name}>
@@ -204,7 +232,7 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
       {/* The price of the track, before the click (item 9): what subscribing would spend, right now, from this node. */}
       {!subscribed && (
         <Cost $spend={toBuy.length > 0} data-testid="track-cost">
-          {loading ? <SmallSpinner /> : quote.isError ? t('op.dash.branches.cost.unknown')
+          {quote.isError || !q && !quote.isFetching ? t('op.dash.branches.cost.unknown') : loading ? <SmallSpinner />
             : toBuy.length === 0 ? t('op.dash.branches.cost.nothing', { n: current.length })
               : t('op.dash.branches.cost.buy', { n: toBuy.length, total: totalText })}
         </Cost>
@@ -223,14 +251,15 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
       <Row $gap={8}>
         {subscribed
           ? <>
-            <Button size="small" onClick={doSync} loading={syncState.isLoading} loadingText={t('op.dash.branches.syncing')} data-testid="track-sync">{t('op.dash.branches.sync')}</Button>
-            <Button size="small" color="secondary" onClick={() => setOpen('unsubscribe')} data-testid="track-unsubscribe">{t('op.dash.branches.unsubscribe')}</Button>
+            <Button size="small" disabled={!canAct} onClick={doSync} loading={syncState.isLoading} loadingText={t('op.dash.branches.syncing')} data-testid="track-sync">{t('op.dash.branches.sync')}</Button>
+            <Button size="small" disabled={!canAct} color="secondary" onClick={() => setOpen('unsubscribe')} data-testid="track-unsubscribe">{t('op.dash.branches.unsubscribe')}</Button>
           </>
-          : <Button size="small" onClick={() => setOpen('subscribe')} disabled={loading} data-testid="track-subscribe">{t('op.dash.branches.subscribe')}</Button>}
+          : <Button size="small" onClick={reviewSubscribe} disabled={loading || !canAct || cleanupPending} data-testid="track-subscribe">{t('op.dash.branches.subscribe')}</Button>}
+        {cleanupPending && <Button size="small" disabled={!canAct} onClick={() => setOpen('unsubscribe')} data-testid="track-cleanup">{t('op.dash.branches.cleanup')}</Button>}
       </Row>
       {subscribed && <Muted>{t('op.dash.branches.keepsup')}</Muted>}
-      {subscribed && error && <Alert $tone="error" role="alert">{error}</Alert>}
-      {subscribed && outcome && <Alert $tone={outcome.failed.length ? 'warning' : 'success'} role="status" data-testid="track-sync-outcome">{outcomeText(outcome, t, money)}</Alert>}
+      {!open && error && <Alert $tone="error" role="alert">{error}</Alert>}
+      {!open && outcome && <TrackActionFeedback outcome={outcome} />}
 
       {open === 'subscribe' && (
         <Sheet title={t('op.dash.branches.sheet.title', { name: branch.name })} sub={t('op.dash.branches.sheet.sub')} onClose={close} width={720} testId="subscribe-sheet">
@@ -243,7 +272,7 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
                     <ItemName>
                       {/* Item 214: a track is LOADED in this order, and the later item wins on any row two of them share. */}
                       {current.includes(i.patch_id) && <OrderBadge title={t('op.dash.branches.sheet.order')}>{current.indexOf(i.patch_id) + 1}</OrderBadge>}
-                      {i.author ? <Link to={`/${i.author}/${i.patch_id}`}>{i.name ?? i.patch_id}</Link> : <span>{i.name ?? i.patch_id}</span>}
+                      {i.author ? <Link to={knowledgePath(i.author, i.patch_id)}>{i.name ?? i.patch_id}</Link> : <span>{i.name ?? i.patch_id}</span>}
                       <SubText>{i.patch_id}{i.author ? ` · ${i.author_name ?? shortAddr(i.author)}` : ''}</SubText>
                     </ItemName>
                     <ItemPlan $tone={i.plan === 'buy' ? 'spend' : i.plan === 'held' || i.plan === 'own' ? 'muted' : 'warn'}>
@@ -290,22 +319,18 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
                     })}</li>
                 ))}
               </ul>
-              <Button size="small" color="secondary" style={{ marginTop: 8 }} loading={busy} onClick={() => void doSubscribe(true)} data-testid="subscribe-replace">
+              <Button size="small" color="secondary" style={{ marginTop: 8 }} disabled={!canAct || loading} loading={busy} onClick={() => void doSubscribe(true)} data-testid="subscribe-replace">
                 {t('op.dash.branches.sheet.overrides.anyway')}
               </Button>
             </Alert>
           )}
-          {outcome && (
-            <Alert $tone={outcome.failed.length ? 'warning' : 'success'} role="alert" data-testid="subscribe-outcome">
-              {outcomeText(outcome, t, money)}
-            </Alert>
-          )}
+          {outcome && <TrackActionFeedback outcome={outcome} />}
 
           <SheetNote>{t('op.dash.branches.sheet.note')}</SheetNote>
           <SheetFooter>
             <Button variant="text" color="default" onClick={close}>{outcome ? t('op.close') : t('common.cancel')}</Button>
             {!outcome && (
-              <Button variant="contained" loading={busy} loadingText={t('op.dash.branches.sheet.subscribing')} onClick={() => void doSubscribe(false)} data-testid="subscribe-confirm">
+              <Button variant="contained" disabled={!canAct || loading || quote.isError} loading={busy} loadingText={t('op.dash.branches.sheet.subscribing')} onClick={() => void doSubscribe(false)} data-testid="subscribe-confirm">
                 {toBuy.length === 0 ? t('op.dash.branches.sheet.confirm.free')
                   : short ? t('op.dash.branches.sheet.confirm.anyway', { total: totalText })
                     : t('op.dash.branches.sheet.confirm', { total: totalText })}
@@ -323,9 +348,10 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
             <li>{t('op.dash.branches.unsub.keep')}</li>
           </Consequences>
           {error && <Alert $tone="error" role="alert">{error}</Alert>}
+          {outcome && <TrackActionFeedback outcome={outcome} />}
           <SheetFooter>
             <Button variant="text" color="default" onClick={close}>{t('common.cancel')}</Button>
-            <Button variant="contained" color="secondary" loading={busy} onClick={doUnsubscribe} data-testid="unsubscribe-confirm">{t('op.dash.branches.unsub.confirm')}</Button>
+            <Button variant="contained" color="secondary" disabled={!canAct} loading={busy} onClick={doUnsubscribe} data-testid="unsubscribe-confirm">{t(cleanupPending ? 'op.dash.branches.cleanup' : 'op.dash.branches.unsub.confirm')}</Button>
           </SheetFooter>
         </Sheet>
       )}
@@ -333,13 +359,9 @@ export function TrackCard({ branch, subscribed, currency, address }: { branch: B
   );
 }
 
-/** What the node reported it actually did — bought, loaded, unloaded, skipped (item 357). */
-function outcomeText(x: SubscribeResult, t: (k: string, v?: Record<string, string | number>) => string, money: ReturnType<typeof useMoney>): string {
-  const parts: string[] = [];
-  if (x.acquired.length) parts.push(t('op.dash.branches.done.bought', { n: x.acquired.length, total: x.spent.map((s) => money.fmt(Number(s.amount), s.currency)).join(' + ') || money.fmt(0, 'CREDIT') }));
-  if (x.applied.length) parts.push(t('op.dash.branches.done.loaded', { ids: x.applied.join(', ') }));
-  if (x.removed.length) parts.push(t('op.dash.branches.done.unloaded', { ids: x.removed.join(', ') }));
-  for (const s of x.skipped) parts.push(t('op.dash.branches.done.skipped', { id: s.patch_id, reason: s.reason }));
-  if (!parts.length) parts.push(t('op.dash.branches.done.nothing'));
-  return parts.join(' ');
+export function TrackActionFeedback({ outcome }: { outcome: SubscribeResult }) {
+  const { t } = useT(), money = useMoney();
+  return <Alert $tone={trackActionConfirmed(outcome) ? 'success' : 'warning'} role="status" data-testid="track-outcome" data-confirmed={trackActionConfirmed(outcome)}>
+    {trackOutcomeText(outcome, t, (amount, currency) => money.fmt(amount, currency))}
+  </Alert>;
 }

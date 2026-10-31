@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 76 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 77 codes a client can match on.
 
 ## The error envelope
 
@@ -36,7 +36,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-76 codes are raised by name, in 135 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+77 codes are raised by name, in 136 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -158,7 +158,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `runtime_request_expired` | `409` | this request can no longer be started; inspect the operation’s current records before creating another request | `src/runtime-jobs.ts` |
 | `runtime_stack_ambiguous` | `409` | duplicate layer identities or files are recorded; inspect the stack before applying more knowledge | `src/runtime-stack-plan.ts` |
 | `runtime_stack_changed` | `409` | a recorded layer cannot be resolved to the same file; inspect the current stack before changing it | `src/runtime-stack-plan.ts` |
-| `subscription_incomplete` | `409` | \<failed.length> of … item(s) could not be acquired, so \<branch> was NOT subscribed to and this node is not advertised as serving it. …… | `src/market.ts` |
+| `subscription_incomplete` | `409` | \<failed.length> of … item(s) could not be acquired; no new subscription record was written. …… | `src/market.ts` |
 | `subscription_unpaid` | `402` | … | `src/market.ts` |
 | `teaching_disabled` | `403` | this node does not accept lessons | `src/teach.ts` |
 | `teaching_disabled` | `503` | the teach worker is not running on this node | `src/api.ts` |
@@ -166,6 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `tier_not_allowed` | `400` | … % of the \<rows.shared> rows these two both write hold different values — combining them has to be a full rebuild from the combined questions | `src/teach.ts` |
 | `too_many_attempts` | `429` | \<rec.n> signatures from this address did not check out — wait \<wait>s before trying again. | `src/api.ts` |
 | `too_many_bases` | `400` | one base to build on (two only for a merge) | `src/teach.ts` |
+| `track_action_busy` | `409` | another action for this track is still running; inspect it before trying again | `src/track-action.ts` |
 | `trainer_paused` | `503` | … | `src/teach.ts` |
 | `trainer_paused` | `503` | \<rowsWaiting> questions are already waiting on this node — try again later | `src/teach.ts` |
 | `trainer_paused` | `503` | the training queue is full — try again later | `src/teach.ts` |

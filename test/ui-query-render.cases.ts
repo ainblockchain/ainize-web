@@ -10,7 +10,7 @@ import { manageFixture } from './fixtures/manageKnowledge';
 import { AccountOwners, AccountBindings } from '../src/components/operator/AccountAccess';
 import { AccountPeers } from '../src/components/operator/AccountPeers';
 import { AccountRuntime } from '../src/components/operator/AccountRuntime';
-import { TrackCard } from '../src/components/operator/TrackCard';
+import { TrackActionFeedback, TrackCard } from '../src/components/operator/TrackCard';
 import { AccountSettings } from '../src/components/operator/AccountSettings';
 import AccountPage from '../src/screens/AccountPage';
 import { newPatchDraftKey } from '../src/lib/newPatchDraft';
@@ -2097,6 +2097,23 @@ test('knowledge management accepts a nonempty server runtime and enables the cor
   assert.ok(unload); assert.doesNotMatch(unload, /disabled/);
 });
 
+test('track receipts show fee-only spend, incomplete cleanup and legacy uncertainty without success styling', () => {
+  const value = { ok: false, branch: 'selected', action: 'unsubscribe', acquired: [], failed: [], applied: [], removed: [], skipped: [], spent: [{ amount: '7', currency: 'CREDIT' }],
+    receipt: { version: 1, subscribed: false, subscription_changed: true, runtime: { state: 'failed', error: 'retained dependency', pending: ['old-layer'], records: [] } } };
+  const html = render(() => createElement(TrackActionFeedback, { outcome: value as any }), signedOut);
+  assert.match(html, /data-confirmed="false"/); assert.match(html, /inactive/); assert.match(html, /Reported spend for this request/);
+  assert.match(html, /retained dependency/); assert.match(html, /old-layer/); assert.doesNotMatch(html, /nothing new|were confirmed/);
+  const legacy = render(() => createElement(TrackActionFeedback, { outcome: { ...value, receipt: undefined, ok: true } as any }), signedOut);
+  assert.match(legacy, /data-confirmed="false"/); assert.match(legacy, /states are unconfirmed/);
+});
+test('track cards cannot use another account’s quote or offer signed-out mutations', () => {
+  const branch = trackBranches(['selected']).branches[0];
+  const card = () => createElement(TrackCard, { branch, subscribed: false, currency: 'AIN', address: walletAddress });
+  const foreign: Fixture = { name: 'trackQuote', arg: { name: branch.name, identity: 'other-account' }, value: { quote: { branch: branch.name, items: [{ plan: 'buy', price: '9876543', currency: 'AIN' }], total: [{ amount: '9876543', currency: 'AIN' }] } } };
+  const html = render(card, [...signedOut, foreign], '/dashboard');
+  assert.doesNotMatch(html, /9876543/);
+  const button = html.match(/<button[^>]*data-testid="track-subscribe"[^>]*>/)?.[0]; assert.ok(button); assert.match(button, /disabled/);
+});
 test('track cards recognize server applied IDs and do not mistake failed or foreign runtime reads for missing knowledge', () => {
   const branch = trackBranches(['selected']).branches[0];
   const fixture: Fixture = { name: 'runtime', arg: { identity: accountIdentity }, value: { available: true, hook: true, applied: ['selected'] } };
