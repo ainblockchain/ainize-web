@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-320 operations on 265 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+322 operations on 267 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -396,6 +396,8 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/branches/{name}/unsubscribe`](#post-apibranchesnameunsubscribe) | operator | Unsubscribe from a branch (unload its knowledge) |
 | `GET` | [`/api/runtime`](#get-apiruntime) | none | Serving runtime state (model, hook, the ordered stack of loaded knowledge) |
 | `GET` | [`/api/runtime/stack`](#get-apiruntimestack) | none | The ordered stack loaded in the serving model |
+| `GET` | [`/api/runtime/jobs`](#get-apiruntimejobs) | operator | Recent runtime jobs |
+| `GET` | [`/api/runtime/jobs/capabilities`](#get-apiruntimejobscapabilities) | operator | Runtime job recovery capabilities |
 | `GET` | [`/api/runtime/jobs/{id}`](#get-apiruntimejobsid) | operator | A queued apply/remove |
 | `POST` | [`/api/runtime/complete`](#post-apiruntimecomplete) | operator | Raw completion on the serving model (try the model) |
 | `POST` | [`/api/peers`](#post-apipeers) | operator | Add a peer |
@@ -6948,7 +6950,7 @@ Money on the chain and no body. Each row carries the gateway, the resource, the 
 
 Load into the model (with everything it was trained on top of)
 
-Loads the ordered stack under one runtime lock: the bases first, then this knowledge. An add-on (`base.export: "delta"`) is written only after its `before` is compared to the live rows on EVERY row; a mismatch is 409 `base_mismatch` and nothing is written. Without `with_base` an add-on whose base is not loaded is refused 409 `needs_base`. The answer carries `order` — the chain this knowledge now sits on, ancestors first — and `loaded`, the ids written by this call.
+Loads the ordered stack under one runtime lock: the bases first, then this knowledge. An add-on (`base.export: "delta"`) is written only after its `before` is compared to the live rows on EVERY row; a mismatch is 409 `base_mismatch` and that layer is not written; earlier layers may already have changed (`applied`/`removed` in the refusal). Without `with_base` an add-on whose base is not loaded is refused 409 `needs_base`. The answer carries `order` — the chain this knowledge now sits on, ancestors first — and `loaded`, the ids written by this call. `aliases` maps logical ids to existing physical layers with identical bytes. Planning happens after acquiring the model lock, preserving intervening work. Changed artifacts or missing retained files refuse rather than silently replacing/dropping layers.
 
 **Auth** — operator
 
@@ -6962,14 +6964,20 @@ Loads the ordered stack under one runtime lock: the bases first, then this knowl
 
 | Field | Type | Description |
 |---|---|---|
+| `async` | `boolean` | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
 | `with_base` | `boolean` | also load the knowledges this one was trained on top of |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | result, order[], loaded[] + the ordered stack | `object` |
-| `409` | needs_base { missing } · base_not_held { missing } · base_mismatch { patch_id, rows_differ } |   |
+| `200` | result, order[], loaded[], aliases + the ordered stack | `object` |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?}. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | needs_base { missing } · base_not_held { missing } · base_mismatch { patch_id, rows_differ, applied, removed }; execution guards: runtime_plan_changed, base_artifact_changed, runtime_artifact_changed, runtime_stack_changed, runtime_stack_ambiguous, runtime_base_order. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired before running anything. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
 
 ### `DELETE /api/patches/{id}/apply`
 
@@ -6989,6 +6997,10 @@ Identical to `POST /api/patches/{id}/remove`. Replays the journal written when t
 
 | Field | Type | Description |
 |---|---|---|
+| `async` | `boolean` | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
+| `require_recorded` | `boolean` | Refuse with not_loaded if the id is not recorded at execution; never enter legacy raw restoration. The web uses true. Check capabilities.recorded_remove before relying on this flag. |
 | `cascade` | `boolean` | also unload everything loaded on top of it |
 
 **Responses**
@@ -6996,7 +7008,10 @@ Identical to `POST /api/patches/{id}/remove`. Replays the journal written when t
 | Code | Description | Body |
 |---|---|---|
 | `200` | result + the ordered stack | `object` |
-| `409` | has_dependents { ids } — something is loaded on top of it |   |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?}. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | has_dependents { ids }; execution guards: not_loaded (require_recorded), runtime_plan_changed, runtime_artifact_changed, runtime_stack_changed, runtime_unwind_unavailable. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
 
 ### `POST /api/patches/{id}/remove`
 
@@ -7016,15 +7031,21 @@ The same operation as `DELETE /api/patches/{id}/apply`, for clients that cannot 
 
 | Field | Type | Description |
 |---|---|---|
+| `async` | `boolean` | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
+| `require_recorded` | `boolean` | Refuse with not_loaded if the id is not recorded at execution; never enter legacy raw restoration. The web uses true. Check capabilities.recorded_remove before relying on this flag. |
 | `cascade` | `boolean` | also unload everything loaded on top of it |
-| `async` | `boolean` | answer 202 with a job instead of waiting for the model lock |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | result + the ordered stack | `object` |
-| `409` | has_dependents { ids } — something is loaded on top of it |   |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?}. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | has_dependents { ids }; execution guards: not_loaded (require_recorded), runtime_plan_changed, runtime_artifact_changed, runtime_stack_changed, runtime_unwind_unavailable. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
 
 ### `GET /api/patches/{id}/check`
 
@@ -7725,11 +7746,39 @@ Same `stack` as GET /api/runtime, on its own. Bottom first: a knowledge is alway
 |---|---|---|
 | `200` | stack + journal_dir | `object` |
 
+### `GET /api/runtime/jobs`
+
+Recent runtime jobs
+
+The latest 50 queued/running/terminal jobs, plus instance, server_time and request_window_ms. A job absent from this page may still exist; recover by its exact ID.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | jobs[], instance, server_time, request_window_ms | `object` |
+
+### `GET /api/runtime/jobs/capabilities`
+
+Runtime job recovery capabilities
+
+Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | instance, server_time, request_window_ms, recorded_remove | `object` |
+
 ### `GET /api/runtime/jobs/{id}`
 
 A queued apply/remove
 
-POST /api/patches/{id}/apply|remove with `{"async": true}` answers 202 `{job}` instead of holding the connection open behind the shared model lock; this is where the job’s state (`queued` → `running` → `done`/`failed`), its result and what the model is doing meanwhile are read. Jobs live in memory: a node restart forgets them.
+Read queued/running/done/failed, timestamps, result text, error/status/details and the shared queue. Done jobs also have outcome {result, stack, order?, loaded?, aliases?}; this is an operation receipt, not proof of current model weights. Jobs live in memory and carry a process instance. Pending jobs are never evicted; terminal receipts expire after more than 11 minutes. A missing job or node restart does not prove that the operation did not execute: inspect the current load records, never automatically start a replacement.
 
 **Auth** — operator
 
@@ -7744,6 +7793,7 @@ POST /api/patches/{id}/apply|remove with `{"async": true}` answers 202 `{job}` i
 | Code | Description | Body |
 |---|---|---|
 | `200` | job | `object` |
+| `404` | Unknown, expired or forgotten after restart; execution outcome is unknown. |   |
 
 ### `POST /api/runtime/complete`
 

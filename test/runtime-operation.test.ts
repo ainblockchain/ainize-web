@@ -35,7 +35,9 @@ test('unsupported nodes never produce an operation identity; saved targets exclu
   const op = operation();
   assert.equal('benchmark' in op.target, false);
   assert.deepEqual(runtimeOperationRequest(op), { id: 'chosen', kind: 'load', body: { async: true, ...op.request, with_base: false } });
-  assert.deepEqual(runtimeOperationRequest({ ...op, kind: 'unload', withBase: true }).body, { async: true, ...op.request, cascade: false });
+  assert.deepEqual(runtimeOperationRequest({ ...op, kind: 'unload', withBase: true }).body, { async: true, ...op.request, cascade: false, require_recorded: true });
+  assert.throws(() => prepareRuntimeOperation(owner, manageFixture().anchor, 'unload', false, [], cap, 'b'.repeat(32)), code('unsupported'));
+  assert.equal(prepareRuntimeOperation(owner, manageFixture().anchor, 'unload', false, [], { ...cap, recorded_remove: true }, 'b'.repeat(32)).kind, 'unload');
 });
 
 test('reload restores the exact request and baseline, isolated by account and node', () => {

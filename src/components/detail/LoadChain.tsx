@@ -6,7 +6,7 @@ import type { PatchAnchor, StackLayer } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useActiveView } from '@/hooks/useActiveView';
 import { accountRuntime, createNodeActionTask } from '@/lib/accountNodeActions';
-import { changeRuntimeKnowledge, confirmRuntimeKnowledge, requireRuntimeOperator, LoadKnowledgeError, runtimeRefusal, runtimeBaseMismatch, type RuntimeTarget } from '@/lib/loadKnowledge';
+import { changeRuntimeKnowledge, confirmRuntimeKnowledge, requireRuntimeOperator, LoadKnowledgeError, runtimeRefusal, runtimeBaseMismatch, runtimeGuardFailure, type RuntimeTarget } from '@/lib/loadKnowledge';
 import { claimRuntimeOperation, clearRuntimeOperation, followRuntimeOperation, parseRuntimeJob, prepareRuntimeOperation, readRuntimeOperation,
   runtimeOperationKey, runtimeOperationRequest, saveRuntimeJob, RuntimeOperationError, type RuntimeOperation, type RuntimePhase } from '@/lib/runtimeOperation';
 import { useT } from '@/i18n';
@@ -84,8 +84,9 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
     const missing = kind === 'load' ? runtimeRefusal(error, 'needs_base') : null;
     if (missing && !missing.includes(target.id)) { update({ pending: { target, missing } }); return; }
     const dependents = kind === 'unload' ? runtimeRefusal(error, 'has_dependents') : null;
+    const guard = runtimeGuardFailure(error);
     update({ error: dependents ? t('detail.apply.has_dependents', { children: names(dependents), parent: nameOf(target.id) })
-      : runtimeBaseMismatch(error) ? t('detail.apply.error.mismatch') : message(error) });
+      : runtimeBaseMismatch(error) ? t('detail.apply.error.mismatch') : guard ? t(`detail.apply.error.${guard}`) : message(error) });
   };
   const resume = async (op: RuntimeOperation) => {
     if (!current() || task.pending()) return;
@@ -144,10 +145,10 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
             await navigator.locks.request(owner, () => {
               if (!stillCurrent()) return;
               claimRuntimeOperation(storage(), op); sent = op; update({ operation: op, phase: 'submitting' });
-          });
-          if (!stillCurrent()) return null;
-          return follow(op, stillCurrent, true);
-        },
+            });
+            if (!stillCurrent()) return null;
+            return follow(op, stillCurrent, true);
+          },
         });
       });
       if (!result || !taskCurrent()) return;

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { changeRuntimeKnowledge, LoadKnowledgeError, runtimeRefusal, runtimeBaseMismatch } from '../src/lib/loadKnowledge';
+import { changeRuntimeKnowledge, LoadKnowledgeError, runtimeRefusal, runtimeBaseMismatch, runtimeGuardFailure } from '../src/lib/loadKnowledge';
 import { createNodeActionTask } from '../src/lib/accountNodeActions';
 import { manageFixture } from './fixtures/manageKnowledge';
 
@@ -96,4 +96,12 @@ test('departure suppresses later reads, writes and completion while a shared tas
     write: async () => { writes++; await pending; return ack(); },
   })));
   const first = run(); assert.equal(await run(), null); finish(); assert.ok(await first); assert.equal(writes, 1);
+});
+
+test('execution-time guards distinguish refused removal, changed plans, order conflicts and unavailable restoration', () => {
+  for (const [prefix, code] of [['not_loaded', 'not_loaded'], ['runtime_plan_changed', 'changed'], ['base_artifact_changed', 'changed'], ['runtime_stack_ambiguous', 'changed'], ['runtime_base_order', 'order'], ['runtime_unwind_unavailable', 'restore']]) {
+    assert.equal(runtimeGuardFailure({ status: 409, data: { error: `${prefix}: details` } }), code);
+    assert.equal(runtimeGuardFailure({ status: 500, data: { error: `${prefix}: details` } }), null);
+  }
+  assert.equal(runtimeGuardFailure({ status: 409, data: { error: 'unrelated failure' } }), null);
 });

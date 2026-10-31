@@ -26,7 +26,8 @@ export const runtimeOperationKey = (identity: string, node: string | null) => `a
 
 export function prepareRuntimeOperation(owner: string, target: RuntimeTarget, kind: 'load' | 'unload', withBase: boolean, before: StackLayer[], raw: unknown, randomHex: string): RuntimeOperation {
   if (!object(raw) || !instance(raw.instance) || !timestamp(raw.server_time) || String(raw.server_time).length !== 13
-    || raw.request_window_ms !== 600_000 || !instance(randomHex)) throw new RuntimeOperationError('unsupported');
+    || raw.request_window_ms !== 600_000 || !instance(randomHex)
+    || kind === 'unload' && raw.recorded_remove !== true) throw new RuntimeOperationError('unsupported');
   // Persist the selected artifact identity, not the full benchmark or the operator's credentials.
   const { id, author, name, patch_sha256, benchmark_hash, created_at, model, base } = target;
   return structuredClone({ version: 1, owner, target: { id, author, name, patch_sha256, benchmark_hash, created_at, model, base },
@@ -91,7 +92,7 @@ export function clearRuntimeOperation(storage: OperationStorage, op: RuntimeOper
   try { storage.removeItem(op.owner); } catch { throw new RuntimeOperationError('storage'); }
 }
 export const runtimeOperationRequest = (op: RuntimeOperation) => ({ id: op.target.id, kind: op.kind,
-  body: { async: true as const, ...op.request, ...(op.kind === 'load' ? { with_base: op.withBase } : { cascade: false }) } });
+  body: { async: true as const, ...op.request, ...(op.kind === 'load' ? { with_base: op.withBase } : { cascade: false, require_recorded: true }) } });
 
 /** POST only on the initial explicit action. Recovery/polling never invents an ID or resubmits work. */
 export async function followRuntimeOperation(op: RuntimeOperation, deps: {

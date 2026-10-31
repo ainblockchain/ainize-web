@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 64 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 74 codes a client can match on.
 
 ## The error envelope
 
@@ -30,13 +30,13 @@ Where the message begins with a lower-case word and a colon — `dataset_not_fou
 | `ValidationError` | `400` |   |
 | `ConflictError` | `409` | `(err.details ?? {})` |
 | `NotFoundError` | `404` |   |
-| `MarketError` | the error's own status | `(err.details ?? {})` |
+| `MarketError`, `RuntimeStackPlanError` | the error's own status | `(err.details ?? {})` |
 
 Anything else is a fault in the node and comes back as `500` with the raw message.
 
 ## Codes
 
-64 codes are raised by name, in 123 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+74 codes are raised by name, in 133 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -47,6 +47,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `bad_license` | `400` | "\<license>" is not a licence this network knows (CC0-1.0, CC-BY-4.0, CC-BY-SA-4.0, ODC-By-1.0, Proprietary) | `src/teach.ts` |
 | `banned` | `403` | this node is not accepting lessons from this address | `src/teach.ts` |
 | `banned` | `403` | this node is not accepting lessons from this key | `src/teach.ts` |
+| `base_artifact_changed` | `409` | \<row.id> requires a different file for \<base.patch_id>; review the knowledge before applying it | `src/runtime-stack-plan.ts` |
 | `base_not_available` | `403` | \<id> is someone else's private draft | `src/teach.ts` |
 | `base_not_held` | `409` | \<a.patch_id> is held under a different body than \<id> was trained on | `src/teach.ts` |
 | `base_not_held` | `409` | this node does not hold the body of \<id> — buy or download it first | `src/teach.ts` |
@@ -107,6 +108,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `invalid` | `400` | there is no question #\<op.index> in this dataset | `src/teach-datasets.ts` |
 | `invalid` | `400` | those are the same knowledge | `src/teach.ts` |
 | `invalid` | `400` | two knowledges are needed to combine | `src/teach.ts` |
+| `invalid_runtime_request_id` | `400` | expected server timestamp and a random 128-bit suffix | `src/runtime-jobs.ts` |
 | `invalid_signature` | `401` | download token missing, wrong or expired — make a new link from Your knowledge | `src/api.ts` |
 | `invalid_signature` | `401` | the claim signature does not verify for this teaching key | `src/teach.ts` |
 | `invalid_signature` | `401` | x-ainize-auth header missing, expired or invalid | `src/api.ts` |
@@ -148,6 +150,14 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `rate_limited` | `429` | too many policy calls from this address | `src/teach.ts` |
 | `relay_disabled` | `403` | this node does not hold blobs for other nodes (p2p.relayBlobs) | `src/api.ts` |
 | `row_not_found` | `404` | none of those lines are refused rows of this dataset | `src/teach-datasets.ts` |
+| `runtime_artifact_changed` | `409` | \<layer.id> is recorded with another file; inspect the stack before applying it | `src/runtime-stack-plan.ts` |
+| `runtime_base_order` | `409` | \<base.patch_id> is not recorded underneath \<layer.id>; review the existing stack instead of reordering it automatically | `src/runtime-stack-plan.ts` |
+| `runtime_instance_changed` | `409` | the node restarted; inspect its current load records before starting another operation | `src/runtime-jobs.ts` |
+| `runtime_job_capacity` | `429` | active or recent jobs fill the operation log; retry after existing work finishes and receipts expire | `src/runtime-jobs.ts` |
+| `runtime_request_conflict` | `409` | this request id belongs to different operation parameters | `src/runtime-jobs.ts` |
+| `runtime_request_expired` | `409` | this request can no longer be started; inspect current load records before creating another request | `src/runtime-jobs.ts` |
+| `runtime_stack_ambiguous` | `409` | duplicate layer identities or files are recorded; inspect the stack before applying more knowledge | `src/runtime-stack-plan.ts` |
+| `runtime_stack_changed` | `409` | a recorded layer cannot be resolved to the same file; inspect the current stack before changing it | `src/runtime-stack-plan.ts` |
 | `subscription_incomplete` | `409` | \<failed.length> of … item(s) could not be acquired, so \<branch> was NOT subscribed to and this node is not advertised as serving it. …… | `src/market.ts` |
 | `subscription_unpaid` | `402` | … | `src/market.ts` |
 | `teaching_disabled` | `403` | this node does not accept lessons | `src/teach.ts` |

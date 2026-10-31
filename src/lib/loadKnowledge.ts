@@ -32,6 +32,17 @@ export function runtimeRefusal(error: unknown, kind: 'needs_base' | 'has_depende
 }
 export const runtimeBaseMismatch = (error: unknown) => object(error) && error.status === 409 && object(error.data)
   && typeof error.data.error === 'string' && error.data.error.startsWith('base_mismatch:');
+export function runtimeGuardFailure(error: unknown): 'not_loaded' | 'changed' | 'order' | 'restore' | null {
+  if (!object(error) || error.status !== 409 || !object(error.data) || typeof error.data.error !== 'string') return null;
+  const colon = error.data.error.indexOf(':');
+  if (colon < 1) return null;
+  const prefix = error.data.error.slice(0, colon);
+  if (prefix === 'not_loaded') return 'not_loaded';
+  if (['runtime_plan_changed', 'base_artifact_changed', 'runtime_artifact_changed', 'runtime_stack_changed', 'runtime_stack_ambiguous'].includes(prefix)) return 'changed';
+  if (prefix === 'runtime_base_order') return 'order';
+  if (prefix === 'runtime_unwind_unavailable') return 'restore';
+  return null;
+}
 export interface RuntimeKnowledgeReads {
   current: () => boolean; readAccess: () => Promise<unknown>; read: () => Promise<unknown>;
   runtime: () => Promise<unknown>;
