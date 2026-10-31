@@ -1,3 +1,4 @@
+import { AgentVisibilityControl } from '../src/components/agent/AgentVisibilityControl';
 import { LinkedAgentOwnerPanel } from '../src/screens/agent/LinkedAgentOwnerPanel';
 import { AccountWalletSendHistory, WalletSendHistoryList, WalletSendHistoryDetail } from '../src/components/operator/AccountWalletSendHistory';
 import ProjectNewPage, { ProjectCreationResult, ProjectCreationUnknown } from '../src/screens/ProjectNewPage';
@@ -4271,4 +4272,12 @@ test('a pending or unknown unlink blocks a remounted owner panel from editing or
   assert.match(html, /<fieldset disabled=""/);
   assert.doesNotMatch(html, /data-testid="linked-agent-edit"/);
   assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="linked-agent-unlink"/);
+});
+
+
+test('unknown sharing metadata is not shown as public or initialized into an editable public draft', () => {
+  const Page = () => createElement(AgentVisibilityControl, { agentId: 'chosen', kind: 'linked', owner: 'sso:viewer', visibility: null, orgId: null });
+  const html = render(Page, appAccount, '/agent/chosen');
+  assert.match(html, /Not verified/); assert.match(html, /agent-visibility-change/);
+  assert.doesNotMatch(html, /Now: Public|agent-visibility-save|every agent on it is public/);
 });

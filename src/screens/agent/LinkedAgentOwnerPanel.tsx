@@ -72,7 +72,7 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
         </Button>
       </LinkedAgentOwnerRow>
       <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
-      <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />
+      <AgentVisibilityControl kind="linked" owner={owner} agentId={agentId} visibility={visibility} orgId={orgId} />
       </fieldset>
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}
       {removal.uncertain() && <StyledLink to="/me/agents">{t('myAgents.title')}</StyledLink>}

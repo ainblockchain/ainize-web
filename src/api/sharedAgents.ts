@@ -1,3 +1,4 @@
+import type { AgentSharingReview } from '@/lib/agentSharing';
 /**
  * Shared agents — who may see an agent, and the registry that says so.
  *
@@ -359,7 +360,7 @@ export function fallbackRows(filter: AgentListFilter, agents: readonly AgentSumm
 }
 
 /** `PUT /api/shared-agents/:id/visibility` body. */
-export interface AgentVisibilityInput { id: string; visibility: AgentVisibility; orgId?: string | null }
+export interface AgentVisibilityInput { id: string; visibility: AgentVisibility; orgId: string | null; expected: AgentSharingReview }
 
 // ─────────────────────────────────────────────────────────────── agents the caller may manage
 

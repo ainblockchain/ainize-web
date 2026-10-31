@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-347 operations on 288 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+348 operations on 288 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -225,6 +225,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/agent-archive-operations/{requestId}`](#post-apiagent-archive-operationsrequestid) | none | Restore or remove a reviewed archive with durable request identity |
 | `POST` | [`/api/agent-archive-operations/{requestId}/cancel`](#post-apiagent-archive-operationsrequestidcancel) | none | Cancel an archive request only if it has not been admitted |
 | `GET` | [`/api/shared-agents`](#get-apishared-agents) | operator | Agents this node runs or proxies, in the cross-product registry shape (contract 1.0) |
+| `GET` | [`/api/shared-agents/{id}/visibility`](#get-apishared-agentsidvisibility) | none | Review current sharing and authority for an exact agent |
 | `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
 | `GET` | [`/api/agent-aliases/{name}`](#get-apiagent-aliasesname) | none | Resolve an agent alias (or id) to the agent's canonical id |
 | `PUT` | [`/api/agents/{id}/alias`](#put-apiagentsidalias) | none | Give an agent a readable alias (replaces its current one) |
@@ -4364,11 +4365,35 @@ The same list every product reads from every origin — hosted agents, linked ag
 | `429` | rate_limited |   |
 | `503` | temporary_failure |   |
 
+### `GET /api/shared-agents/{id}/visibility`
+
+Review current sharing and authority for an exact agent
+
+Authorized owners, organization admins and operators receive review with id, kind, owner, actor, registry, revision, visibility and orgId. The revision contains no prompt, source code or private upstream. A target in pending hosted deletion refuses. Read is private/no-store and does not modify sharing.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | review | `object` |
+| `401` | auth_required |   |
+| `403` | forbidden |   |
+| `409` | resource_busy |   |
+| `410` | resource_deleted |   |
+
 ### `PUT /api/shared-agents/{id}/visibility`
 
 Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere)
 
-Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without touching what it runs or where it points. The owner may share with an organization they belong to (an AIN SSO session's memberships, or the organization an API key was issued for); the operator may share ANY agent with ANY organization — that is how the agents already on a node become an organization's list. A config agent's sharing lives in config.json (`agents[].visibility`, `agents[].orgId`) and is refused here with that field named. An agent the caller may not see is `resource_deleted` (410), never 403. The change is a new release (`v<n>` / `linked-v<n>`) and appears in the events feed.
+Requires the exact review from GET as expected. Changes to actor, registry, kind, ownership, registration, version or prior sharing refuse before saving. Returns applied (the exact prior review and requested values), review (the new state), and agent (the consistent registry ref). Unknown write failures have retryable=false; they may follow persistence and must not be automatically repeated. Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without touching what it runs or where it points. The owner may share with an organization they belong to (an AIN SSO session's memberships, or the organization an API key was issued for); the operator may share ANY agent with ANY organization — that is how the agents already on a node become an organization's list. A config agent's sharing lives in config.json (`agents[].visibility`, `agents[].orgId`) and is refused here with that field named. An agent the caller may not see is `resource_deleted` (410), never 403. The change is a new release (`v<n>` / `linked-v<n>`) and appears in the events feed.
 
 **Auth** — none
 
@@ -4382,6 +4407,15 @@ Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without to
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `expected` | `object` | yes |   |
+| `expected.id` | `string` | yes |   |
+| `expected.kind` | `"hosted"` \| `"linked"` | yes |   |
+| `expected.owner` | `string` | yes |   |
+| `expected.actor` | `string` | yes |   |
+| `expected.registry` | `string` | yes |   |
+| `expected.revision` | `string` | yes |   |
+| `expected.visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` | yes |   |
+| `expected.orgId` | `string,null` | yes |   |
 | `visibility` | `"public"` \| `"org"` \| `"private"` \| `"unlisted"` | yes |   |
 | `orgId` | `string,null` |   | required with `org`; must be absent otherwise |
 
@@ -4390,10 +4424,12 @@ Sets `visibility` and, for `org`, `orgId` on a hosted or linked agent without to
 | Code | Description | Body |
 |---|---|---|
 | `200` | the agent as the registry now lists it | `object` |
-| `400` | invalid_request — malformed, or a config agent (edit config.json) |   |
+| `400` | invalid_request or review_required — malformed, unreviewed, or a config agent (edit config.json) |   |
 | `401` | auth_required |   |
 | `403` | forbidden — not the owner or the operator, or not a member of `orgId` |   |
+| `409` | review_changed or resource_busy |   |
 | `410` | resource_deleted — no such agent, or one the caller may not see |   |
+| `503` | temporary_failure with retryable=false; result may be unconfirmed |   |
 
 **`200` response body**
 

@@ -43,7 +43,14 @@ export const sharedAgents: Dict = {
   'sharing.owner.cancel': { ko: '취소', en: 'Cancel' },
   'sharing.owner.saved': { ko: '공개 범위를 바꿨습니다.', en: 'Visibility changed.' },
   'sharing.owner.failed': { ko: '바꾸지 못했습니다: {why}', en: 'It could not be changed: {why}' },
-  'sharing.owner.unsupported': { ko: '이 노드는 공개 범위를 지원하지 않습니다 — 모든 에이전트가 공개입니다.', en: 'This node does not support visibility — every agent on it is public.' },
+  'sharing.owner.unsupported': { ko: '공개 범위 편집 기능을 확인할 수 없습니다.', en: 'Visibility editing support could not be verified.' },
+  'sharing.owner.unknown': { ko: '확인되지 않음', en: 'Not verified' },
+  'sharing.owner.read_failed': { ko: '현재 공개 범위와 편집 권한을 확인하지 못했습니다. 현재 계정과 노드 지원 여부를 확인해 주세요.', en: 'Current visibility and editing permission could not be verified. Check the current account and node support.' },
+  'sharing.owner.changed': { ko: '계정 또는 에이전트 설정이 바뀌었습니다. 초안은 유지했으며 최신 설정을 다시 확인해야 합니다.', en: 'The account or agent settings changed. Your draft is preserved; review the latest settings.' },
+  'sharing.owner.not_saved': { ko: '저장을 완료하지 못했습니다. 권한과 현재 설정을 다시 확인해 주세요.', en: 'The save did not complete. Check permissions and current settings again.' },
+  'sharing.owner.unconfirmed': { ko: '저장 결과를 확인하지 못했습니다. 요청을 반복하지 않았습니다. 현재 범위를 조회해도 이번 요청의 완료가 확인되는 것은 아닙니다.', en: 'The save result is unconfirmed. The request was not repeated. Reading current visibility does not establish this request’s outcome.' },
+  'sharing.owner.check': { ko: '현재 범위 조회', en: 'Check current visibility' },
+  'sharing.owner.reload': { ko: '초안을 버리고 최신 설정 가져오기', en: 'Discard draft and load latest settings' },
 
   // ── the owner's "Address name" (agent alias) control on the agent page
   'agentAlias.title': { ko: '주소 이름', en: 'Address name' },

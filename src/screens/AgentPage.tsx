@@ -561,7 +561,7 @@ function AgentDetail({ removalBlocked, onRemovalStateChange }: { removalBlocked:
 
       {localHosted && <AinftBindingPanel agentId={agent.id} />}
       {localHosted && <AinftCompanionPanel agentId={agent.id} />}
-      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} isCreator={ownsIt} cleanupPending={!!(managedRow?.agent.deletion_requested_at || agent.deletion_requested_at)} />}
+      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} owner={agent.owner} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} isCreator={ownsIt} cleanupPending={!!(managedRow?.agent.deletion_requested_at || agent.deletion_requested_at)} />}
       {/* The history is shown to anyone who can see the agent, not only to whoever owns it: how an agent
           reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
           node answers 404 to a caller who may not see the agent, and the panel draws nothing in that case. */}
