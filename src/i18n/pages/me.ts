@@ -2,6 +2,24 @@
 import type { Dict } from '../index';
 
 export const me: Dict = {
+  'me.keys.creation.working': { ko: '요청을 처리하고 결과를 확인하고 있습니다.', en: 'Processing the request and checking its result.' },
+  'me.keys.creation.unknown': { ko: '발급 결과를 확인하지 못했습니다. 같은 요청을 확인하거나 다시 보낼 수 있습니다.', en: 'The result is unknown. Check or retry the same request.' },
+  'me.keys.creation.not_found': { ko: '아직 저장된 결과가 없습니다. 앞선 요청이 늦게 도착할 수 있으므로 취소 완료를 뜻하지는 않습니다.', en: 'No result is saved yet. An earlier request may still arrive; this does not confirm cancellation.' },
+  'me.keys.creation.issued': { ko: '이 요청으로 키가 발급되었습니다.', en: 'This request issued the key shown here.' },
+  'me.keys.creation.disabled': { ko: '키가 발급되었으나 현재 사용이 중지되어 있습니다.', en: 'The key was issued but is currently disabled.' },
+  'me.keys.creation.revoked': { ko: '이 요청으로 발급된 키는 이미 폐기되었습니다.', en: 'The key issued by this request has been revoked.' },
+  'me.keys.creation.cancelled': { ko: '미발급 요청을 취소했습니다. 이 요청으로 키가 발급되지 않습니다.', en: 'The unissued request was cancelled. It cannot issue a key.' },
+  'me.keys.creation.secret_missing': { ko: '이 키의 원문을 표시하지 못했습니다. 다른 키가 표시 중이면 먼저 저장하고 지운 뒤 상태를 확인하세요. 원문 응답을 잃었다면 서버에서는 다시 받을 수 없으며, 키 관리에서 해당 키를 폐기할 수 있습니다.', en: 'This key’s secret is not displayed. If another secret is visible, save and clear it, then check status. If the original response was lost, the server cannot return it again; you can revoke this exact key in key management.' },
+  'me.keys.creation.retry': { ko: '같은 요청 다시 보내기', en: 'Retry same request' },
+  'me.keys.creation.cancel': { ko: '미발급 요청 취소', en: 'Cancel if unissued' },
+  'me.keys.creation.save_first': { ko: '다른 키를 만들기 전에 아래 키를 저장한 뒤 화면에서 지워 주세요.', en: 'Save the key below and clear it from this tab before creating another.' },
+  'me.keys.creation.error.storage': { ko: '발급 기록을 안전하게 저장할 수 없어 새 요청을 중단했습니다. 브라우저 저장 공간을 확인하세요.', en: 'Cannot safely retain the request. New submissions are stopped; check browser storage.' },
+  'me.keys.creation.error.pending': { ko: '이 계정에 저장된 발급 요청을 먼저 확인해 주세요.', en: 'Resolve the saved creation request for this account first.' },
+  'me.keys.creation.error.locked': { ko: '다른 탭에서 이 계정의 발급 요청을 확인 중입니다. 잠시 후 다시 확인하세요.', en: 'Another tab is handling this account’s creation request. Check again shortly.' },
+  'me.keys.creation.error.existing': { ko: '기존 키 원문을 먼저 저장하고 화면에서 지워 주세요.', en: 'Save and clear the existing secret first.' },
+  'me.keys.creation.error.changed': { ko: '키 목록을 확인하지 못했거나 같은 이름이 이미 있습니다. 목록과 이름을 확인하세요.', en: 'The key list could not be confirmed, or this name already exists. Check the list and name.' },
+  'me.keys.creation.error.unconfirmed': { ko: '결과가 확인되지 않은 발급 기록은 지울 수 없습니다.', en: 'An unresolved creation request cannot be cleared.' },
+  'me.keys.creation.error.unknown': { ko: '결과를 확인하지 못했습니다. 저장된 요청을 확인해 주세요.', en: 'The result could not be confirmed. Check the retained request.' },
   'me.title': { ko: '내 페이지', en: 'My page' },
   'me.lede': {
     ko: '내 주소로 된 것들입니다. 이 노드를 운영하는지와는 무관합니다.',

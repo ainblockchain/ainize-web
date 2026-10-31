@@ -3,6 +3,9 @@ import { apiKeyHash, apiKeyList, apiKeyPrefix } from '../../api/apiKeyEvidence';
  * Account changes and logout discard it. Unscoped legacy values cannot be attributed safely.
  */
 const STORAGE_KEY = 'ainize.issuedApiKey';
+const CANDIDATE_KEY = 'ainize.keyCandidates.v1';
+type Candidate = { owner: string; id: string; key: string };
+let candidates: Candidate[] = [];
 type HeldKey = { owner: string; key: string; receivedAt: number };
 let owner: string | null = null;
 let held: HeldKey | null = null;
@@ -22,6 +25,35 @@ function persist(): void {
     else sessionStorage.removeItem(STORAGE_KEY);
   } catch { /* Private mode: retain only the current account's in-memory copy. */ }
 }
+function persistCandidates(): void {
+  try {
+    if (candidates.length) sessionStorage.setItem(CANDIDATE_KEY, JSON.stringify(candidates));
+    else sessionStorage.removeItem(CANDIDATE_KEY);
+  } catch { /* Keep this tab's in-memory copy when session storage is unavailable. */ }
+}
+/** Quarantined secrets are never returned by recallIssuedKey or inserted into snippets. */
+export function retainKeyCandidate(forOwner: string, id: string, value: unknown): boolean {
+  const key = (value as { api_key?: unknown } | null)?.api_key;
+  if (!forOwner || owner !== forOwner || !/^[a-f0-9]{32}$/.test(id) || typeof key !== 'string' || !/^ainize-sk-[A-Za-z0-9_-]{32}$/.test(key)) return false;
+  const existing = candidates.find(candidate => candidate.id === id);
+  if (existing) return existing.key === key;
+  candidates.push({ owner: forOwner, id, key }); persistCandidates();
+  return true;
+}
+export function confirmKeyCandidate(forOwner: string, id: string, keyId: string): boolean {
+  if (!forOwner || owner !== forOwner) return false;
+  if (held && apiKeyHash(held.key) === keyId) { discardKeyCandidate(forOwner, id); return true; }
+  const candidate = candidates.find(value => value.id === id && value.owner === forOwner && apiKeyHash(value.key) === keyId);
+  // Never replace the only visible copy of another secret, including a legacy secret awaiting its node proof.
+  if (!candidate || held || legacy || !rememberIssuedKey(forOwner, candidate.key)) return false;
+  discardKeyCandidate(forOwner, id);
+  return true;
+}
+export function discardKeyCandidate(forOwner: string, id: string): void {
+  if (owner !== forOwner) return;
+  candidates = candidates.filter(candidate => candidate.id !== id);
+  persistCandidates();
+}
 /** A node switch is a different key context even when the account stays the same. */
 export function issuedKeyScope(account: string, node: string | null | undefined): string {
   return account && node && /^0x[0-9a-f]{40}$/i.test(node) ? JSON.stringify([account, node.toLowerCase()]) : '';
@@ -35,6 +67,16 @@ export function forgetIssuedKeyById(forOwner: string, id: string): boolean {
 export function activateIssuedKeyOwner(next: string | null): void {
   const candidate = held ?? legacy ?? read();
   owner = next;
+  if (!candidates.length) {
+    try {
+      const saved: unknown = JSON.parse(sessionStorage.getItem(CANDIDATE_KEY) ?? '[]');
+      if (Array.isArray(saved)) candidates = saved.filter((value): value is Candidate => !!value && value.owner === next && typeof value.id === 'string'
+        && /^[a-f0-9]{32}$/.test(value.id) && typeof value.key === 'string' && /^ainize-sk-[A-Za-z0-9_-]{32}$/.test(value.key))
+        .map(value => ({ owner: value.owner, id: value.id, key: value.key }));
+    } catch { /* Unattributable secrets cannot be used. */ }
+  }
+  candidates = next ? candidates.filter(candidate => candidate.owner === next) : [];
+  persistCandidates();
   held = next && candidate?.owner === next ? candidate : null;
   legacy = null;
   if (!held && next && candidate) {

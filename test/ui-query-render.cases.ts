@@ -1,4 +1,5 @@
 import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
+import { KeyCreationNotice } from '../src/components/KeyCreationNotice';
 import { issuedKeyScope } from '../src/screens/models/issuedKeyMemory';
 import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
 import { reconciliationFixture } from './purchase-reconciliation-fixture';
@@ -2528,4 +2529,44 @@ test('storage failures offer recovery without presenting a completed revocation'
   assert.match(html, /request record could not be safely saved or read/);
   assert.match(html, /Try again/);
   assert.doesNotMatch(html, /revocation is confirmed|Retry revoking this key|Done — close record/);
+});
+
+function creationAction(status: Parameters<typeof KeyCreationNotice>[0]['action']['status']): Parameters<typeof KeyCreationNotice>[0]['action'] {
+  const key = { key_id: 'deadbeef' + '1'.repeat(56), prefix: 'deadbeef', label: 'Creation target', org_id: null, disabled: status !== 'issued', issuedAt: 1 };
+  return {
+    operation: { version: 1, id: '1'.repeat(32), context: { node: keyNode, owner: 'sso:viewer' }, label: 'Creation target', orgId: null,
+      requestedAt: 1, action: 'create', receipt: status === 'cancelled' ? { status, key: null } : ['issued', 'disabled', 'revoked'].includes(status) ? { status: status as 'issued' | 'disabled' | 'revoked', key } : null },
+    status, secretHeld: false, error: null, ready: true, running: false, blocked: false,
+    inspect: async () => {}, start: async () => {}, retry: async () => {}, cancel: async () => {}, acknowledge: async () => {}, reload() {},
+  };
+}
+
+test('creation recovery distinguishes absent/unknown from cancellation and never offers clearing an unresolved request', () => {
+  for (const status of ['unknown', 'not_found', 'cancelled'] as const) {
+    const action = creationAction(status), Page = () => createElement(KeyCreationNotice, { action });
+    const html = render(Page, appAccount, '/me');
+    assert.match(html, /Creation target/);
+    if (status === 'cancelled') { assert.match(html, /Done — close record/); assert.doesNotMatch(html, /Retry same request/); }
+    else { assert.match(html, /Check status/); assert.match(html, /Retry same request/); assert.match(html, /Cancel if unissued/); assert.doesNotMatch(html, /Done — close record/); }
+    if (status === 'not_found') assert.match(html, /does not confirm cancellation/);
+  }
+});
+
+test('issued-without-secret is explained as a distinct outcome with exact-key management', () => {
+  for (const status of ['issued', 'disabled', 'revoked'] as const) {
+    const action = creationAction(status), Page = () => createElement(KeyCreationNotice, { action });
+    const html = render(Page, appAccount, '/me');
+    assert.ok(html.includes(action.operation!.receipt!.key!.key_id));
+    assert.match(html, /href="\/me"/); assert.match(html, /Done — close record/);
+    assert.doesNotMatch(html, /Retry same request|Cancel if unissued/);
+    if (status !== 'revoked') assert.match(html, /server cannot return it again/);
+    else assert.doesNotMatch(html, /server cannot return it again/);
+  }
+});
+
+test('an unresolved cancellation can be checked or retried as cancellation, never as issuance', () => {
+  const action = creationAction('unknown'); action.operation!.action = 'cancel';
+  const Page = () => createElement(KeyCreationNotice, { action }), html = render(Page, appAccount, '/me');
+  assert.match(html, /Check status|Cancel if unissued/);
+  assert.doesNotMatch(html, /Retry same request|Done — close record/);
 });

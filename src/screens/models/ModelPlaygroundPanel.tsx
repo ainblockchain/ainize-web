@@ -8,7 +8,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useThroughputQuoteQuery } from '@/api/api';
+import { useApiKeyCreation } from '@/hooks/useApiKeyCreation';
+import { KeyCreationNotice } from '@/components/KeyCreationNotice';
+import { errorMessage, useApiKeysQuery, useThroughputQuoteQuery } from '@/api/api';
 import { billingView } from '@/lib/billingView';
 import { useAuth } from '@/auth/AuthContext';
 import type { PublicModelCard } from '@/api/models';
@@ -21,7 +23,7 @@ import { useActiveView } from '@/hooks/useActiveView';
 import { callPlayground, createPlaygroundTask, playgroundJson } from './playgroundCall';
 import { decisionInput, playgroundBody, playgroundInitialPrompt, playgroundNeedsKey, PlaygroundInputError } from './modelPlaygroundInput';
 import { readChatStream } from './playgroundStream';
-import { apiKeyContext, apiKeyExpected, apiKeyId, apiKeySnapshot, confirmApiKeyForCall, createdApiKey } from '@/api/apiKeyEvidence';
+import { apiKeyContext, apiKeyId, apiKeySnapshot, confirmApiKeyForCall } from '@/api/apiKeyEvidence';
 import { issuedKeyScope, recallIssuedKey } from './issuedKeyMemory';
 import { useIssuedKey } from './useIssuedKey';
 import { useClipboardCopy } from '@/hooks/useClipboardCopy';
@@ -125,12 +127,14 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   const keyList = apiKeySnapshot(keyQuery.currentData, keyActor);
   const invalidKeys = keyQuery.currentData !== undefined && !keyList;
   const keysReady = !!keyList && !keyQuery.isFetching && !keyQuery.isError && !!keyContext;
-  const [createKey, createState] = useCreateApiKeyMutation();
-  const { key: issuedKey, usableKey, state: heldState, remember, forget } = useIssuedKey(cacheIdentity, auth.address, keyActor, keysReady ? keyQuery.currentData : undefined, keyQuery.startedTimeStamp);
+  const { key: issuedKey, usableKey, state: heldState, forget } = useIssuedKey(cacheIdentity, auth.address, keyActor, keysReady ? keyQuery.currentData : undefined, keyQuery.startedTimeStamp);
   const [keyName, setKeyName] = useState('');
   const keyLabel = keyName.trim();
   const duplicateKeyName = !!keyLabel && !!keyList?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === keyLabel.toLocaleLowerCase());
-  const [keyError, setKeyError] = useState<string | null>(null);
+  const creation = useApiKeyCreation({ context: keyActor, scope: keyContext, current, accountCurrent: auth.isCurrentAccount, busy: keyBusy, loadKeys: () => keyQuery.refetch().unwrap() });
+  useEffect(() => {
+    if (creation.operation?.receipt && creation.operation.label === keyLabel) setKeyName('');
+  }, [creation.operation?.receipt, keyLabel]);
 
   const refreshKeys = async () => { await auth.refresh(); if (current()) await keyQuery.refetch(); };
 
@@ -291,29 +295,20 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             <StyledLink to="/me">{t('models.key.manage')}</StyledLink>
           </Description>
         )}
+        {canHoldKeys && <KeyCreationNotice action={creation} />}
         {canHoldKeys && !issuedKey && (
           <form onSubmit={(event) => {
             event.preventDefault();
-            if (!current() || keyBusy.current || !keysReady || !keyActor || !keyLabel || duplicateKeyName) return;
-            keyBusy.current = true;
-            setKeyError(null);
-            void createKey({ label: keyLabel, org_id: null, ...apiKeyExpected(keyActor) }).unwrap()
-              .then((r) => {
-                if (!auth.isCurrentAccount()) return;
-                const secret = createdApiKey(r, keyLabel, null, keyActor);
-                if (!secret) throw new Error(t('me.keys.receipt'));
-                if (remember(secret) && current()) setKeyName('');
-              })
-              .catch((e: unknown) => { if (current()) setKeyError(t('me.keys.create_unknown', { why: errorMessage(e) })); })
-              .finally(() => { keyBusy.current = false; });
+            if (!current() || keyBusy.current || !keysReady || !creation.ready || creation.operation || issuedKey || !keyLabel || duplicateKeyName) return;
+            void creation.start(keyLabel, null);
           }}>
             <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
               helper={duplicateKeyName ? t('me.keys.name_duplicate') : t('me.keys.name_hint')} error={duplicateKeyName}
               data-testid="models-key-name" value={keyName} onChange={(event) => setKeyName(event.target.value)}
-              maxLength={60} required disabled={createState.isLoading} />
+              maxLength={60} required disabled={creation.running || !!creation.operation} />
             <Row>
-              <Button type="submit" data-testid="models-create-key" disabled={!keysReady || createState.isLoading || !keyLabel || duplicateKeyName}>
-                {createState.isLoading ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
+              <Button type="submit" data-testid="models-create-key" disabled={!keysReady || !creation.ready || creation.running || !!creation.operation || !keyLabel || duplicateKeyName}>
+                {creation.running ? t('models.key.creating') : (keyList?.keys.length ?? 0) > 0 ? t('models.key.createAnother') : t('models.key.create')}
               </Button>
               <StyledLink to="/me">{t('models.key.manage')}</StyledLink>
             </Row>
@@ -334,7 +329,6 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             </Row>
           </>
         )}
-        {keyError && <Alert role="alert" $tone="error">{keyError} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
         {/* A deposit applies to exactly the calls a key makes, so this is where it is said — with this visitor's
             own busy-time number, not a general "faster". */}
         {isChat && offer && (

@@ -1,4 +1,5 @@
 import type { ApiKeyContext } from './apiKeyEvidence';
+import type { KeyCreation } from '@/lib/apiKeyCreation';
 import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
 import { loadTrackCatalog, loadCatalogSnapshot, type TrackCatalog, type CatalogSnapshot } from '@/lib/trackView';
 import type { AppDomain, AppDomainsResponse } from './projects';
@@ -114,9 +115,14 @@ export const api = createApi({
       keepUnusedDataFor: 0,
       query: () => ({ url: 'api/keys', timeout: 15_000 }), providesTags: ['ApiKeys'],
     }),
-    /** Issue one. The secret is in this response and nowhere else, ever again. */
-    createApiKey: b.mutation<unknown, { label: string; org_id: string | null; expected_owner: string; expected_node: string }>({
-      query: (body) => ({ url: 'api/keys', method: 'POST', body }), invalidatesTags: ['ApiKeys'],
+    /** Request-scoped creation deliberately has no fallback to legacy POST /api/keys. */
+    inspectKeyCreation: b.mutation<unknown, KeyCreation>({
+      query: ({ id, context }) => ({ url: `api/key-operations/${encodeURIComponent(id)}${toQuery({ expected_owner: context.owner, expected_node: context.node })}`, timeout: 15_000 }),
+    }),
+    submitKeyCreation: b.mutation<unknown, KeyCreation>({
+      query: ({ id, context, label, orgId, action }) => ({ url: `api/key-operations/${encodeURIComponent(id)}${action === 'cancel' ? '/cancel' : ''}`,
+        method: 'POST', body: { expected_owner: context.owner, expected_node: context.node, label, org_id: orgId }, timeout: 15_000 }),
+      invalidatesTags: ['ApiKeys'],
     }),
     revokeApiKey: b.mutation<unknown, { id: string; context: ApiKeyContext }>({
       query: ({ id, context }) => ({ url: `api/keys/${encodeURIComponent(id)}${toQuery({ expected_owner: context.owner, expected_node: context.node })}`, method: 'DELETE', timeout: 15_000 }), invalidatesTags: ['ApiKeys'],
@@ -685,7 +691,7 @@ export const api = createApi({
 export const {
   useTrackCatalogQuery,
   useCatalogSnapshotQuery,
-  useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, useManagedPatchQuery, useManagedCatalogQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
+  useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useInspectKeyCreationMutation, useSubmitKeyCreationMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, useManagedPatchQuery, useManagedCatalogQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,

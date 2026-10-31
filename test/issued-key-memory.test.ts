@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activateIssuedKeyOwner, rememberIssuedKey, recallIssuedKey, forgetIssuedKey, subscribeIssuedKey } from '../src/screens/models/issuedKeyMemory';
+import { activateIssuedKeyOwner, rememberIssuedKey, recallIssuedKey, forgetIssuedKey, subscribeIssuedKey, retainKeyCandidate, confirmKeyCandidate, discardKeyCandidate } from '../src/screens/models/issuedKeyMemory';
+import { apiKeyHash } from '../src/api/apiKeyEvidence';
 
 const slot = 'ainize.issuedApiKey';
+const candidateSlot = 'ainize.keyCandidates.v1';
 const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
 let storage: Map<string, string>;
 beforeEach(() => {
@@ -18,6 +20,50 @@ afterEach(() => {
   activateIssuedKeyOwner(null);
   if (original) Object.defineProperty(globalThis, 'sessionStorage', original);
   else Reflect.deleteProperty(globalThis, 'sessionStorage');
+});
+
+test('an unverified candidate is quarantined until the exact request key hash is confirmed', () => {
+  activateIssuedKeyOwner('account-a');
+  const id = 'a'.repeat(32), key = 'ainize-sk-' + 'a'.repeat(32);
+  assert.ok(retainKeyCandidate('account-a', id, { api_key: key, malformed: true }));
+  assert.equal(recallIssuedKey('account-a'), null);
+  assert.equal(confirmKeyCandidate('account-a', id, 'b'.repeat(64)), false);
+  assert.equal(confirmKeyCandidate('account-a', 'b'.repeat(32), apiKeyHash(key)), false);
+  assert.equal(confirmKeyCandidate('account-a', id, apiKeyHash(key)), true);
+  assert.equal(recallIssuedKey('account-a'), key); assert.equal(storage.has(candidateSlot), false);
+});
+
+test('a candidate never overwrites another visible secret and survives until that secret is saved and cleared', () => {
+  activateIssuedKeyOwner('account-a'); rememberIssuedKey('account-a', 'first-secret');
+  const id = 'a'.repeat(32), key = 'ainize-sk-' + 'b'.repeat(32);
+  retainKeyCandidate('account-a', id, { api_key: key });
+  assert.equal(confirmKeyCandidate('account-a', id, apiKeyHash(key)), false);
+  assert.equal(recallIssuedKey('account-a'), 'first-secret');
+  forgetIssuedKey('account-a');
+  assert.equal(confirmKeyCandidate('account-a', id, apiKeyHash(key)), true);
+  assert.equal(recallIssuedKey('account-a'), key);
+});
+
+test('account/node changes and logout discard candidates and refuse late response capture', () => {
+  const first = JSON.stringify(['account-a', '0x' + 'a'.repeat(40)]), second = JSON.stringify(['account-a', '0x' + 'b'.repeat(40)]);
+  const id = 'a'.repeat(32), key = 'ainize-sk-' + 'a'.repeat(32);
+  activateIssuedKeyOwner(first); retainKeyCandidate(first, id, { api_key: key });
+  activateIssuedKeyOwner(second);
+  assert.equal(retainKeyCandidate(first, id, { api_key: key }), false);
+  assert.equal(confirmKeyCandidate(second, id, apiKeyHash(key)), false);
+  assert.equal(storage.has(candidateSlot), false);
+  retainKeyCandidate(second, id, { api_key: key }); activateIssuedKeyOwner(null);
+  assert.equal(storage.has(candidateSlot), false);
+  assert.equal(retainKeyCandidate(second, id, { api_key: key }), false);
+});
+
+test('a reloaded candidate stays quarantined and another account cannot discard it', () => {
+  const id = 'a'.repeat(32), key = 'ainize-sk-' + 'a'.repeat(32);
+  storage.set(candidateSlot, JSON.stringify([{ owner: 'account-a', id, key }]));
+  activateIssuedKeyOwner('account-a'); discardKeyCandidate('account-b', id);
+  assert.equal(recallIssuedKey('account-a'), null);
+  assert.equal(confirmKeyCandidate('account-a', id, apiKeyHash(key)), true);
+  assert.equal(recallIssuedKey('account-a'), key);
 });
 
 test('a held key is visible only to the account that created it', () => {

@@ -34,9 +34,18 @@ other model API asks you to put one in any of them.
 A key saved in the browser belongs to the current account **and node**. The playground checks its current
 status before a key-authenticated call. Disabled keys are kept so you can save their value, but are not used
 in calls or copied request snippets. A confirmed revoked key is removed from the browser's saved-key display.
-Use **Manage your keys** to see each key's identifier, organization and status. If creation or revocation cannot
-be confirmed, reload the list before deciding what to do next; a lost response does not prove that the action
-failed. The server cannot recover a lost secret from its hash.
+Use **Manage your keys** to see each key's identifier, organization and status. A lost response does not prove
+that creation or revocation failed. The server cannot recover a lost secret from its hash.
+
+Key creation saves the account, node, label, organization and a request identifier in this browser before
+sending. Reloading either the model or account page checks that same request without issuing another key.
+**Retry same request** cannot issue a second key for that identifier. **Cancel if unissued** prevents a delayed
+request from issuing, but if issuance already happened the page reports that key instead of claiming cancellation.
+If the key was issued but this tab never received a verified secret, manage or revoke the displayed identifier;
+retrying cannot retrieve its secret. Save and clear a visible secret before creating another. Browser storage
+and tab coordination must be available for these actions. Clearing browser data or switching devices loses this
+browser's recovery record; the owned-key list remains available. This workflow requires a node with request-scoped
+key creation; older nodes do not fall back to a potentially duplicate legacy issuance.
 
 Key revocation records the selected identifier in your browser before sending the request. If the response is
 lost, **Check status** only reads the current list. Reloading the account page resumes that check without

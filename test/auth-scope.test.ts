@@ -184,5 +184,6 @@ test('account entry shows personal keys to visitors while node settings remain o
   const mine = code('screens/MyPage.tsx').join('\n');
   assert.ok(mine.includes('issuedKeyScope(cacheIdentity, address)'), 'keys are scoped to both the visitor and the node');
   assert.ok(mine.includes('useApiKeysQuery(keyContext,'));
-  assert.ok(mine.includes('useCreateApiKeyMutation()'));
+  assert.ok(mine.includes('useApiKeyCreation('), 'account key creation shares durable request recovery');
+  assert.ok(!mine.includes('useCreateApiKeyMutation('), 'do not bypass recovery through legacy creation');
 });
