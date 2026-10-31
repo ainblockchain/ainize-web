@@ -19,11 +19,11 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`
 
 test('the "Connect to ainize" query string: repo and driveId pass, returnTo only back to aindrive or into this app', () => {
   const p = connectParamsOf('?repo=https%3A%2F%2Faindrive.ainetwork.ai%2Fcomcom%2Fgit%2Fart&driveId=-nLGGiI3VXYR&returnTo=https%3A%2F%2Faindrive.ainetwork.ai%2Fcomcom%2Fgit%2Fart');
-  assert.deepEqual(p, { repo: 'https://aindrive.ainetwork.ai/comcom/git/art', driveId: '-nLGGiI3VXYR', returnTo: 'https://aindrive.ainetwork.ai/comcom/git/art' });
+  assert.deepEqual(p, { repo: 'https://aindrive.ainetwork.ai/comcom/git/art', driveId: '-nLGGiI3VXYR', returnTo: 'https://aindrive.ainetwork.ai/comcom/git/art', branch: 'main', invalid: false });
   assert.equal(connectParamsOf('?returnTo=https://evil.example/x').returnTo, null, 'no open redirect');
   assert.equal(connectParamsOf('?returnTo=//evil.example').returnTo, null);
   assert.equal(connectParamsOf('?returnTo=/me/projects').returnTo, '/me/projects');
-  assert.deepEqual(connectParamsOf(''), { repo: null, driveId: null, returnTo: null });
+  assert.deepEqual(connectParamsOf(''), { repo: null, driveId: null, returnTo: null, branch: 'main', invalid: false });
 });
 
 test('a repo URL is accepted only in the node\'s shape, and labelled org/repo', () => {
@@ -39,19 +39,19 @@ test('a repo URL is accepted only in the node\'s shape, and labelled org/repo', 
 test('the one-time secret goes to aindrive\'s git-connect with the person\'s session, and a refusal comes back as words', async () => {
   const calls: { url: string; init: RequestInit }[] = [];
   const ok = await connectRepoOnAindrive({ driveId: 'd1', repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'prj_1', webhookSecret: 'whsec_x' }, {
-    fetchImpl: (async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch,
+    fetchImpl: (async (url: string, init: RequestInit) => { calls.push({ url, init }); return Response.json({ ok: true, driveId: 'd1', repoUrl: 'https://aindrive.ainetwork.ai/o/git/r', repo: 'repositories/r', projectId: 'prj_1' }); }) as unknown as typeof fetch,
   });
-  assert.deepEqual(ok, { ok: true });
+  assert.deepEqual(ok, { ok: true, repoPath: 'repositories/r' });
   assert.equal(calls[0]!.url, 'https://aindrive.ainetwork.ai/api/drives/d1/git-connect');
   assert.equal(calls[0]!.init.method, 'POST');
   assert.equal(calls[0]!.init.credentials, 'include', 'the aindrive session cookie must travel');
-  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'prj_1', webhookSecret: 'whsec_x' });
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { repoUrl: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'prj_1', webhookSecret: 'whsec_x', expectedProjectId: null });
 
-  const refused = await connectRepoOnAindrive({ driveId: 'd1', repo: 'r', projectId: 'p', webhookSecret: 's' }, {
+  const refused = await connectRepoOnAindrive({ driveId: 'd1', repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'p', webhookSecret: 's' }, {
     fetchImpl: (async () => new Response(JSON.stringify({ error: { message: 'not an editor of this drive' } }), { status: 403 })) as unknown as typeof fetch,
   });
   assert.deepEqual(refused, { ok: false, status: 403, message: 'not an editor of this drive' });
-  const down = await connectRepoOnAindrive({ driveId: 'd1', repo: 'r', projectId: 'p', webhookSecret: 's' }, { fetchImpl: (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch });
+  const down = await connectRepoOnAindrive({ driveId: 'd1', repo: 'https://aindrive.ainetwork.ai/o/git/r', projectId: 'p', webhookSecret: 's' }, { fetchImpl: (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch });
   assert.equal(down.ok, false);
 });
 

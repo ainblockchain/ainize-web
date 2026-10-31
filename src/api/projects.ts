@@ -293,34 +293,51 @@ export function projectApiErrorOf(err: unknown): ProjectApiError {
  * &returnTo=<drive page url>`. `returnTo` is honoured only on aindrive's own origin (or a path of this app) — a
  * redirect target from a query string is otherwise an open door to anywhere.
  */
-export interface ConnectParams { repo: string | null; driveId: string | null; returnTo: string | null }
+export interface ConnectParams { repo: string | null; driveId: string | null; returnTo: string | null; branch: string; invalid: boolean }
 
 export function connectParamsOf(search: string, aindriveOrigin = AINDRIVE_URL): ConnectParams {
   const q = new URLSearchParams(search);
   const repo = q.get('repo')?.trim() || null;
   const driveId = q.get('driveId')?.trim() || null;
   const raw = q.get('returnTo')?.trim() || null;
+  const branch = q.get('branch') ?? 'main';
+  let invalid = ['repo', 'driveId', 'returnTo', 'branch'].some(key => q.getAll(key).length > 1);
   let returnTo: string | null = null;
-  if (raw) {
+  if (raw && !/[\u0000-\u001f\u007f\\]/.test(raw)) {
     if (raw.startsWith('/') && !raw.startsWith('//')) returnTo = raw;
     else {
-      try { const u = new URL(raw); if (u.origin === aindriveOrigin) returnTo = u.href; } catch { /* not a URL */ }
+      try { const u = new URL(raw); if (u.origin === new URL(aindriveOrigin).origin && !u.username && !u.password) returnTo = u.href; } catch { /* not a URL */ }
     }
   }
-  return { repo, driveId, returnTo };
+  if (driveId) {
+    try { invalid ||= !/^[A-Za-z0-9_-]{1,200}$/.test(driveId) || !repo || new URL(repo).origin !== new URL(aindriveOrigin).origin || !repoUrlLooksRight(repo); }
+    catch { invalid = true; }
+  }
+  return { repo, driveId, returnTo, branch, invalid };
 }
 
-/** Is this an aindrive git URL the node will accept? (`/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`, https.) */
-export function repoUrlLooksRight(repo: string): boolean {
+/** Compare creation receipts using the node's URL spelling, without silently discarding URL selectors. */
+export function projectRepoRef(repo: string): { url: string; org: string; repoName: string } | null {
   try {
+    if (/[\u0000-\u0020\u007f\\]/.test(repo)) return null;
     const u = new URL(repo);
-    if (u.username || u.password) return false;
-    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(u.hostname))) return false;
-    const segs = u.pathname.split('/').filter(Boolean);
+    if (u.username || u.password || u.search || u.hash) return null;
+    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(u.hostname))) return null;
+    const rawPath = repo.slice(repo.indexOf('://') + 3).replace(/^[^/]+/, '');
+    const segs = rawPath.replace(/\/$/, '').split('/').slice(1).map(decodeURIComponent);
+    if (segs.some(s => !s || s === '.' || s === '..' || /[/\\\u0000-\u001f\u007f]/.test(s))) return null;
     const at = segs.indexOf('git');
-    return at >= 1 && at < segs.length - 1;
-  } catch { return false; }
+    if (!(at === 1 || at === 3 && segs[0] === 'api' && segs[1] === 'drives') || at >= segs.length - 1) return null;
+    const before = segs.slice(0, at);
+    let after = segs.slice(at + 1);
+    if (after[0] === 'repositories' && after.length > 1) after = after.slice(1);
+    const org = before[before.length - 1]!;
+    const repoName = after[after.length - 1]!.replace(/\.git$/, '');
+    if (!/^[A-Za-z0-9._-]+$/.test(org) || !/^[A-Za-z0-9._-]+$/.test(repoName)) return null;
+    return { url: `${u.origin}/${[...before, 'git', ...after.slice(0, -1), repoName].map(encodeURIComponent).join('/')}`, org, repoName };
+  } catch { return null; }
 }
+export const repoUrlLooksRight = (repo: string): boolean => projectRepoRef(repo) !== null;
 
 /** The repo's org/name as the node will read them — for the page's heading before the node has answered. */
 export function repoLabelOf(repo: string): string {
@@ -333,27 +350,48 @@ export function repoLabelOf(repo: string): string {
   } catch { return repo; }
 }
 
-/**
- * Hand the one-time secret to aindrive, which stores it beside the repo's hook: `POST
- * /api/drives/<driveId>/git-connect { repo, projectId, webhookSecret }` with the person's aindrive session
- * (`credentials: include`; aindrive answers CORS for this app's origin). The result says whether aindrive took it —
- * when it did not, the page shows the secret so the person can paste it, because it will never be shown again.
- */
-export async function connectRepoOnAindrive(input: { driveId: string; repo: string; projectId: string; webhookSecret: string }, opts: { aindriveUrl?: string; fetchImpl?: typeof fetch } = {}): Promise<{ ok: true } | { ok: false; status: number | null; message: string }> {
+/** Drive clone URLs identify working copies; preserve the folder in drive-id URLs instead of using the node's canonical URL. */
+export function projectDriveRepoPath(repo: string, driveId: string): string | null {
+  if (!projectRepoRef(repo)) return null;
+  const segs = new URL(repo).pathname.replace(/\/$/, '').split('/').slice(1).map(decodeURIComponent);
+  if (segs[0] === 'api' && segs[1] === 'drives') {
+    return segs[2] === driveId ? segs.slice(4).join('/').replace(/\.git$/, '').normalize('NFC') : null;
+  }
+  const path = segs.slice(2).join('/').replace(/\.git$/, '');
+  return (path.startsWith('repositories/') ? path : `repositories/${path}`).normalize('NFC');
+}
+
+/** Hand off the one-time secret with an empty-binding expectation; only an exact Drive receipt proves storage. */
+export type ProjectConnectResult = { ok: true; repoPath: string } | { ok: false; status: number | null; message: string };
+export async function connectRepoOnAindrive(input: { driveId: string; repo: string; projectId: string; webhookSecret: string }, opts: { aindriveUrl?: string; fetchImpl?: typeof fetch; signal?: AbortSignal } = {}): Promise<ProjectConnectResult> {
   const base = (opts.aindriveUrl ?? AINDRIVE_URL).replace(/\/+$/, '');
   const f = opts.fetchImpl ?? fetch;
+  const expectedPath = projectDriveRepoPath(input.repo, input.driveId);
+  if (!expectedPath) return { ok: false, status: null, message: 'The repository does not identify this drive target.' };
+  const ctrl = new AbortController();
+  const cancel = () => ctrl.abort();
+  if (opts.signal?.aborted) cancel(); else opts.signal?.addEventListener('abort', cancel, { once: true });
+  const timer = setTimeout(cancel, 15_000);
   try {
+    if (ctrl.signal.aborted) throw new Error('cancelled');
     const res = await f(`${base}/api/drives/${encodeURIComponent(input.driveId)}/git-connect`, {
-      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ repo: input.repo, projectId: input.projectId, webhookSecret: input.webhookSecret }),
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, signal: ctrl.signal,
+      body: JSON.stringify({ repoUrl: input.repo, projectId: input.projectId, webhookSecret: input.webhookSecret, expectedProjectId: null }),
     });
-    if (res.ok) return { ok: true };
-    let message = `aindrive answered ${res.status}`;
-    try { const j = (await res.json()) as { error?: { message?: string } | string; message?: string }; message = (typeof j.error === 'object' ? j.error?.message : j.error) ?? j.message ?? message; } catch { /* no body */ }
-    return { ok: false, status: res.status, message };
-  } catch (e) {
-    return { ok: false, status: null, message: (e as Error).message };
-  }
+    const j: unknown = await res.json().catch(() => null);
+    if (res.ok) {
+      const r = j as Record<string, unknown> | null;
+      if (r?.ok === true && r.projectId === input.projectId && r.driveId === input.driveId && r.repoUrl === input.repo
+        && r.repo === expectedPath && !r.repo.startsWith('/')
+        && !/[\\\u0000-\u001f\u007f]/.test(r.repo) && r.repo.split('/').every(s => s && s !== '.' && s !== '..')) return { ok: true, repoPath: r.repo };
+      return { ok: false, status: res.status, message: 'The repository binding could not be confirmed.' };
+    }
+    const r = j as { error?: { message?: unknown } | string; message?: unknown } | null;
+    const message = (typeof r?.error === 'object' ? r.error?.message : r?.error) ?? r?.message;
+    return { ok: false, status: res.status, message: typeof message === 'string' ? message : `aindrive answered ${res.status}` };
+  } catch {
+    return { ok: false, status: null, message: 'The repository binding could not be confirmed.' };
+  } finally { clearTimeout(timer); opts.signal?.removeEventListener('abort', cancel); }
 }
 
 export const statusToneOf = (s: ProjectStatus | DeploymentStatus): 'ok' | 'warn' | 'busy' | 'muted' =>

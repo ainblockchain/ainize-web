@@ -1,3 +1,4 @@
+import ProjectNewPage, { ProjectCreationResult, ProjectCreationUnknown } from '../src/screens/ProjectNewPage';
 import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
 import { AgentArchivePanel, agentArchiveScope } from '../src/screens/agent/AgentArchivePanel';
 import { archivedAgent } from './fixtures/agentArchive';
@@ -3543,4 +3544,27 @@ test('recovery saves remain available while automatic redeploy is visibly disabl
   assert.doesNotMatch(html, /<fieldset disabled/);
   assert.match(html, /<input[^>]*type="checkbox"[^>]*disabled/);
   assert.doesNotMatch(html, /<input[^>]*checked=""[^>]*disabled|<input[^>]*disabled[^>]*checked=""/);
+});
+
+test('project creation form keeps the incoming branch and refuses ambiguous drive targets', () => {
+  const html = render(ProjectNewPage, appAccount, '/projects/new?repo=https%3A%2F%2Faindrive.ainetwork.ai%2Facme%2Fgit%2Fdemo&driveId=d&branch=feature%2Ftwo');
+  assert.match(html, /value="feature\/two"/);
+  assert.doesNotMatch(html, /Returning to the drive|taken back to the drive/);
+  const invalid = render(ProjectNewPage, appAccount, '/projects/new?repo=a&repo=b');
+  assert.match(invalid, /invalid or duplicate repository/);
+  assert.match(invalid, /<button(?=[^>]*type="submit")(?=[^>]*disabled="")[^>]*>/);
+});
+test('creation completion offers explicit navigation and separates project creation from drive connection', () => {
+  const created = { id: 'prj_1234567890abcdef', org: 'acme', repoName: 'demo', branch: 'feature/one', hookUrl: 'https://ainize.test/api/projects/prj_1234567890abcdef/hook', webhookSecret: 'fixture-secret' } as any;
+  const show = (connect: 'idle' | 'working' | 'done' | { failed: string }) => render(() => createElement(ProjectCreationResult, { created, connect, returnTo: '/apps', onOpen() {}, onBack() {} }), appAccount, '/projects/new');
+  const done = show('done');
+  assert.match(done, /connection saved/); assert.match(done, /feature\/one/); assert.match(done, /Open the project/); assert.match(done, /Go back/);
+  assert.doesNotMatch(done, /fixture-secret|Returning|now deploys/);
+  const unknown = show({ failed: 'response lost' });
+  assert.match(unknown, /project was created/); assert.match(unknown, /connection could not be confirmed/); assert.match(unknown, /fixture-secret/);
+  assert.doesNotMatch(unknown, /did not take the secret|connection saved/);
+  assert.doesNotMatch(show('working'), /fixture-secret|connection saved/);
+  const uncertain = render(ProjectCreationUnknown, appAccount, '/projects/new');
+  assert.match(uncertain, /creation could not be confirmed/); assert.match(uncertain, /href="\/me\/projects"[^>]*>View My projects/);
+  assert.doesNotMatch(uncertain, /Could not create it|Open the existing project/);
 });
