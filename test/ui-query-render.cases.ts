@@ -1588,6 +1588,13 @@ test('agent creation keeps registered configuration possible without claiming mo
   assert.match(html, /This model is not answering/);
   assert.match(html, /You can save the configuration/);
   assert.doesNotMatch(html, /You can still create the agent/);
+  const peer = '0x' + 'b'.repeat(40);
+  const unavailablePeer = render(AgentCreatePage, [...appAccount, { name: 'models', value: { data: [] } },
+    { name: 'networkModels', value: { data: [{ id: 'down', modality: 'chat', node: { address: peer }, local: false, available: false }] } },
+  ], `/agent/new?model=down@${peer}`);
+  assert.match(unavailablePeer, /This provider is marked unavailable/);
+  assert.match(unavailablePeer, /<button[^>]*disabled=""[^>]*data-testid="agent-create-submit"/);
+  assert.doesNotMatch(unavailablePeer, /You can save the configuration/);
   assert.doesNotMatch(html, /<input(?=[^>]*disabled="")(?=[^>]*data-testid="agent-create-media-transcription")[^>]*>/);
   assert.match(html, /<input(?=[^>]*disabled="")(?=[^>]*data-testid="agent-create-media-image")[^>]*>/);
 });

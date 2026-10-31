@@ -60,6 +60,8 @@ export const hostedAgents: Dict = {
   'agentCreate.field.model_none': { ko: '선택할 대화 모델이 없습니다.', en: 'There are no chat models to select.' },
   'agentCreate.field.model_missing': { ko: '선택한 모델이 현재 목록에 없습니다. 기존 설정은 유지되며, 다른 모델로 자동 변경하지 않습니다.', en: 'The selected model is missing from the current list. Your selection is kept; no other model is substituted.' },
   'agentCreate.field.model_changed': { ko: '선택한 모델 또는 새로 켠 음성·이미지 기능을 확인하지 못해 저장하지 않았습니다. 모델 목록과 선택을 확인해 주세요.', en: 'The selected model or a newly enabled media capability could not be confirmed, so nothing was saved. Review the model list and your selection.' },
+  'agentCreate.field.provider_unavailable': { ko: '제공 노드 사용 불가', en: 'provider unavailable' },
+  'agentCreate.field.model_peer_unavailable': { ko: '이 제공 노드는 현재 사용 불가로 표시됩니다. 목록을 다시 불러오거나 다른 모델을 선택해 주세요.', en: 'This provider is marked unavailable. Reload the list or select another model.' },
   'agentCreate.field.model_unknown': { ko: '등록된 모델이지만 응답 상태는 확인되지 않았습니다. 설정 저장이 실행 성공을 뜻하지는 않습니다.', en: 'This model is registered, but its response status is unknown. Saving the configuration does not confirm it can answer.' },
   'agentCreate.field.model_down': {
     ko: '이 모델은 현재 응답하지 않습니다. 설정은 저장할 수 있지만 모델이 복구되어야 에이전트가 답할 수 있습니다.',
