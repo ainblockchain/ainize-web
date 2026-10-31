@@ -80,34 +80,7 @@ export function projectRunReceipt(raw: unknown): string | null {
   return raw.deploymentId;
 }
 
-/** History is scoped to this project; invalid rows must not become a confirmed empty history. */
-export function readProjectRunHistory(raw: unknown, projectId: string): Deployment[] | null {
-  if (!object(raw) || !Array.isArray(raw.runs)) return null;
-  const seen = new Set<string>();
-  const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
-  const optionalNumber = (v: unknown) => v == null || number(v);
-  const strings = (v: unknown) => Array.isArray(v) && v.every(x => typeof x === 'string');
-  const url = (v: unknown) => {
-    if (typeof v !== 'string') return false;
-    try { const parsed = new URL(v); return ['https:', 'http:'].includes(parsed.protocol) && !parsed.username && !parsed.password; } catch { return false; }
-  };
-  for (const row of raw.runs) {
-    if (!object(row) || !text(row.id) || seen.has(row.id) || row.projectId !== projectId || row.trigger !== 'run'
-      || (row.sha !== '' && !sha(row.sha)) || typeof row.ref !== 'string'
-      || typeof row.status !== 'string' || !['queued', 'building', 'ready', 'error'].includes(row.status)
-      || !number(row.createdAt) || !optionalNumber(row.startedAt) || !optionalNumber(row.finishedAt) || !optionalNumber(row.ms)
-      || !url(row.logUrl) || row.outputUrl !== undefined && !url(row.outputUrl)
-      || row.kind !== undefined && (typeof row.kind !== 'string' || !['script', 'nextjs', 'service', 'agent'].includes(row.kind))
-      || row.entry != null && !entryPath(row.entry) || row.subject !== undefined && !optionalText(row.subject)
-      || row.error !== undefined && !optionalText(row.error) || row.exitCode !== undefined && !Number.isInteger(row.exitCode)
-      || row.inputKeys !== undefined && !strings(row.inputKeys) || row.envKeys !== undefined && !strings(row.envKeys)
-      || row.inputs !== undefined && !object(row.inputs) || row.env !== undefined && !object(row.env)
-      || row.pusher != null && (!object(row.pusher) || !text(row.pusher.subject))
-      || row.placement != null && (!object(row.placement) || !text(row.placement.address) || typeof row.placement.local !== 'boolean')) return null;
-    seen.add(row.id);
-  }
-  return raw.runs as unknown as Deployment[];
-}
+export { readProjectRunHistory } from './projectHistory';
 
 /** Exclude duplicate clicks synchronously; an unconfirmed submission cannot be repeated in this view. */
 export function createProjectRunSubmission() {

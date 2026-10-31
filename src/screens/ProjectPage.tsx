@@ -5,14 +5,14 @@
  * actions — Code (the repo in ainize.ai/code), Run (script), Visit (service / agent / nextjs), Redeploy. Four tabs, deep-linked through `?tab=`:
  *
  *   Deployments  the Vercel-shaped rows (status dot, sha + subject, branch, who, when, how long); a row opens the
- *                full log (polled while it runs), exit code, output link, Redeploy — "roll back to this one" for a
- *                service, since a redeploy of an earlier commit re-points the container. Filters, pagination.
+ *                full log (polled while it runs), exit code, output link, and Redeploy of the displayed commit.
+ *                Filters and pagination preserve an explicitly selected record.
  *   Runs         script projects: the Run panel — entry file, the `inputs` form out of ainize.json (GitHub
  *                workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input, timeout, example
  *                presets (`examples` in ainize.json) — and the history of runs, each re-runnable with its inputs.
  *   Logs         a service/nextjs app's RUNTIME log — what the running container prints, on the node or the deployment
  *                peer it was placed on; owner/members only, followed live — and the newest deployment's or run's
- *                build log (`?log=build`), downloadable.
+ *                build log (`?log=build`), downloadable; `record` pins an explicit record.
  *   Settings     environment variables (write-only values, .env paste, redeploy after saving — ProjectEnvVars),
  *                branch, what ainize.json says (read-only; edit in aindrive), env preview, webhook, rotate, delete.
  *
@@ -42,6 +42,8 @@ import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWr
 import { useT } from '@/i18n';
 import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRoutes';
 import { activeProjectUrl, hasProjectRunTargets } from '@/lib/projectActions';
+import { deploymentLogHref, deploymentPage, projectRedeployTarget, readProjectDeploymentHistory } from '@/lib/projectHistory';
+import { createProjectRedeployment } from '@/lib/projectRedeploy';
 import { createProjectRunSubmission, prepareProjectRun, projectRunSelection, readProjectRunSource, readProjectRunHistory, type ProjectRunDraft } from '@/lib/projectRun';
 import { signInHref } from '@/lib/uiNavigation';
 import { isKnowledgeAuthor } from '@/lib/detailRoutes';
@@ -105,13 +107,15 @@ function StatusDot({ status }: { status: DeploymentStatus | ProjectStatus }) {
 }
 
 /** The log: text, re-read every two seconds while the deployment is queued or building. */
-function LogView({ deployment, onText }: { deployment: Deployment; onText?: (text: string) => void }) {
+function LogView({ deployment, downloadName }: { deployment: Deployment; downloadName?: string }) {
   const { t } = useT();
   const { currentData: data, isLoading, isFetching, error, refetch } = useDeploymentLogQuery({ id: deployment.id, identity: useAuth().cacheIdentity }, { pollingInterval: isLive(deployment.status) ? 2000 : 0 });
-  useEffect(() => { onText?.(error ? '' : data ?? ''); }, [data, error, onText]);
-  if (error) return <Alert $tone="error">{t('projects.logs.failed')} <Button onClick={() => void refetch()} loading={isFetching}>{t('projects.page.retry')}</Button></Alert>;
+  if (error || data !== undefined && typeof data !== 'string' || !isFetching && !isLoading && data === undefined) return <Alert role="alert" $tone="error">{t('projects.logs.failed')} <Button onClick={() => void refetch()} loading={isFetching}>{t('projects.page.retry')}</Button></Alert>;
   if (isLoading || (isFetching && data === undefined)) return <Log>{t('projects.logs.loading')}</Log>;
-  return <Log aria-live="polite">{data?.length ? data : t('projects.page.log_empty')}</Log>;
+  return <>
+    {downloadName && <Actions><Button size="small" onClick={() => { if (typeof data === 'string') download(downloadName, data); }} disabled={!data?.length}>{t('projects.logs.download')}</Button></Actions>}
+    <Log aria-live="polite">{data?.length ? data : t('projects.page.log_empty')}</Log>
+  </>;
 }
 
 function download(name: string, text: string) {
@@ -177,17 +181,10 @@ const who = (d: Deployment) => d.pusher?.subject ?? null;
 /** The names a run was started with: the node sends names only (values may be secrets). */
 const runInputNames = (d: Deployment) => d.inputKeys ?? Object.keys(d.inputs ?? {});
 
-function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployment; project: Project; open: boolean; onToggle: () => void; onRunAgain?: (d: Deployment) => void }) {
+function DeploymentRow({ d, project, open, onToggle, onRunAgain, onRedeploy, redeployBlocked }: { d: Deployment; project: Project; open: boolean; onToggle: () => void; onRunAgain?: (d: Deployment) => void; onRedeploy?: (d: Deployment) => void; redeployBlocked?: boolean }) {
   const { t } = useT();
   const tone = statusToneOf(d.status);
-  const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
-  const [err, setErr] = useState<string | null>(null);
-  const isService = d.kind === 'service' || d.kind === 'nextjs';
-  const again = async () => {
-    setErr(null);
-    try { await redeploy({ deploymentId: d.id, projectId: project.id }).unwrap(); }
-    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
-  };
+  const output = d.trigger === 'run' || d.kind === 'script' ? d.outputUrl : activeProjectUrl(project, [d]);
   return (
     <Row $open={open}>
       <Head onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }} tabIndex={0} role="button" aria-expanded={open}>
@@ -212,17 +209,16 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
           {d.trigger === 'run' && d.entry && <Meta>{t('projects.runs.entry')}: <Mono>{d.entry}</Mono></Meta>}
           {d.trigger === 'run' && runInputNames(d).length > 0 && <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}</Meta>}
           <Actions>
-            {d.status === 'ready' && d.outputUrl && <ExternalLink href={d.outputUrl} target="_blank" rel="noreferrer">{d.trigger === 'run' || d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
-            <ExternalLink href={`/api/deployments/${encodeURIComponent(d.id)}/log`} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
+            {d.status === 'ready' && output && <ExternalLink href={output} target="_blank" rel="noreferrer">{d.trigger === 'run' || d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
+            <ExternalLink href={deploymentLogHref(d.id)} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
             <Spacer />
             {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" disabled={!/^[a-f0-9]{40,64}$/.test(d.sha)} onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
-            {project.canOperate && d.trigger !== 'run' && d.sha && (
-              <Button size="small" loading={redeploying} onClick={again} title={isService ? t('projects.page.rollback_hint') : undefined}>
-                {isService && project.lastDeploymentId !== d.id ? t('projects.page.rollback') : t('projects.page.redeploy')}
+            {project.canOperate && d.trigger !== 'run' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(d.sha) && onRedeploy && (
+              <Button size="small" disabled={redeployBlocked} onClick={() => onRedeploy(d)} title={t('projects.page.redeploy_hint')}>
+                {t('projects.page.redeploy_commit', { sha: shortSha(d.sha) })}
               </Button>
             )}
           </Actions>
-          {err && <Alert $tone="error">{err}</Alert>}
           <LogView deployment={d} />
         </>
       )}
@@ -407,15 +403,16 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   const readRuns = canRun || tab === 'runs' || tab === 'logs';
   const runs = useProjectRunsQuery({ id: p.id, identity: cacheIdentity }, { skip: !readRuns, pollingInterval: tab === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
-  const newest = deployments.currentData?.deployments[0]?.status;
-  useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
-
-  const rows = deployments.error ? [] : deployments.currentData?.deployments ?? [];
+  const deploymentRead = deployments.isError ? null : readProjectDeploymentHistory(deployments.currentData, p.id);
+  const rows = deploymentRead ?? [];
+  const deploymentsFailed = deployments.isError || !deployments.isFetching && deploymentRead === null;
   const runRead = runs.isError ? null : readProjectRunHistory(runs.currentData, p.id);
   const runRows = runRead ?? [];
-  const runsFailed = readRuns && !runs.isFetching && runRead === null;
-  const visitUrl = activeProjectUrl(p, rows);
-  const latest = rows[0];
+  const runsFailed = readRuns && (runs.isError || !runs.isFetching && runRead === null);
+  const visitUrl = deploymentRead ? activeProjectUrl(p, rows) : null;
+  const latest = projectRedeployTarget(p, rows);
+  const newest = latest?.status;
+  useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
 
   // Deployments: filters + pages
   const [status, setStatus] = useState<string>('');
@@ -423,8 +420,8 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   const [page, setPage] = useState(1);
   const branches = useMemo(() => [...new Set(rows.map((d) => d.ref.replace(/^refs\/heads\//, '')))], [rows]);
   const filtered = rows.filter((d) => (!status || d.status === status) && (!branch || d.ref.replace(/^refs\/heads\//, '') === branch));
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
-  const shown = filtered.slice((page - 1) * PAGE, page * PAGE);
+  const pageView = deploymentPage(filtered, page, open, PAGE);
+  const shown = pageView.rows;
 
   // Runs
   const [draft, setDraft] = useState<RunDraft>(() => emptyDraft(p));
@@ -432,6 +429,9 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   // and leaves the answers to be given again.
   const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
+  const [redeployment] = useState(createProjectRedeployment);
+  const [redeployUnknown, setRedeployUnknown] = useState(false);
+  const [accepted, setAccepted] = useState<string | null>(null);
   const [syncFromGithub, { isLoading: syncing }] = useSyncFromGithubMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
   const [synced, setSynced] = useState(false);
@@ -441,20 +441,29 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
     try { await syncFromGithub(p.id).unwrap(); setSynced(true); }
     catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
   };
-  const redeployLatest = async () => {
-    if (!latest) return;
+  const redeployRecord = async (selected: Deployment) => {
+    if (!p.canOperate || !rows.some(row => row.id === selected.id && row.sha === selected.sha) || redeployment.blocked()) return;
     setHeadErr(null);
-    try { const r = await redeploy({ deploymentId: latest.id, projectId: p.id }).unwrap(); if (active()) openDeployment(r.deploymentId); }
-    catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
+    setAccepted(null);
+    try {
+      const id = await redeployment.submit(selected, deploymentId => redeploy({ deploymentId, projectId: p.id }).unwrap(), [...rows, ...runRows].map(d => d.id));
+      if (active() && id) { setAccepted(id); openDeployment(id); }
+    } catch (e) {
+      if (!active()) return;
+      if (redeployment.uncertain()) setRedeployUnknown(true);
+      else { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
+    }
   };
 
   // Logs
-  const latestAny = [latest, runRows[0]].filter((x): x is Deployment => !!x).sort((a, b) => b.createdAt - a.createdAt)[0];
-  const [logText, setLogText] = useState('');
+  const logRecords = [...rows, ...runRows].sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  const logId = sp.get('record') ?? '';
+  const selectedLog = logId ? logRecords.find(d => d.id === logId) : logRecords[0];
+  const setLogRecord = (id: string) => setSp(prev => { const n = new URLSearchParams(prev); if (id) n.set('record', id); else n.delete('record'); return n; });
   // A service or Next.js app has a runtime log beside its build log; `?log=build` deep-links the build one.
   const hasRuntime = kind === 'service' || kind === 'nextjs';
-  const logView: 'runtime' | 'build' = sp.get('log') === 'build' ? 'build' : 'runtime';
-  const setLogView = (v: 'runtime' | 'build') => setSp((prev) => { const n = new URLSearchParams(prev); if (v === 'build') n.set('log', 'build'); else n.delete('log'); return n; });
+  const logView: 'runtime' | 'build' = sp.get('log') === 'build' || logId && sp.get('log') !== 'runtime' ? 'build' : 'runtime';
+  const setLogView = (v: 'runtime' | 'build') => setSp((prev) => { const n = new URLSearchParams(prev); n.set('log', v); return n; });
 
   // Settings
   const [remove, { isLoading: removing }] = useDeleteProjectMutation();
@@ -479,7 +488,10 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
     // after the Settings tab has rendered
     setTimeout(() => document.getElementById(ENV_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
-  const openDeployment = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; });
+  const openDeployment = (id: string) => {
+    setStatus(''); setBranch(''); setPage(1);
+    setSp(prev => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; });
+  };
 
   const tabs = [
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
@@ -513,11 +525,13 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
           <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
           {canRun && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
           {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
-          {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
+          {p.canOperate && latest && <Button size="small" loading={redeploying} disabled={redeployUnknown} title={t('projects.page.redeploy_hint')} onClick={() => void redeployRecord(latest)}>{t('projects.page.redeploy_commit', { sha: shortSha(latest.sha) })}</Button>}
           {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}
+      {accepted && <Alert role="status" $tone="info">{t('projects.page.redeploy_accepted')} <Mono>{accepted}</Mono> <Button size="small" onClick={() => openDeployment(accepted)}>{t('projects.env.deploy.open')}</Button></Alert>}
+      {redeployUnknown && <Alert role="alert" $tone="warning">{t('projects.page.redeploy_unconfirmed')} <Button size="small" loading={deployments.isFetching} onClick={() => { setTab('deployments'); void deployments.refetch(); }}>{t('projects.page.retry')}</Button></Alert>}
       <MissingEnvBanner project={p} onGo={goToEnv} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
@@ -528,19 +542,21 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
               <option value="">{t('projects.filters.all_statuses')}</option>
               {(['queued', 'building', 'ready', 'error'] as const).map((s) => <option key={s} value={s}>{t(`projects.status.${s}`)}</option>)}
             </Select>
-            {branches.length > 1 && (
+            {(branches.length > 1 || branch) && (
               <Select aria-label={t('projects.filters.branch')} value={branch} onChange={(e) => { setBranch(e.target.value); setPage(1); }}>
                 <option value="">{t('projects.filters.all_branches')}</option>
+                {branch && !branches.includes(branch) && <option value={branch}>{branch}</option>}
                 {branches.map((b) => <option key={b} value={b}>{b}</option>)}
               </Select>
             )}
             <Spacer />
-            <Meta>{t('projects.filters.count', { n: filtered.length })}</Meta>
+            {deploymentRead && <Meta>{t('projects.filters.count', { n: filtered.length })}</Meta>}
           </FilterRow>
-          {deployments.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert> : (!deployments.currentData && deployments.isFetching) ? <CenterProgress /> : shown.length === 0
+          {open && deploymentRead && !rows.some(d => d.id === open) && <Alert role="alert" $tone="info">{t('projects.page.record_unavailable')} <Mono>{open}</Mono> <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert>}
+          {deploymentsFailed ? <Alert role="alert" $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert> : (deploymentRead === null && deployments.isFetching) ? <CenterProgress /> : shown.length === 0
             ? <Empty>{rows.length === 0 ? t('projects.page.no_deployments', { branch: p.branch }) : t('projects.filters.none')}</Empty>
-            : <Rows>{shown.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} />)}</Rows>}
-          {pageCount > 1 && <Pagination page={page} pageCount={pageCount} onChange={setPage} />}
+            : <Rows>{shown.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRedeploy={d => void redeployRecord(d)} redeployBlocked={redeploying || redeployUnknown} />)}</Rows>}
+          {pageView.count > 1 && <Pagination page={pageView.page} pageCount={pageView.count} onChange={n => { setPage(n); setOpen(null); }} />}
         </TabBody>
       )}
 
@@ -548,7 +564,8 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
         <TabBody>
           <ProjectRunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
           <SubTitle>{t('projects.runs.history')}</SubTitle>
-          {runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : (!runs.currentData && runs.isFetching) ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
+          {open && runRead && !runRows.some(d => d.id === open) && <Alert role="alert" $tone="info">{t('projects.page.record_unavailable')} <Mono>{open}</Mono> <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert>}
+          {runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : (runRead === null && runs.isFetching) ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
             : <Rows>{runRows.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRunAgain={runAgain} />)}</Rows>}
         </TabBody>
       )}
@@ -561,16 +578,20 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
               <Button size="small" variant={logView === 'build' ? 'contained' : undefined} aria-pressed={logView === 'build'} onClick={() => setLogView('build')}>{t('projects.logs.build')}</Button>
             </FilterRow>
           )}
-          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deployments.isError || runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (readRuns) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (!deployments.currentData && deployments.isFetching) || (!runs.currentData && runs.isFetching) ? <CenterProgress /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
+          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deploymentsFailed || runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (readRuns) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (deploymentRead === null && deployments.isFetching) || (runRead === null && runs.isFetching) ? <CenterProgress /> : (
             <>
               <FilterRow>
-                <StatusDot status={latestAny.status} />
-                <Meta>{t(`projects.trigger.${latestAny.trigger}`)} · <Mono>{latestAny.sha ? shortSha(latestAny.sha) : '…'}</Mono> · {when(latestAny.createdAt)}</Meta>
+                <Select aria-label={t('projects.logs.record')} value={logId} onChange={e => setLogRecord(e.target.value)}>
+                  <option value="">{t('projects.logs.latest')}</option>
+                  {logId && !selectedLog && <option value={logId}>{logId} · {t('projects.logs.record_unavailable')}</option>}
+                  {logRecords.map(d => <option key={d.id} value={d.id}>{t(`projects.trigger.${d.trigger}`)} · {shortSha(d.sha) || '…'} · {when(d.createdAt)} · {d.id}</option>)}
+                </Select>
+                {selectedLog && <><StatusDot status={selectedLog.status} /><Meta>{t(`projects.trigger.${selectedLog.trigger}`)} · <Mono>{selectedLog.sha ? shortSha(selectedLog.sha) : '…'}</Mono> · {when(selectedLog.createdAt)}</Meta></>}
                 <Spacer />
-                <Button size="small" onClick={() => download(`${p.org}-${p.repoName}-${latestAny.id}.log`, logText)} disabled={!logText}>{t('projects.logs.download')}</Button>
-                <ExternalLink href={latestAny.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
+                {selectedLog && <ExternalLink href={deploymentLogHref(selectedLog.id)} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>}
               </FilterRow>
-              <LogView deployment={latestAny} onText={setLogText} />
+              {selectedLog ? <LogView key={selectedLog.id} deployment={selectedLog} downloadName={`${p.org}-${p.repoName}-${selectedLog.id}.log`} />
+                : logId ? <Alert role="alert" $tone="info">{t('projects.page.record_unavailable')}</Alert> : <Empty>{t('projects.logs.none')}</Empty>}
             </>
           )}
         </TabBody>

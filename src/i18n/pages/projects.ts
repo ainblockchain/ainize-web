@@ -76,8 +76,14 @@ export const projects: Dict = {
   'projects.page.repo_deployments': { ko: '이 저장소의 배포', en: 'Deployments in this repository' },
   'projects.page.code': { ko: 'Code', en: 'Code' },
   'projects.page.code_hint': { ko: 'ainize.ai/code에서 이 저장소를 열어 수정합니다', en: 'Open this repository in ainize.ai/code to fix or change it' },
-  'projects.page.rollback': { ko: '이 배포로 되돌리기', en: 'Roll back to this' },
-  'projects.page.rollback_hint': { ko: '이 커밋을 다시 배포해 서비스가 이 버전을 가리키게 합니다.', en: 'Deploys this commit again so the service points at this version.' },
+  'projects.page.redeploy_commit': { ko: '{sha} 다시 배포', en: 'Redeploy {sha}' },
+  'projects.page.redeploy_hint': { ko: '이 기록의 커밋을 현재 프로젝트 설정으로 새로 빌드하고 배포합니다.', en: 'Build and deploy this record’s commit again using the current project settings.' },
+  'projects.page.redeploy_accepted': { ko: '새 배포 요청이 접수됐습니다. 아래 기록에서 진행 상태를 확인하세요.', en: 'The new deployment was accepted. Follow its progress in the record below.' },
+  'projects.page.redeploy_unconfirmed': { ko: '배포 요청의 접수 여부를 확인하지 못했습니다. 중복 요청을 막기 위해 이 화면의 재배포를 잠갔습니다. 기록을 확인하세요.', en: 'Could not confirm whether the deployment was accepted. Redeploy is locked in this view to avoid duplicates. Check the deployment history.' },
+  'projects.page.record_unavailable': { ko: '선택한 기록이 현재 목록에 없습니다. 기록을 다시 불러오세요.', en: 'The selected record is not in the current list. Refresh the history.' },
+  'projects.logs.record': { ko: '로그 기록 선택', en: 'Log record' },
+  'projects.logs.latest': { ko: '최신 기록 따라가기', en: 'Follow latest record' },
+  'projects.logs.record_unavailable': { ko: '현재 목록에 없음', en: 'not in the current list' },
 
   // ── the console
   'projects.tabs.deployments': { ko: '배포', en: 'Deployments' },

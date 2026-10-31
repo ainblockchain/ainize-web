@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useAccessibleAppsQuery, useProjectDeploymentsQuery } from '@/api/api';
 import { relativeTime, type Project } from '@/api/projects';
 import { activeProjectUrl } from '@/lib/projectActions';
+import { readProjectDeploymentHistory } from '@/lib/projectHistory';
 import { Alert } from '@/components/ui/Form';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -80,7 +81,9 @@ function AppCard({ project: p }: { project: Project }) {
   const knownUrl = activeProjectUrl(p);
   const needsHistory = !knownUrl && !!(p.activeDeploymentId || p.activeCommit);
   const history = useProjectDeploymentsQuery({ id: p.id, identity: useAuth().cacheIdentity }, { skip: !needsHistory, pollingInterval: needsHistory ? 15_000 : 0, refetchOnMountOrArgChange: true });
-  const url = activeProjectUrl(p, history.currentData?.deployments ?? []);
+  const rows = history.isError ? null : readProjectDeploymentHistory(history.currentData, p.id);
+  const failed = needsHistory && (history.isError || !history.isFetching && rows === null);
+  const url = needsHistory ? rows && activeProjectUrl(p, rows) : knownUrl;
   return (
     <Card>
       <Meta><span>{p.kind === 'nextjs' ? 'Next.js' : t('apps.service')}</span><Status $status={p.status}>{t(`projects.status.${p.status}`)}</Status></Meta>
@@ -89,7 +92,7 @@ function AppCard({ project: p }: { project: Project }) {
       <p>{p.branch} · {relativeTime(p.updatedAt)}</p>
       <footer><StyledLink to={projectPath(p)}>{t('apps.project')}</StyledLink>
         {url && <a href={url} target="_blank" rel="noreferrer">{t('apps.open')} ↗</a>}
-        {history.isError && <span>{t('apps.url_failed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
+        {failed && <span>{t('apps.url_failed')} <Button size="small" onClick={() => void history.refetch()}>{t('apps.retry')}</Button></span>}
       </footer>
     </Card>
   );
