@@ -123,7 +123,7 @@ export const api = createApi({
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     patch: b.query<PatchDetail, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog'] }),
     patchRecords: b.query<{ records: LedgerRecord[] }, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/records`, providesTags: ['Ledger'] }),
-    patchEvents: b.query<{ events: EventRow[] }, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/patches/${encodeURIComponent(id)}/events${toQuery({ limit })}`, providesTags: ['Events'] }),
+    patchEvents: b.query<{ events: EventRow[] }, { id: string; limit?: number; identity: string }>({ query: ({ id, limit }) => `api/patches/${encodeURIComponent(id)}/events${toQuery({ limit })}`, providesTags: ['Events'] }),
     // lineage §12.5 — the family tree, how it is doing, and what people asked it that it could not answer
     patchTree: b.query<TreeResponse, { id: string; depth?: number; dir?: 'up' | 'down' | 'both' }>({ query: ({ id, depth, dir }) => `api/patches/${encodeURIComponent(id)}/tree${toQuery({ depth, dir })}`, providesTags: ['Catalog'] }),
     patchSignals: b.query<SignalsResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/signals`, providesTags: ['Catalog'] }),
@@ -395,7 +395,7 @@ export const api = createApi({
       query: ({ id, identity: _identity, ...q }) => `api/hosted-agents/${encodeURIComponent(id)}/diff${toQuery(q)}`,
       providesTags: ['HostedAgent'],
     }),
-    events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number } | void>({ query: (q) => `api/events${toQuery({ ...(q ?? {}) })}`, providesTags: ['Events'] }),
+    events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number; identity: string }>({ query: ({ identity: _identity, ...q }) => `api/events${toQuery(q)}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
     runtime: b.query<RuntimeResponse, void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
     drive: b.query<DriveResponse, void>({ query: () => 'api/drive', providesTags: ['Drive'] }),

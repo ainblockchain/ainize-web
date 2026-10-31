@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router';
 import styled from 'styled-components';
 import { usePatchEventsQuery, usePatchQuery, usePatchRecordsQuery } from '@/api/api';
@@ -7,7 +7,10 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { CenterProgress, Description, PageWrapper, SelectBox, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { EventLog } from '@/components/operator/EventLog';
-import { useMoney } from '@/components/operator/common';
+import { QueryError, useMoney } from '@/components/operator/common';
+import { useAuth } from '@/auth/AuthContext';
+import { resolvedKnowledgePath } from '@/lib/detailRoutes';
+import { filterLogEvents, logEvents, patchLogRecords } from '@/lib/logView';
 import { dateTime, shortAddr, shortHash } from '@/utils/format';
 
 const Timeline = styled.ol`list-style: none; margin: 16px 0 0; padding: 0; border-left: 2px solid #e0e0e0;`;
@@ -17,17 +20,24 @@ const TItem = styled.li`position: relative; padding: 0 0 20px 20px; font-size: 1
 const Kind = styled.span`display: inline-block; min-width: 72px; font-weight: 700; color: #5b1ca8; font-size: 11px; letter-spacing: 0.04em; cursor: help;`;
 
 export default function LogsPage() {
+  const { author = '', patchId = '' } = useParams();
+  const auth = useAuth();
+  return <KnowledgeLogs key={JSON.stringify([author, patchId, auth.cacheIdentity])} patchId={patchId} identity={auth.cacheIdentity} authLoading={auth.loading} />;
+}
+
+export function KnowledgeLogs({ patchId, identity, authLoading = false }: { patchId: string; identity: string; authLoading?: boolean }) {
   const { t } = useT();
   const money = useMoney();
-  const { author = '', patchId = '' } = useParams();
   const [limit, setLimit] = useState(100);
   const [level, setLevel] = useState('all');
-  // Finding 79: the log page never asked whether the knowledge exists, so a mistyped or removed id rendered as a
-  // healthy, quiet, empty log — while the manage page for the same id correctly said "Knowledge not found".
   const patch = usePatchQuery(patchId);
-  const missing = patch.isError || (!patch.isLoading && !patch.data);
-  const events = usePatchEventsQuery({ id: patchId, limit }, { pollingInterval: missing ? 0 : 5000, skip: missing });
-  const records = usePatchRecordsQuery(patchId, { skip: missing });
+  const missing = patch.error && 'status' in patch.error && patch.error.status === 404;
+  const destination = resolvedKnowledgePath(patch.currentData, patchId);
+  const ready = !authLoading && !patch.isError && !!destination;
+  const events = usePatchEventsQuery({ id: patchId, limit, identity }, { pollingInterval: ready ? 5000 : 0, skip: !ready });
+  const records = usePatchRecordsQuery(patchId, { skip: !ready });
+  const eventRows = ready && !events.isError ? logEvents(events.currentData, patchId) : null;
+  const recordRows = ready && !records.isError ? patchLogRecords(records.currentData, patchId) : null;
   useTitle(t('op.logs.title', { id: patchId }));
 
   const LEVELS = [
@@ -35,10 +45,7 @@ export default function LogsPage() {
     { value: 'warn', label: t('op.logs.level.warn') }, { value: 'error', label: t('op.logs.level.error') },
   ];
 
-  const rows = useMemo(() => {
-    const all = events.data?.events ?? [];
-    return level === 'all' ? all : all.filter((e) => (level === 'warn' ? e.level === 'warn' : level === 'error' ? e.level === 'error' : e.level === 'info' || e.level === 'debug'));
-  }, [events.data, level]);
+  const rows = filterLogEvents(eventRows ?? [], level);
 
   const kindLabel = (kind: string) => { const k = `op.logs.kind.${kind}`; const v = t(k); return v === k ? kind : v; };
   const who = (v: unknown) => { const s = String(v ?? '?'); return s.startsWith('0x') && s.length > 20 ? shortAddr(s) : s; };
@@ -68,7 +75,7 @@ export default function LogsPage() {
     }
   };
 
-  if (patch.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (authLoading || !patch.currentData && patch.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
   if (missing) {
     return (
       <PageWrapper>
@@ -82,6 +89,8 @@ export default function LogsPage() {
     );
   }
 
+  if (patch.isError || !destination) return <PageWrapper><QueryError error={patch.error} what={t('offline.what.knowledge')} retrying={patch.isFetching} onRetry={() => void patch.refetch()} /></PageWrapper>;
+
   return (
     <PageWrapper $wide>
       <TitleRow>
@@ -89,31 +98,31 @@ export default function LogsPage() {
         <SelectBox options={LEVELS} value={level} onChange={setLevel} label={t('common.level_aria')} />
       </TitleRow>
       <Description>
-        {t('op.logs.desc')} <StyledLink to={`/project/${author}/${patchId}`}>{t('op.logs.back')}</StyledLink>
+        {t('op.logs.desc')} <StyledLink to={`/project${destination}`}>{t('op.logs.back')}</StyledLink>
         {' · '}<StyledLink to="/logs">{t('op.logs.notfound.node')}</StyledLink>
       </Description>
 
-      <EventLog
+      {events.isError || !eventRows && !events.isFetching ? <QueryError error={events.error} what={t('op.logs.title', { id: patchId })} retrying={events.isFetching} onRetry={() => void events.refetch()} /> : <EventLog
         rows={rows}
-        loading={events.isLoading}
+        loading={!eventRows && events.isFetching}
         fetching={events.isFetching}
         onOlder={() => setLimit((l) => l + 200)}
-        empty={t('op.logs.empty')}
+        empty={t(level === 'all' ? 'op.logs.empty' : 'op.nodelog.empty.filtered')}
         footer={t('op.logs.footer', { n: limit })}
-      />
+      />}
 
       <SubTitle $mt={48}>{t('op.logs.ledger.title')}</SubTitle>
       <Description>{t('op.logs.ledger.desc')}</Description>
-      {records.isLoading ? <CenterProgress /> : (
+      {records.isError || !recordRows && !records.isFetching ? <QueryError error={records.error} what={t('op.logs.ledger.title')} retrying={records.isFetching} onRetry={() => void records.refetch()} /> : !recordRows ? <CenterProgress /> : (
         <Timeline>
-          {(records.data?.records ?? []).map((r) => (
+          {recordRows.map((r) => (
             <TItem key={r.hash}>
               <div><Kind title={r.kind}>{kindLabel(r.kind)}</Kind> <span style={{ color: '#8d8d8f' }}>{dateTime(r.ts)}</span></div>
               <div style={{ marginTop: 4 }}>{describe(r)}</div>
               <div style={{ marginTop: 2, fontFamily: 'Inconsolata, monospace', fontSize: 11, color: '#8d8d8f' }} title={r.hash}>{t('op.logs.record')} {shortHash(r.hash, 16)}{r.sig && r.sig.startsWith('0x') ? ` · tx ${shortHash(r.sig, 14)}` : ''}</div>
             </TItem>
           ))}
-          {(records.data?.records ?? []).length === 0 && <TItem>{t('op.logs.ledger.empty')}</TItem>}
+          {recordRows.length === 0 && <TItem>{t('op.logs.ledger.empty')}</TItem>}
         </Timeline>
       )}
     </PageWrapper>

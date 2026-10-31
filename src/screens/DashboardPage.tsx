@@ -6,6 +6,7 @@ import {
   useMyPurchasesQuery, useRuntimeQuery, useWalletQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
+import { logEvents } from '@/lib/logView';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -141,7 +142,7 @@ export default function DashboardPage() {
   const { t, term, help, tech } = useT();
   useTitle(t('op.dash.title'));
   const money = useMoney();
-  const { address } = useAuth();
+  const { address, cacheIdentity, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab: 'knowledge' | 'teaching' = params.get('tab') === 'teaching' ? 'teaching' : 'knowledge';
@@ -215,8 +216,8 @@ export default function DashboardPage() {
 
   // ---------------------------------------------------------------- finding 133: what the node log has to say
   const [logSeen] = useState(() => { try { return Number(localStorage.getItem(NODELOG_SEEN)) || 0; } catch { return 0; } });
-  const recentEvents = useEventsQuery({ limit: 200 });
-  const unseenBad = (recentEvents.data?.events ?? []).filter((e) => (e.level === 'warn' || e.level === 'error') && e.ts > logSeen).length;
+  const recentEvents = useEventsQuery({ limit: 200, identity: cacheIdentity }, { skip: authLoading });
+  const unseenBad = (!authLoading && !recentEvents.isError ? logEvents(recentEvents.currentData) ?? [] : []).filter((e) => (e.level === 'warn' || e.level === 'error') && e.ts > logSeen).length;
 
   const onCreateBranch = async (e: FormEvent) => {
     e.preventDefault();

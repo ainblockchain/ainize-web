@@ -66,6 +66,10 @@ import { networkInfoFixture, networkNodesFixture, networkLedgerFixture } from '.
 import LedgerPage, { LedgerContent } from '../src/screens/LedgerPage';
 import { ledgerFixture, ledgerNode, ledgerRecord, ledgerGraphFixture } from './fixtures/ledger';
 
+import LogsPage from '../src/screens/LogsPage';
+import { NodeLogs } from '../src/screens/NodeLogsPage';
+import { EventLog } from '../src/components/operator/EventLog';
+import { trackAuthor } from './fixtures/track';
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
   reducer: { [api.reducerPath]: api.reducer },
@@ -97,6 +101,71 @@ const signedOut: Fixture[] = [
   { name: 'ssoStatus', value: { configured: true } },
 ];
 const policy: Fixture = { name: 'teachPolicy', value: { enabled: false, trainer: 'paused' } };
+
+const logRow = { seq: 1, ts: 100, level: 'warn' as const, kind: 'verify', patch_id: 'selected', message: 'Selected event message', data: null };
+const logPath = `/project/${trackAuthor}/selected/logs`;
+const logRoute = '/project/:author/:patchId/logs';
+const knowledgeLogs: Fixture[] = [
+  { name: 'patch', arg: 'selected', value: { anchor: { id: 'selected', author: trackAuthor } } },
+  { name: 'patchEvents', arg: { id: 'selected', limit: 100, identity: '' }, value: { events: [logRow] } },
+  { name: 'patchRecords', arg: 'selected', value: { records: [] } },
+];
+
+test('knowledge log outages are retryable and only an explicit 404 claims missing knowledge', () => {
+  for (const status of [503, 403]) {
+    const html = render(LogsPage, [...signedOut, ...knowledgeLogs.map(f => f.name === 'patch' ? { ...f, status: 'rejected' as const, errorStatus: status } : f)], logPath, logRoute);
+    assert.match(html, /query-retry/); assert.doesNotMatch(html, /logs-notfound|Selected event message|No events for this knowledge/);
+  }
+  const missing = render(LogsPage, [...signedOut, { ...knowledgeLogs[0], status: 'rejected', errorStatus: 404 }], logPath, logRoute);
+  assert.match(missing, /logs-notfound/); assert.doesNotMatch(missing, /event-log/);
+});
+
+test('knowledge log event and timeline failures do not present cached rows or healthy empty results', () => {
+  const html = render(LogsPage, [...signedOut, ...knowledgeLogs.map(f => f.name === 'patch' ? f : { ...f, status: 'rejected' as const })], logPath, logRoute);
+  assert.equal((html.match(/data-testid="query-retry"/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /Selected event message|No events for this knowledge|No public records returned/);
+  const malformed = render(LogsPage, [...signedOut, ...knowledgeLogs, { ...knowledgeLogs[1], value: { events: [{ ...logRow, patch_id: 'other' }] } }], logPath, logRoute);
+  assert.match(malformed, /query-retry/); assert.doesNotMatch(malformed, /Selected event message/);
+});
+
+test('knowledge log links resolve the returned author and an empty timeline does not invent a draft status', () => {
+  const html = render(LogsPage, [...signedOut, ...knowledgeLogs], '/project/wrong-author/selected/logs', logRoute);
+  assert.match(html, new RegExp(`href="/project/${trackAuthor}/selected"`));
+  assert.match(html, /Selected event message/); assert.match(html, /No public records returned by this node/);
+  assert.doesNotMatch(html, /still a local draft|href="\/project\/wrong-author/);
+  const loading = render(LogsPage, [...signedOut, { ...knowledgeLogs[0], status: 'pending', value: undefined }], logPath, logRoute);
+  assert.doesNotMatch(loading, /logs-notfound|event-log/);
+});
+
+test('node logs hide failed cached rows and retain filter and polling recovery controls', () => {
+  const html = render(() => createElement(NodeLogs, { identity: '' }), [...signedOut,
+    { name: 'events', arg: { limit: 200, identity: '' }, value: { events: [logRow] }, status: 'rejected' },
+  ], '/logs');
+  assert.match(html, /query-retry/); assert.match(html, /Follow/); assert.match(html, /All kinds/);
+  assert.doesNotMatch(html, /Selected event message|nodelog-summary|Nothing logged yet/);
+});
+
+test('node logs do not reuse another account or window cache and only summarize a valid response', () => {
+  const fixtures: Fixture[] = [...signedOut,
+    { name: 'events', arg: { limit: 200, identity: 'old-owner' }, value: { events: [logRow] } },
+    { name: 'events', arg: { limit: 100, identity: '' }, value: { events: [logRow] } },
+  ];
+  const loading = render(() => createElement(NodeLogs, { identity: '' }), fixtures, '/logs');
+  assert.doesNotMatch(loading, /Selected event message|nodelog-summary|Nothing logged yet/);
+  const valid = render(() => createElement(NodeLogs, { identity: '' }), [...signedOut,
+    { name: 'events', arg: { limit: 200, identity: '' }, value: { events: [logRow] } },
+  ], '/logs');
+  assert.match(valid, /nodelog-summary/); assert.match(valid, /href="\/patch\/selected"/);
+  assert.match(valid, /Selected event message/);
+});
+
+test('event details use native keyboard disclosures and window expansion is disabled during an active read', () => {
+  const html = render(() => createElement(EventLog, { rows: [{ ...logRow, data: { detail: 'Structured details' } }, { ...logRow, seq: 2, message: 'No details' }], loading: false, fetching: true, onOlder() {}, empty: 'Empty', footer: 'Window' }), signedOut, '/logs');
+  assert.equal((html.match(/<details/g) ?? []).length, 1);
+  assert.equal((html.match(/<summary/g) ?? []).length, 1);
+  assert.match(html, /Structured details/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Expand log window/);
+});
 
 const ledgerFixtures: Fixture[] = [
   { name: 'ledger', arg: { kind: undefined, limit: 1000 }, value: ledgerFixture([ledgerNode()]) },
