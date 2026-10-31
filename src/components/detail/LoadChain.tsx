@@ -1,121 +1,91 @@
-import { useCallback, useState, type ReactNode } from 'react';
-import { errorMessage, useApplyMutation, useRemoveMutation } from '@/api/api';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router';
+import { api, errorMessage, useApplyMutation, useRemoveMutation } from '@/api/api';
+import type { PatchAnchor } from '@/api/types';
+import { useAuth } from '@/auth/AuthContext';
+import { useActiveView } from '@/hooks/useActiveView';
+import { createNodeActionTask } from '@/lib/accountNodeActions';
+import { changeRuntimeKnowledge, LoadKnowledgeError, runtimeRefusal, runtimeBaseMismatch } from '@/lib/loadKnowledge';
 import { useT } from '@/i18n';
 import { Button } from '@/components/ui/Button';
 import { Sheet, SheetFooter } from '@/components/chat/Sheet';
 
-/**
- * SC-15, the operator half — loading and unloading a knowledge that has other knowledge under it (design §8, §12.4).
- *
- * Every screen that loads a patch used to send a bare `POST /apply` and print whatever came back. On an add-on that
- * is `409 needs_base`, and the operator was shown a raw error code with no way to act on it: the flag that fixes it
- * exists only in the CLI. Here the refusal is turned back into the question the design asks — *{child} is built on
- * {parent}. Load {parent} first?* — with one button that does it.
- *
- * Three more answers come from the same endpoints and are all told apart, because they need different actions:
- *   · `needs_base`     the base is held but not loaded → offer to load both (this dialog)
- *   · `base_mismatch`  something else changed the rows the child was trained against → reload the base
- *   · `has_dependents` something is loaded ON TOP of what is being unloaded → unload that first
- * A success says the ORDER (`apply.order`), from the `order` the node returns — never re-derived here.
- */
 export interface LoadChain {
-  /** Load one knowledge; an add-on asks about its base instead of failing. */
-  load: (id: string) => Promise<void>;
-  /** Unload one knowledge; refuses (with the reason) while something sits on top of it. */
-  unload: (id: string) => Promise<void>;
+  load: (target: PatchAnchor) => Promise<void>;
+  unload: (target: PatchAnchor) => Promise<void>;
   busy: boolean;
-  /** Which knowledge the in-flight load or unload is for — a table of rows needs the spinner on its own row. */
   busyId: string | null;
-  /** "Loaded in order: a → b" after a load that put more than one layer on the table. */
   notice: string | null;
   error: string | null;
   reset: () => void;
-  /** The *Load {parent} first?* dialog — render it once, wherever the buttons are. */
   dialog: ReactNode;
 }
+type Pending = { target: PatchAnchor; missing: string[] };
+type View = { scope: string; busyId: string | null; notice: string | null; error: string | null; pending: Pending | null };
 
-/**
- * `nameOf` turns an id into what the operator calls it; without one the id is shown, which is never wrong.
- * `onLoaded` / `onUnloaded` fire when the model really changed — including from inside the *Load both* dialog, which
- * is why they are callbacks and not a return value: a page that says "Loaded into the model." must still say it when
- * the load went through the question.
- */
+/** Confirm the selected artifact and its recorded runtime state; leaving does not cancel a server operation. */
 export function useLoadChain(
-  nameOf: (id: string) => string = (id) => id,
+  nameOf: (id: string) => string = id => id,
   opts: { onLoaded?: (order: string[]) => void; onUnloaded?: (id: string) => void } = {},
 ): LoadChain {
-  const { t } = useT();
-  const [apply, applyState] = useApplyMutation();
-  const [remove, removeState] = useRemoveMutation();
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ id: string; missing: string[] } | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const reset = useCallback(() => { setNotice(null); setError(null); setPending(null); }, []);
+  const { t } = useT(), auth = useAuth(), location = useLocation(), active = useActiveView();
+  const scope = JSON.stringify([auth.cacheIdentity, location.pathname, location.search]);
+  const scopeRef = useRef(scope), allowed = useRef(false);
+  scopeRef.current = scope; allowed.current = auth.isOwner && !auth.loading;
+  const task = useMemo(createNodeActionTask, [scope]);
+  useEffect(() => () => task.abandon(), [task]);
+  const current = () => active() && scopeRef.current === scope && allowed.current && auth.isCurrentAccount();
+  const [view, setView] = useState<View>({ scope, busyId: null, notice: null, error: null, pending: null });
+  const shown = view.scope === scope ? view : { scope, busyId: null, notice: null, error: null, pending: null };
+  const [apply] = useApplyMutation(), [remove] = useRemoveMutation();
+  const [readPatch] = api.useLazyManagedPatchQuery(), [readRuntime] = api.useLazyRuntimeQuery(), [readAccess] = api.useLazyMeQuery();
   const names = (ids: string[]) => ids.map(nameOf).join(', ');
+  const update = (values: Partial<View>) => { if (current()) setView(previous => ({ ...(previous.scope === scope ? previous : shown), ...values, scope })); };
+  const reset = () => update({ notice: null, error: null, pending: null });
 
-  const run = useCallback(async (id: string, withBase: boolean) => {
-    const res = await apply(withBase ? { id, with_base: true } : id).unwrap();
-    // The chain it now sits on, ancestors first. One layer is an ordinary load and says nothing extra.
-    const order = res.order ?? [];
-    setNotice(order.length > 1
-      ? t('detail.apply.order', { parent: names(order.slice(0, -1)), child: nameOf(order[order.length - 1]) })
-      : null);
-    opts.onLoaded?.(order);
-  }, [apply, nameOf, t, opts]);
-
-  const load = useCallback(async (id: string) => {
-    setNotice(null); setError(null); setBusyId(id);
+  const run = async (target: PatchAnchor, kind: 'load' | 'unload', withBase = false) => {
+    if (!current() || task.pending()) return;
+    update({ busyId: target.id, error: null, notice: null, pending: null });
     try {
-      await run(id, false);
-    } catch (err) {
-      const data = (err as { data?: { error?: string; missing?: string[]; patch_id?: string } }).data ?? {};
-      const msg = data.error ?? errorMessage(err);
-      if (/^needs_base/.test(msg) && data.missing?.length) { setPending({ id, missing: data.missing }); return; }
-      if (/^base_mismatch/.test(msg)) {
-        // The node names the layer whose `before` did not match; that is the base to reload, not the child.
-        setError(t('detail.apply.mismatch', { parent: nameOf(data.patch_id ?? id), child: nameOf(id) }));
-        return;
+      const result = await task.run(current, stillCurrent => changeRuntimeKnowledge(target, kind, withBase, {
+        current: stillCurrent, node: auth.address, subject: auth.subject,
+        readAccess: () => readAccess(undefined, false).unwrap(),
+        read: () => readPatch({ id: target.id, identity: auth.cacheIdentity }, false).unwrap(),
+        runtime: () => readRuntime({ identity: auth.cacheIdentity }, false).unwrap(),
+        write: () => kind === 'load' ? apply({ id: target.id, with_base: withBase }).unwrap() : remove(target.id).unwrap(),
+      }));
+      if (!result || !current()) return;
+      if (kind === 'unload') {
+        update({ notice: t('detail.apply.removed_record', { id: nameOf(target.id) }) });
+        opts.onUnloaded?.(target.id);
+      } else if (result.alias) {
+        update({ notice: t('detail.apply.alias', { id: nameOf(target.id), alias: nameOf(result.alias) }) });
+      } else {
+        update({ notice: result.already ? t('detail.apply.already_recorded', { id: nameOf(target.id) })
+          : result.order.length > 1 ? t('detail.apply.order', { parent: names(result.order.slice(0, -1)), child: nameOf(target.id) })
+          : t('detail.apply.loaded_record', { id: nameOf(target.id) }) });
+        if (!result.already) opts.onLoaded?.(result.order);
       }
-      setError(errorMessage(err));
-    }
-  }, [run, nameOf, t]);
-
-  const unload = useCallback(async (id: string) => {
-    setNotice(null); setError(null); setBusyId(id);
-    try {
-      await remove(id).unwrap();
-      opts.onUnloaded?.(id);
-    } catch (err) {
-      const data = (err as { data?: { error?: string; ids?: string[] } }).data ?? {};
-      const msg = data.error ?? errorMessage(err);
-      if (/^has_dependents/.test(msg) && data.ids?.length) {
-        setError(t('detail.apply.has_dependents', { children: names(data.ids), parent: nameOf(id) }));
-        return;
-      }
-      setError(errorMessage(err));
-    }
-  }, [remove, nameOf, t, opts]);
-
-  const dialog = pending ? (
-    <Sheet
-      title={t('detail.apply.needs_base', { child: nameOf(pending.id), parent: names(pending.missing) })}
-      onClose={() => setPending(null)} width={480} testId="apply-needs-base"
-    >
-      <SheetFooter>
-        <Button variant="outlined" onClick={() => setPending(null)}>{t('common.cancel')}</Button>
-        <Button
-          variant="contained" loading={applyState.isLoading} data-testid="apply-load-both"
-          onClick={async () => {
-            const { id } = pending;
-            setPending(null); setBusyId(id);
-            try { await run(id, true); } catch (err) { setError(errorMessage(err)); }
-          }}
-        >{t('detail.apply.load_both')}</Button>
-      </SheetFooter>
-    </Sheet>
-  ) : null;
-
-  return { load, unload, busy: applyState.isLoading || removeState.isLoading, busyId, notice, error, reset, dialog };
+    } catch (error) {
+      if (!current()) return;
+      const missing = kind === 'load' ? runtimeRefusal(error, 'needs_base') : null;
+      if (missing && !missing.includes(target.id)) { update({ pending: { target, missing } }); return; }
+      const dependents = kind === 'unload' ? runtimeRefusal(error, 'has_dependents') : null;
+      if (dependents) { update({ error: t('detail.apply.has_dependents', { children: names(dependents), parent: nameOf(target.id) }) }); return; }
+      if (runtimeBaseMismatch(error)) { update({ error: t('detail.apply.error.mismatch') }); return; }
+      update({ error: error instanceof LoadKnowledgeError ? t(`detail.apply.error.${error.code}`) : errorMessage(error) });
+    } finally { update({ busyId: null }); }
+  };
+  const pending = shown.pending;
+  const dialog = pending ? <Sheet
+    title={t('detail.apply.needs_base', { child: nameOf(pending.target.id), parent: names(pending.missing) })}
+    onClose={() => update({ pending: null })} width={480} testId="apply-needs-base">
+    <SheetFooter>
+      <Button variant="outlined" onClick={() => update({ pending: null })}>{t('common.cancel')}</Button>
+      <Button variant="contained" disabled={shown.busyId !== null} loading={shown.busyId !== null} data-testid="apply-load-both"
+        onClick={() => void run(pending.target, 'load', true)}>{t('detail.apply.load_both')}</Button>
+    </SheetFooter>
+  </Sheet> : null;
+  return { load: target => run(target, 'load'), unload: target => run(target, 'unload'), busy: shown.busyId !== null,
+    busyId: shown.busyId, notice: shown.notice, error: shown.error, reset, dialog };
 }

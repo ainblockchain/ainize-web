@@ -371,8 +371,8 @@ export function DashboardContent() {
                   <TableData>{p.applied ? <span style={{ color: '#44a45f', fontWeight: 600 }}>{t('op.yes')}</span> : t('op.no')}</TableData>
                   <TableData>
                     <Row $gap={6} $justify="center">
-                      <Button size="small" title={help('apply')} disabled={!runtime.data?.available || busy || p.applied} loading={busy && !p.applied} onClick={() => { setActionError(null); void chain.load(p.patch_id); }}>{term('apply')}</Button>
-                      <Button size="small" color="secondary" title={help('remove')} disabled={!runtime.data?.available || busy || !p.applied} loading={busy && p.applied} onClick={() => { setActionError(null); void chain.unload(p.patch_id); }}>{term('remove')}</Button>
+                      <Button size="small" title={help('apply')} disabled={!runtime.data?.available || chain.busy || !p.entry || p.applied} loading={busy && !p.applied} onClick={() => { setActionError(null); if (p.entry) void chain.load(p.entry.anchor); }}>{term('apply')}</Button>
+                      <Button size="small" color="secondary" title={help('remove')} disabled={!runtime.data?.available || chain.busy || !p.entry || !p.applied} loading={busy && p.applied} onClick={() => { setActionError(null); if (p.entry) void chain.unload(p.entry.anchor); }}>{term('remove')}</Button>
                     </Row>
                   </TableData>
                   <TableData>

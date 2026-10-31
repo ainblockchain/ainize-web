@@ -1300,7 +1300,7 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
         {d.has_body && !d.applied && (
           <Button
             variant="contained" disabled={!runtimeReady} loading={chain.busy} loadingText={t('detail.buy.paid_loading')}
-            onClick={() => { void chain.load(d.anchor.id); }} data-testid="buy-paid-load"
+            onClick={() => { void chain.load(d.anchor); }} data-testid="buy-paid-load"
           >{t('detail.buy.paid_load')}</Button>
         )}
         {d.applied && <Quorum>{t('detail.buy.paid_loaded')}</Quorum>}
