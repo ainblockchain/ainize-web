@@ -9,7 +9,8 @@ import { CenterProgress, Description, Empty, PageWrapper, Pagination, SelectBox,
 import { SubText, Table, TableBody, TableData, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
-import { benchmarkFormats, bytes, num } from '@/utils/format';
+import { benchmarkFormats, bytes, dateTime, num, shortAddr } from '@/utils/format';
+import { Explain as ScoreExplanation } from '@/components/ui/Explain';
 import NotFoundPage from './NotFoundPage';
 import { Offline } from '@/components/ui/Offline';
 import { benchmarkView } from '@/lib/benchmarkView';
@@ -163,7 +164,7 @@ function BenchmarkContent({ schema }: { schema: string }) {
         <TableData $align="left" $maxWidth="180px" $padding={CELL_PAD}><StatusChip status={e.status} /></TableData>
         <PriceCell $align="right" $padding={CELL_PAD}>{p.text}</PriceCell>
         <TableData $align="right" $padding={CELL_PAD}>
-          {acc ? <><Good>{acc.pct}%</Good><SubText title={t('item.accuracy_raw', { raw: acc.raw })}>{acc.raw}</SubText></> : <Muted>{t('bench.col.unscored')}</Muted>}
+          {acc ? <><ScoreExplanation text={t('detail.stat.score_source', { who: acc.attestation.verifier_name ?? shortAddr(acc.attestation.verifier), when: dateTime(acc.attestation.created_at) })}><Good>{acc.pct}%</Good></ScoreExplanation><SubText title={t('item.accuracy_raw', { raw: acc.raw })}>{acc.raw}</SubText></> : <Muted>{t('bench.col.unscored')}</Muted>}
         </TableData>
         <TableData $align="right" $padding={CELL_PAD}>
           {e.quorum_ok && e.sellable !== false ? <Good>{t('units.verified_by', { passed: verificationCount(e).shown, quorum: e.quorum })}</Good>

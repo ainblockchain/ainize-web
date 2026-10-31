@@ -2,6 +2,7 @@ import { BenchmarkCoverage } from '@/components/detail/BenchmarkCoverage';
 import { AttestationCount } from '@/components/detail/AttestationCount';
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { verificationCount } from '@/lib/verificationView';
+import { currentModelRuns, latestVerificationScore } from '@/lib/verificationScore';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
@@ -19,7 +20,7 @@ import { useT } from '@/i18n';
 import { sourceKind } from '@/components/teach/util';
 import { selectionPath } from '@/components/chat/util';
 import { useTitle } from '@/utils/useTitle';
-import { benchmarkFormats, bytes, dateTime, denominator, num, pct, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
+import { benchmarkFormats, bytes, dateTime, num, preApplyText, scoreText, shortAddr, shortHash } from '@/utils/format';
 import { FamilyTree } from '@/components/detail/FamilyTree';
 import { useLoadChain } from '@/components/detail/LoadChain';
 import { OpenQuestions } from '@/components/detail/OpenQuestions';
@@ -312,22 +313,17 @@ function useNarrow(px: number): boolean {
   return on;
 }
 
-type Score = { text: string; pct: number | null; tested: number | null; before: string | null };
+type Score = { text: string; pct: number | null; tested: number | null; before: string | null; attestation?: Attestation };
 
 /** Accuracy shown in the header comes only from attestations that ran the real model — never from integrity-only checks. */
 function scoreOf(d: CatalogEntry): Score {
-  const real = d.attestations.filter((a) => a.passed && isExecuted(a.verified_on));
-  if (!real.length) return { text: '—', pct: null, tested: null, before: null };
-  const s = real[real.length - 1].score;
-  const raw = s.free_generation ?? s.free_generation_vllm ?? s.chat_60;
-  // `before` is the same verifier's pre_apply run — the half of the measurement that says whether the model
-  // already knew these answers. Without it "100%" is not evidence of anything.
-  return { text: scoreText(s), pct: pct(raw), tested: denominator(raw), before: preApplyText(s) };
+  const measured = latestVerificationScore(d);
+  return measured ? { ...measured, text: measured.raw } : { text: '—', pct: null, tested: null, before: null };
 }
 
 /** Executed verifications that did NOT pass — the half of the record the headline score cannot show (item 250). */
 function failedRuns(d: CatalogEntry): Attestation[] {
-  return d.attestations.filter((a) => !a.passed && isExecuted(a.verified_on));
+  return currentModelRuns(d).filter(a => !a.passed);
 }
 
 /**
@@ -521,7 +517,7 @@ export default function PatchPage({ author: givenAuthor, patchId: givenId }: { a
               {/* Item 146: the numerator is clamped to the quorum — `3/2` is not a fraction a reader can use —
                   and the extra independent attestations are stated instead of being folded into the ratio. */}
               {t('detail.patch.verified_executed', { passed: verificationCount(data).shown, quorum: data.quorum })}{data.sellable ? ` · ${term('verified')}` : ''}
-              {data.passed > data.quorum && <> · {t('detail.patch.extra_n', { n: data.passed - data.quorum })}</>}
+              {verificationCount(data).extra > 0 && <> · {t('detail.patch.extra_n', { n: verificationCount(data).extra })}</>}
               {data.integrity_checks > 0 && <> · {t('detail.patch.integrity_n', { n: data.integrity_checks })}</>}
               {data.self_checks > 0 && <> · {t('detail.patch.self_n', { n: data.self_checks })}</>}
             </Quorum>
@@ -569,6 +565,7 @@ export default function PatchPage({ author: givenAuthor, patchId: givenId }: { a
               </StatValue>
               <StatName title={`${t('detail.stat.accuracy_help')} (${tech('accuracy')})`}>{term('accuracy')}</StatName>
               {score.pct !== null && <StatNote>{score.before ? t('detail.stat.before_after_note', { pct: score.pct }) : score.text}</StatNote>}
+              {score.attestation && <StatNote data-testid="score-source">{t('detail.stat.score_source', { who: score.attestation.verifier_name ?? shortAddr(score.attestation.verifier), when: dateTime(score.attestation.created_at) })}</StatNote>}
             </Stat>
             <Stat><StatValue>{num(a.rows)}</StatValue><StatName title={`${help('rows')} (${tech('rows')})`}>{t('detail.stat.entries')}</StatName></Stat>
             <Stat><StatValue>{num(benchmarkQuestionCount(a.benchmark.queries))}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
@@ -622,9 +619,9 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
   const a = d.anchor;
   const failed = failedRuns(d);
   // How many verifiers actually ran the model, and how many of those reported a side-effect measurement.
-  const executedAtts = d.attestations.filter((at) => isExecuted(at.verified_on));
+  const executedAtts = currentModelRuns(d);
   const executedCount = executedAtts.length;
-  const sideMeasured = executedAtts.filter((at) => at.collateral_nat !== undefined && at.collateral_nat !== null).length;
+  const sideMeasured = executedAtts.filter((at) => typeof at.collateral_nat === 'number' && Number.isFinite(at.collateral_nat) && at.collateral_nat >= 0).length;
   return (
     <>
       <Section>

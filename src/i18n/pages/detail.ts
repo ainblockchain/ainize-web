@@ -103,7 +103,7 @@ export const detailPatch: Dict = {
   'detail.patch.newest_version': { ko: '최신 버전: {id} ({n}단계 뒤)', en: 'Newest version: {id} ({n} versions newer)' },
   'detail.patch.verified_executed': { ko: '검증 정족수 {passed}/{quorum}', en: 'Verification quorum {passed}/{quorum}' },
   'detail.patch.integrity_n': { ko: '무결성만 확인 {n}건', en: '{n} integrity-only checks' },
-  'detail.patch.extra_n': { ko: '독립 검증 {n}건 추가', en: '{n} more independent verification(s)' },
+  'detail.patch.extra_n': { ko: '정족수 집계 {n}건 추가', en: '{n} additional quorum unit(s)' },
   'detail.patch.self_n': { ko: '작성자 본인 검증 {n}건 (집계 제외)', en: '{n} self-check(s) by the author (not counted)' },
   'detail.patch.quorum_help': { ko: '검증 완료가 되려면 독립된 검증 노드 {quorum}곳 이상이 실제 모델에 넣어 채점해야 합니다. 파일이 바뀌지 않았는지만 본 "무결성 확인"은 여기에 세지 않습니다.', en: 'To be marked Verified, at least {quorum} independent verifier nodes must load it into the real model and score it. Integrity-only checks (file unchanged) do not count.' },
 
@@ -119,7 +119,8 @@ export const detailPatch: Dict = {
   'detail.stat.size': { ko: '크기', en: 'Size' },
   'detail.stat.price': { ko: '가격', en: 'Price' },
   'detail.stat.revenue': { ko: '누적 판매액', en: 'Revenue' },
-  'detail.stat.not_yet': { ko: '검증 전', en: 'not yet' },
+  'detail.stat.not_yet': { ko: '현재 유효한 측정값 없음', en: 'No current score' },
+  'detail.stat.score_source': { ko: '최근 유효 검증: {who} · {when}', en: 'Latest eligible check: {who} · {when}' },
   // Item 30 — the seller's cumulative takings, said to be that, in a face that cannot be mistaken for the price.
   'detail.stat.revenue_note': { ko: '지금까지 이 지식에 지불된 총액', en: 'paid for this knowledge so far' },
   // Item 194: the figure is what BUYERS paid. On a knowledge built on someone else's, a large part of it was never

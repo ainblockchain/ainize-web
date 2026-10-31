@@ -1,5 +1,6 @@
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { verificationCount } from '@/lib/verificationView';
+import { latestVerificationScore } from '@/lib/verificationScore';
 import type { HTMLAttributes } from 'react';
 import { Link, useNavigate } from 'react-router';
 import styled, { css, keyframes } from 'styled-components';
@@ -9,7 +10,7 @@ import { Certified, StatusChip } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useNetworkKind } from '@/utils/useNetwork';
 import { browseDescription } from '@/lib/describe';
-import { benchmarkFormats, bytes, denominator, num, pct, shortAddr } from '@/utils/format';
+import { benchmarkFormats, bytes, dateTime, num, shortAddr } from '@/utils/format';
 
 /* ------------------------------------------------------------------ shared helpers (used by landing / explore / benchmark) */
 
@@ -21,16 +22,7 @@ import { benchmarkFormats, bytes, denominator, num, pct, shortAddr } from '@/uti
  * was ever measured against. The anchor's benchmark.queries (2,761) is what the knowledge claims to cover, not what
  * the verifiers scored, and printing the two together read as an exhaustive audit of 2,761 questions.
  */
-export function executedAccuracy(entry: CatalogEntry): { pct: number; raw: string; tested: number | null } | null {
-  const executed = entry.attestations.filter((a) => a.passed && a.verified_on !== 'hash-only');
-  if (!executed.length) return null;
-  const s = executed[executed.length - 1].score;
-  const raw = s?.free_generation ?? s?.free_generation_vllm ?? s?.chat_60;
-  if (raw === undefined) return null;
-  const p = pct(raw);
-  if (p === null) return null;
-  return { pct: p, raw: String(raw), tested: denominator(raw) };
-}
+export const executedAccuracy = latestVerificationScore;
 
 /** "25 AIN" / "3 노드 크레딧" / "무료" + a one-line note explaining the unit. Never a bare "2.5 CREDIT". */
 export function usePriceLabel() {
@@ -354,7 +346,7 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
         <Meta>
           {entry.quorum_ok && entry.sellable !== false ? <Good>{verification(entry)}</Good> : verification(entry)}
           {entry.integrity_checks > 0 && <>{' · '}<Soft><Explain text={t('item.integrity_help')}>{t('item.integrity_only', { n: entry.integrity_checks })}</Explain></Soft></>}
-          {acc && <>{' · '}<Explain text={`${t('item.accuracy_raw', { raw: acc.raw })} — ${help('accuracy')}`} tech={tech('accuracy')}><Good>{t('item.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</Good></Explain></>}
+          {acc && <>{' · '}<Explain text={`${t('item.accuracy_raw', { raw: acc.raw })} — ${t('detail.stat.score_source', { who: acc.attestation.verifier_name ?? shortAddr(acc.attestation.verifier), when: dateTime(acc.attestation.created_at) })} — ${help('accuracy')}`} tech={tech('accuracy')}><Good>{t('item.accuracy_checked', { pct: acc.pct, raw: acc.raw })}</Good></Explain></>}
           {/* Finding 24: an accuracy is only comparable with one measured on the same question set, in the same form. */}
           {formats && <>{' · '}<Soft data-testid="item-format"><Explain text={t('item.format_help')}>{t('item.format', { formats })}</Explain></Soft></>}
         </Meta>

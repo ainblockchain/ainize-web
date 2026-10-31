@@ -1,6 +1,6 @@
 import { ManagePublication } from '../src/components/operator/ManagePublication';
-import { Verification } from '../src/screens/PatchPage';
-import { useVerificationLabel } from '../src/components/public/PatchListItem';
+import PatchPage, { Verification } from '../src/screens/PatchPage';
+import { PatchListItem, useVerificationLabel } from '../src/components/public/PatchListItem';
 import { ManageDraftConflict } from '../src/components/operator/ManageDraftConflict';
 import { manageDraftEditor } from '../src/lib/manageDraft';
 import ManagePage from '../src/screens/ManagePage';
@@ -1980,4 +1980,41 @@ test('retired and replaced listings are not falsely labelled as challenged', () 
   }
   const p = { ...base, open_challenge: { patch_id: base.anchor.id, challenger: walletAddress, reason: 'Check', created_at: 200 } };
   assert.match(render(() => createElement('span', null, useVerificationLabel()(p)), signedOut), /challenged, re-verification pending/);
+});
+
+function scoreDetail() {
+  const p = verificationDetail(); p.children = []; p.anchor.benchmark.schema = 'chosen'; p.anchor.benchmark.format = ['qa'];
+  p.attestations[0] = { ...p.attestations[0], verifier_name: 'Recent verifier', created_at: 200, score: { free_generation: '3/4', pre_apply: '1/4' } };
+  p.attestations[1] = { ...p.attestations[1], verifier_name: 'Older verifier', created_at: 100, score: { free_generation: '4/4', pre_apply: '0/4' } };
+  return p;
+}
+function renderScoreDetail(p: ReturnType<typeof scoreDetail>) {
+  return render(() => createElement(PatchPage, { author: p.anchor.author, patchId: p.anchor.id }), [...signedOut, { name: 'patch', arg: p.anchor.id, value: p }], `/${p.anchor.author}/${p.anchor.id}?tab=verification`);
+}
+test('list, benchmark and detail use the same latest eligible score instead of array-last maximum', () => {
+  const p = scoreDetail();
+  const list = render(() => createElement(PatchListItem, { entry: p }), signedOut);
+  const benchmark = render(BenchmarkPage, [...signedOut, { name: 'benchmark', arg: 'chosen', value: { schema: 'chosen', items: [p] } }], '/benchmarks/chosen', '/benchmarks/:schema');
+  assert.match(list, /75%/); assert.match(list, /3\/4/); assert.doesNotMatch(list, /100%/);
+  assert.match(benchmark, /75%/); assert.match(benchmark, /3\/4/); assert.doesNotMatch(benchmark, /100%/);
+  const detail = renderScoreDetail(p);
+  assert.match(detail, /1\/4 → 3\/4/); assert.match(detail, /Latest eligible check: Recent verifier/);
+  assert.match(detail, /data-testid="score-source"/);
+});
+test('excluded or malformed scores disappear from representative accuracy while signed rows remain visible', () => {
+  for (const changes of [{ baseline: false }, { score: { free_generation: '5/4' } }, { verified_on: 'hash-only' }]) {
+    const p = scoreDetail(); p.attestations = [{ ...p.attestations[0], ...changes }];
+    const list = render(() => createElement(PatchListItem, { entry: p }), signedOut);
+    assert.doesNotMatch(list, /75%|125%/);
+    const detail = renderScoreDetail(p);
+    assert.match(detail, /No current score/); assert.doesNotMatch(detail, /data-testid="score-source"/);
+    assert.match(detail, /Recent verifier/); // The signed result table remains available for inspection.
+  }
+});
+test('a stale failed verification does not create a current failure chip or headline accuracy', () => {
+  const p = scoreDetail(); p.attestations[0] = { ...p.attestations[0], passed: false };
+  p.open_challenge = { patch_id: p.anchor.id, challenger: walletAddress, reason: 'New evidence requires re-verification', created_at: 300 };
+  const detail = renderScoreDetail(p);
+  assert.match(detail, /No current score/); assert.doesNotMatch(detail, /data-testid="failed-chip"/);
+  assert.match(detail, /data-kind="stale"/);
 });
