@@ -1,3 +1,4 @@
+import { readDeviceRequest, type DeviceApprovalReview } from '@/lib/deviceApproval';
 import { reconcileChainSetup } from '@/lib/accountChainSetup';
 import type { ApiKeyContext } from './apiKeyEvidence';
 import type { KeyCreation } from '@/lib/apiKeyCreation';
@@ -454,8 +455,13 @@ export const api = createApi({
     // `ainize login`: what a command line is asking for, and the one signature that answers it. `message` is the
     // exact string the wallet will sign — rendered rather than recomposed here, so what a person reads on the
     // page and what they read in MetaMask cannot drift apart.
-    deviceRequest: b.query<DeviceRequest, string>({ query: (code) => `api/auth/device/${encodeURIComponent(code)}` }),
-    approveAccountDevice: b.mutation<{ ok: boolean }, { code: string }>({
+    deviceRequest: b.query<DeviceRequest, string>({ keepUnusedDataFor: 0, queryFn: async (code, _api, _extra, baseQuery) => {
+      const response = await baseQuery(`api/auth/device/${encodeURIComponent(code)}`);
+      if (response.error) return { error: response.error };
+      const data = readDeviceRequest(response.data);
+      return data ? { data } : { error: { status: 'CUSTOM_ERROR', error: 'Invalid or unsupported device request' } };
+    } }),
+    approveAccountDevice: b.mutation<{ ok: boolean; owner: string; delegate: string; expires: number }, { code: string; expected: DeviceApprovalReview }>({
       query: (body) => ({ url: 'api/auth/sso/device-approve', method: 'POST', body }),
       invalidatesTags: ['Me'],
     }),

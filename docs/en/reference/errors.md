@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 85 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 84 codes a client can match on.
 
 ## The error envelope
 
@@ -38,11 +38,10 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-85 codes are raised by name, in 144 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+84 codes are raised by name, in 142 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
-| `already_approved` | `409` | that request has already been answered | `src/api.ts` |
 | `already_known` | `409` | … already answers every one of these questions the same way | `src/teach.ts` |
 | `already_used` | `409` | that request was already collected | `src/api.ts` |
 | `approval_expired` | `410` | sign in and run `ainize login` again | `src/api.ts` |
@@ -98,7 +97,6 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `dataset_unavailable` | `404` | training set not available on this node (no peer holds it) | `src/api.ts` |
 | `enroll_local_only` | `403` | an address is added to this node's operators from the machine it runs on (`ainize operators --add <address>`), or with the one-time token in its AINIZE_HOME/setup-token as the x-setup-token header | `src/api.ts` |
 | `expired` | `410` | nobody approved it in time — run `ainize login` again | `src/api.ts` |
-| `expired` | `410` | the request timed out — run `ainize login` again | `src/api.ts` |
 | `invalid` | `400` | \<bad> | `src/teach.ts` |
 | `invalid` | `400` | \<badName> | `src/teach.ts` |
 | `invalid` | `400` | 1..\<c.factsPerJob> corrections per lesson | `src/teach.ts` |
@@ -189,9 +187,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 220 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 219 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 116 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 120 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -341,7 +339,6 @@ A further 116 throw sites build their message at the time (a validator's own wor
 | `401` | Sign in with your wallet to query live sources | `src/api.ts` |
 | `401` | sign in with your wallet to see what acts as you | `src/api.ts` |
 | `401` | that signature does not come from the address it claims | `src/api.ts` |
-| `401` | that signature does not come from the address that is signed in | `src/api.ts` |
 | `401` | the sign-in challenge has expired — ask for a new one | `src/api.ts` |
 | `402` | payment required: buy the patch via /x402/patch/:id (its author, a buyer holding a download token, and a verifier while it is being verified can fetch it) | `src/api.ts` |
 | `403` | … does not own this node — this is for whoever runs it | `src/api.ts` |

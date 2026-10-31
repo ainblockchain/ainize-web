@@ -8123,7 +8123,7 @@ What is being authorised, for the page that shows it — including the exact mes
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | status, delegate, label, message, expires | `object` |
+| `200` | kind, capabilities.reviewed_approval, status, delegate, label, message, expires, expires_at, node, name, owner | `object` |
 | `404` | not a code this node issued |   |
 
 ### `POST /api/auth/device/{code}/approve`

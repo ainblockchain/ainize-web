@@ -4,13 +4,14 @@ import { approveSsoDevice } from '../src/lib/ssoDeviceApproval';
 import { signSiteCall } from '../src/lib/nodeCall';
 const origin = 'https://ainize.ai';
 const env = { AINIZE_NODE_URL: 'http://node.test', AINIZE_SITE_ASSERTION_SECRET: 's'.repeat(40) };
-const request = (body: unknown = { code: 'request-code' }, from = origin, cookie = 'ainize_session=browser-session') => new Request(origin + '/api/auth/sso/device-approve', {
+const expected = { owner: 'sso:account', kind: 'cli', delegate: '0x' + 'a'.repeat(40), label: null, message: 'reviewed message', expires: 2000, expires_at: 1000 };
+const request = (body: unknown = { code: 'request-code', expected }, from = origin, cookie = 'ainize_session=browser-session') => new Request(origin + '/api/auth/sso/device-approve', {
   method: 'POST', headers: { origin: from, cookie, 'content-type': 'application/json', authorization: 'attacker', 'x-ainize-site-call': 'forged' }, body: JSON.stringify(body),
 });
 test('account approval forwards only the HttpOnly session and code in a fresh signed server call', async () => {
   const fetchImpl: typeof fetch = async (url, init) => {
     assert.equal(String(url), 'http://node.test/api/auth/sso/device-approve');
-    assert.deepEqual(JSON.parse(String(init?.body)), { code: 'request-code', sessionToken: 'browser-session' });
+    assert.deepEqual(JSON.parse(String(init?.body)), { code: 'request-code', sessionToken: 'browser-session', expected });
     const headers = new Headers(init?.headers), signed = headers.get('x-ainize-site-call')!;
     const [time, nonce] = signed.split('.');
     assert.equal(signed, signSiteCall(env.AINIZE_SITE_ASSERTION_SECRET, 'POST', '/api/auth/sso/device-approve', Number(time), String(init?.body), nonce));
@@ -22,7 +23,7 @@ test('account approval forwards only the HttpOnly session and code in a fresh si
 test('cross-origin, selected identities and missing or ambiguous cookies fail before forwarding', async () => {
   const never: typeof fetch = async () => assert.fail('must not call node');
   for (const from of ['https://other.test', 'null', '']) assert.equal((await approveSsoDevice(request(undefined, from), origin, env, never)).status, 403);
-  for (const body of [{ code: 'x', sessionToken: 'chosen' }, { code: 'x', principal: 'chosen' }, {}, [], { code: '' }, { code: 'x'.repeat(101) }]) {
+  for (const body of [{ code: 'x', sessionToken: 'chosen' }, { code: 'x', principal: 'chosen' }, {}, [], { code: '' }, { code: 'x'.repeat(101), expected }, { code: 'x', expected: { ...expected, delegate: 'wrong' } }, { code: 'x', expected: { ...expected, extra: true } }]) {
     assert.equal((await approveSsoDevice(request(body), origin, env, never)).status, 400);
   }
   for (const cookie of ['', 'ainize_session=', 'ainize_session=one; ainize_session=two']) assert.equal((await approveSsoDevice(request(undefined, origin, cookie), origin, env, never)).status, 401);

@@ -945,7 +945,7 @@ test('a failed sign-in stays on a recovery screen rather than immediately restar
 });
 
 function assertAccountDevice(kind: 'cli' | 'node') {
-  const request = { name: 'deviceRequest', arg: 'terminal-code', value: { kind, status: 'pending', delegate: '0x' + '1'.repeat(40), label: 'My laptop', name: 'Ainize', node: '0x' + '2'.repeat(40), expires: Date.now() + 60000, message: 'wallet message' } };
+  const request = { name: 'deviceRequest', arg: 'terminal-code', value: { capabilities: { reviewed_approval: true }, owner: null, expires_at: Date.now() + 60000, kind, status: 'pending', delegate: '0x' + '1'.repeat(40), label: 'My laptop', name: 'Ainize', node: '0x' + '2'.repeat(40), expires: Date.now() + 60000, message: 'wallet message' } };
   const html = render(AuthorizePage, [...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { sso: { sub: 'account', principal: 'sso:account', name: 'Test account' } } }, request], '/authorize?code=terminal-code');
   assert.match(html, /data-testid="authorize-account"/);
   assert.match(html, /Test account/);
@@ -4176,4 +4176,39 @@ test('AinCode repository disclosure does not turn its heading into unexpected na
     assert.ok(summary); assert.doesNotMatch(summary!, /<a\b/); assert.match(summary!, /demo/);
     assert.match(html, project ? />View project<\/a>/ : />View repository<\/a>/);
   }
+});
+
+const deviceAccountFixtures: Fixture[] = [...signedOut.filter(f => f.name !== 'me'), { name: 'me', value: { sso: { sub: 'account', principal: 'sso:account', name: 'Test account' } } }];
+const deviceView = (status = 'pending', owner: string | null = null) => ({ capabilities: { reviewed_approval: true }, kind: 'cli', status, owner, expires_at: Date.now() + 60000, expires: Date.now() + 86400000, delegate: '0x' + '1'.repeat(40), node: '0x' + '2'.repeat(40), label: 'Terminal', name: 'My node', message: 'Exact message' });
+test('terminal review rejects duplicate code selectors and malformed request evidence without approval controls', () => {
+  const request: Fixture = { name: 'deviceRequest', arg: 'terminal-code', value: deviceView() };
+  for (const path of ['/authorize?code=terminal-code&code=other', '/authorize?code=../other', '/authorize']) {
+    const html = render(AuthorizePage, [...deviceAccountFixtures, request], path);
+    assert.doesNotMatch(html, /authorize-approve|authorize-account/);
+  }
+  for (const patch of [{ kind: 'other' }, { capabilities: undefined }, { node: undefined }, { expires_at: undefined }, { status: 'approved', owner: null }]) {
+    const html = render(AuthorizePage, [...deviceAccountFixtures, { ...request, value: { ...deviceView(), ...patch } }], '/authorize?code=terminal-code');
+    assert.match(html, /query-retry/); assert.doesNotMatch(html, /authorize-approve|authorize-done/);
+  }
+});
+
+test('terminal completion belongs to the exact account and does not promise CLI collection', () => {
+  for (const status of ['approved', 'claimed']) {
+    const own = render(AuthorizePage, [...deviceAccountFixtures, { name: 'deviceRequest', arg: 'terminal-code', value: deviceView(status, 'sso:account') }], '/authorize?code=terminal-code');
+    assert.match(own, /authorize-done/); assert.match(own, /confirm sign-in completed/);
+    assert.doesNotMatch(own, /within a few seconds|authorize-approve|authorize-dismiss|href="\/my-nodes"/);
+    const other = render(AuthorizePage, [...deviceAccountFixtures, { name: 'deviceRequest', arg: 'terminal-code', value: deviceView(status, 'sso:other') }], '/authorize?code=terminal-code');
+    assert.match(other, /authorize-over/); assert.doesNotMatch(other, /authorize-done|authorize-approve/);
+  }
+});
+
+test('terminal pending review shows the complete node and a truthful leave action; refresh disables approval', () => {
+  const request: Fixture = { name: 'deviceRequest', arg: 'terminal-code', value: deviceView() };
+  const html = render(AuthorizePage, [...deviceAccountFixtures, request], '/authorize?code=terminal-code');
+  assert.match(html, new RegExp('0x' + '2'.repeat(40))); assert.match(html, /Not now/);
+  assert.doesNotMatch(html, />Reject<|The command line gets nothing/);
+  const refreshing = render(AuthorizePage, [...deviceAccountFixtures, { ...request, status: 'pending' }], '/authorize?code=terminal-code');
+  assert.match(refreshing, /<button[^>]*disabled=""[^>]*data-testid="authorize-approve"/);
+  const expired = render(AuthorizePage, [...deviceAccountFixtures, { ...request, value: { ...deviceView('expired'), expires_at: Date.now() - 10 } }], '/authorize?code=terminal-code');
+  assert.match(expired, /authorize-over/); assert.doesNotMatch(expired, /authorize-approve/);
 });

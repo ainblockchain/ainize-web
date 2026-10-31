@@ -381,6 +381,7 @@ export interface AuthMe {
  * a wallet prompt that say different things is the whole attack.
  */
 export interface DeviceRequest {
+  capabilities: { reviewed_approval: true };
   /** What asked: a command line somebody ran, or a node that printed its own link. Older nodes send none. */
   kind?: 'cli' | 'node';
   status: 'pending' | 'approved' | 'claimed' | 'expired';

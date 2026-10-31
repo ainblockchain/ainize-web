@@ -1331,7 +1331,12 @@ export const operatorTeach: Dict = {
   'op.authorize.account.done_end': { ko: '터미널로 돌아가세요. 이 창은 닫아도 됩니다.', en: 'Return to your terminal. You can close this window.' },
   'op.authorize.title': { ko: '권한 요청', en: 'Authorisation request' },
   'op.authorize.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
-  'op.authorize.reject': { ko: '거절', en: 'Reject' },
+  'op.authorize.dismiss': { ko: '이번에는 승인하지 않기', en: 'Not now' },
+  'op.authorize.dismissed': { ko: '이 창에서는 승인하지 않았습니다. 요청은 만료될 때까지 유지됩니다.', en: 'This page did not approve the request. It remains available until it expires.' },
+  'op.authorize.refresh': { ko: '요청 상태 확인', en: 'Check request status' },
+  'op.authorize.error.changed': { ko: '계정이나 요청이 바뀌었습니다. 새로고침 후 다시 확인하세요.', en: 'The account or request changed. Refresh and review it again.' },
+  'op.authorize.error.read': { ko: '요청 상태를 확인하지 못했습니다. 같은 요청을 다시 조회하세요.', en: 'Could not check the request state. Read the same request again.' },
+  'op.authorize.error.unconfirmed': { ko: '승인 결과를 확인하지 못했습니다. 다시 승인하지 않고 요청 상태만 확인합니다.', en: 'Approval is unconfirmed. Check this request without submitting another approval.' },
   'op.authorize.label': { ko: '자칭', en: 'Calls itself' },
   'op.authorize.node': { ko: '노드', en: 'Node' },
   'op.authorize.until': { ko: '만료', en: 'Until' },
@@ -1348,8 +1353,7 @@ export const operatorTeach: Dict = {
   'op.authorize.cli.key': { ko: '키', en: 'Key' },
   'op.authorize.cli.label_hint': { ko: '명령줄이 스스로 붙인 이름입니다. 노드가 보증하지 않습니다.', en: 'The command line\u2019s own words about itself — not something this node vouches for.' },
   'op.authorize.cli.approve': { ko: '승인하고 서명', en: 'Approve and sign' },
-  'op.authorize.cli.done': { ko: '승인했습니다. 명령줄로 돌아가세요 — 몇 초 안에 로그인됩니다.', en: 'Approved. Go back to the command line; it will be signed in within a few seconds.' },
-  'op.authorize.cli.rejected': { ko: '거절했습니다. 명령줄은 아무 권한도 받지 못합니다.', en: 'Rejected. The command line gets nothing.' },
+  'op.authorize.cli.done': { ko: '승인했습니다. 터미널에서 로그인 완료를 확인하세요.', en: 'Approved. Return to your terminal to confirm sign-in completed.' },
   'op.authorize.cli.expired': { ko: '이 요청은 만료되었습니다. 명령줄에서 `ainize login` 을 다시 실행하세요.', en: 'This request has expired — run `ainize login` again on the command line.' },
 
   // A node that started somewhere and printed its own link. The person here did not type anything.
@@ -1358,8 +1362,7 @@ export const operatorTeach: Dict = {
   'op.authorize.node.key': { ko: '노드 주소', en: 'Node address' },
   'op.authorize.node.label_hint': { ko: '노드가 스스로 붙인 이름입니다. 여기서 보증하지 않습니다.', en: 'The node\u2019s own words about itself — not something this hub vouches for.' },
   'op.authorize.node.approve': { ko: '연결하고 서명', en: 'Connect and sign' },
-  'op.authorize.node.done': { ko: '연결했습니다. 이 노드는 이제 내 노드 목록에 있습니다.', en: 'Connected. That node is now in your list of nodes.' },
-  'op.authorize.node.rejected': { ko: '거절했습니다. 노드는 연결되지 않았습니다.', en: 'Rejected. The node is not connected to you.' },
+  'op.authorize.node.done': { ko: '노드 연결 요청을 승인했습니다. 터미널에서 완료 상태를 확인하세요.', en: 'Node connection approved. Return to your terminal to check completion.' },
   'op.authorize.node.expired': { ko: "요청이 만료되었습니다. ainize login을 다시 실행하세요.", en: "This request expired. Run ainize login again." },
 
   // Account: the machines that act as you.
