@@ -74,7 +74,7 @@ import OrgJoinPage from '../src/screens/org/OrgJoinPage';
 import OrgCreatePage from '../src/screens/org/OrgCreatePage';
 import ExplorePage from '../src/screens/ExplorePage';
 import MyProjectsPage from '../src/screens/MyProjectsPage';
-import { ProjectByNamePage, ProjectConsole, ProjectRunInput } from '../src/screens/ProjectPage';
+import { ProjectByNamePage, ProjectConsole, ProjectRunInput, ProjectRunPanel } from '../src/screens/ProjectPage';
 import OrgRepositoriesPage from '../src/screens/OrgRepositoriesPage';
 import ProjectEnvVars from '../src/components/ProjectEnvVars';
 import ProjectDomains from '../src/components/ProjectDomains';
@@ -2885,4 +2885,79 @@ test('a failed project source refresh cannot leave its cached run form enabled',
   const html = render(Page, fixtures, '/studio/mono?tab=runs');
   assert.doesNotMatch(html, /value="source-model"|value="main.py"/);
   assert.match(html, /<button[^>]*disabled[^>]*>▶ /);
+});
+
+
+const multiRunManifest = { kind: 'nextjs', inputs: { topOnly: { default: 'top-only' } }, examples: [{ name: 'Top-level preset', inputs: { topOnly: 'top' } }], detected: 'ainize.json',
+  run: [{ entry: 'scripts/seed.ts', name: 'Seed database', inputs: { collection: { default: 'selected-collection' } }, examples: [{ name: 'Seed preset', inputs: { collection: 'seeded' } }] },
+    { entry: 'scripts/check.ts', inputs: {}, examples: [] }] } as Project['manifest'];
+const multiRunProject = { ...rootProject, repoId: 'selected-repo', kind: 'nextjs', manifest: multiRunManifest } as Project;
+const multiRunSource = { repoId: 'selected-repo', sourcePath: '', target: 'head', sha: 'a'.repeat(40), manifest: multiRunManifest };
+const multiRunFixtures: Fixture[] = [...appAccount,
+  { name: 'project', arg: projectArg, value: multiRunProject },
+  { name: 'projectSource', arg: { ...projectArg, target: 'head' }, value: multiRunSource },
+  { name: 'projectDeployments', arg: projectArg, value: { deployments: [] } },
+  { name: 'projectRuns', arg: projectArg, value: { runs: [] } },
+];
+
+test('an app Run tab shows its declared script and that script’s inputs and examples', () => {
+  const Page = () => createElement(ProjectConsole, { project: multiRunProject });
+  const html = render(Page, multiRunFixtures, '/studio/mono?tab=runs');
+  assert.match(html, /Seed database · scripts\/seed.ts/); assert.match(html, /selected-collection|Seed preset/);
+  assert.doesNotMatch(html, /top-only|Top-level preset|not a script project/);
+  assert.doesNotMatch(html, /<button(?=[^>]*data-testid="project-run-submit")(?=[^>]*disabled)[^>]*>/);
+});
+
+test('explicit run selection uses empty overrides or shows a missing target, never a different script', () => {
+  for (const entry of ['scripts/check.ts', 'removed.ts']) {
+    const Page = () => createElement(ProjectRunPanel, { project: multiRunProject, draft: { target: 'head', sha: '', entry, answers: {}, env: '', timeoutMs: '' }, setDraft() {}, onStarted() {} });
+    const html = render(Page, multiRunFixtures, '/studio/mono?tab=runs');
+    assert.doesNotMatch(html, /selected-collection|Seed preset|top-only|Top-level preset/);
+    if (entry === 'removed.ts') {
+      assert.match(html, /selected run target is not declared/);
+      assert.match(html, /<option value="removed.ts" disabled="" selected="">/);
+      assert.match(html, /<button(?=[^>]*data-testid="project-run-submit")(?=[^>]*disabled)[^>]*>/);
+    } else assert.match(html, /<option value="scripts\/check.ts" selected="">/);
+  }
+});
+
+test('wrong or malformed source evidence cannot enable a Run with unrelated input defaults', () => {
+  const Page = () => createElement(ProjectConsole, { project: multiRunProject });
+  for (const value of [{ ...multiRunSource, repoId: 'wrong' }, { ...multiRunSource, sourcePath: 'other-folder' }, { ...multiRunSource, manifest: {} }]) {
+    const html = render(Page, multiRunFixtures.map(f => f.name === 'projectSource' ? { ...f, value } : f), '/studio/mono?tab=runs');
+    assert.match(html, /Could not confirm the run settings/); assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /selected-collection|Seed preset/);
+    assert.match(html, /<button(?=[^>]*data-testid="project-run-submit")(?=[^>]*disabled)[^>]*>/);
+  }
+});
+
+test('a confirmed commit with no declared scripts remains selectable but cannot launch an arbitrary file', () => {
+  const Page = () => createElement(ProjectConsole, { project: multiRunProject });
+  const html = render(Page, multiRunFixtures.map(f => f.name === 'projectSource' ? { ...f, value: { ...multiRunSource, manifest: { ...multiRunManifest, run: [] } } } : f), '/studio/mono?tab=runs');
+  assert.match(html, /does not declare any run targets/);
+  assert.match(html, /id="run-target"/);
+  assert.match(html, /<button(?=[^>]*data-testid="project-run-submit")(?=[^>]*disabled)[^>]*>/);
+});
+
+test('malformed run history cannot claim there are no runs or render a foreign record', () => {
+  const Page = () => createElement(ProjectConsole, { project: multiRunProject });
+  for (const value of [{}, { runs: [null] }, { runs: [{ id: 'foreign-run', projectId: 'other-project' }] }]) {
+    const html = render(Page, multiRunFixtures.map(f => f.name === 'projectRuns' ? { ...f, value } : f), '/studio/mono?tab=runs');
+    assert.match(html, /Could not load.*history|Try again/);
+    assert.doesNotMatch(html, /No runs yet|foreign-run/);
+  }
+});
+
+
+test('run history opens its own output and log and never links to an internal worker endpoint', () => {
+  const Page = () => createElement(ProjectConsole, { project: multiRunProject });
+  const record = { id: 'selected-run', projectId: rootProject.id, trigger: 'run', kind: 'nextjs', status: 'ready', sha: 'a'.repeat(40), ref: 'main', entry: 'scripts/check.ts',
+    pusher: null, createdAt: 1, startedAt: 2, finishedAt: 3, ms: 1, inputKeys: [], envKeys: [],
+    outputUrl: 'https://output.example/selected-run', logUrl: 'https://wrong.example/unrelated-log',
+    placement: { address: keyNode, local: false, endpoint: 'http://10.0.0.1:3400', reason: 'scheduler internals' } };
+  const html = render(Page, multiRunFixtures.map(f => f.name === 'projectRuns' ? { ...f, value: { runs: [record] } } : f), '/studio/mono?tab=runs&open=selected-run');
+  assert.match(html, /href="https:\/\/output.example\/selected-run"/);
+  assert.match(html, /href="\/api\/deployments\/selected-run\/log"/);
+  assert.match(html, /scripts\/check.ts/); assert.match(html, /Prepare another run of this commit/);
+  assert.doesNotMatch(html, /10\.0\.0\.1|wrong\.example|scheduler internals|Run again with these inputs/);
 });

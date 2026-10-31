@@ -23,7 +23,7 @@ import { isReservedFirstSegment, projectPath } from '@/lib/reservedRoutes';
 import { Alert } from '@/components/ui/Form';
 import { Button } from '@/components/ui/Button';
 import { withQuery } from '@/lib/uiNavigation';
-import { activeProjectUrl, isScriptProject } from '@/lib/projectActions';
+import { activeProjectUrl, hasProjectRunTargets } from '@/lib/projectActions';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 
@@ -98,7 +98,7 @@ export default function OrgRepositoriesPage() {
             const sha = last?.sha || r.repo?.headSha || null;
             const subject = last?.subject ?? r.repo?.headSubject ?? null;
             const to = p ? projectPath(p) : null;
-            const isScript = !!p && isScriptProject(p);
+            const canRun = !!p && hasProjectRunTargets(p);
             const visitUrl = p ? activeProjectUrl(p) : null;
             return (
               <Item key={r.name}>
@@ -109,7 +109,7 @@ export default function OrgRepositoriesPage() {
                   {!p && r.repo && !r.repo.hasManifest && <Chip title={t('projects.org.no_manifest_hint')}>{t('projects.org.no_manifest')}</Chip>}
                 </Name>
                 <Quick>
-                  {to && isScript && <Action to={withQuery(to, { tab: 'runs' })}>▶ {t('projects.runs.run')}</Action>}
+                  {to && canRun && <Action to={withQuery(to, { tab: 'runs' })}>▶ {t('projects.runs.run')}</Action>}
                   {to && visitUrl && <ExternalLink href={visitUrl} target="_blank" rel="noreferrer">{t('projects.page.visit')} ↗</ExternalLink>}
                   {to && <Action to={to}>{t('projects.org.open')}</Action>}
                   {!to && r.repo && <ExternalLink href={r.repo.cloneUrl} target="_blank" rel="noreferrer">aindrive ↗</ExternalLink>}

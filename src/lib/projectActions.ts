@@ -1,7 +1,12 @@
+import { projectRunTargets, readRunManifest } from './projectRun';
 import type { Deployment, Project } from '@/api/projects';
 
 export const isScriptProject = (project: Pick<Project, 'kind' | 'manifest'>): boolean =>
   (project.kind ?? project.manifest?.kind) === 'script';
+
+/** A web app or service can also declare runnable maintenance scripts. The source read still validates the selected commit. */
+export const hasProjectRunTargets = (project: Pick<Project, 'kind' | 'manifest'>): boolean =>
+  isScriptProject(project) || projectRunTargets(readRunManifest(project.manifest)).length > 0;
 
 /** Visit opens the active deployment, never an arbitrary historical successful build. */
 export function activeProjectUrl(project: Project, deployments: Deployment[] = []): string | null {

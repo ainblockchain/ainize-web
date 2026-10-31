@@ -14,6 +14,7 @@ export type ProjectStatus = 'idle' | DeploymentStatus;
 export interface ManifestInput { description?: string; type?: 'string' | 'choice' | 'boolean' | 'number'; required?: boolean; options?: string[]; default?: string | number | boolean }
 /** A named preset of inputs (`examples` in ainize.json) — one click in the Run panel. */
 export interface ManifestExample { name: string; description?: string; inputs: Record<string, string | number | boolean> }
+export interface ManifestRun { entry: string; name?: string; description?: string; runtime?: string; inputs?: Record<string, ManifestInput>; examples?: ManifestExample[] }
 /** What the newest deployment read out of the repo's `ainize.json` (the node snapshots it; no clone on the page). */
 export interface ProjectManifest {
   kind: ProjectKind;
@@ -28,6 +29,7 @@ export interface ProjectManifest {
   secrets?: string[];
   inputs: Record<string, ManifestInput>;
   examples: ManifestExample[];
+  run?: ManifestRun[];
   detected: 'ainize.json' | 'package.json';
 }
 

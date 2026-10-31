@@ -30,7 +30,7 @@ import {
 } from '@/api/api';
 import { readModelsResponse } from '@/api/models';
 import {
-  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, invalidInputs, projectInputValue, projectRunEnvIssues, projectRunTimeout, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
+  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, invalidInputs, projectInputValue, projectRunEnvIssues, projectRunTimeout, isModelInput, missingInputs, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
   type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
 import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
@@ -41,7 +41,8 @@ import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRoutes';
-import { activeProjectUrl, isScriptProject } from '@/lib/projectActions';
+import { activeProjectUrl, hasProjectRunTargets } from '@/lib/projectActions';
+import { createProjectRunSubmission, prepareProjectRun, projectRunSelection, readProjectRunSource, readProjectRunHistory, type ProjectRunDraft } from '@/lib/projectRun';
 import { signInHref } from '@/lib/uiNavigation';
 import { isKnowledgeAuthor } from '@/lib/detailRoutes';
 import { repoProjectLabel, repoProjects, selectRepoProject } from '@/lib/repoProjects';
@@ -205,17 +206,16 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
       </Head>
       {open && (
         <>
-          {d.placement && <Meta>Node: <ExternalLink href={d.placement.endpoint} target="_blank" rel="noreferrer">{d.placement.local ? 'Local' : new URL(d.placement.endpoint).hostname} ↗</ExternalLink> · {d.placement.reason}</Meta>}
+          {d.placement && <Meta>{t('projects.page.execution_node')}: {d.placement.local ? t('projects.page.this_node') : <Mono>{shortSha(d.placement.address)}</Mono>}</Meta>}
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
-          {d.trigger === 'run' && runInputNames(d).length > 0 && (
-            <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
-          )}
+          {d.trigger === 'run' && d.entry && <Meta>{t('projects.runs.entry')}: <Mono>{d.entry}</Mono></Meta>}
+          {d.trigger === 'run' && runInputNames(d).length > 0 && <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}</Meta>}
           <Actions>
-            {d.status === 'ready' && d.outputUrl && <ExternalLink href={d.outputUrl} target="_blank" rel="noreferrer">{d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
-            <ExternalLink href={d.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
+            {d.status === 'ready' && d.outputUrl && <ExternalLink href={d.outputUrl} target="_blank" rel="noreferrer">{d.trigger === 'run' || d.kind === 'script' ? t('projects.page.output') : t('projects.page.visit')} ↗</ExternalLink>}
+            <ExternalLink href={`/api/deployments/${encodeURIComponent(d.id)}/log`} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
             <Spacer />
-            {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
+            {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" disabled={!/^[a-f0-9]{40,64}$/.test(d.sha)} onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
             {project.canOperate && d.trigger !== 'run' && d.sha && (
               <Button size="small" loading={redeploying} onClick={again} title={isService ? t('projects.page.rollback_hint') : undefined}>
                 {isService && project.lastDeploymentId !== d.id ? t('projects.page.rollback') : t('projects.page.redeploy')}
@@ -232,7 +232,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
 
 // ------------------------------------------------------------------------------------------------ the Run panel
 
-interface RunDraft { target: 'head' | 'commit' | 'deployed'; sha: string; entry: string; answers: Record<string, string>; env: string; timeoutMs: string }
+type RunDraft = ProjectRunDraft;
 const emptyDraft = (p: Project): RunDraft => ({ target: 'head', sha: '', entry: '', answers: {}, env: '', timeoutMs: '' });
 
 export function ProjectRunInput({ name, spec, value, onChange, models }: { name: string; spec: ManifestInput; value?: string; onChange: (v: string) => void; models: string[] }) {
@@ -259,13 +259,17 @@ export function ProjectRunInput({ name, spec, value, onChange, models }: { name:
   );
 }
 
-function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; draft: RunDraft; setDraft: (d: RunDraft) => void; onStarted: (runId: string) => void }) {
+export function ProjectRunPanel({ project, draft, setDraft, onStarted }: { project: Project; draft: RunDraft; setDraft: (d: RunDraft) => void; onStarted: (runId: string) => void }) {
   const { t } = useT();
-  const { isSignedIn, cacheIdentity } = useAuth();
+  const auth = useAuth();
+  const { isSignedIn, cacheIdentity } = auth;
   const location = useLocation();
   const active = useActiveView();
   const [run, { isLoading }] = useRunProjectMutation();
   const [err, setErr] = useState<string | null>(null);
+  const [submission] = useState(createProjectRunSubmission);
+  const [uncertain, setUncertain] = useState(false);
+  const [accepted, setAccepted] = useState<string | null>(null);
   const modelsQuery = useModelsQuery(undefined, { refetchOnMountOrArgChange: true });
   const modelRead = useMemo(() => modelsQuery.isError ? null : readModelsResponse(modelsQuery.currentData), [modelsQuery.currentData, modelsQuery.isError]);
   const models = modelRead?.models.map(m => m.id) ?? [];
@@ -273,32 +277,39 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
     skip: !isSignedIn || !project.canOperate || (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)),
     refetchOnMountOrArgChange: true,
   });
-  const source = sourceQuery.isError ? undefined : sourceQuery.currentData;
+  const source = sourceQuery.isError ? null : readProjectRunSource(sourceQuery.currentData, project, draft.target, draft.sha);
+  const sourceInvalid = !source && !sourceQuery.isFetching && !sourceQuery.isUninitialized;
   const manifest = source?.manifest;
-  const entry = draft.entry || manifest?.entry || '';
-  const inputs = manifest?.inputs ?? {};
-  const runnable = manifest?.entry ? [manifest.entry] : [];
+  const { targets: runnable, selected } = projectRunSelection(source, draft.entry);
+  const entry = draft.entry || selected?.entry || '';
+  const inputs = selected?.inputs ?? {};
+  const examples = selected?.examples ?? [];
+  const selectionIdentity = JSON.stringify([project.id, project.repoId, project.sourcePath, auth.address, cacheIdentity, source?.sha, draft]);
+  const latestSelection = useRef(selectionIdentity); latestSelection.current = selectionIdentity;
+  const current = () => active() && auth.isCurrentAccount() && latestSelection.current === selectionIdentity;
   const missing = missingInputs(inputs, draft.answers);
   const invalid = invalidInputs(inputs, draft.answers);
   const invalidEnv = projectRunEnvIssues(draft.env), timeoutMs = projectRunTimeout(draft.timeoutMs);
   const setAnswer = (name: string, v: string) => setDraft({ ...draft, answers: { ...draft.answers, [name]: v } });
   const preset = (ex: { inputs: Record<string, string | number | boolean> }) => {
+    if (Object.keys(ex.inputs).some(name => !Object.hasOwn(inputs, name))) { setErr(t('projects.runs.preset_invalid')); return; }
+    setErr(null);
     const answers = Object.fromEntries(Object.entries(ex.inputs).map(([k, v]) => [k, String(v)]));
     setDraft({ ...draft, answers });
   };
+  let body: RunInput | null = null, sizeError = false;
+  try { if (source) body = prepareProjectRun(source, draft); } catch (error) { sizeError = error instanceof Error && error.message === 'run_size'; }
   const start = async () => {
-    setErr(null);
-    if (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)) { setErr(t('projects.runs.sha_required')); return; }
-    if (!source || sourceQuery.isFetching || manifest?.kind !== 'script' || missing.length || invalid.length || invalidEnv.length || timeoutMs === null) return;
-    const body: RunInput = {
-      target: 'commit', sha: source.sha,
-      ...(entry && entry !== manifest?.entry ? { entry } : {}),
-      inputs: inputAnswers(inputs, draft.answers),
-      env: parseEnvLines(draft.env),
-      ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-    };
-    try { const r = await run({ id: project.id, body }).unwrap(); if (active()) onStarted(r.runId ?? r.deploymentId); }
-    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+    if (!current() || submission.blocked() || !body || sourceQuery.isFetching || !project.canOperate) return;
+    setErr(null); setAccepted(null);
+    try {
+      const id = await submission.submit(() => run({ id: project.id, body: body! }).unwrap());
+      if (id && active() && auth.isCurrentAccount()) { setAccepted(id); onStarted(id); }
+    } catch (e) {
+      if (!active() || !auth.isCurrentAccount()) return;
+      if (submission.blocked()) { setUncertain(true); setErr(t('projects.runs.unconfirmed')); }
+      else { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+    }
   };
   if (!isSignedIn) {
     return <Panel><Help>{t('projects.runs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
@@ -306,10 +317,11 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   if (!project.canOperate) return <Panel><Help>{t('projects.runs.not_member', { org: project.org })}</Help></Panel>;
   return (
     <Panel aria-label={t('projects.runs.panel')}>
-      {manifest?.examples?.length ? (
+      <fieldset disabled={isLoading} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      {examples.length ? (
         <div>
           <FieldLabel as="div">{t('projects.runs.examples')}</FieldLabel>
-          <Presets>{manifest.examples.map((ex) => <Button key={ex.name} size="small" title={ex.description} onClick={() => preset(ex)}>{ex.name}</Button>)}</Presets>
+          <Presets>{examples.map((ex, index) => <Button key={`${ex.name}:${index}`} size="small" title={ex.description} onClick={() => preset(ex)}>{ex.name}</Button>)}</Presets>
         </div>
       ) : null}
       <Grid>
@@ -322,9 +334,12 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
         </Field>
         {draft.target === 'commit' && <Field><FieldLabel htmlFor="run-sha">{t('projects.runs.sha')}</FieldLabel><Input id="run-sha" value={draft.sha} onChange={(e) => setDraft({ ...draft, sha: e.target.value.trim(), entry: '', answers: {} })} placeholder={project.sourceCommit ?? ''} /></Field>}
         <Field><FieldLabel htmlFor="run-entry">{t('projects.runs.entry')}</FieldLabel>
-          {runnable.length > 1
-            ? <Select id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })}>{runnable.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
-            : <Input id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })} placeholder="main.py" />}
+          <Select id="run-entry" value={entry} onChange={e => setDraft({ ...draft, entry: e.target.value, answers: {} })} disabled={!source || !runnable.length}>
+            {!entry && <option value="">{t('projects.runs.choose')}</option>}
+            {draft.entry && !selected && <option value={draft.entry} disabled>{draft.entry} · {t('projects.runs.invalid_choice')}</option>}
+            {runnable.map(row => <option key={row.entry} value={row.entry}>{row.name ? `${row.name} · ${row.entry}` : row.entry}</option>)}
+          </Select>
+          {selected?.description && <Help>{selected.description}</Help>}
         </Field>
         {Object.entries(inputs).map(([name, spec]) => <ProjectRunInput key={name} name={name} spec={spec} value={Object.hasOwn(draft.answers, name) ? draft.answers[name] : undefined} onChange={(v) => setAnswer(name, v)} models={models} />)}
         <Field><FieldLabel htmlFor="run-timeout">{t('projects.runs.timeout')}</FieldLabel>
@@ -340,14 +355,20 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
       {timeoutMs === null && <Alert role="alert">{t('projects.runs.invalid_timeout')}</Alert>}
       {invalid.length > 0 && <Alert role="alert">{t('projects.runs.invalid_inputs', { names: invalid.join(', ') })}</Alert>}
       {missing.length > 0 && <Help>{t('projects.runs.missing', { names: missing.join(', ') })}</Help>}
+      {sizeError && <Alert role="alert">{t('projects.runs.input_limits')}</Alert>}
+      {sourceQuery.isFetching && !source && <CenterProgress />}
+      {draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha) && <Help>{t('projects.runs.sha_required')}</Help>}
       {source && <Meta><Mono>{shortSha(source.sha)}</Mono></Meta>}
-      {source && manifest?.kind !== 'script' && <Help>{t('projects.runs.script_commit_required')}</Help>}
-      {sourceQuery.error && <Alert $tone="error">{projectApiErrorOf(sourceQuery.error).message ?? t('projects.api.unknown')} <Button size="small" disabled={sourceQuery.isFetching} onClick={() => void sourceQuery.refetch()}>{t('projects.page.retry')}</Button></Alert>}
-      {err && <Alert $tone="error">{err}</Alert>}
+      {source && !runnable.length && <Help>{t('projects.runs.no_targets')}</Help>}
+      {source && draft.entry && !selected && <Alert role="alert">{t('projects.runs.entry_missing')}</Alert>}
+      {sourceInvalid && <Alert role="alert" $tone="error">{t('projects.runs.source_unconfirmed')} <Button size="small" disabled={sourceQuery.isFetching} onClick={() => void sourceQuery.refetch()}>{t('projects.page.retry')}</Button></Alert>}
+      {err && <Alert role="alert" $tone="error">{err}</Alert>}
+      {accepted && <Help role="status">{t('projects.runs.accepted', { id: accepted })}</Help>}
       <Actions>
-        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || invalid.length > 0 || invalidEnv.length > 0 || timeoutMs === null || !entry || !source || manifest?.kind !== 'script' || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
+        <Button data-testid="project-run-submit" variant="contained" loading={isLoading} disabled={!body || uncertain || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
         <Help>{t('projects.runs.key_hint')}</Help>
       </Actions>
+      </fieldset>
     </Panel>
   );
 }
@@ -382,14 +403,17 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   const p = projectQ.currentData ?? initial;
   const deployments = useProjectDeploymentsQuery({ id: p.id, identity: cacheIdentity }, { pollingInterval: live ? 2000 : 15_000 });
   const kind = p.kind ?? p.manifest?.kind ?? null;
-  const isScript = isScriptProject(p);
-  const runs = useProjectRunsQuery({ id: p.id, identity: cacheIdentity }, { skip: !isScript, pollingInterval: tab === 'runs' ? 2000 : 0 });
+  const canRun = hasProjectRunTargets(p);
+  const readRuns = canRun || tab === 'runs' || tab === 'logs';
+  const runs = useProjectRunsQuery({ id: p.id, identity: cacheIdentity }, { skip: !readRuns, pollingInterval: tab === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
   const newest = deployments.currentData?.deployments[0]?.status;
   useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
 
   const rows = deployments.error ? [] : deployments.currentData?.deployments ?? [];
-  const runRows = runs.error ? [] : runs.currentData?.runs ?? [];
+  const runRead = runs.isError ? null : readProjectRunHistory(runs.currentData, p.id);
+  const runRows = runRead ?? [];
+  const runsFailed = readRuns && !runs.isFetching && runRead === null;
   const visitUrl = activeProjectUrl(p, rows);
   const latest = rows[0];
 
@@ -406,7 +430,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   const [draft, setDraft] = useState<RunDraft>(() => emptyDraft(p));
   // The values a run was started with are not read back (they may be secrets): Run again keeps the commit and entry,
   // and leaves the answers to be given again.
-  const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? draft.entry }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const runAgain = (d: Deployment) => { setDraft({ ...emptyDraft(p), target: 'commit', sha: d.sha, entry: d.entry ?? '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
   const [syncFromGithub, { isLoading: syncing }] = useSyncFromGithubMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
@@ -459,7 +483,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
 
   const tabs = [
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
-    ...(isScript ? [{ id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` }] : []),
+    { id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` },
     { id: 'logs', label: t('projects.tabs.logs') },
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
@@ -487,7 +511,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
         <Spacer />
         <Actions>
           <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
-          {isScript && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
+          {canRun && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
           {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
           {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
@@ -520,12 +544,11 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
         </TabBody>
       )}
 
-      {tab === 'runs' && !isScript && <Alert $tone="info">{t(kind ? 'projects.api.not_a_script' : 'projects.page.kind_pending')} <Button onClick={() => setTab('deployments')}>{t('projects.tabs.deployments')}</Button></Alert>}
-      {tab === 'runs' && isScript && (
+      {tab === 'runs' && (
         <TabBody>
-          <RunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
+          <ProjectRunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
           <SubTitle>{t('projects.runs.history')}</SubTitle>
-          {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : (!runs.currentData && runs.isFetching) ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
+          {runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : (!runs.currentData && runs.isFetching) ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
             : <Rows>{runRows.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRunAgain={runAgain} />)}</Rows>}
         </TabBody>
       )}
@@ -538,7 +561,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
               <Button size="small" variant={logView === 'build' ? 'contained' : undefined} aria-pressed={logView === 'build'} onClick={() => setLogView('build')}>{t('projects.logs.build')}</Button>
             </FilterRow>
           )}
-          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deployments.isError || runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (isScript) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (!deployments.currentData && deployments.isFetching) || (!runs.currentData && runs.isFetching) ? <CenterProgress /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
+          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deployments.isError || runsFailed ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (readRuns) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : (!deployments.currentData && deployments.isFetching) || (!runs.currentData && runs.isFetching) ? <CenterProgress /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
             <>
               <FilterRow>
                 <StatusDot status={latestAny.status} />
