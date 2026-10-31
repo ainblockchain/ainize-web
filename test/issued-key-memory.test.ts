@@ -89,14 +89,14 @@ test('blocked session storage keeps a current-account copy only until sign-out',
 
 test('revocation forgets a held secret by its hash identifier, never its raw prefix', async () => {
   const { apiKeyHash, apiKeyPrefix } = await import('../src/api/apiKeyEvidence');
-  const { forgetIssuedKeyByPrefix } = await import('../src/screens/models/issuedKeyMemory');
+  const { forgetIssuedKeyById } = await import('../src/screens/models/issuedKeyMemory');
   const secret = 'ainize-sk-' + 'a'.repeat(32);
   activateIssuedKeyOwner('account-a');
   rememberIssuedKey('account-a', secret);
-  assert.equal(forgetIssuedKeyByPrefix('account-a', secret.slice(0, 8)), false);
-  assert.equal(forgetIssuedKeyByPrefix('account-b', apiKeyPrefix(secret)), false);
+  assert.equal(forgetIssuedKeyById('account-a', secret.slice(0, 8)), false);
+  assert.equal(forgetIssuedKeyById('account-b', apiKeyPrefix(secret)), false);
   assert.equal(recallIssuedKey('account-a'), secret);
-  assert.equal(forgetIssuedKeyByPrefix('account-a', apiKeyPrefix(secret)), true);
+  assert.equal(forgetIssuedKeyById('account-a', apiKeyPrefix(secret)), true);
   assert.equal(recallIssuedKey('account-a'), null);
   assert.equal(storage.has(slot), false);
 });
@@ -149,4 +149,17 @@ test('an unconfirmed legacy secret is cleared on logout or account change', asyn
     assert.equal(storage.has(slot), false);
     assert.equal(adoptLegacyIssuedKey(scope, { keys: [] }), false);
   }
+});
+
+test('full-hash revocation clears exactly the held secret and preserves another key', async () => {
+  const { apiKeyHash } = await import('../src/api/apiKeyEvidence');
+  const { forgetIssuedKeyById, recallIssuedKeyRecord } = await import('../src/screens/models/issuedKeyMemory');
+  const secret = 'ainize-sk-' + 'a'.repeat(32);
+  activateIssuedKeyOwner('account-a');
+  rememberIssuedKey('account-a', secret, 100);
+  assert.equal(recallIssuedKeyRecord('account-a')?.receivedAt, 100);
+  assert.equal(forgetIssuedKeyById('account-a', apiKeyHash('different-key')), false);
+  assert.equal(recallIssuedKey('account-a'), secret);
+  assert.equal(forgetIssuedKeyById('account-a', apiKeyHash(secret)), true);
+  assert.equal(recallIssuedKeyRecord('account-a'), null);
 });

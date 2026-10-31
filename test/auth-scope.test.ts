@@ -182,6 +182,7 @@ test('account entry shows personal keys to visitors while node settings remain o
   assert.ok(app.includes('<Route path="/account" element={<SignedInLayout><AccountEntry /></SignedInLayout>} />'));
   assert.ok(app.includes('return isOwner ? <AccountPage /> : <MyPage />;'));
   const mine = code('screens/MyPage.tsx').join('\n');
-  assert.ok(mine.includes('useApiKeysQuery(cacheIdentity,'));
+  assert.ok(mine.includes('issuedKeyScope(cacheIdentity, address)'), 'keys are scoped to both the visitor and the node');
+  assert.ok(mine.includes('useApiKeysQuery(keyContext,'));
   assert.ok(mine.includes('useCreateApiKeyMutation()'));
 });

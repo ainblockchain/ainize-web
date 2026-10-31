@@ -67,6 +67,7 @@ export const models: Dict = {
   'models.try.error.stream_invalid': { ko: '응답 형식을 확인하지 못했습니다.', en: 'The response format could not be verified.' },
   'models.try.error.stream_model': { ko: '응답의 모델이 선택한 모델과 다릅니다.', en: 'The response names a different model from the one selected.' },
   'models.try.error.request_failed': { ko: '서버가 요청을 완료하지 못했습니다.', en: 'The server did not complete the request.' },
+  'models.try.error.key_unavailable': { ko: '키가 현재 사용 가능한지 확인하지 못해 실행하지 않았습니다. 키 목록을 다시 확인해 주세요.', en: 'The call was not sent because this key could not be confirmed as usable. Reload your key list.' },
   'models.try.error.model_unavailable': { ko: '선택한 모델이 지금 응답하지 않습니다.', en: 'The selected model is not responding right now.' },
   'models.try.error.cancelled': { ko: '응답 대기를 중단했습니다. 서버 처리가 이미 시작됐을 수 있습니다.', en: 'Stopped waiting for the response. Server processing may already have started.' },
   'models.try.error.response': { ko: '유효한 실행 결과를 확인하지 못했습니다.', en: 'Could not verify a valid result.' },
@@ -105,8 +106,8 @@ export const models: Dict = {
   'models.key.creating': { ko: '발급 중…', en: 'Creating…' },
   'models.key.manage': { ko: '내 키 관리 →', en: 'Manage your keys →' },
   'models.key.held': {
-    ko: '이 키는 이 탭의 현재 계정에만 보관되며, 로그아웃하거나 계정을 바꾸면 지워집니다. 노드는 해시만 저장하므로 다시 보여줄 수 없습니다 — 지금 안전한 곳에 복사해 두세요.',
-    en: 'This key is held for the current account in this tab and cleared on sign-out or account switch. The node stores a hash, so it cannot be shown again — copy it somewhere safe now.',
+    ko: '이 키는 이 탭의 현재 계정과 노드에만 보관되며, 로그아웃하거나 계정·노드를 바꾸면 지워집니다. 노드는 해시만 저장하므로 다시 보여줄 수 없습니다 — 지금 안전한 곳에 복사해 두세요.',
+    en: 'This key is held for the current account and node in this tab and cleared on sign-out or an account/node switch. The node stores a hash, so it cannot be shown again — copy it somewhere safe now.',
   },
   'models.key.forget': { ko: '이 탭에서 지우기', en: 'Forget it in this tab' },
   'models.key.failed': { ko: '키를 발급하지 못했습니다: {why}', en: 'The key could not be created: {why}' },

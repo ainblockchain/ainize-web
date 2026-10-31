@@ -807,7 +807,8 @@ test('search retains partial app matches while reporting the incomplete source',
 
 const accountIdentity = JSON.stringify([null, 'sso:viewer', null, null]);
 const accountOrgs: Fixture = { name: 'myOrgs', arg: accountIdentity, value: { signed_in: true, orgs: [] } };
-const noKeys: Fixture = { name: 'apiKeys', arg: issuedKeyScope(accountIdentity, keyNode), value: { keys: [] } };
+const keyEvidence = { version: 1, complete: true, node: keyNode, owner: 'sso:viewer' };
+const noKeys: Fixture = { name: 'apiKeys', arg: issuedKeyScope(accountIdentity, keyNode), value: { ...keyEvidence, keys: [] } };
 
 test('account keys do not claim empty during loading or failure and failed refresh preserves the list', () => {
   for (const status of ['pending', 'rejected'] as const) {
@@ -818,7 +819,7 @@ test('account keys do not claim empty during loading or failure and failed refre
       assert.match(html, /Try again/);
     }
   }
-  const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, status: 'rejected', value: { keys: [{ prefix: '1234abcd', label: 'Existing account key', issuedAt: 1 }] } }], '/me');
+  const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, status: 'rejected', value: { ...keyEvidence, keys: [{ key_id: '1234abcd' + '0'.repeat(56), org_id: null, disabled: false, prefix: '1234abcd', label: 'Existing account key', issuedAt: 1 }] } }], '/me');
   assert.match(html, /Existing account key/);
   assert.match(html, /data-testid="me-keys-error"/);
   assert.doesNotMatch(html, /No keys yet/);
@@ -853,7 +854,7 @@ test('failed wallet node lookup shows recovery while retaining cached current-wa
   const current = JSON.stringify([wallet, null, null, null]);
   const html = render(MyPage, [
     ...signedOut.filter((f) => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: wallet, address: keyNode } },
-    { ...noKeys, arg: issuedKeyScope(current, keyNode) }, { ...accountOrgs, arg: current },
+    { ...noKeys, arg: issuedKeyScope(current, keyNode), value: { ...keyEvidence, owner: wallet, keys: [] } }, { ...accountOrgs, arg: current },
     { name: 'myNodes', arg: current, status: 'rejected', value: { nodes: [{ address: wallet, name: 'Current wallet node' }] } },
   ], '/me');
   assert.match(html, /data-testid="me-nodes-error"/);
@@ -867,7 +868,7 @@ const Playground = () => createElement(ModelPlaygroundPanel, {
   signInNext: '/models/fixture-model',
 });
 test('model key management goes to the personal account, and list failure has recovery', () => {
-  const html = render(Playground, [...appAccount, { ...noKeys, value: { keys: [{ prefix: '1234abcd', issuedAt: 1, label: 'Existing key' }] } }], '/models/fixture-model');
+  const html = render(Playground, [...appAccount, { ...noKeys, value: { ...keyEvidence, keys: [{ key_id: '1234abcd' + '0'.repeat(56), org_id: null, disabled: false, prefix: '1234abcd', issuedAt: 1, label: 'Existing key' }] } }], '/models/fixture-model');
   assert.match(html, /href="\/me"[^>]*>Manage your keys/);
   assert.doesNotMatch(html, /href="\/account"/);
   const failed = render(Playground, [...appAccount, { ...noKeys, status: 'rejected', value: undefined }], '/models/fixture-model');
@@ -2473,4 +2474,24 @@ test('a new node cannot borrow the previous node key list for the same account',
     accountOrgs, { ...noKeys, value: { keys: [{ prefix: 'deadbeef', issuedAt: 1, label: 'Old node key' }] } },
   ], '/me');
   assert.doesNotMatch(html, /Old node key|No keys yet/);
+});
+
+
+test('keys with colliding display prefixes remain independently visible and manageable', () => {
+  const first = 'deadbeef' + '1'.repeat(56), second = 'deadbeef' + '2'.repeat(56);
+  const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, value: { ...keyEvidence, keys: [
+    { key_id: first, prefix: 'deadbeef', label: 'One', issuedAt: 1, org_id: null, disabled: false },
+    { key_id: second, prefix: 'deadbeef', label: 'Two', issuedAt: 2, org_id: null, disabled: true },
+  ] } }], '/me');
+  assert.match(html, /One/); assert.match(html, /Two/);
+  assert.ok(html.includes(first)); assert.ok(html.includes(second));
+  assert.doesNotMatch(html, /The key list could not be verified/);
+});
+
+test('a list for a different principal or node never enables account key actions', () => {
+  for (const mismatch of [{ owner: 'sso:somebody-else' }, { node: '0x' + 'b'.repeat(40) }, { complete: false }]) {
+    const html = render(MyPage, [...appAccount, accountOrgs, { ...noKeys, value: { ...keyEvidence, ...mismatch, keys: [] } }], '/me');
+    assert.match(html, /The key list could not be verified/);
+    assert.doesNotMatch(html, /No keys yet/);
+  }
 });

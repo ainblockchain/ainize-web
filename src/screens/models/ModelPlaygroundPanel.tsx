@@ -21,8 +21,8 @@ import { useActiveView } from '@/hooks/useActiveView';
 import { callPlayground, createPlaygroundTask, playgroundJson } from './playgroundCall';
 import { decisionInput, playgroundBody, playgroundInitialPrompt, playgroundNeedsKey, PlaygroundInputError } from './modelPlaygroundInput';
 import { readChatStream } from './playgroundStream';
-import { apiKeyList, createdApiKey } from '@/api/apiKeyEvidence';
-import { issuedKeyScope } from './issuedKeyMemory';
+import { apiKeyContext, apiKeyExpected, apiKeyId, apiKeySnapshot, confirmApiKeyForCall, createdApiKey } from '@/api/apiKeyEvidence';
+import { issuedKeyScope, recallIssuedKey } from './issuedKeyMemory';
 import { useIssuedKey } from './useIssuedKey';
 import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedPriorityOfferOf } from './modelSpeedHints';
@@ -119,17 +119,20 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   const current = () => active() && !auth.loading && !auth.signingOut && (!canHoldKeys || auth.isCurrentAccount());
   const signedIn = !!subject;
   const keyBusy = useRef(false);
+  const keyActor = apiKeyContext(auth.address, auth.principal);
   const keyContext = issuedKeyScope(cacheIdentity, auth.address);
-  const keyQuery = useApiKeysQuery(keyContext, { skip: !canHoldKeys || !keyContext, refetchOnMountOrArgChange: true });
-  const keyList = apiKeyList(keyQuery.currentData);
+  const keyQuery = useApiKeysQuery(keyContext, { skip: !canHoldKeys || !keyContext, refetchOnMountOrArgChange: true, pollingInterval: 60_000 });
+  const keyList = apiKeySnapshot(keyQuery.currentData, keyActor);
   const invalidKeys = keyQuery.currentData !== undefined && !keyList;
   const keysReady = !!keyList && !keyQuery.isFetching && !keyQuery.isError && !!keyContext;
   const [createKey, createState] = useCreateApiKeyMutation();
-  const { key: issuedKey, remember, forget } = useIssuedKey(cacheIdentity, auth.address, keysReady ? keyQuery.currentData : undefined);
+  const { key: issuedKey, usableKey, state: heldState, remember, forget } = useIssuedKey(cacheIdentity, auth.address, keyActor, keysReady ? keyQuery.currentData : undefined, keyQuery.startedTimeStamp);
   const [keyName, setKeyName] = useState('');
   const keyLabel = keyName.trim();
   const duplicateKeyName = !!keyLabel && !!keyList?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === keyLabel.toLocaleLowerCase());
   const [keyError, setKeyError] = useState<string | null>(null);
+
+  const refreshKeys = async () => { await auth.refresh(); if (current()) await keyQuery.refetch(); };
 
   // The model's speed and whether it is busy — read faster while a request of ours is waiting, since that is when
   // "paid work is ahead of you" is worth saying. Chat only: a deposit buys the language model's queue.
@@ -149,19 +152,23 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   const fileValid = !!audio && audio.size > 0 && audio.size <= 10 * 1024 * 1024;
   const snippet = useMemo(() => {
     try { return modelsPageCodeSnippet({ language, modality: model.modality, model: modelRef, nodeUrl: nodeUrlFromBrowser(), prompt,
-      apiKey: issuedKey ?? undefined, audioFileName: audio?.name }); }
+      apiKey: usableKey ?? undefined, audioFileName: audio?.name }); }
     catch { return ''; }
-  }, [language, model.modality, modelRef, prompt, issuedKey, audio]);
+  }, [language, model.modality, modelRef, prompt, usableKey, audio]);
   const copy = useClipboardCopy(snippet);
   const busy = run.kind === 'running' || (run.kind === 'text' && !!run.streaming);
   const changePrompt = (value: string) => { if (!task.busy()) { setPrompt(value); setRun({ kind: 'idle' }); } };
 
   async function press() {
-    if (!current() || task.busy() || !model.available || inputError || (needsKey && !issuedKey) || (model.modality === 'transcription' && !fileValid)) return;
+    if (!current() || task.busy() || !model.available || inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)) return;
     setRun({ kind: 'running' });
     try {
       await task.run(current, async (signal, live) => {
-        const res = await callPlayground({ model, modelRef, peer, prompt, audio, apiKey: issuedKey }, signal);
+        if (needsKey && usableKey) {
+          await confirmApiKeyForCall(usableKey, keyActor, () => keyQuery.refetch().unwrap(), () => live() && recallIssuedKey(keyContext) === usableKey);
+        }
+        if (!live()) return;
+        const res = await callPlayground({ model, modelRef, peer, prompt, audio, apiKey: usableKey }, signal);
         if (!live()) { await res.body?.cancel(); return; }
         if (!res.ok) {
           const body = await res.json().catch(() => null);
@@ -186,7 +193,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
     } catch (error) {
       if (current()) {
         const code = error instanceof Error ? error.name === 'AbortError' ? 'cancelled' : error.message : 'response';
-        const known = ['stream_incomplete', 'stream_invalid', 'stream_model', 'request_failed', 'model_unavailable', 'cancelled', 'response'].includes(code) ? code : 'response';
+        const known = ['stream_incomplete', 'stream_invalid', 'stream_model', 'request_failed', 'model_unavailable', 'key_unavailable', 'cancelled', 'response'].includes(code) ? code : 'response';
         setRun(previous => ({ kind: 'failed', why: t(`models.try.error.${known}`), ...(previous.kind === 'text' ? { text: previous.text, reasoning: previous.reasoning } : {}) }));
       }
     }
@@ -220,12 +227,12 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             )}
             {inputError && <Alert role="alert">{inputError}</Alert>}
             {model.modality === 'transcription' && audio && !fileValid && <Alert role="alert">{t('models.try.input.file')}</Alert>}
-            {needsKey && !issuedKey && <Description data-testid="models-key-required">{t('models.try.input.key')}</Description>}
+            {needsKey && !usableKey && <Description data-testid="models-key-required">{t('models.try.input.key')}</Description>}
             <Row>
               <Button
                 type="button"
                 data-testid="models-run"
-                disabled={auth.loading || busy || !!inputError || (needsKey && !issuedKey) || (model.modality === 'transcription' && !fileValid)}
+                disabled={auth.loading || busy || !!inputError || (needsKey && !usableKey) || (model.modality === 'transcription' && !fileValid)}
                 onClick={() => { void press(); }}
               >
                 {busy ? t('models.try.running') : t('models.try.run')}
@@ -273,13 +280,13 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             but the page must not pretend there is nothing: list what exists and point at the account page, and
             make "create" the secondary action ("another"), not a reset to square one. */}
         {canHoldKeys && keyQuery.isLoading && <Description role="status">{t('me.keys.loading')}</Description>}
-        {canHoldKeys && invalidKeys && <Alert role="alert" $tone="error">{t('me.keys.invalid')} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
-        {canHoldKeys && keyQuery.error && <Alert role="alert" $tone="error">{t('common.error', { message: errorMessage(keyQuery.error) })} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
+        {canHoldKeys && invalidKeys && <Alert role="alert" $tone="error">{t('me.keys.invalid')} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
+        {canHoldKeys && keyQuery.error && <Alert role="alert" $tone="error">{t('common.error', { message: errorMessage(keyQuery.error) })} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
         {canHoldKeys && !issuedKey && (keyList?.keys.length ?? 0) > 0 && (
           <Description data-testid="models-existing-keys">
             {t('models.key.existing', { n: String(keyList!.keys.filter((k) => !k.disabled).length) })}{' '}
             {keyList!.keys.filter((k) => !k.disabled).slice(0, 3).map((k) => (
-              <Mono key={k.prefix} as="span" style={{ marginRight: 8 }}>{k.prefix}…{k.label ? ` (${k.label})` : ''}</Mono>
+              <Mono key={apiKeyId(k)} as="span" style={{ marginRight: 8 }}>{k.prefix}…{k.label ? ` (${k.label})` : ''}</Mono>
             ))}
             <StyledLink to="/me">{t('models.key.manage')}</StyledLink>
           </Description>
@@ -287,13 +294,13 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
         {canHoldKeys && !issuedKey && (
           <form onSubmit={(event) => {
             event.preventDefault();
-            if (!current() || keyBusy.current || !keysReady || !keyLabel || duplicateKeyName) return;
+            if (!current() || keyBusy.current || !keysReady || !keyActor || !keyLabel || duplicateKeyName) return;
             keyBusy.current = true;
             setKeyError(null);
-            void createKey({ label: keyLabel, org_id: null }).unwrap()
+            void createKey({ label: keyLabel, org_id: null, ...apiKeyExpected(keyActor) }).unwrap()
               .then((r) => {
                 if (!auth.isCurrentAccount()) return;
-                const secret = createdApiKey(r, keyLabel, null);
+                const secret = createdApiKey(r, keyLabel, null, keyActor);
                 if (!secret) throw new Error(t('me.keys.receipt'));
                 if (remember(secret) && current()) setKeyName('');
               })
@@ -312,9 +319,11 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             </Row>
           </form>
         )}
+        {heldState === 'revoked' && <Description role="status">{t('me.keys.held.revoked')}</Description>}
         {issuedKey && (
           <>
-            <Mono data-testid="models-issued-key">{issuedKey}</Mono>
+            {heldState && heldState !== 'ready' && <Description role="status">{t(`me.keys.held.${heldState}`)} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Description>}
+            <Mono data-testid="models-issued-key" style={{ display: 'block', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{issuedKey}</Mono>
             {/* Said out loud: a secret nobody knows is held is a secret held badly. */}
             <Description>{t('models.key.held')}</Description>
             <Row>
@@ -325,7 +334,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
             </Row>
           </>
         )}
-        {keyError && <Alert role="alert" $tone="error">{keyError} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void keyQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
+        {keyError && <Alert role="alert" $tone="error">{keyError} <Button size="small" disabled={keyQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
         {/* A deposit applies to exactly the calls a key makes, so this is where it is said — with this visitor's
             own busy-time number, not a general "faster". */}
         {isChat && offer && (

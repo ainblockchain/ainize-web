@@ -31,6 +31,13 @@ print([model.id for model in models])
 browser: a key that can sign a transfer has no business in a source file, a CI variable or a screenshot, and no
 other model API asks you to put one in any of them.
 
+A key saved in the browser belongs to the current account **and node**. The playground checks its current
+status before a key-authenticated call. Disabled keys are kept so you can save their value, but are not used
+in calls or copied request snippets. A confirmed revoked key is removed from the browser's saved-key display.
+Use **Manage your keys** to see each key's identifier, organization and status. If creation or revocation cannot
+be confirmed, reload the list before deciding what to do next; a lost response does not prove that the action
+failed. The server cannot recover a lost secret from its hash.
+
 A program that already holds a wallet — an agent that also sends transactions — can pass `private_key=` instead
 and be issued a key automatically. That is the exception, not the quickstart.
 

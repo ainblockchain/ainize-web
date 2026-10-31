@@ -1,3 +1,4 @@
+import type { ApiKeyContext } from './apiKeyEvidence';
 import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
 import { loadTrackCatalog, loadCatalogSnapshot, type TrackCatalog, type CatalogSnapshot } from '@/lib/trackView';
 import type { AppDomain, AppDomainsResponse } from './projects';
@@ -17,7 +18,7 @@ import type {
   DatasetParseOptions, DatasetResult, DatasetRowInput, DatasetRowsOp, DatasetRowsPage, DatasetSample, ForkPatchResponse, TeachDataset, TeachEventRow, TeachTrainingSpec,
   BanRow, ContributorRow, PayoutRow, PayoutsResponse, TeachJobAdmin, TeachPolicyAdmin, TeachPolicyPatch,
   IssuesResponse, MergePreview, PatchDatasetResponse, ShelvesResponse, SignalsResponse, TreeResponse,
-  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse, ApiKeySummary,
+  SubscribeResult, TrackQuote, CreditInfo, AgentsResponse, GoogleSessionResponse, SsoStatusResponse,
 } from './types';
 import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
@@ -109,16 +110,16 @@ export const api = createApi({
     networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
     // These cache arguments distinguish viewers; authorization still comes only from the session cookie.
-    apiKeys: b.query<{ keys: ApiKeySummary[] }, string>({
+    apiKeys: b.query<unknown, string>({
       keepUnusedDataFor: 0,
       query: () => 'api/keys', providesTags: ['ApiKeys'],
     }),
     /** Issue one. The secret is in this response and nowhere else, ever again. */
-    createApiKey: b.mutation<{ api_key: string; prefix: string; label: string | null; org_id?: string | null }, { label?: string; org_id?: string | null }>({
+    createApiKey: b.mutation<unknown, { label: string; org_id: string | null; expected_owner: string; expected_node: string }>({
       query: (body) => ({ url: 'api/keys', method: 'POST', body }), invalidatesTags: ['ApiKeys'],
     }),
-    revokeApiKey: b.mutation<{ revoked: boolean; prefix: string }, string>({
-      query: (prefix) => ({ url: `api/keys/${encodeURIComponent(prefix)}`, method: 'DELETE' }), invalidatesTags: ['ApiKeys'],
+    revokeApiKey: b.mutation<unknown, { id: string; context: ApiKeyContext }>({
+      query: ({ id, context }) => ({ url: `api/keys/${encodeURIComponent(id)}${toQuery({ expected_owner: context.owner, expected_node: context.node })}`, method: 'DELETE' }), invalidatesTags: ['ApiKeys'],
     }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     managedPatch: b.query<PatchDetail, { id: string; identity: string }>({ query: ({ id }) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me'] }),

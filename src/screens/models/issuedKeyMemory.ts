@@ -3,7 +3,7 @@ import { apiKeyHash, apiKeyList, apiKeyPrefix } from '../../api/apiKeyEvidence';
  * Account changes and logout discard it. Unscoped legacy values cannot be attributed safely.
  */
 const STORAGE_KEY = 'ainize.issuedApiKey';
-type HeldKey = { owner: string; key: string };
+type HeldKey = { owner: string; key: string; receivedAt: number };
 let owner: string | null = null;
 let held: HeldKey | null = null;
 // Preserve a pre-node-scoping secret until a fresh owned list proves its node; never use it speculatively.
@@ -13,7 +13,7 @@ const notify = () => listeners.forEach((listener) => listener());
 function read(): HeldKey | null {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? 'null');
-    return parsed && typeof parsed.owner === 'string' && typeof parsed.key === 'string' ? parsed : null;
+    return parsed && typeof parsed.owner === 'string' && typeof parsed.key === 'string' ? { owner: parsed.owner, key: parsed.key, receivedAt: 0 } : null;
   } catch { return null; }
 }
 function persist(): void {
@@ -26,9 +26,9 @@ function persist(): void {
 export function issuedKeyScope(account: string, node: string | null | undefined): string {
   return account && node && /^0x[0-9a-f]{40}$/i.test(node) ? JSON.stringify([account, node.toLowerCase()]) : '';
 }
-export function forgetIssuedKeyByPrefix(forOwner: string, prefix: string): boolean {
+export function forgetIssuedKeyById(forOwner: string, id: string): boolean {
   const key = recallIssuedKey(forOwner);
-  if (!key || apiKeyPrefix(key) !== prefix) return false;
+  if (!key || (/^[a-f0-9]{64}$/.test(id) ? apiKeyHash(key) !== id : apiKeyPrefix(key) !== id)) return false;
   forgetIssuedKey(forOwner);
   return true;
 }
@@ -53,16 +53,19 @@ export function adoptLegacyIssuedKey(forOwner: string, listing: unknown): boolea
   if (!keys?.keys.some((key) => key.key_id === hash && !key.disabled)) return false;
   const secret = legacy.key;
   legacy = null;
-  return rememberIssuedKey(forOwner, secret);
+  return rememberIssuedKey(forOwner, secret, 0);
 }
-export function rememberIssuedKey(forOwner: string, key: string): boolean {
+export function rememberIssuedKey(forOwner: string, key: string, receivedAt = Date.now()): boolean {
   // A creation response can arrive after logout or an account switch.
   if (!forOwner || forOwner !== owner) return false;
   legacy = null;
-  held = { owner: forOwner, key };
+  held = { owner: forOwner, key, receivedAt };
   persist();
   notify();
   return true;
+}
+export function recallIssuedKeyRecord(forOwner: string): Readonly<HeldKey> | null {
+  return forOwner && forOwner === owner && held?.owner === forOwner ? held : null;
 }
 export function recallIssuedKey(forOwner: string): string | null {
   return forOwner && forOwner === owner && held?.owner === forOwner ? held.key : null;
