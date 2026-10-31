@@ -163,7 +163,7 @@ export interface RequiredBase {
 export interface PatchQuote {
   patch_id: string; price: string; currency: string;
   requires: (RequiredBase & { licensed: boolean; known: boolean; mine: boolean; depth: number; currency: string; author: string })[];
-  missing: string[]; unknown: string[]; total: string; self_contained: boolean;
+  missing: string[]; unknown: string[]; total?: string; totals?: { amount: string; currency: string }[]; self_contained: boolean;
   export: 'delta' | 'squash' | null; derivation: string | null;
 }
 
@@ -468,6 +468,7 @@ export interface WalletResponse extends ChainResponse { sales: Settlement[]; roy
   /** Knowledge handed over for nothing because it is priced 0 (item 277) — downloads, not sales. */
   free_downloads?: { patch_id: string; count: number; last_at: number }[]; }
 export interface PurchaseResult {
+  receipt_version?: 1; node?: string; totals?: { amount: string; currency: string }[];
   patch_id: string; steps: { step: string; detail: string; at: number }[]; manifest: PatchManifest; path: string;
   tx_hash: string; amount: string; scheme: string;
   /** Every knowledge this purchase paid for, bases first (item 270). */

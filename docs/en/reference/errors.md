@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 78 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 80 codes a client can match on.
 
 ## The error envelope
 
@@ -37,7 +37,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-78 codes are raised by name, in 137 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+80 codes are raised by name, in 139 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -62,6 +62,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `base_unresolved_conflicts` | `400` | \<conflicts.length> of your answers differ from …'s answer to the same question — confirm that you mean to change them (they will be published as changes to it) or take them out | `src/teach.ts` |
 | `checks_failed` | `409` | the side-effect check was turned off for this lesson — run the check now before publishing | `src/teach.ts` |
 | `checks_failed` | `409` | this lesson changed answers to unrelated questions or to the knowledge it builds on | `src/teach.ts` |
+| `collection_target_changed` | `409` | the selected artifact changed | `src/purchase-result.ts` |
 | `consent_required` | `400` | both consent boxes are required | `src/teach.ts` |
 | `dataset_declaration` | `400` | tell us where these \<rows> questions come from (own work, a public source, or licensed to you) | `src/teach.ts` |
 | `dataset_derivative_only` | `403` | sign the request with a teaching key | `src/api.ts` |
@@ -137,6 +138,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `parent_not_listed` | `400` | publish \<b.patch_id> first — it is the base of this lesson | `src/teach.ts` |
 | `publish_disabled` | `403` | this node accepts lessons but does not publish them | `src/teach.ts` |
 | `published_immutable` | `409` | published knowledge cannot be deleted | `src/teach.ts` |
+| `purchase_action_busy` | `409` | another purchase or collection for this item is running | `src/purchase-result.ts` |
 | `quota_bytes` | `429` | you have uploaded as much as this node accepts from one teaching key today | `src/teach-datasets.ts` |
 | `quota_chat` | `429` | free live-test quota exhausted for this hour (this pre-flight needs \<units> unit(s)) — try again later | `src/api.ts` |
 | `quota_dataset` | `429` | \<c.perKeyPerDay> new datasets per day for one teaching key | `src/teach-datasets.ts` |

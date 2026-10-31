@@ -1,3 +1,5 @@
+import { CollectKnowledge } from '@/components/detail/CollectKnowledge';
+import { purchaseResult, purchaseQuoteTotals } from '@/lib/purchaseResult';
 import { purchaseRows } from '@/lib/purchaseView';
 import { BenchmarkCoverage } from '@/components/detail/BenchmarkCoverage';
 import { AttestationCount } from '@/components/detail/AttestationCount';
@@ -9,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useBenchmarkQuery, useBuyMutation, useCollectMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
+  errorMessage, useBenchmarkQuery, useBuyMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
   usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, usePatchSignalsQuery, useTeachPolicyQuery,
 } from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, LineageRef, PatchDetail, PurchaseResult, TreeResponse } from '@/api/types';
@@ -1269,7 +1271,6 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
   const { t } = useT();
   const f = useDetailFormat();
   const [again, setAgain] = useState(false);
-  const [collect, collectState] = useCollectMutation();
   const auth = useAuth();
   const purchases = useMyPurchasesQuery({ identity: auth.cacheIdentity }, { skip: auth.loading || !auth.isOwner });
   const rows = !purchases.isError && auth.isOwner ? purchaseRows(purchases.currentData) : null;
@@ -1287,21 +1288,7 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
           {payment.scheme === 'ain-transfer' && txLookup(info, payment.tx_hash) && <> <ExternalLink href={txLookup(info, payment.tx_hash)!} target="_blank" rel="noopener noreferrer">{t('detail.buy.tx_link')} →</ExternalLink></>}
         </Note>
       ) : <Note>{t('op.dash.purchases.paymentUnknown')}</Note>}
-      {/* Item 273: the body is gone but the payment is not. The seller re-issues the manifest against the
-          settlement it already recorded, so getting it back is free — it used to say the opposite. */}
-      {!d.has_body && (
-        <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-paid-gone">
-          {t('detail.buy.paid_gone')}
-          <Actions>
-            <Button
-              variant="contained" loading={collectState.isLoading} loadingText={t('detail.buy.collecting')}
-              onClick={() => { void collect(d.anchor.id); }} data-testid="buy-collect"
-            >{t('detail.buy.collect')}</Button>
-          </Actions>
-        </Alert>
-      )}
-      {collectState.error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(collectState.error)}</Alert>}
-      {collectState.data && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="buy-collected">{t('detail.buy.collected', { amount: f.priceLabel(collectState.data.amount, d.anchor.currency), tx: shortHash(collectState.data.tx_hash, 16) })}</Alert>}
+      <CollectKnowledge target={d.anchor} hasBody={d.has_body} />
       <Actions>
         {d.has_body && !d.applied && (
           <Button
@@ -1370,7 +1357,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const canBuy = d.sellable && !d.owned && !d.purchased;
   const { data: info } = useInfoQuery();
   const runtimeReady = info?.runtime.available === true;
-  const priceText = f.priceLabel(a.price, a.currency);
+  const priceText = `${a.price} ${a.currency}`;
   const note = f.priceNote(a.currency);
   const mine = scoreOf(d);
   /**
@@ -1380,7 +1367,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   const quote = d.quote;
   const needs = quote?.requires ?? [];
   const missing = needs.filter((r) => !r.licensed && !r.mine);
-  const totalText = quote ? f.priceLabel(quote.total, quote.currency) : priceText;
+  const totalText = quote ? purchaseQuoteTotals(quote) ?? t('detail.buy.amountUnknown') : priceText;
   /**
    * Item 283: the buyer of a child had to work out for themselves whether the base was a second purchase. When the
    * child's blob already carries every address of a declared origin, this says so by name — and only when the node's
@@ -1601,13 +1588,15 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
   );
 }
 
-function PurchaseTimeline({ r, d }: { r: PurchaseResult; d: PatchDetail }) {
+export function PurchaseTimeline({ r: raw, d }: { r: PurchaseResult; d: PatchDetail }) {
   const { t } = useT();
   const f = useDetailFormat();
   const { data: info } = useInfoQuery();
-  const currency = d.anchor.currency;
+  const auth = useAuth();
+  const r = purchaseResult(raw, d.anchor.id, d.anchor.patch_sha256, auth.address);
+  if (!r) return <Alert $tone="warning" role="alert">{t('detail.buy.resultUnknown')}</Alert>;
   const machines = (d.executors?.length ?? 0) + (d.executors_unknown ?? 0);
-  const url = txLookup(info, r.tx_hash);
+  const url = r.scheme === 'ain-transfer' ? txLookup(info, r.tx_hash) : null;
   /**
    * Item 354 — this step was a green "verification confirmed" at the moment of payment, while the terms say
    * verification is best-effort, nothing is escrowed, and Verified does not promise the knowledge is correct. It
@@ -1621,8 +1610,8 @@ function PurchaseTimeline({ r, d }: { r: PurchaseResult; d: PatchDetail }) {
   };
   return (
     <>
-      <Alert $tone="success" style={{ marginTop: 16 }}>
-        {t('detail.buy.done', { id: r.patch_id, amount: f.priceLabel(r.amount, currency), tx: shortHash(r.tx_hash, 18) })} <Mono style={{ fontSize: 11, opacity: 0.8 }}>({r.scheme})</Mono>
+      <Alert $tone="info" style={{ marginTop: 16 }}>
+        {t('detail.buy.reported', { id: r.patch_id, amount: r.totals?.map(v => `${v.amount} ${v.currency}`).join(' + ') || t('detail.buy.noCharge'), tx: shortHash(r.tx_hash, 18) })} <Mono style={{ fontSize: 11, opacity: 0.8 }}>({r.scheme})</Mono>
         {url && <> <ExternalLink href={url} target="_blank" rel="noopener noreferrer" data-testid="buy-tx-link">{t('detail.buy.tx_link')} →</ExternalLink></>}
       </Alert>
       <Timeline>

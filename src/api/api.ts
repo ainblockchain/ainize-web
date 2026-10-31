@@ -513,6 +513,7 @@ export const api = createApi({
     // `again` is the deliberate second payment (item 271): without it the node collects on the receipt it already has.
     buy: b.mutation<PurchaseResult, { id: string; apply?: boolean; bundle?: boolean; again?: boolean }>({ query: ({ id, apply, bundle, again }) => ({ url: `api/patches/${encodeURIComponent(id)}/buy`, method: 'POST', body: { apply, bundle, again } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events', 'Runtime'] }),
     /** Item 273 — collect a knowledge this node already paid for: a re-issued manifest, no second charge. */
+    collectReviewed: b.mutation<unknown, { id: string; expected: ReturnType<typeof import('../lib/collectKnowledge').collectionTarget> }>({ query: ({ id, expected }) => ({ url: `api/patches/${encodeURIComponent(id)}/collect-reviewed`, method: 'POST', body: { expected } }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id: id.id }, 'Catalog', 'Me', 'Events', 'Runtime'] }),
     collect: b.mutation<PurchaseResult, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/collect`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Events', 'Runtime'] }),
     /** Item 364 — where this node's local credit came from, and the fact that it is not money. */
     myCredit: b.query<CreditInfo, void>({ query: () => 'api/me/credit', providesTags: ['Me', 'Ledger'] }),

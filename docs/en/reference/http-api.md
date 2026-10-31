@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-326 operations on 271 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+327 operations on 272 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -353,8 +353,9 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/me/teach/bans`](#post-apimeteachbans) | operator | Block a key or IP |
 | `DELETE` | [`/api/me/teach/bans/{id}`](#delete-apimeteachbansid) | operator | Unblock |
 | `POST` | [`/api/patches/{id}/buy`](#post-apipatchesidbuy) | operator | Buy as this node (x402 handled automatically) |
-| `POST` | [`/api/patches/{id}/collect`](#post-apipatchesidcollect) | operator | Collect a knowledge this node already paid for — no second payment |
-| `GET` | [`/api/me/pending-payments`](#get-apimepending-payments) | operator | Payments that left this node and were never answered with a manifest |
+| `POST` | [`/api/patches/{id}/collect-reviewed`](#post-apipatchesidcollect-reviewed) | operator | Collect the exact selected file without submitting an unresolved payment |
+| `POST` | [`/api/patches/{id}/collect`](#post-apipatchesidcollect) | operator | Recover a purchased file or an unresolved recorded payment |
+| `GET` | [`/api/me/pending-payments`](#get-apimepending-payments) | operator | Unresolved recorded payment requests |
 | `GET` | [`/api/patches/{id}/apply-preview`](#get-apipatchesidapply-preview) | operator | Review the complete model load plan before applying |
 | `POST` | [`/api/patches/{id}/apply`](#post-apipatchesidapply) | operator | Load into the model (with everything it was trained on top of) |
 | `DELETE` | [`/api/patches/{id}/apply`](#delete-apipatchesidapply) | operator | Unload from the model (journal replay) |
@@ -2153,7 +2154,7 @@ Download the knowledge body (.npz)
 
 What this purchase would cost — the item and the bases it needs
 
-Answers `{price, currency, requires[], missing[], unknown[], total, self_contained, export}`. `requires` is the whole base stack, deepest first, each with its price, seller and gateway; `licensed` says whether this node may already use it (holding the bytes is not a licence — a verifier holds everything it scored). `total` counts only what is still to be bought.
+Answers price, currency, requires[], missing[], unknown[], totals[], optional total, self_contained and export. requires is the full base stack deepest first, with each price, currency, seller and current licence. totals groups exact decimal prices by currency, excluding already licensed/owned bases. A scalar total exists only for zero cost or a single total in the root currency. Unknown bases mean the quote is incomplete; never interpret its known subtotal as the complete cost. This read does not reserve a price.
 
 **Auth** — none
 
@@ -6916,38 +6917,74 @@ Unblock
 
 Buy as this node (x402 handled automatically)
 
-The seller is resolved at buy time — the peers this node currently sees first, the `gateway_url` on the anchor last — so a seller that changed its port is still reachable. The payment is written to a `pending_payments` row BEFORE it is presented; if the answer is lost, the next buy (or `POST /collect`) presents the same payment again instead of paying twice. `?bundle=1` (or `bundle`/`with_required` in the body) buys the bases this knowledge needs underneath it FIRST, deepest first, one settlement each, and answers with `purchases[]` and the `total` that actually moved; `max_total` refuses the whole family before any money moves.
+Resolves the current seller and records payment intent before presenting it. A lost response may recover the same recorded payment instead of starting another payment. Pending local-credit intent is not proof that a debit already happened. A recovered unresolved payment omits receipt_version and totals; inspect its record rather than claiming no charge. bundle/with_required buys missing bases deepest first. Unknown bases refuse before purchase. totals[] keeps exact decimal amounts separate by currency and excludes confirmed redemptions; scalar total is omitted for mixed currencies. max_total checks the current quote in the root currency and refuses mixed-currency bundles; this preflight is not an immutable price review or an atomic bundle transaction. Earlier base purchases may stand if a later step fails. Concurrent purchase/collection for the same item is refused within this process.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required | Description |
-|---|---|---|---|---|
-| `id` | `path` | `string` | yes |   |
-| `bundle` | `query` | `boolean` |   | buy the bases underneath first, one settlement each (design §12.4) |
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `bundle` | `query` | `boolean` |   |
 
 **Request body** — `application/json`, optional
 
 | Field | Type | Description |
 |---|---|---|
-| `apply` | `boolean` | load into the model right after purchase — the whole stack, ancestors first |
-| `bundle` | `boolean` | also buy the bases this knowledge needs underneath it, deepest first |
-| `with_required` | `boolean` | the older name of `bundle`, still accepted |
-| `max_total` | `number` | refuse when the family total is above this |
+| `apply` | `boolean` | Load the whole stack after purchase, ancestors first. |
+| `bundle` | `boolean` | Buy missing bases first. |
+| `with_required` | `boolean` | Older alias for bundle. |
+| `again` | `boolean` | Intentionally make another purchase despite existing purchase access. |
+| `max_total` | `number` | Single-currency quote limit; mixed-currency bundles refuse. (at least 0) |
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | purchase steps, purchases[], total | `object` |
-| `409` | over max_total { quote } · a base this node has never seen |   |
+| `200` | Purchase response: patch_id, manifest, path, amount, currency, scheme, tx_hash, steps, purchases[], totals[]; receipt_version:1 and node for confirmed charge accounting. This is not independent proof of model loading. | `object` |
+| `409` | purchase_action_busy, purchase_plan_incomplete, purchase_budget_currency, purchase_budget_exceeded, purchase_receipt_unconfirmed, pending payment or unavailable item |   |
+
+### `POST /api/patches/{id}/collect-reviewed`
+
+Collect the exact selected file without submitting an unresolved payment
+
+Requires an exact selected artifact snapshot. Checks it before file or payment work. Existing matching bytes return a read-only outcome; otherwise confirmed settlement/free access fetches the matching file. An existing settlement takes priority over unrelated pending payment intent. Unresolved pending payment alone refuses without presenting it to the seller. No fallback to legacy collect. Success identifies receipt_version:1, node, patch_id, matching manifest/path, redeemed:true, totals:[] and total:"0"; amount/currency describe the earlier receipt, not a new charge. Unknown historical currency remains absent. Clients must confirm fresh file presence before showing completion. This endpoint does not load a model.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected` | `object` | yes |   |
+| `expected.id` | `string` | yes | Must equal the path ID. (at least 1 characters) |
+| `expected.author` | `string` | yes | (at least 1 characters) |
+| `expected.patch_sha256` | `string` | yes | (at least 1 characters) |
+| `expected.benchmark_hash` | `string` | yes | (at least 1 characters) |
+| `expected.created_at` | `integer` | yes | (at least 0) |
+| `expected.model` | `object` | yes |   |
+| `expected.model.id_M` | `string` | yes |   |
+| `expected.base` | `object` |   | Exact anchor base, or null/absent when no base is declared. |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Confirmed no-charge collection receipt | `object` |
+| `409` | collection_target_changed, collection_payment_pending, purchase_action_busy, own item or no collection rights |   |
 
 ### `POST /api/patches/{id}/collect`
 
-Collect a knowledge this node already paid for — no second payment
+Recover a purchased file or an unresolved recorded payment
 
-The recovery path for a lost manifest, a forgotten body or a purchase that died after the money moved. Presents the recorded payment again (the seller re-issues the manifest against the settlement it already has), or fetches the body over the signed `/p2p/blob` path a settlement already unlocks. 409 when this node has not paid for it — that is what `POST /buy` is for. CLI: `ainize patch download <id>`.
+Legacy recovery path: uses an existing settlement before any unrelated pending payment. When only recorded payment intent exists, it may present that intent again and complete its first debit. Such recovery omits receipt_version and totals: redeemed alone does not prove no charge occurred during this request. Prefer collect-reviewed for a selected-file/no-additional-charge UI. CLI: ainize patch download \<id>.
 
 **Auth** — operator
 
@@ -6961,14 +6998,14 @@ The recovery path for a lost manifest, a forgotten body or a purchase that died 
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | purchase steps (redeemed: true) | `object` |
-| `409` | nothing paid for this knowledge |   |
+| `200` | Recovery steps and recorded receipt; inspect receipt_version before interpreting charge totals | `object` |
+| `409` | No collection rights or purchase_action_busy |   |
 
 ### `GET /api/me/pending-payments`
 
-Payments that left this node and were never answered with a manifest
+Unresolved recorded payment requests
 
-Money on the chain and no body. Each row carries the gateway, the resource, the amount and the tx hash; `POST /api/patches/{id}/collect` finishes one.
+Rows in paid status without a completed manifest response. This status can mean an on-chain transfer or only signed local-credit intent; it is not universal proof that money left. Each row carries gateway, resource, amount, currency and available transaction hash; payload is withheld. Legacy collect may complete the recorded payment.
 
 **Auth** — operator
 

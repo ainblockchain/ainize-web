@@ -4,7 +4,8 @@ import { additionFixture } from './track-addition-fixture';
 import { runtimeReviewFixture } from './fixtures/runtimeReview';
 import { RuntimeApplyReview } from '../src/components/detail/RuntimeApplyReview';
 import { ManagePublication } from '../src/components/operator/ManagePublication';
-import PatchPage, { Verification } from '../src/screens/PatchPage';
+import PatchPage, { Verification, PurchaseTimeline } from '../src/screens/PatchPage';
+import { CollectKnowledge } from '../src/components/detail/CollectKnowledge';
 import { PatchListItem, useVerificationLabel } from '../src/components/public/PatchListItem';
 import { ManageDraftConflict } from '../src/components/operator/ManageDraftConflict';
 import { manageDraftEditor } from '../src/lib/manageDraft';
@@ -2286,4 +2287,33 @@ test('changed purchased files retain inspection but do not offer a live test of 
   const row = purchaseFixture(); row.entry.anchor.patch_sha256 = 'different';
   const html = render(DashboardContent, [...accessAuth, { name: 'myPurchases', arg: { identity: accessIdentity }, value: { items: [row] } }], '/dashboard');
   assert.match(html, /current item differs from the purchased file/); assert.doesNotMatch(html, /href="\/chat\/selected"/);
+});
+
+test('collection offers only the missing-file action and disables it for visitors', () => {
+  const d = manageFixture();
+  const page = () => createElement(CollectKnowledge, { target: d.anchor, hasBody: false });
+  const visitor = render(page, signedOut);
+  const button = visitor.match(/<button[^>]*data-testid="buy-collect"[^>]*>/)?.[0];
+  assert.ok(button); assert.match(button, /disabled/);
+  assert.doesNotMatch(visitor, /data-testid="buy-collected"|The payment is done/);
+  const owner = render(page, accessAuth);
+  assert.doesNotMatch(owner.match(/<button[^>]*data-testid="buy-collect"[^>]*>/)?.[0] ?? '', /disabled/);
+  const held = render(() => createElement(CollectKnowledge, { target: d.anchor, hasBody: true }), accessAuth);
+  assert.doesNotMatch(held, /buy-collect|buy-collected/);
+});
+
+test('purchase response uses separate exact units and refuses stale or unrelated outcomes', () => {
+  const d = manageFixture();
+  const receipt: any = { receipt_version: 1, node: walletAddress, patch_id: d.anchor.id, amount: '0.00000001', currency: 'AIN', scheme: 'ain-transfer', tx_hash: 'tx', path: '/file',
+    manifest: { id: d.anchor.id, patch_sha256: d.anchor.patch_sha256, blob_urls: [] }, steps: [],
+    purchases: [{ patch_id: 'base', amount: '2', currency: 'CREDIT', scheme: 'local-credit', tx_hash: 'base-tx' },
+      { patch_id: d.anchor.id, amount: '0.00000001', currency: 'AIN', scheme: 'ain-transfer', tx_hash: 'tx' }],
+    totals: [{ amount: '0.00000001', currency: 'AIN' }, { amount: '2', currency: 'CREDIT' }] };
+  const html = render(() => createElement(PurchaseTimeline, { r: receipt, d }), accessAuth);
+  assert.match(html, /reported charges: 0.00000001 AIN \+ 2 CREDIT/);
+  assert.doesNotMatch(html, /Bought —|nothing was charged/);
+  for (const r of [{ ...receipt, receipt_version: undefined }, { ...receipt, node: accessTarget }, { ...receipt, patch_id: 'other' }]) {
+    const unknown = render(() => createElement(PurchaseTimeline, { r, d }), accessAuth);
+    assert.match(unknown, /does not confirm the selected purchase/); assert.doesNotMatch(unknown, /reported charges:/);
+  }
 });
