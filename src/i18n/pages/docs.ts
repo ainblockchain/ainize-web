@@ -32,6 +32,7 @@ export const docs: Dict = {
   'docs.copied': { ko: '복사했습니다', en: 'Copied' },
   // navigator.clipboard exists only in a secure context, so a node browsed at http://<lan-ip> can genuinely fail
   'docs.copy_failed': { ko: '복사하지 못했습니다', en: 'Could not copy' },
+  'docs.copying': { ko: '복사 중…', en: 'Copying…' },
 
   'docs.anchor': { ko: '"{title}" 링크', en: 'Link to “{title}”' },
 

@@ -56,6 +56,8 @@ export const common: Dict = {
   'common.back': { ko: '뒤로', en: 'Back' },
   'common.copy': { ko: '복사', en: 'Copy' },
   'common.copied': { ko: '복사됨', en: 'Copied' },
+  'common.copying': { ko: '복사 중…', en: 'Copying…' },
+  'common.copy_failed': { ko: '복사하지 못했습니다. 다시 누르거나 내용을 선택해 직접 복사해 주세요.', en: 'Could not copy. Try again or select the text and copy it manually.' },
   'common.copy_clipboard': { ko: '클립보드에 복사', en: 'Copy to clipboard' },
   'common.sort_aria': { ko: '정렬', en: 'sort' },
   'common.kind_aria': { ko: '기록 종류', en: 'record kind' },

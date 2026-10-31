@@ -23,6 +23,8 @@ import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, PageWrapper, StatusChip, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
+import { clipboardUrl } from '@/lib/clipboard';
 import { captureTeacherKey, createTeacherKey, currentTeacherKey, onTeacherKeyChange, shortKey, type TeacherKey } from '@/lib/teacherKey';
 import { acceptBasketDraft, bannerDismissed, chatStorageOwner, legacyBaskets, carryBasket, clearBasket, dismissBanner, loadBasket, loadJobs, newCorrectionId, rememberJob, saveBasket, strandedBaskets, DEFAULT_FACTS_PER_JOB, type Basket } from '@/lib/teachStore';
 import type { PreflightFact } from '@/api/types';
@@ -749,7 +751,8 @@ function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: 
    * smallest thing that makes it an object a person can pass on: one button that copies the link to this exact
    * set, in this exact order. (`ainize use a b c`, the CLI half, is item 216 on the node's side.)
    */
-  const [copied, setCopied] = useState(false);
+  const shareLink = unselectable ? '' : typeof window === 'undefined' ? selectionPath(selectedIds) : clipboardUrl(selectionPath(selectedIds), window.location.origin);
+  const linkCopy = useClipboardCopy(shareLink);
   /**
    * Finding 218 — the other half of "a set you can pass on": one you can come BACK to. Every set of two or more is
    * remembered as it is loaded, and when the visitor lands on a single knowledge with a different set remembered,
@@ -763,18 +766,6 @@ function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: 
     const rows = lastStack.map((id) => pickable.find((e) => e.anchor.id === id)).filter((e): e is NonNullable<typeof e> => !!e);
     return rows.length === lastStack.length ? rows : null;
   }, [data, lastStack, selectionKey, pickable]);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
-  const copyLink = useCallback(() => {
-    const url = `${window.location.origin}${selectionPath(selectedIds)}`;
-    const done = () => {
-      setCopied(true);
-      if (copyTimer.current) clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setCopied(false), 2500);
-    };
-    // clipboard access can be refused (an insecure origin, a denied permission): fall back to a selectable prompt
-    navigator.clipboard?.writeText(url).then(done).catch(() => window.prompt(t('chat.head.copy'), url));
-  }, [selectedIds, t]);
   const patchHref = (e: { anchor: { author: string; id: string } }) => `/${encodeURIComponent(e.anchor.author)}/${encodeURIComponent(e.anchor.id)}`;
   /** "25 AIN" / "Free" for one knowledge, in the reader's locale. */
   const priceOf = useCallback((e: typeof selectedList[number]) => {
@@ -995,8 +986,9 @@ function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: 
               {(selectedList.length > 1 || restorable) && (
                 <HeadActions data-testid="chat-stack-actions">
                   {selectedList.length > 1 && (
-                    <button type="button" onClick={copyLink} data-testid="chat-copy-link">{copied ? t('chat.head.copied') : t('chat.head.copy')}</button>
+                    <button type="button" disabled={linkCopy.disabled} aria-busy={linkCopy.phase === 'copying'} aria-live="polite" onClick={() => void linkCopy.copy()} data-testid="chat-copy-link">{t(linkCopy.phase === 'copied' ? 'chat.head.copied' : linkCopy.phase === 'copying' ? 'common.copying' : 'chat.head.copy')}</button>
                   )}
+                  {linkCopy.phase === 'failed' && <span role="alert">{t('common.copy_failed')} <input readOnly value={shareLink} aria-label={t('chat.head.copy')} onFocus={event => event.currentTarget.select()} style={{ width: 'min(100%, 360px)', minWidth: 0 }} /></span>}
                   {selectedList.length > 1 && stackPrice.length > 0 && (
                     <span title={t('chat.head.own_help')}>{t('chat.head.own', { n: selectedList.length, price: stackPrice.join(' + ') })}</span>
                   )}

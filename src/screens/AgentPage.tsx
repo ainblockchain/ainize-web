@@ -29,6 +29,8 @@ import styled from 'styled-components';
 import { errorMessage, useAgentAliasQuery, useAgentsQuery, useHostedAgentQuery, useLinkedAgentsQuery, useManageableHostedAgentsQuery } from '@/api/api';
 import { agentOrgIdOf, agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList, agentVisibilityOf, parseManageableHostedAgents } from '@/api/sharedAgents';
 import { useActiveView } from '@/hooks/useActiveView';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
+import { clipboardUrl } from '@/lib/clipboard';
 import { parseMyLinkedAgents } from '@/api/myAgents';
 import { A2aReply, a2aReplyText, readA2aReply } from '@/lib/a2aReply';
 import { a2uiActionParts } from '@/lib/a2uiAction';
@@ -237,12 +239,12 @@ function AgentDetail() {
   const manageable = useManageableHostedAgentsQuery(cacheIdentity, { skip: !isSignedIn || !localHosted || ownsIt });
   const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.error ? undefined : manageable.currentData, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.currentData, manageable.error, agent?.id]);
   const managesIt = localHosted && !ownsIt && !!managedRow?.canManage;
-  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const linkedNote = (location.state as { linkedNote?: unknown } | null)?.linkedNote;
   const [article, setArticle] = useState('');
   const endpoints = agent ? agentEndpoints(agent) : null;
   const callUrl = endpoints?.call;
   const cardUrl = endpoints?.card;
+  const cardCopy = useClipboardCopy(typeof window === 'undefined' ? cardUrl ?? '' : clipboardUrl(cardUrl ?? '', window.location.origin));
   const [contextId, setContextId] = useState<string | undefined>();
   const [taskId, setTaskId] = useState<string | undefined>();
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
@@ -533,12 +535,11 @@ function AgentDetail() {
         */}
       <UrlRow>
         <code>{cardUrl}</code>
-        <Button size="small" onClick={async () => {
-          try { await navigator.clipboard.writeText(new URL(cardUrl!, window.location.origin).href); if (active()) setCopyNotice(t('agentGit.copied')); }
-          catch { if (active()) setCopyNotice(t('agentPage.copy_failed')); }
-        }}>Copy</Button>
+        <Button type="button" size="small" disabled={cardCopy.disabled} aria-busy={cardCopy.phase === 'copying'} aria-live="polite" onClick={() => void cardCopy.copy()}>
+          {t(cardCopy.phase === 'copied' ? 'agentGit.copied' : cardCopy.phase === 'copying' ? 'common.copying' : 'agent.copy')}
+        </Button>
       </UrlRow>
-      {copyNotice && <Small role="status">{copyNotice}</Small>}
+      {cardCopy.phase === 'failed' && <Small role="alert">{t('agentPage.copy_failed')}</Small>}
       <Small>
         Give this to a workspace to invite the agent ·{' '}
         <ExternalLink href={samePath(cardUrl!)}>open the card</ExternalLink> · Check the card's

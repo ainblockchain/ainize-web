@@ -15,7 +15,7 @@
  *  - **The URL is public and the row says so.** These endpoints take no authentication because A2A sends
  *    none; anyone who copies the address can call it.
  */
-import { useRef, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 import type { AgentSummary } from '@/api/types';
@@ -25,7 +25,8 @@ import { HostedAgentBadges } from './HostedAgentBadges';
 import { visibilityBadgeOf } from '@/api/sharedAgents';
 import { agentPagePath } from '@/api/agentIds';
 import { agentEndpoints } from '@/lib/agentRequestUrl';
-import { useActiveView } from '@/hooks/useActiveView';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
+import { clipboardUrl } from '@/lib/clipboard';
 
 /** The A2UI extension, by URI prefix — the version moves (v0.8 → v0.9) and the badge should not. */
 const A2UI = 'a2ui.org';
@@ -105,15 +106,7 @@ export function AgentListItem({ agent, extra }: { agent: AgentSummary; extra?: R
   const { t } = useT();
   const state = stateOf(agent);
   const { card: cardUrl } = agentEndpoints(agent);
-  const active = useActiveView();
-  const currentCard = useRef(cardUrl); currentCard.current = cardUrl;
-  const [copyNotice, setCopyNotice] = useState<{ url: string; text: string } | null>(null);
-  const copy = async () => {
-    let text: string;
-    try { await navigator.clipboard.writeText(new URL(cardUrl, window.location.origin).href); text = t('agentGit.copied'); }
-    catch { text = t('agentPage.copy_failed'); }
-    if (active() && currentCard.current === cardUrl) setCopyNotice({ url: cardUrl, text });
-  };
+  const copy = useClipboardCopy(typeof window === 'undefined' ? cardUrl : clipboardUrl(cardUrl, window.location.origin));
   // A card lists skills for machines; a browse row shows the few that fit and says how many it did not show.
   const skills = agent.skills.slice(0, 3);
   const moreSkills = agent.skills.length - skills.length;
@@ -159,11 +152,11 @@ export function AgentListItem({ agent, extra }: { agent: AgentSummary; extra?: R
           */}
         <UrlRow>
           <code>{cardUrl}</code>
-          <Button size="small" variant="outlined" onClick={() => void copy()}>
-            {t('agent.copy')}
+          <Button type="button" size="small" variant="outlined" disabled={copy.disabled} aria-busy={copy.phase === 'copying'} aria-live="polite" onClick={() => void copy.copy()}>
+            {t(copy.phase === 'copied' ? 'agentGit.copied' : copy.phase === 'copying' ? 'common.copying' : 'agent.copy')}
           </Button>
         </UrlRow>
-        {copyNotice?.url === cardUrl && <Note role="status">{copyNotice.text}</Note>}
+        {copy.phase === 'failed' && <Note role="alert">{t('agentPage.copy_failed')}</Note>}
         {extra}
       </Info>
       <TestCol>

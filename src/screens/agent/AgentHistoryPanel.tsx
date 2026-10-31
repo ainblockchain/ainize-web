@@ -16,6 +16,7 @@ import styled from 'styled-components';
 import { useAgentExecutionsQuery, useAgentCommitsQuery, useAgentDiffQuery, useAgentPullsQuery, useOpenAgentPullMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useAgentRefsQuery, useMergeAgentPullMutation, useSyncAgentMirrorMutation } from '@/api/api';
 import { agentHistorySelection } from '@/lib/agentHistorySelection';
 import { useActiveView } from '@/hooks/useActiveView';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 import { useAuth } from '@/auth/AuthContext';
 import type { AgentPull } from '@/api/types';
 import type { AgentGitInfo } from '@/api/types';
@@ -163,7 +164,6 @@ function AgentHistoryContent({ agentId, git, canMerge = false }: HistoryProps) {
   const { head, ref, base, commit, baseCommit, valid: validSelection, comparing } = selection;
   const commits = useAgentCommitsQuery({ id: agentId, identity: cacheIdentity, ref: commit, limit: 20 }, { skip: !validSelection });
   const diff = useAgentDiffQuery({ id: agentId, identity: cacheIdentity, base: baseCommit, head: commit }, { skip: !comparing });
-  const [copied, setCopied] = useState(false);
   const pulls = useAgentPullsQuery({ id: agentId, identity: cacheIdentity });
   const [merge, mergeState] = useMergeAgentPullMutation();
   const [sync, syncState] = useSyncAgentMirrorMutation();
@@ -181,6 +181,7 @@ function AgentHistoryContent({ agentId, git, canMerge = false }: HistoryProps) {
   const executionData = executions.error ? undefined : executions.currentData;
   const diffData = diff.error || !comparing ? undefined : diff.currentData;
   const cloneUrl = refData?.clone_url ?? commitData?.clone_url ?? '';
+  const copy = useClipboardCopy(cloneUrl ? `git clone ${cloneUrl}` : '');
   const sourceValid = !forkId || (!!forkData?.forks.some((fork) => fork.id === forkId && fork.parent === agentId) && !!forkRefData?.branches.some((entry) => entry.name === forkBranch));
   const actionPending = useRef(false);
   const actionBusy = opening.isLoading || creatingFork.isLoading || deletingFork.isLoading || mergeState.isLoading || syncState.isLoading;
@@ -190,11 +191,6 @@ function AgentHistoryContent({ agentId, git, canMerge = false }: HistoryProps) {
     try { const value = await work(); if (active()) after?.(value); }
     catch (error) { if (active()) setFailed(String((error as { data?: { error?: { message?: string } } })?.data?.error?.message ?? error)); }
     finally { actionPending.current = false; }
-  };
-
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(`git clone ${cloneUrl}`); if (active()) setCopied(true); }
-    catch { if (active()) setFailed(t('agentPage.copy_failed')); }
   };
 
   return (
@@ -224,7 +220,8 @@ function AgentHistoryContent({ agentId, git, canMerge = false }: HistoryProps) {
       {cloneUrl && !mirror && (
         <Clone>
           <code data-testid="agent-clone-url">git clone {cloneUrl}</code>
-          <Button size="small" variant="outlined" onClick={() => void copy()}>{copied ? t('agentGit.copied') : t('agentGit.copy')}</Button>
+          <Button type="button" size="small" variant="outlined" disabled={copy.disabled} aria-busy={copy.phase === 'copying'} aria-live="polite" onClick={() => void copy.copy()}>{copy.phase === 'copied' ? t('agentGit.copied') : copy.phase === 'copying' ? t('common.copying') : t('agentGit.copy')}</Button>
+          {copy.phase === 'failed' && <Alert role="alert" $tone="error">{t('agentPage.copy_failed')}</Alert>}
         </Clone>
       )}
 

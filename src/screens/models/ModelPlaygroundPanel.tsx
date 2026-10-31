@@ -19,6 +19,7 @@ import { useT } from '@/i18n';
 import { DECISION_EXAMPLE, MUSIC_TRY, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
 import { readChatStream } from './playgroundStream';
 import { useIssuedKey } from './useIssuedKey';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
 
 const Panel = styled.div`border: 1px solid #e2e4ea; border-radius: 10px; padding: 18px; margin-bottom: 28px;`;
@@ -104,8 +105,6 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
     if (run.kind === 'audio') return () => URL.revokeObjectURL(run.url);
   }, [run]);
   const [language, setLanguage] = useState<SnippetLanguage>('python');
-  const [copied, setCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
 
   // AuthContext includes optimistic sign-out; raw cached /me can still name the old wallet while logout runs.
   const { google, sso, subject, isSignedIn: canHoldKeys, cacheIdentity } = useAuth();
@@ -135,6 +134,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
     language, modality: model.modality, model: modelRef, nodeUrl: nodeUrlFromBrowser(), prompt,
     apiKey: issuedKey ?? undefined,
   }), [language, model, prompt, issuedKey]);
+  const copy = useClipboardCopy(snippet);
 
   const busy = run.kind === 'running' || (run.kind === 'text' && !!run.streaming);
 
@@ -335,20 +335,13 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
           <Button
             type="button"
             data-testid="models-copy"
-            onClick={() => {
-              setCopied(false);
-              setCopyFailed(false);
-              if (!navigator.clipboard) { setCopyFailed(true); return; }
-              void navigator.clipboard.writeText(snippet).then(() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }).catch(() => setCopyFailed(true));
-            }}
+            disabled={copy.disabled} aria-busy={copy.phase === 'copying'}
+            onClick={() => void copy.copy()}
           >
-            {t(copied ? 'models.code.copied' : 'models.code.copy')}
+            {t(copy.phase === 'copied' ? 'models.code.copied' : copy.phase === 'copying' ? 'common.copying' : 'models.code.copy')}
           </Button>
         </CodeHead>
-        {copyFailed && <Alert role="alert" $tone="error">{t('models.code.copy_failed')}</Alert>}
+        {copy.phase === 'failed' && <Alert role="alert" $tone="error">{t('models.code.copy_failed')}</Alert>}
         <CodeBlock data-testid="models-snippet">{snippet}</CodeBlock>
         <Description>
           <StyledLink to="/docs/how-to/call-the-model">{t('models.code.docs')}</StyledLink>

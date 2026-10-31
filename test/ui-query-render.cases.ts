@@ -51,6 +51,8 @@ import { SignOutNotice } from '../src/components/ui/SignOutNotice';
 import { Header } from '../src/components/ui/Header';
 import MyPage from '../src/screens/MyPage';
 import { ModelPlaygroundPanel } from '../src/screens/models/ModelPlaygroundPanel';
+import { CopyButton } from '../src/components/ui/Misc';
+import { CodeBlock as DocsCodeBlock } from '../src/components/docs/CodeBlock';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -83,6 +85,16 @@ const signedOut: Fixture[] = [
   { name: 'ssoStatus', value: { configured: true } },
 ];
 const policy: Fixture = { name: 'teachPolicy', value: { enabled: false, trainer: 'paused' } };
+
+test('shared copy controls cannot copy empty values or accidentally submit surrounding forms', () => {
+  const empty = render(() => createElement(CopyButton, { text: ' \n' }), signedOut);
+  assert.match(empty, /<button[^>]*type="button"[^>]*disabled=""/);
+  const filled = render(() => createElement(CopyButton, { text: 'selected value' }), signedOut);
+  assert.match(filled, /Copy to clipboard/);
+  assert.doesNotMatch(filled, /disabled=""|>Copied</);
+  const docs = render(() => createElement(DocsCodeBlock, { code: '', lang: 'bash' }), signedOut);
+  assert.match(docs, /<button[^>]*type="button"[^>]*disabled=""/);
+});
 const lists = (datasets: Fixture, jobs: Fixture) => [...signedOut, policy, ...[datasets, jobs].map(f => ({ ...f, arg: currentTeacherKey()?.address.toLowerCase() ?? '' }))];
 const dsEmpty: Fixture = { name: 'teachDatasets', value: { items: [] } };
 const jobsEmpty: Fixture = { name: 'myTeachJobs', value: { items: [] } };

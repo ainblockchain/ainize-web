@@ -4,6 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import { STATUS_META } from '@/theme/theme';
 import { useT } from '@/i18n';
 import { ArrowLeftIcon, ArrowRightIcon, CertifiedIcon } from './Icons';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 
 // ------------------------------------------------------------------ page scaffolding
 /** huggingface.co's `container`: full width, capped, with a 16 px gutter at every width — the header and footer share it. */
@@ -237,16 +238,21 @@ export function Tabs({ tabs, value, onChange }: { tabs: { id: string; label: Rea
 // ------------------------------------------------------------------ copy button
 export function CopyButton({ text, label }: { text: string; label?: string }) {
   const { t } = useT();
-  const [copied, setCopied] = useState(false);
+  const copy = useClipboardCopy(text);
   return (
-    <CopyBtn type="button" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ } }}>
-      {copied ? t('common.copied') : (label ?? t('common.copy_clipboard'))}
-    </CopyBtn>
+    <CopyWrap>
+      <CopyBtn type="button" disabled={copy.disabled} aria-busy={copy.phase === 'copying'} aria-live="polite" onClick={() => void copy.copy()}>
+        {copy.phase === 'copied' ? t('common.copied') : copy.phase === 'copying' ? t('common.copying') : (label ?? t('common.copy_clipboard'))}
+      </CopyBtn>
+      {copy.phase === 'failed' && <span role="alert">{t('common.copy_failed')}</span>}
+    </CopyWrap>
   );
 }
+const CopyWrap = styled.span`display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; max-width: 100%; min-width: 0; & > [role="alert"] { font-size: 12px; color: #b42318; overflow-wrap: anywhere; }`;
 const CopyBtn = styled.button`
   padding: 5px 14px; border: 1px solid #8b3eeb80; border-radius: 4px; background: #fff; color: #8b3eeb; font-size: 13px; font-weight: 500; cursor: pointer;
   &:hover { border-color: #8b3eeb; background: #8b3eeb0f; }
+  &:disabled { cursor: not-allowed; opacity: 0.5; }
 `;
 
 // ------------------------------------------------------------------ progress bar (score)

@@ -17,6 +17,7 @@ import { parseOrgList } from '@/api/organizations';
 import { defaultKeyScope, keyScopeOptions } from '@/api/sharedAgents';
 import { useAuth } from '@/auth/AuthContext';
 import { useShareableOrgs } from '@/hooks/useShareableOrgs';
+import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
@@ -79,7 +80,7 @@ function MyAccount() {
   // Kept for this tab (sessionStorage, screens/models/issuedKeyMemory.ts): a refresh or a remount of this page must not be
   // the moment the only copy of a secret vanishes. 2026-10-16: a person made a key and never saw its value.
   const { key: issued, remember, forget } = useIssuedKey(cacheIdentity);
-  const [copied, setCopied] = useState(false);
+  const copy = useClipboardCopy(issued ?? '');
   const [error, setError] = useState<string | null>(null);
 
   if (loading || isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
@@ -184,7 +185,7 @@ function MyAccount() {
           if (!label || duplicateName || createState.isLoading) return;
           setError(null);
           void createKey({ label, ...(scope !== undefined ? { org_id: scope } : {}) }).unwrap()
-            .then((r) => { if (remember(r.api_key)) { setCopied(false); setKeyName(''); } })
+            .then((r) => { if (remember(r.api_key)) setKeyName(''); })
             .catch((e: unknown) => setError(errorMessage(e)));
         }}>
           <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
@@ -205,14 +206,13 @@ function MyAccount() {
             {/* Said where it cannot be missed: there is no second chance to read this. */}
             <Description>{t('me.keys.once')}</Description>
             <Row>
-              <Button size="small" type="button" data-testid="me-issued-copy" onClick={() => {
-                setError(null);
-                if (!navigator.clipboard) { setError(t('me.keys.copy_failed')); return; }
-                void navigator.clipboard.writeText(issued).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => { setCopied(false); setError(t('me.keys.copy_failed')); });
-              }}>{t(copied ? 'me.keys.copied' : 'me.keys.copy')}</Button>
+              <Button size="small" type="button" data-testid="me-issued-copy" disabled={copy.disabled} aria-busy={copy.phase === 'copying'} onClick={() => void copy.copy()}>
+                {t(copy.phase === 'copied' ? 'me.keys.copied' : copy.phase === 'copying' ? 'common.copying' : 'me.keys.copy')}
+              </Button>
               <Button size="small" variant="text" color="secondary" type="button" data-testid="me-issued-forget"
                 onClick={forget}>{t('me.keys.forget')}</Button>
             </Row>
+            {copy.phase === 'failed' && <Alert role="alert">{t('me.keys.copy_failed')}</Alert>}
           </IssuedBox>
         )}
         {error && <Alert>{t('me.keys.failed', { why: error })}</Alert>}
