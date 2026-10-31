@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useState } from 'react';
 import styled from 'styled-components';
 import { usePatchDatasetQuery } from '@/api/api';
@@ -26,11 +27,12 @@ const Buttons = styled.div`
 `;
 
 export function TrainingSetBlock({ d, canBuildOn }: { d: PatchDetail; canBuildOn: boolean }) {
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const a = d.anchor;
   const access = a.dataset?.access ?? 'private';
-  const { data: ds, error } = usePatchDatasetQuery(a.id, { skip: !open || access === 'private' });
+  const { currentData: ds, error } = usePatchDatasetQuery({ id: a.id, teacherIdentity }, { skip: !open || access === 'private' });
   if (!a.dataset) return null;
   const accessText = t(access === 'public' ? 'detail.ds.access_public' : access === 'derivative' ? 'detail.ds.access_derivative' : 'detail.ds.access_private');
   const refused = (error as { data?: { error?: string } } | undefined)?.data?.error ?? '';

@@ -165,7 +165,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 167 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 171 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 105 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -187,12 +187,16 @@ A further 105 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "media" is for a service project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "triggers" is for a script project, not \<kind> — a \<kind> project is deployed by a push, not run | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "websocket" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: examples."\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" example "\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" answers an input that does not exist: \<k> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".entry "\<targetEntry>" is not the script's entry or one of "run" | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".inputs.\<k>: a \<trigger.type> event has no "…" — … | `src/project-manifest.ts` |
 | `null` | \<rel> is a binary file | `src/hosted-qa-engine.ts` |
 | `null` | \<rel> is a directory | `src/hosted-qa-engine.ts` |
 | `null` | \<rel> is a directory; use list_dir | `src/hosted-qa-engine.ts` |

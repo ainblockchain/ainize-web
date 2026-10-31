@@ -6,6 +6,7 @@ import type { Dict } from '../index';
  * The §5.3 picker keys (chat.picker.multi_title / multi_help / overlap / contaminated / mine) live in chat.ts (PR-3).
  */
 export const teach: Dict = {
+  'teach.err.key_changed': { ko: '학습 키가 변경됐습니다. 현재 키로 다시 시도해 주세요.', en: 'Your teaching key changed. Try again with the current key.' },
   // §5.3 live test additions
   'chat.banner.teach': { ko: '답이 틀렸나요? 답변 아래 "정답 가르치기"를 누르면 모델이 배웁니다. 계정이 필요 없습니다.', en: 'Wrong answer? Click "Teach the right answer" under any reply and the model learns it. No account needed.' },
   'chat.banner.dismiss': { ko: '닫기', en: 'Dismiss' },

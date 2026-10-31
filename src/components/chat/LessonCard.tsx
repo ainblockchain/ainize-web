@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import styled from 'styled-components';
@@ -114,11 +115,12 @@ const toneOf = (j: TeachJob): 'busy' | 'ok' | 'warn' | 'bad' | 'muted' => {
 
 /** §5.8 — the "Your lesson" card at the top of the transcript: polls the job every 5 s while it moves, then offers Try / Publish / Keep. */
 export function LessonCard({ jobId, policy, nodeAddress, teacherAddress, onTry, onPublish, onKeep, onImprove, onHide }: LessonCardProps) {
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   const dateTime = useDateTime();
   const dispatch = useDispatch();
   const [poll, setPoll] = useState(5000);
-  const { data, error } = useTeachJobQuery(jobId, { pollingInterval: poll });
+  const { currentData: data, error } = useTeachJobQuery({ id: jobId, teacherIdentity }, { pollingInterval: poll });
   const [cancel, { isLoading: cancelling }] = useCancelTeachJobMutation();
   const [recheck, { isLoading: rechecking }] = useRecheckTeachJobMutation();
   const [actionError, setActionError] = useState<string | null>(null);

@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
@@ -94,12 +95,13 @@ const Confirm = styled.div`
 
 export default function TeachLessonPage() {
   const { jobId = '' } = useParams<{ jobId: string }>();
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   const navigate = useNavigate();
   const { data: policy } = useTeachPolicyQuery();
   const { data: info } = useInfoQuery();
   const [poll, setPoll] = useState(3000);
-  const { data, error: jobError } = useTeachJobQuery(jobId, { pollingInterval: poll, skip: !jobId });
+  const { currentData: data, error: jobError } = useTeachJobQuery({ id: jobId, teacherIdentity }, { pollingInterval: poll, skip: !jobId });
   const [cancel, { isLoading: cancelling }] = useCancelTeachJobMutation();
   const [recheck, { isLoading: rechecking }] = useRecheckTeachJobMutation();
   const [retrain, { isLoading: retraining }] = useRetrainTeachJobMutation();
@@ -114,14 +116,14 @@ export default function TeachLessonPage() {
   const active = !!status && ACTIVE.has(status);
   useEffect(() => { setPoll(active ? 3000 : 30_000); }, [active]);
   useEffect(() => { if (!active) return; const h = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(h); }, [active]);
-  const { data: events } = useTeachJobEventsQuery({ id: jobId }, { skip: !jobId || !full, pollingInterval: active ? 5000 : 0 });
+  const { currentData: events } = useTeachJobEventsQuery({ teacherIdentity, id: jobId }, { skip: !jobId || !full, pollingInterval: active ? 5000 : 0 });
   /**
    * Finding 49 — the result said "1 of your 12 questions were left out: the model already answered them correctly"
    * and never said WHICH, so the visitor could not identify the question they had lost. `training.selected_indexes`
    * is the positions this lesson trained and the dataset holds the rest, so the ones left out can be named.
    */
   const leftOut = full?.preflight?.known || full?.preflight?.overlaps ? (full.dataset?.id ?? '') : '';
-  const { data: dsRows } = useTeachDatasetRowsQuery({ id: leftOut, offset: 0, limit: 200 }, { skip: !leftOut || !!full?.dataset?.deleted });
+  const { currentData: dsRows } = useTeachDatasetRowsQuery({ teacherIdentity, id: leftOut, offset: 0, limit: 200 }, { skip: !leftOut || !!full?.dataset?.deleted });
 
   // Computed before the early returns so the tab can be named like every other page's; `undefined` until the lesson
   // is known keeps the previous title rather than flashing a placeholder.
