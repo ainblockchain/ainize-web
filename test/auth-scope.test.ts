@@ -82,7 +82,7 @@ test('each wallet login explicitly requests its matching signing scheme', () => 
   assert.ok(page.includes("challenge({ scheme: 'ain' })"), 'native AIN Wallet requests an AIN challenge');
   assert.ok(page.includes('ainWalletLoginProof(wallet,'), 'native signatures use the wallet-specific proof verifier');
   // The wallet's own answer is checked here: left to the node it becomes an opaque 401 on an unrelated route.
-  assert.ok(page.includes('personalSign(w.provider, ch.message, address)'));
+  assert.ok(page.includes('personalSign(w.provider, message, address)'));
 });
 
 test('the authorize page shows the bytes the wallet will sign, not its own account of them', () => {
@@ -90,7 +90,7 @@ test('the authorize page shows the bytes the wallet will sign, not its own accou
   // A page saying one thing while the wallet signs another is the whole attack. The node composes the message and
   // stores it; this renders THAT string, so there is only one string and nothing for the two to disagree about.
   assert.ok(page.includes('<Signed data-testid="authorize-message">{data.message}</Signed>'), 'the message is rendered verbatim');
-  assert.ok(page.includes('personalSign(w.provider, data.message, address)'), 'and it is what gets signed');
+  assert.ok(page.includes('personalSign(wallet.provider, message, address)'), 'and it is what gets signed');
   // The key in full. `0x04…cb55` cannot be compared against what the terminal printed, which is the one check a
   // person can actually make here.
   assert.ok(page.includes('<Mono>{data.delegate}</Mono>'), 'the key is not abbreviated');
@@ -162,15 +162,17 @@ test('the authorisation page speaks about a node when a node is what asked', () 
   assert.match(page, /const k = data\.kind === 'node' \? 'node' : 'cli'/, 'the wording follows what the node recorded');
   // Nothing user-visible may reach for the flat key again: that is how the cli wording came back last time.
   const flat = [...page.matchAll(/t\('op\.authorize\.(\w+)'\)/g)].map((m) => m[1]);
-  const neutral = new Set(['title', 'busy', 'reject', 'label', 'node', 'until', 'message', 'signin_first', 'done_end', 'used', 'unknown', 'no_code', 'wallet_mismatch']);
+  const neutral = new Set(['title', 'busy', 'label', 'node', 'until', 'message', 'signin_first', 'done_end', 'used', 'unknown', 'no_code', 'wallet_mismatch', 'dismissed', 'refresh', 'dismiss']);
   assert.deepEqual(flat.filter((key) => !neutral.has(key)), [], 'a string that differs between a CLI and a node must go through tt()');
 
   const strings = code('i18n/pages/operator.ts').join('\n');
-  for (const key of ['title', 'lead', 'key', 'label_hint', 'approve', 'done', 'rejected', 'expired']) {
+  for (const key of ['title', 'lead', 'key', 'label_hint', 'approve', 'done', 'expired']) {
     for (const kind of ['cli', 'node']) {
       assert.ok(strings.includes(`'op.authorize.${kind}.${key}'`), `op.authorize.${kind}.${key} is missing`);
     }
   }
+  assert.ok(strings.includes("'op.authorize.dismissed'"), 'local dismissal has neutral wording');
+  assert.ok(!page.includes("tt('rejected')"), 'local dismissal cannot claim server rejection');
   // The advice that is wrong for the other case, in the case it is wrong for.
   const nodeLead = strings.match(/'op\.authorize\.node\.lead':[^\n]*/)![0];
   assert.ok(nodeLead.includes('no wallet spending'), 'node linking must not promise account delegation');

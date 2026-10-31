@@ -55,7 +55,7 @@ import { createTeacherKey, forgetTeacherKey, currentTeacherKey } from '../src/li
 import TeachDatasetPage from '../src/screens/TeachDatasetPage';
 import TeachSettingsPage from '../src/screens/TeachSettingsPage';
 import TeachMinePage from '../src/screens/TeachMinePage';
-import SigningPage from '../src/screens/SigningPage';
+import SigningPage, { WalletChoices } from '../src/screens/SigningPage';
 import AuthorizePage from '../src/screens/AuthorizePage';
 import AppsPage from '../src/screens/AppsPage';
 import SearchPage from '../src/screens/SearchPage';
@@ -4211,4 +4211,29 @@ test('terminal pending review shows the complete node and a truthful leave actio
   assert.match(refreshing, /<button[^>]*disabled=""[^>]*data-testid="authorize-approve"/);
   const expired = render(AuthorizePage, [...deviceAccountFixtures, { ...request, value: { ...deviceView('expired'), expires_at: Date.now() - 10 } }], '/authorize?code=terminal-code');
   assert.match(expired, /authorize-over/); assert.doesNotMatch(expired, /authorize-approve/);
+});
+
+
+test('operator invitations label native enrollment before any browser wallets are discovered', () => {
+  const html = render(SigningPage, signedOut, '/signing?token=fixture-invitation');
+  assert.match(html, /Enroll as owner with AIN Wallet and sign in/);
+  assert.match(html, /operator invitation/);
+  assert.doesNotMatch(html, /Sign in with AIN Wallet|data-testid="sso-signin"|data-testid="google-signin"/);
+});
+
+test('wallet choices name every provider and its operation, including enrollment and busy states', () => {
+  const wallets = ['Wallet Alpha', 'Wallet Beta'].map(name => ({ info: { name, uuid: name, rdns: name, icon: '' }, provider: { request: async () => null } }));
+  for (const enroll of [false, true]) for (const busy of [false, true]) {
+    const html = render(() => createElement(WalletChoices, { wallets, enroll, busy, onNative() {}, onWallet() {} }), signedOut);
+    for (const name of ['AIN Wallet', 'Wallet Alpha', 'Wallet Beta']) assert.ok(html.includes(enroll ? 'Enroll as owner with ' + name + ' and sign in' : 'Sign in with ' + name));
+    assert.equal((html.match(/<button/g) ?? []).length, 3);
+    assert.equal((html.match(/disabled=""/g) ?? []).length, busy ? 3 : 0);
+  }
+});
+
+
+test('account linking offers its own choices without unrelated wallet login actions', () => {
+  const html = render(SigningPage, [...signedOut.filter(f => f.name !== 'ssoStatus'), { name: 'ssoStatus', value: { configured: true, pending: { sub: 'new-account', name: 'Fixture', next: '/apps' } } }], '/signing?sso=connect&next=%2Fapps');
+  assert.match(html, /data-testid="sso-connect-new"/);
+  assert.doesNotMatch(html, /data-testid="wallet-options"|data-testid="ain-wallet-signin"/);
 });

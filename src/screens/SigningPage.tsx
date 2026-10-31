@@ -3,8 +3,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useEnrollMutation, useLoginChallengeMutation, useLoginWalletMutation, useMeQuery, useSsoConnectMutation, useSsoStatusQuery } from '@/api/api';
 import { ainWalletLoginProof } from '@/lib/ainWalletLogin';
+import { completeWalletLogin, walletLoginProof, WalletLoginError, type WalletProof } from '@/lib/walletLogin';
+import { createNodeActionTask } from '@/lib/accountNodeActions';
+import { useActiveView } from '@/hooks/useActiveView';
 import type { AinftWallet } from '@/lib/ainftRegistration';
-import { connect, discoverWallets, personalSign, WalletError, type DiscoveredWallet } from '@/lib/ethWallet';
+import { connect, currentAccount, discoverWallets, personalSign, WalletError, type DiscoveredWallet } from '@/lib/ethWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { safeReturnPath } from '@/lib/uiNavigation';
@@ -29,13 +32,13 @@ const ConfirmButton = styled.button`
   &:hover { background: ${(p) => p.theme.color.HOVER}; } &:disabled { background: ${(p) => p.theme.color.PRESSED}; cursor: not-allowed; }
 `;
 const Hint = styled.p`
-  margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; word-break: keep-all;
+  margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: ${(p) => p.theme.color.GREY}; word-break: keep-all; overflow-wrap: anywhere;
   code { font-family: ${(p) => p.theme.font.mono}; font-size: 12.5px; background: #f4f4f5; border-radius: 3px; padding: 1px 5px; color: ${(p) => p.theme.color.BLACK}; }
 `;
 const EnrollRow = styled.div`margin-top: 14px;`;
 const Fine = styled.p`margin: 24px 0 0; font-size: 12.5px; color: ${(p) => p.theme.color.GREY};`;
 const WalletButton = styled.button`
-  min-width: 196px; height: 44px; padding: 0 16px; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; background: #fff;
+  min-width: 0; max-width: 100%; min-height: 44px; padding: 10px 16px; overflow-wrap: anywhere; border: 1px solid ${(p) => p.theme.color.PRIMARY}; border-radius: 4px; background: #fff;
   color: ${(p) => p.theme.color.PRIMARY}; font-size: 15px; font-weight: 500; cursor: pointer; text-align: left;
   display: inline-flex; align-items: center; gap: 10px;
   &:hover { background: ${(p) => p.theme.color.PALE_GREY}; } &:disabled { opacity: .55; cursor: not-allowed; }
@@ -77,10 +80,15 @@ function GoogleMark() {
 }
 
 export default function SigningPage() {
+  const [params] = useSearchParams();
+  return <SigningView key={params.toString()} />;
+}
+
+function SigningView() {
   const { t, locale } = useT();
   useTitle(t('nav.signin'));
   const auth = useAuth();
-  const { data: me } = useMeQuery();
+  const { data: me, refetch: refetchMe } = useMeQuery();
   const [params] = useSearchParams();
   const routerNavigate = useNavigate();
   // `next` may be a path this app does not render (ainize.ai/code); those need a real page load, not a route change.
@@ -104,6 +112,13 @@ export default function SigningPage() {
   const setupToken = params.get('token') || undefined;
   const [localError, setLocalError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const enrollMode = !!setupToken || enrolling;
+  const active = useActiveView();
+  const task = useRef(createNodeActionTask()).current;
+  const latest = useRef(auth); latest.current = auth;
+  useEffect(() => () => task.abandon(), [task]);
 
   /**
    * One control, and what it needs to be acted on.
@@ -137,7 +152,7 @@ export default function SigningPage() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const pending = connecting ? ssoStatus?.pending ?? null : null;
   const direct = directSignIn({
-    loading: auth.loading || ssoLoading, signedIn: auth.isSignedIn,
+    loading: auth.loading || ssoLoading || busy || task.pending() || !!localError, signedIn: auth.isSignedIn,
     ssoConfigured: auth.ssoConfigured, googleConfigured: auth.googleConfigured,
     optionsFailed: ssoUnavailable, params,
   });
@@ -159,16 +174,21 @@ export default function SigningPage() {
     else window.location.replace(redirectHref);
   }, [redirectHref, redirectKind, navigate]);
   const finishConnect = async (choice: 'legacy' | 'new') => {
-    setConnectError(null);
-    try {
-      const r = await ssoConnect({ choice }).unwrap();
-      await auth.refresh();
-      navigate(r.next || '/', { replace: true });
-    } catch (e) {
-      const body = (e as { data?: { message?: string; error?: string } } | null)?.data;
-      setConnectError(body?.message ?? body?.error ?? errorMessage(e));
-      void refetchSso();
-    }
+    await task.run(() => active() && !latest.current.signingOut, async current => {
+      setConnectError(null); setBusy(true);
+      try {
+        const r = await ssoConnect({ choice }).unwrap();
+        if (!current()) return null;
+        await auth.refresh();
+        if (current()) navigate(safeReturnPath(r.next, next), { replace: true });
+      } catch (e) {
+        if (!current()) return null;
+        const body = (e as { data?: { message?: string; error?: string } } | null)?.data;
+        setConnectError(body?.message ?? body?.error ?? errorMessage(e));
+        void refetchSso();
+      } finally { if (active()) setBusy(false); }
+      return null;
+    });
   };
   // Back here from the old Google sign-in, the connect panel is waiting with the account it can now connect.
   const connectAgain = `/signing?sso=connect&next=${encodeURIComponent(pending?.next ?? googleNext)}`;
@@ -182,37 +202,45 @@ export default function SigningPage() {
     return errorMessage(e);
   };
 
-  const signInNative = async () => {
-    setLocalError(null); setBusy(true);
-    try {
-      const wallet = (window as unknown as { ainetwork?: AinftWallet }).ainetwork;
-      if (!wallet?.getAddress || !wallet.signMessage) throw new Error(locale === 'ko' ? 'AIN Wallet을 설치하고 잠금을 해제하세요.' : 'Install and unlock AIN Wallet.');
-      const proof = await ainWalletLoginProof(wallet, () => challenge({ scheme: 'ain' }).unwrap());
-      await loginWallet(proof).unwrap();
-      await auth.refresh();
-      navigate(next, { replace: true });
-    } catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); }
-    finally { setBusy(false); }
+  const runWallet = async (scheme: 'ain' | 'eip191', prove: (current: () => boolean) => Promise<WalletProof | null>) => {
+    if (ssoConnectState.isLoading || pending || unconfirmed) return;
+    const node = auth.address, identity = auth.cacheIdentity;
+    const currentView = () => active() && !latest.current.signingOut && latest.current.address === node;
+    const currentProof = () => currentView() && latest.current.cacheIdentity === identity;
+    await task.run(currentView, async current => {
+      setLocalError(null); setBusy(true);
+      try {
+        if (!node) throw new WalletLoginError('challenge');
+        const proof = await prove(() => current() && currentProof());
+        if (!current()) return null;
+        if (!proof || !currentProof()) throw new WalletLoginError('changed');
+        const confirmed = await completeWalletLogin(proof, { enroll: enrollMode, setupToken, node, scheme }, {
+          current, login: value => loginWallet(value).unwrap(), enroll: value => enroll(value).unwrap(),
+          session: () => refetchMe().unwrap(),
+        });
+        if (confirmed && current()) navigate(next, { replace: true });
+      } catch (e) {
+        if (current()) {
+          if (e instanceof WalletLoginError && e.code === 'unconfirmed') setUnconfirmed(true);
+          setLocalError(e instanceof WalletLoginError ? t(`op.sign.wallet.${e.code}`)
+            : e instanceof WalletError ? t(`op.sign.wallet.err_${e.message}`) : signInError(e));
+        }
+      } finally { if (active()) setBusy(false); }
+      return null;
+    });
   };
 
-  const signIn = async (w: DiscoveredWallet, alsoEnroll: boolean) => {
-    setLocalError(null); setBusy(true);
-    try {
-      const address = await connect(w.provider);
-      // `eip191` is stated, not inferred. The node fixes the scheme to the challenge it issues, so what comes back
-      // in `message` is already the readable wallet form — and `personalSign` verifies the wallet's answer against
-      // that exact string before it goes anywhere.
-      const ch = await challenge({ scheme: 'eip191' }).unwrap();
-      const signature = await personalSign(w.provider, ch.message, address);
-      await (alsoEnroll || setupToken
-        ? enroll({ address, nonce: ch.nonce, signature, setupToken })
-        : loginWallet({ address, nonce: ch.nonce, signature })).unwrap();
-      await auth.refresh();
-      navigate(next, { replace: true });
-    } catch (e) {
-      setLocalError(e instanceof WalletError ? t(`op.sign.wallet.err_${e.message}`) : signInError(e));
-    } finally { setBusy(false); }
-  };
+  const signInNative = () => runWallet('ain', async current => {
+    const wallet = (window as unknown as { ainetwork?: AinftWallet }).ainetwork;
+    if (!wallet?.getAddress || !wallet.signMessage) throw new Error(locale === 'ko' ? 'AIN Wallet을 설치하고 잠금을 해제하세요.' : 'Install and unlock AIN Wallet.');
+    return ainWalletLoginProof(wallet, () => challenge({ scheme: 'ain' }).unwrap(), current, auth.address);
+  });
+
+  const signIn = (w: DiscoveredWallet) => runWallet('eip191', current => walletLoginProof('eip191', {
+    current, node: auth.address, connect: () => connect(w.provider), account: () => currentAccount(w.provider),
+    challenge: () => challenge({ scheme: 'eip191' }).unwrap(),
+    sign: (message, address) => personalSign(w.provider, message, address),
+  }));
 
   const loginDocs = locale === 'ko' ? '/docs/ko/how-to/connect-nodes' : '/docs/how-to/connect-nodes';
   const [agreeBefore, agreeAfter] = t('op.sign.agree', { terms: '|' }).split('|');
@@ -230,16 +258,18 @@ export default function SigningPage() {
       <Title>{t('op.sign.login.title')}</Title>
       <Hint data-testid="sign-general">{t('op.sign.general')}</Hint>
 
-      <OptionContainer>
+      <OptionContainer aria-busy={busy} onClickCapture={e => {
+        if (task.pending() && e.target instanceof Element && e.target.closest('a')) e.preventDefault();
+      }}>
         {ssoUnavailable && <Alert $tone="error" role="alert">{t('op.sign.options_failed')} <Button size="small" onClick={() => void refetchSso()}>{t('op.sign.options_retry')}</Button></Alert>}
-        {auth.isSignedIn && !pending && !auth.subject && <Button variant="contained" onClick={() => navigate(next, { replace: true })} data-testid="signin-continue">{t('op.sign.continue')}</Button>}
+        {auth.isSignedIn && !pending && !auth.subject && <Button variant="contained" onClick={() => navigate(next, { replace: true })} disabled={busy || !!setupToken} data-testid="signin-continue">{t('op.sign.continue')}</Button>}
         {/* The AIN sign-in waiting to be finished: connect the old account, or not. */}
         {connecting && pending && (
           <ConnectPanel data-testid="sso-connect">
             <ConnectTitle>{t('op.sign.sso.connect.title')}</ConnectTitle>
             <Hint style={{ marginTop: 0 }}>{t('op.sign.sso.connect.lede', { who: pending.email ?? pending.name ?? 'AIN' })}</Hint>
             {ssoStatus?.legacyGoogle && (
-              <ConfirmButton type="button" style={{ marginTop: 0, width: 'auto', padding: '0 16px' }} disabled={ssoConnectState.isLoading} onClick={() => void finishConnect('legacy')} data-testid="sso-connect-legacy">
+              <ConfirmButton type="button" style={{ marginTop: 0, width: 'auto', padding: '0 16px' }} disabled={busy || ssoConnectState.isLoading} onClick={() => void finishConnect('legacy')} data-testid="sso-connect-legacy">
                 {ssoConnectState.isLoading ? t('op.sign.sso.connect.busy') : t('op.sign.sso.connect.legacy', { email: ssoStatus.legacyGoogle.email })}
               </ConfirmButton>
             )}
@@ -248,14 +278,14 @@ export default function SigningPage() {
                 <GoogleMark />{t('op.sign.sso.connect.google_first')}
               </GoogleButton>
             )}
-            <WalletButton type="button" disabled={ssoConnectState.isLoading} onClick={() => void finishConnect('new')} data-testid="sso-connect-new">{t('op.sign.sso.connect.new')}</WalletButton>
+            <WalletButton type="button" disabled={busy || ssoConnectState.isLoading} onClick={() => void finishConnect('new')} data-testid="sso-connect-new">{t('op.sign.sso.connect.new')}</WalletButton>
             {connectError && <Alert $tone="error" role="alert">{connectError}</Alert>}
           </ConnectPanel>
         )}
         {connecting && ssoStatus && !pending && <Alert $tone="info" role="status" style={{ marginTop: 24 }}>{t('op.sign.sso.connect.expired')}</Alert>}
 
         {/* The shared AIN account is the primary sign-in when this server offers it. */}
-        {auth.ssoConfigured && !auth.sso && !pending && (
+        {auth.ssoConfigured && !auth.sso && !pending && !setupToken && (
           <>
             <SsoButton href={`/api/auth/sso/start?next=${encodeURIComponent(googleNext)}`} data-testid="sso-signin" style={{ marginTop: 0 }}>
               {t('op.sign.sso.button')}
@@ -269,7 +299,7 @@ export default function SigningPage() {
         )}
         {/* Once this site's own Google sign-in is switched off (LEGACY_LOGIN=false), the Google door goes through AIN SSO,
             straight to Google (ain_idp=google): the same account as everywhere else, not a separate one here. */}
-        {auth.ssoConfigured && ssoStatus?.legacyLogin === 'false' && !auth.sso && !pending && (
+        {auth.ssoConfigured && ssoStatus?.legacyLogin === 'false' && !auth.sso && !pending && !setupToken && (
           <GoogleButton href={`/api/auth/sso/start?idp=google&next=${encodeURIComponent(googleNext)}`} data-testid="sso-google" style={{ marginTop: 16 }}>
             <GoogleMark />{t('op.sign.sso.google')}
           </GoogleButton>
@@ -279,7 +309,7 @@ export default function SigningPage() {
 
         {/* Google is a separate door into this app, not into the node: a full-page redirect, because the consent
             screen is Google's page and cannot be fetched. Offered only when this server holds the credentials. */}
-        {auth.googleConfigured && !auth.google && !pending && (
+        {auth.googleConfigured && !auth.google && !pending && !setupToken && (
           <>
             <GoogleButton href={`/api/auth/google/start?next=${encodeURIComponent(googleNext)}`} data-testid="google-signin" style={{ marginTop: 0 }}>
               <GoogleMark />{t('op.sign.google.button')}
@@ -289,61 +319,27 @@ export default function SigningPage() {
         {auth.google && <Alert $tone="info" role="status" data-testid="google-signed-in" style={{ marginTop: 24 }}>{t('op.sign.google.signed_in', { email: auth.google.email })}</Alert>}
         {googleError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('op.sign.google.err', { reason: googleError })}</Alert>}
 
-        <WalletOptions open={params.get('wallet') === '1' || !!setupToken || !!me?.canEnroll || (!auth.ssoConfigured && !auth.googleConfigured)} data-testid="wallet-options">
-          <summary>{t(auth.isSignedIn ? 'op.sign.wallet.connect_option' : 'op.sign.wallet.option')}</summary>
-          <ConfirmButton type="button" onClick={() => void signInNative()} disabled={busy} data-testid="ain-wallet-signin">
-            {locale === 'ko' ? 'AIN Wallet으로 로그인' : 'Sign in with AIN Wallet'}
-          </ConfirmButton>
+        {!pending && <WalletOptions open={params.get('wallet') === '1' || !!setupToken || !!me?.canEnroll || (!auth.ssoConfigured && !auth.googleConfigured)} data-testid="wallet-options">
+          <summary>{t(enrollMode ? 'op.sign.key.enroll' : auth.isSignedIn ? 'op.sign.wallet.connect_option' : 'op.sign.wallet.option')}</summary>
+          {setupToken && <Alert $tone="info" role="status" style={{ marginTop: 12 }}>{t('op.sign.enroll_invite')}</Alert>}
+          {enrollMode && <Hint>{t('op.sign.enroll.node', { node: auth.address ?? '—' })}</Hint>}
+          <WalletChoices wallets={wallets} enroll={enrollMode} busy={busy || unconfirmed || ssoConnectState.isLoading}
+            onNative={() => void signInNative()} onWallet={w => void signIn(w)} />
           {wallets !== null && wallets.length === 0 && (
-            <Alert $tone="info" data-testid="no-wallet">
-              {t('op.sign.key.no_wallet')}
-              <Hint>
-                <Outbound href="https://metamask.io/download/" target="_blank" rel="noreferrer noopener">{t('op.sign.wallet.no_install')} →</Outbound>
-                {' · '}
-                <StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink>
-              </Hint>
-            </Alert>
+            <Hint data-testid="no-wallet">
+              {t('op.sign.key.no_wallet')}{' '}
+              <Outbound href="https://metamask.io/download/" target="_blank" rel="noreferrer noopener">{t('op.sign.wallet.no_install')} →</Outbound>
+              {' · '}<StyledLink to={loginDocs}>{t('op.sign.login.where_link')} →</StyledLink>
+            </Hint>
           )}
+          {!setupToken && me?.canEnroll && <EnrollRow>
+            <Button disabled={busy || unconfirmed || ssoConnectState.isLoading} onClick={() => setEnrolling(value => !value)}>
+              {t(enrolling ? 'op.sign.enroll.cancel' : 'op.sign.key.enroll')}
+            </Button>
+          </EnrollRow>}
+          {busy && <Hint role="status">{t('op.sign.wallet.busy')}</Hint>}
 
-          {/* One wallet is a button. Several is a choice, and making it for them would pick the wrong address about
-              as often as not. */}
-          {wallets && wallets.length === 1 && (
-            <ConfirmButton type="button" onClick={() => void signIn(wallets[0]!, false)} disabled={busy} data-testid="wallet-signin">
-              {busy ? t('op.sign.wallet.busy') : t('op.sign.wallet.button')}
-            </ConfirmButton>
-          )}
-          {wallets && wallets.length > 1 && (
-            <>
-              <Hint style={{ marginTop: 24 }}>{t('op.sign.wallet.pick')}</Hint>
-              <WalletList data-testid="wallet-picker">
-                {wallets.map((w) => (
-                  <WalletButton key={w.info.uuid} type="button" onClick={() => void signIn(w, false)} disabled={busy}>
-                    {w.info.icon && <img src={w.info.icon} alt="" />}{w.info.name}
-                  </WalletButton>
-                ))}
-              </WalletList>
-            </>
-          )}
-
-          {wallets && wallets.length > 0 && (
-            <>
-              <Hint>{t('op.sign.wallet.what')}</Hint>
-              {/* An invitation is not an ordinary sign-in and must not look like one: signing here makes this
-                  address an operator of the node, which is worth saying before the wallet prompt, not after. */}
-              {setupToken && !me?.canEnroll && (
-                <Alert $tone="info" role="status" style={{ marginTop: 12 }}>{t('op.sign.enroll_invite')}</Alert>
-              )}
-              {/* Offered only when the node says this caller could actually do it — from its own machine, or with the
-                  one-time token. Shown to anyone else it would be a button that always fails. */}
-              {me?.canEnroll && (
-                <EnrollRow>
-                  <WalletButton type="button" onClick={() => void signIn(wallets[0]!, true)} disabled={busy}>{t('op.sign.key.enroll')}</WalletButton>
-                </EnrollRow>
-              )}
-            </>
-          )}
-
-        </WalletOptions>
+        </WalletOptions>}
 
         {localError && <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{localError}</Alert>}
         <Fine>
@@ -353,4 +349,19 @@ export default function SigningPage() {
       </OptionContainer>
     </PageWrapper>
   );
+}
+
+/** Every action names its wallet and operation; enrollment never silently picks the first installed provider. */
+export function WalletChoices({ wallets, enroll, busy, onNative, onWallet }: {
+  wallets: DiscoveredWallet[] | null; enroll: boolean; busy: boolean;
+  onNative: () => void; onWallet: (wallet: DiscoveredWallet) => void;
+}) {
+  const { t } = useT();
+  const label = (wallet: string) => t(enroll ? 'op.sign.enroll.wallet' : 'op.sign.login.wallet', { wallet });
+  return <WalletList data-testid="wallet-picker">
+    <WalletButton type="button" onClick={onNative} disabled={busy} data-testid="ain-wallet-signin">{label('AIN Wallet')}</WalletButton>
+    {wallets?.map(wallet => <WalletButton key={wallet.info.uuid} type="button" onClick={() => onWallet(wallet)} disabled={busy} data-testid="wallet-signin">
+      {wallet.info.icon && <img src={wallet.info.icon} alt="" />}{label(wallet.info.name)}
+    </WalletButton>)}
+  </WalletList>;
 }
