@@ -70,9 +70,15 @@ export const linkedAgents: Dict = {
   'linkedOwner.lede': { ko: '이 노드에 연결한 외부 에이전트입니다. 등록한 계정에게만 보입니다.', en: 'An external agent you linked on this node. Only the account that registered it sees this.' },
   'linkedOwner.edit': { ko: '주소·이름 수정 →', en: 'Edit address or name →' },
   'linkedOwner.delete': { ko: '연결 해제', en: 'Unlink' },
+  'linkedOwner.delete_pending': { ko: '선택한 에이전트의 연결 해제 결과를 확인하고 있습니다.', en: 'Checking the result of unlinking the selected agent.' },
+  'linkedOwner.delete_complete': { ko: '확인한 에이전트의 등록을 이 노드에서 해제했습니다. 외부 에이전트 자체를 삭제하거나 중지한 것은 아닙니다.', en: 'The reviewed registration was removed from this node. The external agent itself was not deleted or stopped.' },
+  'linkedOwner.delete_unconfirmed': { ko: '연결 해제 결과가 확인되지 않았습니다. 요청은 반복하지 않았습니다. 현재 목록과 이번 요청의 완료 여부는 별개입니다.', en: 'The unlink result is unconfirmed. The request was not repeated. The current list does not establish this request’s outcome.' },
+  'linkedOwner.delete_unknown': { ko: '연결 해제 결과를 확인하지 못했습니다. 요청을 반복하지 않았습니다. 현재 목록을 확인해 주세요. 목록에 없다는 것만으로 이 요청의 완료를 확인할 수는 없습니다.', en: 'The unlink result could not be confirmed. The request was not repeated. Check the current list; absence alone does not confirm this request completed.' },
+  'linkedOwner.delete_changed': { ko: '대상 또는 권한이 바뀌어 연결을 해제하지 않았습니다. 현재 항목을 다시 확인해 주세요.', en: 'The target or permission changed. No unlink was sent. Review the current agent.' },
+  'linkedOwner.delete_unsupported': { ko: '이 항목의 연결 해제 권한과 버전을 확인할 수 없습니다. 현재 계정의 권한과 노드 업데이트 여부를 확인해 주세요.', en: 'Removal permission and revision could not be verified. Check the current account and node support.' },
   'linkedOwner.delete_confirm': {
-    ko: '{name}의 연결을 해제할까요? 공개 주소가 더 답하지 않고, 이 에이전트를 가져간 워크스페이스에서는 오프라인으로 보입니다.',
-    en: 'Unlink {name}? Its public address stops answering, and any workspace that imported it sees it go offline.',
+    ko: '{name} ({id})의 연결을 해제할까요? 공개 주소가 더 답하지 않고, 이 에이전트를 가져간 워크스페이스에서는 오프라인으로 보입니다.',
+    en: 'Unlink {name} ({id})? Its public address stops answering, and any workspace that imported it sees it go offline.',
   },
 
   // ── /me/agents

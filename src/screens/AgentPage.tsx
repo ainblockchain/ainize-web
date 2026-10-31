@@ -167,10 +167,20 @@ export function AgentPage() {
   const { id = '' } = useParams();
   const { search } = useLocation();
   const scope = agentPageScope(search);
-  return <AgentDetail key={JSON.stringify([cacheIdentity, id, scope.node, scope.valid])} />;
+  return <AgentDetailFrame key={JSON.stringify([cacheIdentity, id, scope.node, scope.valid])} />;
 }
 
-function AgentDetail() {
+/** Keep unlink feedback above catalogue-driven content that can disappear during a refresh. */
+function AgentDetailFrame() {
+  const { t } = useT();
+  const [removalState, setRemovalState] = useState<'pending' | 'unconfirmed' | 'complete' | null>(null);
+  return <>
+    {removalState && <Alert $tone={removalState === 'complete' ? 'success' : removalState === 'pending' ? 'info' : 'error'} role="status" data-testid="linked-removal-status">{t(`linkedOwner.delete_${removalState}`)}</Alert>}
+    <AgentDetail removalBlocked={removalState === 'pending' || removalState === 'unconfirmed'} onRemovalStateChange={setRemovalState} />
+  </>;
+}
+
+function AgentDetail({ removalBlocked, onRemovalStateChange }: { removalBlocked: boolean; onRemovalStateChange: (state: 'pending' | 'unconfirmed' | 'complete' | null) => void }) {
   const { subject, sso, sitePrincipal, isSignedIn, cacheIdentity, loading: authLoading } = useAuth();
   const active = useActiveView();
   // `/agent/:idOrAlias` — the segment is the agent's id or its readable alias (ainize-node agent-aliases.ts).
@@ -556,7 +566,7 @@ function AgentDetail() {
           reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
           node answers 404 to a caller who may not see the agent, and the panel draws nothing in that case. */}
       {localHosted && <AgentHistoryPanel agentId={agent.id} git={(hosted as { git?: AgentGitInfo | null }).git ?? null} canMerge={ownsIt || managesIt} />}
-      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} />}
+      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} owner={agent.owner} removalBlocked={removalBlocked} onRemovalStateChange={onRemovalStateChange} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} />}
 
       {skills.length > 0 && (
         <>

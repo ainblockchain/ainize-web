@@ -1,3 +1,4 @@
+import { LinkedAgentOwnerPanel } from '../src/screens/agent/LinkedAgentOwnerPanel';
 import { AccountWalletSendHistory, WalletSendHistoryList, WalletSendHistoryDetail } from '../src/components/operator/AccountWalletSendHistory';
 import ProjectNewPage, { ProjectCreationResult, ProjectCreationUnknown } from '../src/screens/ProjectNewPage';
 import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
@@ -4261,4 +4262,13 @@ test('linked edit on an older node explains the missing reviewed-save support', 
   assert.match(html, /Update the node to edit this agent/);
   assert.match(html, /agent-link-unavailable/);
   assert.doesNotMatch(html, /agent-link-form/);
+});
+
+
+test('a pending or unknown unlink blocks a remounted owner panel from editing or repeating removal', () => {
+  const Page = () => createElement(LinkedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Chosen', owner: 'sso:viewer', removalBlocked: true });
+  const html = render(Page, appAccount, '/agent/chosen');
+  assert.match(html, /<fieldset disabled=""/);
+  assert.doesNotMatch(html, /data-testid="linked-agent-edit"/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="linked-agent-unlink"/);
 });

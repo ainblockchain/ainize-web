@@ -1,10 +1,11 @@
 import { AgentArchivePanel } from './agent/AgentArchivePanel';
 /** Own and manageable agents, including private linked records outside the public catalogue. */
 import { useMemo, useRef, useState } from 'react';
+import { createLinkedAgentRemoval, LinkedAgentRemovalError } from '@/lib/linkedAgentRemoval';
 import { useActiveView } from '@/hooks/useActiveView';
 import { AgentDeletionError, createHostedAgentDeletion, isAgentCleanupPending } from '@/lib/hostedAgentDeletion';
 import styled from 'styled-components';
-import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery, useMyLinkedAgentsQuery, useLazyHostedAgentQuery } from '@/api/api';
+import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery, useMyLinkedAgentsQuery, useLazyHostedAgentQuery, useLazyLinkedAgentQuery } from '@/api/api';
 import { isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
 import { myAgentRows, parseMyLinkedAgents } from '@/api/myAgents';
 import { signInHref } from '@/lib/uiNavigation';
@@ -45,7 +46,7 @@ export default function MyAgentsPage() {
 function MyAgentsContent() {
   const { t } = useT();
   useTitle(t('myAgents.title'));
-  const { subject, sso, sitePrincipal, cacheIdentity } = useAuth();
+  const { subject, sso, sitePrincipal, cacheIdentity, principal, isCurrentAccount } = useAuth();
   const principals = useMemo(() => viewerPrincipals(subject, sso?.principal, sitePrincipal), [subject, sso?.principal, sitePrincipal]);
   const catalogue = useAgentsQuery(undefined, { pollingInterval: 30_000 });
   const manageable = useManageableHostedAgentsQuery(cacheIdentity, { pollingInterval: 30_000 });
@@ -62,25 +63,35 @@ function MyAgentsContent() {
   const [deleteLinked] = useDeleteLinkedAgentMutation();
   const [deleteHosted] = useDeleteHostedAgentMutation();
   const [readHosted] = useLazyHostedAgentQuery();
+  const [readLinked] = useLazyLinkedAgentQuery();
+  const linkedRemoval = useRef(createLinkedAgentRemoval()).current;
   const active = useActiveView();
   const pending = useRef(false);
   const deletion = useRef(createHostedAgentDeletion()).current;
   const [error, setError] = useState<string | null>(null);
 
   const remove = async (agent: AgentSummary) => {
-    if (pending.current || deletion.blocked() || !active() || !window.confirm(t('myAgents.delete_confirm', { name: agent.name }))) return;
+    if (pending.current || deletion.blocked() || linkedRemoval.blocked() || !active() || !isCurrentAccount()) return;
     pending.current = true;
     setDeleting(agent.id); setError(null);
     try {
-      if (isLinkedAgentRow(agent)) await deleteLinked(agent.id).unwrap();
-      else await deletion.run({ id: agent.id, name: agent.name, owner: agent.owner }, {
-        read: () => readHosted({ id: agent.id, identity: cacheIdentity }, false).unwrap(),
-        send: request => deleteHosted(request).unwrap(), active,
+      if (isLinkedAgentRow(agent)) await linkedRemoval.run({ id: agent.id, owner: agent.owner }, principal, {
+        read: () => readLinked({ id: agent.id, identity: cacheIdentity }, false).unwrap(),
+        confirm: review => window.confirm(t('linkedOwner.delete_confirm', { name: review.name, id: review.id })),
+        send: request => deleteLinked(request).unwrap(), current: () => active() && isCurrentAccount(),
       });
+      else {
+        if (!window.confirm(t('myAgents.delete_confirm', { name: agent.name }))) return;
+        await deletion.run({ id: agent.id, name: agent.name, owner: agent.owner }, {
+          read: () => readHosted({ id: agent.id, identity: cacheIdentity }, false).unwrap(),
+          send: request => deleteHosted(request).unwrap(), active: () => active() && isCurrentAccount(),
+        });
+      }
     } catch (err) {
       if (!active()) return;
       const e = linkedAgentApiErrorOf(err);
-      setError(deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
+      setError(linkedRemoval.uncertain() ? t('linkedOwner.delete_unknown') : err instanceof LinkedAgentRemovalError
+        ? t(err.reason === 'unsupported' ? 'linkedOwner.delete_unsupported' : 'linkedOwner.delete_changed') : deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
         : err instanceof AgentDeletionError ? t('agentOwner.delete_changed') : t('myAgents.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
     } finally { pending.current = false; if (active()) setDeleting(null); }
   };
@@ -125,7 +136,7 @@ function MyAgentsContent() {
                 <StyledLink to={agentPagePath(agent)}>{t('myAgents.open')}</StyledLink>
                 {canEdit && !agent.deletion_requested_at && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
                 <ExternalLink href={agent.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
-                {canDelete && <Button size="small" variant="text" color="secondary" disabled={!!deleting || deletion.blocked()} loading={deleting === agent.id} onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t(agent.deletion_requested_at ? 'agentOwner.delete_resume' : 'myAgents.delete')}</Button>}
+                {canDelete && <Button size="small" variant="text" color="secondary" disabled={!!deleting || deletion.blocked() || linkedRemoval.blocked()} loading={deleting === agent.id} onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t(linked ? 'linkedOwner.delete' : agent.deletion_requested_at ? 'agentOwner.delete_resume' : 'myAgents.delete')}</Button>}
               </MyAgentsRow>
             </MyAgentsItem>
           );

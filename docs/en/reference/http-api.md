@@ -233,7 +233,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/agents`](#get-apiagents) | operator | The agent catalogue |
 | `GET` | [`/api/linked-agents`](#get-apilinked-agents) | operator | Linked agents — external A2A agents people registered by URL |
 | `POST` | [`/api/linked-agents`](#post-apilinked-agents) | none | Register an external A2A agent |
-| `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees upstream and edit_revision; anyone it is visible to sees the listing view; 404 otherwise |
+| `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees upstream and edit_revision; removal administrators also receive can_unlink and unlink_review; anyone it is visible to sees the listing view; 404 otherwise |
 | `PUT` | [`/api/linked-agents/{id}`](#put-apilinked-agentsid) | none | Change a linked agent — owner only; the id cannot change |
 | `DELETE` | [`/api/linked-agents/{id}`](#delete-apilinked-agentsid) | none | Remove a linked agent — its registrant, or an admin of the organization it is shared with |
 | `GET` | [`/api/agent-archives`](#get-apiagent-archives) | none | List your privately retained deleted agents |
@@ -4612,7 +4612,7 @@ Anyone signed in — a wallet session, an AIN SSO session, or an Ainize API key 
 
 ### `GET /api/linked-agents/{id}`
 
-One linked agent — the owner sees upstream and edit_revision; anyone it is visible to sees the listing view; 404 otherwise
+One linked agent — the owner sees upstream and edit_revision; removal administrators also receive can_unlink and unlink_review; anyone it is visible to sees the listing view; 404 otherwise
 
 **Auth** — none
 
@@ -4669,7 +4669,7 @@ Read the owner detail first and send edit_revision as expected_revision. Missing
 
 Remove a linked agent — its registrant, or an admin of the organization it is shared with
 
-The address stops answering. A workspace that imported it keeps its member row and sees the agent go offline; it is that workspace's to remove.
+Removes this registration, not the external process. First GET the exact detail as the removing account and confirm unlink_review. DELETE requires expected_actor and that exact review as expected; missing review or an intervening change is refused. Successful replies identify the exact removed review and actor with registry=unlinked. A missing row or lost response is not a durable receipt; do not automatically retry. Imported workspace membership is managed separately.
 
 **Auth** — none
 
@@ -4679,12 +4679,25 @@ The address stops answering. A workspace that imported it keeps its member row a
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected_actor` | `string` | yes |
+| `expected` | `object` | yes |
+| `expected.id` | `string` | yes |
+| `expected.name` | `string` | yes |
+| `expected.owner` | `string` | yes |
+| `expected.revision` | `string` | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | deleted | `object` |
+| `200` | exact removed review and actor, registry=unlinked | `object` |
+| `400` | `review_required` |   |
 | `403` | `not_owner` |   |
+| `409` | `review_changed` |   |
 
 ### `GET /api/agent-archives`
 

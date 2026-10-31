@@ -1,3 +1,4 @@
+import { linkedAgentRemovalConfirmed, type LinkedAgentUnlinkRequest } from '@/lib/linkedAgentRemoval';
 import { readDeviceRequest, type DeviceApprovalReview } from '@/lib/deviceApproval';
 import { reconcileChainSetup } from '@/lib/accountChainSetup';
 import type { ApiKeyContext } from './apiKeyEvidence';
@@ -255,8 +256,9 @@ export const api = createApi({
       query: (body) => ({ url: `api/linked-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'LinkedAgent', id: a.id }],
     }),
-    deleteLinkedAgent: b.mutation<unknown, string>({
-      query: (id) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'LinkedAgent', 'Org'],
+    deleteLinkedAgent: b.mutation<unknown, LinkedAgentUnlinkRequest>({
+      query: ({ id, ...body }) => ({ url: `api/linked-agents/${encodeURIComponent(id)}`, method: 'DELETE', body }),
+      invalidatesTags: (result, _error, request) => linkedAgentRemovalConfirmed(result, request) ? ['Agents', 'LinkedAgent', 'Org'] : [],
     }),
     /**
      * Organizations (ainize-node organizations design). Typed `unknown` and read through `src/api/organizations.ts`
@@ -723,7 +725,7 @@ export const {
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
-  useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
+  useMyLinkedAgentsQuery, useLinkedAgentQuery, useLazyLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
   usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useOrgGroupsQuery, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
