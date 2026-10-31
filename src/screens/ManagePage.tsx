@@ -1,9 +1,10 @@
+import { ManageDraftConflict } from '@/components/operator/ManageDraftConflict';
+import { manageDraftEditor, receiveManageDraft, draftDirty, draftConflicts, resolveDraftGroup, saveManageDraft, ManageDraftError, type ManageDraftEditor, type ManageDraftValues, type DraftGroup } from '@/lib/manageDraft';
 import { useActiveView } from '@/hooks/useActiveView';
 import { managedKnowledge, managementMatchesAuthor, runManagedAction, ManagementSelectionError } from '@/lib/manageKnowledge';
 import { knowledgePath, knowledgeLookupPath, isKnowledgeAuthor } from '@/lib/detailRoutes';
 import { accountPeers, accountRuntime, createNodeActionTask } from '@/lib/accountNodeActions';
 import { paidSales, dashboardInventory } from '@/lib/dashboardView';
-import { readBenchmarkDraft } from '@/lib/benchmarkEditor';
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -12,7 +13,6 @@ import {
   errorMessage, useAnnounceMutation, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery,
   useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
-import type { PatchAnchor } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -106,14 +106,14 @@ function ManageView() {
   const [newPrice, setNewPrice] = useState('');
   const [priceReason, setPriceReason] = useState('');
 
-  // editable fields (drafts only)
-  const [desc, setDesc] = useState('');
-  const [priceV, setPriceV] = useState('');
-  const [branch, setBranch] = useState('');
-  const [license, setLicense] = useState('');
-  const [billing, setBilling] = useState<PatchAnchor['billing']>('per_download');
-  const [benchText, setBenchText] = useState('');
-  const [benchError, setBenchError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<ManageDraftEditor | null>(() => p ? manageDraftEditor(p.anchor) : null);
+  const form = editor ?? (p ? manageDraftEditor(p.anchor) : null);
+  const dirty = !!form && draftDirty(form);
+  const [draftFeedback, setDraftFeedback] = useState<{ group: DraftGroup; message: string; tone: 'success' | 'error' } | null>(null);
+  const edit = (values: Partial<ManageDraftValues>) => {
+    if (!form || task.pending() || !current()) return;
+    setEditor({ ...form, draft: { ...form.draft, ...values } }); setError(null); setNotice(null); setDraftFeedback(null);
+  };
   const [reason, setReason] = useState('');
   const [confirmMode, setConfirmMode] = useState(false);
   /**
@@ -139,10 +139,8 @@ function ManageView() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!p) return;
-    setDesc(p.anchor.description ?? ''); setPriceV(p.anchor.price); setBranch(p.anchor.branch ?? ''); setLicense(p.anchor.license ?? ''); setBilling(p.anchor.billing);
-    setBenchText(JSON.stringify(p.anchor.benchmark, null, 2));
-  }, [p?.anchor.id, p?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (p && !busy && !patch.isFetching) setEditor(previous => receiveManageDraft(previous, p.anchor));
+  }, [p, busy, patch.isFetching]);
 
   /**
    * Item 367 — replication is this product's answer to a seller going offline and its biggest leak at the same
@@ -191,7 +189,7 @@ function ManageView() {
     return `[![${alt}](${window.location.origin}/static/images/badge-knowledge.svg)](${window.location.origin}/${encodeURIComponent(p.anchor.author)}/${encodeURIComponent(p.anchor.id)})`;
   }, [p, t]);
 
-  const run = async (fn: (stillCurrent: () => boolean) => Promise<unknown>, ok?: string) => {
+  const run = async (fn: (stillCurrent: () => boolean) => Promise<unknown>, ok?: string, onError?: (message: string) => void) => {
     if (task.pending() || chain.busy || !current()) return;
     setBusy(true); setError(null); setNotice(null);
     try {
@@ -199,14 +197,19 @@ function ManageView() {
         return runManagedAction(patchId, author, { current: stillCurrent, read: () => patch.refetch().unwrap(), action: fn });
       });
       if (finished && current() && ok) setNotice(ok);
-    } catch (err) { if (current()) setError(err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err)); }
+    } catch (err) {
+      if (current()) {
+        const message = err instanceof ManageDraftError ? t(err.code === 'benchmark' ? `op.benchmark.issue.${err.benchmarkIssue}` : `op.manage.draft.error.${err.code}`) : err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err);
+        if (onError) onError(message); else setError(message);
+      }
+    }
     finally { if (current()) setBusy(false); }
   };
 
   if (patch.isFetching && !patch.currentData) return <PageWrapper><CenterProgress /></PageWrapper>;
   const missing = patch.isError && patch.error && 'status' in patch.error && patch.error.status === 404;
   if (missing || p && !managementMatchesAuthor(p, author)) return <PageWrapper><Title>{t('op.manage.notfound')}</Title><Description>{t(missing ? 'op.manage.notfound.desc' : 'op.manage.route_mismatch')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description></PageWrapper>;
-  if (!p) return <PageWrapper><QueryError error={patch.error} what={t('op.knowledge')} onRetry={() => void patch.refetch()} retrying={patch.isFetching} /></PageWrapper>;
+  if (!p || !form) return <PageWrapper><QueryError error={patch.error} what={t('op.knowledge')} onRetry={() => void patch.refetch()} retrying={patch.isFetching} /></PageWrapper>;
   if (!p.owned) {
     return (
       <PageWrapper>
@@ -253,13 +256,19 @@ function ManageView() {
     void run(() => verify(a.id).unwrap(), t('op.manage.verified_ok')).finally(() => { if (current()) setVerifyStart(null); });
   };
 
-  const saveFields = () => run(() => update({ id: a.id, patch: { description: desc, price: priceV, branch: branch || undefined, license: license || undefined, billing } }).unwrap(), t('op.saved'));
-  const saveBench = () => {
-    setBenchError(null);
-    const parsed = readBenchmarkDraft(benchText, true);
-    if (!parsed.value) { setBenchError(t(`op.benchmark.issue.${parsed.issue}`)); return; }
-    void run(() => update({ id: a.id, patch: { benchmark: parsed.value as unknown as PatchAnchor['benchmark'] } }).unwrap(), t('op.manage.bench.saved'));
+  const saveDraft = (group: DraftGroup) => {
+    if (task.pending() || !current() || !draftDirty(form, group) || draftConflicts(form, a, group).length || !isDraft) return;
+    setDraftFeedback(null);
+    void run(async stillCurrent => {
+      const result = await saveManageDraft(form, group, a.id, author, { current: stillCurrent, read: () => patch.refetch().unwrap(), write: patch => update({ id: a.id, patch }).unwrap() });
+      if (result && stillCurrent()) {
+        setEditor(resolveDraftGroup(form, result.detail.anchor, group, false));
+        setDraftFeedback({ group, tone: 'success', message: t(group === 'fields' ? 'op.saved' : 'op.manage.bench.saved') });
+      }
+    }, undefined, message => setDraftFeedback({ group, tone: 'error', message }));
   };
+  const resolve = (group: DraftGroup, keep: boolean) => { setEditor(resolveDraftGroup(form, a, group, keep)); setError(null); setNotice(null); setDraftFeedback(null); };
+  const values = form.draft;
 
   return (
     <PageWrapper>
@@ -338,9 +347,10 @@ function ManageView() {
           {coexisting > 0 && <Muted style={{ display: 'block', marginTop: 8 }}>{t('op.manage.retire.crossbranch', { n: coexisting })}</Muted>}
           <SaveRow>
             {/* Finding 32: no publish is one click any more — the sheet lists what becomes permanent first. */}
-            <Button variant="contained" disabled={!p.has_body || !a.benchmark.schema} loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
+            <Button variant="contained" disabled={dirty || !p.has_body || !a.benchmark.schema} loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
               data-testid="announce"
               onClick={() => { setRetireText(''); setPublishOpen(true); }}>{t('op.manage.announce')}</Button>
+            {dirty && <Muted role="status">{t('op.manage.draft.before_publish')}</Muted>}
             <Muted title={t('op.tech.announce')}>{t('op.manage.announce.note')}</Muted>
           </SaveRow>
         </SectionBody>
@@ -424,7 +434,7 @@ function ManageView() {
           <SheetFooter>
             <Button variant="text" color="default" onClick={() => setPublishOpen(false)}>{retires.length > 0 ? t('op.manage.retire.cancel') : t('op.manage.publish.cancel')}</Button>
             <Button variant="contained" color={retires.length > 0 ? 'secondary' : 'primary'}
-              disabled={retires.length > 0 && retireText.trim() !== a.id}
+              disabled={dirty || retires.length > 0 && retireText.trim() !== a.id}
               loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
               data-testid="publish-confirm"
               onClick={() => run(async stillCurrent => { await announce(a.id).unwrap(); if (stillCurrent()) setPublishOpen(false); }, t('op.manage.announced'))}>
@@ -544,40 +554,46 @@ function ManageView() {
 
       {/* ------------------------------------------------------------ editable fields */}
       <SubTitle $mt={56}>{t('op.manage.fields.title')}</SubTitle>
-      {!isDraft && <Description>{t('op.manage.fields.sealed')}</Description>}
+      {!isDraft && <Description>{t(dirty ? 'op.manage.draft.sealed_with_edits' : 'op.manage.fields.sealed')}</Description>}
+      {isDraft && <ManageDraftConflict editor={form} anchor={a} group="fields" onResolve={keep => resolve('fields', keep)} />}
       <SectionBody>
         <Stack $gap={18}>
-          <TextField label={t('op.manage.fields.desc')} value={desc} onChange={(e) => setDesc(e.target.value)} disabled={!isDraft} />
+          <TextField label={t('op.manage.fields.desc')} value={values.description} onChange={(e) => edit({ description: e.target.value })} readOnly={!isDraft} />
           <FormRow>
-            <TextField label={t('op.manage.fields.price', { unit: money.unit(a.currency) })} helper={money.note(a.currency)} type="number" min={0} step="0.000001" value={priceV} onChange={(e) => setPriceV(e.target.value)} disabled={!isDraft} />
+            <TextField label={t('op.manage.fields.price', { unit: money.unit(a.currency) })} helper={money.note(a.currency)} type="number" min={0} step="0.000001" value={values.price} onChange={(e) => edit({ price: e.target.value })} readOnly={!isDraft} />
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <FieldLabel>{t('op.manage.fields.billing')}</FieldLabel>
               {/* Item 360: "pay per hour loaded" and "pay per use" were offered here and metered nowhere — a sale
                   settles the price once, per download. An anchor that already carries one keeps it (the record is
                   immutable) and is shown as it is; nothing new can be published under a model nobody charges. */}
-              <Select value={billing} onChange={(e) => setBilling(e.target.value as PatchAnchor['billing'])} disabled={!isDraft} data-testid="billing-select">
-                {[...new Set(['per_download', ...(billing === 'per_download' ? [] : [billing])])].map((b) => <option key={b} value={b} disabled={b !== 'per_download'}>{billingLabel(b)}</option>)}
+              <Select value={values.billing} onChange={(e) => edit({ billing: e.target.value })} disabled={!isDraft} data-testid="billing-select">
+                {[...new Set(['per_download', ...(values.billing === 'per_download' ? [] : [values.billing])])].map((b) => <option key={b} value={b} disabled={b !== 'per_download'}>{billingLabel(b)}</option>)}
               </Select>
               <Muted style={{ fontSize: 12 }}>{t('op.manage.billing.only')}</Muted>
             </label>
-            <TextField label={t('op.manage.fields.branch')} placeholder="law/KR" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!isDraft} />
-            <TextField label={t('op.manage.fields.license')} placeholder="CC-BY-4.0" value={license} onChange={(e) => setLicense(e.target.value)} disabled={!isDraft} />
+            <TextField label={t('op.manage.fields.branch')} placeholder="law/KR" value={values.branch} onChange={(e) => edit({ branch: e.target.value })} readOnly={!isDraft} />
+            <TextField label={t('op.manage.fields.license')} placeholder="CC-BY-4.0" value={values.license} onChange={(e) => edit({ license: e.target.value })} readOnly={!isDraft} />
           </FormRow>
         </Stack>
-        {isDraft && <SaveRow><Button loading={updateState.isLoading} loadingText={t('op.saving')} onClick={saveFields}>{t('common.save')}</Button><Muted>{t('op.manage.fields.current', { price: money.fmt(a.price, a.currency) })}</Muted></SaveRow>}
+        {isDraft && <SaveRow><Button disabled={!draftDirty(form, 'fields') || draftConflicts(form, a, 'fields').length > 0} loading={updateState.isLoading} loadingText={t('op.saving')} onClick={() => saveDraft('fields')}>{t('common.save')}</Button><Button variant="text" disabled={!draftDirty(form, 'fields')} onClick={() => resolve('fields', false)}>{t('op.manage.draft.use_server')}</Button><Muted>{t('op.manage.fields.current', { price: money.fmt(a.price, a.currency) })}</Muted></SaveRow>}
       </SectionBody>
+
+      {draftFeedback?.group === 'fields' && <Alert role={draftFeedback.tone === 'error' ? 'alert' : 'status'} $tone={draftFeedback.tone} style={{ marginTop: 12 }}>{draftFeedback.message}</Alert>}
 
       {/* ------------------------------------------------------------ benchmark */}
       <SubTitle $mt={56}><Tip tech={tech('facts')}>{t('op.manage.bench.title')}</Tip></SubTitle>
       <Description>{t('op.manage.bench.desc')}</Description>
+      {isDraft && <ManageDraftConflict editor={form} anchor={a} group="benchmark" onResolve={keep => resolve('benchmark', keep)} />}
       <SectionBody>
-        <Textarea value={benchText} onChange={(e) => setBenchText(e.target.value)} disabled={!isDraft} spellCheck={false} />
-        {benchError && <Alert $tone="error" style={{ marginTop: 8 }}>{benchError}</Alert>}
-        <Row $gap={16} style={{ marginTop: 8 }}>
+        <Textarea aria-label={t('op.manage.bench.title')} value={values.benchmark} onChange={(e) => edit({ benchmark: e.target.value })} readOnly={!isDraft} spellCheck={false} />
+        <Row $gap={16} $wrap style={{ marginTop: 8 }}>
           <Muted title="sha256(canonical(benchmark))">{t('op.manage.bench.hash')} <Mono>{shortHash(a.benchmark_hash, 16)}</Mono></Muted>
-          {isDraft && <Button size="small" loading={updateState.isLoading} onClick={saveBench}>{t('op.manage.bench.save')}</Button>}
+          {isDraft && <Button size="small" disabled={!draftDirty(form, 'benchmark') || draftConflicts(form, a, 'benchmark').length > 0} loading={updateState.isLoading} onClick={() => saveDraft('benchmark')}>{t('op.manage.bench.save')}</Button>}
+          {isDraft && <Button size="small" variant="text" disabled={!draftDirty(form, 'benchmark')} onClick={() => resolve('benchmark', false)}>{t('op.manage.draft.use_server')}</Button>}
         </Row>
       </SectionBody>
+
+      {draftFeedback?.group === 'benchmark' && <Alert role={draftFeedback.tone === 'error' ? 'alert' : 'status'} $tone={draftFeedback.tone} style={{ marginTop: 12 }}>{draftFeedback.message}</Alert>}
 
       {/* ------------------------------------------------------------ lineage */}
       <SubTitle $mt={56}><Tip tech={tech('lineage')}>{t('op.manage.lineage.title')}</Tip></SubTitle>

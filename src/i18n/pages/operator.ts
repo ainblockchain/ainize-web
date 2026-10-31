@@ -297,6 +297,19 @@ export const operatorDash: Dict = {
 };
 
 export const operatorManage: Dict = {
+  'op.manage.draft.price_label': { ko: '가격', en: 'Price' },
+  'op.manage.draft.empty_value': { ko: '(빈 값)', en: '(empty)' },
+  'op.manage.draft.conflict': { ko: '편집한 항목이 다른 곳에서 변경됐습니다. 아래 현재 서버 값과 비교한 뒤 선택해 주세요.', en: 'Fields you edited changed elsewhere. Review their current server values below before choosing.' },
+  'op.manage.draft.use_server': { ko: '서버 값 사용', en: 'Use server values' },
+  'op.manage.draft.keep_edits': { ko: '내 수정 유지', en: 'Keep my edits' },
+  'op.manage.draft.before_publish': { ko: '저장하지 않은 수정이 있습니다. 각 항목을 저장하거나 서버 값으로 되돌린 뒤 게시해 주세요.', en: 'You have unsaved edits. Save each section or use server values before publishing.' },
+  'op.manage.draft.sealed_with_edits': { ko: '이 지식이 이미 게시되어 수정할 수 없습니다. 아래에는 저장하지 못한 입력을 보존했습니다. 필요한 내용을 복사해 새 버전에 사용하세요.', en: 'This knowledge has been published and can no longer be edited. Your unsaved input is preserved below so you can copy it to a new version.' },
+  'op.manage.draft.error.price': { ko: '가격은 0 이상의 숫자로 입력해 주세요.', en: 'Enter a non-negative decimal price.' },
+  'op.manage.draft.error.billing': { ko: '새 과금 방식은 다운로드당 결제만 사용할 수 있습니다.', en: 'Only per-download billing can be selected.' },
+  'op.manage.draft.error.read': { ko: '선택한 초안의 현재 값을 확인하지 못해 저장하지 않았습니다.', en: 'Could not confirm the current selected draft; no update was sent.' },
+  'op.manage.draft.error.sealed': { ko: '이 지식은 더 이상 초안이 아니므로 저장하지 않았습니다. 입력한 내용은 보존했습니다.', en: 'This knowledge is no longer a draft; no update was sent. Your input is preserved.' },
+  'op.manage.draft.error.conflict': { ko: '편집한 항목이 다른 곳에서 변경됐습니다. 현재 서버 값과 비교한 뒤 다시 저장해 주세요.', en: 'Fields you edited changed elsewhere. Review the current server values before saving again.' },
+  'op.manage.draft.error.unconfirmed': { ko: '요청한 값이 저장됐는지 확인하지 못했습니다. 입력은 보존했습니다. 다시 요청하기 전에 현재 서버 값을 확인해 주세요.', en: 'Could not confirm that the requested values were saved. Your input is preserved; check the current server values before retrying.' },
   'op.manage.route_mismatch': { ko: '주소의 작성자와 조회된 지식의 작성자가 일치하지 않습니다.', en: 'The author in this URL does not match the selected knowledge.' },
   'op.manage.selection_changed': { ko: '선택한 지식의 현재 관리 정보를 확인하지 못했습니다. 다시 불러온 뒤 시도해 주세요.', en: 'Could not confirm the selected knowledge and its current ownership. Reload before trying again.' },
   'op.manage.owner_required': { ko: '이 지식을 관리하려면 노드 운영 권한이 필요합니다.', en: 'Node operator access is required to manage this knowledge.' },

@@ -1,3 +1,5 @@
+import { ManageDraftConflict } from '../src/components/operator/ManageDraftConflict';
+import { manageDraftEditor } from '../src/lib/manageDraft';
 import ManagePage from '../src/screens/ManagePage';
 import { manageFixture } from './fixtures/manageKnowledge';
 import { AccountOwners, AccountBindings } from '../src/components/operator/AccountAccess';
@@ -1833,4 +1835,31 @@ test('management holders and runtime failures offer recovery instead of empty or
   const html = renderManage([...accessAuth, manageRead(), ...fixtures]);
   assert.equal((html.match(/data-testid="query-retry"/g) ?? []).length, 2);
   assert.doesNotMatch(html, /data-testid="holders-empty"/);
+});
+
+
+test('management editor starts with saved values and disables unchanged section saves', () => {
+  const p = manageFixture(); p.anchor.description = 'Actual saved description'; p.anchor.branch = 'saved/branch'; p.anchor.license = 'CC-BY'; p.anchor.price = '12.50';
+  const html = renderManage([...accessAuth, { ...manageRead(), value: p }, ...manageAux]);
+  for (const value of ['Actual saved description', 'saved/branch', 'CC-BY', '12.50']) assert.ok(html.includes(`value="${value}"`));
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Save<\/button>/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Save benchmark<\/button>/);
+  assert.doesNotMatch(html, /You have unsaved edits/);
+});
+test('management conflict view displays actual server values and both explicit resolutions', () => {
+  const p = manageFixture(); p.anchor.license = 'Old license'; const editor = manageDraftEditor(p.anchor);
+  editor.draft.description = 'My draft'; editor.draft.license = 'My license';
+  const latest = { ...p.anchor, description: 'Current server description', license: '' };
+  const html = render(() => createElement(ManageDraftConflict, { editor, anchor: latest, group: 'fields', onResolve: () => undefined }), signedOut);
+  assert.match(html, /Current server description/); assert.match(html, /\(empty\)/);
+  assert.match(html, /Use server values/); assert.match(html, /Keep my edits/); assert.match(html, /role="alert"/);
+  const unchanged = render(() => createElement(ManageDraftConflict, { editor: manageDraftEditor(latest), anchor: latest, group: 'fields', onResolve: () => undefined }), signedOut);
+  assert.doesNotMatch(unchanged, /manage-draft-conflict/);
+});
+test('published management values are readable and copyable without draft save controls', () => {
+  const p = manageFixture(); p.status = 'VERIFIED'; p.anchor.description = 'Published description';
+  const html = renderManage([...accessAuth, { ...manageRead(), value: p }, ...manageAux]);
+  const description = html.match(/<input[^>]*value="Published description"[^>]*>/)?.[0];
+  assert.ok(description); assert.match(description, /readonly=""/i); assert.doesNotMatch(description, /disabled=""/);
+  assert.doesNotMatch(html, />Save benchmark<|data-testid="announce"/);
 });
