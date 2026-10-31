@@ -70,6 +70,7 @@ export default function OrgRepositoriesPage() {
       <HeaderMeta>
         {typeof members === 'number' && <span>{t('projects.org.members', { n: members })}</span>}
         {profile && <StyledLink to={`/org/${encodeURIComponent(profile.id)}`}>{t('projects.org.org_page')}</StyledLink>}
+        {profile && <StyledLink to={`/org/${encodeURIComponent(profile.id)}/settings?tab=storage`}>{t('storage.org_link')}</StyledLink>}
         {driveUrl && <ExternalLink href={driveUrl} target="_blank" rel="noreferrer">{t('projects.org.drive')} ↗</ExternalLink>}
         <span>{t('projects.org.count', { n: rows.length })}</span>
       </HeaderMeta>

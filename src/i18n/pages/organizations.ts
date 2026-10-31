@@ -103,6 +103,7 @@ export const organizations: Dict = {
   'orgSettings.tab.groups': { ko: '리소스 그룹', en: 'Resource groups' },
   'orgSettings.tab.billing': { ko: '결제', en: 'Billing' },
   'orgSettings.tab.security': { ko: '보안 & SSO', en: 'Security & SSO' },
+  'orgSettings.tab.storage': { ko: '스토리지', en: 'Storage' },
   'orgSettings.admin_only': { ko: '조직 설정은 관리자만 볼 수 있습니다. 리소스 그룹은 쓰기 역할부터 관리합니다.', en: 'Settings are for admins. Resource groups can be managed from the write role.' },
   'orgSettings.save': { ko: '저장', en: 'Save' },
   'orgSettings.saved': { ko: '저장했습니다.', en: 'Saved.' },

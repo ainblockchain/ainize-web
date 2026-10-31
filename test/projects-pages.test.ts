@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
+import { storage } from '../src/i18n/pages/storage.ts';
 import { projectPath } from '../src/lib/reservedRoutes.ts';
 import { repoProjectLabel, repoProjects, selectRepoProject } from '../src/lib/repoProjects.ts';
 
@@ -66,8 +67,10 @@ test('every string the project pages render exists in English and in Korean', ()
   const sources = ['screens/ProjectNewPage.tsx', 'screens/ProjectPage.tsx', 'screens/MyProjectsPage.tsx', 'screens/OrgRepositoriesPage.tsx'].map(read).join('\n');
   const keys = [...sources.matchAll(/\bt\('([a-zA-Z0-9_.]+)'/g)].map((m) => m[1]!);
   assert.ok(keys.length > 20, 'the pages are translated through t()');
+  // the org page's Storage link is the storage dictionary's (src/i18n/pages/storage.ts)
+  const dict = { ...projects, ...storage };
   for (const key of keys) {
-    const e = projects[key];
+    const e = dict[key];
     assert.ok(e, `missing i18n key ${key}`);
     assert.ok(e.en.trim() && e.ko.trim(), `${key} needs both languages`);
     assert.ok(/[가-힣]/.test(e.ko) || e.ko === e.en, `${key}.ko is not Korean`);
@@ -77,7 +80,7 @@ test('every string the project pages render exists in English and in Korean', ()
   for (const k of ['nextjs', 'service', 'script', 'agent']) assert.ok(projects[`projects.kind.${k}`], k);
   for (const c of ['not_signed_in', 'invalid_request', 'repo_taken', 'limit', 'not_found', 'not_member', 'not_a_script', 'aindrive_off', 'network', 'unknown']) assert.ok(projects[`projects.api.${c}`], c);
   for (const tr of ['push', 'redeploy', 'run']) assert.ok(projects[`projects.trigger.${tr}`], tr);
-  for (const tab of ['deployments', 'runs', 'logs', 'settings']) assert.ok(projects[`projects.tabs.${tab}`], tab);
+  for (const tab of ['deployments', 'runs', 'logs', 'storage', 'settings']) assert.ok(projects[`projects.tabs.${tab}`], tab);
 });
 
 test('/projects/new keeps its own sign-in gate so the hand-off query string survives the trip to /signing', () => {

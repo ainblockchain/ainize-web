@@ -16,6 +16,7 @@ import {
   SECRET_ERROR_CODES, type SecretSaved,
 } from '../src/api/projectSecrets.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
+import { storage } from '../src/i18n/pages/storage.ts';
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`, import.meta.url)), 'utf8');
 
@@ -97,9 +98,9 @@ test('answers: the list is read defensively and never carries a value; rows put 
     secrets: [{ name: 'ZED', updatedAt: 5 }, { name: 'ALPHA', updatedAt: 'later', value: 'leak?' }, { nope: true }],
     declared: ['ALPHA', 'DB_URL', 7], missing: ['DB_URL'],
   });
-  assert.deepEqual(r, { secrets: [{ name: 'ALPHA', updatedAt: null }, { name: 'ZED', updatedAt: 5 }], declared: ['ALPHA', 'DB_URL'], missing: ['DB_URL'] });
+  assert.deepEqual(r, { secrets: [{ name: 'ALPHA', updatedAt: null }, { name: 'ZED', updatedAt: 5 }], declared: ['ALPHA', 'DB_URL'], missing: ['DB_URL'], managed: [] });
   assert.deepEqual(parseProjectSecretsResponse({ secrets: [{ name: 'A', updatedAt: 1 }], declared: ['A', 'B'] }).missing, ['B'], 'an answer without `missing` gets one');
-  assert.deepEqual(parseProjectSecretsResponse(null), { secrets: [], declared: [], missing: [] });
+  assert.deepEqual(parseProjectSecretsResponse(null), { secrets: [], declared: [], missing: [], managed: [] });
   assert.deepEqual(envRowsOf(r).map((x) => [x.name, x.set, x.declared]), [['DB_URL', false, true], ['ALPHA', true, true], ['ZED', true, false]]);
   assert.deepEqual(parseSecretSaved({ name: 'A', updatedAt: 9, created: true, redeploy: { deploymentId: 'dep_1', status: 'queued' } }), { name: 'A', updatedAt: 9, created: true, redeploy: { deploymentId: 'dep_1', status: 'queued' } });
   assert.deepEqual(parseSecretSaved({ name: 'A', updatedAt: 9, created: false, redeploy: null }).redeploy, null);
@@ -151,6 +152,8 @@ test('the node\'s refusals map to codes, and the section knows whom it is talkin
 test('every string the section and its banner render exists in English and in Korean', () => {
   const src = read('components/ProjectEnvVars.tsx');
   const keys = [...src.matchAll(/\bt\('([a-zA-Z0-9_.]+)'/g)].map((m) => m[1]!);
+  // the greyed rows a connected store shadows speak in the storage dictionary's words
+  const dict = { ...projects, ...storage };
   assert.ok(keys.length > 30);
   const dynamic = [
     ...SECRET_ERROR_CODES.map((c) => `projects.env.err.${c}`),
@@ -160,7 +163,7 @@ test('every string the section and its banner render exists in English and in Ko
     ...['queued', 'building', 'ready', 'error'].map((s) => `projects.env.deploy.${s}`),
   ];
   for (const key of [...keys, ...dynamic]) {
-    const e = projects[key];
+    const e = dict[key];
     assert.ok(e, `missing i18n key ${key}`);
     assert.ok(e.en.trim() && e.ko.trim(), `${key} needs both languages`);
     assert.ok(/[가-힣]/.test(e.ko), `${key}.ko is not Korean`);
@@ -170,5 +173,5 @@ test('every string the section and its banner render exists in English and in Ko
 test('the console mounts the section in Settings and the missing banner above the tabs', () => {
   const page = read('screens/ProjectPage.tsx');
   assert.match(page, /<MissingEnvBanner project=\{p\} onGo=\{goToEnv\} \/>/);
-  assert.match(page, /<ProjectEnvVars project=\{p\} onOpenDeployment=\{openDeployment\} \/>/);
+  assert.match(page, /<ProjectEnvVars project=\{p\} onOpenDeployment=\{openDeployment\}[^\n]*\/>/);
 });

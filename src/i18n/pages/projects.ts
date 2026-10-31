@@ -70,6 +70,7 @@ export const projects: Dict = {
   'projects.tabs.deployments': { ko: '배포', en: 'Deployments' },
   'projects.tabs.runs': { ko: '실행', en: 'Runs' },
   'projects.tabs.logs': { ko: '로그', en: 'Logs' },
+  'projects.tabs.storage': { ko: '스토리지', en: 'Storage' },
   'projects.tabs.settings': { ko: '설정', en: 'Settings' },
   'projects.trigger.push': { ko: 'push', en: 'push' },
   'projects.trigger.redeploy': { ko: '재배포', en: 'redeploy' },
@@ -287,6 +288,8 @@ export const projects: Dict = {
   'projects.env.err.invalid_request': { ko: '요청이 올바르지 않습니다.', en: 'The request was not valid.' },
   'projects.env.err.not_member': { ko: '조직 구성원이나 소유자만 다시 배포할 수 있습니다.', en: 'Only the owner or an organization member may redeploy.' },
   'projects.env.err.forbidden': { ko: '권한이 없습니다.', en: 'Not allowed.' },
+  'projects.env.err.managed_by_store': { ko: '연결된 스토어가 정하는 이름입니다 — 직접 설정하려면 먼저 스토어 연결을 해제하세요.', en: 'A connected store sets this name — disconnect the store to set it yourself.' },
+  'projects.env.managed': { ko: '스토어 제공', en: 'From store' },
   'projects.env.err.network': { ko: '노드에 닿지 못했습니다.', en: 'Could not reach the node.' },
   'projects.env.err.unknown': { ko: '알 수 없는 오류', en: 'Unknown error' },
 };
