@@ -1973,7 +1973,7 @@ test('AINFT binding reads show recovery, isolate accounts and distinguish explic
 
 test('pending agent cleanup offers continuation without edit, sharing or creator mutation controls', () => {
   const html = render(() => createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Agent', isCreator: true, cleanupPending: true }), appAccount);
-  assert.match(html, /Resume deletion/); assert.match(html, /runtime cleanup is incomplete/);
+  assert.match(html, /Resume deletion/); assert.match(html, /cleanup is incomplete/);
   assert.doesNotMatch(html, /hosted-agent-edit|ainft-registration|ainft-community/);
 });
 
@@ -4311,4 +4311,20 @@ test('remounted hosted controls preserve an unknown sharing result while logs st
   assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="agent-alias-change"/);
   assert.match(html, /agent-visibility-unconfirmed/); assert.match(html, /Check current visibility/);
   assert.match(html, /<button(?![^>]*disabled)[^>]*data-testid="hosted-agent-logs-toggle"/);
+});
+
+test('a remounted owner panel retains the exact cleanup continuation despite stale catalogue flags', async () => {
+  const scope = createAgentActionScope();
+  const expected = { id: 'chosen', name: 'Chosen', owner: 'sso:viewer', generation: 'registration-1', version: 3, actor: 'sso:viewer', registry: 'https://node.example', revision: 'a'.repeat(64), cleanupId: null };
+  const review = { ...expected, revision: 'b'.repeat(64), cleanupId: 'operation-1' };
+  await assert.rejects(scope.hostedDeletion.run({ id: 'chosen', name: 'Chosen', owner: 'sso:viewer' }, 'sso:viewer', {
+    read: async () => ({ agent: { ...expected, can_delete: true, delete_review: expected } }), confirm: () => true, active: () => true,
+    send: async () => { throw { status: 502, data: { error: { code: 'agent_cleanup_pending' }, pending: { expected, operationId: review.cleanupId, review } } }; },
+  }));
+  scope.begin('delete', 'chosen')!.finish('cleanup');
+  const html = render(() => createElement(AgentActionBoundary, { scope, children: createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Chosen', owner: 'sso:viewer', cleanupPending: false }) }), appAccount);
+  assert.match(html, /Resume deletion/);
+  assert.match(html, /<button(?![^>]*disabled)[^>]*data-testid="hosted-agent-delete"/);
+  assert.doesNotMatch(html, /data-testid="hosted-agent-edit"|data-testid="agent-alias-change"/);
+  assert.equal(scope.hostedDeletion.pendingId(), 'chosen');
 });

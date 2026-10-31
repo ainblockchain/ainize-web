@@ -72,6 +72,7 @@ function MyAgentsContent() {
 
   const remove = async (agent: AgentSummary) => {
     if (pending.current || deletion.blocked() || linkedRemoval.blocked() || !active() || !isCurrentAccount()) return;
+    if (deletion.pendingId() && (isLinkedAgentRow(agent) || deletion.pendingId() !== agent.id)) return;
     pending.current = true;
     setDeleting(agent.id); setError(null);
     try {
@@ -81,9 +82,9 @@ function MyAgentsContent() {
         send: request => deleteLinked(request).unwrap(), current: () => active() && isCurrentAccount(),
       });
       else {
-        if (!window.confirm(t('myAgents.delete_confirm', { name: agent.name }))) return;
-        await deletion.run({ id: agent.id, name: agent.name, owner: agent.owner }, {
+        await deletion.run({ id: agent.id, name: agent.name, owner: agent.owner }, principal, {
           read: () => readHosted({ id: agent.id, identity: cacheIdentity }, false).unwrap(),
+          confirm: review => window.confirm(t('agentOwner.delete_review_confirm', { name: review.name, id: review.id })),
           send: request => deleteHosted(request).unwrap(), active: () => active() && isCurrentAccount(),
         });
       }
@@ -92,7 +93,7 @@ function MyAgentsContent() {
       const e = linkedAgentApiErrorOf(err);
       setError(linkedRemoval.uncertain() ? t('linkedOwner.delete_unknown') : err instanceof LinkedAgentRemovalError
         ? t(err.reason === 'unsupported' ? 'linkedOwner.delete_unsupported' : 'linkedOwner.delete_changed') : deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
-        : err instanceof AgentDeletionError ? t('agentOwner.delete_changed') : t('myAgents.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
+        : err instanceof AgentDeletionError ? t(err.reason === 'unsupported' ? 'agentOwner.delete_unsupported' : 'agentOwner.delete_changed') : t('myAgents.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
     } finally { pending.current = false; if (active()) setDeleting(null); }
   };
 
@@ -136,7 +137,7 @@ function MyAgentsContent() {
                 <StyledLink to={agentPagePath(agent)}>{t('myAgents.open')}</StyledLink>
                 {canEdit && !agent.deletion_requested_at && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
                 <ExternalLink href={agent.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
-                {canDelete && <Button size="small" variant="text" color="secondary" disabled={!!deleting || deletion.blocked() || linkedRemoval.blocked()} loading={deleting === agent.id} onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t(linked ? 'linkedOwner.delete' : agent.deletion_requested_at ? 'agentOwner.delete_resume' : 'myAgents.delete')}</Button>}
+                {canDelete && <Button size="small" variant="text" color="secondary" disabled={!!deleting || deletion.blocked() || linkedRemoval.blocked() || !!deletion.pendingId() && (linked || deletion.pendingId() !== agent.id)} loading={deleting === agent.id} onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t(linked ? 'linkedOwner.delete' : agent.deletion_requested_at || deletion.pendingId() === agent.id ? 'agentOwner.delete_resume' : 'myAgents.delete')}</Button>}
               </MyAgentsRow>
             </MyAgentsItem>
           );

@@ -1,3 +1,4 @@
+import { agentDeletionComplete } from '@/lib/hostedAgentDeletion';
 import { agentAliasChangeConfirmed, type AgentAliasChange } from '@/lib/agentAliasChange';
 import { agentSharingConfirmed } from '@/lib/agentSharing';
 import { linkedAgentRemovalConfirmed, type LinkedAgentUnlinkRequest } from '@/lib/linkedAgentRemoval';
@@ -237,7 +238,7 @@ export const api = createApi({
       invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }],
     }),
     deleteHostedAgent: b.mutation<unknown, import('../lib/hostedAgentDeletion').AgentDeletionRequest>({
-      query: ({ id, expected }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}`, method: 'DELETE', body: { expected } }), invalidatesTags: ['Agents', 'HostedAgent'],
+      query: ({ id, expected }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}`, method: 'DELETE', body: { expected } }), invalidatesTags: (r, _e, a) => agentDeletionComplete(r, a) ? ['Agents', 'HostedAgent'] : [],
     }),
     /** A secret's value goes on its own request, after the spec: the spec is readable by its owner, a value never is. */
     setHostedAgentSecret: b.mutation<unknown, { id: string; name: string; value: string }>({

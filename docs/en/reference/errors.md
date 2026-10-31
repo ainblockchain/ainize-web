@@ -187,7 +187,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 221 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 226 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 122 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -223,6 +223,9 @@ A further 122 throw sites build their message at the time (a validator's own wor
 | `null` | \<rel> is not a regular file | `src/hosted-qa-engine.ts` |
 | `null` | a file path is required | `src/hosted-qa-engine.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
+| `null` | agent changed before deletion started | `src/hosted-agent-routes.ts` |
+| `null` | agent registration identity is missing | `src/hosted-agent-cleanup.ts` |
+| `null` | agent registration or cleanup changed | `src/hosted-agent-cleanup.ts` |
 | `null` | agent source exists without its spec; reconcile before deployment | `src/project-agents.ts` |
 | `null` | agent spec names another project target | `src/project-agents.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
@@ -241,9 +244,11 @@ A further 122 throw sites build their message at the time (a validator's own wor
 | `null` | Audio response is too large | `src/peer-models.ts` |
 | `null` | binary content is not supported | `src/hosted-qa-engine.ts` |
 | `null` | cannot access \<rel> | `src/hosted-qa-engine.ts` |
+| `null` | cleanup identity is missing | `src/hosted-agent-cleanup.ts` |
 | `null` | content is larger than 1 MiB | `src/hosted-qa-engine.ts` |
 | `null` | content must be a string | `src/hosted-qa-engine.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
+| `null` | deletion authority changed | `src/hosted-agent-routes.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
 | `null` | invalid agent source path | `src/agent-git.ts` |
 | `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |

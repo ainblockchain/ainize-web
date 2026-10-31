@@ -247,7 +247,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/hosted-agents`](#post-apihosted-agents) | none | Create a hosted agent |
 | `GET` | [`/api/hosted-agents/{id}`](#get-apihosted-agentsid) | none | One hosted agent — its owner and `write` members of the organization it is shared with see the whole spec (prompt, files, secret names); anyone else it is visible to sees the listing view; 404 otherwise |
 | `PUT` | [`/api/hosted-agents/{id}`](#put-apihosted-agentsid) | none | Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change |
-| `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove a hosted agent — its owner, or an `admin` of the organization it is shared with |
+| `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove the reviewed hosted registration — owner or organization admin |
 | `PUT` | [`/api/hosted-agents/{id}/secrets/{name}`](#put-apihosted-agentsidsecretsname) | none | Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only |
 | `GET` | [`/agents/{id}/.well-known/agent-card.json`](#get-agentsidwell-knownagent-cardjson) | operator | Read the A2A card; bound AINFT agents advertise current-holder authentication |
 | `POST` | [`/agents/{id}`](#post-agentsid) | none | Call an A2A agent; a bound AINFT executes in the current holder’s private workspace |
@@ -4975,7 +4975,9 @@ Change a hosted agent — its owner, or a `write` member of the organization it 
 
 ### `DELETE /api/hosted-agents/{id}`
 
-Remove a hosted agent — its owner, or an `admin` of the organization it is shared with
+Remove the reviewed hosted registration — owner or organization admin
+
+GET the agent, confirm its name/id, then submit its complete delete_review as expected. The review is available only to an authorized administrator. Cleanup archives when configured, removes the runtime, secrets and repository, then removes the registration. Never interpret a generic failure or absence from a list as completion. A bound agent_cleanup_pending response permits a fresh review of the same registration and operation; it is not an automatic retry instruction. Lost responses require reconciliation; there is no durable completed-operation lookup yet.
 
 **Auth** — none
 
@@ -4985,13 +4987,23 @@ Remove a hosted agent — its owner, or an `admin` of the organization it is sha
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `expected` | [`HostedAgentDeletionReview`](./schemas.md#hostedagentdeletionreview) | yes |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | deleted | `object` |
+| `200` | Verified completion: deleted, cleanup=complete, operationId, removed (exact submitted review), actor, registry, optional archiveId. All identity fields must match the submitted request. | `object` |
+| `400` | `review_required` |   |
+| `401` | `not_signed_in` |   |
 | `403` | `not_owner` |   |
 | `404` | `not_found` |   |
+| `409` | `agent_changed`: review or authority changed before cleanup started; read and confirm again |   |
+| `502` | `agent_cleanup_pending` with pending:{expected,operationId,review} identifies the same incomplete cleanup. `delete_failed` has no resumable proof. Both have retryable:false; never automatically repeat DELETE. |   |
 
 ### `PUT /api/hosted-agents/{id}/secrets/{name}`
 

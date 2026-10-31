@@ -53,6 +53,7 @@ export const sharedAgents: Dict = {
   'sharing.owner.reload': { ko: '초안을 버리고 최신 설정 가져오기', en: 'Discard draft and load latest settings' },
 
   // ── the owner's "Address name" (agent alias) control on the agent page
+  'agentOwner.delete_review_confirm': { ko: '{name} ({id}) 에이전트를 삭제할까요? 실행 환경을 정리하고 등록을 제거합니다.', en: 'Delete agent {name} ({id})? Its runtime will be cleaned up and its registration removed.' },
   'agentAction.alias': { ko: '주소 이름 변경', en: 'address change' },
   'agentAction.sharing': { ko: '공유 설정 변경', en: 'sharing change' },
   'agentAction.unlink': { ko: '등록 해제', en: 'unlink' },

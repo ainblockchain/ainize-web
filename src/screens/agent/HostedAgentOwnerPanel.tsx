@@ -9,13 +9,13 @@ import { AgentActionBoundary, useAgentActions } from '@/components/agent/AgentAc
  * The logs are fetched when opened, not on page load: they are the build output and the container's tail (≤ 200
  * lines), read while debugging, and a page every visitor opens has no reason to ask for them.
  */
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useActiveView } from '@/hooks/useActiveView';
 import { useAuth } from '@/auth/AuthContext';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useDeleteHostedAgentMutation, useHostedAgentLogsQuery, useLazyHostedAgentQuery } from '@/api/api';
-import { AgentDeletionError, createHostedAgentDeletion, isAgentCleanupPending } from '@/lib/hostedAgentDeletion';
+import { AgentDeletionError, isAgentCleanupPending } from '@/lib/hostedAgentDeletion';
 import { hostedAgentApiErrorOf, parseHostedAgentLogsResponse } from '@/api/hostedAgents';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -46,7 +46,7 @@ function HostedAgentOwnerPanelContent({ agentId, agentName, owner = null, alias 
   const navigate = useNavigate();
   const active = useActiveView();
   const actions = useAgentActions();
-  const deletion = useRef(createHostedAgentDeletion()).current;
+  const deletion = actions.scope.hostedDeletion;
   const [deleting, setDeleting] = useState(false);
   const [readAgent] = useLazyHostedAgentQuery();
   const auth = useAuth();
@@ -59,15 +59,15 @@ function HostedAgentOwnerPanelContent({ agentId, agentName, owner = null, alias 
 
   const remove = async () => {
     if (deletion.blocked() || !canAdminister || !active() || !auth.isCurrentAccount() || !actions.scope.canStart('delete', agentId)) return;
-    if (!window.confirm(t('agentOwner.delete_confirm', { name: agentName }))) return;
     const lease = actions.scope.begin('delete', agentId);
     if (!lease) return;
     let cleanup = cleanupPending || deletion.started() || actions.state?.phase === 'cleanup';
     setDeleteError(null);
     setDeleting(true);
     try {
-      const done = await deletion.run({ id: agentId, name: agentName, owner }, {
+      const done = await deletion.run({ id: agentId, name: agentName, owner }, auth.principal, {
         read: () => readAgent({ id: agentId, identity: cacheIdentity }, false).unwrap(),
+        confirm: review => window.confirm(t('agentOwner.delete_review_confirm', { name: review.name, id: review.id })),
         send: request => deleteAgent(request).unwrap(), active: () => active() && auth.isCurrentAccount(),
       });
       if (done) navigate('/explore?kind=agent');
@@ -76,7 +76,7 @@ function HostedAgentOwnerPanelContent({ agentId, agentName, owner = null, alias 
       if (!active() || !auth.isCurrentAccount()) return;
       const e = hostedAgentApiErrorOf(err);
       setDeleteError(deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
-        : err instanceof AgentDeletionError ? t('agentOwner.delete_changed') : e.message ?? t(`agentCreate.api.${e.code}`));
+        : err instanceof AgentDeletionError ? t(err.reason === 'unsupported' ? 'agentOwner.delete_unsupported' : 'agentOwner.delete_changed') : e.message ?? t(`agentCreate.api.${e.code}`));
     } finally {
       lease.finish(deletion.uncertain() ? 'unconfirmed' : deletion.confirmed() ? 'complete' : cleanup ? 'cleanup' : null);
       if (active()) setDeleting(false);
