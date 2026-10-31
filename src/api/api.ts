@@ -97,13 +97,13 @@ export const api = createApi({
      * page, `/billing`). Public; `you` is filled from the wallet site-session cookie. Returned as `unknown` and read
      * by `parseBillingThroughputResponse` (`billingThroughput.ts`) — an older node answers 404 for the route.
      */
-    throughputQuote: b.query<unknown, { model: string; amount?: string; token?: 'sAIN' | 'AIN' }>({
+    throughputQuote: b.query<unknown, { model: string; amount?: string; token?: 'sAIN' | 'AIN'; identity?: string }>({
       query: ({ model, amount, token }) => `api/throughput${toQuery({ model, amount, token: amount ? token : undefined })}`,
       providesTags: ['Throughput'],
     }),
     /** Has this deposit transfer been credited to the signed-in wallet yet. Polled by the billing page until it has. */
-    throughputDepositStatus: b.query<unknown, string>({
-      query: (txHash) => `api/throughput/deposits/${encodeURIComponent(txHash)}`,
+    throughputDepositStatus: b.query<unknown, { txHash: string; chain: string; identity: string }>({
+      query: ({ txHash, chain }) => `api/throughput/deposits/${encodeURIComponent(txHash)}${toQuery({ chain })}`,
     }),
     // Every model the node can reach, its own and its peers' (ainize-node peer-models.ts). An older node answers 404.
     networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),

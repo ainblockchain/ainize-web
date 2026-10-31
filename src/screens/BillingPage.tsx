@@ -24,15 +24,14 @@
  * Where the node cannot answer, the page says which way: an older node without the route, a model it does not
  * serve, or a node that is not answering (`billingThroughputFetchState`).
  */
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { useLocation, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { errorMessage, useModelsQuery, useThroughputDepositStatusQuery, useThroughputQuoteQuery } from '@/api/api';
+import { api, errorMessage, useModelsQuery, useThroughputDepositStatusQuery, useThroughputQuoteQuery } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
 import {
   BILLING_AMOUNT_PRESETS, billingAmountToUnits, billingChainLabel, billingConfirmationSeconds, billingExplorerTxUrl,
   billingFormatTokS, billingFormatWaitSeconds, billingPickDepositChain, billingThroughputFetchState,
-  parseBillingDepositStatus, parseBillingThroughputResponse,
   type BillingDepositChain, type BillingDepositToken,
 } from '@/api/billingThroughput';
 import { useAuth } from '@/auth/AuthContext';
@@ -42,6 +41,10 @@ import { CenterProgress, CopyButton, Description, Empty, ExternalLink, Mono, Pag
 import { useT } from '@/i18n';
 import { discoverWallets, type DiscoveredWallet } from '@/lib/ethWallet';
 import { BillingDepositError, billingSendDeposit } from '@/lib/billingWalletDeposit';
+import { useActiveView } from '@/hooks/useActiveView';
+import { billingCredit, billingDepositSelection, billingView } from '@/lib/billingView';
+import { billingOperationKey, claimBillingOperation, readBillingOperation, updateBillingOperation, type BillingOperation } from '@/lib/billingOperation';
+import { confirmBillingSelection, recoverBillingHash } from '@/lib/billingDeposit';
 import { useTitle } from '@/utils/useTitle';
 
 const BillingModelRow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 4px 0 24px;
@@ -93,30 +96,38 @@ const BillingStack = styled.div`display: grid; gap: 10px; margin-top: 14px;`;
 type BillingSendState =
   | { kind: 'idle' }
   | { kind: 'sending' }
-  | { kind: 'sent'; txHash: string; chain: BillingDepositChain }
   | { kind: 'failed'; code: string; wallet?: string };
 
 const shortHex = (s: string) => (s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s);
 
 export default function BillingPage() {
+  const auth = useAuth();
+  return <AccountBillingPage key={JSON.stringify([auth.address, auth.cacheIdentity])} />;
+}
+function AccountBillingPage() {
   const { t } = useT();
   const auth = useAuth();
   useTitle(t('billing.title'));
   const [params, setParams] = useSearchParams();
+  const location = useLocation(), active = useActiveView();
+  const [readAccess] = api.useLazyMeQuery(), [readQuote] = api.useLazyThroughputQuoteQuery();
 
   // ── which model: `?model=`, else the first chat model the node serves
   const modelsQuery = useModelsQuery();
-  const chatModels = useMemo(() => parseModelsResponse(modelsQuery.data).filter((m) => m.modality === 'chat'), [modelsQuery.data]);
+  const chatModels = useMemo(() => parseModelsResponse(modelsQuery.currentData).filter((m) => m.modality === 'chat'), [modelsQuery.currentData]);
   const model = params.get('model') || chatModels[0]?.id || '';
   const chooseModel = (id: string) => setParams((p) => { const next = new URLSearchParams(p); next.set('model', id); return next; }, { replace: true });
 
   // ── the amount, and the quote asked for 300 ms after the typing stops
   // `?token=` / `?amount=` preselect what the link quoted (a model page's "100 sAIN → …"), so the reader lands on
   // the number they were just shown rather than a default that happens to differ.
-  const [token, setToken] = useState<BillingDepositToken>(() => (params.get('token') === 'AIN' ? 'AIN' : 'sAIN'));
-  const initialAmount = billingAmountToUnits(params.get('amount') ?? '') !== null ? params.get('amount')! : '100';
-  const [amount, setAmount] = useState(initialAmount);
-  const [quotedAmount, setQuotedAmount] = useState(initialAmount);
+  const rawToken = params.get('token') ?? 'sAIN';
+  const validToken = rawToken === 'sAIN' || rawToken === 'AIN';
+  const token: BillingDepositToken = rawToken === 'AIN' ? 'AIN' : 'sAIN';
+  const amount = params.get('amount') ?? '100';
+  const setValue = (key: string, value: string) => setParams(p => { const next = new URLSearchParams(p); next.set(key, value); return next; }, { replace: true });
+  const setToken = (value: string) => setValue('token', value), setAmount = (value: string) => setValue('amount', value);
+  const [quotedAmount, setQuotedAmount] = useState(amount);
   useEffect(() => {
     const timer = setTimeout(() => setQuotedAmount(amount.trim()), 300);
     return () => clearTimeout(timer);
@@ -125,10 +136,10 @@ export default function BillingPage() {
   const quotedUnits = billingAmountToUnits(quotedAmount);
 
   const throughputQuery = useThroughputQuoteQuery(
-    { model, token, amount: quotedUnits !== null && quotedUnits > 0n ? quotedAmount : undefined },
-    { skip: !model, pollingInterval: 30_000 },
+    { model, token, identity: auth.cacheIdentity, amount: quotedUnits !== null && quotedUnits > 0n ? quotedAmount : undefined },
+    { skip: auth.loading || !model || !validToken, pollingInterval: 30_000 },
   );
-  const view = parseBillingThroughputResponse(throughputQuery.data);
+  const view = !auth.loading && !throughputQuery.isError && validToken ? billingView(throughputQuery.currentData, model, auth.subject) : null;
   const fetchState = billingThroughputFetchState(throughputQuery.error as never);
 
   // ── wallets, found the same way sign-in finds them
@@ -137,51 +148,134 @@ export default function BillingPage() {
 
   // ── sending, then waiting for the credit
   const [send, setSend] = useState<BillingSendState>({ kind: 'idle' });
-  const sentHash = send.kind === 'sent' ? send.txHash : '';
-  // Held in state once seen, so the poll can be switched off (a skipped query drops its data) without the page
-  // forgetting that the deposit landed.
-  const [credit, setCredit] = useState<{ txHash: string; sain: number | null } | null>(null);
-  const credited = !!sentHash && credit?.txHash === sentHash;
-  const statusQuery = useThroughputDepositStatusQuery(sentHash, { skip: !sentHash || credited, pollingInterval: 10_000 });
-  const status = parseBillingDepositStatus(statusQuery.data);
-  const { refetch: refetchThroughput } = throughputQuery;
+  const busy = useRef(false);
+  const [operation, setOperation] = useState<BillingOperation | null>(null);
+  const [storageReady, setStorageReady] = useState(false), [storageError, setStorageError] = useState(false);
+  const [hashInput, setHashInput] = useState('');
+  const identity = JSON.stringify([auth.address, auth.cacheIdentity]);
+  const selectionKey = JSON.stringify([model, token, amount, validToken]);
+  const latest = useRef(selectionKey); latest.current = selectionKey;
+  const current = () => active() && !auth.loading && auth.isCurrentAccount() && latest.current === selectionKey;
+  const reloadOperation = () => {
+    if (!auth.address || !auth.subject) { setStorageReady(true); return; }
+    try { setOperation(readBillingOperation(localStorage, auth.address, auth.subject)); setStorageError(!navigator.locks); }
+    catch { setStorageError(true); }
+    setStorageReady(true);
+  };
   useEffect(() => {
-    if (!sentHash || !status.credited || credit?.txHash === sentHash) return;
-    setCredit({ txHash: sentHash, sain: status.sain });
-    void refetchThroughput();
-  }, [sentHash, status.credited, status.sain, credit, refetchThroughput]);
-
+    reloadOperation();
+    const changed = (e: StorageEvent) => { if (e.key === null || auth.address && auth.subject && e.key === billingOperationKey(auth.address, auth.subject)) reloadOperation(); };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, [auth.address, auth.subject]);
+  const sentHash = operation?.txHash ?? '';
+  const statusQuery = useThroughputDepositStatusQuery({ txHash: sentHash, chain: operation?.selection.chain.chain ?? '', identity },
+    { skip: !sentHash || auth.loading || !auth.subject, pollingInterval: 10_000, refetchOnMountOrArgChange: true });
+  const status = operation && sentHash && !statusQuery.isError ? billingCredit(statusQuery.currentData,
+    { txHash: sentHash, subject: operation.selection.subject, chain: operation.selection.chain.chain }) : null;
+  const credited = status?.credited === true;
+  const { refetch: refetchThroughput } = throughputQuery;
+  useEffect(() => { if (credited && model) void refetchThroughput(); }, [credited, model, refetchThroughput]);
   const deposits = view?.deposits;
   const chain = deposits?.enabled ? billingPickDepositChain(deposits.chains, token) : null;
-  const signInHref = `/signing?wallet=1&next=${encodeURIComponent(`/billing${model ? `?model=${encodeURIComponent(model)}` : ''}`)}`;
-
+  const signInHref = `/signing?wallet=1&next=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
+  const selection = auth.address && auth.subject && validToken && !throughputQuery.isError
+    ? billingDepositSelection(throughputQuery.currentData, { node: auth.address, subject: auth.subject, model, token, amount }) : null;
+  const withLock = async (run: () => Promise<void>) => {
+    if (!auth.address || !auth.subject || !navigator.locks) throw new BillingDepositError('storage');
+    await navigator.locks.request(billingOperationKey(auth.address, auth.subject), { ifAvailable: true }, async lock => {
+      if (!lock) throw new BillingDepositError('pending');
+      await run();
+    });
+  };
   async function depositWith(wallet: DiscoveredWallet) {
-    if (!deposits?.enabled || !chain || !auth.subject || units === null) return;
-    setSend({ kind: 'sending' });
+    if (!selection || !current() || busy.current || !storageReady || storageError || operation) return;
+    busy.current = true; setSend({ kind: 'sending' });
+    const intent: BillingOperation = { version: 1, id: crypto.randomUUID().replaceAll('-', ''), selection, nonce: '', txHash: null };
     try {
-      const { txHash } = await billingSendDeposit({
-        provider: wallet.provider, signedInAddress: auth.subject, chain, receivingAddress: deposits.address, units,
+      await withLock(async () => {
+        if (readBillingOperation(localStorage, selection.node, selection.subject)) throw new BillingDepositError('pending');
+        const confirm = () => confirmBillingSelection(selection, { current, access: () => readAccess(undefined, false).unwrap(),
+          quote: () => readQuote({ model: selection.model, token: selection.token, amount: selection.amount, identity: auth.cacheIdentity }, false).unwrap() });
+        await confirm();
+        let claimed = false;
+        try {
+          const { txHash } = await billingSendDeposit({ provider: wallet.provider, signedInAddress: selection.subject,
+            chain: selection.chain, receivingAddress: selection.receiver, units: billingAmountToUnits(selection.amount)!, current,
+            beforeSend: confirm, onSubmitting: async nonce => { intent.nonce = nonce; claimBillingOperation(localStorage, intent); claimed = true; if (active()) setOperation(intent); } });
+          // The accepted transfer belongs to the original account even after navigation or account changes.
+          updateBillingOperation(localStorage, intent, txHash);
+        } catch (e) {
+          if (claimed && e instanceof BillingDepositError && ['rejected', 'departed'].includes(e.message)) updateBillingOperation(localStorage, intent, null);
+          throw e;
+        }
       });
-      setSend({ kind: 'sent', txHash, chain });
+      if (active()) setSend({ kind: 'idle' });
     } catch (e) {
-      const code = e instanceof BillingDepositError ? e.message : 'send_failed';
-      let connected: string | undefined;
-      if (code === 'account_mismatch') {
-        const accounts = await wallet.provider.request({ method: 'eth_accounts' }).catch(() => null) as unknown;
-        connected = Array.isArray(accounts) && typeof accounts[0] === 'string' ? accounts[0] : undefined;
-      }
-      setSend({ kind: 'failed', code, wallet: connected });
-    }
+      if (active()) setSend({ kind: 'failed', code: e instanceof BillingDepositError ? e.message : 'unconfirmed' });
+    } finally { busy.current = false; if (active()) reloadOperation(); }
   }
+  async function inspectHash(wallet: DiscoveredWallet) {
+    if (!operation || operation.txHash || busy.current || !current()) return;
+    busy.current = true; setSend({ kind: 'sending' });
+    try {
+      await withLock(async () => {
+        if (!current()) throw new BillingDepositError('departed');
+        const hash = await recoverBillingHash(wallet.provider, operation.selection, operation.nonce, hashInput.trim());
+        if (!current()) throw new BillingDepositError('departed');
+        updateBillingOperation(localStorage, operation, hash);
+      });
+      if (active()) setSend({ kind: 'idle' });
+    } catch (e) { if (active()) setSend({ kind: 'failed', code: e instanceof BillingDepositError ? e.message : 'unconfirmed' }); }
+    finally { busy.current = false; if (active()) reloadOperation(); }
+  }
+  async function newDeposit() {
+    if (!operation || !credited || busy.current || !current()) return;
+    busy.current = true;
+    try {
+      await withLock(async () => {
+        const response = await statusQuery.refetch().unwrap();
+        if (!current() || !billingCredit(response, { txHash: sentHash, subject: operation.selection.subject, chain: operation.selection.chain.chain })?.credited) throw new BillingDepositError('unconfirmed');
+        updateBillingOperation(localStorage, operation, null);
+      });
+      if (active()) { setSend({ kind: 'idle' }); setHashInput(''); }
+    } catch { if (active()) setSend({ kind: 'failed', code: 'unconfirmed' }); }
+    finally { busy.current = false; if (active()) reloadOperation(); }
+  }
+  const progress = <>
+    {storageError && <Alert $tone="error">{t('billing.err.storage')}</Alert>}
+    {operation && <BillingCard data-testid="billing-operation">
+      <h2>{t('billing.pending.title')}</h2>
+      <BillingLine>{operation.selection.amount} {operation.selection.token} · {billingChainLabel(operation.selection.chain)}</BillingLine>
+      <BillingLine>{t('billing.pending.from')}: <Mono>{operation.selection.subject}</Mono></BillingLine>
+      <BillingLine>{t('billing.manual.to')}: <Mono>{operation.selection.receiver}</Mono></BillingLine>
+      <BillingLine>{t('billing.manual.token')}: <Mono>{operation.selection.chain.token}</Mono></BillingLine>
+      {operation.txHash ? <>
+        <BillingSentStatus send={{ txHash: operation.txHash, chain: operation.selection.chain }} credited={credited} sain={status?.sain ?? null}
+          checking={!status && statusQuery.isFetching} error={statusQuery.error || (!statusQuery.isFetching && !status ? t('billing.err.unconfirmed') : undefined)} />
+        <Button size="small" disabled={statusQuery.isFetching} onClick={() => void statusQuery.refetch()}>{t('billing.check')}</Button>
+        {credited && <Button size="small" disabled={send.kind === 'sending' || storageError || !storageReady} onClick={() => void newDeposit()}>{t('billing.new')}</Button>}
+      </> : <>
+        <Alert $tone="warning">{t('billing.err.send_unconfirmed')}</Alert>
+        <BillingLine>{t('billing.recover.help')}</BillingLine>
+        {wallets?.length === 0 && <BillingLine>{t('billing.recover.wallet')}</BillingLine>}
+        <Input aria-label={t('billing.recover.hash')} placeholder="0x…" value={hashInput} onChange={e => setHashInput(e.target.value)} />
+        {(wallets ?? []).map(w => <Button key={w.info.uuid} size="small" disabled={send.kind === 'sending' || storageError || !storageReady || !/^0x[\da-f]{64}$/i.test(hashInput.trim())}
+          onClick={() => void inspectHash(w)}>{t('billing.recover.check', { name: w.info.name })}</Button>)}
+      </>}
+    </BillingCard>}
+    {send.kind === 'failed' && <Alert $tone="error" data-testid="billing-send-error">{t(`billing.err.${send.code}`, { wallet: send.wallet ?? '?', subject: auth.subject ?? '?' })}</Alert>}
+  </>;
 
   const header = (
     <>
+      {progress}
       <TitleRow><Title>{t('billing.title')}</Title></TitleRow>
       <Description style={{ marginTop: -12, marginBottom: 20 }}>{t('billing.lede')}</Description>
       {chatModels.length > 0 && (
         <BillingModelRow>
           <label htmlFor="billing-model">{t('billing.model')}</label>
-          <Select id="billing-model" data-testid="billing-model" value={model} onChange={(e) => chooseModel(e.target.value)}>
+          <Select id="billing-model" data-testid="billing-model" value={model} disabled={send.kind === 'sending'} onChange={(e) => chooseModel(e.target.value)}>
             {!chatModels.some((m) => m.id === model) && model && <option value={model}>{model}</option>}
             {chatModels.map((m) => <option key={m.id} value={m.id}>{m.id}</option>)}
           </Select>
@@ -190,14 +284,17 @@ export default function BillingPage() {
     </>
   );
 
+  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!validToken) return <PageWrapper>{header}<Alert $tone="error">{t('billing.err.token')} <Button onClick={() => setToken('sAIN')}>sAIN</Button><Button onClick={() => setToken('AIN')}>AIN</Button></Alert></PageWrapper>;
+  if (!model && (modelsQuery.isError || modelsQuery.currentData !== undefined && (!Array.isArray((modelsQuery.currentData as any)?.data) || (modelsQuery.currentData as any).data.some((row: any) => !row || typeof row.id !== 'string' || !row.id || typeof row.modality !== 'string')))) return <PageWrapper>{header}<Alert $tone="error">{t('billing.err.models')} <Button onClick={() => void modelsQuery.refetch()}>{t('billing.check')}</Button></Alert></PageWrapper>;
   if (modelsQuery.isLoading && !model) return <PageWrapper>{header}<CenterProgress /></PageWrapper>;
   if (!model) return <PageWrapper>{header}<Empty data-testid="billing-no-models">{t('billing.no_models')}</Empty></PageWrapper>;
   if (!view) {
-    if (throughputQuery.isLoading || fetchState === 'ok') return <PageWrapper>{header}<CenterProgress /></PageWrapper>;
+    if (throughputQuery.isFetching && !throughputQuery.currentData) return <PageWrapper>{header}<CenterProgress /></PageWrapper>;
     return (
       <PageWrapper>
         {header}
-        <Empty data-testid={`billing-${fetchState}`}>{t(`billing.state.${fetchState}`, { model })}</Empty>
+        <Empty data-testid={`billing-${fetchState}`}>{t(fetchState === 'ok' ? 'billing.err.response' : `billing.state.${fetchState}`, { model })} <Button onClick={() => void throughputQuery.refetch()}>{t('billing.check')}</Button></Empty>
       </PageWrapper>
     );
   }
@@ -258,20 +355,20 @@ export default function BillingPage() {
         <>
           <BillingToggle role="group" aria-label="token">
             {(['sAIN', 'AIN'] as const).map((s) => (
-              <BillingToggleButton key={s} type="button" $on={token === s} aria-pressed={token === s} data-testid={`billing-token-${s}`} onClick={() => setToken(s)}>
+              <BillingToggleButton key={s} type="button" $on={token === s} disabled={send.kind === 'sending'} aria-pressed={token === s} data-testid={`billing-token-${s}`} onClick={() => setToken(s)}>
                 {s}
               </BillingToggleButton>
             ))}
           </BillingToggle>
           <BillingAmountRow>
             <Input
-              aria-label={t('billing.deposit.amount')} inputMode="decimal" value={amount} data-testid="billing-amount"
+              aria-label={t('billing.deposit.amount')} inputMode="decimal" disabled={send.kind === 'sending'} value={amount} data-testid="billing-amount"
               onChange={(e) => setAmount(e.target.value)}
             />
             <span>{token}</span>
-            {BILLING_AMOUNT_PRESETS.map((p) => <BillingPreset key={p} type="button" onClick={() => setAmount(p)}>{p}</BillingPreset>)}
+            {BILLING_AMOUNT_PRESETS.map((p) => <BillingPreset key={p} type="button" disabled={send.kind === 'sending'} onClick={() => setAmount(p)}>{p}</BillingPreset>)}
           </BillingAmountRow>
-          {units === null && <BillingLine style={{ color: '#a0102c' }}>{t('billing.deposit.bad_amount')}</BillingLine>}
+          {(units === null || units <= 0n || units >= 2n ** 256n) && <BillingLine style={{ color: '#a0102c' }}>{t('billing.deposit.bad_amount')}</BillingLine>}
 
           {quote && !quote.error && quote.expectedTokS !== null && (
             <div data-testid="billing-quote" style={{ opacity: quoteIsCurrent ? 1 : 0.5, transition: 'opacity .15s' }}>
@@ -322,7 +419,7 @@ export default function BillingPage() {
                   {(wallets ?? []).map((w) => (
                     <Button
                       key={w.info.uuid} variant="contained" data-testid="billing-deposit-wallet"
-                      disabled={send.kind === 'sending' || units === null || units <= 0n || chain.chainId === null}
+                      disabled={send.kind === 'sending' || !selection || !storageReady || storageError || !!operation || throughputQuery.isFetching}
                       loading={send.kind === 'sending'} loadingText={t('billing.deposit.sending')}
                       onClick={() => { void depositWith(w); }}
                     >
@@ -331,13 +428,6 @@ export default function BillingPage() {
                   ))}
                 </BillingActions>
               )}
-              {send.kind === 'failed' && (
-                <BillingStack>
-                  <Alert $tone="error" data-testid="billing-send-error">
-                    {t(`billing.err.${send.code}`, { wallet: send.wallet ?? '?', subject: auth.subject ?? '?' })}
-                  </Alert>
-                </BillingStack>
-              )}
               <BillingDetails>
                 <summary>{t('billing.manual.title')}</summary>
                 {manual}
@@ -345,7 +435,6 @@ export default function BillingPage() {
             </>
           )}
 
-          {send.kind === 'sent' && <BillingSentStatus send={send} credited={credited} sain={credit?.sain ?? null} error={statusQuery.error} />}
         </>
       )}
     </BillingCard>
@@ -364,8 +453,8 @@ export default function BillingPage() {
 }
 
 /** The transaction, where to watch it, and whether the node has credited it yet. */
-function BillingSentStatus({ send, credited, sain, error }: {
-  send: { txHash: string; chain: BillingDepositChain }; credited: boolean; sain: number | null; error: unknown;
+export function BillingSentStatus({ send, credited, sain, error, checking = false }: {
+  send: { txHash: string; chain: BillingDepositChain }; credited: boolean; sain: string | null; error: unknown; checking?: boolean;
 }) {
   const { t } = useT();
   const url = billingExplorerTxUrl(send.chain.chainId, send.txHash);
@@ -380,13 +469,13 @@ function BillingSentStatus({ send, credited, sain, error }: {
         <Alert $tone="success" data-testid="billing-credited">
           {sain !== null ? t('billing.deposit.credited', { n: String(sain) }) : t('billing.deposit.credited_plain')}
         </Alert>
-      ) : (
+      ) : checking ? <Alert $tone="info">{t('billing.checking')}</Alert> : !error ? (
         <Alert $tone="info">
           {wait !== null
             ? t('billing.deposit.waiting', { n: String(send.chain.confirmations), wait: billingFormatWaitSeconds(wait) })
             : t('billing.deposit.waiting_unknown', { n: String(send.chain.confirmations) })}
         </Alert>
-      )}
+      ) : null}
       {!credited && !!error && <Alert $tone="warning">{t('billing.err.status_failed', { why: errorMessage(error) })}</Alert>}
     </BillingStack>
   );

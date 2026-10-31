@@ -18,7 +18,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { errorMessage, useAgentsByModelQuery, useModelDetailQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery } from '@/api/api';
 import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse, pickNetworkModelProvider } from '@/api/networkModels';
-import { parseBillingThroughputResponse } from '@/api/billingThroughput';
+import { billingView } from '@/lib/billingView';
 import { agentsBuiltOnModel } from '@/api/hostedAgents';
 import { harnessForModel } from '@/api/modelHarness';
 import { modelDetailViewState, parseModelsResponse } from '@/api/models';
@@ -88,7 +88,7 @@ export default function ModelDetailPage() {
   const detail = useModelDetailQuery(id, { skip: !id, pollingInterval: 15_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   // Same arguments as the playground's, so the two share one request (and one poll). Busy/idle changes by the
   // second, so it is re-read; 15 s is often enough to see a queue form without polling a page nobody watches.
-  const throughputQuery = useThroughputQuoteQuery({ model: id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN }, { skip: !id, pollingInterval: 15_000 });
+  const throughputQuery = useThroughputQuoteQuery({ model: id, identity: auth.cacheIdentity, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN }, { skip: !id, pollingInterval: 15_000 });
   const list = useModelsQuery(undefined, { pollingInterval: 15_000, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   const ownView = modelDetailViewState({
     id,
@@ -146,7 +146,7 @@ export default function ModelDetailPage() {
   const { model } = view;
   const isChat = model.modality === 'chat';
   const harness = harnessForModel(model.id);
-  const speed = modelSpeedFactOf(parseBillingThroughputResponse(throughputQuery.data));
+  const speed = modelSpeedFactOf(throughputQuery.isError || auth.loading ? null : billingView(throughputQuery.currentData, id, auth.subject));
 
   return (
     <PageWrapper>

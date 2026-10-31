@@ -2400,3 +2400,39 @@ test('testable picker items retain small positive prices instead of rounding the
     onToggle() {}, onClear() {} }), signedOut, '/chat');
   assert.match(html, /0.00000001 AIN/);
 });
+
+import BillingPage, { BillingSentStatus } from '../src/screens/BillingPage';
+import { billingQuote, billingSubject, billingNode, billingHash } from './billing-safety-fixture';
+const billingIdentity = JSON.stringify([billingSubject, null, null, null]);
+const billingAuth: Fixture[] = [...signedOut.filter(f => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: billingSubject, address: billingNode } }];
+const billingArg = { model: 'M', token: 'sAIN', identity: billingIdentity, amount: '1' };
+const billingModels: Fixture = { name: 'models', value: { data: [{ id: 'M', modality: 'chat', available: true }] } };
+test('billing renders only a current account quote and preserves complete login return parameters', () => {
+  const fixtures = [...billingAuth, billingModels, { name: 'throughputQuote', arg: billingArg, value: billingQuote() }];
+  assert.match(render(BillingPage, fixtures, '/billing?model=M&amount=1'), /data-testid="billing-now"/);
+  const other = render(BillingPage, [...billingAuth, billingModels, { name: 'throughputQuote', arg: { ...billingArg, identity: 'previous' }, value: billingQuote() }], '/billing?model=M&amount=1');
+  assert.doesNotMatch(other, /data-testid="billing-now"/);
+  const anon = render(BillingPage, [...signedOut, billingModels, { name: 'throughputQuote', arg: { ...billingArg, identity: '' }, value: { ...billingQuote(), you: null } }], '/billing?model=M&amount=1&token=sAIN#deposit');
+  assert.match(anon, /next=%2Fbilling%3Fmodel%3DM%26amount%3D1%26token%3DsAIN%23deposit/);
+});
+test('billing malformed, wrong-wallet and failed quotes do not become a spinner or stale success', () => {
+  for (const fixture of [{ value: {} }, { value: { ...billingQuote(), you: { ...billingQuote().you, address: billingNode } } }, { value: billingQuote(), status: 'rejected' as const }]) {
+    const html = render(BillingPage, [...billingAuth, billingModels, { name: 'throughputQuote', arg: billingArg, ...fixture }], '/billing?model=M&amount=1');
+    assert.doesNotMatch(html, /data-testid="billing-now"/); assert.match(html, /Check again/);
+  }
+});
+test('billing failed model lists differ from empty lists and invalid URL tokens require a choice', () => {
+  for (const fixture of [{ value: {} }, { status: 'rejected' as const }]) {
+    const html = render(BillingPage, [...billingAuth, { name: 'models', ...fixture }], '/billing');
+    assert.match(html, /Could not verify the model list/); assert.doesNotMatch(html, /This node serves no chat model/);
+  }
+  assert.match(render(BillingPage, [...billingAuth, { name: 'models', value: { data: [] } }], '/billing'), /This node serves no chat model/);
+  assert.match(render(BillingPage, [...billingAuth, billingModels], '/billing?token=invalid'), /token in this link is not supported/);
+});
+test('deposit credit feedback retains exact units without promising throughput refreshed', () => {
+  const send = { txHash: billingHash, chain: { chain: 'base-sain', chainId: 8453, token: billingNode, symbol: 'sAIN' as const, decimals: 18, confirmations: 30 } };
+  const confirmed = render(() => createElement(BillingSentStatus, { send, credited: true, sain: '0.000000000000000001', error: undefined }), signedOut);
+  assert.match(confirmed, /0.000000000000000001 sAIN/); assert.doesNotMatch(confirmed, /numbers above are updated/);
+  const failed = render(() => createElement(BillingSentStatus, { send, credited: false, sain: null, error: { status: 503 } }), signedOut);
+  assert.match(failed, /Could not check/); assert.doesNotMatch(failed, /No node credit confirmed yet/);
+});

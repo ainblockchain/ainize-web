@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-332 operations on 276 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+333 operations on 277 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -69,6 +69,7 @@ See [Error codes](./errors.md) for the full list.
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
+| `GET` | [`/api/throughput/deposits/{txHash}`](#get-apithroughputdepositstxhash) | none | Check the signed-in wallet’s recorded deposit credit |
 | `GET` | [`/api/models`](#get-apimodels) | operator | Configured models and current backend availability |
 | `POST` | [`/api/transcribe`](#post-apitranscribe) | operator | Free transcription trial on a configured audio backend |
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
@@ -954,6 +955,30 @@ Temporarily loads one to three knowledges into the shared serving model (in list
 ## Models
 
 what this node serves over the LLM API, and the free trials of it — the public list, and the transcription and image routes a visitor can press without a key (the chat trial is Live test's)
+
+### `GET /api/throughput/deposits/{txHash}`
+
+Check the signed-in wallet’s recorded deposit credit
+
+Requires the sending wallet session. With chain, returns a version 1 acknowledgement for the exact transaction, sender and watcher name. All matching logs are summed as integer share units (18 decimals). This is node credit evidence, not proof of original ERC-20 calldata. Omitting chain retains the legacy numeric, single-record result.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `txHash` | `path` | `string` | yes |   |
+| `chain` | `query` | `string` |   | Exact watcher name, e.g. base-sain. Requires a 32-byte transaction hash. |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Scoped acknowledgement when chain is supplied; legacy status otherwise | `object` |
+| `400` | Invalid scoped transaction/chain |   |
+| `401` | Sending wallet session required |   |
+| `503` | Credit ledger unavailable; outcome is unknown |   |
 
 ### `GET /api/models`
 

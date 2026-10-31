@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useThroughputQuoteQuery } from '@/api/api';
-import { parseBillingThroughputResponse } from '@/api/billingThroughput';
+import { billingView } from '@/lib/billingView';
 import { useAuth } from '@/auth/AuthContext';
 import type { ModelModality, PublicModelCard } from '@/api/models';
 import { Button } from '@/components/ui/Button';
@@ -123,10 +123,10 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   // A peer's speed and deposits are its own, not this node's: nothing here can quote them.
   const isChat = model.modality === 'chat' && !peer;
   const throughputQuery = useThroughputQuoteQuery(
-    { model: model.id, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN },
+    { model: model.id, identity: cacheIdentity, token: 'sAIN', amount: MODEL_SPEED_QUOTE_SAIN },
     { skip: !isChat, pollingInterval: run.kind === 'running' ? 2_000 : 15_000 },
   );
-  const throughput = parseBillingThroughputResponse(throughputQuery.data);
+  const throughput = throughputQuery.isError || !isChat ? null : billingView(throughputQuery.currentData, model.id, subject);
   const speed = modelSpeedFactOf(throughput);
   const offer = modelSpeedPriorityOfferOf(throughput);
 
