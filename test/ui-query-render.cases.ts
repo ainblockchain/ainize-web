@@ -3886,8 +3886,11 @@ test('Google-only My Nodes explicitly offers supported sign-in without a redirec
   assert.doesNotMatch(html, /data-testid="mynodes-empty"|>Disconnect</);
 });
 
-const chainAccountFixtures = (): Fixture[] => accountWalletFixtures().map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), signedIn: true, isOwner: true } }
-  : f.name === 'info' ? { ...f, value: { ...(f.value as any), node: { ...(f.value as any).node, chain_id: 1 }, ledger: { kind: 'ain', records: 0, provider: 'https://mainnet-api.ainetwork.ai' } } } : f);
+const setupContextFixture = { node: walletAddress, provider: 'https://mainnet-api.ainetwork.ai', chain_id: 1, app: '/apps/knowledge' };
+const setupStatusFixture = { version: 1 as const, context: setupContextFixture, verification: { valid: false, errors: ['Missing rule'] }, read_error: null, operation: null };
+const chainAccountFixtures = (): Fixture[] => [...accountWalletFixtures().map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), signedIn: true, isOwner: true } }
+  : f.name === 'info' ? { ...f, value: { ...(f.value as any), node: { ...(f.value as any).node, chain_id: 1 }, ledger: { kind: 'ain', records: 0, provider: 'https://mainnet-api.ainetwork.ai', app: '/apps/knowledge' } } } : f),
+  { name: 'chainSetupStatus', arg: { identity: accountIdentity, context: setupContextFixture }, value: setupStatusFixture }];
 test('account identity failure and malformed roles cannot retain a cached wallet or write buttons', () => {
   for (const patch of [{ status: 'rejected' as const }, { value: { address: walletAddress, name: 'Broken', roles: null } }]) {
     const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'me' ? { ...f, ...patch } : f), '/account');
@@ -3948,5 +3951,30 @@ test('shared price notes suppress failed, foreign and custom-network metadata in
     chainAccountFixtures().map(f => f.name === 'info' ? { ...f, value: { ...(f.value as any), ledger: { ...(f.value as any).ledger, provider: 'https://private-rpc.test' } } } : f),
   ]) {
     const html = render(Note, fixtures); assert.match(html, /network type could not be verified/); assert.doesNotMatch(html, /on the mainnet/);
+  }
+});
+
+const savedSetupOperation = (state: string) => ({ version: 1, id: 'b'.repeat(32), context: setupContextFixture, actor: walletAddress, state, created_at: 1, updated_at: 2, created: false, tx: null, admin: walletAddress, error: null });
+test('chain setup shows verified rules rather than a generic success or another setup action', () => {
+  const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, value: { ...setupStatusFixture, verification: { valid: true, errors: [] }, operation: savedSetupOperation('verified') } } : f), '/account');
+  assert.match(html, /market rules are verified/); assert.match(html, /The app already exists/); assert.match(html, /Refresh status/);
+  assert.doesNotMatch(html, />Set up app on chain<|>Retry setup<|safe to run again|Knowledge app and market rules are set on chain/);
+  assert.match(html, /without automatic staking/); assert.match(html, /<details/); assert.doesNotMatch(html, /<details[^>]*open/);
+});
+test('unresolved setup exposes read-only recovery while a terminal unconfirmed attempt offers explicit retry', () => {
+  for (const state of ['running', 'unconfirmed']) {
+    const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, value: { ...setupStatusFixture, operation: savedSetupOperation(state) } } : f), '/account');
+    assert.match(html, /saved request is unconfirmed/); assert.match(html, /Refresh status/);
+    if (state === 'running') assert.doesNotMatch(html, />Set up app on chain<|>Retry setup</);
+    else assert.match(html, />Retry setup</);
+    assert.doesNotMatch(html, /market rules are verified/);
+  }
+});
+test('old servers, failed refreshes and foreign setup records cannot expose a legacy setup write', () => {
+  const offline = render(AccountPage, chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, value: { ...setupStatusFixture, verification: null, read_error: 'offline' } } : f), '/account');
+  assert.match(offline, /Could not verify the current setup state/); assert.match(offline, /Refresh status/); assert.doesNotMatch(offline, />Set up app on chain<|>Retry setup</);
+  for (const patch of [{ status: 'rejected' as const, errorStatus: 404 }, { value: { ...setupStatusFixture, context: { ...setupContextFixture, chain_id: 0 } } }, { value: { created: true } }]) {
+    const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, ...patch } : f), '/account');
+    assert.match(html, /query-retry/); assert.doesNotMatch(html, />Set up app on chain<|chain-setup-panel|market rules are verified/);
   }
 });

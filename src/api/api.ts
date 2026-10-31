@@ -558,6 +558,8 @@ export const api = createApi({
     complete: b.mutation<{ text: string }, { prompt: string; max_tokens?: number }>({ query: (body) => ({ url: 'api/runtime/complete', method: 'POST', body }) }),
     addPeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'POST', body }), invalidatesTags: ['Nodes', 'Info'] }),
     removePeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'DELETE', body }), invalidatesTags: ['Nodes', 'Info'] }),
+    chainSetupStatus: b.query<unknown, { identity: string; context: import('../lib/accountChainSetup').ChainSetupContext }>({ query: () => 'api/chain/setup', keepUnusedDataFor: 0 }),
+    reviewedChainSetup: b.mutation<unknown, { request_id: string; expected: import('../lib/accountChainSetup').ChainSetupContext; retry_of?: string }>({ query: body => ({ url: 'api/chain/setup/requests', method: 'POST', body }), invalidatesTags: ['Me', 'Ledger'] }),
     chainSetup: b.mutation<unknown, void>({ query: () => ({ url: 'api/chain/setup', method: 'POST' }), invalidatesTags: ['Info', 'Ledger'] }),
     driveAction: b.mutation<unknown, { action: 'up' | 'stop' | 'sync' | 'login'; server?: string }>({ query: (body) => ({ url: 'api/drive', method: 'POST', body }), invalidatesTags: ['Drive'] }),
 
@@ -710,7 +712,7 @@ export const {
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
-  useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
+  useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useChainSetupStatusQuery, useReviewedChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,
   useTeachPolicyQuery, useTeachPreflightMutation, useMergePreviewMutation, useCreateTeachJobMutation, useTeachJobQuery, useMyTeachJobsQuery, useCancelTeachJobMutation, useRetryTeachJobMutation,
   useRecheckTeachJobMutation, usePublishChallengeMutation, usePublishPreviewQuery, usePublishTeachJobMutation, useSaveTeachJobMutation, useTeacherQuery, useVerifierQuery, useNudgePayoutMutation,

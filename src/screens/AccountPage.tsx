@@ -1,3 +1,4 @@
+import { AccountChainSetup } from '@/components/operator/AccountChainSetup';
 import { AccountOwners, AccountBindings } from '@/components/operator/AccountAccess';
 import { AccountPeers } from '@/components/operator/AccountPeers';
 import { AccountRuntime } from '@/components/operator/AccountRuntime';
@@ -9,7 +10,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import {
-  errorMessage, useChainSetupMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
+  errorMessage, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
   useSettingsQuery, useWalletQuery, useWalletSendMutation,
 } from '@/api/api';
 import { useT } from '@/i18n';
@@ -85,7 +86,6 @@ function AccountView({ me }: { me: AccountNode }) {
   const settings = useSettingsQuery(scope);
   const payouts = usePayoutsQuery({ limit: 500, identity: auth.cacheIdentity });
   const myPatches = useMyPatchesQuery(scope);
-  const [chainSetup, chainState] = useChainSetupMutation();
 
   const [salesShown, setSalesShown] = useState(PAGE);
   const [royShown, setRoyShown] = useState(PAGE);
@@ -188,6 +188,7 @@ function AccountView({ me }: { me: AccountNode }) {
       {/* ------------------------------------------------------------ wallet */}
       <SubTitle $mt={56}>{t('op.account.wallet')}</SubTitle>
       {info && <Description>{isAin ? t('op.account.wallet.desc.ain') : t('op.account.wallet.desc.credit')}</Description>}
+      {info && chainReady && !infoQuery.isFetching && <AccountChainSetup info={info} />}
       {wallet.isFetching && !wallet.currentData ? <CenterProgress /> : !walletView || !saleSplit ? <QueryError error={wallet.error} what={t('op.account.wallet')} onRetry={() => void wallet.refetch()} retrying={wallet.isFetching} /> : (
         <>
           <Balance title={netNote}>{walletView.balance === null || !currency ? '—' : num(walletView.balance)}<span>{money.unit(currency)}</span></Balance>
@@ -200,12 +201,6 @@ function AccountView({ me }: { me: AccountNode }) {
               {t('op.account.wallet.shared_out', { gross: money.revenue(g.grossTotal, g.currency), shared: money.revenue(g.sharedTotal, g.currency), net: money.revenue(g.netTotal, g.currency) })}
             </Muted>
           ))}
-          {chainReady && auth.isOwner && !infoQuery.isFetching && (
-            <Row $gap={12} style={{ marginTop: 12 }}>
-              <Button size="small" loading={chainState.isLoading} loadingText={t('op.account.chain.setting')} onClick={() => run(() => chainSetup().unwrap(), t('op.account.chain.done'))}>{t('op.account.chain.setup')}</Button>
-              <Muted title={t('op.account.dev.chain')}>{t('op.account.chain.note')}</Muted>
-            </Row>
-          )}
           {/* Item 320: a balance with no action beside it. Earnings could leave this node only as purchases made
               through it — no send, no withdraw, no way to pay a collaborator. */}
           {chainReady && currency === 'AIN' && auth.isOwner && !infoQuery.isFetching && !wallet.isFetching ? (
