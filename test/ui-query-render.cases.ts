@@ -25,6 +25,8 @@ import MyAgentsPage from '../src/screens/MyAgentsPage';
 import AinCodePage from '../src/screens/AinCodePage';
 import AgentCreatePage from '../src/screens/AgentCreatePage';
 import AgentLinkPage from '../src/screens/AgentLinkPage';
+import { AinftBindingPanel } from '../src/screens/agent/AinftBindingPanel';
+import { HostedAgentOwnerPanel } from '../src/screens/agent/HostedAgentOwnerPanel';
 import { AgentPage } from '../src/screens/AgentPage';
 import { AgentHistoryPanel } from '../src/screens/agent/AgentHistoryPanel';
 import { AgentPreviewHistory } from '../src/screens/agent/AgentPreviewHistory';
@@ -937,4 +939,29 @@ test('agent list and full search keep same-id peer results separate and link to 
   const search = render(SearchPage, fixtures, '/search?q=guide');
   for (const href of ['/agent/chosen', '/agent/chosen?node=peer-one', '/agent/chosen?node=peer-two']) assert.ok(search.includes(`href="${href}"`));
   assert.match(search, /Seoul/); assert.match(search, /Busan/);
+});
+
+
+test('AINFT binding reads show recovery, isolate accounts and distinguish explicit unbound agents', () => {
+  const binding = { agentId: 'chosen', chainId: 0, objectId: '0x' + 'b'.repeat(40), tokenId: 'private-token', release: 3, verifiedAt: 1000, communityVersion: 0, community: null };
+  const arg = { id: 'chosen', identity: accountIdentity };
+  const Page = () => createElement(AinftBindingPanel, { agentId: 'chosen' });
+  const current = render(Page, [...appAccount, { name: 'ainftBinding', arg, value: { binding } }]);
+  assert.match(current, /Linked AINFT|private-token/);
+  const failed = render(Page, [...appAccount, { name: 'ainftBinding', arg, value: { binding }, status: 'rejected' }]);
+  assert.match(failed, /ainft-binding-failed/); assert.match(failed, /Try again/); assert.doesNotMatch(failed, /private-token/);
+  const other = render(Page, [...appAccount, { name: 'ainftBinding', arg: { ...arg, identity: 'other-account' }, value: { binding } }]);
+  assert.doesNotMatch(other, /private-token/); assert.match(other, /Checking AINFT connection/);
+  const empty = render(Page, [...appAccount, { name: 'ainftBinding', arg, value: { binding: null } }]);
+  assert.doesNotMatch(empty, /ainft-binding|Checking AINFT connection|Try again/);
+});
+
+test('agent editors and organization admins do not receive creator-only NFT registration controls', () => {
+  for (const canAdminister of [false, true]) {
+    const html = render(() => createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Agent', canAdminister, isCreator: false }), appAccount);
+    assert.match(html, /hosted-agent-edit/);
+    assert.doesNotMatch(html, /ainft-registration|ainft-community/);
+  }
+  const owner = render(() => createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Agent', isCreator: true }), appAccount);
+  assert.match(owner, /ainft-registration/); assert.match(owner, /ainft-community/);
 });

@@ -39,7 +39,7 @@ const HostedAgentOwnerLogs = styled.pre`
  * `canAdminister` is false for an organization member who may edit the agent but not delete it or change who sees
  * it (ainize-node: those stay with the owner and the organization's admins); the panel then offers edit and logs only.
  */
-export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null, canAdminister = true }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean }) {
+export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null, canAdminister = true, isCreator = false }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean; isCreator?: boolean }) {
   const { t } = useT();
   const navigate = useNavigate();
   const active = useActiveView();
@@ -88,8 +88,8 @@ export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibi
       </HostedAgentOwnerRow>
       {deleteError && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: deleteError })}</Alert>}
       <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
-      <AinftRegistrationPanel agentId={agentId} />
-      <AinftCommunityPanel agentId={agentId} />
+      {isCreator && <AinftRegistrationPanel agentId={agentId} />}
+      {isCreator && <AinftCommunityPanel agentId={agentId} />}
       {canAdminister && <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />}
       {logsOpen && (
         logs.error

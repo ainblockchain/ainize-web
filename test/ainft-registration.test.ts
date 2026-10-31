@@ -17,7 +17,7 @@ test('new native IDs retain their identity through legacy numeric metadata URL n
   assert.equal(new Set(ids).size, ids.length);
 });
 
-function fixture(uncertain = false, legacy?: Record<string, unknown>) {
+function fixture(uncertain = false, legacy?: Record<string, unknown>, isCurrent = () => true) {
   let collection = !!legacy, minted = !!legacy, metadata: any = legacy, tokenOwner = ADDRESS;
   let submissions = 0;
   const messages: string[] = [];
@@ -46,7 +46,7 @@ function fixture(uncertain = false, legacy?: Record<string, unknown>) {
     else throw new Error(`Unexpected path ${path}`);
     return new Response(JSON.stringify({ code: 0, data }), { status: 200 });
   }) as typeof fetch;
-  return { client: new AinftFactoryClient(0, wallet, http), wallet, messages, submissions: () => submissions, metadata: () => metadata, transfer: (owner: string) => { tokenOwner = owner; } };
+  return { client: new AinftFactoryClient(0, wallet, http, isCurrent), wallet, messages, submissions: () => submissions, metadata: () => metadata, transfer: (owner: string) => { tokenOwner = owner; } };
 }
 
 test('registration creates, mints, publishes and verifies the exact wallet account row', async () => {
@@ -150,4 +150,43 @@ test('collection index registration accepts its successful acknowledgement witho
   const client = new AinftFactoryClient(0, f.wallet, http);
   await client.registerObject({ ...INITIAL, objectId: OBJECT });
   await assert.rejects(client.collection(OBJECT), /Success/);
+});
+
+
+test('leaving during a signature stops the Factory write and subsequent wallet prompts', async () => {
+  let active = true;
+  const f = fixture(false, undefined, () => active);
+  f.wallet.signMessage = async () => { active = false; return 'signature'; };
+  await assert.rejects(registerAgentAsAinft(f.client, INITIAL, META, () => {}), /registration view or account changed/);
+  assert.equal(f.submissions(), 0);
+});
+
+test('a confirmed transaction after departure is journaled and resumes without minting twice', async () => {
+  let active = true;
+  const f = fixture(false, undefined, () => active);
+  const submit = f.wallet.sendTransaction;
+  f.wallet.sendTransaction = async (body) => { const result = await submit(body); active = false; return result; };
+  let saved = INITIAL;
+  await assert.rejects(registerAgentAsAinft(f.client, INITIAL, META, (s) => { saved = s; }), /registration view or account changed/);
+  assert.equal(f.submissions(), 1);
+  assert.equal(saved.transactions.collection, HASH);
+  assert.equal(saved.pending, 'collection');
+  active = true; f.wallet.sendTransaction = submit;
+  const result = await registerAgentAsAinft(f.client, saved, META, (s) => { saved = s; });
+  assert.equal(result.stage, 'indexed'); assert.equal(f.submissions(), 3);
+});
+
+test('departure during the last wallet check does not leave an unsubmitted transaction pending', async () => {
+  let active = true, reads = 0;
+  const f = fixture(false, undefined, () => active);
+  f.wallet.getAddress = async () => { if (++reads === 2) active = false; return ADDRESS; };
+  let saved = INITIAL;
+  await assert.rejects(registerAgentAsAinft(f.client, INITIAL, META, (s) => { saved = s; }), /registration view or account changed/);
+  assert.equal(f.submissions(), 0); assert.equal(saved.pending, null); assert.equal(saved.objectId, null);
+});
+
+test('a corrupt transaction journal is rejected before wallet prompts or writes', async () => {
+  const f = fixture();
+  await assert.rejects(registerAgentAsAinft(f.client, { ...INITIAL, transactions: { mint: 'not-a-hash' } }, META, () => {}), /Invalid registration state/);
+  assert.equal(f.submissions(), 0); assert.equal(f.messages.length, 0);
 });
