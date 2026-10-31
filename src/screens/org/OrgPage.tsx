@@ -56,7 +56,7 @@ function OrgPageContent() {
   const auth = useAuth();
   const query = useOrgQuery({ id, identity: auth.cacheIdentity }, { skip: !auth.isSignedIn || auth.loading, pollingInterval: 60_000 });
   const { currentData: data, isFetching, error } = query;
-  const org = useMemo(() => parseOrgProfile(data), [data]);
+  const org = useMemo(() => parseOrgProfile(data, id), [data, id]);
   const err = error ? orgApiErrorOf(error) : null;
   useTitle(org?.name ?? err?.org?.name ?? t('orgs.title'));
   const [tab, setTab] = useState<'agents' | 'members'>('agents');

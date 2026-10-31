@@ -18,7 +18,7 @@ import styled from 'styled-components';
 import {
   useAddOrgMemberMutation, useApproveOrgRequestMutation, useCreateOrgGroupMutation, useCreateOrgInviteMutation, useDeleteOrgGroupMutation, useDeleteOrgMutation,
   useOrgAuditQuery, useOrgBillingQuery, useOrgInvitesQuery, useOrgQuery, useOrgRequestsQuery, useOrgSecurityQuery, useRejectOrgRequestMutation, useRemoveOrgMemberMutation,
-  useRevokeOrgInviteMutation, useSetOrgMemberRoleMutation, useUpdateOrgGroupMutation, useUpdateOrgMutation,
+  useRevokeOrgInviteMutation, useSetOrgMemberRoleMutation, useUpdateOrgGroupMutation, useUpdateOrgMutation, useOrgGroupsQuery,
 } from '@/api/api';
 import {
   ORG_ROLES, emailDomain, orgApiErrorOf, orgSpendCap, parseOrgAudit, parseOrgBilling, parseOrgInvite, parseOrgInvites, parseOrgProfile, parseOrgRequests, parseOrgSecurity, roleAtLeast,
@@ -32,6 +32,7 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { OrgReadStatus } from './OrgReadStatus';
 import { useActiveView } from '@/hooks/useActiveView';
+import { orgGroups, sameOrgGroup, missingGroupSelections, saveSelectedOrgGroup, confirmGroupDeletion, OrgGroupError } from '@/lib/orgGroups';
 
 const Panel = styled.section`
   display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; background: #fff; margin-top: 16px;
@@ -81,10 +82,11 @@ function OrgSettingsContent() {
   const auth = useAuth();
   const location = useLocation();
   const [search, setSearch] = useSearchParams();
+  const requestedTab = search.get('tab');
   const tab: Tab = TABS.includes(search.get('tab') as Tab) ? (search.get('tab') as Tab) : 'general';
   const query = useOrgQuery({ id, identity: auth.cacheIdentity }, { skip: !auth.isSignedIn || auth.loading });
   const { currentData: data, isFetching, error } = query;
-  const org = useMemo(() => parseOrgProfile(data), [data]);
+  const org = useMemo(() => parseOrgProfile(data, id), [data, id]);
   useTitle(org ? t('orgSettings.title', { name: org.name }) : t('org.settings'));
 
   if (auth.loading || (!data && isFetching)) return <PageWrapper><CenterProgress /></PageWrapper>;
@@ -97,12 +99,12 @@ function OrgSettingsContent() {
   const write = roleAtLeast(org.my_role, 'write');
   if (!write) return <PageWrapper><TitleRow><Title>{org.name}</Title></TitleRow><Empty data-testid="org-settings-denied">{t('orgSettings.admin_only')} <StyledLink to={`/org/${encodeURIComponent(org.id)}`}>{org.name}</StyledLink></Empty></PageWrapper>;
   const visible = admin ? TABS : (['groups'] as Tab[]);
-  if (search.has('tab') && !visible.includes(tab)) return (
+  if (requestedTab !== null && !visible.includes(requestedTab as Tab)) return (
     <PageWrapper>
       <TitleRow><Title>{t('orgSettings.title', { name: org.name })}</Title></TitleRow>
       <Row><StyledLink to={`/org/${encodeURIComponent(org.id)}`}>← {org.name}</StyledLink></Row>
-      <Tabs value={tab} onChange={(v) => setSearch({ tab: v })} tabs={visible.map((k) => ({ id: k, label: t(`orgSettings.tab.${k}`) }))} />
-      <Empty data-testid="org-settings-tab-denied">{t('orgSettings.admin_only')}</Empty>
+      <Tabs value={requestedTab} onChange={(v) => setSearch({ tab: v })} tabs={visible.map((k) => ({ id: k, label: t(`orgSettings.tab.${k}`) }))} />
+      <Empty data-testid="org-settings-tab-denied">{t(TABS.includes(requestedTab as Tab) ? 'orgSettings.admin_only' : 'orgSettings.unknown_tab')}</Empty>
     </PageWrapper>
   );
   const current: Tab = visible.includes(tab) ? tab : visible[0];
@@ -123,30 +125,32 @@ function OrgSettingsContent() {
 
 function useOrgAction() {
   const { t } = useT();
+  const auth = useAuth();
   const active = useActiveView();
+  const isCurrent = () => active() && auth.isCurrentAccount();
   const running = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const reset = () => { setError(null); setSuccess(false); };
   const run = async <T,>(fn: () => Promise<T>, done?: (result: T) => void) => {
-    if (running.current) return;
+    if (running.current || !isCurrent()) return;
     running.current = true;
     reset(); setPending(true);
     try {
       const result = await fn();
-      if (active()) { done?.(result); setSuccess(true); }
+      if (isCurrent()) { done?.(result); setSuccess(true); }
     } catch (err) {
-      if (active()) { const e = orgApiErrorOf(err); setError(err instanceof Error ? err.message : e.message ? `${t(`org.api.${e.code}`)} — ${e.message}` : t(`org.api.${e.code}`)); }
+      if (isCurrent()) { const e = orgApiErrorOf(err); setError(err instanceof OrgGroupError ? t(`orgSettings.groups.${err.code}`) : err instanceof Error ? err.message : e.message ? `${t(`org.api.${e.code}`)} — ${e.message}` : t(`org.api.${e.code}`)); }
     } finally {
       running.current = false;
-      if (active()) setPending(false);
+      if (isCurrent()) setPending(false);
     }
   };
   const feedback = pending ? <div role="status">{t('orgSettings.working')}</div>
     : error ? <Alert role="alert" $tone="error">{error}</Alert>
       : success ? <Alert role="status" $tone="success">{t('orgSettings.applied')}</Alert> : null;
-  return { pending, run, feedback, reset, setError };
+  return { pending, run, feedback, reset, setError, isCurrent };
 }
 
 // ------------------------------------------------------------------------------------------------ General
@@ -336,6 +340,9 @@ function MembersTab({ org }: { org: OrgProfile }) {
 
 function GroupsTab({ org }: { org: OrgProfile }) {
   const { t } = useT();
+  const auth = useAuth();
+  const query = useOrgGroupsQuery({ id: org.id, identity: auth.cacheIdentity }, { refetchOnMountOrArgChange: true });
+  const groups = orgGroups(query.currentData);
   const action = useOrgAction();
   const [createGroup, createState] = useCreateOrgGroupMutation();
   const [updateGroup, updateState] = useUpdateOrgGroupMutation();
@@ -345,25 +352,37 @@ function GroupsTab({ org }: { org: OrgProfile }) {
   const [name, setName] = useState('');
   const [members, setMembers] = useState<string[]>([]);
   const [agents, setAgents] = useState<string[]>([]);
+  const currentGroup = groups?.find(g => g.id === editing?.id);
+  const changed = !!editing && !!groups && !sameOrgGroup(currentGroup, editing);
+  const missingMembers = missingGroupSelections(members, org.members.map(m => m.principal));
+  const missingAgents = missingGroupSelections(agents, org.agents.map(a => a.id));
+  const unavailable = missingMembers.length > 0 || missingAgents.length > 0;
   const start = (g: OrgGroupView | null) => { action.reset(); setFormOpen(true); setEditing(g); setName(g?.name ?? ''); setMembers(g?.members ?? []); setAgents(g?.agents ?? []); };
   const close = () => { setFormOpen(false); setEditing(null); setName(''); setMembers([]); setAgents([]); };
   const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-  const save = () => action.run(() => editing
-    ? updateGroup({ id: org.id, groupId: editing.id, name: name.trim(), members, agents }).unwrap()
-    : createGroup({ id: org.id, name: name.trim(), members, agents }).unwrap(), close);
+  const save = () => {
+    if (changed || unavailable || !groups || query.isError || query.isFetching || !name.trim()) return;
+    const draft = { name: name.trim(), members, agents };
+    return action.run(() => saveSelectedOrgGroup(editing, draft, {
+      read: () => query.refetch().unwrap(), isCurrent: action.isCurrent,
+      save: () => editing ? updateGroup({ id: org.id, groupId: editing.id, ...draft }).unwrap() : createGroup({ id: org.id, ...draft }).unwrap(),
+    }), close);
+  };
+
+  if (!groups || query.isError) return <Panel><OrgReadStatus query={query} valid={!!groups} /></Panel>;
 
   return (
     <Controls disabled={action.pending}>
       <Panel data-testid="org-settings-groups">
         <Description style={{ margin: 0 }}>{t('orgSettings.groups.lede')}</Description>
-        {org.groups.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.groups.empty')}</Description>}
-        {org.groups.map((g) => (
+        {groups.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.groups.empty')}</Description>}
+        {groups.map((g) => (
           <Row key={g.id} data-testid={`org-group-${g.id}`}>
             <strong>{g.name}</strong>
             <Chip>{t('orgSettings.groups.members')} {g.members.length}</Chip>
             <Chip>{t('orgSettings.groups.agents')} {g.agents.length}</Chip>
             <Button size="small" variant="text" onClick={() => start(g)}>{t('orgSettings.groups.edit')}</Button>
-            <Button size="small" variant="text" color="secondary" onClick={() => void action.run(() => deleteGroup({ id: org.id, groupId: g.id }).unwrap(), () => { if (editing?.id === g.id) close(); })}>{t('orgSettings.groups.delete')}</Button>
+            <Button size="small" variant="text" color="secondary" onClick={() => void action.run(async () => confirmGroupDeletion(await deleteGroup({ id: org.id, groupId: g.id }).unwrap(), g.id), () => { if (editing?.id === g.id) close(); })}>{t('orgSettings.groups.delete')}</Button>
           </Row>
         ))}
         <Row><Button size="small" onClick={() => start(null)} data-testid="org-group-new">{t('orgSettings.groups.new')}</Button></Row>
@@ -371,18 +390,22 @@ function GroupsTab({ org }: { org: OrgProfile }) {
       {formOpen && (
         <Panel data-testid="org-group-form">
           <h3>{editing ? editing.name : t('orgSettings.groups.new')}</h3>
+          {changed && <Alert role="alert" $tone="warning">{t('orgSettings.groups.changed')} {currentGroup && <Button type="button" size="small" onClick={() => start(currentGroup)}>{t('orgSettings.groups.reload')}</Button>}</Alert>}
+          {unavailable && <Alert role="alert" $tone="warning">{t('orgSettings.groups.unavailable')}</Alert>}
           <Field><FieldLabel htmlFor="org-group-name">{t('orgSettings.groups.name')}</FieldLabel><Input id="org-group-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} data-testid="org-group-name" /></Field>
           <div>
             <FieldLabel>{t('orgSettings.groups.members')}</FieldLabel>
             <Row>{org.members.map((m) => <Checkbox key={m.principal} label={m.name ?? m.email ?? m.principal} checked={members.includes(m.principal)} onChange={() => toggle(members, setMembers, m.principal)} />)}</Row>
+            <Row>{missingMembers.map(principal => <Checkbox key={principal} label={t('orgSettings.groups.missing', { id: principal })} checked onChange={() => setMembers(members.filter(v => v !== principal))} />)}</Row>
           </div>
           <div>
             <FieldLabel>{t('orgSettings.groups.agents')}</FieldLabel>
             <Row>{org.agents.map((a) => <Checkbox key={a.id} label={a.name} checked={agents.includes(a.id)} onChange={() => toggle(agents, setAgents, a.id)} />)}</Row>
+            <Row>{missingAgents.map(id => <Checkbox key={id} label={t('orgSettings.groups.missing', { id })} checked onChange={() => setAgents(agents.filter(v => v !== id))} />)}</Row>
             <HelperText>{t('orgSettings.groups.agents_hint')}</HelperText>
           </div>
           <Row>
-            <Button variant="contained" loading={createState.isLoading || updateState.isLoading} disabled={!name.trim()} onClick={() => void save()} data-testid="org-group-save">{t('orgSettings.groups.save')}</Button>
+            <Button variant="contained" loading={createState.isLoading || updateState.isLoading} disabled={!name.trim() || changed || unavailable || query.isFetching} onClick={() => void save()} data-testid="org-group-save">{t('orgSettings.groups.save')}</Button>
             <Button variant="text" onClick={close}>{t('orgSettings.cancel')}</Button>
           </Row>
         </Panel>

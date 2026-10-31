@@ -151,10 +151,10 @@ export function parseOrgAgent(raw: unknown): OrgAgentView | null {
   };
 }
 
-export function parseOrgProfile(raw: unknown): OrgProfile | null {
+export function parseOrgProfile(raw: unknown, expectedId?: string): OrgProfile | null {
   const r = obj((raw as { org?: unknown } | null | undefined)?.org ?? raw);
   const base = parseOrgSummary(r);
-  if (!r || !base) return null;
+  if (!r || !base || (expectedId !== undefined && base.id !== expectedId)) return null;
   return {
     ...base,
     readme: str(r.readme) ?? '', domain_role: isOrgRole(r.domain_role) ? r.domain_role : 'write', sso_org_ids: strs(r.sso_org_ids),

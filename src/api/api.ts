@@ -286,6 +286,8 @@ export const api = createApi({
     /** What an invite link leads to — public, so the page can say the organization's name before asking to sign in. */
     peekOrgInvite: b.query<unknown, string>({ query: (token) => `api/orgs/join/${encodeURIComponent(token)}` }),
     acceptOrgInvite: b.mutation<unknown, string>({ query: (token) => ({ url: `api/orgs/join/${encodeURIComponent(token)}`, method: 'POST' }), invalidatesTags: ['Org'] }),
+    // Profiles expose only a member's groups; this endpoint exposes the full list to writers/admins.
+    orgGroups: b.query<unknown, OrgReadScope>({ keepUnusedDataFor: 0, query: ({ id }) => `api/orgs/${encodeURIComponent(id)}/groups`, providesTags: (_r, _e, { id }) => [{ type: 'Org', id }] }),
     createOrgGroup: b.mutation<unknown, { id: string; name: string; members: string[]; agents: string[] }>({
       query: ({ id, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
@@ -668,7 +670,7 @@ export const {
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
-  usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useOrgGroupsQuery, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,

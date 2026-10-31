@@ -482,13 +482,21 @@ const settings = (tab: string, fixtures: Fixture[]) => render(OrgSettingsPage, [
 
 test('organization settings use the selected tab and current account role', () => {
   assert.match(settings('general', []), /data-testid="org-settings-general"/);
-  assert.match(settings('groups', []), /data-testid="org-settings-groups"/);
+  assert.match(settings('groups', [{ name: 'orgGroups', arg: orgScope, value: { groups: [] } }]), /data-testid="org-settings-groups"/);
   const denied = render(OrgSettingsPage, [...appAccount, { ...orgFixture, value: { org: { ...studio, my_role: 'read' } } }], '/org/studio/settings?tab=members', '/org/:id/settings');
   assert.match(denied, /data-testid="org-settings-denied"/);
   assert.doesNotMatch(denied, /data-testid="org-settings-members"/);
   const writer = render(OrgSettingsPage, [...appAccount, { ...orgFixture, value: { org: { ...studio, my_role: 'write' } } }], '/org/studio/settings?tab=billing', '/org/:id/settings');
   assert.match(writer, /data-testid="org-settings-tab-denied"/);
   assert.doesNotMatch(writer, /data-testid="org-settings-billing"|data-testid="org-settings-groups"/);
+});
+
+test('unknown settings tabs do not silently open General or misreport a permission problem', () => {
+  for (const tab of ['', 'missing']) {
+    const html = settings(tab, []);
+    assert.match(html, /This settings tab does not exist/);
+    assert.doesNotMatch(html, /data-testid="org-settings-general"|data-testid="org-settings-groups"/);
+  }
 });
 
 test('organization request and invite failures cannot claim there are no pending items', () => {
@@ -503,6 +511,39 @@ test('organization request and invite failures cannot claim there are no pending
   const malformed = settings('members', [{ name: 'orgRequests', arg: orgScope, value: { requests: [{}] } }, { name: 'orgInvites', arg: orgScope, value: { invites: [{}] } }]);
   assert.match(malformed, /data-testid="org-read-error"/);
   assert.doesNotMatch(malformed, /No pending requests|No open invite/);
+});
+
+test('writers manage the full group endpoint even when the profile only includes their own groups', () => {
+  const group = { id: 'another-group', name: 'Managed group outside my memberships', members: [], agents: [] };
+  const html = render(OrgSettingsPage, [...appAccount,
+    { ...orgFixture, value: { org: { ...studio, my_role: 'write', groups: [] } } },
+    { name: 'orgGroups', arg: orgScope, value: { groups: [group] } },
+  ], '/org/studio/settings?tab=groups', '/org/:id/settings');
+  assert.match(html, /Managed group outside my memberships/);
+  assert.match(html, /data-testid="org-group-another-group"/);
+  assert.doesNotMatch(html, /No groups yet/);
+});
+
+test('group management never substitutes profile groups for failed, malformed or other-account group reads', () => {
+  const group = { id: 'stale', name: 'Stale group must stay hidden', members: [], agents: [] };
+  for (const fixture of [
+    { name: 'orgGroups', arg: orgScope, status: 'pending' as const },
+    { name: 'orgGroups', arg: orgScope, value: { groups: [group] }, status: 'rejected' as const },
+    { name: 'orgGroups', arg: orgScope, value: { groups: [{ ...group, agents: 'broken' }] } },
+    { name: 'orgGroups', arg: { ...orgScope, identity: 'other-account' }, value: { groups: [group] } },
+  ]) {
+    const html = settings('groups', [{ ...orgFixture, value: { org: { ...studio, groups: [group] } } }, fixture]);
+    assert.doesNotMatch(html, /Stale group must stay hidden|No groups yet|data-testid="org-group-new"/);
+    assert.match(html, /data-testid="org-read-(loading|error)"/);
+  }
+});
+
+test('organization profile responses must match the bookmarked organization before showing content or settings', () => {
+  for (const [Page, path, route] of [[OrgPage, '/org/studio', '/org/:id'], [OrgSettingsPage, '/org/studio/settings', '/org/:id/settings']] as const) {
+    const html = render(Page, [...appAccount, { ...orgFixture, value: { org: { ...studio, id: 'other', name: 'Unrelated organization' } } }], path, route);
+    assert.doesNotMatch(html, /Unrelated organization|data-testid="org-settings-general"/);
+    assert.match(html, /data-testid="org-read-error"/);
+  }
 });
 
 test('billing and security failed or malformed responses offer retry instead of endless loading', () => {
