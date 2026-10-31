@@ -1,3 +1,4 @@
+import { runtimeReviewFixture } from './fixtures/runtimeReview';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { claimRuntimeOperation, clearRuntimeOperation, followRuntimeOperation, parseRuntimeJob, prepareRuntimeOperation,
@@ -9,8 +10,8 @@ import { manageFixture } from './fixtures/manageKnowledge';
 const now = 1_800_000_000_000;
 const node = '0x' + 'ab'.repeat(20), subject = '0x' + 'bc'.repeat(20);
 const owner = runtimeOperationKey('account-one', node);
-const cap = { instance: 'a'.repeat(32), server_time: now, request_window_ms: 600_000 };
-const operation = () => prepareRuntimeOperation(owner, manageFixture().anchor, 'load', false, [], cap, 'b'.repeat(32));
+const cap = { instance: 'a'.repeat(32), server_time: now, request_window_ms: 600_000, apply_preview: true };
+const operation = () => prepareRuntimeOperation(owner, manageFixture().anchor, 'load', false, [], cap, 'b'.repeat(32), runtimeReviewFixture());
 const code = (code: string) => (e: unknown) => e instanceof RuntimeOperationError && e.code === code;
 const memory = () => {
   const values = new Map<string, string>();
@@ -34,7 +35,7 @@ test('unsupported nodes never produce an operation identity; saved targets exclu
   }
   const op = operation();
   assert.equal('benchmark' in op.target, false);
-  assert.deepEqual(runtimeOperationRequest(op), { id: 'chosen', kind: 'load', body: { async: true, ...op.request, with_base: false } });
+  assert.deepEqual(runtimeOperationRequest(op), { id: 'chosen', kind: 'load', body: { async: true, ...op.request, with_base: false, expected_preview: op.review!.revision } });
   assert.deepEqual(runtimeOperationRequest({ ...op, kind: 'unload', withBase: true }).body, { async: true, ...op.request, cascade: false, require_recorded: true });
   assert.throws(() => prepareRuntimeOperation(owner, manageFixture().anchor, 'unload', false, [], cap, 'b'.repeat(32)), code('unsupported'));
   assert.equal(prepareRuntimeOperation(owner, manageFixture().anchor, 'unload', false, [], { ...cap, recorded_remove: true }, 'b'.repeat(32)).kind, 'unload');

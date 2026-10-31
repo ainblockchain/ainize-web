@@ -2,6 +2,7 @@ import type { StackLayer } from '../api/types';
 import type { RuntimeTarget } from './loadKnowledge';
 import { accountRuntime } from './accountNodeActions';
 import { validAccountAddress } from './accountAccess';
+import { parseRuntimeApplyReview, sameRuntimeRecords, type RuntimeApplyReview } from './runtimeApplyReview';
 
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
 const timestamp = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 8.64e15;
@@ -9,7 +10,7 @@ const instance = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9
 const requestId = (v: unknown): v is string => typeof v === 'string' && /^\d{13}-[a-f0-9]{32}$/.test(v);
 export type RuntimePhase = 'submitting' | 'checking' | 'queued' | 'running' | 'confirming' | 'interrupted';
 export class RuntimeOperationError extends Error {
-  constructor(readonly code: 'unsupported' | 'storage' | 'pending' | 'receipt' | 'unreachable' | 'missing') { super(code); }
+  constructor(readonly code: 'unsupported' | 'storage' | 'pending' | 'receipt' | 'review' | 'unreachable' | 'missing') { super(code); }
 }
 export interface RuntimeJob {
   id: string; instance: string; patch_id: string; kind: 'apply' | 'remove';
@@ -19,19 +20,22 @@ export interface RuntimeJob {
 }
 export interface RuntimeOperation {
   version: 1; owner: string; target: RuntimeTarget; kind: 'load' | 'unload'; withBase: boolean;
-  before: StackLayer[]; request: { request_id: string; instance: string }; job?: RuntimeJob;
+  before: StackLayer[]; request: { request_id: string; instance: string }; job?: RuntimeJob; review?: RuntimeApplyReview;
 }
 export interface OperationStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
 export const runtimeOperationKey = (identity: string, node: string | null) => `ainize:runtime-operation:v1:${encodeURIComponent(JSON.stringify([identity, node?.toLowerCase() ?? null]))}`;
 
-export function prepareRuntimeOperation(owner: string, target: RuntimeTarget, kind: 'load' | 'unload', withBase: boolean, before: StackLayer[], raw: unknown, randomHex: string): RuntimeOperation {
+export function prepareRuntimeOperation(owner: string, target: RuntimeTarget, kind: 'load' | 'unload', withBase: boolean, before: StackLayer[], raw: unknown, randomHex: string, review?: RuntimeApplyReview): RuntimeOperation {
   if (!object(raw) || !instance(raw.instance) || !timestamp(raw.server_time) || String(raw.server_time).length !== 13
     || raw.request_window_ms !== 600_000 || !instance(randomHex)
-    || kind === 'unload' && raw.recorded_remove !== true) throw new RuntimeOperationError('unsupported');
+    || kind === 'unload' && raw.recorded_remove !== true
+    || kind === 'load' && (raw.apply_preview !== true || !review)) throw new RuntimeOperationError('unsupported');
+  if (review && (kind !== 'load' || !parseRuntimeApplyReview(review, target, review.node, raw.instance)
+    || review.with_base !== withBase || !sameRuntimeRecords(review.before, before))) throw new RuntimeOperationError('review');
   // Persist the selected artifact identity, not the full benchmark or the operator's credentials.
   const { id, author, name, patch_sha256, benchmark_hash, created_at, model, base } = target;
   return structuredClone({ version: 1, owner, target: { id, author, name, patch_sha256, benchmark_hash, created_at, model, base },
-    kind, withBase, before, request: { request_id: `${raw.server_time}-${randomHex}`, instance: raw.instance } });
+    kind, withBase, before, ...(review ? { review } : {}), request: { request_id: `${raw.server_time}-${randomHex}`, instance: raw.instance } });
 }
 
 export function parseRuntimeJob(raw: unknown, op: RuntimeOperation): RuntimeJob | null {
@@ -64,7 +68,9 @@ export function readRuntimeOperation(storage: OperationStorage, key: string): Ru
       || a.base != null && !object(a.base) || !['load', 'unload'].includes(op.kind) || typeof op.withBase !== 'boolean'
       || !object(op.request) || !instance(op.request.instance) || !requestId(op.request.request_id) || !Array.isArray(op.before)
       || !accountRuntime({ available: true, hook: true, applied: op.before.map((r: any) => r?.patch_id), stack: op.before })
-      || op.job !== undefined && !parseRuntimeJob({ job: op.job }, op as RuntimeOperation)) throw new Error('invalid saved operation');
+      || op.job !== undefined && !parseRuntimeJob({ job: op.job }, op as RuntimeOperation)
+      || op.review !== undefined && (op.kind !== 'load' || !parseRuntimeApplyReview(op.review, a as RuntimeTarget, op.review.node, op.request.instance)
+        || op.withBase !== op.review.with_base || !sameRuntimeRecords(op.before, op.review.before))) throw new Error('invalid saved operation');
     return op as RuntimeOperation;
   } catch { throw new RuntimeOperationError('storage'); }
 }
@@ -92,7 +98,7 @@ export function clearRuntimeOperation(storage: OperationStorage, op: RuntimeOper
   try { storage.removeItem(op.owner); } catch { throw new RuntimeOperationError('storage'); }
 }
 export const runtimeOperationRequest = (op: RuntimeOperation) => ({ id: op.target.id, kind: op.kind,
-  body: { async: true as const, ...op.request, ...(op.kind === 'load' ? { with_base: op.withBase } : { cascade: false, require_recorded: true }) } });
+  body: { async: true as const, ...op.request, ...(op.kind === 'load' ? { with_base: op.withBase, ...(op.review ? { expected_preview: op.review.revision } : {}) } : { cascade: false, require_recorded: true }) } });
 
 /** POST only on the initial explicit action. Recovery/polling never invents an ID or resubmits work. */
 export async function followRuntimeOperation(op: RuntimeOperation, deps: {

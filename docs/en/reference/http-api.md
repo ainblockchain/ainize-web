@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-322 operations on 267 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+323 operations on 268 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -355,6 +355,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/patches/{id}/buy`](#post-apipatchesidbuy) | operator | Buy as this node (x402 handled automatically) |
 | `POST` | [`/api/patches/{id}/collect`](#post-apipatchesidcollect) | operator | Collect a knowledge this node already paid for — no second payment |
 | `GET` | [`/api/me/pending-payments`](#get-apimepending-payments) | operator | Payments that left this node and were never answered with a manifest |
+| `GET` | [`/api/patches/{id}/apply-preview`](#get-apipatchesidapply-preview) | operator | Review the complete model load plan before applying |
 | `POST` | [`/api/patches/{id}/apply`](#post-apipatchesidapply) | operator | Load into the model (with everything it was trained on top of) |
 | `DELETE` | [`/api/patches/{id}/apply`](#delete-apipatchesidapply) | operator | Unload from the model (journal replay) |
 | `POST` | [`/api/patches/{id}/remove`](#post-apipatchesidremove) | operator | Unload from the model (same as DELETE …/apply) |
@@ -6946,6 +6947,28 @@ Money on the chain and no body. Each row carries the gateway, the resource, the 
 |---|---|---|
 | `200` | items | `object` |
 
+### `GET /api/patches/{id}/apply-preview`
+
+Review the complete model load plan before applying
+
+Read-only planner: expands all transitive bases, verifies held files/licences and pinned hashes/order, and preserves current recorded layers. Returns version:1, node, process instance, requested ids, with_base, revision, before/after id+hash records and ordered rows (compact anchor, requested, physical_id, action:load|reuse). Aliases name the physical record instead of pretending another copy will be loaded. No model weights are read or written. A concurrent stack change during the read returns 409; refresh rather than mixing snapshots. Submit revision as expected_preview on apply. The node recomputes and checks it under the actual model lock before writes. Older clients omitting expected_preview retain legacy behavior; UI clients must check capabilities.apply_preview.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Default |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `with_base` | `query` | `boolean` |   | `false` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | version, node, instance, requested, with_base, revision, before, after, order | `object` |
+| `409` | Missing prerequisites/files/licences, invalid pinned base order or changed load records; no model write is performed by preview. |   |
+
 ### `POST /api/patches/{id}/apply`
 
 Load into the model (with everything it was trained on top of)
@@ -6968,6 +6991,7 @@ Loads the ordered stack under one runtime lock: the bases first, then this knowl
 | `request_id` | `string` | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
 | `instance` | `string` | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
 | `with_base` | `boolean` | also load the knowledges this one was trained on top of |
+| `expected_preview` | `string` | Revision from apply-preview. Checked against the complete resolved anchors, logical/physical order, options, node/process and current id/hash stack under the execution lock. A stale review fails with runtime_plan_changed before model writes. Included in async deduplication. |
 
 **Responses**
 
@@ -7764,7 +7788,7 @@ The latest 50 queued/running/terminal jobs, plus instance, server_time and reque
 
 Runtime job recovery capabilities
 
-Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
+Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. apply_preview:true advertises apply-preview and enforcement of expected_preview at execution. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
 
 **Auth** — operator
 
@@ -7772,7 +7796,7 @@ Read the current process instance, server_time (milliseconds) and request_window
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | instance, server_time, request_window_ms, recorded_remove | `object` |
+| `200` | instance, server_time, request_window_ms, recorded_remove, apply_preview | `object` |
 
 ### `GET /api/runtime/jobs/{id}`
 

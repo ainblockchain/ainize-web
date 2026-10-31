@@ -6,12 +6,12 @@ import type { PatchAnchor, StackLayer } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useActiveView } from '@/hooks/useActiveView';
 import { accountRuntime, createNodeActionTask } from '@/lib/accountNodeActions';
-import { changeRuntimeKnowledge, confirmRuntimeKnowledge, requireRuntimeOperator, LoadKnowledgeError, runtimeRefusal, runtimeBaseMismatch, runtimeGuardFailure, type RuntimeTarget } from '@/lib/loadKnowledge';
+import { changeRuntimeKnowledge, confirmRuntimeKnowledge, requireRuntimeOperator, reviewRuntimeKnowledge, LoadKnowledgeError, runtimeRefusal, runtimeBaseMismatch, runtimeGuardFailure, type RuntimeTarget } from '@/lib/loadKnowledge';
+import type { RuntimeApplyReview as ApplyReview } from '@/lib/runtimeApplyReview';
 import { claimRuntimeOperation, clearRuntimeOperation, followRuntimeOperation, parseRuntimeJob, prepareRuntimeOperation, readRuntimeOperation,
   runtimeOperationKey, runtimeOperationRequest, saveRuntimeJob, RuntimeOperationError, type RuntimeOperation, type RuntimePhase } from '@/lib/runtimeOperation';
 import { useT } from '@/i18n';
-import { Button } from '@/components/ui/Button';
-import { Sheet, SheetFooter } from '@/components/chat/Sheet';
+import { RuntimeApplyReview } from './RuntimeApplyReview';
 import { RuntimeOperationStatus } from './RuntimeOperationStatus';
 
 export interface LoadChain {
@@ -19,7 +19,7 @@ export interface LoadChain {
   busy: boolean; busyId: string | null; notice: string | null; error: string | null;
   reset: () => void; dialog: ReactNode;
 }
-type Pending = { target: RuntimeTarget; missing: string[] };
+type Pending = { target: RuntimeTarget; review: ApplyReview };
 type View = { scope: string; busyId: string | null; notice: string | null; error: string | null; pending: Pending | null;
   operation: RuntimeOperation | null; phase: RuntimePhase | null; review: StackLayer[] | null };
 const blank = (scope: string): View => ({ scope, busyId: null, notice: null, error: null, pending: null, operation: null, phase: null, review: null });
@@ -40,6 +40,7 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
   const shown = view.scope === scope ? view : blank(scope);
   const [startJob] = api.useStartRuntimeOperationMutation();
   const [capabilities] = api.useLazyRuntimeOperationCapabilitiesQuery(), [readJob] = api.useLazyRuntimeOperationQuery();
+  const [readPreview] = api.useLazyRuntimeApplyPreviewQuery();
   const [readPatch] = api.useLazyManagedPatchQuery(), [readRuntime] = api.useLazyRuntimeQuery(), [readAccess] = api.useLazyMeQuery();
   const names = (ids: string[]) => ids.map(nameOf).join(', ');
   const update = (values: Partial<View>) => { if (current()) setView(previous => ({ ...(previous.scope === scope ? previous : blank(scope)), ...values, scope })); };
@@ -69,6 +70,7 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
     else if (result.alias) update({ notice: t('detail.apply.alias', { id: nameOf(target.id), alias: nameOf(result.alias) }) });
     else {
       update({ notice: result.already ? t('detail.apply.already_recorded', { id: nameOf(target.id) })
+        : 'reviewed' in result && result.reviewed ? t('detail.apply.review.confirmed')
         : result.order.length > 1 ? t('detail.apply.order', { parent: names(result.order.slice(0, -1)), child: nameOf(target.id) })
         : t('detail.apply.loaded_record', { id: nameOf(target.id) }) });
       if (!result.already) opts.onLoaded?.(result.order);
@@ -82,7 +84,7 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
       else if (op) { update({ operation: op, phase: 'interrupted', error: message(error) }); return; }
     } catch (e) { update({ error: message(e) }); return; }
     const missing = kind === 'load' ? runtimeRefusal(error, 'needs_base') : null;
-    if (missing && !missing.includes(target.id)) { update({ pending: { target, missing } }); return; }
+    if (missing) { update({ error: t('detail.apply.error.changed') }); return; }
     const dependents = kind === 'unload' ? runtimeRefusal(error, 'has_dependents') : null;
     const guard = runtimeGuardFailure(error);
     update({ error: dependents ? t('detail.apply.has_dependents', { children: names(dependents), parent: nameOf(target.id) })
@@ -95,7 +97,7 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
     try {
       const result = await task.run(current, async stillCurrent => {
         taskCurrent = stillCurrent;
-        const deps = reads(op.target, stillCurrent);
+        const deps = { ...reads(op.target, stillCurrent), review: op.review };
         if (!await requireRuntimeOperator(deps)) return null;
         const outcome = await follow(op, stillCurrent);
         if (!stillCurrent()) return null;
@@ -123,7 +125,7 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, auth.isOwner, auth.loading]);
 
-  const run = async (target: RuntimeTarget, kind: 'load' | 'unload', withBase = false) => {
+  const run = async (target: RuntimeTarget, kind: 'load' | 'unload', withBase = false, review?: ApplyReview) => {
     if (!current() || task.pending()) return;
     update({ busyId: target.id, error: null, notice: null, pending: null, review: null });
     let sent: RuntimeOperation | null = null;
@@ -134,13 +136,13 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
       const result = await task.run(current, stillCurrent => {
         taskCurrent = stillCurrent;
         return changeRuntimeKnowledge(target, kind, withBase, {
-          ...reads(target, stillCurrent), write: async before => {
+          ...reads(target, stillCurrent), review, write: async before => {
             let cap: unknown;
             try { cap = await capabilities({ identity: auth.cacheIdentity }, false).unwrap(); }
             catch { throw new RuntimeOperationError('unsupported'); }
             if (!stillCurrent()) return null;
             const bytes = crypto.getRandomValues(new Uint8Array(16));
-            const op = prepareRuntimeOperation(owner, target, kind, withBase, before, cap, [...bytes].map(b => b.toString(16).padStart(2, '0')).join(''));
+            const op = prepareRuntimeOperation(owner, target, kind, withBase, before, cap, [...bytes].map(b => b.toString(16).padStart(2, '0')).join(''), review);
             if (!navigator.locks) throw new RuntimeOperationError('storage');
             await navigator.locks.request(owner, () => {
               if (!stillCurrent()) return;
@@ -155,6 +157,23 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
       if (sent) clear(sent);
       notify(target, kind, result);
     } catch (error) { if (taskCurrent()) failed(error, target, kind); }
+    finally { if (taskCurrent()) update({ busyId: null }); }
+  };
+
+  const beginLoad = async (target: RuntimeTarget) => {
+    if (!current() || task.pending()) return;
+    update({ busyId: target.id, error: null, notice: null, pending: null });
+    let taskCurrent = current;
+    try {
+      const saved = readRuntimeOperation(storage(), owner);
+      if (saved) { update({ busyId: null }); await resume(saved); return; }
+      const review = await task.run(current, stillCurrent => {
+        taskCurrent = stillCurrent;
+        return reviewRuntimeKnowledge(target, { ...reads(target, stillCurrent),
+          preview: () => readPreview({ identity: auth.cacheIdentity, id: target.id }, false).unwrap() });
+      });
+      if (review && taskCurrent()) update({ pending: { target: structuredClone(target), review } });
+    } catch (error) { if (taskCurrent()) failed(error, target, 'load'); }
     finally { if (taskCurrent()) update({ busyId: null }); }
   };
 
@@ -191,15 +210,9 @@ export function useLoadChain(nameOf: (id: string) => string = id => id,
         if (!current() || task.pending() || shown.review === null) return;
         try { clear(shown.operation!); update({ error: null, notice: t('detail.operation.closed') }); } catch (e) { update({ error: message(e) }); }
       }} />}
-    {pending && <Sheet title={t('detail.apply.needs_base', { child: nameOf(pending.target.id), parent: names(pending.missing) })}
-      onClose={() => update({ pending: null })} width={480} testId="apply-needs-base">
-      <SheetFooter>
-        <Button variant="outlined" onClick={() => update({ pending: null })}>{t('common.cancel')}</Button>
-        <Button variant="contained" disabled={shown.busyId !== null} loading={shown.busyId !== null} data-testid="apply-load-both"
-          onClick={() => void run(pending.target, 'load', true)}>{t('detail.apply.load_both')}</Button>
-      </SheetFooter>
-    </Sheet>}
+    {pending && <RuntimeApplyReview review={pending.review} busy={shown.busyId !== null}
+      onClose={() => update({ pending: null })} onConfirm={() => void run(pending.target, 'load', pending.review.with_base, pending.review)} />}
   </>;
-  return { load: target => run(target, 'load'), unload: target => run(target, 'unload'), busy: shown.busyId !== null || !!shown.operation,
+  return { load: target => beginLoad(target), unload: target => run(target, 'unload'), busy: shown.busyId !== null || !!shown.operation,
     busyId: shown.operation?.target.id ?? shown.busyId, notice: shown.notice, error: shown.operation ? null : shown.error, reset, dialog };
 }

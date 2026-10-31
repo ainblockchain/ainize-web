@@ -1,3 +1,5 @@
+import { runtimeReviewFixture } from './fixtures/runtimeReview';
+import { RuntimeApplyReview } from '../src/components/detail/RuntimeApplyReview';
 import { ManagePublication } from '../src/components/operator/ManagePublication';
 import PatchPage, { Verification } from '../src/screens/PatchPage';
 import { PatchListItem, useVerificationLabel } from '../src/components/public/PatchListItem';
@@ -2062,7 +2064,7 @@ test('track cards recognize server applied IDs and do not mistake failed or fore
 });
 
 const runtimeStatusOperation = () => prepareRuntimeOperation('test-owner', manageFixture().anchor, 'load', false, [],
-  { instance: 'a'.repeat(32), server_time: 1_800_000_000_000, request_window_ms: 600_000 }, 'b'.repeat(32));
+  { instance: 'a'.repeat(32), server_time: 1_800_000_000_000, request_window_ms: 600_000, apply_preview: true }, 'b'.repeat(32), runtimeReviewFixture());
 const runtimeStatusProps = () => ({ operation: runtimeStatusOperation(), review: null, onRetry() {}, onReview() {}, onCloseReview() {}, onDismiss() {} });
 test('runtime progress names the selected target and distinguishes queue, execution and confirmation', () => {
   for (const [phase, label] of [['submitting', 'Sending request'], ['checking', 'Checking existing operation'], ['queued', 'Waiting in queue'], ['running', 'Running'], ['confirming', 'Confirming current load records']] as const) {
@@ -2082,4 +2084,19 @@ test('closing runtime tracking requires a record review and says it does not can
   assert.match(html, /runtime-operation-review-sheet/); assert.match(html, /does not cancel server work/);
   assert.match(html, /Actual loaded layer/); assert.match(html, /original-id/); assert.match(html, /abcdef123456/);
   assert.match(html, /Acknowledge records and close tracking/); assert.match(html, /runtime-operation-dismiss/);
+});
+
+test('runtime review lists exact targets and exposes file details before confirmation', () => {
+  const review = runtimeReviewFixture();
+  const html = render(() => createElement(RuntimeApplyReview, { review, busy: false, onClose() {}, onConfirm() {} }), signedOut);
+  assert.match(html, /Review model changes/); assert.match(html, /Knowledge chosen/); assert.match(html, /fixture-sha/);
+  assert.match(html, /Apply reviewed changes/); assert.match(html, /<details/); assert.doesNotMatch(html, /Already loaded/);
+});
+test('runtime review distinguishes an existing alias and keeps confirmation disabled during submission', () => {
+  const review = runtimeReviewFixture();
+  review.before = review.after = [{ patch_id: 'physical-alias', sha256: review.order[0].anchor.patch_sha256 }];
+  review.order[0].physical_id = 'physical-alias'; review.order[0].action = 'reuse';
+  const html = render(() => createElement(RuntimeApplyReview, { review, busy: true, onClose() {}, onConfirm() {} }), signedOut);
+  assert.match(html, /Already loaded/); assert.match(html, /Same file · layer: physical-alias/); assert.match(html, /Keep 1 existing layers/);
+  assert.match(html, /disabled=""/);
 });

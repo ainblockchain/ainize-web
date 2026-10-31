@@ -3,6 +3,7 @@ import { accountRuntime } from './accountNodeActions';
 import { managedKnowledge } from './manageKnowledge';
 import { sameAccountAddress, validAccountAddress } from './accountAccess';
 import { RuntimeOperationError } from './runtimeOperation';
+import { parseRuntimeApplyReview, reviewedRuntimeOutcome, sameRuntimeRecords, type RuntimeApplyReview } from './runtimeApplyReview';
 
 export type RuntimeTarget = Pick<PatchAnchor, 'id' | 'author' | 'name' | 'patch_sha256' | 'benchmark_hash' | 'created_at' | 'model' | 'base'>;
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -46,7 +47,7 @@ export function runtimeGuardFailure(error: unknown): 'not_loaded' | 'changed' | 
 export interface RuntimeKnowledgeReads {
   current: () => boolean; readAccess: () => Promise<unknown>; read: () => Promise<unknown>;
   runtime: () => Promise<unknown>;
-  node: string | null; subject: string | null;
+  node: string | null; subject: string | null; review?: RuntimeApplyReview;
 }
 export async function requireRuntimeOperator(deps: Pick<RuntimeKnowledgeReads, 'current' | 'readAccess' | 'node' | 'subject'>) {
   if (!deps.current()) return null;
@@ -57,6 +58,17 @@ export async function requireRuntimeOperator(deps: Pick<RuntimeKnowledgeReads, '
     || (deps.subject === null ? access.subject !== null : !sameAccountAddress(access.subject, deps.subject))) throw new LoadKnowledgeError('access');
   return true;
 }
+export async function reviewRuntimeKnowledge(expected: RuntimeTarget, deps: RuntimeKnowledgeReads & { preview: () => Promise<unknown> }) {
+  if (!await requireRuntimeOperator(deps)) return null;
+  const detail = selected(await deps.read(), expected);
+  if (!deps.current()) return null;
+  if (!detail.has_body) throw new LoadKnowledgeError('read');
+  const raw = await deps.preview();
+  if (!deps.current()) return null;
+  const review = parseRuntimeApplyReview(raw, expected, deps.node);
+  if (!review || !review.with_base) throw new LoadKnowledgeError('read');
+  return review;
+}
 export async function changeRuntimeKnowledge(expected: RuntimeTarget, kind: 'load' | 'unload', withBase: boolean, deps: RuntimeKnowledgeReads & {
   write: (before: StackLayer[]) => Promise<unknown>;
 }) {
@@ -66,6 +78,7 @@ export async function changeRuntimeKnowledge(expected: RuntimeTarget, kind: 'loa
   const runtime = accountRuntime(await deps.runtime());
   if (!deps.current()) return null;
   if (!runtime?.available || !runtime.stack) throw new LoadKnowledgeError('unavailable');
+  if (deps.review && !sameRuntimeRecords(deps.review.before, runtime.stack)) throw new LoadKnowledgeError('changed');
   const recorded = runtime.stack.find(row => row.patch_id === expected.id);
   if (recorded && recorded.sha256 !== expected.patch_sha256) throw new LoadKnowledgeError('changed');
   if (kind === 'unload' && !recorded) throw new LoadKnowledgeError('not_loaded');
@@ -90,6 +103,7 @@ export async function confirmRuntimeKnowledge(expected: RuntimeTarget, kind: 'lo
   if (!object(reply) || typeof reply.result !== 'string') throw new LoadKnowledgeError('unconfirmed');
   const acknowledged = stack(reply.stack);
   if (!acknowledged) throw new LoadKnowledgeError('unconfirmed');
+  if (deps.review && !reviewedRuntimeOutcome(deps.review, reply, acknowledged)) throw new LoadKnowledgeError('unconfirmed');
   if (kind === 'load' && (!ids(reply.order) || reply.order.at(-1) !== expected.id || !ids(reply.loaded)
     || !withBase && reply.loaded.some(id => id !== expected.id && !before.some(row => row.patch_id === id)))) throw new LoadKnowledgeError('unconfirmed');
   const matches = (rows: StackLayer[]) => kind === 'load' ? rows.some(row => row.sha256 === expected.patch_sha256)
@@ -98,6 +112,7 @@ export async function confirmRuntimeKnowledge(expected: RuntimeTarget, kind: 'lo
   if (!matches(acknowledged)) throw new LoadKnowledgeError('unconfirmed');
   const confirmedOrder = (rows: StackLayer[]) => {
     if (kind !== 'load') return true;
+    if (deps.review) return true; // The complete reviewed physical order is checked separately, including aliases.
     const positions = (reply.order as string[]).map(id => rows.findIndex(row => row.patch_id === id || id === expected.id && row.sha256 === expected.patch_sha256));
     return positions.every((position, index) => position >= 0 && (index === 0 || position >= positions[index - 1]));
   };
@@ -107,6 +122,7 @@ export async function confirmRuntimeKnowledge(expected: RuntimeTarget, kind: 'lo
   catch { if (!deps.current()) return null; throw new LoadKnowledgeError('unconfirmed'); }
   if (!deps.current()) return null;
   if (!fresh?.available || !fresh.stack || !matches(fresh.stack) || !confirmedOrder(fresh.stack)) throw new LoadKnowledgeError('unconfirmed');
+  if (deps.review && !reviewedRuntimeOutcome(deps.review, reply, fresh.stack)) throw new LoadKnowledgeError('unconfirmed');
   if (kind === 'unload') {
     if (after.applied || before.some(row => row.patch_id !== expected.id && !fresh!.stack!.some(next => next.patch_id === row.patch_id && next.sha256 === row.sha256))) throw new LoadKnowledgeError('unconfirmed');
     return { order: [] as string[], already: false, alias: null };
@@ -114,5 +130,5 @@ export async function confirmRuntimeKnowledge(expected: RuntimeTarget, kind: 'lo
   const exact = fresh.stack.find(row => row.patch_id === expected.id && row.sha256 === expected.patch_sha256);
   if (!!exact !== after.applied) throw new LoadKnowledgeError('unconfirmed');
   const alias = exact ? null : fresh.stack.find(row => row.sha256 === expected.patch_sha256)!.patch_id;
-  return { order: reply.order as string[], already: false, alias };
+  return { order: reply.order as string[], already: false, alias, ...(deps.review ? { reviewed: true } : {}) };
 }
