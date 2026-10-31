@@ -76,6 +76,7 @@ export const hostedAgents: Dict = {
   'agentPage.read_failed': { ko: '에이전트를 불러오지 못했습니다.', en: 'Could not load this agent.' },
   'agentPage.live.request_form': { ko: '에이전트에 입력 양식 요청', en: 'Ask agent for an input form' },
   'agentPage.live.no_form': { ko: '에이전트가 입력 양식을 보내지 않았습니다. 아래에 메시지를 입력하세요.', en: 'The agent did not return an input form. Enter a message below.' },
+  'agentPage.live.pending': { ko: '에이전트가 작업을 접수했습니다. 아직 최종 응답이 없습니다.', en: 'The agent accepted the task. No final response yet.' },
   'agentPage.live.invalid_response': { ko: '에이전트 응답을 읽을 수 없습니다.', en: 'Could not read the agent response.' },
   'agentPage.live.own_form': { ko: '에이전트가 보낸 입력 양식 (A2UI)', en: 'the agent’s own form (A2UI)' },
   'agentPage.live.placeholder': { ko: '이 에이전트에게 보낼 메시지를 입력하세요.', en: 'Send this agent a message.' },

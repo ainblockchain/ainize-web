@@ -30,13 +30,16 @@ import { errorMessage, useAgentAliasQuery, useAgentsQuery, useHostedAgentQuery, 
 import { agentOrgIdOf, agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList, agentVisibilityOf, parseManageableHostedAgents } from '@/api/sharedAgents';
 import { useActiveView } from '@/hooks/useActiveView';
 import { parseMyLinkedAgents } from '@/api/myAgents';
+import { A2aReply, a2aReplyText, readA2aReply } from '@/lib/a2aReply';
+import { a2uiActionParts } from '@/lib/a2uiAction';
 import { agentRequestUrl } from '@/lib/agentRequestUrl';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
 import type { AgentGitInfo, AgentSummary } from '@/api/types';
-import { A2UISurface, isInteractive, readSurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
+import { hasSurfaceAction, readSurfaces } from '@/components/a2ui/surface';
+import { A2UISurface, type A2UISurfaceData } from '@/components/a2ui/A2UISurface';
 import { cardStreams, isStreamingRefusal, readFrame, sendMethod, takeFrames } from '@/lib/a2a-stream';
 import { A2A_INLINE_AUDIO_MAX_BYTES, a2aAudioPart, a2aCardTakesAudio, a2aImagesOf, type A2aImage } from '@/lib/a2aFileParts';
 import { useTitle } from '@/utils/useTitle';
@@ -234,12 +237,14 @@ function AgentDetail() {
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const linkedNote = (location.state as { linkedNote?: unknown } | null)?.linkedNote;
   const [article, setArticle] = useState('');
+  const [contextId, setContextId] = useState<string | undefined>();
+  const [taskId, setTaskId] = useState<string | undefined>();
   // The card, fetched from this app's own address for it (`card_url`), so the panel describes THIS agent.
   const [skills, setSkills] = useState<CardSkill[]>([]);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [result, setResult] = useState<string | null>(null);
-  const [surface, setSurface] = useState<A2UISurfaceData | null>(null);
+  const [surfaces, setSurfaces] = useState<A2UISurfaceData[]>([]);
   /** Pictures the agent sent back as file parts (a hosted agent with image generation on). */
   const [images, setImages] = useState<A2aImage[]>([]);
   /** Whether the card takes audio, and the voice note picked to send with the next message. */
@@ -284,9 +289,10 @@ function AgentDetail() {
   const samples = examplesOf(skills);
 
   // Form discovery invokes the agent too, so it requires an explicit action, never a page-load effect.
-  const [form, setForm] = useState<A2UISurfaceData | null>(null);
+  const [forms, setForms] = useState<A2UISurfaceData[]>([]);
   const [formBusy, setFormBusy] = useState(false);
   const [formNotice, setFormNotice] = useState<string | null>(null);
+  const sendFormAction = (name: string, context: Record<string, unknown>, source: Parameters<typeof a2uiActionParts>[2]) => { void run('', a2uiActionParts(name, context, source)); };
   const requestForm = async () => {
     if (!agent || flight.current || !active()) return;
     const controller = new AbortController(); flight.current = controller;
@@ -295,7 +301,7 @@ function AgentDetail() {
       const response = await fetch(samePath(agent.a2a_url), {
         method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send', params: {
-          message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text: '' }] },
+          message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', contextId, taskId, parts: [{ kind: 'text', text: '' }] },
           configuration: { blocking: true, acceptedOutputModes: ['text/plain'] },
         } }),
       });
@@ -304,8 +310,12 @@ function AgentDetail() {
       if (body?.error) throw new Error(body.error.message ?? 'Agent request failed');
       if (!body?.result) throw new Error(t('agentPage.live.invalid_response'));
       if (!active()) return;
-      const asked = readSurface(body?.result?.parts ?? body?.result?.status?.message?.parts ?? []);
-      if (asked && isInteractive(asked)) setForm(asked);
+      const reply = readA2aReply(body.result);
+      if (!reply) throw new Error(t('agentPage.live.invalid_response'));
+      if (reply.error) throw new Error(reply.error);
+      setContextId(reply.contextId ?? contextId); setTaskId(reply.taskId);
+      const asked = readSurfaces(reply.parts as never).filter(hasSurfaceAction);
+      if (asked.length) setForms(asked);
       else setFormNotice(t('agentPage.live.no_form'));
     } catch (error) { if (active()) setFormNotice(errorMessage(error)); }
     finally { if (flight.current === controller) flight.current = null; if (active()) setFormBusy(false); }
@@ -327,26 +337,29 @@ function AgentDetail() {
    * an error ("Streaming is not supported by the agent", -32603), not with a plain body. And when the card has
    * not been read yet, a refusal to stream is retried once as `message/send` rather than shown as a failure.
    */
-  const run = async (message = article) => {
+  const run = async (message = article, actionParts?: unknown[]) => {
     if (!agent || flight.current || !active()) return;
     const controller = new AbortController(); flight.current = controller;
-    setBusy(true); setResult(null); setSurface(null); setImages([]); setFailed(null); setElapsed(0); setProgress([]);
+    setBusy(true); setResult(null); setSurfaces([]); setImages([]); setFailed(null); setElapsed(0); setProgress([]);
     const started = Date.now();
     timer.current = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
     const at = () => Math.round((Date.now() - started) / 1000);
     const finish = (parts: unknown[]) => {
       if (!active()) return;
-      setSurface(readSurface(parts as never));
+      const ui = readSurfaces(parts as never);
+      const nextForms = ui.filter(hasSurfaceAction);
+      if (nextForms.length) setForms(nextForms);
+      setSurfaces(ui.filter((entry) => !hasSurfaceAction(entry)));
       const pictures = a2aImagesOf(parts);
       setImages(pictures);
-      const text = (parts as { text?: string }[]).map((p) => p?.text ?? '').join('\n').trim();
+      const text = a2aReplyText(parts).trim();
       // §2 — an empty parts array is a deliberate answer, not a missing one; a picture alone is an answer too
-      setResult(text || (pictures.length ? null : t('agentPage.live.silence')));
+      setResult(text || (pictures.length || ui.length ? null : t('agentPage.live.silence')));
     };
 
     try {
       // Use a local path only for this site's own endpoint; peer URLs keep their original destination.
-      const parts = [...(message.trim() ? [{ kind: 'text', text: message }] : []), ...(audio ? [a2aAudioPart(audio.bytesBase64, audio.name, audio.mimeType)] : [])];
+      const parts = actionParts ?? [...(message.trim() ? [{ kind: 'text', text: message }] : []), ...(audio ? [a2aAudioPart(audio.bytesBase64, audio.name, audio.mimeType)] : [])];
       const call = (method: 'message/stream' | 'message/send') => fetch(samePath(agent.a2a_url), {
         method: 'POST', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Accept: method === 'message/stream' ? 'text/event-stream, application/json' : 'application/json' },
@@ -355,7 +368,7 @@ function AgentDetail() {
           id: crypto.randomUUID(),
           method,
           params: {
-            message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', parts },
+            message: { kind: 'message', messageId: crypto.randomUUID(), role: 'user', contextId, taskId, parts },
             configuration: {
               acceptedOutputModes: ['text/plain', 'image/png', 'image/jpeg'],
               ...(method === 'message/send' ? { blocking: true } : {}),
@@ -380,7 +393,12 @@ function AgentDetail() {
         if (!active()) return;
         if (!body?.result && !body?.error) throw new Error(t('agentPage.live.invalid_response'));
         if (body?.error) { setFailed(`${body.error.message} (code ${body.error.code})`); return; }
-        finish(body?.result?.parts ?? body?.result?.status?.message?.parts ?? []);
+        const reply = readA2aReply(body.result);
+        if (!reply) throw new Error(t('agentPage.live.invalid_response'));
+        setContextId(reply.contextId ?? contextId); setTaskId(reply.taskId);
+        if (reply.error) { setFailed(reply.error); if (reply.parts.length) finish(reply.parts); return; }
+        if (reply.pending && !reply.parts.length) setResult(t('agentPage.live.pending'));
+        else finish(reply.parts);
         return;
       }
 
@@ -388,6 +406,7 @@ function AgentDetail() {
       const decoder = new TextDecoder();
       let buffer = '';
       let answered = false;
+      const answer = new A2aReply();
       for (;;) {
         const { done, value } = await reader.read();
         if (done || !active()) break;
@@ -397,16 +416,23 @@ function AgentDetail() {
         for (const frame of frames) {
           const event = readFrame(frame);
           if (!event) continue;
+          const raw = (frame as { result?: { contextId?: string; id?: string; taskId?: string; status?: { state?: string } } }).result;
+          if (typeof raw?.contextId === 'string') setContextId(raw.contextId);
+          if (raw?.status?.state) {
+            setTaskId(['submitted', 'working', 'input-required', 'auth-required'].includes(raw.status.state) ? raw.taskId ?? raw.id : undefined);
+          }
+          const accumulated = answer.accept(raw);
           if (event.kind === 'working' && event.text) {
             setProgress((lines) => [...lines, { at: at(), text: event.text }]);
           } else if (event.kind === 'chunk') {
             // The answer as the agent writes it; the final event replaces it with the whole, parts included.
-            setResult((cur) => (event.append && cur ? cur + event.text : event.text));
+            const text = a2aReplyText(accumulated);
+            setResult(text || null); setSurfaces(readSurfaces(accumulated as never)); setImages(a2aImagesOf(accumulated));
           } else if (event.kind === 'error') {
             setFailed(event.text);
           } else if (event.kind === 'final') {
             answered = true;
-            finish(event.parts ?? []);
+            finish(accumulated);
           }
         }
       }
@@ -550,23 +576,20 @@ function AgentDetail() {
           * so nothing on this page had to know that this agent wants an article rather than a question. The
           * box below is the fallback for every agent that does not describe its input — which is most of them.
           */}
-        {!form && <Row><Button type="button" size="small" disabled={busy || formBusy} loading={formBusy} onClick={() => void requestForm()}>{t('agentPage.live.request_form')}</Button></Row>}
+        {!forms.length && <Row><Button type="button" size="small" disabled={busy || formBusy} loading={formBusy} onClick={() => void requestForm()}>{t('agentPage.live.request_form')}</Button></Row>}
         {formNotice && <Alert role="status" $tone="info">{formNotice}</Alert>}
-        {form && (
-          <Rendered>
+        {forms.map((form) => (
+          <Rendered key={form.surfaceId}>
             <RenderedLabel>{t('agentPage.live.own_form')}</RenderedLabel>
             <A2UISurface
               surface={form}
               busy={busy || formBusy}
-              onAction={(_name, context) => {
-                const sent = Object.values(context).find((v) => typeof v === 'string' && v.trim());
-                if (typeof sent === 'string') { setArticle(sent); void run(sent); }
-              }}
+              onAction={sendFormAction}
             />
           </Rendered>
-        )}
+        ))}
         {/* The agent's own examples, from its card. No card examples, no buttons — see examplesOf. */}
-        {!form && samples.length > 0 && (
+        {!forms.length && samples.length > 0 && (
           <Row>
             {samples.map((s) => (
               <Button key={s.label} size="small" variant="outlined" disabled={busy || formBusy}
@@ -576,7 +599,7 @@ function AgentDetail() {
             ))}
           </Row>
         )}
-        {!form && (
+        {!forms.length && (
           <Row style={{ display: 'block' }}>
             <Area value={article} onChange={(e) => setArticle(e.target.value)} disabled={busy || formBusy}
               placeholder={samples[0] ? t('agentPage.live.example', { text: samples[0].text }) : t('agentPage.live.placeholder')} />
@@ -608,12 +631,12 @@ function AgentDetail() {
           </Row>
         )}
         <Row>
-          {!form && (
+          {!forms.length && (
             <Button onClick={() => run()} disabled={busy || formBusy || (!article.trim() && !audio) || agent.reachable === false}>
               {busy ? t('agentPage.live.sending', { s: elapsed }) : t('agentPage.live.send')}
             </Button>
           )}
-          {form && busy && <Small>{t('agentPage.live.sending', { s: elapsed })}</Small>}
+          {forms.length > 0 && busy && <Small>{t('agentPage.live.sending', { s: elapsed })}</Small>}
           {busy && <Small>{t('agentPage.live.slow')}</Small>}
           {agent.reachable === false && <Small>{t('agentPage.live.unreachable')}</Small>}
         </Row>
@@ -645,14 +668,14 @@ function AgentDetail() {
           * When the agent has described a surface, that IS the answer; the text stays one click away because
           * it is the canonical copy and the one a reader copies out.
           */}
-        {surface && <Rendered><A2UISurface surface={surface} /></Rendered>}
+        {surfaces.map((surface) => <Rendered key={surface.surfaceId}><A2UISurface surface={surface} busy={busy || formBusy} onAction={sendFormAction} /></Rendered>)}
         {images.length > 0 && (
           <AgentPageImages data-testid="agent-images">
             {images.map((img, i) => <img key={`${img.name}-${i}`} src={img.src} alt={img.name} />)}
           </AgentPageImages>
         )}
         {result && (
-          surface
+          surfaces.length || forms.length
             ? <Raw><summary>{t('agentPage.live.raw')}</summary><Out>{result}</Out></Raw>
             : <Out>{result}</Out>
         )}

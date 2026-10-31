@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCreateAgentPreviewMutation, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useAgentPreviewQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useActiveView } from '@/hooks/useActiveView';
+import { readSurfaces } from '@/components/a2ui/surface';
+import { a2uiActionParts } from '@/lib/a2uiAction';
+import { readA2aReply, a2aReplyText } from '@/lib/a2aReply';
+import { a2aImagesOf } from '@/lib/a2aFileParts';
 import { previewLifecycle } from '@/lib/previewLifecycle';
 import { Button } from '@/components/ui/Button';
 import { Alert, Field, FieldLabel, Input } from '@/components/ui/Form';
@@ -19,6 +23,7 @@ export function PreviewPanel({ agentId, refName }: { agentId: string; refName: s
   const [id, setId] = useState('');
   const [message, setMessage] = useState('');
   const [context, setContext] = useState<string | undefined>();
+  const [taskId, setTaskId] = useState<string | undefined>();
   const [reply, setReply] = useState<{ parts?: Parameters<typeof readSurface>[0]; contextId?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef<ReturnType<typeof chat> | null>(null);
@@ -35,8 +40,8 @@ export function PreviewPanel({ agentId, refName }: { agentId: string; refName: s
       catch (error) { if ((error as { status?: unknown })?.status !== 404) throw error; }
     },
     currentAccount: auth.isCurrentAccount,
-    onCreated: (preview) => { setId(preview.id); setReply(null); setContext(undefined); },
-    onStopped: () => { setId(''); setReply(null); setContext(undefined); },
+    onCreated: (preview) => { setId(preview.id); setReply(null); setContext(undefined); setTaskId(undefined); },
+    onStopped: () => { setId(''); setReply(null); setContext(undefined); setTaskId(undefined); },
     });
     lifecycle.current = owned;
     return () => { pending.current?.abort(); owned.dispose(); };
@@ -44,7 +49,7 @@ export function PreviewPanel({ agentId, refName }: { agentId: string; refName: s
   const query = useAgentPreviewQuery({ id, identity: auth.cacheIdentity }, { skip: !id, pollingInterval: 2000 });
   const candidate = query.error ? null : query.currentData?.preview;
   const preview = candidate?.id === id && candidate.agent === agentId ? candidate : null;
-  const surface = readSurface(reply?.parts ?? []);
+  const surfaces = useMemo(() => readSurfaces(reply?.parts ?? []), [reply]);
   const expired = !!query.error && 'status' in query.error && query.error.status === 404;
   useEffect(() => {
     if (expired) { lifecycle.current?.expired(); setError(t('agentGit.preview_expired')); }
@@ -58,17 +63,21 @@ export function PreviewPanel({ agentId, refName }: { agentId: string; refName: s
     pending.current?.abort(); pending.current = null; setError(null);
     try { await lifecycle.current?.stop(); } catch (error) { report(error); }
   };
-  const send = async () => {
-    if (pending.current || busy || !message.trim() || preview?.status !== 'ready' || !auth.isCurrentAccount()) return;
+  const send = async (actionParts?: unknown[]) => {
+    if (pending.current || busy || (!actionParts && !message.trim()) || preview?.status !== 'ready' || !auth.isCurrentAccount()) return;
     setError(null);
-    const request = chat({ id, body: { jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send', params: { message: { kind: 'message', role: 'user', messageId: crypto.randomUUID(), ...(context ? { contextId: context } : {}), parts: [{ kind: 'text', text: message }] }, configuration: { blocking: true } } } });
+    const request = chat({ id, body: { jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send', params: { message: { kind: 'message', role: 'user', messageId: crypto.randomUUID(), ...(context ? { contextId: context } : {}), ...(taskId ? { taskId } : {}), parts: actionParts ?? [{ kind: 'text', text: message }] }, configuration: { blocking: true } } } });
     pending.current = request;
     try {
       const body = await request.unwrap() as { result?: { parts?: Parameters<typeof readSurface>[0]; contextId?: string }; error?: { message?: string } };
       if (!active() || pending.current !== request || !auth.isCurrentAccount()) return;
       if (body.error) throw new Error(body.error.message ?? 'RPC error');
       if (!body.result) throw new Error(t('agentPage.live.invalid_response'));
-      setReply(body.result); setContext(body.result.contextId); setMessage('');
+      const parsed = readA2aReply(body.result);
+      if (!parsed) throw new Error(t('agentPage.live.invalid_response'));
+      setContext(parsed.contextId ?? context); setTaskId(parsed.taskId);
+      if (parsed.error) throw new Error(parsed.error);
+      setReply({ parts: (parsed.pending && !parsed.parts.length ? [{ kind: 'text', text: t('agentPage.live.pending') }] : parsed.parts) as never, contextId: parsed.contextId }); setMessage('');
     } catch (error) {
       if (active() && pending.current === request) {
         if ((error as { name?: string }).name === 'AbortError') setError(t('agentGit.preview_stopped'));
@@ -90,7 +99,7 @@ export function PreviewPanel({ agentId, refName }: { agentId: string; refName: s
             <Field><FieldLabel htmlFor="preview-message">{t('agentGit.preview_message')}</FieldLabel><Input id="preview-message" as="textarea" value={message} maxLength={20000} disabled={busy} onChange={(event) => setMessage(event.target.value)} /></Field>
             <Button loading={chatting.isLoading} disabled={busy || !message.trim()} onClick={() => void send()}>{t('agentGit.preview_send')}</Button>
             {chatting.isLoading && <Button onClick={() => pending.current?.abort()}>{t('agentGit.preview_cancel')}</Button>}
-            {reply && <div aria-live="polite">{(reply.parts ?? []).map((part, index) => { const text = (part as { text?: string }).text; return text ? <Description key={index} style={{ whiteSpace: 'pre-wrap' }}>{text}</Description> : null; })}{surface && <A2UISurface surface={surface} />}</div>}
+            {reply && <div aria-live="polite"><Description style={{ whiteSpace: 'pre-wrap' }}>{a2aReplyText(reply.parts ?? [])}</Description>{a2aImagesOf(reply.parts).map((image, index) => <img key={index} src={image.src} alt={image.name} style={{ maxWidth: '100%' }} />)}{surfaces.map((surface) => <A2UISurface key={surface.surfaceId} surface={surface} busy={busy} onAction={(name, context, source) => void send(a2uiActionParts(name, context, source))} />)}</div>}
           </>}
       <Button loading={removing.isLoading} disabled={creating.isLoading || removing.isLoading} onClick={() => void stop()}>{t('agentGit.preview_stop')}</Button>
     </>}

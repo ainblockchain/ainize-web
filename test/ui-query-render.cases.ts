@@ -28,6 +28,8 @@ import AgentLinkPage from '../src/screens/AgentLinkPage';
 import { AgentPage } from '../src/screens/AgentPage';
 import { AgentHistoryPanel } from '../src/screens/agent/AgentHistoryPanel';
 import { AgentPreviewHistory } from '../src/screens/agent/AgentPreviewHistory';
+import { A2UISurface } from '../src/components/a2ui/A2UISurface';
+import { readSurface as readUiSurface } from '../src/components/a2ui/surface';
 import OrgPage from '../src/screens/org/OrgPage';
 import OrgsPage from '../src/screens/org/OrgsPage';
 import OrgSettingsPage from '../src/screens/org/OrgSettingsPage';
@@ -865,4 +867,38 @@ test('preview records hide retained private results after read failure and expos
   const other = render(previewsPage, [...appAccount, { ...previewFixture, arg: { ...previewFixture.arg, identity: 'other-account' } }]);
   assert.doesNotMatch(other, /Current private input|Current private output/);
   assert.match(other, /Loading records/);
+});
+
+
+test('A2UI read-only fields are disabled and action-only buttons remain usable', () => {
+  const surface = { surfaceId: 'form', data: { value: 'Existing input' }, components: new Map([
+    ['root', { id: 'root', component: 'Column', children: ['input', 'button'] }],
+    ['input', { id: 'input', component: 'TextField', label: 'Input', value: { path: '/value' } }],
+    ['button', { id: 'button', component: 'Button', text: 'Refresh now', action: { event: { name: 'refresh', context: {} } } }],
+  ]) };
+  const passive = render(() => createElement(A2UISurface, { surface }), signedOut);
+  assert.match(passive, /<input[^>]*disabled/); assert.match(passive, /<button[^>]*disabled/);
+  const active = render(() => createElement(A2UISurface, { surface, onAction: () => {} }), signedOut);
+  assert.doesNotMatch(active, /<input[^>]*disabled|<button[^>]*disabled/);
+  assert.match(active, /Refresh now/);
+  const busy = render(() => createElement(A2UISurface, { surface, onAction: () => {}, busy: true }), signedOut);
+  assert.match(busy, /<button[^>]*disabled/);
+});
+
+test('A2UI multiple selections and scoped list values render the actual bound choices', () => {
+  const surface = readUiSurface([{ kind: 'data', metadata: { mimeType: 'application/a2ui+json' }, data: [
+    { createSurface: { surfaceId: 'form' } },
+    { updateComponents: { surfaceId: 'form', components: [
+      { id: 'root', component: 'Column', children: ['choices', 'list'] },
+      { id: 'choices', component: 'ChoicePicker', variant: 'multipleSelection', label: 'Options', value: { path: '/selected' }, options: [{ label: 'First option', value: 'one' }, { label: 'Second option', value: 'two' }] },
+      { id: 'list', component: 'List', children: { template: { dataPath: '/rows', componentId: 'row' } } },
+      { id: 'row', component: 'TextField', label: 'Row', value: { path: 'name' } },
+    ] } },
+    { updateDataModel: { surfaceId: 'form', value: { selected: ['two'], rows: [{ name: 'First row value' }, { name: 'Second row value' }] } } },
+  ] }])!;
+  const html = render(() => createElement(A2UISurface, { surface, onAction: () => {} }), signedOut);
+  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 2);
+  assert.equal((html.match(/checked=""/g) ?? []).length, 1);
+  assert.match(html, /value="First row value"/); assert.match(html, /value="Second row value"/);
+  assert.doesNotMatch(html, /unsupported ChoicePicker/);
 });

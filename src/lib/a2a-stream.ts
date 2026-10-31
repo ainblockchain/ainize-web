@@ -1,3 +1,4 @@
+import { readA2aReply } from './a2aReply';
 /**
  * Reading an A2A `message/stream` in the browser.
  *
@@ -65,22 +66,26 @@ export function readFrame(frame: unknown): A2AStreamEvent | null {
   if (error) return { kind: 'error', text: `${error.message ?? 'the agent refused this'}${error.code ? ` (code ${error.code})` : ''}` };
   if (!result) return null;
 
-  if (result.kind === 'task') return { kind: 'task', text: '' };
+  if (result.kind === 'task') {
+    const reply = readA2aReply(result);
+    if (reply?.error) return { kind: 'error', text: reply.error };
+    return reply && !reply.pending ? { kind: 'final', text: '', parts: reply.parts } : { kind: 'task', text: '' };
+  }
 
   if (result.kind === 'message') {
-    return { kind: 'final', text: '', parts: (result.parts as unknown[]) ?? [] };
+    return { kind: 'final', text: '', parts: Array.isArray(result.parts) ? result.parts : [] };
   }
 
   // A streaming agent writes its answer into an artifact, piece by piece; the page shows it growing.
   if (result.kind === 'artifact-update') {
     const artifact = (result.artifact ?? {}) as { parts?: unknown[] };
-    return { kind: 'chunk', text: chunkText(artifact.parts ?? []), append: result.append === true };
+    return { kind: 'chunk', text: chunkText(Array.isArray(artifact.parts) ? artifact.parts : []), append: result.append === true };
   }
   if (result.kind === 'status-update') {
     const status = (result.status ?? {}) as { state?: string; message?: { parts?: unknown[] } };
-    const parts = status.message?.parts ?? [];
+    const parts = Array.isArray(status.message?.parts) ? status.message.parts : [];
     if (status.state === 'working') return { kind: 'working', text: progressText(parts) };
-    if (status.state === 'failed' || status.state === 'rejected' || status.state === 'canceled') {
+    if (status.state === 'failed' || status.state === 'rejected' || status.state === 'canceled' || status.state === 'cancelled') {
       return { kind: 'error', text: progressText(parts) || (status.state as string) };
     }
     // completed, or any other terminal state carrying the answer
@@ -100,14 +105,14 @@ export function takeFrames(buffer: string): { frames: unknown[]; rest: string } 
   const frames: unknown[] = [];
   let rest = buffer;
   for (;;) {
-    const cut = rest.indexOf('\n\n');
-    if (cut === -1) break;
-    const block = rest.slice(0, cut);
-    rest = rest.slice(cut + 2);
-    for (const line of block.split('\n')) {
-      if (!line.startsWith('data: ')) continue;
-      try { frames.push(JSON.parse(line.slice(6))); } catch { /* a frame we cannot parse is one we ignore */ }
-    }
+    const separator = /\r?\n\r?\n/.exec(rest);
+    if (!separator) break;
+    const block = rest.slice(0, separator.index);
+    rest = rest.slice(separator.index + separator[0].length);
+    const data = block.split(/\r?\n/).filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).replace(/^ /, '')).join('\n');
+    if (!data) continue;
+    try { frames.push(JSON.parse(data)); } catch { /* malformed event; never execute stream content */ }
   }
   return { frames, rest };
 }

@@ -10,8 +10,9 @@
  * value goes through React as text.
  */
 import { useEffect, useState } from 'react';
+import type { A2uiActionSource } from '@/lib/a2uiAction';
 import styled from 'styled-components';
-import { actionPayload, resolve, safeHref, writePath, type A2UIComponent, type A2UISurfaceData } from './surface';
+import { actionPayload, bindingPath, readPath, resolve, safeHref, writePath, type A2UIComponent, type A2UISurfaceData } from './surface';
 
 export { A2UI_MIME, readSurface, isInteractive } from './surface';
 export type { A2UIComponent, A2UISurfaceData } from './surface';
@@ -60,11 +61,11 @@ interface Ctx {
   /** Write one bound value back, so a TextField shows what was typed. */
   set: (path: string, value: unknown) => void;
   /** What a pressed Button hands to the caller; absent means the surface is read-only. */
-  act?: (name: string, context: Record<string, unknown>) => void;
+  act?: (name: string, context: Record<string, unknown>, source: A2uiActionSource) => void;
   busy?: boolean;
 }
 
-function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfaceData; item?: unknown; seen: Set<string>; ctx: Ctx }) {
+function Node({ id, surface, item, scope = '', seen, ctx }: { id: string; surface: A2UISurfaceData; item?: unknown; scope?: string; seen: Set<string>; ctx: Ctx }) {
   const c = surface.components.get(id);
   if (!c) return <Unknown>missing component “{id}”</Unknown>;
   // A cycle in an agent-authored tree must not take the page down with it.
@@ -72,7 +73,7 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
   const next = new Set(seen).add(id);
 
   const kids = Array.isArray(c.children) ? c.children : [];
-  const renderKids = () => kids.map((k) => <Node key={k} id={k} surface={surface} item={item} seen={next} ctx={ctx} />);
+  const renderKids = () => kids.map((k) => <Node key={k} id={k} surface={surface} item={item} scope={scope} seen={next} ctx={ctx} />);
 
   switch (c.component) {
     case 'Column':
@@ -82,7 +83,7 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
     case 'Card':
       return (
         <CardBox>
-          {c.child ? <Node id={c.child} surface={surface} item={item} seen={next} ctx={ctx} /> : renderKids()}
+          {c.child ? <Node id={c.child} surface={surface} item={item} scope={scope} seen={next} ctx={ctx} /> : renderKids()}
         </CardBox>
       );
     case 'Divider':
@@ -94,10 +95,18 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
     case 'ChoicePicker': {
       const path = (c.value as { path?: string } | undefined)?.path;
       const options = Array.isArray(c.options) ? c.options.slice(0, 100).filter((option): option is { label: unknown; value: string } => !!option && typeof option === 'object' && typeof option.value === 'string') : [];
-      if (c.variant === 'multipleSelection') return <Unknown>unsupported ChoicePicker multipleSelection</Unknown>;
+      const selected = path ? readPath(ctx.model, bindingPath(path, scope)) : undefined;
+      const values = Array.isArray(selected) ? selected.filter((value): value is string => typeof value === 'string') : typeof selected === 'string' ? [selected] : [];
+      if (c.variant === 'multipleSelection') return <fieldset disabled={!ctx.act || ctx.busy || !path} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }}>
+        <legend>{resolve(c.label, ctx.model, item)}</legend>
+        {options.map((option) => <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44 }}>
+          <input type="checkbox" checked={values.includes(option.value)} onChange={(event) => path && ctx.set(bindingPath(path, scope), event.target.checked ? [...values, option.value] : values.filter((value) => value !== option.value))} />
+          {resolve(option.label, ctx.model, item)}
+        </label>)}
+      </fieldset>;
       return <Field><span>{resolve(c.label, ctx.model, item)}</span>
-        <select value={resolve(c.value, ctx.model, item)} disabled={!ctx.act || ctx.busy || !path}
-          onChange={(e) => path && ctx.set(path, e.target.value ? [e.target.value] : [])}>
+        <select value={values[0] ?? ''} disabled={!ctx.act || ctx.busy || !path}
+          onChange={(e) => path && ctx.set(bindingPath(path, scope), e.target.value ? [e.target.value] : [])}>
           <option value="" />{options.map((option) => <option key={option.value} value={option.value}>{resolve(option.label, ctx.model, item)}</option>)}
         </select>
       </Field>;
@@ -107,35 +116,34 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
       const value = resolve(c.value, ctx.model, item);
       const label = resolve(c.label, ctx.model, item);
       const long = c.variant === 'longText';
-      const onChange = (v: string) => path && ctx.set(path, v);
+      const onChange = (v: string) => path && ctx.set(bindingPath(path, scope), c.variant === 'number' && v !== '' && Number.isFinite(Number(v)) ? Number(v) : v);
       return (
         <Field>
           {label && <span>{label}</span>}
           {long
-            ? <textarea value={value} disabled={ctx.busy} onChange={(e) => onChange(e.target.value)} />
+            ? <textarea value={value} disabled={!ctx.act || ctx.busy || !path} onChange={(e) => onChange(e.target.value)} />
             : <input type={c.variant === 'obscured' ? 'password' : c.variant === 'number' ? 'number' : 'text'}
-                value={value} disabled={ctx.busy} onChange={(e) => onChange(e.target.value)} />}
+                value={value} disabled={!ctx.act || ctx.busy || !path} onChange={(e) => onChange(e.target.value)} />}
         </Field>
       );
     }
     case 'Button': {
       // The action's context is read from the model AT PRESS TIME, so it carries what is in the box now.
-      const payload = () => actionPayload(c.action, ctx.model);
+      const payload = () => actionPayload(c.action, ctx.model, item);
       const p = payload();
-      const empty = p ? Object.values(p.context).every((v) => v === undefined || v === null || v === '') : false;
       return (
         <Press
           type="button"
           $primary={c.variant === 'primary'}
-          disabled={!ctx.act || !p || empty || ctx.busy}
-          onClick={() => { const a = payload(); if (a && ctx.act) ctx.act(a.name, a.context); }}
+          disabled={!ctx.act || !p || ctx.busy}
+          onClick={() => { const a = payload(); if (a && ctx.act) ctx.act(a.name, a.context, { surfaceId: surface.surfaceId, sourceComponentId: id, version: surface.version, mimeType: surface.mimeType }); }}
         >
-          {c.child ? <Node id={c.child} surface={surface} item={item} seen={next} ctx={ctx} /> : (c.component as string)}
+          {c.child ? <Node id={c.child} surface={surface} item={item} scope={scope} seen={next} ctx={ctx} /> : resolve(c.text ?? c.label, ctx.model, item) || (c.component as string)}
         </Press>
       );
     }
     case 'Text': {
-      const value = resolve(c.text, surface.data, item);
+      const value = resolve(c.text, ctx.model, item);
       if (c.variant === 'h1') return <H1>{value}</H1>;
       if (c.variant === 'h2') return <H2>{value}</H2>;
       if (c.variant === 'h3') return <H3>{value}</H3>;
@@ -149,8 +157,8 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
      * cannot check. `text` is what is drawn, `url` where it goes; a URL that is not http(s) draws as text.
      */
     case 'Link': {
-      const label = resolve(c.text, surface.data, item);
-      const href = safeHref(resolve((c as { url?: unknown }).url, surface.data, item));
+      const label = resolve(c.text, ctx.model, item);
+      const href = safeHref(resolve((c as { url?: unknown }).url, ctx.model, item));
       if (!href) return <Body>{label}</Body>;
       return <Anchor href={href} target="_blank" rel="noopener noreferrer">{label}</Anchor>;
     }
@@ -159,18 +167,13 @@ function Node({ id, surface, item, seen, ctx }: { id: string; surface: A2UISurfa
       // fixed-size regardless of how many references a score compared against.
       const tpl = (c.children as { template?: { dataPath?: string; componentId?: string } })?.template;
       if (!tpl?.componentId) return <Col>{renderKids()}</Col>;
-      const raw = resolve({ path: tpl.dataPath ?? '/' }, surface.data, item);
-      const arr = (() => {
-        const segments = (tpl.dataPath ?? '').replace(/^\//, '').split('/').filter(Boolean);
-        let cur: unknown = surface.data;
-        for (const s of segments) cur = cur && typeof cur === 'object' ? (cur as Record<string, unknown>)[s] : undefined;
-        return Array.isArray(cur) ? cur : [];
-      })();
-      void raw;
+      const listPath = bindingPath(tpl.dataPath ?? '/', scope);
+      const value = readPath(ctx.model, listPath);
+      const arr = Array.isArray(value) ? value : [];
       return (
         <Col>
           {arr.map((it, i) => (
-            <Node key={i} id={tpl.componentId!} surface={surface} item={it} seen={next} ctx={ctx} />
+            <Node key={i} id={tpl.componentId!} surface={surface} item={it} scope={`${listPath === '/' ? '' : listPath}/${i}`} seen={next} ctx={ctx} />
           ))}
         </Col>
       );
@@ -194,7 +197,7 @@ export function A2UISurface({
   busy,
 }: {
   surface: A2UISurfaceData;
-  onAction?: (name: string, context: Record<string, unknown>) => void;
+  onAction?: (name: string, context: Record<string, unknown>, source: A2uiActionSource) => void;
   busy?: boolean;
 }) {
   const [model, setModel] = useState<unknown>(surface.data);
