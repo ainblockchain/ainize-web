@@ -188,7 +188,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 171 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 176 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 115 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -249,10 +249,13 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `null` | invalid agent source path | `src/agent-git.ts` |
 | `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
+| `null` | invalid_redeploy_target | `src/project-redeploy.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
 | `null` | Model backend failed | `src/peer-models.ts` |
 | `null` | no such file or directory: \<rel> | `src/hosted-qa-engine.ts` |
 | `null` | not a directory: … | `src/hosted-qa-engine.ts` |
+| `null` | not_found | `src/project-redeploy.ts` |
+| `null` | not_yet_cloned | `src/project-redeploy.ts` |
 | `null` | old_string and new_string are identical | `src/hosted-qa-engine.ts` |
 | `null` | old_string and new_string must be strings | `src/hosted-qa-engine.ts` |
 | `null` | old_string must not be empty; use write_file to create a file | `src/hosted-qa-engine.ts` |
@@ -268,6 +271,8 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `null` | path refused: \<raw> (paths are relative to the repository root; .., .git, .env files and absolute paths outside the repository are not allowed) | `src/hosted-qa-engine.ts` |
 | `null` | pattern is required | `src/hosted-qa-engine.ts` |
 | `null` | project agent binding changed while waiting; retry deployment | `src/project-agents.ts` |
+| `null` | project_deleting | `src/project-redeploy.ts` |
+| `null` | redeploy_target_changed | `src/project-redeploy.ts` |
 | `null` | repository id already exists | `src/agent-git.ts` |
 | `null` | repository objects must not be symlinks | `src/agent-git.ts` |
 | `null` | repository storage limit exceeded (\<bytes> > \<this.storageLimitBytes> bytes); export history or ask the operator to raise the limit | `src/agent-git.ts` |

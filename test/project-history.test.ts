@@ -55,7 +55,7 @@ test('row and header redeploy overlap produces one exact-target request and a ne
   const first = gate.submit(record('selected'), id => { sent.push(id); return new Promise(resolve => { finish = resolve; }); });
   assert.equal(gate.blocked(), true);
   assert.equal(await gate.submit(record('different'), async id => { sent.push(id); }), null);
-  finish({ deploymentId: 'new-build', status: 'queued' });
+  finish({ deploymentId: 'new-build', status: 'queued', projectId: 'project', redeployOf: 'selected', sha: record('selected').sha });
   assert.equal(await first, 'new-build'); assert.deepEqual(sent, ['selected']); assert.equal(gate.blocked(), false);
 });
 
@@ -73,7 +73,7 @@ test('lost or contradictory redeploy acceptance cannot blindly repeat while expl
   const refused = createProjectRedeployment();
   await assert.rejects(refused.submit(record('selected'), async () => { throw { status: 409, data: { error: { code: 'not_yet_cloned' } } }; }));
   assert.equal(refused.blocked(), false);
-  assert.equal(await refused.submit(record('selected'), async () => ({ deploymentId: 'new', status: 'queued' })), 'new');
+  assert.equal(await refused.submit(record('selected'), async () => ({ deploymentId: 'new', status: 'queued', projectId: 'project', redeployOf: 'selected', sha: record('selected').sha })), 'new');
 });
 
 test('runs and unresolved commits cannot be sent to the redeploy endpoint', async () => {
@@ -88,4 +88,18 @@ test('a receipt naming another pre-existing record is not accepted as a new depl
   const gate = createProjectRedeployment();
   await assert.rejects(gate.submit(record('selected'), async () => ({ deploymentId: 'already-exists', status: 'queued' }), ['already-exists']));
   assert.equal(gate.uncertain(), true);
+});
+
+test('redeploy receipts must bind the exact project, reviewed record and commit before reporting acceptance', async () => {
+  const receipt = { deploymentId: 'new', status: 'queued', projectId: 'project', redeployOf: 'selected', sha: record('selected').sha };
+  for (const patch of [{ projectId: 'other' }, { redeployOf: 'other' }, { sha: 'b'.repeat(40) }, { projectId: undefined }, { redeployOf: undefined }]) {
+    const gate = createProjectRedeployment();
+    await assert.rejects(gate.submit(record('selected'), async () => ({ ...receipt, ...patch })));
+    assert.equal(gate.uncertain(), true); assert.equal(await gate.submit(record('selected'), async () => assert.fail('no repeat')), null);
+  }
+  for (const code of ['project_deleting', 'invalid_redeploy_target', 'redeploy_target_changed']) {
+    const gate = createProjectRedeployment();
+    await assert.rejects(gate.submit(record('selected'), async () => { throw { status: 409, data: { error: { code } } }; }));
+    assert.equal(gate.blocked(), false);
+  }
 });

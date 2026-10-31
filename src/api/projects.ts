@@ -169,6 +169,7 @@ export interface OrgRepositoriesResponse { org: string; known: boolean; driveId:
 /** `POST /api/projects/:id/runs`. */
 export interface RunInput { target?: 'head' | 'commit' | 'deployed'; sha?: string; entry?: string; inputs?: Record<string, string | number | boolean>; env?: Record<string, string>; timeoutMs?: number }
 export interface Queued { deploymentId: string; status: DeploymentStatus; runId?: string }
+export interface Redeployed extends Queued { projectId: string; redeployOf: string; sha: string }
 export interface RotatedSecret { id: string; webhookSecret: string; hookUrl: string }
 
 /**

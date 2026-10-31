@@ -49,3 +49,14 @@ test('a disabled secret store is an explicit pre-write refusal, not an ambiguous
   await assert.rejects(gate.run(async () => { throw { status: 503, data: { error: { code: 'secrets_off' } } }; }));
   assert.equal(gate.uncertain(), false); assert.equal(gate.blocked(), false);
 });
+
+test('manual redeploy pre-admission refusals leave environment editing available but unknown acceptance locks it', async () => {
+  for (const code of ['project_deleting', 'invalid_redeploy_target', 'redeploy_target_changed']) {
+    const gate = createProjectEnvWork();
+    await assert.rejects(gate.run(async () => { throw { status: 409, data: { error: { code } } }; }));
+    assert.equal(gate.blocked(), false);
+  }
+  const gate = createProjectEnvWork();
+  await assert.rejects(gate.run(async () => { throw { status: 500, data: { error: { code: 'redeploy_outcome_unknown' } } }; }));
+  assert.equal(gate.uncertain(), true);
+});

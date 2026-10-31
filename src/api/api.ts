@@ -25,7 +25,7 @@ import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import type { OrgCreateInput, OrgUpdateInput, OrgRole, OrgReadScope } from './organizations';
-import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
+import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, Redeployed, RotatedSecret, RunInput, RunsResponse } from './projects';
 import { currentTeacherKey } from '@/lib/teacherKey';
 import { createTeacherFetch, SIGN_MARKER, DATASET_SHA_HEADER } from '@/lib/teacherFetch';
 export { DATASET_SHA_HEADER } from '@/lib/teacherFetch';
@@ -193,7 +193,7 @@ export const api = createApi({
     }),
     projectRuns: b.query<RunsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id: `${id}/runs` }] }),
     runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
-    redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
+    redeploy: b.mutation<Redeployed, { deploymentId: string; projectId: string; sha: string }>({ query: ({ deploymentId, projectId, sha }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST', body: { projectId, sha } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
     syncFromGithub: b.mutation<{ projectId: string; repository: string; requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
     rotateProjectSecret: b.mutation<RotatedSecret, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/rotate-secret`, method: 'PATCH' }) }),

@@ -7,7 +7,7 @@ export function createProjectEnvWork() {
     if (status === 503 && code === 'secrets_off') return;
     if (typeof status !== 'number' || status < 400 || status >= 500 || typeof code !== 'string'
       || !['not_signed_in', 'not_writer', 'not_found', 'invalid_name', 'reserved_name', 'invalid_value', 'value_too_large',
-        'too_many_secrets', 'invalid_request', 'not_member', 'forbidden', 'not_yet_cloned'].includes(code)) unknown = true;
+        'too_many_secrets', 'invalid_request', 'not_member', 'forbidden', 'not_yet_cloned', 'project_deleting', 'invalid_redeploy_target', 'redeploy_target_changed'].includes(code)) unknown = true;
   };
   return {
     blocked: () => pending || unknown,

@@ -449,7 +449,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
     setHeadErr(null);
     setAccepted(null);
     try {
-      const id = await redeployment.submit(selected, deploymentId => redeploy({ deploymentId, projectId: p.id }).unwrap(), [...rows, ...runRows].map(d => d.id));
+      const id = await redeployment.submit(selected, deploymentId => redeploy({ deploymentId, projectId: p.id, sha: selected.sha }).unwrap(), [...rows, ...runRows].map(d => d.id));
       if (active() && id) { setAccepted(id); openDeployment(id); }
     } catch (e) {
       if (!active()) return;

@@ -21,6 +21,7 @@ import { useActiveView } from '@/hooks/useActiveView';
 import { createProjectEnvWork, type ProjectEnvWork } from '@/lib/projectEnvWork';
 import { deploymentLogHref, readProjectDeployment } from '@/lib/projectHistory';
 import { projectRunReceipt } from '@/lib/projectRun';
+import { projectRedeployReceipt } from '@/lib/projectRedeploy';
 import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Textarea } from '@/components/ui/Form';
 import { ExternalLink, Mono } from '@/components/ui/Misc';
@@ -303,6 +304,9 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
   const [queued, setQueued] = useState<Queued | null>(null);
   const [redeployNow, redeploying] = useRedeployMutation();
   const [redeployErr, setRedeployErr] = useState<string | null>(null);
+  const redeployTargetQuery = useDeploymentQuery({ id: project.lastDeploymentId ?? '', identity: useAuth().cacheIdentity }, { skip: !pending || !project.lastDeploymentId || access !== 'writer', refetchOnMountOrArgChange: true });
+  const redeployTarget = redeployTargetQuery.isError || !project.lastDeploymentId ? null : readProjectDeployment(redeployTargetQuery.currentData, project.id, project.lastDeploymentId);
+  const targetReady = redeployTarget && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(redeployTarget.sha);
   const rows = useMemo(() => (data ? envRowsOf(data) : []), [data]);
   const existing = useMemo(() => data?.secrets.map((s) => s.name) ?? [], [data]);
 
@@ -314,12 +318,12 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
     if (r) { setQueued(r); setPending(false); } else if (deploys) { setQueued(null); setPending(true); }
   };
   const doRedeploy = async () => {
-    if (!project.lastDeploymentId) return;
+    if (!targetReady || !redeployTarget || redeployTargetQuery.isFetching) return;
     setRedeployErr(null);
     try {
       const r = await work.run(async () => {
-        const response = await redeployNow({ deploymentId: project.lastDeploymentId!, projectId: project.id }).unwrap();
-        if (!projectRunReceipt(response) || response.deploymentId === project.lastDeploymentId) throw new Error('unconfirmed_secret_mutation');
+        const response = await redeployNow({ deploymentId: redeployTarget.id, projectId: project.id, sha: redeployTarget.sha }).unwrap();
+        if (!projectRedeployReceipt(response, redeployTarget)) throw new Error('unconfirmed_secret_mutation');
         return response;
       });
       if (r) { setQueued(r); setPending(false); }
@@ -367,7 +371,8 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
               <Actions>
                 <span>{t('projects.env.pending')}</span>
                 <Spacer />
-                <Button size="small" variant="contained" loading={redeploying.isLoading} onClick={doRedeploy}>{t('projects.env.redeploy_now')}</Button>
+                <Button size="small" variant="contained" disabled={!targetReady || redeployTargetQuery.isFetching} loading={redeploying.isLoading} onClick={doRedeploy}>{targetReady ? t('projects.page.redeploy_commit', { sha: redeployTarget!.sha.slice(0, 7) }) : t('projects.env.redeploy_now')}</Button>
+                {!targetReady && !redeployTargetQuery.isFetching && <span>{t('projects.page.load_failed')} <Button size="small" onClick={() => void redeployTargetQuery.refetch()}>{t('projects.page.retry')}</Button></span>}
               </Actions>
             </Alert>
           )}
