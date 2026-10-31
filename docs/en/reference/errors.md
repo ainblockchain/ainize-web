@@ -166,7 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 239 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 240 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 118 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -236,6 +236,7 @@ A further 118 throw sites build their message at the time (a validator's own wor
 | `null` | AIN SSO unreachable at \<path>: … | `src/run-session.ts` |
 | `null` | AIN SSO's delegation id does not match its answer | `src/run-session.ts` |
 | `null` | AIN SSO's delegation is unreadable: … | `src/run-session.ts` |
+| `null` | AIN SSO's delegation names no account (sub) | `src/run-session.ts` |
 | `null` | AIN SSO's delegation names resources the trigger did not declare | `src/run-session.ts` |
 | `null` | AIN SSO's delegation outlives the run | `src/run-session.ts` |
 | `null` | aindrive_error | `src/project-storage-aindrive.ts`, `src/project-storage-backups.ts` |
