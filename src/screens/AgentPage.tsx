@@ -1,3 +1,4 @@
+import { AgentActionBoundary } from '@/components/agent/AgentActionBoundary';
 /**
  * One agent: what it is, what it takes, and a place to send it something.
  *
@@ -55,7 +56,7 @@ import { HostedAgentOwnerPanel } from './agent/HostedAgentOwnerPanel';
 import { AgentHistoryPanel } from './agent/AgentHistoryPanel';
 import { LinkedAgentOwnerPanel } from './agent/LinkedAgentOwnerPanel';
 import { isAgentOwnedBy, isLinkedAgentRow, viewerPrincipals } from '@/api/linkedAgents';
-import { agentAliasOf, agentForPage, agentPageScope, agentPageRedirect } from '@/api/agentIds';
+import { agentAliasOf, agentForPage, agentPageScope } from '@/api/agentIds';
 
 const Cards = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;`;
 const Card = styled.div<{ $selected?: boolean }>`
@@ -167,20 +168,10 @@ export function AgentPage() {
   const { id = '' } = useParams();
   const { search } = useLocation();
   const scope = agentPageScope(search);
-  return <AgentDetailFrame key={JSON.stringify([cacheIdentity, id, scope.node, scope.valid])} />;
+  return <AgentActionBoundary key={JSON.stringify([cacheIdentity, id, scope.node, scope.valid])}><AgentDetail /></AgentActionBoundary>;
 }
 
-/** Keep unlink feedback above catalogue-driven content that can disappear during a refresh. */
-function AgentDetailFrame() {
-  const { t } = useT();
-  const [removalState, setRemovalState] = useState<'pending' | 'unconfirmed' | 'complete' | null>(null);
-  return <>
-    {removalState && <Alert $tone={removalState === 'complete' ? 'success' : removalState === 'pending' ? 'info' : 'error'} role="status" data-testid="linked-removal-status">{t(`linkedOwner.delete_${removalState}`)}</Alert>}
-    <AgentDetail removalBlocked={removalState === 'pending' || removalState === 'unconfirmed'} onRemovalStateChange={setRemovalState} />
-  </>;
-}
-
-function AgentDetail({ removalBlocked, onRemovalStateChange }: { removalBlocked: boolean; onRemovalStateChange: (state: 'pending' | 'unconfirmed' | 'complete' | null) => void }) {
+function AgentDetail() {
   const { subject, sso, sitePrincipal, isSignedIn, cacheIdentity, loading: authLoading } = useAuth();
   const active = useActiveView();
   // `/agent/:idOrAlias` — the segment is the agent's id or its readable alias (ainize-node agent-aliases.ts).
@@ -228,10 +219,7 @@ function AgentDetail({ removalBlocked, onRemovalStateChange }: { removalBlocked:
     if (!hostedSpec.isUninitialized) void hostedSpec.refetch();
     if (!linkedList.isUninitialized) void linkedList.refetch();
   };
-  // Opened by id (or an old alias): show the readable address in the URL bar, without a history entry.
-  // `keepUrl`: the owner just removed the alias and was sent to the id — a cached row must not send them back.
-  const redirect = (location.state as { keepUrl?: boolean } | null)?.keepUrl ? null : agentPageRedirect(param, agent);
-  useEffect(() => { if (redirect) navigate(redirect, { replace: true, state: location.state }); }, [redirect, navigate, location.state]);
+  // Catalogue polling must not rewrite the route or discard work. Address changes navigate only after a verified user save.
   useTitle(agent ? agent.name : 'Agent');
   const { t } = useT();
   const hosted = agentSummaryHostedFieldsOf(agent);
@@ -566,7 +554,7 @@ function AgentDetail({ removalBlocked, onRemovalStateChange }: { removalBlocked:
           reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
           node answers 404 to a caller who may not see the agent, and the panel draws nothing in that case. */}
       {localHosted && <AgentHistoryPanel agentId={agent.id} git={(hosted as { git?: AgentGitInfo | null }).git ?? null} canMerge={ownsIt || managesIt} />}
-      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} owner={agent.owner} removalBlocked={removalBlocked} onRemovalStateChange={onRemovalStateChange} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} />}
+      {ownsLinked && <LinkedAgentOwnerPanel agentId={agent.id} agentName={agent.name} owner={agent.owner} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} />}
 
       {skills.length > 0 && (
         <>

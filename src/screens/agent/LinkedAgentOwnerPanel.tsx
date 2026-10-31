@@ -1,3 +1,4 @@
+import { AgentActionBoundary, useAgentActions } from '@/components/agent/AgentActionBoundary';
 /**
  * What the person who LINKED an agent can do to it: change its address or name, and unlink it.
  *
@@ -27,10 +28,11 @@ const LinkedAgentOwnerBox = styled.div`
 `;
 const LinkedAgentOwnerRow = styled.div`display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;`;
 
-export function LinkedAgentOwnerPanel({ agentId, agentName, owner = null, alias = null, visibility = null, orgId = null, removalBlocked = false, onRemovalStateChange }: { agentId: string; agentName: string; owner?: string | null; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; removalBlocked?: boolean; onRemovalStateChange?: (state: 'pending' | 'unconfirmed' | 'complete' | null) => void }) {
+function LinkedAgentOwnerPanelContent({ agentId, agentName, owner = null, alias = null, visibility = null, orgId = null, removalBlocked = false, onRemovalStateChange }: { agentId: string; agentName: string; owner?: string | null; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; removalBlocked?: boolean; onRemovalStateChange?: (state: 'pending' | 'unconfirmed' | 'complete' | null) => void }) {
   const { t } = useT();
   const navigate = useNavigate();
   const active = useActiveView();
+  const actions = useAgentActions();
   const auth = useAuth();
   const removal = useRef(createLinkedAgentRemoval()).current;
   const [busy, setBusy] = useState(false);
@@ -40,6 +42,8 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
 
   const remove = async () => {
     if (removalBlocked || removal.blocked() || !active() || !auth.isCurrentAccount()) return;
+    const lease = actions.scope.begin('unlink', agentId);
+    if (!lease) return;
     setError(null); setBusy(true);
     try {
       const done = await removal.run({ id: agentId, owner }, auth.principal, {
@@ -55,6 +59,7 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
         ? t(err.reason === 'unsupported' ? 'linkedOwner.delete_unsupported' : 'linkedOwner.delete_changed')
         : t('agentOwner.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
     } finally {
+      lease.finish(removal.uncertain() ? 'unconfirmed' : removal.confirmed() ? 'complete' : null);
       onRemovalStateChange?.(removal.uncertain() ? 'unconfirmed' : removal.confirmed() ? 'complete' : null);
       if (active()) setBusy(false);
     }
@@ -66,8 +71,8 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
       <Description>{t('linkedOwner.lede')}</Description>
       <fieldset disabled={removalBlocked || busy || removal.uncertain()} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <LinkedAgentOwnerRow>
-        {!removalBlocked && !busy && !removal.uncertain() && <StyledLink to={`/agent/${encodeURIComponent(agentId)}/link`} data-testid="linked-agent-edit">{t('linkedOwner.edit')}</StyledLink>}
-        <Button size="small" variant="text" color="secondary" loading={busy} disabled={removalBlocked || removal.blocked()} onClick={() => void remove()} data-testid="linked-agent-unlink">
+        {!actions.blocked && !removalBlocked && !busy && !removal.uncertain() && <StyledLink to={`/agent/${encodeURIComponent(agentId)}/link`} data-testid="linked-agent-edit">{t('linkedOwner.edit')}</StyledLink>}
+        <Button size="small" variant="text" color="secondary" loading={busy} disabled={!actions.scope.canStart('unlink', agentId) || removalBlocked || removal.blocked()} onClick={() => void remove()} data-testid="linked-agent-unlink">
           {t('linkedOwner.delete')}
         </Button>
       </LinkedAgentOwnerRow>
@@ -78,4 +83,9 @@ export function LinkedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
       {removal.uncertain() && <StyledLink to="/me/agents">{t('myAgents.title')}</StyledLink>}
     </LinkedAgentOwnerBox>
   );
+}
+
+export function LinkedAgentOwnerPanel(props: Parameters<typeof LinkedAgentOwnerPanelContent>[0]) {
+  const { cacheIdentity } = useAuth();
+  return <AgentActionBoundary key={JSON.stringify([cacheIdentity, props.agentId])}><LinkedAgentOwnerPanelContent {...props} /></AgentActionBoundary>;
 }

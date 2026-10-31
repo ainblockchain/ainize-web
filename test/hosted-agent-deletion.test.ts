@@ -45,3 +45,10 @@ test('atomic stale-target refusal permits reviewing again without claiming delet
   await assert.rejects(gate.run(target, { read: async () => fresh, send: async () => { throw { status: 409, data: { error: { code: 'agent_changed' } } }; }, active }));
   assert.equal(gate.blocked(), false); assert.equal(gate.started(), false);
 });
+
+
+test('confirmed deletion remains known to the parent after the owner panel departs', async () => {
+  const gate = createHostedAgentDeletion(); let current = true;
+  const done = await gate.run(target, { read: async () => fresh, send: async () => { current = false; return { deleted: target.id, cleanup: 'complete' }; }, active: () => current });
+  assert.equal(done, false, 'do not navigate a departed panel'); assert.equal(gate.confirmed(), true); assert.equal(gate.uncertain(), false);
+});

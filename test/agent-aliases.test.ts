@@ -1,12 +1,12 @@
 /**
  * Agent aliases on the site: links use the alias when an agent has one, `/agent/:idOrAlias` finds the agent by
- * either and moves the URL bar to the alias, and every row the node sends keeps its `alias`.
+ * either; explicit links use the alias, and catalogue refreshes do not rewrite the current route.
  *
  *   node --test --import tsx test/agent-aliases.test.ts
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentAliasOf, agentMatchesParam, agentPagePath, agentPageRedirect, agentPageScope, agentForPage, aliasSuggestion } from '../src/api/agentIds';
+import { agentAliasOf, agentMatchesParam, agentPagePath, agentPageScope, agentForPage, aliasSuggestion } from '../src/api/agentIds';
 import { agentSummaryFromHostedSpecResponse, agentSummaryFromLinkedList } from '../src/api/sharedAgents';
 import { agentSummaryFromOrgAgent, parseOrgAgent } from '../src/api/organizations';
 
@@ -17,7 +17,6 @@ test('peer links and alias redirects preserve the selected node, including URL p
   const peer = { ...M, node };
   const expected = `/agent/agent-m?node=${encodeURIComponent(node.address)}`;
   assert.equal(agentPagePath(peer), expected);
-  assert.equal(agentPageRedirect(peer.id, peer), expected);
   assert.deepEqual(agentPageScope(expected.slice(expected.indexOf('?'))), { node: node.address, valid: true });
 });
 
@@ -44,16 +43,11 @@ test('links to an agent page use the alias when there is one, the id otherwise',
   assert.equal(agentPagePath(M, '/edit'), '/agent/agent-m/edit');
 });
 
-test('the page segment matches an agent by id or alias, and redirects an id to the alias', () => {
+test('the page segment matches an agent by id or alias without changing the selected route', () => {
   assert.equal(agentMatchesParam(M, 'agent-m'), true);
   assert.equal(agentMatchesParam(M, M.id), true);
   assert.equal(agentMatchesParam(M, 'other'), false);
   assert.equal(agentMatchesParam({ id: 'x' }, ''), false);
-  assert.equal(agentPageRedirect(M.id, M), '/agent/agent-m', 'opened by id → the readable address');
-  assert.equal(agentPageRedirect('old-name', M), '/agent/agent-m', 'an old alias → the current one');
-  assert.equal(agentPageRedirect('agent-m', M), null, 'already there');
-  assert.equal(agentPageRedirect('coffee-bot', { id: 'coffee-bot' }), null, 'no alias, no redirect');
-  assert.equal(agentPageRedirect('x', null), null);
 });
 
 test('alias survives every row shape the node sends; an older node sends none', () => {

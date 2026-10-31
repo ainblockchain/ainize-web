@@ -1,3 +1,4 @@
+import { AgentActionBoundary, useAgentActions } from '@/components/agent/AgentActionBoundary';
 /**
  * What the person who built an agent can do to it: change it, take it down, and read what it has been logging.
  *
@@ -40,14 +41,16 @@ const HostedAgentOwnerLogs = styled.pre`
  * `canAdminister` is false for an organization member who may edit the agent but not delete it or change who sees
  * it (ainize-node: those stay with the owner and the organization's admins); the panel then offers edit and logs only.
  */
-export function HostedAgentOwnerPanel({ agentId, agentName, owner = null, alias = null, visibility = null, orgId = null, canAdminister = true, isCreator = false, cleanupPending = false }: { agentId: string; agentName: string; owner?: string | null; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean; isCreator?: boolean; cleanupPending?: boolean }) {
+function HostedAgentOwnerPanelContent({ agentId, agentName, owner = null, alias = null, visibility = null, orgId = null, canAdminister = true, isCreator = false, cleanupPending = false }: { agentId: string; agentName: string; owner?: string | null; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean; isCreator?: boolean; cleanupPending?: boolean }) {
   const { t } = useT();
   const navigate = useNavigate();
   const active = useActiveView();
+  const actions = useAgentActions();
   const deletion = useRef(createHostedAgentDeletion()).current;
   const [deleting, setDeleting] = useState(false);
   const [readAgent] = useLazyHostedAgentQuery();
-  const { cacheIdentity } = useAuth();
+  const auth = useAuth();
+  const { cacheIdentity } = auth;
   const [logsOpen, setLogsOpen] = useState(false);
   const logs = useHostedAgentLogsQuery({ id: agentId, identity: cacheIdentity }, { skip: !logsOpen });
   const lines = parseHostedAgentLogsResponse(logs.currentData);
@@ -55,22 +58,29 @@ export function HostedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const remove = async () => {
-    if (deletion.blocked() || !canAdminister || !active()) return;
+    if (deletion.blocked() || !canAdminister || !active() || !auth.isCurrentAccount() || !actions.scope.canStart('delete', agentId)) return;
     if (!window.confirm(t('agentOwner.delete_confirm', { name: agentName }))) return;
+    const lease = actions.scope.begin('delete', agentId);
+    if (!lease) return;
+    let cleanup = cleanupPending || deletion.started() || actions.state?.phase === 'cleanup';
     setDeleteError(null);
     setDeleting(true);
     try {
-      const done = await deletion.run({ id: agentId, name: agentName }, {
+      const done = await deletion.run({ id: agentId, name: agentName, owner }, {
         read: () => readAgent({ id: agentId, identity: cacheIdentity }, false).unwrap(),
-        send: request => deleteAgent(request).unwrap(), active,
+        send: request => deleteAgent(request).unwrap(), active: () => active() && auth.isCurrentAccount(),
       });
       if (done) navigate('/explore?kind=agent');
     } catch (err) {
-      if (!active()) return;
+      cleanup = cleanup || isAgentCleanupPending(err);
+      if (!active() || !auth.isCurrentAccount()) return;
       const e = hostedAgentApiErrorOf(err);
       setDeleteError(deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
         : err instanceof AgentDeletionError ? t('agentOwner.delete_changed') : e.message ?? t(`agentCreate.api.${e.code}`));
-    } finally { if (active()) setDeleting(false); }
+    } finally {
+      lease.finish(deletion.uncertain() ? 'unconfirmed' : deletion.confirmed() ? 'complete' : cleanup ? 'cleanup' : null);
+      if (active()) setDeleting(false);
+    }
   };
 
   return (
@@ -78,7 +88,7 @@ export function HostedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
       <h3>{t('agentOwner.title')}</h3>
       <Description>{t('agentOwner.lede')}</Description>
       <HostedAgentOwnerRow>
-        {!cleanupPending && !deleting && !deletion.started() && <StyledLink to={`/agent/${encodeURIComponent(agentId)}/edit`} data-testid="hosted-agent-edit">{t('agentOwner.edit')}</StyledLink>}
+        {!actions.blocked && !cleanupPending && !deleting && !deletion.started() && <StyledLink to={`/agent/${encodeURIComponent(agentId)}/edit`} data-testid="hosted-agent-edit">{t('agentOwner.edit')}</StyledLink>}
         <Button size="small" variant="outlined" onClick={() => setLogsOpen((o) => !o)} data-testid="hosted-agent-logs-toggle">
           {logsOpen ? t('agentOwner.logs_hide') : t('agentOwner.logs_show')}
         </Button>
@@ -88,7 +98,7 @@ export function HostedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
           </Button>
         )}
         {canAdminister && (
-          <Button size="small" variant="text" color="secondary" loading={deleting || deleteState.isLoading} disabled={deletion.blocked()} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
+          <Button size="small" variant="text" color="secondary" loading={deleting || deleteState.isLoading} disabled={deletion.blocked() || !actions.scope.canStart('delete', agentId)} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
             {t(cleanupPending || deletion.started() && !deletion.uncertain() ? 'agentOwner.delete_resume' : 'agentOwner.delete')}
           </Button>
         )}
@@ -97,8 +107,10 @@ export function HostedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
       {cleanupPending && !deleteError && <Alert $tone="error" role="status">{t('agentOwner.delete_pending')}</Alert>}
       {!cleanupPending && !deleting && !deletion.started() && <>
       <AgentAliasControl kind="hosted" owner={owner} agentId={agentId} agentName={agentName} alias={alias} />
+      <fieldset disabled={actions.blocked} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       {isCreator && <AinftRegistrationPanel agentId={agentId} />}
       {isCreator && <AinftCommunityPanel agentId={agentId} />}
+      </fieldset>
       {canAdminister && <AgentVisibilityControl kind="hosted" owner={owner} agentId={agentId} visibility={visibility} orgId={orgId} />}
       </>}
       {logsOpen && (
@@ -111,3 +123,8 @@ export function HostedAgentOwnerPanel({ agentId, agentName, owner = null, alias 
 }
 
 export default HostedAgentOwnerPanel;
+
+export function HostedAgentOwnerPanel(props: Parameters<typeof HostedAgentOwnerPanelContent>[0]) {
+  const { cacheIdentity } = useAuth();
+  return <AgentActionBoundary key={JSON.stringify([cacheIdentity, props.agentId])}><HostedAgentOwnerPanelContent {...props} /></AgentActionBoundary>;
+}

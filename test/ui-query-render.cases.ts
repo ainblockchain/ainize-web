@@ -1,3 +1,5 @@
+import { AgentActionBoundary } from '../src/components/agent/AgentActionBoundary';
+import { createAgentActionScope } from '../src/lib/agentActionScope';
 import { AgentVisibilityControl } from '../src/components/agent/AgentVisibilityControl';
 import { LinkedAgentOwnerPanel } from '../src/screens/agent/LinkedAgentOwnerPanel';
 import { AccountWalletSendHistory, WalletSendHistoryList, WalletSendHistoryDetail } from '../src/components/operator/AccountWalletSendHistory';
@@ -4280,4 +4282,33 @@ test('unknown sharing metadata is not shown as public or initialized into an edi
   const html = render(Page, appAccount, '/agent/chosen');
   assert.match(html, /Not verified/); assert.match(html, /agent-visibility-change/);
   assert.doesNotMatch(html, /Now: Public|agent-visibility-save|every agent on it is public/);
+});
+
+
+test('page-level management feedback survives a missing owner panel and names the original operation', () => {
+  const scope = createAgentActionScope(); scope.begin('sharing', 'original-agent')!.finish('unconfirmed');
+  const html = render(() => createElement(AgentActionBoundary, { scope, children: createElement('div', null, 'Catalogue no longer lists this agent') }), appAccount);
+  assert.match(html, /agent-action-status/); assert.match(html, /original-agent/); assert.match(html, /sharing change/);
+  assert.match(html, /does not prove completion/);
+});
+
+test('remounted linked controls retain the unknown alias lock and offer read-only address inspection', () => {
+  const scope = createAgentActionScope(); scope.begin('alias', 'chosen')!.finish('unconfirmed');
+  const html = render(() => createElement(AgentActionBoundary, { scope, children: createElement(LinkedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Chosen', owner: 'sso:viewer' }) }), appAccount);
+  assert.equal((html.match(/data-testid="agent-action-status"/g) ?? []).length, 1, 'nested panels share one status');
+  assert.doesNotMatch(html, /data-testid="linked-agent-edit"|data-testid="agent-alias-change"/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="linked-agent-unlink"/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="agent-visibility-change"/);
+  assert.match(html, /agent-alias-unconfirmed/); assert.match(html, /Check current address/);
+  assert.doesNotMatch(html, /<fieldset disabled=""/, 'read-only recovery is not disabled by an ancestor fieldset');
+});
+
+test('remounted hosted controls preserve an unknown sharing result while logs stay available', () => {
+  const scope = createAgentActionScope(); scope.begin('sharing', 'chosen')!.finish('unconfirmed');
+  const html = render(() => createElement(AgentActionBoundary, { scope, children: createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Chosen', owner: 'sso:viewer' }) }), appAccount);
+  assert.doesNotMatch(html, /data-testid="hosted-agent-edit"/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="hosted-agent-delete"/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="agent-alias-change"/);
+  assert.match(html, /agent-visibility-unconfirmed/); assert.match(html, /Check current visibility/);
+  assert.match(html, /<button(?![^>]*disabled)[^>]*data-testid="hosted-agent-logs-toggle"/);
 });

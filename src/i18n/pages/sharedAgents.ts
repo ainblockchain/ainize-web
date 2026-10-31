@@ -53,6 +53,14 @@ export const sharedAgents: Dict = {
   'sharing.owner.reload': { ko: '초안을 버리고 최신 설정 가져오기', en: 'Discard draft and load latest settings' },
 
   // ── the owner's "Address name" (agent alias) control on the agent page
+  'agentAction.alias': { ko: '주소 이름 변경', en: 'address change' },
+  'agentAction.sharing': { ko: '공유 설정 변경', en: 'sharing change' },
+  'agentAction.unlink': { ko: '등록 해제', en: 'unlink' },
+  'agentAction.delete': { ko: '삭제', en: 'deletion' },
+  'agentAction.pending': { ko: '{id} · {action}을 확인·처리 중입니다.', en: '{id} · Checking and processing {action}.' },
+  'agentAction.unconfirmed': { ko: '{id} · {action} 결과를 확인하지 못했습니다. 이 화면의 주소·공유 설정 변경과 삭제·등록 해제를 막았습니다. 목록에서 보이거나 사라진 것만으로 완료 여부를 판단할 수 없습니다.', en: '{id} · The {action} outcome is unconfirmed. Address, sharing, delete and unlink controls in this view are blocked. Presence or absence in the list does not prove completion.' },
+  'agentAction.cleanup': { ko: '{id} · 삭제가 일부 진행됐습니다. 현재 상태를 다시 확인한 뒤 정리를 계속할 수 있습니다.', en: '{id} · Deletion is partially complete. Check the current state before continuing cleanup.' },
+  'agentAction.complete': { ko: '{id} · {action} 완료 응답을 확인했습니다.', en: '{id} · A matching completion response for {action} was verified.' },
   'agentAlias.title': { ko: '주소 이름', en: 'Address name' },
   'agentAlias.none': { ko: '없음 — 식별자로만 열립니다', en: 'None — opened by its id only' },
   'agentAlias.set': { ko: '정하기', en: 'Set' },

@@ -21,14 +21,15 @@ export function agentDeletionComplete(raw: unknown, id: string): boolean {
 }
 /** Per-view exclusion. A lost response is not evidence of failure or permission to repeat deletion. */
 export function createHostedAgentDeletion() {
-  let busy = false, unknown = false, started = false;
+  let busy = false, unknown = false, started = false, confirmed = false;
   return {
     blocked: () => busy || unknown,
     started: () => started,
+    confirmed: () => confirmed,
     uncertain: () => unknown,
     async run(target: AgentDeletionTarget, io: { read: () => Promise<unknown>; send: (request: AgentDeletionRequest) => Promise<unknown>; active: () => boolean }) {
       if (busy || unknown || !io.active()) return false;
-      busy = true; let dispatched = false;
+      busy = true; confirmed = false; let dispatched = false;
       try {
         const fresh = await io.read();
         if (!io.active()) return false;
@@ -37,6 +38,7 @@ export function createHostedAgentDeletion() {
         dispatched = true; started = true;
         const receipt = await io.send(request);
         if (!agentDeletionComplete(receipt, target.id)) throw new AgentDeletionError('unconfirmed');
+        confirmed = true;
         return io.active();
       } catch (error) {
         const e = error as { status?: unknown; data?: { error?: { code?: unknown } } } | null;

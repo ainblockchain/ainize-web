@@ -134,15 +134,6 @@ export function agentMatchesParam(agent: { id: string; alias?: string | null }, 
   return agent.id === param || (!!param && agentAliasOf(agent) === param);
 }
 
-/**
- * Where the agent page should move the URL bar: to `/agent/<alias>` when the page was opened by id (or an old
- * alias) and the agent has an alias, so the readable address is the one people copy. `null` when it is already there.
- */
-export function agentPageRedirect(param: string, agent: AgentAddress | null): string | null {
-  const alias = agent ? agentAliasOf(agent) : null;
-  return alias && alias !== param ? agentPagePath(agent!) : null;
-}
-
 /** The node's alias rule — the id rule (ainize-node `LINKED_AGENT_ID`). */
 export const AGENT_ALIAS_PATTERN = AGENT_ID_RULE;
 
