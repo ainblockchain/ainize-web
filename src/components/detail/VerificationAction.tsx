@@ -14,7 +14,7 @@ import { knowledgePath } from '@/lib/detailRoutes';
 import { LoadKnowledgeError, requireRuntimeOperator, runtimeGuardFailure } from '@/lib/loadKnowledge';
 import { followRuntimeOperation, RuntimeOperationError, type RuntimePhase } from '@/lib/runtimeOperation';
 import { claimVerification, clearVerification, confirmVerification, prepareVerification, readVerification, reviewVerification,
-  reviewVerificationRecovery, sameVerificationReview, saveVerificationJob, verificationOperationKey, verificationRequest, verificationResultKind,
+  reviewVerificationRecovery, sameVerificationReview, saveVerificationJob, verificationOperationKey, verificationRequest, verificationResultKind, verificationTarget,
   VerificationActionError, type VerificationOperation, type VerificationReview, type VerificationRecoveryReview } from '@/lib/verificationOperation';
 
 const storage = () => { try { return window.localStorage; } catch { throw new RuntimeOperationError('storage'); } };
@@ -25,7 +25,7 @@ const supported = (raw: unknown) => !!raw && typeof raw === 'object' && 'verific
 export function VerificationAction({ detail }: { detail: PatchDetail }) {
   const auth = useAuth(), location = useLocation();
   if (auth.loading || !auth.isOwner) return null;
-  const key = JSON.stringify([auth.cacheIdentity, auth.address, location.pathname, location.search, detail.anchor]);
+  const key = JSON.stringify([auth.cacheIdentity, auth.address, location.pathname, location.search, verificationTarget(detail.anchor)]);
   return <VerificationActionView key={key} detail={detail} />;
 }
 export function VerificationResult({ attestation }: { attestation: Attestation }) {
