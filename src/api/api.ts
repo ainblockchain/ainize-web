@@ -231,8 +231,8 @@ export const api = createApi({
       query: (body) => ({ url: `api/hosted-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, a) => ['Agents', { type: 'HostedAgent', id: a.id }],
     }),
-    deleteHostedAgent: b.mutation<unknown, string>({
-      query: (id) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Agents', 'HostedAgent'],
+    deleteHostedAgent: b.mutation<unknown, import('../lib/hostedAgentDeletion').AgentDeletionRequest>({
+      query: ({ id, expected }) => ({ url: `api/hosted-agents/${encodeURIComponent(id)}`, method: 'DELETE', body: { expected } }), invalidatesTags: ['Agents', 'HostedAgent'],
     }),
     /** A secret's value goes on its own request, after the spec: the spec is readable by its owner, a value never is. */
     setHostedAgentSecret: b.mutation<unknown, { id: string; name: string; value: string }>({
@@ -693,7 +693,7 @@ export const {
   useCatalogSnapshotQuery,
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useInspectKeyCreationMutation, useSubmitKeyCreationMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, useManagedPatchQuery, useManagedCatalogQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
-  useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
+  useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery, useLazyHostedAgentQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,

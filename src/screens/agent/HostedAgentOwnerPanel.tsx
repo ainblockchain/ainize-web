@@ -13,7 +13,8 @@ import { useActiveView } from '@/hooks/useActiveView';
 import { useAuth } from '@/auth/AuthContext';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
-import { useDeleteHostedAgentMutation, useHostedAgentLogsQuery } from '@/api/api';
+import { useDeleteHostedAgentMutation, useHostedAgentLogsQuery, useLazyHostedAgentQuery } from '@/api/api';
+import { AgentDeletionError, createHostedAgentDeletion, isAgentCleanupPending } from '@/lib/hostedAgentDeletion';
 import { hostedAgentApiErrorOf, parseHostedAgentLogsResponse } from '@/api/hostedAgents';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
@@ -39,11 +40,13 @@ const HostedAgentOwnerLogs = styled.pre`
  * `canAdminister` is false for an organization member who may edit the agent but not delete it or change who sees
  * it (ainize-node: those stay with the owner and the organization's admins); the panel then offers edit and logs only.
  */
-export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null, canAdminister = true, isCreator = false }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean; isCreator?: boolean }) {
+export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibility = null, orgId = null, canAdminister = true, isCreator = false, cleanupPending = false }: { agentId: string; agentName: string; alias?: string | null; visibility?: AgentVisibility | null; orgId?: string | null; canAdminister?: boolean; isCreator?: boolean; cleanupPending?: boolean }) {
   const { t } = useT();
   const navigate = useNavigate();
   const active = useActiveView();
-  const pending = useRef(false);
+  const deletion = useRef(createHostedAgentDeletion()).current;
+  const [deleting, setDeleting] = useState(false);
+  const [readAgent] = useLazyHostedAgentQuery();
   const { cacheIdentity } = useAuth();
   const [logsOpen, setLogsOpen] = useState(false);
   const logs = useHostedAgentLogsQuery({ id: agentId, identity: cacheIdentity }, { skip: !logsOpen });
@@ -52,18 +55,22 @@ export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibi
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const remove = async () => {
-    if (pending.current || !active()) return;
+    if (deletion.blocked() || !canAdminister || !active()) return;
     if (!window.confirm(t('agentOwner.delete_confirm', { name: agentName }))) return;
     setDeleteError(null);
-    pending.current = true;
+    setDeleting(true);
     try {
-      await deleteAgent(agentId).unwrap();
-      if (active()) navigate('/explore?kind=agent');
+      const done = await deletion.run({ id: agentId, name: agentName }, {
+        read: () => readAgent({ id: agentId, identity: cacheIdentity }, false).unwrap(),
+        send: request => deleteAgent(request).unwrap(), active,
+      });
+      if (done) navigate('/explore?kind=agent');
     } catch (err) {
       if (!active()) return;
       const e = hostedAgentApiErrorOf(err);
-      setDeleteError(e.message ?? t(`agentCreate.api.${e.code}`));
-    } finally { pending.current = false; }
+      setDeleteError(deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
+        : err instanceof AgentDeletionError ? t('agentOwner.delete_changed') : e.message ?? t(`agentCreate.api.${e.code}`));
+    } finally { if (active()) setDeleting(false); }
   };
 
   return (
@@ -71,7 +78,7 @@ export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibi
       <h3>{t('agentOwner.title')}</h3>
       <Description>{t('agentOwner.lede')}</Description>
       <HostedAgentOwnerRow>
-        <StyledLink to={`/agent/${encodeURIComponent(agentId)}/edit`} data-testid="hosted-agent-edit">{t('agentOwner.edit')}</StyledLink>
+        {!cleanupPending && !deleting && !deletion.started() && <StyledLink to={`/agent/${encodeURIComponent(agentId)}/edit`} data-testid="hosted-agent-edit">{t('agentOwner.edit')}</StyledLink>}
         <Button size="small" variant="outlined" onClick={() => setLogsOpen((o) => !o)} data-testid="hosted-agent-logs-toggle">
           {logsOpen ? t('agentOwner.logs_hide') : t('agentOwner.logs_show')}
         </Button>
@@ -81,16 +88,19 @@ export function HostedAgentOwnerPanel({ agentId, agentName, alias = null, visibi
           </Button>
         )}
         {canAdminister && (
-          <Button size="small" variant="text" color="secondary" loading={deleteState.isLoading} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
-            {t('agentOwner.delete')}
+          <Button size="small" variant="text" color="secondary" loading={deleting || deleteState.isLoading} disabled={deletion.blocked()} onClick={() => { void remove(); }} data-testid="hosted-agent-delete">
+            {t(cleanupPending || deletion.started() && !deletion.uncertain() ? 'agentOwner.delete_resume' : 'agentOwner.delete')}
           </Button>
         )}
       </HostedAgentOwnerRow>
-      {deleteError && <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.delete_failed', { why: deleteError })}</Alert>}
+      {deleteError && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{deleteError}</Alert>}
+      {cleanupPending && !deleteError && <Alert $tone="error" role="status">{t('agentOwner.delete_pending')}</Alert>}
+      {!cleanupPending && !deleting && !deletion.started() && <>
       <AgentAliasControl agentId={agentId} agentName={agentName} alias={alias} />
       {isCreator && <AinftRegistrationPanel agentId={agentId} />}
       {isCreator && <AinftCommunityPanel agentId={agentId} />}
       {canAdminister && <AgentVisibilityControl agentId={agentId} visibility={visibility} orgId={orgId} />}
+      </>}
       {logsOpen && (
         logs.error
           ? <Alert $tone="error" style={{ marginTop: 12 }}>{t('agentOwner.logs_failed', { why: hostedAgentApiErrorOf(logs.error).message ?? String(hostedAgentApiErrorOf(logs.error).status ?? '') })}</Alert>

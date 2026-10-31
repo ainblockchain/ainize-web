@@ -1,8 +1,10 @@
 import { AgentArchivePanel } from './agent/AgentArchivePanel';
 /** Own and manageable agents, including private linked records outside the public catalogue. */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useActiveView } from '@/hooks/useActiveView';
+import { AgentDeletionError, createHostedAgentDeletion, isAgentCleanupPending } from '@/lib/hostedAgentDeletion';
 import styled from 'styled-components';
-import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery, useMyLinkedAgentsQuery } from '@/api/api';
+import { useAgentsQuery, useDeleteHostedAgentMutation, useDeleteLinkedAgentMutation, useManageableHostedAgentsQuery, useMyLinkedAgentsQuery, useLazyHostedAgentQuery } from '@/api/api';
 import { isLinkedAgentRow, linkedAgentApiErrorOf, viewerPrincipals } from '@/api/linkedAgents';
 import { myAgentRows, parseMyLinkedAgents } from '@/api/myAgents';
 import { signInHref } from '@/lib/uiNavigation';
@@ -59,18 +61,28 @@ function MyAgentsContent() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteLinked] = useDeleteLinkedAgentMutation();
   const [deleteHosted] = useDeleteHostedAgentMutation();
+  const [readHosted] = useLazyHostedAgentQuery();
+  const active = useActiveView();
+  const pending = useRef(false);
+  const deletion = useRef(createHostedAgentDeletion()).current;
   const [error, setError] = useState<string | null>(null);
 
   const remove = async (agent: AgentSummary) => {
-    if (deleting || !window.confirm(t('myAgents.delete_confirm', { name: agent.name }))) return;
+    if (pending.current || deletion.blocked() || !active() || !window.confirm(t('myAgents.delete_confirm', { name: agent.name }))) return;
+    pending.current = true;
     setDeleting(agent.id); setError(null);
     try {
       if (isLinkedAgentRow(agent)) await deleteLinked(agent.id).unwrap();
-      else await deleteHosted(agent.id).unwrap();
+      else await deletion.run({ id: agent.id, name: agent.name, owner: agent.owner }, {
+        read: () => readHosted({ id: agent.id, identity: cacheIdentity }, false).unwrap(),
+        send: request => deleteHosted(request).unwrap(), active,
+      });
     } catch (err) {
+      if (!active()) return;
       const e = linkedAgentApiErrorOf(err);
-      setError(t('myAgents.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
-    } finally { setDeleting(null); }
+      setError(deletion.uncertain() ? t('agentOwner.delete_unknown') : isAgentCleanupPending(err) ? t('agentOwner.delete_pending')
+        : err instanceof AgentDeletionError ? t('agentOwner.delete_changed') : t('myAgents.delete_failed', { why: e.message ?? t(`agentLink.api.${e.code}`) }));
+    } finally { pending.current = false; if (active()) setDeleting(null); }
   };
 
   return (
@@ -103,6 +115,7 @@ function MyAgentsContent() {
                 </MyAgentsChip>
               </MyAgentsHead>
               {agent.description && <Description style={{ margin: 0 }}>{agent.description}</Description>}
+              {!!agent.deletion_requested_at && <Alert $tone="error" role="status">{t('agentOwner.delete_pending')}</Alert>}
               <MyAgentsRow>
                 <span>{t('myAgents.address')}:</span>
                 <Mono>{agent.a2a_url}</Mono>
@@ -110,9 +123,9 @@ function MyAgentsContent() {
               </MyAgentsRow>
               <MyAgentsRow>
                 <StyledLink to={agentPagePath(agent)}>{t('myAgents.open')}</StyledLink>
-                {canEdit && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
+                {canEdit && !agent.deletion_requested_at && <StyledLink to={linked ? `/agent/${encodeURIComponent(agent.id)}/link` : `/agent/${encodeURIComponent(agent.id)}/edit`}>{t('myAgents.edit')}</StyledLink>}
                 <ExternalLink href={agent.card_url} target="_blank" rel="noreferrer">agent-card.json</ExternalLink>
-                {canDelete && <Button size="small" variant="text" color="secondary" disabled={!!deleting} loading={deleting === agent.id} onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t('myAgents.delete')}</Button>}
+                {canDelete && <Button size="small" variant="text" color="secondary" disabled={!!deleting || deletion.blocked()} loading={deleting === agent.id} onClick={() => void remove(agent)} data-testid={`my-agent-delete-${agent.id}`}>{t(agent.deletion_requested_at ? 'agentOwner.delete_resume' : 'myAgents.delete')}</Button>}
               </MyAgentsRow>
             </MyAgentsItem>
           );

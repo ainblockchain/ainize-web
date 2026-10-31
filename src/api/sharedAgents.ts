@@ -415,6 +415,7 @@ export function agentSummaryFromHostedSpecResponse(raw: unknown, origin: string)
     kind: mode,
     owner: typeof inner.owner === 'string' ? foldOwner(inner.owner) : null,
     status: oneOf(['building', 'ready', 'failed'] as const, inner.status),
+    deletion_requested_at: typeof inner.deletion_requested_at === 'number' && Number.isFinite(inner.deletion_requested_at) && inner.deletion_requested_at > 0 ? inner.deletion_requested_at : null,
     visibility: agentVisibilityOf(inner),
     org_id: agentOrgIdOf(inner),
     alias: agentAliasOf(inner),

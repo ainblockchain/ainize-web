@@ -1783,6 +1783,12 @@ test('AINFT binding reads show recovery, isolate accounts and distinguish explic
   assert.doesNotMatch(empty, /ainft-binding|Checking AINFT connection|Try again/);
 });
 
+test('pending agent cleanup offers continuation without edit, sharing or creator mutation controls', () => {
+  const html = render(() => createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Agent', isCreator: true, cleanupPending: true }), appAccount);
+  assert.match(html, /Resume deletion/); assert.match(html, /runtime cleanup is incomplete/);
+  assert.doesNotMatch(html, /hosted-agent-edit|ainft-registration|ainft-community/);
+});
+
 test('agent editors and organization admins do not receive creator-only NFT registration controls', () => {
   for (const canAdminister of [false, true]) {
     const html = render(() => createElement(HostedAgentOwnerPanel, { agentId: 'chosen', agentName: 'Agent', canAdminister, isCreator: false }), appAccount);

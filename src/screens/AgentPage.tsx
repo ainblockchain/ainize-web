@@ -236,9 +236,9 @@ function AgentDetail() {
   const ownsIt = localHosted && isHostedAgentOwnedBy(hosted.owner, principals);
   // An organization member may edit an agent shared with the organization without owning it (ainize-node: `write`
   // members edit; delete and sharing stay with the owner and admins). The manageable list says which.
-  const manageable = useManageableHostedAgentsQuery(cacheIdentity, { skip: !isSignedIn || !localHosted || ownsIt });
+  const manageable = useManageableHostedAgentsQuery(cacheIdentity, { skip: !isSignedIn || !localHosted });
   const managedRow = useMemo(() => (parseManageableHostedAgents(manageable.error ? undefined : manageable.currentData, window.location.origin) ?? []).find((m) => m.agent.id === agent?.id) ?? null, [manageable.currentData, manageable.error, agent?.id]);
-  const managesIt = localHosted && !ownsIt && !!managedRow?.canManage;
+  const managesIt = localHosted && !ownsIt && !!(managedRow?.canManage || managedRow?.canDelete);
   const linkedNote = (location.state as { linkedNote?: unknown } | null)?.linkedNote;
   const [article, setArticle] = useState('');
   const endpoints = agent ? agentEndpoints(agent) : null;
@@ -551,7 +551,7 @@ function AgentDetail() {
 
       {localHosted && <AinftBindingPanel agentId={agent.id} />}
       {localHosted && <AinftCompanionPanel agentId={agent.id} />}
-      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} isCreator={ownsIt} />}
+      {(ownsIt || managesIt) && <HostedAgentOwnerPanel agentId={agent.id} agentName={agent.name} alias={agentAliasOf(agent)} visibility={visibility} orgId={orgId} canAdminister={ownsIt || !!managedRow?.canDelete} isCreator={ownsIt} cleanupPending={!!(managedRow?.agent.deletion_requested_at || agent.deletion_requested_at)} />}
       {/* The history is shown to anyone who can see the agent, not only to whoever owns it: how an agent
           reached its current behaviour is the thing somebody deciding whether to import it wants to read. The
           node answers 404 to a caller who may not see the agent, and the panel draws nothing in that case. */}

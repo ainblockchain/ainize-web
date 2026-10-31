@@ -989,6 +989,8 @@ export interface AgentSkill {
   examples: string[];
 }
 export interface AgentSummary {
+  /** A durable cleanup request; the agent must not offer new mutations while it is pending. */
+  deletion_requested_at?: number | null;
   id: string;
   name: string;
   description: string | null;
