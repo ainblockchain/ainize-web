@@ -70,6 +70,9 @@ import LogsPage from '../src/screens/LogsPage';
 import { NodeLogs } from '../src/screens/NodeLogsPage';
 import { EventLog } from '../src/components/operator/EventLog';
 import { trackAuthor } from './fixtures/track';
+import { VerificationWork } from '../src/components/operator/VerificationWork';
+import { DashboardContent } from '../src/screens/DashboardPage';
+import { dashboardEntry, dashboardAttest, verificationPayment } from './fixtures/dashboard';
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
   reducer: { [api.reducerPath]: api.reducer },
@@ -101,6 +104,67 @@ const signedOut: Fixture[] = [
   { name: 'ssoStatus', value: { configured: true } },
 ];
 const policy: Fixture = { name: 'teachPolicy', value: { enabled: false, trainer: 'paused' } };
+
+const verificationFixtures: Fixture[] = [
+  { name: 'ledger', arg: { kind: 'attest', limit: 5000 }, value: ledgerFixture([dashboardAttest()]) },
+  { name: 'wallet', arg: { identity: '' }, value: { verification: [] } },
+];
+test('verification failures cannot look like zero work or zero earnings and recover independently', () => {
+  const html = render(() => createElement(VerificationWork, { address: trackAuthor }), [...signedOut, ...verificationFixtures.map(f => ({ ...f, status: 'rejected' as const }))], '/dashboard');
+  assert.equal((html.match(/data-testid="query-retry"/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /Verifications signed|No verification payment records|0 AIN/);
+  const loaded = render(() => createElement(VerificationWork, { address: trackAuthor }), [...signedOut, ...verificationFixtures.map(f => f.name === 'wallet' ? { ...f, status: 'rejected' as const } : f)], '/dashboard');
+  assert.match(loaded, /Verifications signed/); assert.match(loaded, /query-retry/);
+  assert.doesNotMatch(loaded, /No verification payment records/);
+});
+
+test('verification card labels the returned window rather than all-time totals and retains zero-work payment records', () => {
+  const fixture = ledgerFixture([]); fixture.info.records = 20000;
+  const html = render(() => createElement(VerificationWork, { address: trackAuthor }), [...signedOut,
+    { ...verificationFixtures[0], value: fixture },
+    { ...verificationFixtures[1], value: { verification_total: '9999', verification: [verificationPayment('2', 'AIN', 'pending'), verificationPayment('3', 'USDC', 'paid', 'seller_reported')] } },
+  ], '/dashboard');
+  assert.match(html, /window of up to 5,000/); assert.match(html, /20,000 records across all kinds/);
+  assert.match(html, /2 AIN/); assert.match(html, /Payment pending/); assert.match(html, /3 USDC/); assert.match(html, /Reported by seller/);
+  assert.doesNotMatch(html, /9999|Across the whole record|Every number here is read from signed/);
+});
+
+test('verification money waits for the current account and does not infer empty values from a legacy response', () => {
+  const stale = render(() => createElement(VerificationWork, { address: trackAuthor }), [...signedOut, verificationFixtures[0],
+    { name: 'wallet', value: { verification: [verificationPayment('88')] } },
+    { name: 'wallet', arg: { identity: 'another-owner' }, value: { verification: [verificationPayment('99')] } },
+  ], '/dashboard');
+  assert.doesNotMatch(stale, /88 AIN|99 AIN|No verification payment records/);
+  const malformed = render(() => createElement(VerificationWork, { address: trackAuthor }), [...signedOut, verificationFixtures[0], { ...verificationFixtures[1], value: { verification_total: '0' } }], '/dashboard');
+  assert.match(malformed, /query-retry/); assert.doesNotMatch(malformed, /No verification payment records/);
+});
+
+const inventoryFixtures: Fixture[] = [
+  { name: 'myPatches', arg: { identity: '' }, value: { items: [dashboardEntry('selected/a?#')] } },
+  { name: 'myPurchases', value: { items: [] } },
+  { name: 'branches', value: { branches: [], mine: [] } },
+  { name: 'runtime', value: { available: false } },
+];
+test('small inventories retain search and sorting, show paid sales and encode exact action destinations', () => {
+  const html = render(DashboardContent, [...signedOut, ...inventoryFixtures], '/dashboard');
+  assert.match(html, /dash-search/); assert.match(html, /Most sales/);
+  assert.match(html, /4 benchmark questions/);
+  const entry = dashboardEntry('legacy');
+  const legacy = render(DashboardContent, [...signedOut, ...inventoryFixtures.map(f => f.name === 'myPatches' ? { ...f, value: { items: [{ ...entry, anchor: { ...entry.anchor, benchmark: { schema: 'qa', queries: [{ prompt: 'Q', expect: 'A' }, { prompt: 'Q2', expect: 'A2' }] } } }] } } : f)], '/dashboard');
+  assert.match(legacy, /2 benchmark questions/);
+  assert.match(html, /href="\/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\/selected%2Fa%3F%23"/);
+  assert.match(html, /data-testid="dash-sales"[^>]*>1 ·/);
+  assert.doesNotMatch(html, /data-testid="dash-sales"[^>]*>100 ·/);
+});
+
+test('inventory failures and foreign account caches do not masquerade as an empty collection', () => {
+  const html = render(DashboardContent, [...signedOut, ...inventoryFixtures.map(f => f.name === 'myPatches' ? { ...f, status: 'rejected' as const } : f)], '/dashboard');
+  assert.match(html, /query-retry/); assert.doesNotMatch(html, /data-testid="dash-sales"/);
+  const foreign = render(DashboardContent, [...signedOut, ...inventoryFixtures.map(f => f.name === 'myPatches' ? { ...f, arg: { identity: 'other' } } : f)], '/dashboard');
+  assert.doesNotMatch(foreign, /data-testid="dash-sales"|No knowledge yet/);
+  const malformed = render(DashboardContent, [...signedOut, ...inventoryFixtures.map(f => f.name === 'myPatches' ? { ...f, value: { items: [{}] } } : f)], '/dashboard');
+  assert.match(malformed, /query-retry/); assert.doesNotMatch(malformed, /data-testid="dash-sales"/);
+});
 
 const logRow = { seq: 1, ts: 100, level: 'warn' as const, kind: 'verify', patch_id: 'selected', message: 'Selected event message', data: null };
 const logPath = `/project/${trackAuthor}/selected/logs`;

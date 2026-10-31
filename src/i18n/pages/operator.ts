@@ -81,16 +81,30 @@ export const operatorSign: Dict = {
 
 export const operatorDash: Dict = {
   // Item 335: the console showed verification as no work at all — 203 attestations under "No knowledge yet".
+  'op.dash.questions': { ko: '검증 질문 {n}개', en: '{n} benchmark questions' },
+  'op.dash.verify.title': { ko: '검증 실적', en: 'Verification activity' },
+  'op.dash.verify.window': { ko: '검증 집계는 최신 최대 {limit}건 중 조회한 {shown}건 기준입니다. 전체 종류의 원장 기록은 {total}건입니다.', en: 'Verification counts use {shown} returned records from a window of up to {limit}. The ledger contains {total} records across all kinds.' },
+  'op.dash.verify.records': { ko: '공개 기록 보기', en: 'View public records' },
+  'op.dash.verify.payments': { ko: '검증 정산 기록', en: 'Verification payments' },
+  'op.dash.verify.no_payments': { ko: '조회된 검증 정산 기록이 없습니다.', en: 'No verification payment records returned.' },
+  'op.dash.verify.payment.credited': { ko: '노드 크레딧 적립', en: 'Credited locally' },
+  'op.dash.verify.payment.paid': { ko: '지급됨', en: 'Paid' },
+  'op.dash.verify.payment.pending': { ko: '지급 대기', en: 'Payment pending' },
+  'op.dash.verify.payment.failed': { ko: '지급 실패', en: 'Payment failed' },
+  'op.dash.verify.payment.unconfirmed': { ko: '지급 미확인', en: 'Payment unconfirmed' },
+  'op.dash.verify.evidence.record': { ko: '서명된 지급 기록', en: 'Signed payout record' },
+  'op.dash.verify.evidence.seller_reported': { ko: '판매자 보고 기준', en: 'Reported by seller' },
+  'op.dash.verify.evidence.unknown': { ko: '확인 근거 없음', en: 'Evidence unavailable' },
   'op.dash.verify.attested': { ko: '검증 서명', en: 'Verifications signed' },
   'op.dash.verify.passed': { ko: '합격 판정', en: 'Passed' },
   'op.dash.verify.failed': { ko: '불합격 판정', en: 'Failed' },
   'op.dash.verify.hash': { ko: '무결성만 확인', en: 'Integrity only' },
-  'op.dash.verify.hash_help': { ko: '모델을 돌리지 못해 파일 해시만 확인한 검증입니다. 정족수에는 들어가지 않습니다.', en: 'Verifications that could only check the file hash because no model was available — they do not count toward a quorum.' },
+  'op.dash.verify.hash_help': { ko: '파일 무결성만 확인한 기록입니다. 모델 실행 결과가 아니며 정족수에 들어가지 않습니다.', en: 'File-integrity checks, not model execution results. These do not count toward a quorum.' },
   'op.dash.verify.knowledges': { ko: '검증한 지식', en: 'Knowledge checked' },
   'op.dash.verify.earned': { ko: '검증으로 받은 몫', en: 'Earned by verifying' },
   'op.dash.verify.earned_help': { ko: '이 노드의 검증 덕분에 팔린 지식에서 받은 몫의 합계입니다.', en: 'The share of other people’s sales this node earned by keeping their knowledge verified.' },
-  'op.dash.verify.network': { ko: '이 노드가 읽는 기록 전체에는 검증 {total}건이 있고 그중 {failed}건이 불합격이었습니다.', en: 'Across the whole record this node reads, {total} verifications were written and {failed} of them failed.' },
-  'op.dash.verify.note': { ko: '모두 공개 기록에 서명으로 남은 값입니다. GPU 시간은 아직 기록하지 않아 여기에 나오지 않습니다.', en: 'Every number here is read from signed records on the public ledger. GPU time is not recorded yet, so it is not shown.' },
+  'op.dash.verify.network': { ko: '조회한 검증 {total}건 중 {failed}건이 불합격 판정입니다.', en: 'Of the {total} returned verification records, {failed} report failure.' },
+  'op.dash.verify.note': { ko: '정산 금액은 통화와 지급 상태별로 표시합니다. 판매자 보고와 서명된 지급 기록은 구분합니다.', en: 'Payments are separated by currency and status. Seller reports and signed payout records are labeled separately.' },
   'op.dash.title': { ko: '내 지식', en: 'My knowledge' },
   'op.dash.register': { ko: '등록하기', en: 'Register knowledge' },
   'op.dash.col.name': { ko: '이름', en: 'Name' },
@@ -143,7 +157,7 @@ export const operatorDash: Dict = {
   // Item 194: the sale price is not what reached the seller. A derivative that shares 65 % upstream showed the
   // buyer's 10 next to a balance that went up by 3.5.
   'op.dash.sales.net': { ko: '{revenue} 중 내 몫 {net} · 원작자 몫 {shared}', en: '{net} of {revenue} reached you · {shared} to the creators it was built on' },
-  'op.dash.sales.hint': { ko: '판매 건수 · 누적 수익', en: 'sales count · total revenue' },
+  'op.dash.sales.hint': { ko: '유상 판매 건수(무료·본인 거래 제외) · 누적 수익. 집계가 없으면 —로 표시합니다.', en: 'Paid sales excluding free and self transactions · total revenue. Unavailable counts appear as —.' },
   'op.dash.empty': { ko: '아직 등록한 지식이 없습니다. 첫 지식을 등록해 보세요.', en: 'No knowledge yet — register your first one.' },
   // Finding 31 — the inventory grew past a screenful (103 rows, 28 of them sharing one name) with no way to search,
   // narrow, order or count it. The same controls /explore already uses, over the operator's own list.

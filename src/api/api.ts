@@ -475,9 +475,9 @@ export const api = createApi({
     }),
 
     // operator
-    myPatches: b.query<{ items: CatalogEntry[] }, void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
+    myPatches: b.query<{ items: CatalogEntry[] }, { identity: string } | void>({ query: () => 'api/me/patches', providesTags: ['Me', 'Catalog'] }),
     myPurchases: b.query<{ items: PurchaseRow[] }, void>({ query: () => 'api/me/purchases', providesTags: ['Me', 'Catalog'] }),
-    wallet: b.query<WalletResponse, void>({ query: () => 'api/me/wallet', providesTags: ['Me', 'Ledger'] }),
+    wallet: b.query<WalletResponse, { identity: string } | void>({ query: () => 'api/me/wallet', providesTags: ['Me', 'Ledger'] }),
     createPatch: b.mutation<{ anchor: PatchAnchor }, FormData>({ query: (body) => ({ url: 'api/patches', method: 'POST', body }), invalidatesTags: ['Catalog', 'Me'] }),
     updatePatch: b.mutation<{ anchor: PatchAnchor }, { id: string; patch: Partial<PatchAnchor> }>({ query: ({ id, patch }) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'PATCH', body: patch }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me'] }),
     deletePatch: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Catalog', 'Me'] }),
