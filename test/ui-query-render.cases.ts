@@ -1,3 +1,5 @@
+import { AccountPeers } from '../src/components/operator/AccountPeers';
+import { AccountRuntime } from '../src/components/operator/AccountRuntime';
 import { AccountSettings } from '../src/components/operator/AccountSettings';
 import AccountPage from '../src/screens/AccountPage';
 import { newPatchDraftKey } from '../src/lib/newPatchDraft';
@@ -1723,5 +1725,30 @@ test('settings failed, malformed or foreign cached reads cannot turn into a blan
     const html = render(() => createElement(AccountSettings, { address: walletAddress }), [...appAccount, fixture], '/account');
     assert.doesNotMatch(html, /account-settings-form|Foreign saved name/);
     if (fixture.arg.identity === accountIdentity) { assert.match(html, /query-error/); assert.match(html, /query-retry/); }
+  }
+});
+
+
+const operatorPeerFixture = () => ({ self: 'self', nodes: [], peers: [{ endpoint: 'https://selected-peer.example', address: null, info: null, last_seen: 0, failures: 1 }] });
+test('account peers distinguish a failed or malformed read from an empty list and explain blocking', () => {
+  const fixture = { name: 'nodes', arg: { identity: accountIdentity }, value: operatorPeerFixture() };
+  const good = render(AccountPeers, [...appAccount, fixture], '/account');
+  assert.match(good, /https:\/\/selected-peer.example/); assert.match(good, /Block connection/);
+  for (const override of [{ status: 'rejected' as const }, { value: { ...operatorPeerFixture(), peers: [null] } }]) {
+    const html = render(AccountPeers, [...appAccount, { ...fixture, ...override }], '/account');
+    assert.match(html, /query-error/); assert.match(html, /query-retry/); assert.doesNotMatch(html, /selected-peer.example|Block connection/);
+  }
+  const foreign = render(AccountPeers, [...appAccount, { ...fixture, arg: { identity: 'someone else' } }], '/account');
+  assert.doesNotMatch(foreign, /selected-peer.example|Block connection/);
+});
+test('account runtime has failed-read recovery and disables inference when the model is unavailable', () => {
+  const fixture = { name: 'runtime', arg: { identity: accountIdentity }, value: { available: true, hook: false, model: 'Exact runtime model', api: 'runtime endpoint', applied: [] } };
+  const good = render(AccountRuntime, [...appAccount, fixture], '/account');
+  assert.match(good, /Exact runtime model/); assert.match(good, /up to 16 tokens/); assert.match(good, /maxLength="2000"/i);
+  const stopped = render(AccountRuntime, [...appAccount, { ...fixture, value: { ...fixture.value, available: false } }], '/account');
+  assert.match(stopped, /<button[^>]*disabled=""[^>]*>Ask<\/button>/);
+  for (const override of [{ status: 'rejected' as const }, { value: { ...fixture.value, applied: null } }]) {
+    const html = render(AccountRuntime, [...appAccount, { ...fixture, ...override }], '/account');
+    assert.match(html, /query-error/); assert.match(html, /query-retry/); assert.doesNotMatch(html, /Exact runtime model|runtime-answer/);
   }
 });

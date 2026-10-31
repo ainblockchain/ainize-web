@@ -711,6 +711,18 @@ export const operatorNew: Dict = {
 };
 
 export const operatorAccount: Dict = {
+  'op.account.node_error.endpoint': { ko: '쿼리·인증정보·조각 식별자가 없는 HTTP(S) 노드 주소를 입력해 주세요.', en: 'Enter an HTTP(S) node endpoint without credentials, query parameters or a fragment.' },
+  'op.account.node_error.read': { ko: '현재 연결 목록을 확인하지 못해 변경하지 않았습니다.', en: 'Could not read the current peer list; no change was sent.' },
+  'op.account.node_error.missing': { ko: '이 주소가 현재 목록에 없어 연결 차단을 확인하지 못했습니다. 목록을 새로 불러와 주세요.', en: 'This endpoint is no longer listed, so blocking was not confirmed. Refresh the list.' },
+  'op.account.node_error.unconfirmed': { ko: '요청한 연결 변경을 확인하지 못했습니다. 다시 시도하기 전에 목록을 확인해 주세요.', en: 'Could not confirm the requested peer change. Check the list before retrying.' },
+  'op.account.node_error.prompt': { ko: '공백이 아닌 질문을 2,000자 이내로 입력해 주세요.', en: 'Enter a nonempty prompt of at most 2,000 characters.' },
+  'op.account.node_error.response': { ko: '응답에서 모델의 답변을 읽지 못했습니다.', en: 'The response did not contain readable model output.' },
+  'op.account.peer.block': { ko: '연결 차단', en: 'Block connection' },
+  'op.account.peer.already': { ko: '{endpoint}는 이미 연결 목록에 있습니다.', en: '{endpoint} is already in the peer list.' },
+  'op.account.peer.added': { ko: '{endpoint}를 목록에 추가했습니다. 실제 연결 상태는 목록에서 확인해 주세요.', en: '{endpoint} was added to the list. Check the list for its connection status.' },
+  'op.account.peer.blocked': { ko: '{endpoint}를 제거하고 자동 재등록을 차단했습니다.', en: '{endpoint} was removed and blocked from automatic rediscovery.' },
+  'op.account.runtime.limit': { ko: '짧은 응답 테스트 · 최대 16토큰', en: 'Short response test · up to 16 tokens' },
+  'op.account.runtime.empty_answer': { ko: '모델이 빈 응답을 반환했습니다.', en: 'The model returned an empty response.' },
   'op.account.settings.error.input': { ko: '이름은 공백을 제외해 1~64자로 입력하고 알림 범위를 선택해 주세요.', en: 'Enter a name of 1–64 characters after trimming and select a notification level.' },
   'op.account.settings.error.read': { ko: '현재 설정을 확인하지 못해 저장하지 않았습니다. 다시 불러와 주세요.', en: 'Could not read the current settings; no update was sent. Try loading them again.' },
   'op.account.settings.error.conflict': { ko: '다른 곳에서 설정이 변경되어 저장하지 않았습니다. 현재 서버값과 내 수정을 확인해 주세요.', en: 'The settings changed elsewhere; no update was sent. Review the current values and your edits.' },

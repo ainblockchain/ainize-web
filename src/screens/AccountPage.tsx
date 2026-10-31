@@ -1,11 +1,14 @@
+import { AccountPeers } from '@/components/operator/AccountPeers';
+import { AccountRuntime } from '@/components/operator/AccountRuntime';
+import { accountPeers } from '@/lib/accountNodeActions';
 import { AccountSettings } from '@/components/operator/AccountSettings';
 import { accountWallet, accountSales, accountPayouts, accountOwed, accountPayments, type OwedRow } from '@/lib/accountWallet';
 import { useAuth } from '@/auth/AuthContext';
 import { Fragment, useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import {
-  errorMessage, useAddPeerMutation, useChainSetupMutation, useCompleteMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
-  useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useWalletQuery, useWalletSendMutation,
+  errorMessage, useChainSetupMutation, useInfoQuery, useMeQuery, useMyPatchesQuery, useNodesQuery, usePayoutsQuery,
+  useSettingsQuery, useWalletQuery, useWalletSendMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation, useBindingsQuery, useRemoveBindingMutation,
 } from '@/api/api';
 import type { NodeOwner } from '@/api/types';
@@ -19,7 +22,6 @@ import { DevBox, MonoBox, Muted, Pre, QueryError, Row, Stack, Tip, useElapsed, u
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
 import { networkKindOf } from '@/utils/useNetwork';
 
-const Section = styled.div`margin-top: 16px;`;
 const Balance = styled.div`font-size: 28px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; margin-top: 12px; span { font-size: 14px; font-weight: 400; color: ${(p) => p.theme.color.GREY}; margin-left: 8px; }`;
 const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 24px; margin-top: 16px;`;
 
@@ -211,7 +213,7 @@ export default function AccountPage() {
 function AccountView() {
   const auth = useAuth();
   const scope = { identity: auth.cacheIdentity };
-  const { t, term, help, tech } = useT();
+  const { t, help, tech } = useT();
   useTitle(t('op.account.title'));
   const money = useMoney();
   const elapsed = useElapsed();
@@ -219,21 +221,14 @@ function AccountView() {
   const { currentData: info } = useInfoQuery(scope);
   const wallet = useWalletQuery(scope);
   const nodes = useNodesQuery(scope, { pollingInterval: 15_000 });
-  const runtime = useRuntimeQuery(scope);
   const settings = useSettingsQuery(scope);
   const payouts = usePayoutsQuery({ limit: 500, identity: auth.cacheIdentity });
   const myPatches = useMyPatchesQuery(scope);
   const [chainSetup, chainState] = useChainSetupMutation();
-  const [addPeer, addState] = useAddPeerMutation();
-  const [removePeer, removeState] = useRemovePeerMutation();
-  const [complete, completeState] = useCompleteMutation();
 
   const [salesShown, setSalesShown] = useState(PAGE);
   const [royShown, setRoyShown] = useState(PAGE);
   const [owedShown, setOwedShown] = useState(PAGE);
-  const [endpoint, setEndpoint] = useState('');
-  const [prompt, setPrompt] = useState(() => t('op.account.try.default_prompt'));
-  const [completion, setCompletion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -244,8 +239,6 @@ function AccountView() {
   const saved = settings.currentData?.settings;
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => { setError(null); setNotice(null); try { await fn(); if (ok) setNotice(ok); } catch (err) { setError(errorMessage(err)); } };
-  const onAddPeer = (e: FormEvent) => { e.preventDefault(); if (!endpoint.trim()) return; void run(async () => { await addPeer({ endpoint: endpoint.trim().replace(/\/+$/, '') }).unwrap(); setEndpoint(''); }, t('op.account.peers.added')); };
-  const onTry = () => { setCompletion(null); void run(async () => { const r = await complete({ prompt, max_tokens: 16 }).unwrap(); setCompletion(r.text); }); };
 
   const walletView = !wallet.isError ? accountWallet(wallet.currentData, me?.address ?? '') : null;
   const currency = info?.currency ?? '';
@@ -271,16 +264,17 @@ function AccountView() {
    * the page already has, so each sale now says what stayed here and what left, and the totals under the table
    * reconcile with the balance above it. A seller can finally price a derivative instead of distrusting the wallet.
    */
+  const nodeView = !nodes.isError ? accountPeers(nodes.currentData) : null;
   const nameOfAddress = useMemo(() => {
     const m = new Map<string, string>();
-    for (const n of nodes.currentData?.nodes ?? []) if (n.name) m.set(n.address.toLowerCase(), n.name);
-    for (const p of nodes.currentData?.peers ?? []) if (p.info?.name && p.address) m.set(p.address.toLowerCase(), p.info.name);
+    for (const n of nodeView?.nodes ?? []) if (n.name) m.set(n.address.toLowerCase(), n.name);
+    for (const p of nodeView?.peers ?? []) if (p.info?.name && p.address) m.set(p.address.toLowerCase(), p.info.name);
     for (const e of myPatches.currentData?.items ?? []) {
       if (e.anchor.author_name) m.set(e.anchor.author.toLowerCase(), e.anchor.author_name);
       for (const c of e.anchor.contributors ?? []) { if (c.name) m.set(c.address.toLowerCase(), c.name); if (c.name && c.signer) m.set(c.signer.toLowerCase(), c.name); }
     }
     return (a: string) => m.get(a.toLowerCase());
-  }, [nodes.currentData, myPatches.currentData]);
+  }, [nodeView, myPatches.currentData]);
   const saleSplit = useMemo(() => accountSales(sales, me?.address ?? ''), [sales, me?.address]);
   const royaltyGroups = accountPayments(royalties);
   const verificationGroups = accountPayments(walletView?.verification, 'verification');
@@ -295,8 +289,6 @@ function AccountView() {
     return t('op.account.owed.why.unknown', { id: r.patch_id });
   };
   const roleLabel = (r: string) => { const k = `op.role.${r}`; const v = t(k); return v === k ? r : v; };
-  const [peersBefore, peersAfter] = t('op.account.peers.desc', { link: '|' }).split('|');
-  const [tryBefore, tryAfter] = t('op.account.runtime.try.desc', { link: '|' }).split('|');
   const [teachBefore, teachAfter] = t('op.account.teach.desc', { link: '|' }).split('|');
 
   return (
@@ -515,59 +507,8 @@ function AccountView() {
         </>
       )}
 
-      {/* ------------------------------------------------------------ peers */}
-      <SubTitle $mt={56}><Tip tech={tech('node')}>{t('op.account.peers')}</Tip></SubTitle>
-      <Description>{peersBefore}<StyledLink to="/network">{t('op.account.peers.network')}</StyledLink>{peersAfter}</Description>
-      <TableWrapper style={{ marginTop: 12 }}>
-        <Table>
-          <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.account.peers.endpoint')}</TableHead><TableHead>{t('op.name')}</TableHead><TableHead>{t('op.address')}</TableHead><TableHead>{t('op.roles')}</TableHead><TableHead>{t('op.account.peers.lastseen')}</TableHead><TableHead>{t('op.account.peers.failures')}</TableHead><TableHead /></TableRow></TableHeader>
-          <TableBody>
-            {(nodes.currentData?.peers ?? []).map((p) => (
-              <TableRow key={p.endpoint ?? p.address ?? ''}>
-                {/* the operator sees every address; the type is nullable because a VISITOR does not */}
-                <TableData $align="left" $padding="0 8px" $mono title={p.endpoint ?? undefined}>{p.endpoint ?? '—'}</TableData>
-                <TableData>{p.info?.name ?? '—'}</TableData>
-                <TableData title={p.address ?? ''}>{shortAddr(p.address)}</TableData>
-                <TableData>{p.info?.roles.map(roleLabel).join(', ') ?? '—'}</TableData>
-                <TableData>{p.last_seen ? elapsed(p.last_seen) : t('op.never')}</TableData>
-                <TableData $color={p.failures > 0 ? '#e6173e' : undefined}>{p.failures}</TableData>
-                <TableData><Button size="small" variant="text" color="secondary" disabled={!p.endpoint} loading={removeState.isLoading && removeState.originalArgs?.endpoint === p.endpoint} onClick={() => p.endpoint && run(() => removePeer({ endpoint: p.endpoint as string }).unwrap(), t('op.account.peers.removed'))}>{t('op.remove')}</Button></TableData>
-              </TableRow>
-            ))}
-            {(nodes.currentData?.peers ?? []).length === 0 && <TableRowEmpty $height={72}><td colSpan={7}>{t('op.account.peers.empty')}</td></TableRowEmpty>}
-          </TableBody>
-        </Table>
-      </TableWrapper>
-      <form onSubmit={onAddPeer} style={{ marginTop: 16, maxWidth: 560 }}>
-        <Row $gap={12} $align="flex-end">
-          <TextField label={t('op.account.peers.add')} placeholder="http://127.0.0.1:3403" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
-          <Button type="submit" loading={addState.isLoading}>{t('op.add')}</Button>
-        </Row>
-      </form>
-
-      {/* ------------------------------------------------------------ runtime */}
-      <SubTitle $mt={56}><Tip tech={tech('apply')}>{t('op.account.runtime')}</Tip></SubTitle>
-      <Description>{t('op.account.runtime.desc')}</Description>
-      {runtime.isLoading ? <CenterProgress /> : runtime.currentData && (
-        <Section>
-          <KeyValue>
-            <dt>{t('op.status')}</dt><dd style={{ color: runtime.currentData.available ? '#44a45f' : '#e6173e', fontWeight: 600 }}>{runtime.currentData.available ? t('op.account.runtime.available') : `${t('op.account.runtime.unavailable')}${runtime.currentData.error ? ` — ${runtime.currentData.error}` : ''}`}</dd>
-            <dt>{t('op.account.runtime.api')}</dt><dd><Mono>{runtime.currentData.api ?? '—'}</Mono></dd>
-            <dt>{t('op.account.runtime.model')}</dt><dd>{runtime.currentData.model ?? '—'}</dd>
-            <dt><Tip tech="patch hook (row read/write on the serving table)">{t('op.account.runtime.hook')}</Tip></dt><dd>{runtime.currentData.hook ? t('op.account.runtime.connected') : t('op.account.runtime.disconnected')}</dd>
-            <dt>{t('op.account.runtime.loaded')}</dt><dd>{runtime.currentData.applied.length ? runtime.currentData.applied.map((a) => <span key={a.patch_id} style={{ marginRight: 12 }}>{a.patch_id} <Muted>({a.reason}, {elapsed(a.applied_at)})</Muted></span>) : <Muted>{t('op.none')}</Muted>}</dd>
-          </KeyValue>
-          <Stack $gap={12} style={{ marginTop: 20, maxWidth: 640 }}>
-            <strong style={{ fontSize: 14 }}>{t('op.account.runtime.try')}</strong>
-            <Muted>{tryBefore}<StyledLink to="/chat" title={help('liveTest')}>{term('liveTest')}</StyledLink>{tryAfter}</Muted>
-            <Row $gap={12} $align="flex-end">
-              <TextField label={t('op.account.runtime.prompt')} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-              <Button disabled={!runtime.currentData.model} loading={completeState.isLoading} loadingText={t('op.account.runtime.asking')} onClick={onTry}>{t('op.account.runtime.ask')}</Button>
-            </Row>
-            {completion !== null && <MonoBox><span style={{ color: '#8d8d8f' }}>{prompt}</span><strong>{completion}</strong></MonoBox>}
-          </Stack>
-        </Section>
-      )}
+      <AccountPeers />
+      <AccountRuntime />
 
       {/* ------------------------------------------------------------ operators & developers */}
       <SubTitle $mt={56}>{t('op.account.dev.title')}</SubTitle>
