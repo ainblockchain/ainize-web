@@ -1,3 +1,4 @@
+import { newPatchDraftKey } from '../src/lib/newPatchDraft';
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
@@ -76,6 +77,7 @@ import { dashboardEntry, dashboardAttest, verificationPayment } from './fixtures
 import { BenchmarkCoverage } from '../src/components/detail/BenchmarkCoverage';
 import { PatchListItem } from '../src/components/public/PatchListItem';
 import { KnowledgePicker } from '../src/components/chat/KnowledgePicker';
+import NewPatchPage from '../src/screens/NewPatchPage';
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
   reducer: { [api.reducerPath]: api.reducer },
@@ -460,6 +462,76 @@ test('shared copy controls cannot copy empty values or accidentally submit surro
   assert.doesNotMatch(filled, /disabled=""|>Copied</);
   const docs = render(() => createElement(DocsCodeBlock, { code: '', lang: 'bash' }), signedOut);
   assert.match(docs, /<button[^>]*type="button"[^>]*disabled=""/);
+});
+
+function renderNewBenchmark(text: string) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { getItem: (key: string) => key === newPatchDraftKey('', null) ? JSON.stringify({ benchText: text }) : null } });
+  try { return render(NewPatchPage, [...signedOut, { name: 'catalog', arg: { limit: 200 }, value: { items: [] } }, { name: 'branches', value: { branches: [], mine: [] } }], '/new-patch'); }
+  finally { if (original) Object.defineProperty(globalThis, 'sessionStorage', original); else delete (globalThis as any).sessionStorage; }
+}
+
+test('restored invalid benchmark JSON stays visible and cannot be overwritten by stale plain fields', () => {
+  for (const text of ['{broken', 'null', '[]', JSON.stringify({ schema: 'selected', queries: 8, format: ['chat'], samples: [null] })]) {
+    const html = renderNewBenchmark(text);
+    assert.match(html, /benchmark-editor-error/); assert.match(html, /<fieldset[^>]*disabled=""/);
+    assert.ok(html.includes(text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')));
+  }
+});
+
+test('benchmark form renders every restored sample and keeps legacy case counts read-only', () => {
+  const samples = Array.from({ length: 8 }, (_, i) => ({ prompt: `Question ${i}`, expect: `Answer ${i}`, source: `parent-${i}` }));
+  const html = renderNewBenchmark(JSON.stringify({ schema: 'chosen', queries: 8, format: ['chat'], samples }));
+  assert.match(html, /value="Question 7"/); assert.match(html, /parent-7/);
+  assert.doesNotMatch(html, /benchmark-editor-error|new-facts-check/);
+  const legacy = renderNewBenchmark(JSON.stringify({ schema: 'legacy', queries: samples, format: 'chat' }));
+  assert.match(legacy, /value="Question 7"/); assert.match(legacy, /readOnly=""/i);
+  assert.match(legacy, /Count of the embedded question list/); assert.doesNotMatch(legacy, /benchmark-editor-error/);
+  const separate = renderNewBenchmark(JSON.stringify({ schema: 'legacy', queries: samples, format: 'chat', samples: [samples[0]] }));
+  assert.match(separate, /This list and samples stay separate/);
+});
+
+const newSource = (id: string) => ({ anchor: {
+  id, name: 'Exact source outside catalog', description: 'Original description', model: { id_M: 'Exact source model' }, price: '2.5',
+  license: 'CC-BY-4.0', benchmark: { schema: 'chosen', queries: 8, format: ['chat'], samples: Array.from({ length: 8 }, (_, i) => ({ prompt: `Source case ${i}`, expect: `Answer ${i}`, source: `metadata-${i}` })) },
+} });
+const newFormFixtures: Fixture[] = [{ name: 'catalog', arg: { limit: 200 }, value: { items: [] } }, { name: 'branches', value: { branches: [], mine: [] } }];
+test('new version resolves the exact source beyond the catalog and initializes all cases and license', () => {
+  const html = render(NewPatchPage, [...signedOut, ...newFormFixtures, { name: 'patch', arg: 'outside/catalog', value: newSource('outside/catalog') }], '/new-patch?from=outside%2Fcatalog');
+  assert.match(html, /value="Exact source outside catalog"/); assert.match(html, /value="Exact source model"/);
+  assert.match(html, /value="Source case 7"/); assert.match(html, /metadata-7/);
+  assert.match(html, /value="CC-BY-4.0" selected=""/); assert.match(html, /value="outside\/catalog"/);
+});
+test('new version waits for its source and keeps failed or mismatched reads out of the editor', () => {
+  for (const fixture of [
+    { status: 'pending' as const }, { status: 'rejected' as const }, { status: 'rejected' as const, errorStatus: 404 },
+    { value: newSource('different') }, { value: { anchor: null } },
+  ]) {
+    const html = render(NewPatchPage, [...signedOut, ...newFormFixtures, { name: 'patch', arg: 'chosen', ...fixture }], '/new-patch?from=chosen');
+    assert.doesNotMatch(html, /<form|Exact source outside catalog/);
+    assert.match(html, fixture.status === 'pending' ? /new-patch-source-loading/ : /new-patch-source-error/);
+    if (fixture.status !== 'pending') assert.match(html, /Try again/);
+    if (fixture.errorStatus === 404) assert.match(html, /Source chosen was not found/);
+    else assert.doesNotMatch(html, /was not found/);
+  }
+});
+test('new knowledge restores only the current account and source draft', () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  const entries = new Map([
+    ['ainize.new-patch.form', JSON.stringify({ name: 'Unscoped legacy secret' })],
+    [newPatchDraftKey(accountIdentity, null), JSON.stringify({ name: 'Current account new draft' })],
+    [newPatchDraftKey(accountIdentity, 'chosen'), JSON.stringify({ name: 'Current account source draft' })],
+    [newPatchDraftKey('another-account', 'chosen'), JSON.stringify({ name: 'Another account secret' })],
+  ]);
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { getItem: (key: string) => entries.get(key) ?? null } });
+  try {
+    const plain = render(NewPatchPage, [...appAccount, ...newFormFixtures], '/new-patch');
+    assert.match(plain, /Current account new draft/); assert.doesNotMatch(plain, /Current account source draft|Unscoped legacy secret|Another account secret/);
+    const version = render(NewPatchPage, [...appAccount, ...newFormFixtures, { name: 'patch', arg: 'chosen', value: newSource('chosen') }], '/new-patch?from=chosen');
+    assert.match(version, /Current account source draft/); assert.doesNotMatch(version, /Current account new draft|Unscoped legacy secret|Another account secret/);
+    const out = render(NewPatchPage, [...signedOut, ...newFormFixtures], '/new-patch');
+    assert.doesNotMatch(out, /Current account|Unscoped legacy secret|Another account secret/);
+  } finally { if (original) Object.defineProperty(globalThis, 'sessionStorage', original); else delete (globalThis as any).sessionStorage; }
 });
 
 const legacyBenchmarkEntry = (id: string, count = 2): any => {

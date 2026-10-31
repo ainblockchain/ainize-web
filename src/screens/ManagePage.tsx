@@ -1,3 +1,4 @@
+import { readBenchmarkDraft } from '@/lib/benchmarkEditor';
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -229,10 +230,9 @@ export default function ManagePage() {
   const saveFields = () => run(() => update({ id: a.id, patch: { description: desc, price: priceV, branch: branch || undefined, license: license || undefined, billing } }).unwrap(), t('op.saved'));
   const saveBench = () => {
     setBenchError(null);
-    let parsed: PatchAnchor['benchmark'];
-    try { parsed = JSON.parse(benchText); } catch (e) { setBenchError(t('op.manage.bench.invalid', { message: (e as Error).message })); return; }
-    if (!parsed || typeof parsed.schema !== 'string' || !parsed.schema) { setBenchError(t('op.manage.bench.schema_required')); return; }
-    void run(() => update({ id: a.id, patch: { benchmark: parsed } }).unwrap(), t('op.manage.bench.saved'));
+    const parsed = readBenchmarkDraft(benchText, true);
+    if (!parsed.value) { setBenchError(t(`op.benchmark.issue.${parsed.issue}`)); return; }
+    void run(() => update({ id: a.id, patch: { benchmark: parsed.value as unknown as PatchAnchor['benchmark'] } }).unwrap(), t('op.manage.bench.saved'));
   };
 
   return (

@@ -572,6 +572,20 @@ export const operatorLogs: Dict = {
 };
 
 export const operatorNew: Dict = {
+  'op.new.from.failed': { ko: '{id} 원본을 불러오지 못했습니다.', en: 'Could not load source {id}.' },
+  'op.new.from.missing': { ko: '{id} 원본을 찾을 수 없습니다.', en: 'Source {id} was not found.' },
+  'op.benchmark.inline_count_json': { ko: '원본 queries 목록의 길이입니다. 이 목록과 예시(samples)는 별도로 유지되며 JSON에서 편집할 수 있습니다.', en: 'Count of the original queries list. This list and samples stay separate and can be edited in JSON.' },
+  'op.benchmark.inline_count': { ko: '질문 목록의 길이입니다. 아래 질문을 추가하거나 삭제하면 함께 바뀝니다.', en: 'Count of the embedded question list. Add or remove questions below to change it.' },
+  'op.benchmark.issue.json': { ko: 'JSON 형식을 확인해 주세요. 입력한 내용은 그대로 보관됩니다.', en: 'Check the JSON syntax. Your text is preserved.' },
+  'op.benchmark.issue.object': { ko: '검증 설정은 JSON 객체여야 합니다.', en: 'The benchmark must be a JSON object.' },
+  'op.benchmark.issue.schema': { ko: '주제 이름(schema)을 문자열로 입력해 주세요.', en: 'Enter the schema as a nonempty string.' },
+  'op.benchmark.issue.queries': { ko: '질문 수는 0 이상의 정수여야 합니다. 이전 형식의 질문 목록도 사용할 수 있습니다.', en: 'Questions must be a nonnegative integer count or a valid legacy question list.' },
+  'op.benchmark.issue.format': { ko: '질문 형식(format)은 문자열 또는 문자열 목록이어야 합니다.', en: 'Format must be a string or a list of strings.' },
+  'op.benchmark.issue.samples': { ko: '각 예시에는 문자열 prompt와 expect가 필요합니다.', en: 'Each sample needs string prompt and expect fields.' },
+  'op.benchmark.issue.bound': { ko: '부작용 허용값은 0 이상의 숫자여야 합니다.', en: 'The collateral bound must be a nonnegative number.' },
+  'op.benchmark.issue.sample_prompt': { ko: '비어 있는 예시 질문을 채우거나 삭제해 주세요.', en: 'Fill in or remove empty sample questions.' },
+  'op.benchmark.issue.sample_count': { ko: '등록 질문 수가 예시 질문 수보다 작습니다. 질문 수를 확인해 주세요.', en: 'The declared question count is smaller than the sample list. Check the count.' },
+
   // public pre-screen shown on /new-patch when nobody is signed in (spec §5.2 / §11)
   'op.new.prescreen.title': { ko: '지식 추가 — 두 가지 방법', en: 'Add knowledge — two ways' },
   'op.new.prescreen.sub': { ko: '모델을 가르치는 데는 계정이 필요 없습니다. 로그인은 지식 파일을 직접 올리는 노드 운영자만 합니다.', en: 'Teaching the model needs no account. Signing in is only for the node operator who uploads a knowledge file.' },
@@ -650,11 +664,6 @@ export const operatorNew: Dict = {
   'op.new.schema.helper': { ko: '같은 주제 이름을 쓰는 지식끼리 비교되고, 겹침·충돌 검사 대상이 됩니다. 예: krx-ticker-codes', en: 'Knowledge sharing a subject is compared and overlap-checked together. e.g. krx-ticker-codes' },
   'op.new.queries': { ko: '담긴 사실 수', en: 'Facts covered' },
   'op.new.queries.helper': { ko: '게시자가 선언하는 질문 수입니다. 실제 채점한 개수와는 별도로 표시되며, 검증에는 아래 예시 질문을 사용합니다.', en: 'The question count declared by the publisher, shown separately from the measured test count. Verification uses the sample questions below.' },
-  // Item 165 — the declared count is now weighed against the file itself (the .npz addrs member, read in the
-  // browser), so "250,000 facts" in a file with 2,992 memory entries is caught before it is written into the anchor.
-  'op.new.queries.rows': { ko: '고른 파일에는 기억 항목이 {rows}개 있습니다.', en: 'The file you picked holds {rows} memory entries.' },
-  'op.new.queries.over': { ko: '{q}개라고 적었지만 이 파일의 기억 항목은 {rows}개입니다. 구매자가 보는 대표 숫자는 {q}입니다.', en: 'You declared {q} facts, but this file holds {rows} memory entries. Buyers see {q} as the headline number.' },
-  'op.new.queries.use_rows': { ko: '{rows}개로 맞추기', en: 'Use {rows}' },
   'op.new.collateral': { ko: '부작용 허용치 (선택)', en: 'Side-effect limit (optional)' },
   'op.new.collateral.helper': { ko: '이 지식을 넣었을 때 관련 없는 답이 얼마나 흔들려도 되는지를 nat 단위로 선언합니다. 참고값은 0.08입니다. 비워 두면 아무 값도 선언하지 않고, 지식 페이지에는 기준 없음(—)으로 표시됩니다.', en: 'How much the model’s unrelated answers may drift when this knowledge is loaded, in nats. The reference value is 0.08. Leave it empty to declare nothing — the knowledge page then shows no limit at all.' },
   'op.new.samples': { ko: '검증 질문 예시', en: 'Sample questions' },
@@ -688,7 +697,7 @@ export const operatorNew: Dict = {
   'op.new.upload.cancelled': { ko: '올리기를 취소했습니다. 적어 둔 내용은 그대로 있습니다.', en: 'Upload cancelled — everything you typed is still here.' },
   'op.new.draft.kept': { ko: '적은 내용은 이 탭에 저장되어 새로 고쳐도 사라지지 않습니다.', en: 'What you type is kept in this tab, so a refresh will not lose it.' },
   // Item 157: the form opened from a rejected knowledge says what it was filled from.
-  'op.new.from.notice': { ko: '{id}의 내용을 그대로 채웠습니다. id는 새로 정하고, 원본에는 {id}이(가) 들어 있습니다 — 파일만 고쳐서 올리면 됩니다.', en: 'Filled in from {id}. The id is new and {id} is already listed as its origin — upload the corrected file.' },
+  'op.new.from.notice': { ko: '{id}의 내용을 채웠습니다. 제안된 새 ID와 설정을 확인하고 수정한 파일을 선택하세요.', en: 'Filled in from {id}. Review the suggested new ID and settings, then choose the corrected file.' },
   'op.new.draft.restored': { ko: '작성하던 내용을 되살렸습니다. 파일은 브라우저가 기억할 수 없으니 다시 골라 주세요.', en: 'Brought back what you had typed. The file itself cannot be kept by the browser — pick it again.' },
   'op.new.draft.discard': { ko: '새로 시작', en: 'Start over' },
   'op.new.submit': { ko: '초안 저장', en: 'Save draft' },
