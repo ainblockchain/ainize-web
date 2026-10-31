@@ -483,6 +483,8 @@ export const api = createApi({
     createPatch: b.mutation<{ anchor: PatchAnchor }, FormData>({ query: (body) => ({ url: 'api/patches', method: 'POST', body }), invalidatesTags: ['Catalog', 'Me'] }),
     updatePatch: b.mutation<{ anchor: PatchAnchor }, { id: string; patch: Partial<PatchAnchor> }>({ query: ({ id, patch }) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'PATCH', body: patch }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me'] }),
     deletePatch: b.mutation<{ ok: boolean }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Catalog', 'Me'] }),
+    announcePreview: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/patches/${encodeURIComponent(id)}/announce-preview`, providesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me'] }),
+    reviewedAnnounce: b.mutation<unknown, { id: string; revision: string }>({ query: ({ id, revision }) => ({ url: `api/patches/${encodeURIComponent(id)}/announce`, method: 'POST', body: { expected_preview: revision } }), invalidatesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     announce: b.mutation<{ record: LedgerRecord; verifiers?: { known: number; reachable: number; verifiers: number; quorum: number; self_attest: boolean }; visibility?: string }, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/announce`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
     // The takedown (item 148): the anchor stays on the record, the knowledge goes off sale everywhere.
     retire: b.mutation<{ patch_id: string; retired_at: number; reason: string }, { id: string; reason?: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/retire`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Me', 'Ledger', 'Events'] }),
@@ -682,7 +684,7 @@ export const {
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useApproveAccountDeviceMutation, useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
-  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
+  useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,

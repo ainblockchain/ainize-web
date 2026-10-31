@@ -1,3 +1,4 @@
+import { ManagePublication } from '@/components/operator/ManagePublication';
 import { changeManagedPrice, retireManagedKnowledge, deleteManagedDraft, ManageLifecycleError } from '@/lib/manageLifecycle';
 import type { PatchDetail } from '@/api/types';
 import { ManageDraftConflict } from '@/components/operator/ManageDraftConflict';
@@ -12,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useAnnounceMutation, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery, useMeQuery,
+  errorMessage, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery, useMeQuery,
   useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation, useVerifyMutation,
 } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -38,16 +39,6 @@ const Snippet = styled.textarea`
   width: 100%; min-height: 64px; padding: 12px; border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 4px; font-family: ${(p) => p.theme.font.mono}; font-size: 12px; resize: none; background: #fafafa;
 `;
 const FieldLabel = styled.span`font-size: 12px; color: #8d8d8f; font-weight: 500;`;
-/** Item 150: what publishing retires, as a list — a four-column table put the sales and the status off a phone screen. */
-const RetireList = styled.ul`
-  margin: 0; padding: 0; list-style: none; border-top: 1px solid ${(p) => p.theme.color.LIGHT_GREY};
-`;
-const RetireRow = styled.li`
-  display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline;
-  padding: 12px 2px; border-bottom: 1px solid #f4f4f4;
-`;
-const RetireWhat = styled.div`min-width: 0; flex: 1 1 200px; font-size: 14px; display: flex; flex-direction: column; gap: 2px;`;
-const RetireFacts = styled.div`flex: 0 0 auto; text-align: right; font-size: 13px; display: flex; flex-direction: column; gap: 2px; align-items: flex-end;`;
 /** Finding 32: the consequences of a permanent act, in the same shape the subscribe sheet already uses for its own. */
 const Consequences = styled.ul`
   margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.55; color: ${(p) => p.theme.color.BLACK};
@@ -91,7 +82,6 @@ function ManageView() {
   useTitle(p ? p.anchor.name || p.anchor.id : undefined);
 
   const [update, updateState] = useUpdatePatchMutation();
-  const [announce, announceState] = useAnnounceMutation();
   const [verify, verifyState] = useVerifyMutation();
   const [challenge, challengeState] = useChallengeMutation();
   /**
@@ -124,8 +114,7 @@ function ManageView() {
    * whenever it happened to retire nothing. Every publish crosses this sheet now; the typed id below is kept only
    * for the publish that ALSO retires knowledge somebody is buying right now.
    */
-  const [publishOpen, setPublishOpen] = useState(false);
-  const [retireText, setRetireText] = useState('');
+  const [publishOpen, setPublishOpen] = useState<PatchDetail | null>(null);
   /** Finding 33: "Verifying…" with no sense of how long it has been holding this node's model. */
   const [verifyStart, setVerifyStart] = useState<number | null>(null);
   const [, tick] = useState(0);
@@ -228,17 +217,6 @@ function ManageView() {
   const a = p.anchor;
   const patchPage = `${window.location.origin}${knowledgePath(a.author, a.id)}`;
   const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${encodeURIComponent(a.id)}`;
-  /**
-   * What `announce` will actually retire. The node records `pending_supersede` from the same-schema overlaps that are
-   * NOT cross-branch and are still VERIFIED / VERIFYING / ANNOUNCED (market.ts:499), and `reconcileSupersedes` turns
-   * each one into a permanent `supersede` record the moment this anchor reaches quorum. The checklist used to count
-   * every same-subject overlap — including the cross-branch ones that deliberately coexist — and the Publish button
-   * ignored the count entirely.
-   */
-  // Item 189: a declared base (or add-on) overlaps by design and is never retired by this publish — the node's own
-  // `supersedable()` skips it, so the checklist must not promise a retirement that will not happen.
-  const retires = p.conflicts.filter((c) => c.same_schema && !c.cross_branch && !c.lineage && ['VERIFIED', 'VERIFYING', 'ANNOUNCED'].includes(c.status));
-  const coexisting = p.conflicts.filter((c) => c.same_schema && c.cross_branch).length;
   const byId = new Map((catalogItems ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
 
@@ -346,16 +324,12 @@ function ManageView() {
             <CheckItem ok={!!a.benchmark.schema}>{t('op.manage.check.schema', { schema: a.benchmark.schema || t('op.manage.check.schema.missing') })}</CheckItem>
             <CheckItem ok={(a.benchmark.samples?.length ?? 0) > 0}>{t('op.manage.check.samples', { n: a.benchmark.samples?.length ?? 0 })}</CheckItem>
             <CheckItem ok={!!a.description}>{t('op.manage.check.desc')}</CheckItem>
-            <CheckItem ok={retires.length === 0}>
-              <span data-testid="check-retire">{retires.length === 0 ? t('op.manage.check.conflict', { n: 0 }) : t('op.manage.check.conflict.retire', { n: retires.length }, retires.length)}</span>
-            </CheckItem>
           </Checklist>
-          {coexisting > 0 && <Muted style={{ display: 'block', marginTop: 8 }}>{t('op.manage.retire.crossbranch', { n: coexisting })}</Muted>}
           <SaveRow>
             {/* Finding 32: no publish is one click any more — the sheet lists what becomes permanent first. */}
-            <Button variant="contained" disabled={dirty || !p.has_body || !a.benchmark.schema} loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
+            <Button variant="contained" disabled={dirty || !p.has_body || !a.benchmark.schema}
               data-testid="announce"
-              onClick={() => { setRetireText(''); setPublishOpen(true); }}>{t('op.manage.announce')}</Button>
+              onClick={() => { setError(null); setPublishOpen(p); }}>{t('op.manage.announce')}</Button>
             {dirty && <Muted role="status">{t('op.manage.draft.before_publish')}</Muted>}
             <Muted title={t('op.tech.announce')}>{t('op.manage.announce.note')}</Muted>
           </SaveRow>
@@ -387,68 +361,7 @@ function ManageView() {
         </SectionBody>
       )}
 
-      {/* Item 150 + finding 32 — every publish crosses this sheet: what becomes permanent, and (when there is one)
-          what it retires. The typed id is asked for only when the publish also takes somebody's purchase off sale. */}
-      {publishOpen && (
-        <Sheet title={t('op.manage.publish.title', { name: a.name || a.id })} sub={t('op.manage.publish.sub')} onClose={() => setPublishOpen(false)} width={680} testId="publish-sheet">
-          <strong style={{ fontSize: 14 }}>{t('op.manage.publish.sealed.title')}</strong>
-          <KeyValue data-testid="publish-facts">
-            <dt>{t('op.manage.publish.f.id')}</dt><dd><Mono>{a.id}</Mono></dd>
-            <dt>{t('op.manage.publish.f.name')}</dt><dd>{a.name || a.id}</dd>
-            <dt>{t('op.manage.publish.f.price')}</dt><dd title={money.note(a.currency)}>{money.fmt(a.price, a.currency)} · {billingLabel(a.billing)}</dd>
-            <dt>{t('op.manage.publish.f.license')}</dt><dd>{a.license || <Muted>{t('op.manage.publish.f.license.none')}</Muted>}</dd>
-            <dt>{t('op.manage.publish.f.bench')}</dt><dd>{t('op.manage.publish.f.bench.value', { schema: a.benchmark.schema, queries: num(benchmarkQuestionCount(a.benchmark.queries)), samples: a.benchmark.samples?.length ?? 0 })}</dd>
-            <dt>{t('op.manage.publish.f.file')}</dt><dd><Mono>{shortHash(a.patch_sha256, 24)}</Mono></dd>
-            <dt>{t('op.manage.publish.f.payee')}</dt><dd><Mono title={a.author}>{shortAddr(a.author, 8)}</Mono></dd>
-          </KeyValue>
-          <Consequences>
-            <li>{t('op.manage.publish.why.sealed')}</li>
-            <li>{t('op.manage.publish.why.record')}</li>
-            <li>{t('op.manage.publish.why.verify')}</li>
-            <li>{t('op.manage.publish.why.file')}</li>
-          </Consequences>
-
-          {retires.length > 0 && !catalogItems && <QueryError error={catalog.error} what={t('op.manage.retire.title')} onRetry={() => void catalog.refetch()} retrying={catalog.isFetching} />}
-          {retires.length > 0 && (<>
-            <strong style={{ fontSize: 14, marginTop: 8 }}>{t('op.manage.retire.title')}</strong>
-            <span>{t('op.manage.retire.body', { schema: a.benchmark.schema, id: a.id })}</span>
-            <RetireList>
-              {retires.map((c) => {
-                const e = byId.get(c.patch_id);
-                return (
-                  <RetireRow key={c.patch_id} data-testid="retire-row" data-id={c.patch_id}>
-                    <RetireWhat>
-                      <Row $gap={8} $wrap><StyledLink to={e ? knowledgePath(e.anchor.author, c.patch_id) : knowledgeLookupPath(c.patch_id)}>{e?.anchor.name || c.patch_id}</StyledLink><StatusChip status={e?.status ?? c.status} /></Row>
-                      <Muted><Mono>{c.patch_id}</Mono></Muted>
-                      {e?.status === 'VERIFIED' && <Muted>{t('op.manage.retire.selling')}</Muted>}
-                    </RetireWhat>
-                    <RetireFacts>
-                      <span data-testid="retire-sales">{t('op.manage.retire.col.sales')}: {!e || paidSales(e) === null ? t('op.manage.sales_unknown') : paidSales(e)! > 0
-                        ? t('op.manage.retire.sold', { n: paidSales(e)!, revenue: money.revenue(e.revenue, e.anchor.currency) })
-                        : t('op.manage.retire.sold_none')}</span>
-                      <Muted>{t('op.manage.retire.col.overlap')}: {t('units.rows', { n: num(c.overlap_rows) })}</Muted>
-                    </RetireFacts>
-                  </RetireRow>
-                );
-              })}
-            </RetireList>
-            {coexisting > 0 && <Muted>{t('op.manage.retire.crossbranch', { n: coexisting })}</Muted>}
-            <TextField label={t('op.manage.retire.type', { id: a.id })} value={retireText} onChange={(e) => setRetireText(e.target.value)} data-testid="retire-type" />
-          </>)}
-
-          {error && <Alert $tone="error" role="alert">{error}</Alert>}
-          <SheetFooter>
-            <Button variant="text" color="default" onClick={() => setPublishOpen(false)}>{retires.length > 0 ? t('op.manage.retire.cancel') : t('op.manage.publish.cancel')}</Button>
-            <Button variant="contained" color={retires.length > 0 ? 'secondary' : 'primary'}
-              disabled={dirty || retires.length > 0 && retireText.trim() !== a.id}
-              loading={announceState.isLoading} loadingText={t('op.manage.announcing')}
-              data-testid="publish-confirm"
-              onClick={() => run(async stillCurrent => { await announce(a.id).unwrap(); if (stillCurrent()) setPublishOpen(false); }, t('op.manage.announced'))}>
-              {retires.length > 0 ? t('op.manage.retire.confirm') : t('op.manage.publish.confirm')}
-            </Button>
-          </SheetFooter>
-        </Sheet>
-      )}
+      {publishOpen && <ManagePublication expected={publishOpen} busy={busy} run={run} readDetail={() => patch.refetch().unwrap()} onClose={() => setPublishOpen(null)} onPublished={() => { setPublishOpen(null); setNotice(t('op.manage.announced')); }} />}
 
       {/* ------------------------------------------------------------ verification results */}
       <SubTitle $mt={40}>{t('op.manage.attest.title')}</SubTitle>

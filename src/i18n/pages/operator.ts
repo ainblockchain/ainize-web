@@ -297,6 +297,13 @@ export const operatorDash: Dict = {
 };
 
 export const operatorManage: Dict = {
+  'op.manage.preview.title': { ko: '게시 미리보기', en: 'Publication preview' },
+  'op.manage.preview.read': { ko: '게시할 내용과 대체 대상을 확인하지 못해 게시하지 않았습니다.', en: 'Could not confirm the publication contents and replacements; nothing was published.' },
+  'op.manage.preview.changed': { ko: '초안 또는 대체 대상이 변경됐습니다. 최신 내용을 다시 검토해 주세요.', en: 'The draft or replacement list changed. Review the latest contents again.' },
+  'op.manage.preview.refresh': { ko: '최신 내용 검토', en: 'Review latest contents' },
+  'op.manage.preview.confirm': { ko: '대체할 지식이 있습니다. 게시할 지식의 ID를 정확히 입력해 주세요.', en: 'This publication replaces existing knowledge. Enter the exact knowledge id to confirm.' },
+  'op.manage.preview.unconfirmed': { ko: '게시 요청 결과를 공개 기록에서 확인하지 못했습니다. 다시 게시하기 전에 현재 상태를 확인해 주세요.', en: 'Could not confirm the publication in the public record. Check its current state before trying to publish again.' },
+  'op.manage.preview.none': { ko: '이 게시로 대체될 기존 지식은 없습니다.', en: 'This publication does not replace existing knowledge.' },
   'op.manage.lifecycle.checking': { ko: '요청 결과를 확인하고 있습니다.', en: 'Checking the result of your request.' },
   'op.manage.lifecycle.price': { ko: '가격은 0 이상의 숫자로 입력해 주세요.', en: 'Enter a non-negative decimal price.' },
   'op.manage.lifecycle.reason': { ko: '사유는 500자 이내로 입력해 주세요.', en: 'Keep the reason within 500 characters.' },
@@ -373,7 +380,7 @@ export const operatorManage: Dict = {
   'op.manage.retire.cancel': { ko: '등록하지 않기', en: 'Do not publish' },
   'op.manage.announce': { ko: '네트워크에 등록', en: 'Publish to the network' },
   'op.manage.announcing': { ko: '등록 중…', en: 'Publishing…' },
-  'op.manage.announced': { ko: '등록했습니다. 공개 기록에 올라갔고 검증 노드들에 알렸습니다.', en: 'Published — it is on the public record and verifiers were notified.' },
+  'op.manage.announced': { ko: '공개 기록 등록을 확인했습니다. 이후 검증 상태는 이 화면에서 확인할 수 있습니다.', en: 'Publication confirmed in the public record. Verification status is shown on this page.' },
   'op.manage.announce.note': { ko: '등록하면 이름·가격·검증 질문은 더 이상 바꿀 수 없습니다. 지식 파일은 팔리기 전까지 이 노드에만 있습니다.', en: 'After publishing, name, price and benchmark are sealed. The file stays only on this node until it is bought.' },
   // Finding 32 — publishing is the permanent, public, paid act and it was one unguarded click, while deleting a
   // local draft demanded the full id typed out. The sheet below is now crossed before ANY publish; the typed id

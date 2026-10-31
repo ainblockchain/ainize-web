@@ -1,3 +1,4 @@
+import { ManagePublication } from '../src/components/operator/ManagePublication';
 import { ManageDraftConflict } from '../src/components/operator/ManageDraftConflict';
 import { manageDraftEditor } from '../src/lib/manageDraft';
 import ManagePage from '../src/screens/ManagePage';
@@ -1873,4 +1874,27 @@ test('published price and retirement controls respect stored retirement and boun
   assert.ok(reason); assert.match(reason, /maxLength="500"/i);
   const retired = renderManage([...accessAuth, { ...manageRead(), value: { ...p, retired_at: 100, retire_reason: 'No longer offered', sellable: false } }, ...manageAux]);
   assert.match(retired, /No longer offered/); assert.doesNotMatch(retired, /data-testid="price-save"|data-testid="takedown"/);
+});
+
+
+const publicationProps = { expected: manageFixture(), busy: false, run: async () => undefined, readDetail: async () => ({}), onClose: () => undefined, onPublished: () => undefined };
+const publicationFixture: Fixture = { name: 'announcePreview', arg: { id: 'chosen', identity: accessIdentity }, value: { anchor: { ...manageFixture().anchor, name: 'Authoritative server draft' }, revision: 'a'.repeat(64), retires: [], coexisting: 0 } };
+test('publication review displays server contents and explicit zero replacements', () => {
+  const html = render(() => createElement(ManagePublication, publicationProps), [...accessAuth, publicationFixture]);
+  assert.match(html, /Authoritative server draft/); assert.match(html, /This publication does not replace existing knowledge/); assert.match(html, /data-testid="publish-confirm"/);
+  assert.doesNotMatch(html, /data-testid="retire-type"/);
+});
+test('failed or unsupported publication preview cannot become zero replacements or an enabled publish action', () => {
+  for (const fixture of [{ ...publicationFixture, status: 'rejected' as const, errorStatus: 404 }, { ...publicationFixture, value: {} }]) {
+    const html = render(() => createElement(ManagePublication, publicationProps), [...accessAuth, fixture]);
+    assert.match(html, /query-retry/); assert.doesNotMatch(html, /publish-no-replacements/);
+    assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="publish-confirm"/);
+  }
+});
+test('publication uses exact server replacement metadata outside the client catalog and asks for typed confirmation', () => {
+  const fixture = { ...publicationFixture, value: { ...publicationFixture.value as any, retires: [{ patch_id: 'old/id?x', author: trackAuthor, name: 'Old knowledge beyond page 200', status: 'VERIFIED', overlap_rows: 8, price: '2', currency: 'AIN', paid_sales: null, revenue: null }] } };
+  const html = render(() => createElement(ManagePublication, publicationProps), [...accessAuth, fixture]);
+  assert.match(html, /Old knowledge beyond page 200/); assert.ok(html.includes(`/${trackAuthor}/old%2Fid%3Fx`));
+  assert.match(html, /Sales information is unavailable/); assert.match(html, /data-testid="retire-type"/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="publish-confirm"/);
 });
