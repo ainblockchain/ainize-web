@@ -20,7 +20,7 @@ import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
 import { useActiveView } from '@/hooks/useActiveView';
-import { callPlayground, createPlaygroundTask, playgroundJson } from './playgroundCall';
+import { callPlayground, createPlaygroundTask, playgroundJson, playgroundTargetMatches } from './playgroundCall';
 import { decisionInput, playgroundBody, playgroundInitialPrompt, playgroundNeedsKey, PlaygroundInputError } from './modelPlaygroundInput';
 import { readChatStream } from './playgroundStream';
 import { apiKeyContext, apiKeyId, apiKeySnapshot, confirmApiKeyForCall } from '@/api/apiKeyEvidence';
@@ -93,13 +93,13 @@ type RunState =
  * not drop the reader back on a different model.
  */
 /**
- * `callModel` is what the calls and the snippet name: the bare id for this node's own model, `id@0x<node>` for a
- * peer's (api/networkModels.ts). `peer` turns off what is this node's alone — its speed and its deposits.
+ * `callModel` pins both local and peer models to `id@0x<node>`. Local chat validates the
+ * pin before using the local-only chat route. `peer` turns off this node's speed/deposit hints.
  */
 interface PlaygroundProps { model: PublicModelCard; signInNext: string; callModel?: string; peer?: boolean; targetReady?: boolean; confirmTarget?: (current: () => boolean) => Promise<void> }
 export function ModelPlaygroundPanel({ model, signInNext, callModel, peer = false, targetReady = false, confirmTarget }: PlaygroundProps) {
   const { cacheIdentity, address } = useAuth();
-  return <AccountModelPlayground key={JSON.stringify([cacheIdentity, address, model.id, model.modality, callModel, peer])} model={model} signInNext={signInNext} callModel={callModel} peer={peer} targetReady={targetReady} confirmTarget={confirmTarget} />;
+  return <AccountModelPlayground key={JSON.stringify([cacheIdentity, address, model.id, model.modality, peer ? callModel : 'local', peer])} model={model} signInNext={signInNext} callModel={callModel} peer={peer} targetReady={targetReady && playgroundTargetMatches(model.id, callModel ?? '', peer, address)} confirmTarget={confirmTarget} />;
 }
 
 function AccountModelPlayground({ model, signInNext, callModel, peer = false, targetReady, confirmTarget }: PlaygroundProps) {
@@ -163,10 +163,11 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false, ta
   const needsKey = playgroundNeedsKey(model.modality);
   const fileValid = !!audio && audio.size > 0 && audio.size <= 10 * 1024 * 1024;
   const snippet = useMemo(() => {
+    if (!targetReady) return '';
     try { return modelsPageCodeSnippet({ language, modality: model.modality, model: modelRef, nodeUrl: nodeUrlFromBrowser(), prompt,
       apiKey: usableKey ?? undefined, audioFileName: audio?.name }); }
     catch { return ''; }
-  }, [language, model.modality, modelRef, prompt, usableKey, audio]);
+  }, [language, model.modality, modelRef, prompt, usableKey, audio, targetReady]);
   const copy = useClipboardCopy(snippet);
   const busy = run.kind === 'running' || (run.kind === 'text' && !!run.streaming);
   const changePrompt = (value: string) => { if (!task.busy()) { setPrompt(value); setRun({ kind: 'idle' }); } };
@@ -181,7 +182,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false, ta
         }
         await confirmTarget(live);
         if (!live()) return;
-        const res = await callPlayground({ model, modelRef, peer, prompt, audio, apiKey: usableKey }, signal);
+        const res = await callPlayground({ model, modelRef, peer, localNode: auth.address, prompt, audio, apiKey: usableKey }, signal);
         if (!live()) { await res.body?.cancel(); return; }
         if (!res.ok) {
           const body = await res.json().catch(() => null);

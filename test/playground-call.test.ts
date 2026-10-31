@@ -4,13 +4,14 @@ import { callPlayground, createPlaygroundTask, playgroundJson, type PlaygroundCa
 import { decisionInput, playgroundBody, DECISION_EXAMPLE } from '../src/screens/models/modelPlaygroundInput';
 import { modelsPageCodeSnippet } from '../src/screens/models/modelsPageCodeSnippet';
 import { spawnSync } from 'node:child_process';
-const input = (): PlaygroundCall => ({ model: { id: 'M', modality: 'chat', available: true }, modelRef: 'M', peer: false, prompt: 'chosen input', audio: null, apiKey: null });
+const localNode = '0x' + '22'.repeat(20);
+const input = (): PlaygroundCall => ({ model: { id: 'M', modality: 'chat', available: true }, modelRef: `M@${localNode}`, localNode, peer: false, prompt: 'chosen input', audio: null, apiKey: null });
 const signal = () => new AbortController().signal;
 test('local and remote chat always send the selected model, input and capped parameters', async () => {
   for (const peer of [false, true]) {
-    let request: any; const ref = peer ? 'M@0x' + '11'.repeat(20) : 'M';
+    let request: any; const ref = peer ? 'M@0x' + '11'.repeat(20) : `M@${localNode}`;
     await callPlayground({ ...input(), peer, modelRef: ref }, signal(), async (url, init) => { request = { url, ...init, body: JSON.parse(String(init?.body)) }; return new Response('{}'); });
-    assert.equal(request.url, peer ? '/api/peer-chat' : '/api/chat'); assert.equal(request.body.model, ref);
+    assert.equal(request.url, peer ? '/api/peer-chat' : '/api/chat'); assert.equal(request.body.model, peer ? ref : 'M');
     assert.deepEqual(request.body.messages, [{ role: 'user', content: 'chosen input' }]); assert.equal(request.body.max_tokens, 512);
     if (!peer) assert.deepEqual(request.body.patch_ids, []);
   }
@@ -104,4 +105,33 @@ test('decision results identify the chosen model, questions and documented value
   for (const change of [(v: any) => { v.model = 'Other'; }, (v: any) => { v.answers.outage.noul = 93; }, (v: any) => { v.answers.team.choice = 'unrelated'; }, (v: any) => { v.answers.team.confidence = 92; }, (v: any) => { v.answers.severity.score = 999; }]) {
     const value = structuredClone(body); change(value); assert.throws(() => playgroundJson('decision', value, 'M', questions));
   }
+});
+
+
+test('local provider pins survive media requests and all copied API languages; only local chat uses a bare backend id', async () => {
+  for (const modality of ['chat', 'image', 'decision', 'transcription', 'embedding', 'speech', 'music'] as const) {
+    const value = { ...input(), model: { ...input().model, modality },
+      prompt: modality === 'decision' ? DECISION_EXAMPLE : 'selected input',
+      audio: new File(['recorded bytes'], 'selected.wav'), apiKey: 'mock-key' };
+    let sentModel: unknown;
+    await callPlayground(value, signal(), async (_url, init) => {
+      sentModel = init?.body instanceof FormData ? init.body.get('model') : JSON.parse(String(init?.body)).model;
+      return new Response('{}');
+    });
+    assert.equal(sentModel, modality === 'chat' ? 'M' : value.modelRef);
+    for (const language of ['python', 'typescript', 'curl'] as const) {
+      const snippet = modelsPageCodeSnippet({ language, modality, model: value.modelRef, prompt: value.prompt, nodeUrl: 'https://node.example' });
+      assert.ok(snippet.includes(value.modelRef), `${modality}/${language} must retain its provider`);
+    }
+  }
+});
+
+test('local routes refuse bare, unknown and different node identities before transmitting inputs', () => {
+  let requests = 0;
+  const transport: typeof fetch = async () => { requests++; return new Response('{}'); };
+  for (const localNode of [undefined, null, '0x' + '33'.repeat(20)]) {
+    assert.throws(() => callPlayground({ ...input(), localNode }, signal(), transport), /model_unavailable/);
+  }
+  assert.throws(() => callPlayground({ ...input(), modelRef: 'M' }, signal(), transport), /model_unavailable/);
+  assert.equal(requests, 0);
 });

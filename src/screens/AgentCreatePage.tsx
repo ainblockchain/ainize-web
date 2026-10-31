@@ -35,7 +35,7 @@ import { saveHostedAgent } from '@/lib/saveHostedAgent';
 import { viewerPrincipals } from '@/api/linkedAgents';
 import { canEditHostedAgentSpec } from '@/api/hostedAgents';
 import { orgApiErrorOf, parseOrgProfile } from '@/api/organizations';
-import { confirmHostedAgentSelection, hostedAgentModels, hostedAgentModelChoice, hostedAgentModelHref, hostedAgentSelectionUsable, type AgentModelSelection } from '@/api/hostedAgentModels';
+import { confirmHostedAgentSelection, hostedAgentModels, hostedAgentModelChoice, hostedAgentModelHref, hostedAgentModelPrefill, hostedAgentModelIsPinned, hostedAgentSelectionUsable, type AgentModelSelection } from '@/api/hostedAgentModels';
 import { useActiveView } from '@/hooks/useActiveView';
 import { signInHref } from '@/lib/uiNavigation';
 import { useAuth } from '@/auth/AuthContext';
@@ -113,13 +113,14 @@ function AgentCreatePageContent() {
   const [requestJoin, requestState] = useRequestJoinOrgMutation();
   const [requestMessage, setRequestMessage] = useState('');
   const [joinError, setJoinError] = useState<string | null>(null);
-  const prefilledModel = params.get('model') ?? '';
+  const prefilledModel = hostedAgentModelPrefill(params.get('model') ?? '', auth.address);
   const modelsQuery = useModelsQuery(undefined, { refetchOnMountOrArgChange: true });
   const networkModelsQuery = useNetworkModelsQuery(undefined, { refetchOnMountOrArgChange: true });
   const modelRead = useMemo(() => hostedAgentModels({ own: modelsQuery.currentData, ownError: modelsQuery.error,
     network: networkModelsQuery.currentData, networkError: networkModelsQuery.error, self: auth.address }),
     [modelsQuery.currentData, modelsQuery.error, networkModelsQuery.currentData, networkModelsQuery.error, auth.address]);
   const mediaServed = modelRead.media;
+  const localIdentityMissing = modelRead.choices.some(choice => choice.provider.local && !choice.provider.node.address);
   const savedSelection = useRef<AgentModelSelection | null>(null);
   const [modelError, setModelError] = useState(false);
 
@@ -312,17 +313,17 @@ function AgentCreatePageContent() {
           </Field>
           <Field>
             <FieldLabel htmlFor="agent-create-model">{t('agentCreate.field.model')}</FieldLabel>
-            {(!modelRead.complete) && <Button type="button" size="small" variant="text" disabled={modelsQuery.isFetching || networkModelsQuery.isFetching} onClick={() => { void modelsQuery.refetch(); void networkModelsQuery.refetch(); }}>{t('agentCreate.field.model_retry')}</Button>}
+            {(!modelRead.complete || localIdentityMissing) && <Button type="button" size="small" variant="text" disabled={modelsQuery.isFetching || networkModelsQuery.isFetching} onClick={() => { void modelsQuery.refetch(); void networkModelsQuery.refetch(); if (localIdentityMissing) void auth.refresh(); }}>{t('agentCreate.field.model_retry')}</Button>}
             <Select id="agent-create-model" value={draft.model} onChange={(e) => set('model', e.target.value)} data-testid="agent-create-model">
               {!draft.model && <option value="">{t('agentCreate.field.model_pick')}</option>}
               {extraModelIds.map(id => {
                 const choice = hostedAgentModelChoice(modelRead.choices, id);
                 return <option key={id} value={id} disabled={!(choice && (choice.provider.local || choice.available)) && savedSelection.current?.model !== id}>
-                  {id}{choice?.available ? choice.provider.local ? '' : ` — ${t('models.advertised')}` : ` — ${t(!choice || choice.availabilityKnown === false ? 'models.status_unknown' : !choice.provider.local ? 'agentCreate.field.provider_unavailable' : 'models.unavailable')}`}
+                  {id}{savedSelection.current?.model === id && !hostedAgentModelIsPinned(id) ? ` — ${t('agentCreate.field.model_automatic')}` : choice?.available ? choice.provider.local ? '' : ` — ${t('models.advertised')}` : ` — ${t(!choice || choice.availabilityKnown === false ? 'models.status_unknown' : !choice.provider.local ? 'agentCreate.field.provider_unavailable' : 'models.unavailable')}`}
                 </option>;
               })}
               {modelRead.choices.map((m) => (
-                <option key={m.id} value={m.id} disabled={!m.provider.local && !m.available && savedSelection.current?.model !== m.id}>{m.id}{m.available ? m.provider.local ? '' : ` — ${t('models.advertised')}` : ` — ${t(!m.provider.local ? 'agentCreate.field.provider_unavailable' : m.availabilityKnown === false ? 'models.status_unknown' : 'models.unavailable')}`}</option>
+                <option key={m.id} value={m.id} disabled={(!hostedAgentModelIsPinned(m.id) || (!m.provider.local && !m.available)) && savedSelection.current?.model !== m.id}>{m.id}{m.available ? m.provider.local ? '' : ` — ${t('models.advertised')}` : ` — ${t(!m.provider.local ? 'agentCreate.field.provider_unavailable' : m.availabilityKnown === false ? 'models.status_unknown' : 'models.unavailable')}`}</option>
               ))}
             </Select>
             <HelperText $error={!!problemFor('model')}>
@@ -331,8 +332,10 @@ function AgentCreatePageContent() {
                   : !modelRead.complete ? t('agentCreate.field.model_failed')
                   : draft.model && !selectedModel ? t('agentCreate.field.model_missing')
                   : modelRead.choices.length === 0 ? t('agentCreate.field.model_none')
+                  : localIdentityMissing && (!draft.model || selectedModel?.provider.local) ? t('agentCreate.field.model_node_unknown')
                   : selectedModel && !selectedModel.available ? t(!selectedModel.provider.local ? 'agentCreate.field.model_peer_unavailable' : selectedModel.availabilityKnown === false ? 'agentCreate.field.model_unknown' : 'agentCreate.field.model_down')
                     : t('agentCreate.field.model_help')}
+              {savedSelection.current?.model === draft.model && !hostedAgentModelIsPinned(draft.model) && <> {t('agentCreate.field.model_automatic_help')}</>}
               {draft.model && <> <StyledLink to={selectedModel?.href ?? hostedAgentModelHref(draft.model)}>{t('agentCreate.field.model_link')}</StyledLink></>}
             </HelperText>
           </Field>

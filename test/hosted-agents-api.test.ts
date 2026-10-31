@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  agentSummaryHostedFieldsOf, agentsBuiltOnModel, chatModelsForHostedAgent, hostedAgentAllowedHostsFromText, hostedAgentApiErrorOf,
+  agentSummaryHostedFieldsOf, agentsBuiltOnModel, readModelAgentList, chatModelsForHostedAgent, hostedAgentAllowedHostsFromText, hostedAgentApiErrorOf,
   hostedAgentDraftFromSpec, hostedAgentFormProblems, hostedAgentMediaServed, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
   isHostedAgentIdValid, isHostedAgentOwnedBy, parseHostedAgentLogsResponse, parseHostedAgentSpecResponse, type HostedAgentFormDraft,
 } from '../src/api/hostedAgents';
@@ -242,4 +242,26 @@ test('capabilities and examples survive creation while invalid card fields are r
     [{ ...skills[0], examples: ['x'.repeat(301)] }],
     Array.from({ length: 9 }, (_, i) => ({ ...skills[0], id: String(i) })),
   ]) assert.ok(hostedAgentFormProblems(draft({ skills: bad })).some(problem => problem.field === 'skills'));
+});
+
+
+test('model agent lists retain full provider references and do not mix same-name remote defaults', () => {
+  const self = '0x' + 'a'.repeat(40), peer = '0x' + 'b'.repeat(40), ref = `qwen@${self}`;
+  const agents = [row({ id: 'local-qualified', model: ref }), row({ id: 'local-auto', model: 'qwen' }),
+    row({ id: 'remote-qualified', model: ref, node: { address: peer, name: 'Peer' } }),
+    row({ id: 'remote-auto', model: 'qwen', node: { address: peer, name: 'Peer' } }),
+    row({ id: 'other-provider', model: `qwen@${peer}` }), row({ id: 'other-model', model: `other@${self}` })];
+  assert.deepEqual(agentsBuiltOnModel(agents, ref, self).map(a => a.id), ['local-qualified', 'local-auto', 'remote-qualified']);
+  assert.equal(agentsBuiltOnModel(agents, 'qwen').length, 5);
+});
+
+
+test('model agent list evidence distinguishes empty from malformed rows and duplicate identities', () => {
+  assert.deepEqual(readModelAgentList({ agents: [] }), []);
+  assert.equal(readModelAgentList({}), null);
+  for (const agent of [null, {}, row({ skills: [null] as never }), row({ extensions: [123] as never }), row({ node: { address: '', name: 'Unknown' } })]) {
+    assert.equal(readModelAgentList({ agents: [agent] }), null);
+  }
+  assert.equal(readModelAgentList({ agents: [row({ id: 'same' }), row({ id: 'same' })] }), null);
+  assert.equal(readModelAgentList({ agents: [row({ id: 'same' }), row({ id: 'same', node: { address: 'peer', name: 'Peer' } })] })?.length, 2);
 });

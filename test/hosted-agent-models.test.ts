@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { confirmHostedAgentSelection, hostedAgentModels, hostedAgentModelChoice, hostedAgentModelHref, hostedAgentSelectionUsable } from '../src/api/hostedAgentModels';
+import { confirmHostedAgentSelection, hostedAgentModels, hostedAgentModelChoice, hostedAgentModelHref, hostedAgentModelPrefill, hostedAgentSelectionUsable } from '../src/api/hostedAgentModels';
 
 const self = '0x' + 'a'.repeat(40), peer = '0x' + 'b'.repeat(40);
 const chat = { id: 'chosen', modality: 'chat', available: true };
 const advert = { ...chat, node: { address: peer }, ref: `chosen@${peer}`, local: false };
-const selection = { model: 'chosen', media: { transcription: false, image: false } };
+const selection = { model: `chosen@${self}`, media: { transcription: false, image: false } };
 const input = { self, own: { data: [chat] }, network: { data: [advert] } };
 
 test('agent choices keep local and exact peer identities with matching detail destinations', () => {
   const read = hostedAgentModels(input);
   assert.equal(read.complete, true);
-  assert.deepEqual(read.choices.map(row => row.id), ['chosen', advert.ref]);
+  assert.deepEqual(read.choices.map(row => row.id), [`chosen@${self}`, advert.ref]);
   assert.equal(read.choices[0].href, `/models/chosen?modality=chat&node=${self}`);
   assert.equal(read.choices[1].href, `/models/chosen?modality=chat&node=${peer}`);
   assert.equal(hostedAgentModelChoice(read.choices, 'missing'), null);
@@ -21,7 +21,7 @@ test('agent choices keep local and exact peer identities with matching detail de
     assert.equal(hostedAgentModelChoice(read.choices, id)?.id, id, 'original option value is preserved');
     assert.equal(hostedAgentModelHref(id), `/models/chosen?modality=chat&node=${address.toLowerCase()}`);
   }
-  assert.equal(hostedAgentModelHref('folder/model'), '/models/folder%2Fmodel?modality=chat&node=local');
+  assert.equal(hostedAgentModelHref('folder/model'), '/models/folder%2Fmodel?modality=chat');
 });
 
 test('malformed and failed catalogue reads never resurrect cached selectable choices', () => {
@@ -37,7 +37,7 @@ test('malformed and failed catalogue reads never resurrect cached selectable cho
   assert.equal(hostedAgentModels({ self, own: { data: [] }, network: { data: [] } }).complete, true);
   const oldNode = hostedAgentModels({ ...input, networkError: { status: 'PARSING_ERROR', originalStatus: 404 } });
   assert.equal(oldNode.complete, true);
-  assert.deepEqual(oldNode.choices.map(row => row.id), ['chosen']);
+  assert.deepEqual(oldNode.choices.map(row => row.id), [`chosen@${self}`]);
 });
 
 test('partial results enable only independently confirmed choices, never local adverts as probes', () => {
@@ -112,4 +112,20 @@ test('preflight preserves existing choices through an outage and leaves acceptan
   const existing = { ...selection, media: { transcription: true, image: true } };
   await confirmHostedAgentSelection({ selection: existing, existing, self, current: () => true,
     own: async () => { throw new Error('offline'); }, network: async () => { throw new Error('offline'); } });
+});
+
+
+test('new local choices and prefills pin the provider while saved automatic references remain explicit', () => {
+  const read = hostedAgentModels(input);
+  assert.equal(read.choices[0].id, `chosen@${self}`);
+  assert.equal(hostedAgentModelPrefill('chosen', self), `chosen@${self}`);
+  assert.equal(hostedAgentModelPrefill(advert.ref, self), advert.ref);
+  assert.equal(hostedAgentModelPrefill('', self), '');
+  const legacy = { ...selection, model: 'chosen' };
+  assert.equal(hostedAgentSelectionUsable(legacy, read), false, 'new spec cannot accidentally retain automatic routing');
+  assert.equal(hostedAgentSelectionUsable(legacy, read, legacy), true, 'unrelated edits do not rewrite existing routing');
+  assert.equal(hostedAgentModelChoice(read.choices, 'chosen')?.id, 'chosen', 'the legacy option stays selected');
+  const unidentified = hostedAgentModels({ ...input, self: null });
+  assert.equal(hostedAgentSelectionUsable(legacy, unidentified), false);
+  assert.equal(hostedAgentSelectionUsable({ ...selection, model: advert.ref }, unidentified), true, 'a known remote address remains exact');
 });

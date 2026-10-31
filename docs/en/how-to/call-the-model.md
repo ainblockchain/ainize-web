@@ -62,6 +62,13 @@ does not substitute another node if the provider disappears. A failed or malform
 unavailable information, not an empty network. Models with an unknown availability probe cannot run locally.
 The AinCode workspace link opens the workspace only; it does not pass the selected model/provider into AinCode.
 
+For an API call or an agent configuration, `model-id@0x<full-node-address>` names exactly that provider,
+including when it names this node itself. If the selected backend disappears, the request fails without
+forwarding its input to another provider. A bare model id keeps automatic routing: local first, otherwise an
+advertising peer; `/v1` chat may use an operator-configured preferred peer. Use the full reference when the
+provider matters. This applies to chat, transcription, images, decisions, embeddings, speech and music.
+
+
 ## Chat
 
 Select a chat model returned by this node. The public deployment serves `Qwen3.8-Flash-Next`.

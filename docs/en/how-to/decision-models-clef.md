@@ -277,5 +277,5 @@ deposit buys (see [What you pay with](./call-the-model.md#availability-and-limit
 - A complete, runnable example — ranking artworks against a description with `clef`:
   [`clef-artwork-search`](https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search). Press ▶ on
   `art_search.py` in aindrive and it runs with your key.
-- A decision model learns your criteria the way the chat model learns answers: [Teach](/teach) with your own
+- A decision model learns your criteria the way the chat model learns answers: [Train](/train) with your own
   question–answer pairs and publish the result as knowledge others can load.

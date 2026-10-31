@@ -82,9 +82,36 @@ export function isHostedAgentOwnedBy(owner: string | null | undefined, subject: 
  * An older node ignores `?model=` and returns everything, and a row without a `model` field cannot be said to be
  * built on anything. Both would otherwise land on the model page as "built on this model".
  */
-export function agentsBuiltOnModel(agents: AgentSummary[] | null | undefined, modelId: string): AgentSummary[] {
+/** A malformed list cannot establish an empty model page or be passed into an agent card. */
+export function readModelAgentList(raw: unknown): AgentSummary[] | null {
+  const rows = (raw as { agents?: unknown } | null)?.agents;
+  if (!Array.isArray(rows)) return null;
+  const text = (value: unknown) => typeof value === 'string' && value.length > 0;
+  const optionalText = (value: unknown) => value == null || typeof value === 'string';
+  const strings = (value: unknown) => Array.isArray(value) && value.every(v => typeof v === 'string');
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || !text(row.id) || !text(row.name) || !text(row.a2a_url) || !text(row.card_url)
+      || !Array.isArray(row.skills) || !row.skills.every((skill: unknown) => !!skill && typeof skill === 'object' && text((skill as { id?: unknown }).id) && text((skill as { name?: unknown }).name))
+      || !strings(row.protocols) || !strings(row.extensions) || !optionalText(row.model) || !optionalText(row.description) || !optionalText(row.provider)
+      || (row.node != null && (!text(row.node.address) || !text(row.node.name)))) return null;
+    const identity = JSON.stringify([row.node?.address ?? null, row.id]);
+    if (seen.has(identity)) return null;
+    seen.add(identity);
+  }
+  return rows as AgentSummary[];
+}
+
+export function agentsBuiltOnModel(agents: AgentSummary[] | null | undefined, modelId: string, self?: string | null): AgentSummary[] {
   if (!Array.isArray(agents)) return [];
-  return agents.filter((a) => agentSummaryHostedFieldsOf(a).model === modelId);
+  const split = (ref: string) => { const hit = /^(.+)@(0x[0-9a-f]{40})$/i.exec(ref); return hit ? { model: hit[1], node: hit[2].toLowerCase() } : { model: ref, node: null }; };
+  const requested = split(modelId);
+  return agents.filter(a => {
+    const ref = agentSummaryHostedFieldsOf(a).model;
+    if (!ref) return false;
+    const actual = split(ref);
+    return actual.model === requested.model && (!requested.node || (actual.node ?? a.node?.address?.toLowerCase() ?? self?.toLowerCase()) === requested.node);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────── the spec, as the form sends it

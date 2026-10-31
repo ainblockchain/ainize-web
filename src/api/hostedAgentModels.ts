@@ -2,7 +2,7 @@ import { modelsFetchState, readModelsResponse, type PublicModelCard } from './mo
 import { networkModelHref, readNetworkModelsResponse, type NetworkModelProvider } from './networkModels';
 import type { HostedAgentMedia } from './hostedAgents';
 
-export type AgentModelChoice = PublicModelCard & { provider: NetworkModelProvider; href: string };
+export type AgentModelChoice = PublicModelCard & { modelId: string; provider: NetworkModelProvider; href: string };
 export interface AgentModelSelection { model: string; media: HostedAgentMedia }
 export function hostedAgentModels(input: { own: unknown; ownError?: unknown; network: unknown; networkError?: unknown; self: string | null }) {
   const own = input.ownError ? null : readModelsResponse(input.own);
@@ -12,12 +12,13 @@ export function hostedAgentModels(input: { own: unknown; ownError?: unknown; net
   const choices: AgentModelChoice[] = [];
   for (const row of own?.models ?? []) {
     if (row.modality !== 'chat') continue;
-    const provider: NetworkModelProvider = { ref: row.id, node: { address: input.self?.toLowerCase() ?? '', name: null }, local: true, available: row.available };
-    choices.push({ ...row, provider, href: networkModelHref({ id: row.id, modality: 'chat', providers: [provider] }, provider) });
+    const address = /^0x[0-9a-f]{40}$/i.test(input.self ?? '') ? input.self!.toLowerCase() : '';
+    const provider: NetworkModelProvider = { ref: address ? `${row.id}@${address}` : row.id, node: { address, name: null }, local: true, available: row.available };
+    choices.push({ ...row, id: provider.ref, modelId: row.id, provider, href: networkModelHref({ id: row.id, modality: 'chat', providers: [provider] }, provider) });
   }
   for (const row of network?.models ?? []) {
     if (row.local || row.modality !== 'chat') continue;
-    choices.push({ ...row, id: row.ref, provider: row, href: networkModelHref({ id: row.id, modality: 'chat', providers: [row] }, row) });
+    choices.push({ ...row, id: row.ref, modelId: row.id, provider: row, href: networkModelHref({ id: row.id, modality: 'chat', providers: [row] }, row) });
   }
   const complete = own !== null && (network !== null || modelsFetchState(input.networkError as Parameters<typeof modelsFetchState>[0]) === 'outdated');
   return { choices, complete, media: {
@@ -30,20 +31,27 @@ export function hostedAgentModelChoice(choices: AgentModelChoice[], id: string):
   if (direct) return direct;
   // Address casing is not a different provider. Keep the original spec reference in the select value.
   const pinned = /^(.+)@(0x[0-9a-f]{40})$/i.exec(id);
-  const matching = pinned && choices.find(choice => choice.provider.node.address.toLowerCase() === pinned[2].toLowerCase()
-    && (choice.provider.local ? choice.id : choice.id.slice(0, choice.id.lastIndexOf('@'))) === pinned[1]);
+  const matching = choices.find(choice => pinned
+    ? choice.provider.node.address.toLowerCase() === pinned[2].toLowerCase() && choice.modelId === pinned[1]
+    : choice.provider.local && choice.modelId === id);
   return matching ? { ...matching, id } : null;
 }
 /** A link names the same model/provider as the form, even when that provider is currently missing. */
+export const hostedAgentModelIsPinned = (id: string): boolean => /^.+@0x[0-9a-f]{40}$/i.test(id);
+/** A new form opened with a bare local id must persist the chosen node, not automatic future peer routing. */
+export function hostedAgentModelPrefill(id: string, self: string | null): string {
+  return id && !hostedAgentModelIsPinned(id) && /^0x[0-9a-f]{40}$/i.test(self ?? '') ? `${id}@${self!.toLowerCase()}` : id;
+}
 export function hostedAgentModelHref(id: string): string {
   const pinned = /^(.+)@(0x[0-9a-f]{40})$/i.exec(id);
-  const params = new URLSearchParams({ modality: 'chat', node: pinned ? pinned[2].toLowerCase() : 'local' });
+  const params = new URLSearchParams({ modality: 'chat' });
+  if (pinned) params.set('node', pinned[2].toLowerCase());
   return `/models/${encodeURIComponent(pinned ? pinned[1] : id)}?${params}`;
 }
 export function hostedAgentSelectionUsable(selection: AgentModelSelection, read: ReturnType<typeof hostedAgentModels>, existing?: AgentModelSelection | null): boolean {
   // An unrelated edit may preserve an existing missing model; it must not silently replace or re-enable it.
   const choice = hostedAgentModelChoice(read.choices, selection.model);
-  if (!selection.model || (!(choice && (choice.provider.local || choice.available)) && existing?.model !== selection.model)) return false;
+  if (!selection.model || (!(choice && hostedAgentModelIsPinned(selection.model) && (choice.provider.local || choice.available)) && existing?.model !== selection.model)) return false;
   return (!selection.media.transcription || read.media.transcription || existing?.media.transcription === true)
     && (!selection.media.image || read.media.image || existing?.media.image === true);
 }

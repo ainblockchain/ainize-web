@@ -1542,13 +1542,13 @@ test('agent creation keeps an explicit missing selection instead of displaying t
   const models: Fixture = { name: 'models', value: { data: [{ id: 'other-model', modality: 'chat', available: true }] } };
   const network: Fixture = { name: 'networkModels', value: { data: [] } };
   const html = render(AgentCreatePage, [...appAccount, models, network], '/agent/new?model=missing-model');
-  assert.match(html, /<option[^>]*value="missing-model"[^>]*selected=""/);
-  assert.doesNotMatch(html, /<option[^>]*value="other-model"[^>]*selected=""/);
+  assert.match(html, /<option[^>]*value="missing-model@0x[a-f0-9]+"[^>]*selected=""/);
+  assert.doesNotMatch(html, /<option[^>]*value="other-model@0x[a-f0-9]+"[^>]*selected=""/);
   assert.match(html, /selected model is missing from the current list/);
   assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="agent-create-submit"/);
   const blank = render(AgentCreatePage, [...appAccount, models, network], '/agent/new');
   assert.match(blank, /<option[^>]*value=""[^>]*selected=""/);
-  assert.doesNotMatch(blank, /<option[^>]*value="other-model"[^>]*selected=""/);
+  assert.doesNotMatch(blank, /<option[^>]*value="other-model@0x[a-f0-9]+"[^>]*selected=""/);
 });
 
 test('agent model links retain the exact peer and chat modality; local-qualified prefills stay selected', () => {
@@ -1583,8 +1583,8 @@ test('agent creation keeps registered configuration possible without claiming mo
   const html = render(AgentCreatePage, [...appAccount, { name: 'models', value: { data: [
     { id: 'down', modality: 'chat', available: false }, { id: 'stt', modality: 'transcription', available: false },
   ] } }, { name: 'networkModels', value: { data: [] } }], '/agent/new?model=down');
-  assert.match(html, /<option[^>]*value="down"[^>]*selected=""/);
-  assert.doesNotMatch(html, /<option[^>]*value="down"[^>]*disabled/);
+  assert.match(html, /<option[^>]*value="down@0x[a-f0-9]+"[^>]*selected=""/);
+  assert.doesNotMatch(html, /<option[^>]*value="down@0x[a-f0-9]+"[^>]*disabled/);
   assert.match(html, /This model is not answering/);
   assert.match(html, /You can save the configuration/);
   assert.doesNotMatch(html, /You can still create the agent/);
@@ -1597,6 +1597,18 @@ test('agent creation keeps registered configuration possible without claiming mo
   assert.doesNotMatch(unavailablePeer, /You can save the configuration/);
   assert.doesNotMatch(html, /<input(?=[^>]*disabled="")(?=[^>]*data-testid="agent-create-media-transcription")[^>]*>/);
   assert.match(html, /<input(?=[^>]*disabled="")(?=[^>]*data-testid="agent-create-media-image")[^>]*>/);
+});
+
+test('new agent choices require a confirmed local node address and offer recovery when it is missing', () => {
+  const authWithoutNode = appAccount.map(f => f.name === 'me' ? { ...f, value: { sso: { sub: 'viewer', principal: 'sso:viewer', orgs: [] } } } : f);
+  const html = render(AgentCreatePage, [...authWithoutNode,
+    { name: 'models', value: { data: [{ id: 'chosen', modality: 'chat', available: true }] } },
+    { name: 'networkModels', value: { data: [] } },
+  ], '/agent/new');
+  assert.match(html, /serving node address could not be confirmed/);
+  assert.match(html, /Reload models/);
+  assert.match(html, /<option[^>]*value="chosen"[^>]*disabled=""/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="agent-create-submit"/);
 });
 
 function renderAgent(fixtures: Fixture[], path = '/agent/chosen') {
@@ -2684,6 +2696,36 @@ const modelCatalogFixtures: Fixture[] = [
   { name: 'agentsByModel', arg: catalogOwn.id, value: { agents: [] } },
 ];
 
+test('model detail lists and counts the selected provider including newly qualified agent models', () => {
+  const rows = [
+    { ...detailAgent, id: 'local-full', name: 'Qualified local agent', model: `${catalogOwn.id}@${keyNode}` },
+    { ...detailAgent, id: 'local-auto', name: 'Existing automatic agent', model: catalogOwn.id },
+    { ...detailAgent, id: 'remote-full', name: 'Remote host using this provider', model: `${catalogOwn.id}@${keyNode}`, node: { address: catalogPeer, name: 'Remote host' } },
+    { ...detailAgent, id: 'remote-auto', name: 'Wrong remote automatic agent', model: catalogOwn.id, node: { address: catalogPeer, name: 'Remote host' } },
+    { ...detailAgent, id: 'other', name: 'Wrong provider agent', model: `${catalogOwn.id}@${catalogPeer}` },
+  ];
+  const fixtures = modelCatalogFixtures.map(f => f.name === 'agentsByModel' ? { ...f, value: { agents: rows } }
+    : f.name === 'modelDetail' ? { ...f, value: { ...catalogOwn, agents: 99 } } : f);
+  const html = render(ModelDetailPage, fixtures, `/models/${catalogOwn.id}?node=${keyNode}&modality=chat`, '/models/:id');
+  assert.match(html, /Qualified local agent|Existing automatic agent|Remote host using this provider/);
+  assert.doesNotMatch(html, /Wrong remote automatic agent|Wrong provider agent/);
+  assert.match(html, /data-testid="model-agent-count">3<\/dd>/);
+});
+
+test('failed or malformed model-agent lists cannot show old cards or a confirmed zero count', () => {
+  for (const fixture of [
+    { value: {} }, { value: { agents: [null] } },
+    { value: { agents: [{ ...detailAgent, name: 'Stale agent card', model: catalogOwn.id }] }, status: 'rejected' as const },
+  ]) {
+    const html = render(ModelDetailPage, modelCatalogFixtures.map(f => f.name === 'agentsByModel' ? { ...f, ...fixture } : f),
+      `/models/${catalogOwn.id}?node=${keyNode}&modality=chat`, '/models/:id');
+    assert.match(html, /The agents for this model could not be confirmed/);
+    assert.match(html, /Retry now/);
+    assert.match(html, /data-testid="model-agent-count">—<\/dd>/);
+    assert.doesNotMatch(html, /Stale agent card|data-testid="model-agents-empty"/);
+  }
+});
+
 test('model lists show errors and retry for malformed responses instead of configuration tips or an empty catalogue', () => {
   const bad = render(ModelsPage, modelCatalogFixtures.map(f => ['models', 'networkModels'].includes(f.name) ? { ...f, value: {} } : f), '/models');
   assert.match(bad, /models-list-incomplete|Retry now/);
@@ -2757,4 +2799,30 @@ test('the AinCode link describes opening a workspace without claiming it selects
   assert.match(html, /Go to an AinCode workspace/); assert.match(html, /does not carry this page/);
   assert.match(html, /href="\/code\/"[^>]*data-testid="model-harness-open"|data-testid="model-harness-open"[^>]*href="\/code\/"/);
   assert.doesNotMatch(html, /Every AinCode workspace|default model/);
+});
+
+
+test('a local model page copies a provider-qualified API call and never an automatic model reference', () => {
+  const fixtures = modelCatalogFixtures.map(f => f.name === 'me' ? { ...f, value: { signedIn: false, address: keyNode } } : f);
+  const html = render(ModelDetailPage, fixtures, `/models/${catalogOwn.id}?node=${keyNode}&modality=chat`, '/models/:id');
+  assert.ok(html.includes(`${catalogOwn.id}@${keyNode}`));
+  assert.doesNotMatch(html, /<button(?=[^>]*data-testid="models-run")(?=[^>]*disabled)[^>]*>/);
+  assert.doesNotMatch(html, /<button(?=[^>]*data-testid="models-copy")(?=[^>]*disabled)[^>]*>/);
+});
+
+test('a local playground without a confirmed provider retains input but cannot run or copy an automatic call', () => {
+  const Page = () => createElement(ModelPlaygroundPanel, { model: catalogOwn, callModel: catalogOwn.id,
+    signInNext: '/models/selected-model', targetReady: true, confirmTarget: async () => {} });
+  const html = render(Page, signedOut, '/models/selected-model');
+  assert.match(html, /Hello! Introduce yourself in one sentence/);
+  for (const id of ['models-run', 'models-copy']) assert.match(html, new RegExp(`<button(?=[^>]*data-testid="${id}")(?=[^>]*disabled)[^>]*>`));
+  assert.match(html, /data-testid="models-snippet"[^>]*><\/pre>/);
+});
+
+
+test('a model page explains unknown local identity and exposes reload instead of unpinned execution', () => {
+  const html = render(ModelDetailPage, modelCatalogFixtures, `/models/${catalogOwn.id}?node=${keyNode}&modality=chat`, '/models/:id');
+  assert.match(html, /serving node address could not be confirmed/);
+  assert.match(html, /Retry now/);
+  for (const id of ['models-run', 'models-copy', 'model-create-agent']) assert.match(html, new RegExp(`<button(?=[^>]*data-testid="${id}")(?=[^>]*disabled)[^>]*>`));
 });

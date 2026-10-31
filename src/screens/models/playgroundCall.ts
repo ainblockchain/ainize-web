@@ -2,21 +2,27 @@ import type { ModelModality, PublicModelCard } from '@/api/models';
 import { object, playgroundBody, playgroundNeedsKey, PlaygroundInputError } from './modelPlaygroundInput';
 
 export interface PlaygroundCall {
-  model: PublicModelCard; modelRef: string; peer: boolean; prompt: string; audio: File | null; apiKey: string | null;
+  model: PublicModelCard; modelRef: string; peer: boolean; localNode?: string | null; prompt: string; audio: File | null; apiKey: string | null;
+}
+export function playgroundTargetMatches(model: string, ref: string, peer: boolean, localNode?: string | null) {
+  const suffix = ref.slice(model.length);
+  return ref.startsWith(model) && /^@0x[\da-f]{40}$/i.test(suffix)
+    && (peer || !!localNode && suffix.slice(1).toLowerCase() === localNode.toLowerCase());
 }
 /** A single selected destination. Never fall back to an unnamed local runtime or another provider. */
 export function callPlayground(input: PlaygroundCall, signal: AbortSignal, transport: typeof fetch = fetch) {
   const { model, modelRef, prompt, audio, apiKey, peer } = input;
   if (!model.available || !modelRef) throw new Error('model_unavailable');
-  const remoteSuffix = modelRef.slice(model.id.length);
-  if (peer ? !modelRef.startsWith(model.id) || !/^@0x[\da-f]{40}$/i.test(remoteSuffix) : modelRef !== model.id) throw new Error('model_unavailable');
+  if (!playgroundTargetMatches(model.id, modelRef, peer, input.localNode)) throw new Error('model_unavailable');
   if (playgroundNeedsKey(model.modality) && !apiKey) throw new PlaygroundInputError('key');
   if (model.modality === 'transcription') {
     if (!audio || !audio.size || audio.size > 10 * 1024 * 1024) throw new PlaygroundInputError('file');
     const form = new FormData(); form.set('model', modelRef); form.set('file', audio);
     return transport('/api/transcribe', { method: 'POST', body: form, credentials: 'include', signal });
   }
-  const body = playgroundBody(model.modality, modelRef, prompt);
+  // /api/chat only runs this node's local runtime and expects its bare backend id.
+  // Other routes and copied /v1 examples must retain the provider pin.
+  const body = playgroundBody(model.modality, !peer && model.modality === 'chat' ? model.id : modelRef, prompt);
   const path = { chat: peer ? '/api/peer-chat' : '/api/chat', image: '/api/image', decision: '/api/decide',
     embedding: '/v1/embeddings', speech: '/v1/audio/speech', music: '/v1/audio/music' }[model.modality];
   return transport(path, { method: 'POST', credentials: 'include', signal,
