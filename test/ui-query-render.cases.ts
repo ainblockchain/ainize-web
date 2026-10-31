@@ -3393,3 +3393,29 @@ test('save-and-redeploy shows the reviewed commit and cannot edit against a miss
     assert.doesNotMatch(invalid, /Redeploy aaaaaaa after saving/);
   }
 });
+
+
+test('unreadable environment values show repair actions and a page banner, not healthy masks or an empty list', () => {
+  const project = { ...rootProject, kind: 'script' } as Project;
+  const value = { secrets: [{ name: 'BROKEN_TOKEN', updatedAt: 1 }], declared: ['BROKEN_TOKEN'], missing: [], unreadable: ['BROKEN_TOKEN'] };
+  const fixtures: Fixture[] = [...appAccount, { name: 'projectSecrets', arg: projectArg, value }];
+  const html = render(() => createElement(ProjectEnvVars, { project }), fixtures);
+  assert.match(html, /Needs recovery/); assert.match(html, /Replace their values/);
+  assert.match(html, /Edit/); assert.match(html, /Remove/); assert.doesNotMatch(html, /••••••/);
+  const banner = render(() => createElement(MissingEnvBanner, { project, onGo() {} }), fixtures);
+  assert.match(banner, /BROKEN_TOKEN/); assert.match(banner, /Set environment variables/);
+});
+
+
+test('recovery saves remain available while automatic redeploy is visibly disabled for an incomplete environment', () => {
+  const project = { ...rootProject, kind: 'service', lastDeploymentId: 'recover-env' } as Project;
+  const value = { secrets: [{ name: 'BROKEN_TOKEN', updatedAt: 1 }], declared: [], missing: [], unreadable: ['BROKEN_TOKEN'] };
+  const html = render(() => createElement(ProjectEnvVars, { project }), [...appAccount,
+    { name: 'projectSecrets', arg: projectArg, value },
+    { name: 'deployment', arg: { id: 'recover-env', identity: accountIdentity }, value: { ...deploymentFixture('recover-env'), trigger: 'push', sha: 'a'.repeat(40) } },
+  ]);
+  assert.match(html, /During recovery, changes are saved without redeploying/);
+  assert.doesNotMatch(html, /<fieldset disabled/);
+  assert.match(html, /<input[^>]*type="checkbox"[^>]*disabled/);
+  assert.doesNotMatch(html, /<input[^>]*checked=""[^>]*disabled|<input[^>]*disabled[^>]*checked=""/);
+});

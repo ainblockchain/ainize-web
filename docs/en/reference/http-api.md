@@ -5650,7 +5650,7 @@ Remove a project with its deployments, logs and secrets (owner only)
 
 A project's secrets — names and when each was set, never values (owner or org writer)
 
-The owner (of an org-private project, while still a member), or an active member with role `write`/`admin` of the organization that owns the project or that its slug names. A `read`/`contributor` member gets 403 `not_writer`; anyone else 404 `not_found`. `{ secrets: [{ name, updatedAt }], declared, missing }` — `declared` is the newest deployment's ainize.json `secrets` (names), `missing` the declared names with no value. 503 `secrets_off` on a node without the store.
+The owner (of an org-private project, while still a member), or an active member with role `write`/`admin` of the organization that owns the project or that its slug names. A `read`/`contributor` member gets 403 `not_writer`; anyone else 404 `not_found`. `{ secrets: [{ name, updatedAt }], declared, missing, unreadable }` — `declared` is the newest deployment's ainize.json `secrets` (names), `missing` the declared names with no value, and `unreadable` existing names whose ciphertext cannot be opened. Unreadable values remain listed for replacement/removal; container and script execution stops before starting when they cannot be read. 503 `secrets_off` on a node without the store.
 
 **Auth** — operator
 

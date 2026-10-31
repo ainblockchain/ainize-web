@@ -3,7 +3,7 @@
  * "secrets"). Sealed at rest, delivered to the project's container and its script runs as env, and never read back:
  * the console sees names and when each was set, the way Vercel shows a sensitive variable.
  *
- *   GET    /api/projects/:id/secrets                     → { secrets: [{ name, updatedAt }], declared, missing }
+ *   GET    /api/projects/:id/secrets                     → { secrets: [{ name, updatedAt }], declared, missing, unreadable }
  *   PUT    /api/projects/:id/secrets/:name  { value, redeploy?: { deploymentId, sha } } → 201 | 200 { name, updatedAt, created, redeploy }
  *   DELETE /api/projects/:id/secrets/:name  { redeploy?: { deploymentId, sha } } → { ok, name, redeploy }
  *
@@ -30,7 +30,7 @@ export const RESERVED_SECRET_NAMES: readonly string[] = [
 ];
 
 export interface ProjectSecret { name: string; updatedAt: number | null }
-export interface ProjectSecretsResponse { secrets: ProjectSecret[]; declared: string[]; missing: string[] }
+export interface ProjectSecretsResponse { secrets: ProjectSecret[]; declared: string[]; missing: string[]; unreadable: string[] }
 export interface SecretSaved { name: string; updatedAt: number | null; created: boolean; redeploy: Redeployed | null }
 export interface SecretRemoved { ok: boolean; name: string; redeploy: Redeployed | null }
 
@@ -62,10 +62,12 @@ export function readProjectSecretsResponse(raw: unknown): ProjectSecretsResponse
     seen.add(row.name);
     secrets.push({ name: row.name, updatedAt: row.updatedAt as number | null });
   }
+  const unreadable = raw.unreadable === undefined ? [] : raw.unreadable;
+  if (!names(unreadable) || unreadable.some(name => !seen.has(name))) return null;
   const missing = raw.declared.filter(n => !seen.has(n));
   // Older nodes may omit the derived field; a supplied field must agree with the complete names snapshot.
   if (raw.missing !== undefined && (!names(raw.missing) || raw.missing.length !== missing.length || raw.missing.some(n => !missing.includes(n)))) return null;
-  return { secrets: secrets.sort((a, b) => a.name.localeCompare(b.name)), declared: [...raw.declared], missing };
+  return { secrets: secrets.sort((a, b) => a.name.localeCompare(b.name)), declared: [...raw.declared], missing, unreadable: [...unreadable] };
 }
 
 export function parseProjectSecretsResponse(raw: unknown): ProjectSecretsResponse {
@@ -87,9 +89,9 @@ export function parseSecretRemoved(raw: unknown, expected?: SecretExpected): Sec
 }
 
 /** One row of the table: a variable that is set, or one ainize.json declares and nobody has set. */
-export interface EnvRow { name: string; updatedAt: number | null; set: boolean; declared: boolean }
+export interface EnvRow { name: string; updatedAt: number | null; set: boolean; declared: boolean; unreadable?: boolean }
 export function envRowsOf(r: ProjectSecretsResponse): EnvRow[] {
-  const rows: EnvRow[] = r.secrets.map((s) => ({ name: s.name, updatedAt: s.updatedAt, set: true, declared: r.declared.includes(s.name) }));
+  const rows: EnvRow[] = r.secrets.map((s) => ({ name: s.name, updatedAt: s.updatedAt, set: true, declared: r.declared.includes(s.name), ...(r.unreadable?.includes(s.name) ? { unreadable: true } : {}) }));
   for (const n of r.missing) if (!rows.some((x) => x.name === n)) rows.push({ name: n, updatedAt: null, set: false, declared: true });
   // The missing ones first: they are what keeps the app from starting.
   return rows.sort((a, b) => Number(a.set) - Number(b.set) || a.name.localeCompare(b.name));

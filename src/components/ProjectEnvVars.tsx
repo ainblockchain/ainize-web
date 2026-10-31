@@ -131,7 +131,7 @@ function EnvItem({ row, project, redeploy, work, onSaved }: { row: EnvRow; proje
     <Item>
       <ItemHead>
         <Name>{row.name}</Name>
-        {row.set ? <Masked aria-label={t('projects.env.hidden_value')}>••••••</Masked> : <Badge $tone="warn">{t('projects.env.missing')}</Badge>}
+        {row.unreadable ? <Badge $tone="warn">{t('projects.env.needs_recovery')}</Badge> : row.set ? <Masked aria-label={t('projects.env.hidden_value')}>••••••</Masked> : <Badge $tone="warn">{t('projects.env.missing')}</Badge>}
         {row.set && <Meta title={row.updatedAt ? new Date(row.updatedAt).toLocaleString() : undefined}>{t('projects.env.set_updated', { when: relativeTime(row.updatedAt) || '—' })}</Meta>}
         {row.declared && <Meta>{t('projects.env.declared')}</Meta>}
         <Spacer />
@@ -298,6 +298,7 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
   const kind = project.kind ?? project.manifest?.kind ?? null;
   // A script reads its env when it runs; a deployed app only when it is deployed again.
   const deploys = kind !== 'script' && !!project.lastDeploymentId;
+  const needsRecovery = (data?.unreadable.length ?? 0) > 0;
   const [redeployAfter, setRedeployAfter] = useState(true);
   const [pending, setPending] = useState(false);
   const [queued, setQueued] = useState<Queued | null>(null);
@@ -306,9 +307,9 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
   const redeployTargetQuery = useDeploymentQuery({ id: project.lastDeploymentId ?? '', identity: useAuth().cacheIdentity }, { skip: !deploys || access !== 'writer', refetchOnMountOrArgChange: true });
   const redeployTarget = redeployTargetQuery.isError || !project.lastDeploymentId ? null : readProjectDeployment(redeployTargetQuery.currentData, project.id, project.lastDeploymentId);
   const targetReady = redeployTarget && redeployTarget.trigger !== 'run' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(redeployTarget.sha);
-  const redeploy: SecretRedeployTarget | false = deploys && redeployAfter && targetReady && !redeployTargetQuery.isFetching
+  const redeploy: SecretRedeployTarget | false = deploys && redeployAfter && !needsRecovery && targetReady && !redeployTargetQuery.isFetching
     ? { projectId: project.id, deploymentId: redeployTarget.id, sha: redeployTarget.sha } : false;
-  const waitingForTarget = deploys && redeployAfter && !redeploy;
+  const waitingForTarget = deploys && redeployAfter && !needsRecovery && !redeploy;
   const rows = useMemo(() => (data ? envRowsOf(data) : []), [data]);
   const existing = useMemo(() => data?.secrets.map((s) => s.name) ?? [], [data]);
 
@@ -320,7 +321,7 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
     if (r) { setQueued(r); setPending(false); } else if (deploys) { setQueued(null); setPending(true); }
   };
   const doRedeploy = async () => {
-    if (!targetReady || !redeployTarget || redeployTargetQuery.isFetching) return;
+    if (needsRecovery || q.isFetching || !targetReady || !redeployTarget || redeployTargetQuery.isFetching) return;
     setRedeployErr(null);
     try {
       const r = await work.run(async () => {
@@ -357,6 +358,7 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
       {uncertain && <Alert role="alert" $tone="warning">{t('projects.env.unconfirmed')} <Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></Alert>}
       {access === 'writer' && data && (
         <>
+          {data.unreadable.length > 0 && <Alert role="alert" $tone="warning">{t('projects.env.unreadable')} <Mono>{data.unreadable.join(', ')}</Mono></Alert>}
           <fieldset disabled={busy || uncertain} aria-busy={busy} style={{ border: 0, margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <fieldset disabled={waitingForTarget} style={{ border: 0, margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {rows.length === 0 ? <Help>{t('projects.env.empty')}</Help> : (
@@ -368,15 +370,16 @@ function ProjectEnvVarsContent({ project, onOpenDeployment }: { project: Project
           <BulkPaste project={project} existing={existing} redeploy={redeploy} work={work} onSaved={onSaved} />
           </fieldset>
           {deploys
-            ? <Checkbox label={targetReady ? t('projects.env.redeploy_after_commit', { sha: redeployTarget.sha.slice(0, 7) }) : t('projects.env.redeploy_after')} checked={redeployAfter} onChange={(e) => setRedeployAfter(e.target.checked)} />
+            ? <Checkbox label={targetReady ? t('projects.env.redeploy_after_commit', { sha: redeployTarget.sha.slice(0, 7) }) : t('projects.env.redeploy_after')} checked={redeployAfter && !needsRecovery} disabled={needsRecovery} onChange={(e) => setRedeployAfter(e.target.checked)} />
             : <Help>{kind === 'script' ? t('projects.env.script_note') : t('projects.env.no_deployment_note')}</Help>}
+          {deploys && needsRecovery && <Help>{t('projects.env.repair_first')}</Help>}
           {waitingForTarget && <Help>{t('projects.env.target_needed')} <Button size="small" loading={redeployTargetQuery.isFetching} onClick={() => void redeployTargetQuery.refetch()}>{t('projects.page.retry')}</Button></Help>}
           {pending && !queued && !uncertain && (
             <Alert $tone="warning">
               <Actions>
                 <span>{t('projects.env.pending')}</span>
                 <Spacer />
-                <Button size="small" variant="contained" disabled={!targetReady || redeployTargetQuery.isFetching} loading={redeploying.isLoading} onClick={doRedeploy}>{targetReady ? t('projects.page.redeploy_commit', { sha: redeployTarget!.sha.slice(0, 7) }) : t('projects.env.redeploy_now')}</Button>
+                <Button size="small" variant="contained" disabled={needsRecovery || q.isFetching || !targetReady || redeployTargetQuery.isFetching} loading={redeploying.isLoading} onClick={doRedeploy}>{targetReady ? t('projects.page.redeploy_commit', { sha: redeployTarget!.sha.slice(0, 7) }) : t('projects.env.redeploy_now')}</Button>
                 {!targetReady && !redeployTargetQuery.isFetching && <span>{t('projects.page.load_failed')} <Button size="small" onClick={() => void redeployTargetQuery.refetch()}>{t('projects.page.retry')}</Button></span>}
               </Actions>
             </Alert>
@@ -395,11 +398,13 @@ export function MissingEnvBanner({ project, onGo }: { project: Project; onGo: ()
   const { t } = useT();
   const { data, access } = useProjectEnv(project);
   const missing = access === 'writer' ? data?.missing ?? [] : [];
-  if (!missing.length) return null;
+  const unreadable = access === 'writer' ? data?.unreadable ?? [] : [];
+  if (!missing.length && !unreadable.length) return null;
   return (
     <Alert $tone="warning" role="status" style={{ margin: '8px 0' }}>
       <Actions>
-        <span>{t('projects.env.banner', { n: missing.length }, missing.length)} <Mono>{missing.join(', ')}</Mono></span>
+        {missing.length > 0 && <span>{t('projects.env.banner', { n: missing.length }, missing.length)} <Mono>{missing.join(', ')}</Mono></span>}
+        {unreadable.length > 0 && <span>{t('projects.env.unreadable')} <Mono>{unreadable.join(', ')}</Mono></span>}
         <Spacer />
         <Button size="small" variant="contained" onClick={onGo}>{t('projects.env.banner_go')}</Button>
       </Actions>

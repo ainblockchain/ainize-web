@@ -99,7 +99,7 @@ test('a complete environment snapshot is sorted and sanitized without copying va
     secrets: [{ name: 'ZED', updatedAt: 5 }, { name: 'ALPHA', updatedAt: null, value: 'must not be copied' }],
     declared: ['ALPHA', 'DB_URL'], missing: ['DB_URL'],
   });
-  assert.deepEqual(r, { secrets: [{ name: 'ALPHA', updatedAt: null }, { name: 'ZED', updatedAt: 5 }], declared: ['ALPHA', 'DB_URL'], missing: ['DB_URL'] });
+  assert.deepEqual(r, { secrets: [{ name: 'ALPHA', updatedAt: null }, { name: 'ZED', updatedAt: 5 }], declared: ['ALPHA', 'DB_URL'], missing: ['DB_URL'], unreadable: [] });
   assert.deepEqual(parseProjectSecretsResponse({ secrets: [{ name: 'A', updatedAt: 1 }], declared: ['A', 'B'] }).missing, ['B'], 'an omitted derived field can be calculated from the complete names snapshot');
   assert.deepEqual(envRowsOf(r).map((x) => [x.name, x.set, x.declared]), [['DB_URL', false, true], ['ALPHA', true, true], ['ZED', true, false]]);
 });
@@ -252,4 +252,20 @@ test('a bulk sequence retains its initial reviewed target while later renders or
     return { name, updatedAt: 1, created: true, redeploy: rd ? receipt() : null };
   }, { redeployLast: selected });
   assert.deepEqual(calls, [false, target]); assert.equal(r.failed, null); assert.deepEqual(r.redeploy, receipt());
+});
+
+
+test('unreadable environment names remain distinct from missing variables and never become healthy masked rows', () => {
+  const raw = { secrets: [{ name: 'BROKEN', updatedAt: 1 }, { name: 'OK', updatedAt: 2 }], declared: ['BROKEN', 'ABSENT'], missing: ['ABSENT'], unreadable: ['BROKEN'] };
+  const read = parseProjectSecretsResponse(raw);
+  assert.deepEqual(read.unreadable, ['BROKEN']);
+  const rows = envRowsOf(read);
+  assert.equal(rows.find(r => r.name === 'BROKEN')?.unreadable, true);
+  assert.equal(rows.find(r => r.name === 'OK')?.unreadable, undefined);
+  assert.equal(rows.find(r => r.name === 'ABSENT')?.set, false);
+  for (const unreadable of [['ABSENT'], ['BROKEN', 'BROKEN'], ['FOREIGN'], 'BROKEN', [null], null]) {
+    assert.equal(readProjectSecretsResponse({ ...raw, unreadable }), null);
+  }
+  const { unreadable: _ignored, ...legacy } = raw;
+  assert.deepEqual(parseProjectSecretsResponse(legacy).unreadable, []);
 });
