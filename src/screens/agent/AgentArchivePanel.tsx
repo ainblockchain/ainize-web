@@ -1,7 +1,7 @@
 import { useAuth } from '@/auth/AuthContext';
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useAgentArchivesQuery } from '@/api/agentArchives';
+import { useAgentArchivesQuery, useAgentArchiveOperationsQuery } from '@/api/agentArchives';
 import { readAgentArchivePage, readAgentArchiveDownload, type AgentArchiveSummary } from '@/api/agentArchiveEvidence';
 import { createAgentArchiveDownload, type AgentArchiveAction } from '@/lib/agentArchiveAction';
 import { hostedAgentApiErrorOf } from '@/api/hostedAgents';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
 import { useAgentArchiveOperation } from '@/hooks/useAgentArchiveOperation';
 import { ArchiveOperationNotice } from '@/components/ArchiveOperationNotice';
+import { ArchiveOperationHistory } from '@/components/ArchiveOperationHistory';
+import { archiveOperationBlocking, readArchiveOperationHistory } from '@/lib/agentArchiveOperation';
 import { useT } from '@/i18n';
 const Panel = styled.section`margin-top:24px; min-width:0; p { overflow-wrap:anywhere; }`;
 const Record = styled.article`border:1px solid #ddd; border-radius:10px; padding:16px; margin:12px 0; min-width:0; h4 { margin:0; overflow-wrap:anywhere; }`;
@@ -33,15 +35,17 @@ function ArchiveContent({ principal }: { principal: string }) {
   const failed = query.isError || query.currentData !== undefined && !parsed;
   const current = () => active.current && auth.isCurrentAccount();
   const context = auth.address && auth.principal ? { node: auth.address.toLowerCase(), owner: auth.principal.toLowerCase() } : null;
-  const operation = useAgentArchiveOperation(context, current, () => query.refetch().unwrap());
+  const historyQuery = useAgentArchiveOperationsQuery({ context: context ?? { node: '', owner: '' }, principal }, { skip: !context });
+  const history = context && !historyQuery.isError ? readArchiveOperationHistory(historyQuery.currentData, context) : null;
+  const operation = useAgentArchiveOperation(context, current, () => Promise.all([query.refetch().unwrap(), historyQuery.refetch().unwrap()]));
   const disabled = !!busy || operation.running || query.isFetching || !data || !auth.principal;
-  const mutationDisabled = disabled || !operation.ready || !!operation.operation;
+  const mutationDisabled = disabled || !operation.ready || !!operation.operation || !history || historyQuery.isFetching;
   useEffect(() => {
     if (data && !query.isFetching && offset > 0 && offset >= data.total) setOffset(Math.max(0, Math.floor((data.total - 1) / 10) * 10));
   }, [data?.total, query.isFetching, offset]);
   const act = async (record: AgentArchiveSummary, action: AgentArchiveAction) => {
     if (pending.current || disabled || !current() || !data?.archives.some(row => row.id === record.id)) return;
-    if (action !== 'export' && mutationDisabled) return;
+    if (action !== 'export' && (mutationDisabled || history && archiveOperationBlocking(history, record))) return;
     if (action === 'delete' && !window.confirm(ko ? '이 보관본을 파일로 저장했는지 확인해 주세요. 서버의 보관본을 영구 삭제할까요?' : 'Check that you saved this archive to a file. Permanently delete the server copy?')) return;
     if (!current()) return;
     pending.current = true; setBusy(record.id); setError(''); setNotice('');
@@ -84,6 +88,7 @@ function ArchiveContent({ principal }: { principal: string }) {
     {notice && <p role="status">{notice}</p>}
     <ArchiveOperationNotice operation={operation.operation} ready={operation.ready} running={operation.running} error={operation.error}
       inspect={() => void operation.inspect()} cancel={() => void operation.cancel()} acknowledge={() => void operation.acknowledge()} reload={operation.sync} />
+    {context && <ArchiveOperationHistory context={context} data={historyQuery.currentData} loading={historyQuery.isFetching} failed={historyQuery.isError} refresh={() => void historyQuery.refetch()} />}
     {query.isFetching && <p role="status">{data ? (ko ? '보관본 상태 확인 중…' : 'Refreshing archives…') : (ko ? '보관본을 불러오는 중…' : 'Loading archives…')}</p>}
     {failed && <Alert $tone="error" role="alert">{ko ? '보관본을 불러오지 못했습니다.' : 'Could not load archives.'}</Alert>}
     <Button disabled={!!busy || query.isFetching} onClick={() => void query.refetch()}>{ko ? '보관본 새로고침' : 'Refresh archives'}</Button>
@@ -94,9 +99,10 @@ function ArchiveContent({ principal }: { principal: string }) {
       {record.restoredAt !== null && <p>{ko ? '복구 이력' : 'Previously restored'}: {new Date(record.restoredAt).toLocaleString()}</p>}
       <Actions>
         <Button disabled={disabled} onClick={() => void act(record, 'export')}>{ko ? '보관본 내려받기' : 'Download archive'}</Button>
-        <Button disabled={mutationDisabled} onClick={() => void act(record, 'restore')}>{ko ? '같은 주소로 복구' : 'Restore same address'}</Button>
-        <Button disabled={mutationDisabled || record.exportedAt === null} onClick={() => void act(record, 'delete')}>{ko ? '보관본 영구 삭제' : 'Permanently delete archive'}</Button>
+        <Button disabled={mutationDisabled || !!history && !!archiveOperationBlocking(history, record)} onClick={() => void act(record, 'restore')}>{ko ? '같은 주소로 복구' : 'Restore same address'}</Button>
+        <Button disabled={mutationDisabled || !!history && !!archiveOperationBlocking(history, record) || record.exportedAt === null} onClick={() => void act(record, 'delete')}>{ko ? '보관본 영구 삭제' : 'Permanently delete archive'}</Button>
       </Actions>{busy === record.id && <p role="status">{ko ? '처리 중…' : 'Working…'}</p>}
+      {history && archiveOperationBlocking(history, record) && <p role="status">{ko ? '먼저 복원·삭제 요청 기록에서 이전 요청의 결과를 확인하세요.' : 'Check the earlier result in restore and deletion requests before another action.'}</p>}
     </Record>)}
     {!!data?.total && <Actions><Button disabled={disabled || offset === 0} onClick={() => setOffset(Math.max(0, offset - 10))}>{ko ? '최신 보관본' : 'Newer archives'}</Button><Button disabled={disabled || offset + 10 >= data.total} onClick={() => setOffset(offset + 10)}>{ko ? '이전 보관본' : 'Older archives'}</Button></Actions>}
   </Panel>;

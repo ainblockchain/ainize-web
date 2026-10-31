@@ -2,6 +2,8 @@ import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
 import { AgentArchivePanel, agentArchiveScope } from '../src/screens/agent/AgentArchivePanel';
 import { archivedAgent } from './fixtures/agentArchive';
 import { ArchiveOperationNotice } from '../src/components/ArchiveOperationNotice';
+import { ArchiveOperationHistory, ArchiveOperationHistoryDetail } from '../src/components/ArchiveOperationHistory';
+import { archiveContext } from './fixtures/agentArchiveOperation';
 import { pendingArchiveOperation, archiveOperationJob } from './fixtures/agentArchiveOperation';
 import { KeyCreationNotice } from '../src/components/KeyCreationNotice';
 import { issuedKeyScope } from '../src/screens/models/issuedKeyMemory';
@@ -1004,6 +1006,52 @@ const agentLists: Fixture[] = [
 ];
 
 const archiveFixture = (archives = [archivedAgent()]): Fixture => ({ name: 'agentArchives', arg: { offset: 0, principal: agentArchiveScope(accountIdentity, keyNode) }, value: { archives, total: archives.length, limit: 10, offset: 0 } });
+const archiveHistoryFixture = (operations: any[] = [archiveOperationJob()]): Fixture => ({ name: 'agentArchiveOperations', arg: {
+  context: archiveContext, principal: agentArchiveScope(accountIdentity, keyNode),
+}, value: { format: 1, ...archiveContext, operations } });
+test('archive history remains reachable without a local request or any retained archive', () => {
+  const op = pendingArchiveOperation(), deletion = { ...archiveOperationJob(op), action: 'delete', result: { deleted: op.review.record.id } };
+  const html = render(AgentArchivePanel, [...appAccount, archiveFixture([]), archiveHistoryFixture([deletion])]);
+  assert.match(html, /No retained agents/); assert.match(html, /Recorded deletion completion/);
+  assert.ok(html.includes(op.id)); assert.ok(html.includes(op.review.record.id));
+  assert.match(html, /href="\/agent\/saved-agent"/);
+  assert.doesNotMatch(html, /Restore confirmed|>Cancel if not admitted<|>Acknowledge and close<|<details[^>]* open=/);
+});
+test('archive history hides failed, foreign and invalid cached records instead of claiming no requests', () => {
+  for (const fixture of [
+    { ...archiveHistoryFixture(), status: 'rejected' as const },
+    { ...archiveHistoryFixture(), value: {} },
+    { ...archiveHistoryFixture(), value: { format: 1, ...archiveContext, owner: 'another', operations: [archiveOperationJob()] } },
+  ]) {
+    const html = render(AgentArchivePanel, [...appAccount, archiveFixture([]), fixture]);
+    assert.match(html, /Could not verify request history/); assert.match(html, /Restore and deletion requests · unavailable/);
+    assert.doesNotMatch(html, /Recorded restore completion|No restore or deletion requests recorded/);
+  }
+  const differentAccount = render(AgentArchivePanel, [...appAccount, archiveFixture([]), { ...archiveHistoryFixture(), arg: { context: archiveContext, principal: 'other-account' } }]);
+  assert.doesNotMatch(differentAccount, /Recorded restore completion|saved-agent/);
+});
+test('history distinguishes historical restore completion from current state and offers no replay', () => {
+  const record = archiveOperationJob() as any;
+  const html = render(() => createElement(ArchiveOperationHistoryDetail, { record }), appAccount);
+  assert.match(html, /Recorded restore completion/); assert.match(html, /Secrets requiring setup at restoration/);
+  assert.match(html, /Inspect current agent state/); assert.match(html, /href="\/agent\/saved-agent"/);
+  assert.doesNotMatch(html, /<button|Restore confirmed|Cancel if not admitted|Acknowledge and close/);
+  for (const state of ['unknown', 'interrupted']) {
+    const unknown = render(() => createElement(ArchiveOperationHistoryDetail, { record: { ...record, state, result: null, error: state === 'unknown' ? { status: 502, code: 'archive_operation_unknown', message: 'Inspect' } : null } }), appAccount);
+    assert.match(unknown, /server operator needs to reconcile/);
+    assert.doesNotMatch(unknown, /Recorded restore completion|<button|Secrets requiring setup/);
+  }
+});
+test('unresolved history is visible when collapsed, with bounded rows and explicit empty versus pending feedback', () => {
+  const pending = { ...archiveOperationJob(undefined, 'interrupted'), id: 'f'.repeat(32) };
+  const operations = [pending, ...Array.from({ length: 10 }, (_, i) => ({ ...archiveOperationJob(), id: i.toString(16).padStart(32, '0') }))];
+  const view = (data: any, loading = false) => render(() => createElement(ArchiveOperationHistory, { context: archiveContext, data, loading, failed: false, refresh() {} }), appAccount);
+  const html = view({ format: 1, ...archiveContext, operations });
+  assert.match(html, /1 need confirmation/); assert.equal((html.match(/<article/g) ?? []).length, 10);
+  assert.match(html, /Next page/); assert.doesNotMatch(html, /<details[^>]* open=/);
+  assert.match(view({ format: 1, ...archiveContext, operations: [] }), /No restore or deletion requests recorded/);
+  assert.doesNotMatch(view({ format: 1, ...archiveContext, operations: [] }, true), /No restore or deletion requests recorded/);
+});
 test('archives show reviewed rows, export prerequisite and exact actions without claiming a download was saved', () => {
   const html = render(AgentArchivePanel, [...appAccount, archiveFixture()]);
   assert.match(html, /Retained assistant/); assert.match(html, /saved-agent/);

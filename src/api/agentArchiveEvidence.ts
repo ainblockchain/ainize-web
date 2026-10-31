@@ -53,7 +53,7 @@ export function reviewAgentArchive(raw: unknown, selected: AgentArchiveSummary, 
     || JSON.stringify(record.secretNames) !== JSON.stringify(selected.secretNames)) return null;
   return { record, version: a.spec.version };
 }
-export function readAgentArchiveRestore(raw: unknown, review: AgentArchiveReview): AgentArchiveRestored | null {
+export function readAgentArchiveRestore(raw: unknown, review: { record: Pick<AgentArchiveSummary, 'id' | 'agent'>; version: number }): AgentArchiveRestored | null {
   if (!object(raw) || raw.archiveId !== review.record.id || raw.agentId !== review.record.agent
     || raw.status !== 'ready' || raw.version !== review.version + 2 || !sha(raw.commit)
     || !(raw.sourceCommit === null || sha(raw.sourceCommit)) || !names(raw.secretsRequired)) return null;

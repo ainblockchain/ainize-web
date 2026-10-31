@@ -20,19 +20,39 @@ export const archiveOperationTarget = (op: ArchiveOperation) => ({ archiveId: op
   action: op.action, version: op.review.version, restoredAt: op.review.record.restoredAt });
 export const archiveOperationBody = (op: ArchiveOperation) => ({ ...archiveOperationTarget(op), expected_owner: op.context.owner, expected_node: op.context.node });
 export const archiveOperationUrl = (op: ArchiveOperation, read = false) => `/api/agent-archive-operations/${op.id}${read ? `?expected_owner=${encodeURIComponent(op.context.owner)}&expected_node=${encodeURIComponent(op.context.node)}` : ''}`;
-export function readArchiveOperationJob(raw: unknown, op: ArchiveOperation): ArchiveOperationJob | null {
-  const row = object(raw) ? raw.operation : null;
-  if (!object(row) || row.format !== 1 || row.id !== op.id || row.node !== op.context.node || row.owner !== op.context.owner
-    || Object.entries(archiveOperationTarget(op)).some(([key, value]) => row[key] !== value)
+/** Server records survive archive removal and do not need a fabricated archive summary. */
+export function readArchiveOperationRecord(row: unknown, context: ArchiveContext): ArchiveOperationJob | null {
+  if (!object(row) || row.format !== 1 || !idOk(row.id) || row.node !== context.node || row.owner !== context.owner
+    || typeof row.archiveId !== 'string' || !/^archive_[a-f0-9]{24}$/.test(row.archiveId)
+    || typeof row.agentId !== 'string' || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(row.agentId)
+    || !['restore', 'delete'].includes(row.action) || !Number.isSafeInteger(row.version) || row.version < 1 || row.version > Number.MAX_SAFE_INTEGER - 2
+    || !(row.restoredAt === null || time(row.restoredAt))
     || !time(row.createdAt) || !time(row.updatedAt) || row.updatedAt < row.createdAt
     || !['running', 'done', 'refused', 'unknown', 'interrupted'].includes(row.state)) return null;
   if (row.state === 'done') {
-    if (row.error !== null || (op.action === 'restore' ? !readAgentArchiveRestore(row.result, op.review) : !agentArchiveDeleted(row.result, op.review.record.id))) return null;
+    const target = { record: { id: row.archiveId, agent: row.agentId }, version: row.version };
+    if (row.error !== null || (row.action === 'restore' ? !readAgentArchiveRestore(row.result, target) : !agentArchiveDeleted(row.result, row.archiveId))) return null;
   } else if (row.result !== null) return null;
   else if (row.state === 'running' || row.state === 'interrupted') { if (row.error !== null) return null; }
   else if (!object(row.error) || !Number.isInteger(row.error.status) || row.error.status < 400 || row.error.status > 599 || typeof row.error.code !== 'string' || typeof row.error.message !== 'string') return null;
   return structuredClone(row) as ArchiveOperationJob;
 }
+export function readArchiveOperationJob(raw: unknown, op: ArchiveOperation): ArchiveOperationJob | null {
+  const row = readArchiveOperationRecord(object(raw) ? raw.operation : null, op.context);
+  return row && row.id === op.id && Object.entries(archiveOperationTarget(op)).every(([key, value]) => row[key as keyof ArchiveOperationJob] === value) ? row : null;
+}
+export interface ArchiveOperationHistory { format: 1; node: string; owner: string; operations: ArchiveOperationJob[] }
+export const archiveOperationHistoryUrl = (context: ArchiveContext) => `/api/agent-archive-operations?expected_owner=${encodeURIComponent(context.owner)}&expected_node=${encodeURIComponent(context.node)}`;
+export function readArchiveOperationHistory(raw: unknown, context: ArchiveContext): ArchiveOperationHistory | null {
+  if (!object(raw) || raw.format !== 1 || raw.node !== context.node || raw.owner !== context.owner
+    || !Array.isArray(raw.operations) || raw.operations.length > 1000) return null;
+  const rows = raw.operations.map(row => readArchiveOperationRecord(row, context));
+  if (rows.some(row => !row) || new Set(rows.map(row => row!.id)).size !== rows.length) return null;
+  return { format: 1, ...context, operations: (rows as ArchiveOperationJob[]).sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id)) };
+}
+export const archiveOperationUnresolved = (job: ArchiveOperationJob) => ['running', 'unknown', 'interrupted'].includes(job.state);
+export const archiveOperationBlocking = (history: ArchiveOperationHistory, record: AgentArchiveSummary) =>
+  history.operations.find(job => archiveOperationUnresolved(job) && (job.archiveId === record.id || job.agentId === record.agent));
 function parse(raw: unknown, context: ArchiveContext): ArchiveOperation {
   if (!object(raw) || raw.format !== 1 || !idOk(raw.id) || !object(raw.context) || raw.context.node !== context.node || raw.context.owner !== context.owner
     || !['restore', 'delete'].includes(raw.action) || !time(raw.requestedAt) || !object(raw.review)
