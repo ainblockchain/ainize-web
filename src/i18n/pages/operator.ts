@@ -407,12 +407,6 @@ export const operatorManage: Dict = {
   // Finding 33 — both buttons ran without saying what they spend. `verifier.stake` is ignored by the node since
   // 2026-09 (nothing is escrowed or slashed), so the cost that IS real is this node's model time and a permanent
   // signed record in its name — plus, when the runtime is down, that the run degrades to a fingerprint check.
-  'op.manage.verify_now': { ko: '이 노드에서 지금 검증', en: 'Verify now (this node)' },
-  'op.manage.verify.cost.run': { ko: '이 노드가 지식을 실제 모델에 넣고 검증 질문 {n}개를 채점합니다 — 그동안 이 노드의 모델은 다른 일에 쓸 수 없고, 몇 분이 걸립니다. 결과는 통과든 실패든 이 노드 이름으로 서명되어 공개 기록에 남습니다. 걸어 두는 보증금은 없습니다.', en: 'This node loads the knowledge into its real model and scores {n} benchmark question(s) — its model is busy for the duration, which is minutes. The result, pass or fail, is signed in this node’s name on the permanent public record. No deposit is staked.' },
-  'op.manage.verify.cost.hash': { ko: '이 노드는 지금 이 검증 질문을 채점할 수 없습니다(맞는 모델 서버가 없거나 예시 질문이 없습니다). 파일 지문과 검증 질문 지문만 확인하는 무결성 검사만 남기며, 무결성 검사는 검증 정족수에 반영되지 않습니다.', en: 'This node cannot score the benchmark right now — no matching model server, or no sample questions. It will record an integrity check instead (file and benchmark fingerprints only), and an integrity check does not count toward the verification quorum.' },
-  'op.manage.verify.elapsed': { ko: '검증 중… {elapsed} 경과 — 창을 닫아도 계속됩니다', en: 'Verifying… {elapsed} elapsed — it keeps going if you leave this page' },
-  'op.manage.verifying': { ko: '검증 중…', en: 'Verifying…' },
-  'op.manage.verified_ok': { ko: '검증 결과를 올렸습니다.', en: 'Verification result published.' },
   'op.manage.already': { ko: '이 노드는 이미 이 지식을 검증했습니다.', en: 'This node already verified this knowledge.' },
   'op.manage.challenge': { ko: '재검증 요청', en: 'Request re-verification' },
   'op.manage.challenge.ph': { ko: '이유 — 예: 2026-08 상장폐지 이후 답이 오래됨', en: 'reason — e.g. answers look stale after the 2026-08 delisting' },

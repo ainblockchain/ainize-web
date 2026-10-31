@@ -8,12 +8,18 @@ const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'ob
 const timestamp = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 8.64e15;
 const instance = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{32}$/.test(v);
 const requestId = (v: unknown): v is string => typeof v === 'string' && /^\d{13}-[a-f0-9]{32}$/.test(v);
+export const validRuntimeRequest = (v: unknown): v is { request_id: string; instance: string } => object(v) && requestId(v.request_id) && instance(v.instance);
+export function prepareRuntimeRequest(raw: unknown, randomHex: string) {
+  if (!object(raw) || !instance(raw.instance) || !timestamp(raw.server_time) || String(raw.server_time).length !== 13
+    || raw.request_window_ms !== 600_000 || !instance(randomHex)) throw new RuntimeOperationError('unsupported');
+  return { request_id: `${raw.server_time}-${randomHex}`, instance: raw.instance };
+}
 export type RuntimePhase = 'submitting' | 'checking' | 'queued' | 'running' | 'confirming' | 'interrupted';
 export class RuntimeOperationError extends Error {
   constructor(readonly code: 'unsupported' | 'storage' | 'pending' | 'receipt' | 'review' | 'unreachable' | 'missing') { super(code); }
 }
 export interface RuntimeJob {
-  id: string; instance: string; patch_id: string; kind: 'apply' | 'remove';
+  id: string; instance: string; patch_id: string; kind: 'apply' | 'remove' | 'verify';
   state: 'queued' | 'running' | 'done' | 'failed';
   queued_at: number; started_at: number | null; finished_at: number | null;
   result: string | null; error: string | null; outcome?: unknown; status?: number; details?: Record<string, unknown> | null;
@@ -38,11 +44,14 @@ export function prepareRuntimeOperation(owner: string, target: RuntimeTarget, ki
     kind, withBase, before, ...(review ? { review } : {}), request: { request_id: `${raw.server_time}-${randomHex}`, instance: raw.instance } });
 }
 
-export function parseRuntimeJob(raw: unknown, op: RuntimeOperation): RuntimeJob | null {
+export interface RuntimeJobIdentity {
+  target: { id: string }; kind: 'load' | 'unload' | 'verify'; request: { request_id: string; instance: string }; job?: RuntimeJob;
+}
+export function parseRuntimeJob(raw: unknown, op: RuntimeJobIdentity): RuntimeJob | null {
   if (!object(raw) || !object(raw.job)) return null;
   const j = raw.job;
   if (j.id !== op.request.request_id || j.instance !== op.request.instance || j.patch_id !== op.target.id
-    || j.kind !== (op.kind === 'load' ? 'apply' : 'remove') || !['queued', 'running', 'done', 'failed'].includes(j.state)
+    || j.kind !== (op.kind === 'load' ? 'apply' : op.kind === 'unload' ? 'remove' : 'verify') || !['queued', 'running', 'done', 'failed'].includes(j.state)
     || !timestamp(j.queued_at) || !(j.started_at === null || timestamp(j.started_at) && j.started_at >= j.queued_at)
     || !(j.finished_at === null || timestamp(j.finished_at) && j.finished_at >= (j.started_at ?? j.queued_at))) return null;
   if (j.state === 'queued' && j.started_at !== null || j.state === 'running' && j.started_at === null) return null;
@@ -50,7 +59,8 @@ export function parseRuntimeJob(raw: unknown, op: RuntimeOperation): RuntimeJob 
     if (j.finished_at !== null || j.result !== null || j.error !== null || j.outcome !== undefined) return null;
   } else if (j.finished_at === null) return null;
   else if (j.state === 'done') {
-    if (typeof j.result !== 'string' || j.error !== null || !object(j.outcome) || j.outcome.result !== j.result || !Array.isArray(j.outcome.stack)) return null;
+    if (typeof j.result !== 'string' || j.error !== null || !object(j.outcome) || j.outcome.result !== j.result
+      || (op.kind === 'verify' ? !object(j.outcome.attestation) : !Array.isArray(j.outcome.stack))) return null;
   } else if (typeof j.error !== 'string' || j.result !== null || !Number.isInteger(j.status) || j.status < 400 || j.status > 599
     || j.details != null && !object(j.details)) return null;
   return structuredClone(j) as RuntimeJob;
@@ -101,7 +111,7 @@ export const runtimeOperationRequest = (op: RuntimeOperation) => ({ id: op.targe
   body: { async: true as const, ...op.request, ...(op.kind === 'load' ? { with_base: op.withBase, ...(op.review ? { expected_preview: op.review.revision } : {}) } : { cascade: false, require_recorded: true }) } });
 
 /** POST only on the initial explicit action. Recovery/polling never invents an ID or resubmits work. */
-export async function followRuntimeOperation(op: RuntimeOperation, deps: {
+export async function followRuntimeOperation(op: RuntimeJobIdentity, deps: {
   current: () => boolean; submit?: () => Promise<unknown>; read: () => Promise<unknown>;
   save: (job: RuntimeJob) => void; phase: (phase: RuntimePhase) => void; wait: () => Promise<void>;
 }): Promise<unknown | null> {

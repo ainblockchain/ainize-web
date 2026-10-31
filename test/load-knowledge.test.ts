@@ -77,6 +77,8 @@ test('documented prerequisite/dependent refusals are parsed narrowly and server/
   for (const error of [{ status: 500 }, { status: 'FETCH_ERROR' }, new Error('response lost')]) {
     await assert.rejects(changeRuntimeKnowledge(p().anchor, 'load', false, deps({ write: async () => { throw error; } })), code('unconfirmed'));
   }
+  const recovery = { status: 503, data: { error: 'runtime_restore_pending: previous operation' } };
+  await assert.rejects(changeRuntimeKnowledge(p().anchor, 'load', false, deps({ write: async () => { throw recovery; } })), e => e === recovery);
 });
 test('departure suppresses later reads, writes and completion while a shared task rejects double clicks', async () => {
   for (const stage of ['access', 'read', 'runtime', 'write']) {

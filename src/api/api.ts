@@ -406,6 +406,9 @@ export const api = createApi({
     startRuntimeOperation: b.mutation<unknown, { id: string; kind: 'load' | 'unload'; body: { async: true; request_id: string; instance: string; with_base?: boolean; cascade?: boolean; require_recorded?: boolean; expected_preview?: string } }>({
       query: ({ id, kind, body }) => ({ url: `api/patches/${encodeURIComponent(id)}/${kind === 'load' ? 'apply' : 'remove'}`, method: 'POST', body, timeout: 15_000 }),
     }),
+    startVerification: b.mutation<unknown, { id: string; body: { async: true; request_id: string; instance: string; recheck: boolean; expected: import('../lib/loadKnowledge').RuntimeTarget } }>({
+      query: ({ id, body }) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST', body, timeout: 15_000 }),
+    }),
     drive: b.query<DriveResponse, void>({ query: () => 'api/drive', providesTags: ['Drive'] }),
     driveChanges: b.query<DriveChangesResponse, string>({ query: (path) => `api/drive/changes${toQuery({ path })}`, providesTags: ['Drive'] }),
     docs: b.query<DocsResponse, void>({ query: () => 'api/docs' }),
@@ -504,7 +507,6 @@ export const api = createApi({
     /** Item 320: money that has been earned can leave the node — the only outward money verb there is. */
     walletSend: b.mutation<{ to: string; amount: number; tx_hash: string; balance: number | null; currency: string }, { to: string; amount: number; memo?: string }>({
       query: (body) => ({ url: 'api/me/wallet/send', method: 'POST', body }), invalidatesTags: ['Me', 'Events'] }),
-    verify: b.mutation<unknown, string>({ query: (id) => ({ url: `api/patches/${encodeURIComponent(id)}/verify`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Patch', id }, 'Catalog', 'Ledger', 'Events'] }),
     challenge: b.mutation<unknown, { id: string; reason: string }>({ query: ({ id, reason }) => ({ url: `api/patches/${encodeURIComponent(id)}/challenge`, method: 'POST', body: { reason } }), invalidatesTags: (_r, _e, a) => [{ type: 'Patch', id: a.id }, 'Catalog', 'Ledger'] }),
     /** Item 270 / design §12.4 — `bundle` buys the bases this knowledge needs underneath it too, deepest first,
      * one settlement each. */
@@ -691,7 +693,7 @@ export const {
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
   useApproveAccountDeviceMutation, useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useAnnouncePreviewQuery, useReviewedAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
-  useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
+  useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,
   useCompleteMutation, useAddPeerMutation, useRemovePeerMutation, useChainSetupMutation, useDriveActionMutation,
   useChatPatchesQuery, useChatMutation, useChatStatusQuery, useCancelChatMutation, useSettingsQuery, useUpdateSettingsMutation, useDocsQuery,

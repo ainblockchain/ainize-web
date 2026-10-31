@@ -16,7 +16,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import {
   errorMessage, useManagedCatalogQuery, useChallengeMutation, useDeletePatchMutation, useNodesQuery, useManagedPatchQuery, useMeQuery,
-  useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation, useVerifyMutation,
+  useRetireMutation, useRuntimeQuery, useSetPriceMutation, useUpdatePatchMutation,
 } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
@@ -65,7 +65,7 @@ function ManageView() {
   const navigate = useNavigate();
   const auth = useAuth();
   const meQuery = useMeQuery();
-  const { roles, address, cacheIdentity } = auth;
+  const { address, cacheIdentity } = auth;
   const active = useActiveView();
   const current = () => active() && auth.isCurrentAccount();
   const [task] = useState(createNodeActionTask);
@@ -84,7 +84,6 @@ function ManageView() {
   useTitle(p ? p.anchor.name || p.anchor.id : undefined);
 
   const [update, updateState] = useUpdatePatchMutation();
-  const [verify, verifyState] = useVerifyMutation();
   const [challenge, challengeState] = useChallengeMutation();
   /**
    * SC-15 — an add-on is loaded with what it was trained on top of, and unloading something with a knowledge on top
@@ -121,14 +120,6 @@ function ManageView() {
    * for the publish that ALSO retires knowledge somebody is buying right now.
    */
   const [publishOpen, setPublishOpen] = useState<PatchDetail | null>(null);
-  /** Finding 33: "Verifying…" with no sense of how long it has been holding this node's model. */
-  const [verifyStart, setVerifyStart] = useState<number | null>(null);
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (verifyStart === null) return;
-    const id = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [verifyStart]);
   /** Item 148: the author's own takedown of a PUBLISHED knowledge — the exit `patch forget` was mistaken for. */
   const [downMode, setDownMode] = useState<PatchDetail | null>(null);
   const [downText, setDownText] = useState('');
@@ -170,12 +161,10 @@ function ManageView() {
   }, [p?.anchor.patch_sha256, p?.anchor.author, p?.settlements, p?.attestations, nodeData]);
 
   const isDraft = p?.status === 'DRAFT';
-  const isVerifier = roles.includes('verifier');
   const alreadyAttested = !!p && !!address && p.attestations.some((a) => a.verifier.toLowerCase() === address.toLowerCase());
   // Item 146: this is the author's own manage page — a "verify" here would be a self-attestation, which the node
   // now refuses to write and the catalogue never counts. The button is gone and the reason is on the page.
   const isMine = !!p && !!address && p.anchor.author.toLowerCase() === address.toLowerCase();
-  const canVerify = isVerifier && !!p && !isDraft && !alreadyAttested && !isMine && p.status !== 'REJECTED';
   /**
    * Finding 167 — the badge was `ic-certified.svg`, declared 12×12, so a reader saw a tick barely larger than the
    * full stop beside it; and its href was the x402 gateway, which answers a browser with a 402 payment-requirements
@@ -225,23 +214,6 @@ function ManageView() {
   const gateway = p.gateway_url ?? `${window.location.origin}/x402/patch/${encodeURIComponent(a.id)}`;
   const byId = new Map((catalogItems ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
-
-  /**
-   * Finding 33 — what "Verify now" really spends. The stake it was accused of hiding no longer exists: the node
-   * ignores `verifier.stake` and says so in its own log (server.ts), nothing is escrowed, transferred or slashed.
-   * What IS spent is this node's model for minutes, and its signature on a permanent public record. And when the
-   * run cannot execute — no matching model server, or no sample questions — it degrades to an integrity check that
-   * does not count toward a quorum, which the operator has to know BEFORE clicking, not from the results table.
-   * The three conditions below are exactly the ones verifier.ts:51 uses to choose between the two.
-   */
-  const sampleCount = a.benchmark.samples?.length ?? 0;
-  const canExecute = !!runtimeData?.available && !!runtimeData.model && a.model.id_M.startsWith(runtimeData.model) && sampleCount > 0;
-  const elapsed = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
-  const doVerify = () => {
-    if (task.pending() || !current()) return;
-    setVerifyStart(Date.now());
-    void run(() => verify(a.id).unwrap(), t('op.manage.verified_ok')).finally(() => { if (current()) setVerifyStart(null); });
-  };
 
   const doChallenge = () => {
     if (busy || task.pending() || !current() || challengeReady.kind !== 'ready' || reason.trim().length < CHALLENGE_REASON_MIN) return;
@@ -353,18 +325,6 @@ function ManageView() {
       )}
       {!isDraft && (
         <SectionBody>
-          {/* Finding 33: both buttons ran without saying what they spend. What each costs is beside it now. */}
-          {canVerify && (
-            <Stack $gap={8} style={{ maxWidth: '72ch' }}>
-              <Row $gap={12}>
-                <Button loading={verifyState.isLoading} loadingText={t('op.manage.verifying')} onClick={doVerify} data-testid="verify-now">{t('op.manage.verify_now')}</Button>
-                {verifyState.isLoading && verifyStart !== null && (
-                  <Muted data-testid="verify-elapsed">{t('op.manage.verify.elapsed', { elapsed: elapsed(Date.now() - verifyStart) })}</Muted>
-                )}
-              </Row>
-              <Muted data-testid="verify-cost">{canExecute ? t('op.manage.verify.cost.run', { n: sampleCount }) : t('op.manage.verify.cost.hash')}</Muted>
-            </Stack>
-          )}
           <Row $gap={12}>
             {alreadyAttested && <Muted>{t('op.manage.already')}</Muted>}
             {isMine && !alreadyAttested && <Muted data-testid="self-verify-note">{t('op.manage.self_verify')}</Muted>}

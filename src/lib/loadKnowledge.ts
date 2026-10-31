@@ -91,6 +91,7 @@ export async function changeRuntimeKnowledge(expected: RuntimeTarget, kind: 'loa
   catch (error) {
     if (!deps.current()) return null;
     if (error instanceof RuntimeOperationError) throw error;
+    if (runtimeGuardFailure(error) === 'recovery') throw error;
     // A documented refusal is actionable. Transport/server errors may have happened after mutation.
     if (object(error) && typeof error.status === 'number' && error.status >= 400 && error.status < 500) throw error;
     throw new LoadKnowledgeError('unconfirmed');

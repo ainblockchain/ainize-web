@@ -89,6 +89,7 @@ import { trackAuthor } from './fixtures/track';
 import { VerificationWork } from '../src/components/operator/VerificationWork';
 import { DashboardContent } from '../src/screens/DashboardPage';
 import { RuntimeOperationStatus } from '../src/components/detail/RuntimeOperationStatus';
+import { VerificationAction, VerificationResult } from '../src/components/detail/VerificationAction';
 import { prepareRuntimeOperation } from '../src/lib/runtimeOperation';
 import { dashboardEntry, dashboardAttest, verificationPayment } from './fixtures/dashboard';
 import { BenchmarkCoverage } from '../src/components/detail/BenchmarkCoverage';
@@ -1770,6 +1771,51 @@ test('account runtime has failed-read recovery and disables inference when the m
 const accessActor = '0x' + 'bb'.repeat(20), accessTarget = '0x' + 'cc'.repeat(20);
 const accessIdentity = JSON.stringify([accessActor, null, null, null]);
 const accessAuth: Fixture[] = [...signedOut.filter(f => f.name !== 'me'), { name: 'me', value: { signedIn: true, subject: accessActor, address: walletAddress, scheme: 'ain', isOwner: true, scope: ['owner'] } }];
+const directVerificationCap: Fixture = { name: 'runtimeOperationCapabilities', arg: { identity: accessIdentity }, value: {
+  instance: 'a'.repeat(32), server_time: 1_800_000_000_000, request_window_ms: 600_000, verification_jobs: true, verification_restoration: 1,
+} };
+const publicVerification = () => ({ ...manageFixture(), anchor: { ...manageFixture().anchor, author: accessTarget }, status: 'VERIFIED' as const, owned: false });
+test('direct verification appears on a public foreign detail for an authorized supported node operator', () => {
+  const html = render(() => createElement(VerificationAction, { detail: publicVerification() }), [...accessAuth, directVerificationCap]);
+  assert.match(html, /data-testid="verification-begin"/); assert.match(html, />Verify</);
+  assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*data-testid="verification-begin"/);
+  assert.doesNotMatch(html, /verification-review|Start verification|stake|escrow/);
+});
+test('visitors, nonoperators, authors and private drafts have no direct verification action', () => {
+  for (const fixtures of [signedOut, appAccount]) {
+    const html = render(() => createElement(VerificationAction, { detail: publicVerification() }), fixtures);
+    assert.doesNotMatch(html, /verification-begin|verification-action/);
+  }
+  const own = { ...publicVerification(), anchor: { ...publicVerification().anchor, author: walletAddress } };
+  const html = render(() => createElement(VerificationAction, { detail: own }), [...accessAuth, directVerificationCap]);
+  assert.doesNotMatch(html, /verification-begin/); assert.match(html, /verified by another node/);
+  const draft = render(() => createElement(VerificationAction, { detail: manageFixture() }), [...accessAuth, directVerificationCap]);
+  assert.doesNotMatch(draft, /verification-begin/);
+});
+test('direct verification keeps unsupported, failed and loading capabilities disabled with honest feedback', () => {
+  for (const cap of [{ ...directVerificationCap, value: { ...directVerificationCap.value as object, verification_restoration: undefined } },
+    { ...directVerificationCap, status: 'rejected' as const }, { ...directVerificationCap, status: 'pending' as const }]) {
+    const html = render(() => createElement(VerificationAction, { detail: publicVerification() }), [...accessAuth, cap]);
+    assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="verification-begin"/);
+    if (cap.status === 'rejected') assert.match(html, /Could not check whether this node can verify/);
+    else if (cap.status !== 'pending') assert.match(html, /does not support recoverable direct verification/);
+  }
+});
+test('previous node attestations label a new decision as recheck instead of a first verification', () => {
+  const d = publicVerification(); d.attestations = [{ verifier: walletAddress, sig: 'previous' } as any];
+  const html = render(() => createElement(VerificationAction, { detail: d }), [...accessAuth, directVerificationCap]);
+  assert.match(html, />Recheck</); assert.doesNotMatch(html, />Verify</);
+});
+test('verification feedback distinguishes model PASS, model FAIL and integrity-only outcomes', () => {
+  for (const passed of [true, false]) for (const verified_on of ['model', 'hash-only']) {
+    const html = render(() => createElement(VerificationResult, { attestation: { passed, verified_on, samples_run: 4, samples_available: 4 } as any }), signedOut);
+    assert.match(html, new RegExp(`verification-result-${verified_on === 'hash-only' ? 'integrity' : 'model'}-${passed ? 'pass' : 'fail'}`));
+    if (verified_on === 'hash-only') { assert.match(html, /no model measurement/); assert.doesNotMatch(html, /Model measurement:/); }
+    else assert.match(html, new RegExp(`Model measurement: ${passed ? 'PASS' : 'FAIL'}`));
+  }
+  const legacy = render(() => createElement(VerificationResult, { attestation: { passed: true, verified_on: 'model' } as any }), signedOut);
+  assert.match(legacy, /model measurement unconfirmed/); assert.doesNotMatch(legacy, /Model measurement: PASS/);
+});
 const ownerRow = (address: string, source = 'granted') => ({ address, source, added_at: 1, added_by: walletAddress, note: null });
 const accessOwners = { owners: [ownerRow(walletAddress, 'node'), ownerRow(accessActor), ownerRow(accessTarget)] };
 test('ownership controls exclude self and protected claims and identify the actual removable address', () => {

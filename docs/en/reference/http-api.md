@@ -7816,7 +7816,7 @@ The latest 50 queued/running/terminal jobs, plus instance, server_time and reque
 
 Runtime job recovery capabilities
 
-Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. verification_jobs:true advertises recoverable verification and is false when the verifier service is unavailable. apply_preview:true advertises apply-preview and enforcement of expected_preview at execution. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
+Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. verification_jobs:true advertises recoverable verification and is false when the verifier service is unavailable. verification_restoration:1 advertises exact saved restoration snapshots, retained failure evidence and restoration failure propagation; direct verification clients require both capabilities. This does not claim distributed crash atomicity or whole-model equality. apply_preview:true advertises apply-preview and enforcement of expected_preview at execution. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
 
 **Auth** — operator
 
@@ -7824,7 +7824,7 @@ Read the current process instance, server_time (milliseconds) and request_window
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | instance, server_time, request_window_ms, recorded_remove, apply_preview, verification_jobs | `object` |
+| `200` | instance, server_time, request_window_ms, recorded_remove, apply_preview, verification_jobs, verification_restoration | `object` |
 
 ### `GET /api/runtime/jobs/{id}`
 

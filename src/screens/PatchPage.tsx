@@ -1,5 +1,6 @@
 import { BenchmarkCoverage } from '@/components/detail/BenchmarkCoverage';
 import { AttestationCount } from '@/components/detail/AttestationCount';
+import { VerificationAction } from '@/components/detail/VerificationAction';
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { verificationCount } from '@/lib/verificationView';
 import { currentModelRuns, latestVerificationScore } from '@/lib/verificationScore';
@@ -885,6 +886,7 @@ export function Verification({ d }: { d: PatchDetail }) {
   }).find(Boolean) ?? null;
   return (
     <Section style={{ padding: 0 }}>
+      <VerificationAction detail={d} />
       <SummaryRow>
         <div title={tech('verified')}><span className="k">{t('detail.ver.summary_executed')}</span><span className="v">{verificationCount(d).fraction}</span></div>
         {/* Item 329: "2/2 independent" was two signatures; two verifier processes on ONE vLLM look identical to two
