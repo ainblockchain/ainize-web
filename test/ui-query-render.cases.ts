@@ -1877,6 +1877,31 @@ test('published price and retirement controls respect stored retirement and boun
 });
 
 
+test('management challenge explains the reason minimum and blocks unknown history', () => {
+  const p = manageFixture(); p.status = 'VERIFIED';
+  const html = renderManage([...accessAuth, { ...manageRead(), value: p }, ...manageAux]);
+  assert.match(html, /at least 20 characters/); assert.match(html, /Currently 0/);
+  assert.match(html, /Request history could not be confirmed/); assert.match(html, /Refresh request history/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="challenge-submit"/);
+  assert.match(html, /aria-describedby="challenge-rule"/);
+});
+test('management challenge shows current-node pending requests and dismissed cooldown', () => {
+  const p = manageFixture(); p.status = 'VERIFIED';
+  const challenge = { patch_id: p.anchor.id, challenger: walletAddress, reason: 'An answer no longer agrees with the evidence', created_at: Date.now() - 2000 };
+  const open = renderManage([...accessAuth, { ...manageRead(), value: { ...p, challenge_log: [{ challenge, state: 'open' }] } }, ...manageAux]);
+  assert.match(open, /already has a pending request/); assert.match(open, /<button[^>]*disabled=""[^>]*data-testid="challenge-submit"/);
+  const dismissed = renderManage([...accessAuth, { ...manageRead(), value: { ...p, challenge_log: [{ challenge, state: 'dismissed', answered_at: Date.now() - 1000 }] } }, ...manageAux]);
+  assert.match(dismissed, /previous request was dismissed/); assert.match(dismissed, /You can request again after/);
+  assert.match(dismissed, /<button[^>]*disabled=""[^>]*data-testid="challenge-submit"/);
+});
+test('other-node challenges do not block this node and private drafts have no challenge action', () => {
+  const p = manageFixture(); p.status = 'VERIFIED';
+  const html = renderManage([...accessAuth, { ...manageRead(), value: { ...p, challenge_log: [{ challenge: { patch_id: p.anchor.id, challenger: accessTarget, reason: 'A different node requested re-verification', created_at: 100 }, state: 'open' }] } }, ...manageAux]);
+  assert.doesNotMatch(html, /challenge-unavailable/); assert.match(html, /data-testid="challenge-submit"/);
+  const draft = renderManage([...accessAuth, manageRead(), ...manageAux]);
+  assert.doesNotMatch(draft, /data-testid="challenge-submit"/);
+});
+
 const publicationProps = { expected: manageFixture(), busy: false, run: async () => undefined, readDetail: async () => ({}), onClose: () => undefined, onPublished: () => undefined };
 const publicationFixture: Fixture = { name: 'announcePreview', arg: { id: 'chosen', identity: accessIdentity }, value: { anchor: { ...manageFixture().anchor, name: 'Authoritative server draft' }, revision: 'a'.repeat(64), retires: [], coexisting: 0 } };
 test('publication review displays server contents and explicit zero replacements', () => {

@@ -9,17 +9,17 @@ export class ManageLifecycleError extends Error {
   constructor(readonly code: 'price' | 'reason' | 'confirm' | 'read' | 'changed' | 'state' | 'unconfirmed' | 'access') { super(code); }
 }
 interface LifecycleDeps { current: () => boolean; read: () => Promise<unknown> }
-const sameArtifact = (a: PatchDetail, b: PatchDetail) => a.anchor.id === b.anchor.id
+export const sameManagedArtifact = (a: PatchDetail, b: PatchDetail) => a.anchor.id === b.anchor.id
   && sameAccountAddress(a.anchor.author, b.anchor.author) && a.anchor.patch_sha256 === b.anchor.patch_sha256
   && a.anchor.benchmark_hash === b.anchor.benchmark_hash && a.anchor.created_at === b.anchor.created_at
   && canonical(a.anchor.model) === canonical(b.anchor.model);
-export const sameDraftPreview = (a: PatchDetail, b: PatchDetail) => sameArtifact(a, b) && canonical(a.anchor) === canonical(b.anchor);
+export const sameDraftPreview = (a: PatchDetail, b: PatchDetail) => sameManagedArtifact(a, b) && canonical(a.anchor) === canonical(b.anchor);
 async function selected(expected: PatchDetail, deps: LifecycleDeps) {
   if (!deps.current()) return null;
   const fresh = managedKnowledge(await deps.read(), expected.anchor.id);
   if (!deps.current()) return null;
   if (!fresh || !fresh.owned || !managementMatchesAuthor(fresh, expected.anchor.author)) throw new ManageLifecycleError('read');
-  if (!sameArtifact(fresh, expected)) throw new ManageLifecycleError('changed');
+  if (!sameManagedArtifact(fresh, expected)) throw new ManageLifecycleError('changed');
   return fresh;
 }
 async function confirmRead(expected: PatchDetail, deps: LifecycleDeps) {

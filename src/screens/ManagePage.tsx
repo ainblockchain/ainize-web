@@ -1,4 +1,5 @@
 import { ManagePublication } from '@/components/operator/ManagePublication';
+import { challengeAvailability, requestManagedChallenge, ManageChallengeError, CHALLENGE_REASON_MIN } from '@/lib/manageChallenge';
 import { changeManagedPrice, retireManagedKnowledge, deleteManagedDraft, ManageLifecycleError } from '@/lib/manageLifecycle';
 import type { PatchDetail } from '@/api/types';
 import { ManageDraftConflict } from '@/components/operator/ManageDraftConflict';
@@ -108,6 +109,13 @@ function ManageView() {
     setEditor({ ...form, draft: { ...form.draft, ...values } }); setError(null); setNotice(null); setDraftFeedback(null);
   };
   const [reason, setReason] = useState('');
+  const [challengeFeedback, setChallengeFeedback] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const [challengeNow, setChallengeNow] = useState(Date.now);
+  useEffect(() => {
+    const id = setInterval(() => setChallengeNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const challengeReady = p ? challengeAvailability(p, address, challengeNow) : { kind: 'read' as const };
   const [confirmMode, setConfirmMode] = useState<PatchDetail | null>(null);
   /**
    * Item 150 + finding 32: publishing is the permanent, public, paid act, and it used to be one unguarded click
@@ -192,7 +200,7 @@ function ManageView() {
       if (finished && current() && ok) setNotice(ok);
     } catch (err) {
       if (current()) {
-        const message = err instanceof ManageLifecycleError ? t(`op.manage.lifecycle.${err.code}`) : err instanceof ManageDraftError ? t(err.code === 'benchmark' ? `op.benchmark.issue.${err.benchmarkIssue}` : `op.manage.draft.error.${err.code}`) : err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err);
+        const message = err instanceof ManageChallengeError ? t(`op.manage.challenge.error.${err.code}`) : err instanceof ManageLifecycleError ? t(`op.manage.lifecycle.${err.code}`) : err instanceof ManageDraftError ? t(err.code === 'benchmark' ? `op.benchmark.issue.${err.benchmarkIssue}` : `op.manage.draft.error.${err.code}`) : err instanceof ManagementSelectionError ? t('op.manage.selection_changed') : errorMessage(err);
         if (onError) onError(message); else setError(message);
       }
     }
@@ -200,7 +208,7 @@ function ManageView() {
   };
 
   if (patch.isFetching && !patch.currentData) return <PageWrapper><CenterProgress /></PageWrapper>;
-  const failedAction = error || (draftFeedback?.tone === 'error' ? draftFeedback.message : null) || (lifecycleFeedback?.tone === 'error' ? lifecycleFeedback.message : null);
+  const failedAction = error || (draftFeedback?.tone === 'error' ? draftFeedback.message : null) || (lifecycleFeedback?.tone === 'error' ? lifecycleFeedback.message : null) || (challengeFeedback?.tone === 'error' ? challengeFeedback.message : null);
   const missing = patch.isError && patch.error && 'status' in patch.error && patch.error.status === 404;
   if (missing && busy) return <PageWrapper><CenterProgress /><Description role="status">{t('op.manage.lifecycle.checking')}</Description></PageWrapper>;
   if (missing || p && !managementMatchesAuthor(p, author)) return <PageWrapper>{busy && <CenterProgress />}{failedAction && <Alert role="alert" $tone="error">{failedAction}</Alert>}<Title>{t('op.manage.notfound')}</Title><Description>{t(missing ? 'op.manage.notfound.desc' : 'op.manage.route_mismatch')} <StyledLink to="/dashboard">{t('op.manage.back')}</StyledLink></Description></PageWrapper>;
@@ -238,6 +246,18 @@ function ManageView() {
     if (task.pending() || !current()) return;
     setVerifyStart(Date.now());
     void run(() => verify(a.id).unwrap(), t('op.manage.verified_ok')).finally(() => { if (current()) setVerifyStart(null); });
+  };
+
+  const doChallenge = () => {
+    if (busy || task.pending() || !current() || challengeReady.kind !== 'ready' || reason.trim().length < CHALLENGE_REASON_MIN) return;
+    setChallengeFeedback(null);
+    void run(async stillCurrent => {
+      const result = await requestManagedChallenge(p, address, auth.subject, reason, {
+        current: stillCurrent, read: () => patch.refetch().unwrap(), readAccess: () => meQuery.refetch().unwrap(),
+        write: text => challenge({ id: a.id, reason: text }).unwrap(),
+      });
+      if (result && stillCurrent()) { setReason(''); setChallengeFeedback({ tone: 'success', message: t('op.manage.challenge.ok') }); }
+    }, undefined, message => setChallengeFeedback({ tone: 'error', message }));
   };
 
   const saveDraft = (group: DraftGroup) => {
@@ -354,9 +374,13 @@ function ManageView() {
             {isMine && !alreadyAttested && <Muted data-testid="self-verify-note">{t('op.manage.self_verify')}</Muted>}
           </Row>
           <Stack $gap={8} style={{ marginTop: 16, maxWidth: 560 }}>
-            <TextField label={t('op.manage.challenge')} placeholder={t('op.manage.challenge.ph')} value={reason} onChange={(e) => setReason(e.target.value)} />
+            <TextField label={t('op.manage.challenge')} placeholder={t('op.manage.challenge.ph')} value={reason} onChange={(e) => { setReason(e.target.value); setChallengeFeedback(null); }} disabled={busy} aria-describedby="challenge-rule" data-testid="challenge-reason" />
+            <Muted id="challenge-rule">{t('op.manage.challenge.minimum', { n: reason.trim().length, min: CHALLENGE_REASON_MIN })}</Muted>
             <Muted data-testid="challenge-cost">{t('op.manage.challenge.cost')}</Muted>
-            <div><Button color="secondary" size="small" disabled={!reason.trim()} loading={challengeState.isLoading} onClick={() => run(() => challenge({ id: a.id, reason }).unwrap(), t('op.manage.challenge.ok'))}>{t('op.manage.challenge.button')}</Button></div>
+            {challengeReady.kind !== 'ready' && <Muted role="status" data-testid="challenge-unavailable">{challengeReady.kind === 'cooldown' ? t('op.manage.challenge.until', { when: dateTime(challengeReady.until!) }) : t(`op.manage.challenge.error.${challengeReady.kind}`)}</Muted>}
+            {(challengeReady.kind === 'read' || challengeFeedback?.tone === 'error') && <Button variant="text" size="small" disabled={busy || patch.isFetching} onClick={() => void patch.refetch()}>{t('op.manage.challenge.refresh')}</Button>}
+            <div><Button color="secondary" size="small" disabled={busy || patch.isFetching || challengeReady.kind !== 'ready' || reason.trim().length < CHALLENGE_REASON_MIN} loading={challengeState.isLoading} onClick={doChallenge} data-testid="challenge-submit">{t('op.manage.challenge.button')}</Button></div>
+            {challengeFeedback && <Alert role={challengeFeedback.tone === 'error' ? 'alert' : 'status'} $tone={challengeFeedback.tone}>{challengeFeedback.message}</Alert>}
           </Stack>
         </SectionBody>
       )}
