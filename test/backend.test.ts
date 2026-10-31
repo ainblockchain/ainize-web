@@ -127,7 +127,9 @@ test('one list, one item — the item page is not a second list', () => {
   const app = readFileSync(join(root, 'src/App.tsx'), 'utf8');
   // /agents was a grid of every agent PLUS a panel, so clicking a row on the marketplace showed both again
   assert.match(app, /path="\/agent\/:id"/, 'the item has its own route');
-  assert.match(app, /path="\/agents" element=\{<Navigate to="\/explore\?kind=agent"/, 'the old list redirects');
+  // The dedicated legacy route preserves search/org/page state; a fixed Navigate target would lose it.
+  assert.match(app, /path="\/agents" element=\{<LegacyAgentsRoute/, 'the old list uses its redirect route');
+  assert.ok(app.includes('legacyAgentsDestination(search, hash)'), 'redirect preserves the selected view');
   const item = readFileSync(join(root, 'src/screens/AgentPage.tsx'), 'utf8');
   assert.equal(/agents\.map\(/.test(item), false, 'the item page must not render the list');
   const row = readFileSync(join(root, 'src/components/public/AgentListItem.tsx'), 'utf8');

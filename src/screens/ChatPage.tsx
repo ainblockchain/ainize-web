@@ -1,3 +1,4 @@
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -779,12 +780,6 @@ function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: 
    * had no total, so the visitor who liked the combination added 25 + 0.1 + 10 by hand. Currencies are summed
    * separately: this node may list some knowledge in AIN and some in node credit, and adding those is not a price.
    */
-  /** Does any pair of the ticked knowledge share memory entries? Then their fact counts cannot be added (finding 63). */
-  const stackOverlaps = useMemo(
-    () => (data?.overlaps ?? []).some((o) => selectedIds.includes(o.a) && selectedIds.includes(o.b)),
-    [data?.overlaps, selectedIds],
-  );
-  const factsKnown = selectedList.every((e) => typeof e.anchor.benchmark.queries === 'number');
   const stackPrice = useMemo(() => {
     const by = new Map<string, number>();
     for (const e of selectedList) { const p = priceOf(e); if (p) by.set(p.currency, (by.get(p.currency) ?? 0) + p.n); }
@@ -932,7 +927,7 @@ function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: 
                   <MainHead>
                     <h2>{selected.anchor.name}</h2>
                     <StatusChip status={selected.status} />
-                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(selected.anchor.benchmark.queries) }, selected.anchor.benchmark.queries)}</small>
+                    <small title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(benchmarkQuestionCount(selected.anchor.benchmark.queries)) }, benchmarkQuestionCount(selected.anchor.benchmark.queries) ?? undefined)}</small>
                     {/* Finding 228 — a retired version is pickable here; say what replaces it before the visitor
                         spends a free try, or a purchase, on a version the newer one already covers. */}
                     {selected.superseded_by?.[0] && (
@@ -951,20 +946,6 @@ function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: 
                 <>
                   <MainHead>
                     <h2 title={t('chat.head.multi_help')}>{t('chat.head.multi', { n: selectedList.length })}</h2>
-                    {/* Finding 63 — the head used to SUM the fact counts across knowledge the picker had just
-                        called 88% identical: three KRX versions of 2,761 facts sharing 241,992 of ~270,053 memory
-                        entries were advertised as "8,283 facts", three times the truth, next to the alert saying
-                        so. Where any two of them overlap the total is not a total; the biggest of them is what can
-                        honestly be claimed. (A knowledge registered without a count still renders the dash rather
-                        than a made-up number.) */}
-                    <small title={`${help('facts')} (${tech('facts')})`}>
-                      {factsKnown
-                        ? (stackOverlaps
-                          ? t('chat.head.facts_each', { n: num(Math.max(...selectedList.map((e) => e.anchor.benchmark.queries))) })
-                          // finding 88 — the count decides "1 fact" vs "1 facts"; it was never passed here
-                          : t('units.facts', { n: num(selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)) }, selectedList.reduce((a, e) => a + e.anchor.benchmark.queries, 0)))
-                        : t('units.facts', { n: num(null) })}
-                    </small>
                     <small style={{ marginLeft: 'auto' }}>{t('chat.head.multi_help')}</small>
                   </MainHead>
                   <HeadList aria-label={t('chat.head.multi', { n: selectedList.length })}>
@@ -973,6 +954,7 @@ function ChatContent({ owner, handoff, onHandoffConsumed, onNeedKey }: { owner: 
                         <b>{i + 1}</b>
                         <StyledLink to={patchHref(e)} title={t('common.details')}>{e.anchor.name}</StyledLink>
                         <StatusChip status={e.status} />
+                        <small>{t('units.facts', { n: num(benchmarkQuestionCount(e.anchor.benchmark.queries)) }, benchmarkQuestionCount(e.anchor.benchmark.queries) ?? undefined)}</small>
                         {/* Finding 228 — two of the three pickable items on this node are replaced versions. */}
                         {e.superseded_by?.[0] && <Replaced title={t('chat.head.replaced_help')}>{t('chat.head.replaced', { id: e.superseded_by[0] })}</Replaced>}
                       </li>

@@ -1,3 +1,4 @@
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { verificationCount } from '@ainize/core/browser';
 import type { HTMLAttributes } from 'react';
 import { Link, useNavigate } from 'react-router';
@@ -341,7 +342,7 @@ export function PatchListItem({ entry, currency, nameOf }: { entry: CatalogEntry
         </Meta>
         <Meta>
           <PriceInline data-testid="item-price-inline">{p.text}</PriceInline>
-          {t('units.facts', { n: num(a.benchmark.queries) })}
+          {t('units.facts', { n: num(benchmarkQuestionCount(a.benchmark.queries)) })}
           {' · '}{t('units.rows', { n: num(a.rows) })}
           {' · '}{t('item.size', { size: bytes(a.size_bytes) })}
           {/* Item 201: this number is settlements — sales — and calling it "downloads" made a superseded single

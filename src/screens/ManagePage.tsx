@@ -1,3 +1,4 @@
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
@@ -267,7 +268,7 @@ export default function ManagePage() {
         </dd>
         <dt>{t('op.manage.file')}</dt>
         <dd title={tech('rows')}>{p.has_body
-          ? t('op.manage.file.present', { size: bytes(a.size_bytes), rows: t('units.rows', { n: num(a.rows) }), facts: t('units.facts', { n: num(a.benchmark.queries) }) })
+          ? t('op.manage.file.present', { size: bytes(a.size_bytes), rows: t('units.rows', { n: num(a.rows) }), facts: t('units.facts', { n: num(benchmarkQuestionCount(a.benchmark.queries)) }) })
           : <span style={{ color: '#e6173e' }}>{t('op.manage.file.missing')}</span>}</dd>
         <dt><Tip tech="sha256 of the .npz body">{t('op.manage.fingerprint')}</Tip></dt><dd><Mono>{a.patch_sha256}</Mono></dd>
         <dt>{t('op.manage.model')}</dt><dd>{a.model.id_M}{a.model.row_dim ? <Muted title={t('op.tech.row_dim_help')}> · {t('op.tech.row_dim')} {a.model.row_dim}</Muted> : ''}</dd>
@@ -353,7 +354,7 @@ export default function ManagePage() {
             <dt>{t('op.manage.publish.f.name')}</dt><dd>{a.name || a.id}</dd>
             <dt>{t('op.manage.publish.f.price')}</dt><dd title={money.note(a.currency)}>{money.fmt(a.price, a.currency)} · {billingLabel(a.billing)}</dd>
             <dt>{t('op.manage.publish.f.license')}</dt><dd>{a.license || <Muted>{t('op.manage.publish.f.license.none')}</Muted>}</dd>
-            <dt>{t('op.manage.publish.f.bench')}</dt><dd>{t('op.manage.publish.f.bench.value', { schema: a.benchmark.schema, queries: num(a.benchmark.queries), samples: a.benchmark.samples?.length ?? 0 })}</dd>
+            <dt>{t('op.manage.publish.f.bench')}</dt><dd>{t('op.manage.publish.f.bench.value', { schema: a.benchmark.schema, queries: num(benchmarkQuestionCount(a.benchmark.queries)), samples: a.benchmark.samples?.length ?? 0 })}</dd>
             <dt>{t('op.manage.publish.f.file')}</dt><dd><Mono>{shortHash(a.patch_sha256, 24)}</Mono></dd>
             <dt>{t('op.manage.publish.f.payee')}</dt><dd><Mono title={a.author}>{shortAddr(a.author, 8)}</Mono></dd>
           </KeyValue>

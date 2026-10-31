@@ -24,3 +24,14 @@ test('missing comparison fields cannot crash rendering or silently become an uns
     assert.equal(benchmarkView({ schema: 'topic', items: [item, row] }, 'topic'), null);
   }
 });
+
+
+test('comparison reads legacy question cases as counts and preserves the original source anchor', () => {
+  const cases = [{ prompt: 'Question one', expect: 'Answer one' }, { prompt: 'Question two', expect: 'Answer two' }];
+  const legacy = { ...item, anchor: { ...item.anchor, benchmark: { ...item.anchor.benchmark, queries: cases } } };
+  const view = benchmarkView({ schema: 'topic', items: [legacy] }, 'topic');
+  assert.equal(view?.items[0].anchor.benchmark.queries, 2);
+  assert.deepEqual(legacy.anchor.benchmark.queries, cases);
+  const bad = { ...legacy, anchor: { ...legacy.anchor, benchmark: { ...legacy.anchor.benchmark, queries: [null] } } };
+  assert.equal(benchmarkView({ schema: 'topic', items: [bad] }, 'topic'), null);
+});

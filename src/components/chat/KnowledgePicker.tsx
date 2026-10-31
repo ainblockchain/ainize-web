@@ -1,3 +1,4 @@
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { errorMessage, useBuyMutation, useRequestPatchMutation } from '@/api/api';
@@ -223,7 +224,7 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
             <Name>{a.name}</Name>
             <Id>{a.author_name ?? shortAddr(a.author)}/{a.id}</Id>
             <MetaRow>
-              <span title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(a.benchmark.queries) }, a.benchmark.queries)}</span>
+              <span title={`${help('facts')} (${tech('facts')})`}>{t('units.facts', { n: num(benchmarkQuestionCount(a.benchmark.queries)) }, benchmarkQuestionCount(a.benchmark.queries) ?? undefined)}</span>
               <Accuracy $known={!!acc} title={acc ? `${help('accuracy')} (${tech('accuracy')})` : t('chat.picker.not_scored_help')}>
                 {acc ? (acc.pct !== null ? t('chat.picker.accuracy', { pct: acc.pct }) : t('chat.picker.accuracy_raw', { score: acc.raw })) : t('chat.picker.not_scored')}
               </Accuracy>
@@ -401,7 +402,7 @@ function ElsewhereItem({ row, operator }: { row: ElsewhereRow; operator: boolean
           <Name>{row.name}</Name>
           <Id>{row.author_name ?? shortAddr(row.author)}/{row.patch_id}</Id>
           <MetaRow>
-            <span>{t('units.facts', { n: num(row.queries) }, row.queries)}</span>
+            <span>{t('units.facts', { n: num(benchmarkQuestionCount(row.queries)) }, benchmarkQuestionCount(row.queries) ?? undefined)}</span>
             <Price>{price}</Price>
             <StatusChip status={row.status} />
           </MetaRow>

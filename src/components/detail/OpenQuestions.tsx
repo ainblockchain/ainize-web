@@ -34,7 +34,7 @@ const AskRow = styled.form`display: flex; flex-wrap: wrap; gap: 8px; align-items
 
 const ORDER: IssueKind[] = ['own_miss', 'preflight', 'free_wrong', 'request', 'gap'];
 
-export function OpenQuestions({ id, totalQuestions, canBuildOn }: { id: string; totalQuestions: number; canBuildOn: boolean }) {
+export function OpenQuestions({ id, totalQuestions, canBuildOn }: { id: string; totalQuestions: number | null; canBuildOn: boolean }) {
   const { t } = useT();
   const { data } = usePatchIssuesQuery({ id, limit: 100 });
   const [ask, { isLoading: asking, error: askError, data: asked, reset }] = useCreateIssueMutation();

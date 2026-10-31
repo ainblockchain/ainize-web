@@ -90,9 +90,9 @@ export const common: Dict = {
   'price.credit_note': { ko: '노드 크레딧 = 개발용 가상 화폐 (실제 가치 없음)', en: 'node credit = development play money (no real value)' },
   'price.ain_note': { ko: 'AIN = AI Network 토큰 (이 데모는 로컬 개발 체인)', en: 'AIN = AI Network token (this demo runs a local dev chain)' },
   'units.rows': { ko: '기억 항목 {n}개', en: '{n} memory entries' },
-  'units.facts': { ko: '사실 {n}건', en: '{n} facts' },
+  'units.facts': { ko: '등록 질문 {n}개', en: '{n} declared questions' },
   // Finding 88 — called without a count this read "1 facts" on every single-fact knowledge in the live-test picker.
-  'units.facts_one': { ko: '사실 1건', en: '1 fact' },
+  'units.facts_one': { ko: '등록 질문 1개', en: '1 declared question' },
   'units.verified_by': { ko: '검증 노드 {passed}/{quorum}', en: '{passed}/{quorum} verifiers' },
   // The header's unified search (huggingface-style): one box over apps, models, agents and knowledge.
   'search.placeholder': { ko: '앱·모델·에이전트·지식 검색', en: 'Search apps, models, agents, knowledge' },

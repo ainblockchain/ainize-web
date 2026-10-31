@@ -81,7 +81,7 @@ export const operatorSign: Dict = {
 
 export const operatorDash: Dict = {
   // Item 335: the console showed verification as no work at all — 203 attestations under "No knowledge yet".
-  'op.dash.questions': { ko: '검증 질문 {n}개', en: '{n} benchmark questions' },
+  'op.dash.questions': { ko: '등록 질문 {n}개', en: '{n} declared questions' },
   'op.dash.verify.title': { ko: '검증 실적', en: 'Verification activity' },
   'op.dash.verify.window': { ko: '검증 집계는 최신 최대 {limit}건 중 조회한 {shown}건 기준입니다. 전체 종류의 원장 기록은 {total}건입니다.', en: 'Verification counts use {shown} returned records from a window of up to {limit}. The ledger contains {total} records across all kinds.' },
   'op.dash.verify.records': { ko: '공개 기록 보기', en: 'View public records' },
@@ -649,7 +649,7 @@ export const operatorNew: Dict = {
   'op.new.schema': { ko: '주제 이름', en: 'Subject' },
   'op.new.schema.helper': { ko: '같은 주제 이름을 쓰는 지식끼리 비교되고, 겹침·충돌 검사 대상이 됩니다. 예: krx-ticker-codes', en: 'Knowledge sharing a subject is compared and overlap-checked together. e.g. krx-ticker-codes' },
   'op.new.queries': { ko: '담긴 사실 수', en: 'Facts covered' },
-  'op.new.queries.helper': { ko: '이 지식이 답할 수 있는 사실의 개수입니다. 지식 페이지에 대표 숫자로 그대로 실리지만 검증 노드는 이 숫자를 확인하지 않습니다 — 실제로 채점되는 것은 아래 예시 질문뿐입니다.', en: 'How many facts this knowledge answers. It is published as a headline number on the knowledge page, and no verifier checks it — only the sample questions below are ever scored.' },
+  'op.new.queries.helper': { ko: '게시자가 선언하는 질문 수입니다. 실제 채점한 개수와는 별도로 표시되며, 검증에는 아래 예시 질문을 사용합니다.', en: 'The question count declared by the publisher, shown separately from the measured test count. Verification uses the sample questions below.' },
   // Item 165 — the declared count is now weighed against the file itself (the .npz addrs member, read in the
   // browser), so "250,000 facts" in a file with 2,992 memory entries is caught before it is written into the anchor.
   'op.new.queries.rows': { ko: '고른 파일에는 기억 항목이 {rows}개 있습니다.', en: 'The file you picked holds {rows} memory entries.' },

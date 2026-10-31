@@ -92,7 +92,6 @@ export const chat: Dict = {
   'chat.head.multi': { ko: '지식 {n}개 함께 넣음', en: '{n} knowledges loaded together' },
   'chat.head.multi_help': { ko: '왼쪽 순서대로 넣습니다. 겹치는 항목은 마지막 지식이 이깁니다.', en: 'Loaded in the order on the left; the last one wins on overlapping entries.' },
   // Finding 63 — knowledge that shares memory entries cannot have its fact counts added up.
-  'chat.head.facts_each': { ko: '각각 최대 사실 {n}건 (겹치는 부분이 있어 합계로 셀 수 없습니다)', en: 'up to {n} facts each (they overlap, so the counts do not add up)' },
   // Finding 218 — the set as something you can send to someone.
   'chat.head.copy': { ko: '이 조합 링크 복사', en: 'Copy link to this set' },
   'chat.head.copied': { ko: '복사했습니다', en: 'Link copied' },

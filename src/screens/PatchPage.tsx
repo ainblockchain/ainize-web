@@ -1,3 +1,5 @@
+import { BenchmarkCoverage } from '@/components/detail/BenchmarkCoverage';
+import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { verificationCount } from '@ainize/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
@@ -568,7 +570,7 @@ export default function PatchPage({ author: givenAuthor, patchId: givenId }: { a
               {score.pct !== null && <StatNote>{score.before ? t('detail.stat.before_after_note', { pct: score.pct }) : score.text}</StatNote>}
             </Stat>
             <Stat><StatValue>{num(a.rows)}</StatValue><StatName title={`${help('rows')} (${tech('rows')})`}>{t('detail.stat.entries')}</StatName></Stat>
-            <Stat><StatValue>{num(a.benchmark.queries)}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
+            <Stat><StatValue>{num(benchmarkQuestionCount(a.benchmark.queries))}</StatValue><StatName title={`${help('facts')} (${tech('facts')})`}>{t('detail.stat.facts')}</StatName></Stat>
             <Stat><StatValue>{bytes(a.size_bytes)}</StatValue><StatName>{t('detail.stat.size')}</StatName></Stat>
             <Stat><StatValue>{f.priceLabel(a.price, a.currency)}</StatValue><StatName>{t('detail.stat.price')}</StatName>{Number(a.price) > 0 && <StatNote>{f.priceNote(a.currency)}</StatNote>}</Stat>
             {/* Item 30: two large AIN numbers side by side invited reading the seller's takings as the price. The
@@ -599,7 +601,7 @@ export default function PatchPage({ author: givenAuthor, patchId: givenId }: { a
               )}
               <Section>
                 <H3>{t('detail.missing.title', { n: issues?.total ?? 0 })}</H3>
-                <OpenQuestions id={a.id} totalQuestions={a.benchmark.queries} canBuildOn={canBuildOn} />
+                <OpenQuestions id={a.id} totalQuestions={benchmarkQuestionCount(a.benchmark.queries)} canBuildOn={canBuildOn} />
               </Section>
             </>
           )}
@@ -632,9 +634,7 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
         {score.pct !== null && (
           <div style={{ marginTop: 16, maxWidth: 360 }}>
             <ScoreBar pct={score.pct} />
-            <Quorum>{score.tested !== null && score.tested < a.benchmark.queries
-              ? t('detail.ov.accuracy_line', { score: `${score.pct}%`, tested: num(score.tested), facts: num(a.benchmark.queries) })
-              : t('detail.ov.accuracy_line_all', { score: `${score.pct}%`, facts: num(a.benchmark.queries) })}</Quorum>
+            <Quorum><BenchmarkCoverage score={score.pct} tested={score.tested} questions={a.benchmark.queries} /></Quorum>
             {/* the baseline the same verifier measured before loading the knowledge — the other half of the claim */}
             {score.before && <Quorum as="div" data-testid="ov-before-after" style={{ display: 'block', marginTop: 2 }}>{t('detail.ov.before_after', { before: score.before, after: score.text })}</Quorum>}
           </div>
@@ -723,7 +723,7 @@ function Overview({ d, score, onSeeVerification }: { d: PatchDetail; score: Scor
         <Note>{t('detail.ov.benchmark_note')}</Note>
         <KeyValue style={{ marginTop: 0 }}>
           <dt title="benchmark.schema">{t('detail.ov.subject')}</dt><dd><StyledLink to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{a.benchmark.schema}</StyledLink></dd>
-          <dt title={tech('facts')}>{term('facts')}</dt><dd>{t('units.facts', { n: num(a.benchmark.queries) })}</dd>
+          <dt title={tech('facts')}>{term('facts')}</dt><dd>{t('units.facts', { n: num(benchmarkQuestionCount(a.benchmark.queries)) })}</dd>
           <dt>{t('detail.ov.formats')}</dt><dd>{benchmarkFormats(a.benchmark.format).join(', ') || '—'}</dd>
           {/* Finding 55: "Threshold set" read as "checked", while the Verification tab said "not reported" for every
               verifier. The row now says which of the two it is, and links to the evidence. */}

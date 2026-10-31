@@ -115,7 +115,7 @@ export const detailPatch: Dict = {
   'detail.stat.downloads': { ko: '구매 수', en: 'Purchases' },
   'detail.stat.accuracy': { ko: '정답률', en: 'Accuracy' },
   'detail.stat.entries': { ko: '학습된 기억 항목', en: 'Memory entries' },
-  'detail.stat.facts': { ko: '담긴 사실', en: 'Facts' },
+  'detail.stat.facts': { ko: '등록 질문', en: 'Declared questions' },
   'detail.stat.size': { ko: '크기', en: 'Size' },
   'detail.stat.price': { ko: '가격', en: 'Price' },
   'detail.stat.revenue': { ko: '누적 판매액', en: 'Revenue' },
@@ -143,10 +143,11 @@ export const detailPatch: Dict = {
 
   'detail.ov.description': { ko: '설명', en: 'Description' },
   'detail.ov.no_description': { ko: '설명이 없습니다.', en: 'No description.' },
-  'detail.ov.accuracy_line': { ko: '정답률 {score} — 검증 노드가 검증 질문 {facts}건 중 {tested}건을 채점했습니다', en: 'Accuracy {score} on {tested} of {facts} questions checked by verifiers' },
+  'detail.ov.accuracy_line': { ko: '정답률 {score} — 보고된 채점 질문 {tested}개 · 등록 질문 {facts}개', en: 'Accuracy {score} on {tested} reported test questions · {facts} declared questions' },
   // Finding 28 — the baseline the SAME verifier measured before the knowledge was loaded (score.pre_apply).
   'detail.ov.before_after': { ko: '지식을 넣기 전에는 같은 검증에서 {before}였습니다 → 넣은 뒤 {after}', en: 'The same run scored {before} before the knowledge was loaded → {after} after' },
-  'detail.ov.accuracy_line_all': { ko: '정답률 {score} — 검증 노드가 검증 질문 {facts}건을 모두 채점했습니다', en: 'Accuracy {score} on all {facts} questions checked by verifiers' },
+  'detail.ov.accuracy_line_measured': { ko: '정답률 {score} — 보고된 채점 질문 {tested}개', en: 'Accuracy {score} on {tested} reported test questions' },
+  'detail.ov.accuracy_line_unknown': { ko: '정답률 {score} — 채점 질문 수 미확인', en: 'Accuracy {score} — tested question count unavailable' },
   'detail.ov.failed_line': { ko: '{who} 노드는 같은 질문을 {score}로 채점하고 통과시키지 않았습니다. 위 정답률에는 이 결과가 들어 있지 않습니다.', en: '{who} scored the same questions {score} and did not pass it — that run is not in the accuracy above.' },
   'detail.ov.model': { ko: '대상 모델', en: 'Target model' },
   'detail.ov.model_note': { ko: '이 지식은 아래 모델에서만 동작합니다. 다른 모델에는 아래 "만드는 방법"을 이용해 다시 만들 수 있습니다.', en: 'This knowledge works only on the model below. For other models it can be rebuilt from the recipe below.' },

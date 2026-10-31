@@ -1,3 +1,4 @@
+import { benchmarkQuestionCount } from './benchmarkQuestions';
 import type { CatalogEntry } from '../api/types';
 import { ledgerView } from './ledgerView';
 import { isKnowledgeAuthor } from './detailRoutes';
@@ -9,11 +10,7 @@ export const STATUS_ORDER = ['DRAFT', 'ANNOUNCED', 'VERIFYING', 'CHALLENGED', 'V
 export const statusRank = (status: string) => { const i = STATUS_ORDER.indexOf(status); return i < 0 ? STATUS_ORDER.length : i; };
 export const paidSales = (entry: CatalogEntry): number | null => count(entry.sales?.sales_all) ? entry.sales!.sales_all : null;
 
-/** Older published anchors can embed the benchmark cases instead of their count. Only this display view is normalized. */
-export function inventoryQuestionCount(raw: unknown): number | null {
-  if (count(raw)) return raw;
-  return Array.isArray(raw) && raw.every(q => object(q) && typeof q.prompt === 'string' && typeof q.expect === 'string') ? raw.length : null;
-}
+export const inventoryQuestionCount = benchmarkQuestionCount;
 
 export function dashboardInventory(raw: unknown): CatalogEntry[] | null {
   if (!object(raw) || !Array.isArray(raw.items)) return null;

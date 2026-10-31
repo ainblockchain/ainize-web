@@ -111,16 +111,16 @@ function BenchmarkContent({ schema }: { schema: string }) {
     else list.sort((a, b) => b.downloads - a.downloads || b.passed - a.passed);
     const byHash = new Map<string, typeof list>();
     for (const e of list) {
-      const key = e.anchor.benchmark_hash || `no-hash:${e.anchor.id}`;
+      const key = JSON.stringify([e.anchor.benchmark_hash ? ['hash', e.anchor.benchmark_hash] : ['id', e.anchor.id], [...new Set(benchmarkFormats(e.anchor.benchmark.format))].sort(), e.anchor.benchmark.queries]);
       const bucket = byHash.get(key);
       if (bucket) bucket.push(e); else byHash.set(key, [e]);
     }
     return [...byHash.entries()]
-      .map(([hash, entries]) => ({
-        hash,
+      .map(([key, entries]) => ({
+        key, hash: entries[0].anchor.benchmark_hash || null,
         entries,
         /** the group's own facts: the format its verifiers used and how many questions the set declares */
-        format: benchmarkFormats(entries[0].anchor.benchmark.format),
+        format: [...new Set(benchmarkFormats(entries[0].anchor.benchmark.format))].sort(),
         queries: entries[0].anchor.benchmark.queries,
         newest: Math.max(...entries.map((e) => e.anchor.created_at)),
       }))
@@ -195,12 +195,12 @@ function BenchmarkContent({ schema }: { schema: string }) {
           const shown = g.entries.filter((e) => visible.includes(e));
           if (shown.length === 0) return null;
           return (
-            <section key={g.hash} data-testid="bench-group">
+            <section key={g.key} data-testid="bench-group">
               <GroupHead data-testid="bench-group-head">
                 {g.format.length ? t('bench.group.title', { format: g.format.join(' + '), n: num(g.queries) }) : t('bench.group.title_noformat', { n: num(g.queries) })}
-                <code title={t('detail.ov.benchmark_hash')}>{g.hash.slice(0, 8)}</code>
+                {g.hash ? <code title={g.hash}>{g.hash.slice(0, 8)}</code> : <span>{t('bench.group.unknown')}</span>}
               </GroupHead>
-              <GroupNote>{g.entries.length === 1 ? t('bench.group.alone') : t('bench.group.note', { n: g.entries.length })}</GroupNote>
+              <GroupNote>{!g.hash ? t('bench.group.unknown_note') : g.entries.length === 1 ? t('bench.group.alone') : t('bench.group.note', { n: g.entries.length })}</GroupNote>
               <Scroller>
                 <Table data-testid="bench-table">
                   {/* The column names are short on purpose — every one of them is defined in full in the legend

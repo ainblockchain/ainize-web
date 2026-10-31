@@ -73,6 +73,9 @@ import { trackAuthor } from './fixtures/track';
 import { VerificationWork } from '../src/components/operator/VerificationWork';
 import { DashboardContent } from '../src/screens/DashboardPage';
 import { dashboardEntry, dashboardAttest, verificationPayment } from './fixtures/dashboard';
+import { BenchmarkCoverage } from '../src/components/detail/BenchmarkCoverage';
+import { PatchListItem } from '../src/components/public/PatchListItem';
+import { KnowledgePicker } from '../src/components/chat/KnowledgePicker';
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
   reducer: { [api.reducerPath]: api.reducer },
@@ -148,10 +151,10 @@ const inventoryFixtures: Fixture[] = [
 test('small inventories retain search and sorting, show paid sales and encode exact action destinations', () => {
   const html = render(DashboardContent, [...signedOut, ...inventoryFixtures], '/dashboard');
   assert.match(html, /dash-search/); assert.match(html, /Most sales/);
-  assert.match(html, /4 benchmark questions/);
+  assert.match(html, /4 declared questions/);
   const entry = dashboardEntry('legacy');
   const legacy = render(DashboardContent, [...signedOut, ...inventoryFixtures.map(f => f.name === 'myPatches' ? { ...f, value: { items: [{ ...entry, anchor: { ...entry.anchor, benchmark: { schema: 'qa', queries: [{ prompt: 'Q', expect: 'A' }, { prompt: 'Q2', expect: 'A2' }] } } }] } } : f)], '/dashboard');
-  assert.match(legacy, /2 benchmark questions/);
+  assert.match(legacy, /2 declared questions/);
   assert.match(html, /href="\/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\/selected%2Fa%3F%23"/);
   assert.match(html, /data-testid="dash-sales"[^>]*>1 ·/);
   assert.doesNotMatch(html, /data-testid="dash-sales"[^>]*>100 ·/);
@@ -457,6 +460,41 @@ test('shared copy controls cannot copy empty values or accidentally submit surro
   assert.doesNotMatch(filled, /disabled=""|>Copied</);
   const docs = render(() => createElement(DocsCodeBlock, { code: '', lang: 'bash' }), signedOut);
   assert.match(docs, /<button[^>]*type="button"[^>]*disabled=""/);
+});
+
+const legacyBenchmarkEntry = (id: string, count = 2): any => {
+  const entry = dashboardEntry(id);
+  return { ...entry, anchor: { ...entry.anchor, rows: 10, size_bytes: 20, benchmark: { schema: 'chosen', format: ['chat'], queries: Array.from({ length: count }, (_, i) => ({ prompt: `Question ${i}`, expect: `Answer ${i}` })) } },
+    children: [], superseded_by: [], attestations: [], quorum_ok: true, sellable: true };
+};
+
+test('public cards and chat picker display legacy question counts without claiming guaranteed knowledge coverage', () => {
+  const entry = legacyBenchmarkEntry('legacy');
+  const card = render(() => createElement(PatchListItem, { entry }), signedOut, '/explore');
+  assert.match(card, /2 declared questions/); assert.doesNotMatch(card, /2 facts|NaN|\[object Object\]/);
+  const picker = render(() => createElement(KnowledgePicker, { items: [entry], selectedIds: ['legacy'], runtime: undefined, lock: null, onToggle() {}, onClear() {} }), signedOut, '/chat/legacy');
+  assert.match(picker, /2 declared questions/); assert.doesNotMatch(picker, /2 facts|NaN|\[object Object\]/);
+});
+
+test('detail measurement text separates declared counts from reported measurements and never invents complete coverage', () => {
+  for (const [tested, questions, expected] of [
+    [null, 100, 'tested question count unavailable'], [3, 100, '3 reported test questions · 100 declared questions'],
+    [3, 3, '3 reported test questions · 3 declared questions'], [3, 2, '3 reported test questions'],
+  ] as const) {
+    const html = render(() => createElement(BenchmarkCoverage, { score: 75, tested, questions }), signedOut, '/');
+    assert.ok(html.includes(expected)); assert.doesNotMatch(html, /on all|all 100|NaN/);
+  }
+});
+
+test('benchmark comparison accepts legacy cases and does not call unhashed or inconsistent metadata the same exam', () => {
+  const legacy = legacyBenchmarkEntry('legacy');
+  const first = { ...legacyBenchmarkEntry('first'), anchor: { ...legacyBenchmarkEntry('first').anchor, benchmark_hash: 'shared-hash' } };
+  const differentCount = { ...legacyBenchmarkEntry('different', 3), anchor: { ...legacyBenchmarkEntry('different', 3).anchor, benchmark_hash: 'shared-hash' } };
+  const html = render(BenchmarkPage, [...signedOut, { name: 'benchmark', arg: 'chosen', value: { schema: 'chosen', items: [legacy, first, differentCount] } }], '/benchmarks/chosen', '/benchmarks/:schema');
+  assert.equal((html.match(/data-testid="bench-row"/g) ?? []).length, 3);
+  assert.equal((html.match(/data-testid="bench-group"/g) ?? []).length, 3);
+  assert.match(html, /Question set unconfirmed/); assert.match(html, /3 questions/);
+  assert.doesNotMatch(html, /no-hash:|were scored on this same|offline-retry/);
 });
 
 test('benchmark outages and malformed responses offer retry instead of claiming the topic does not exist', () => {
@@ -1236,6 +1274,15 @@ test('malformed project and repository lists show recovery instead of an empty l
 });
 
 const chatTeachPolicy: Fixture = { name: 'teachPolicy', value: { enabled: true, trainer: 'ready', timing: { simulated: true }, queue: { depth: 0 }, limits: { facts_per_job: 8 }, shares: { contributor: 0.7, lineage: 0.3 }, model: { id_M: 'fixture' } } };
+test('multi-knowledge chat shows each declared count instead of a misleading combined facts total', () => {
+  const items = [legacyBenchmarkEntry('first', 2), legacyBenchmarkEntry('second', 3)];
+  const html = render(ChatPage, [...signedOut, chatTeachPolicy,
+    { name: 'chatPatches', arg: '', value: { items, lessons: [], runtime: { available: true, model: 'model' }, lock: null, overlaps: [] } },
+  ], '/chat/first,second', '/chat/:patchId');
+  assert.match(html, /2 declared questions/); assert.match(html, /3 declared questions/);
+  assert.doesNotMatch(html, /5 facts|5 declared questions|up to .* facts each/);
+});
+
 test('chat keeps unavailable selected knowledge visible and prevents an unintended base-model send', () => {
   const fixtures: Fixture[] = [...signedOut, chatTeachPolicy,
     { name: 'chatPatches', arg: '', value: { items: [], lessons: [], runtime: { available: true, model: 'fixture' }, lock: null } },
