@@ -17,7 +17,7 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router';
 import styled from 'styled-components';
-import { useBranchesQuery, useCatalogQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
+import { useBranchesQuery, useTrackCatalogQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
 import { CenterProgress, Description, Empty, KeyValue, Mono, PageWrapper, StatusChip, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Offline } from '@/components/ui/Offline';
@@ -26,6 +26,8 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { num, shortAddr } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
+import { trackBranches, trackCatalogView, trackHistory, trackSales, trackSubscribeCommand } from '@/lib/trackView';
+import { knowledgePath, knowledgeLookupPath } from '@/lib/detailRoutes';
 
 /** `finance/KRX-latest` → `/tracks/finance/KRX-latest`, each segment encoded so a `#` or `?` in a name cannot break the URL. */
 export function trackHref(name: string): string {
@@ -56,47 +58,43 @@ export default function TrackPage() {
   const f = useDetailFormat();
   const params = useParams();
   // react-router hands the splat back already decoded per segment
-  const name = (params['*'] ?? '').split('/').filter(Boolean).join('/');
+  const name = params['*'] ?? '';
   useTitle(name || t('track.title'));
 
   const branchesQ = useBranchesQuery(undefined, { pollingInterval: 20_000 });
   const nodesQ = useNodesQuery(undefined, { pollingInterval: 30_000 });
-  // Members that are RETIRED or unknown to this node are not in the catalogue; the table says so rather than hiding them.
-  const catalogQ = useCatalogQuery({ branch: name, limit: 200 }, { skip: !name });
+  const branches = branchesQ.isError ? null : trackBranches(branchesQ.currentData);
+  const branch = branches?.branches.find((b) => b.name === name);
+  const catalogQ = useTrackCatalogQuery(name, { skip: !branch, pollingInterval: 30_000 });
+  const catalog = catalogQ.isError ? null : trackCatalogView(catalogQ.currentData, name);
+  const subscribed = !!branches?.mine.includes(name);
 
-  const branch = branchesQ.data?.branches.find((b) => b.name === name);
-  const subscribed = !!branchesQ.data?.mine.includes(name);
   const byId = useMemo(() => {
     const m = new Map<string, CatalogEntry>();
-    for (const e of catalogQ.data?.items ?? []) m.set(e.anchor.id, e);
+    for (const e of catalog?.items ?? []) m.set(e.anchor.id, e);
     return m;
-  }, [catalogQ.data]);
+  }, [catalog]);
 
   /**
    * Item 361 — the page showed subscribers as a list that silently shrinks when somebody leaves, and said nothing
    * about what the track has earned per bake. The public record has both: `subscribe` records carry the action and
    * a timestamp, and each member's own settlements are counted on the catalogue entry beside it.
    */
-  const ledgerQ = useLedgerQuery({ kind: 'subscribe', limit: 2000 }, { pollingInterval: 60_000 });
-  const history = useMemo(() => {
-    const rows = (ledgerQ.data?.records ?? [])
-      .filter((r) => ((r.body ?? {}) as { branch?: string }).branch === name)
-      .map((r) => ({ node: String(((r.body ?? {}) as { node?: string }).node ?? ''), left: ((r.body ?? {}) as { action?: string }).action === 'unsubscribe', ts: r.ts }))
-      .sort((a, b) => b.ts - a.ts);
-    return { rows, joined: rows.filter((x) => !x.left).length, left: rows.filter((x) => x.left).length };
-  }, [ledgerQ.data, name]);
+  const ledgerQ = useLedgerQuery({ kind: 'subscribe', limit: 2000 }, { skip: !branch, pollingInterval: 60_000 });
+  const history = ledgerQ.isError ? null : trackHistory(ledgerQ.currentData, name);
 
   const ownerName = nodesQ.data?.nodes.find((n) => n.address === branch?.owner)?.name;
   const current = new Set(branch?.current ?? []);
   const members = branch?.patch_ids ?? [];
+  const sales = catalog ? trackSales(members, catalog.items) : null;
   // "How fresh is what I would get" — the newest registration among the members a subscriber actually loads.
-  const newest = members
+  const newest = catalog && [...current].every(id => byId.has(id)) ? members
     .filter((id) => current.has(id))
     .map((id) => byId.get(id)?.anchor.created_at ?? 0)
-    .reduce((a, b) => Math.max(a, b), 0);
+    .reduce((a, b) => Math.max(a, b), 0) : null;
 
-  if (branchesQ.isLoading) return <PageWrapper $wide><CenterProgress /></PageWrapper>;
-  if (!branchesQ.data) {
+  if (!branchesQ.currentData && branchesQ.isFetching) return <PageWrapper $wide><CenterProgress /></PageWrapper>;
+  if (!branches) {
     return (
       <PageWrapper $wide>
         <TitleRow><Title>{t('track.title')}</Title></TitleRow>
@@ -109,7 +107,7 @@ export default function TrackPage() {
       <PageWrapper $wide>
         <TitleRow><Title>{t('track.notfound.title')}</Title></TitleRow>
         <Description>{t('track.notfound.body', { name })}</Description>
-        <Description><StyledLink to="/network">{t('track.back')} →</StyledLink></Description>
+        <Description><StyledLink to="/network#tracks">{t('track.back')} →</StyledLink></Description>
       </PageWrapper>
     );
   }
@@ -134,28 +132,35 @@ export default function TrackPage() {
         <dt>{t('track.subscribers')}</dt>
         <dd data-testid="track-subscribers">
           {branch.subscribers.length === 0 ? t('track.subscribers_none') : branch.subscribers.map((s) => s.name ?? shortAddr(s.address, 6)).join(', ')}
-          {(history.joined > 0 || history.left > 0) && (
+          {history && (history.joined > 0 || history.left > 0) && (
             <div style={{ fontSize: 12, color: '#8d8d8f', marginTop: 2 }}>
-              {t('track.churn', { joined: history.joined, left: history.left })}
+              {t('track.churn_window', { joined: history.joined, left: history.left, n: history.window })}
               {history.rows.slice(0, 3).map((h) => (
-                <div key={`${h.node}-${h.ts}`}>{t(h.left ? 'track.churn.left' : 'track.churn.joined', { node: nodesQ.data?.nodes.find((n) => n.address.toLowerCase() === h.node.toLowerCase())?.name ?? shortAddr(h.node, 6), ago: f.ago(h.ts) })}</div>
+                <div key={h.id}>{t(h.left ? 'track.churn.left' : 'track.churn.joined', { node: nodesQ.data?.nodes.find((n) => n.address.toLowerCase() === h.node.toLowerCase())?.name ?? shortAddr(h.node, 6), ago: f.ago(h.ts) })}</div>
               ))}
             </div>
           )}
         </dd>
         <dt>{t('track.sales')}</dt>
-        <dd data-testid="track-sales">{(() => {
-          const rows = members.map((id) => byId.get(id)).filter((e): e is CatalogEntry => !!e);
-          const sales = rows.reduce((n, e) => n + e.downloads, 0);
-          const revenue = rows.reduce((n, e) => n + Number(e.revenue ?? 0), 0);
-          return sales === 0 ? t('track.sales_none') : t('track.sales_value', { n: num(sales), total: f.revenueLabel(revenue, rows[0]?.anchor.currency ?? '') });
-        })()}</dd>
+        <dd data-testid="track-sales">
+          {!sales ? t(catalogQ.isFetching ? 'track.loading' : 'track.sales_unavailable') : <>
+            {sales.missing > 0 && <div>{t('track.sales_partial', { n: sales.found, total: members.length })}</div>}
+            {sales.totals.map(total => <div key={total.currency}>{t('track.sales_value', { n: num(total.sales), total: f.revenueLabel(total.revenue, total.currency) })}</div>)}
+            {sales.missing === 0 && sales.totals.length === 0 && t('track.sales_none')}
+          </>}
+        </dd>
         <dt>{t('track.created')}</dt>
         <dd>{f.ago(branch.created_at)}</dd>
       </KeyValue>
+      {!history && (!ledgerQ.currentData && ledgerQ.isFetching
+        ? <div role="status">{t('track.history_loading')}</div>
+        : <Offline error={ledgerQ.error} what={t('track.history')} retrying={ledgerQ.isFetching} onRetry={() => { void ledgerQ.refetch(); }} />)}
 
       <SubTitle $mt={40}>{t('track.members_title')}</SubTitle>
       <Description>{t('track.members_note')}</Description>
+      {!catalog && (!catalogQ.currentData && catalogQ.isFetching
+        ? <div role="status" data-testid="track-catalog-loading"><CenterProgress /></div>
+        : <Offline error={catalogQ.error} what={t('track.members_title')} retrying={catalogQ.isFetching} onRetry={() => { void catalogQ.refetch(); }} />)}
       {members.length === 0 && <Empty style={{ marginTop: 12 }}>{t('track.members_empty')}</Empty>}
       {members.length > 0 && (
         <TableWrapper style={{ marginTop: 12, background: '#fff', border: '1px solid #dadada' }}>
@@ -177,14 +182,14 @@ export default function TrackPage() {
                   <TableRow key={id}>
                     <TableData $align="left" $padding="0 0 0 24px" $maxWidth="420px">
                       {e
-                        ? <StyledLink to={`/${encodeURIComponent(e.anchor.author)}/${encodeURIComponent(id)}`} title={e.anchor.name}>{e.anchor.name || id}</StyledLink>
-                        : <Mono title={id}>{id}</Mono>}
+                        ? <StyledLink to={knowledgePath(e.anchor.author, id)} title={e.anchor.name}>{e.anchor.name || id}</StyledLink>
+                        : <StyledLink to={knowledgeLookupPath(id)}><Mono title={id}>{id}</Mono></StyledLink>}
                       {current.has(id) && <CurrentChip>{t('track.current')}</CurrentChip>}
                     </TableData>
-                    <TableData $align="left">{e ? <StatusChip status={e.status} /> : <span style={{ color: '#8d8d8f' }}>{t('track.unknown_member')}</span>}</TableData>
+                    <TableData $align="left">{e ? <StatusChip status={e.status} /> : <span style={{ color: '#8d8d8f' }}>{t(catalog ? 'track.unknown_member' : catalogQ.isFetching ? 'track.loading' : 'track.sales_unavailable')}</span>}</TableData>
                     <TableData $align="left" title={e?.anchor.model.id_M ?? ''}>{e?.anchor.model.id_M ?? '—'}</TableData>
-                    <TableData>{e ? f.priceLabel(e.anchor.price, e.anchor.currency) : '—'}</TableData>
-                    <TableData title={t('track.h.sales_help')}>{e ? t('track.sales_cell', { n: num(e.downloads), total: f.revenueLabel(e.revenue, e.anchor.currency) }) : '—'}</TableData>
+                    <TableData>{e ? f.priceLabel(e.list_price ?? e.anchor.price, e.anchor.currency) : '—'}</TableData>
+                    <TableData title={t('track.h.sales_help')}>{e ? t('track.sales_cell', { n: num(e.sales!.sales_all), total: f.revenueLabel(e.revenue, e.anchor.currency) }) : '—'}</TableData>
                     <TableData $align="right" $padding="0 24px 0 8px">{e ? f.ago(e.anchor.created_at) : '—'}</TableData>
                   </TableRow>
                 );
@@ -197,14 +202,17 @@ export default function TrackPage() {
       <SubTitle $mt={40}>{t('track.follow_title')}</SubTitle>
       <Card>
         <Description style={{ marginTop: 0 }}>{t('track.follow_body')}</Description>
-        <Cmd>{`ainize branch subscribe ${branch.name}`}</Cmd>
+        <Note data-testid="track-subscription-fee">{branch.terms && Number(branch.terms.price) > 0
+          ? t('track.follow_fee', { amount: f.priceLabel(branch.terms.price, branch.terms.currency), days: branch.terms.period_days })
+          : t('track.follow_no_fee')}</Note>
+        <Cmd>{trackSubscribeCommand(branch.name)}</Cmd>
         {/* Item 237: subscribing appends a permanent public record naming this node and this track. Nobody should
             learn that from the ledger after the fact. */}
         <Note>{t('track.follow_record')}</Note>
         <Note>{t('track.follow_cost')}</Note>
       </Card>
 
-      <Description style={{ marginTop: 32 }}><StyledLink to="/network">{t('track.back')} →</StyledLink></Description>
+      <Description style={{ marginTop: 32 }}><StyledLink to="/network#tracks">{t('track.back')} →</StyledLink></Description>
     </PageWrapper>
   );
 }

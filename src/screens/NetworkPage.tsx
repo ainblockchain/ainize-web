@@ -13,6 +13,7 @@ import { useTitle } from '@/utils/useTitle';
 import { bytes, num, shortAddr } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 import { trackHref } from './TrackPage';
+import { knowledgeLookupPath } from '@/lib/detailRoutes';
 import { networkEntryKey, orderNetworkEntries, uniqueNetworkWarnings } from '@/utils/networkOrder';
 
 const GpuAllocation = styled.span`
@@ -307,7 +308,7 @@ export default function NetworkPage() {
         </TableWrapper>
       )}
 
-      <SubTitle $mt={40} title={`${help('branch')} (${tech('branch')})`}>{t('detail.net.tracks_title')}</SubTitle>
+      <SubTitle id="tracks" $mt={40} title={`${help('branch')} (${tech('branch')})`}>{t('detail.net.tracks_title')}</SubTitle>
       <Description>{t('detail.net.tracks_note')}</Description>
       {!branches && <CenterProgress />}
       {branches && branches.branches.length === 0 && <Empty style={{ marginTop: 12 }}>{t('detail.net.tracks_empty')}</Empty>}
@@ -325,7 +326,7 @@ export default function NetworkPage() {
                 <TableRow key={b.name}>
                   <TableData $align="left" $padding="0 0 0 24px" $weight={600} title={b.description}><StyledLink to={trackHref(b.name)}>{b.name}</StyledLink>{branches.mine.includes(b.name) && <span style={{ marginLeft: 8, fontSize: 11, color: '#44a45f' }}>{t('detail.net.subscribed')}</span>}</TableData>
                   <TableData $align="left">{Object.entries(b.context).map(([k, v]) => <CtxChip key={k}>{k}={v}</CtxChip>)}{Object.keys(b.context).length === 0 && '—'}</TableData>
-                  <TableData $align="left" $maxWidth="360px" title={current.join(', ') || t('track.net.none')}>{current.slice(0, 2).map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={`/${encodeURIComponent(entries.get(id)?.anchor.author ?? b.owner)}/${encodeURIComponent(id)}`}>{id}</StyledLink></span>)}{current.length > 2 && ` +${current.length - 2}`}{current.length === 0 && t('track.net.none')}</TableData>
+                  <TableData $align="left" $maxWidth="360px" title={current.join(', ') || t('track.net.none')}>{current.slice(0, 2).map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={knowledgeLookupPath(id)}>{id}</StyledLink></span>)}{current.length > 2 && ` +${current.length - 2}`}{current.length === 0 && t('track.net.none')}</TableData>
                   <TableData>{newest ? f.ago(newest) : '—'}</TableData>
                   <TableData $mono title={b.owner}>{shortAddr(b.owner, 6)}</TableData>
                   <TableData $align="right" $padding="0 24px 0 8px" title={b.subscribers.map((s) => s.name ?? s.address ?? '').join(', ')}>{num(b.subscribers.length)}</TableData>

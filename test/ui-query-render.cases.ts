@@ -58,6 +58,8 @@ import TeacherPage from '../src/screens/TeacherPage';
 import VerifierPage from '../src/screens/VerifierPage';
 import KnowledgeByIdPage from '../src/screens/KnowledgeByIdPage';
 import { teacherProfile, verifierProfile, providerAddress } from './fixtures/providerProfiles';
+import TrackPage from '../src/screens/TrackPage';
+import { trackName, trackEntry, trackBranches, trackHistory } from './fixtures/track';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -90,6 +92,56 @@ const signedOut: Fixture[] = [
   { name: 'ssoStatus', value: { configured: true } },
 ];
 const policy: Fixture = { name: 'teachPolicy', value: { enabled: false, trainer: 'paused' } };
+
+const trackFixtures: Fixture[] = [
+  { name: 'branches', value: trackBranches() },
+  { name: 'ledger', arg: { kind: 'subscribe', limit: 2000 }, value: trackHistory },
+];
+test('track loading and read failures cannot claim zero sales or missing knowledge', () => {
+  for (const status of ['pending', 'rejected'] as const) {
+    const html = render(TrackPage, [...signedOut, ...trackFixtures, { name: 'trackCatalog', arg: trackName, status }], `/tracks/${trackName}`, '/tracks/*');
+    assert.doesNotMatch(html, /no sales yet|not in the public catalog/);
+    assert.match(html, status === 'pending' ? /data-testid="track-catalog-loading"/ : /data-testid="offline-retry"/);
+    assert.match(html, /href="\/patch\/selected"/);
+  }
+  const other = render(TrackPage, [...signedOut, ...trackFixtures, { name: 'trackCatalog', arg: 'other', value: { name: 'other', items: [trackEntry('other')] } }], `/tracks/${trackName}`, '/tracks/*');
+  assert.doesNotMatch(other, /Knowledge other|no sales yet/);
+});
+
+test('track views show available sales separately by currency and label limited subscription history', () => {
+  const ain = trackEntry('ain'), usdc = trackEntry('usdc'); usdc.anchor = { ...usdc.anchor, currency: 'USDC' }; usdc.revenue = '3';
+  const html = render(TrackPage, [...signedOut, ...trackFixtures.filter(f => f.name !== 'branches'),
+    { name: 'branches', value: trackBranches(['ain', 'usdc', 'missing']) },
+    { name: 'trackCatalog', arg: trackName, value: { name: trackName, items: [ain, usdc] } },
+  ], `/tracks/${trackName}`, '/tracks/*');
+  assert.match(html, /Sales for 2 of 3 knowledge records/);
+  assert.match(html, /2 AIN/); assert.match(html, /3 USDC/);
+  assert.doesNotMatch(html, /5 AIN|ever joined/);
+  assert.match(html, /Within the latest 1 network subscription records/);
+  assert.match(html, /href="\/network#tracks"/);
+  assert.match(html, /href="\/patch\/missing"/);
+});
+
+test('failed or malformed track lists show retry instead of a false not-found and stale branch details', () => {
+  for (const fixture of [{ name: 'branches', value: trackBranches(), status: 'rejected' as const }, { name: 'branches', value: { branches: [{}], mine: [] } }]) {
+    const html = render(TrackPage, [...signedOut, fixture], `/tracks/${trackName}`, '/tracks/*');
+    assert.match(html, /data-testid="offline-retry"/);
+    assert.doesNotMatch(html, /No such track|Selected track|Follow this track/);
+  }
+  const missing = render(TrackPage, [...signedOut, { name: 'branches', value: { branches: [], mine: [] } }], '/tracks/missing', '/tracks/*');
+  assert.match(missing, /No such track/);
+});
+
+test('track subscription guidance includes recurring fees separately from knowledge purchases', () => {
+  const paid = trackBranches(); Object.assign(paid.branches[0], { terms: { price: '9', currency: 'USDC', period_days: 30 } });
+  const html = render(TrackPage, [...signedOut, ...trackFixtures.filter(f => f.name !== 'branches'), { name: 'branches', value: paid },
+    { name: 'trackCatalog', arg: trackName, value: { name: trackName, items: [trackEntry('selected', { list_price: '7' })] } },
+  ], `/tracks/${trackName}`, '/tracks/*');
+  assert.match(html, /9 USDC every 30 days, in addition to knowledge purchases/);
+  assert.match(html, /7 AIN/);
+  assert.doesNotMatch(html, /100 sale\(s\)|100 ·/);
+  assert.doesNotMatch(html, /No track subscription fee/);
+});
 
 test('shared copy controls cannot copy empty values or accidentally submit surrounding forms', () => {
   const empty = render(() => createElement(CopyButton, { text: ' \n' }), signedOut);
