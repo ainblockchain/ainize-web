@@ -4,8 +4,9 @@
 import { useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 import { useMyProjectsQuery } from '@/api/api';
-import { statusToneOf } from '@/api/projects';
+import { statusToneOf, type Project } from '@/api/projects';
 import { projectPath } from '@/lib/reservedRoutes';
+import { readProjectList } from '@/lib/repoProjects';
 import { Button } from '@/components/ui/Button';
 import { CenterProgress, Empty, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
@@ -34,8 +35,7 @@ export default function MyProjectsPage() {
   const location = useLocation();
   const query = useMyProjectsQuery(auth.cacheIdentity, { skip: !auth.isSignedIn || auth.loading, pollingInterval: 15_000 });
   const { currentData: data, isFetching, isError } = query;
-  const valid = Array.isArray(data?.projects);
-  const rows = valid ? data.projects : [];
+  const rows = readProjectList<Project>(data);
   const waiting = auth.loading || (!data && isFetching);
   if (waiting) return <PageWrapper><CenterProgress /></PageWrapper>;
   if (!auth.isSignedIn) return <PageWrapper><StyledLink to={signInHref(location)}>{t('projects.runs.sign_in_button')}</StyledLink></PageWrapper>;
@@ -43,7 +43,7 @@ export default function MyProjectsPage() {
     <PageWrapper>
       <TitleRow><Title>{t('projects.mine.title')}</Title></TitleRow>
       <Actions><Button variant="contained" onClick={() => navigate('/projects/new')}>{t('projects.mine.new')}</Button></Actions>
-      {isError || !valid ? <Alert role="alert" $tone="error">{t('projects.page.load_failed')} <Button loading={isFetching} onClick={() => void query.refetch()}>{t('projects.page.retry')}</Button></Alert> : rows.length === 0 ? <Empty>{t('projects.mine.empty')}</Empty> : (
+      {isError || !rows ? <Alert role="alert" $tone="error">{t('projects.page.load_failed')} <Button loading={isFetching} onClick={() => void query.refetch()}>{t('projects.page.retry')}</Button></Alert> : rows.length === 0 ? <Empty>{t('projects.mine.empty')}</Empty> : (
         <List>
           {rows.map((p) => (
             <Item key={p.id}>

@@ -90,12 +90,10 @@ test('/projects/new keeps its own sign-in gate so the hand-off query string surv
   assert.ok(page.includes('to={signInHref(location)}'), 'the shared return-link helper preserves query and anchor');
 });
 
-test('every link to a project is the pretty URL /<org>/<repo> (a monorepo folder\'s project excepted, projectPath); nothing builds /projects/<id> by hand', () => {
+test('project links use the shared route resolver rather than building an ID destination in each screen', () => {
   for (const file of ['screens/ProjectNewPage.tsx', 'screens/MyProjectsPage.tsx', 'screens/ProjectPage.tsx', 'screens/OrgRepositoriesPage.tsx']) {
-    assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} still builds a /projects/<id> link`);
+    assert.ok(!/`\/projects\/\$\{/.test(read(file)), `${file} bypasses the project route resolver`);
   }
-  assert.match(read('screens/ProjectPage.tsx'), /<Navigate to=\{projectRedirectPath\(q\.currentData, location\.search\)\}/, '/projects/:id forwards to the pretty URL');
-  assert.match(read('screens/ProjectPage.tsx'), /<Link to=\{orgPath\(p\.org\)\}>\{p\.org\}<\/Link>/, 'the breadcrumb\'s org links to /<org>');
 });
 
 test('the org page merges the drive\'s repositories with the projects bound here, by name, newest first', () => {

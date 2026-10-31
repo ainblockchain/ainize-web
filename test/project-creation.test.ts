@@ -91,3 +91,11 @@ test('drive-id creation keeps literal folders distinct and accepts a leading-hyp
   assert.notEqual(projectRepoRef(repo)?.url, projectRepoRef(repo.replace('/repositories/', '/'))?.url);
   assert.equal(projectRepoRef('http://[::1]:123/api/drives/-drive/git/repositories/demo')?.org, '-drive');
 });
+
+
+test('valid creation receipts remain usable for names routed by project ID', () => {
+  for (const org of ['models', '0x' + 'a'.repeat(40), '_workspace', '-drive']) {
+    const repo = `https://aindrive.ainetwork.ai/${org}/git/demo`;
+    assert.ok(createdProjectReceipt({ ...receipt(), org, repo }, { ...input, repo }, 'sso:one'), org);
+  }
+});

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readRepoProjectList, repoProjects, selectRepoProject, repoProjectLabel } from '../src/lib/repoProjects';
-import { projectPath, projectRedirectPath } from '../src/lib/reservedRoutes';
+import { projectPath, projectRedirectPath, projectOrganizationPath, RESERVED_FIRST_SEGMENTS } from '../src/lib/reservedRoutes';
 import { mergeOrgRepos, type Project } from '../src/api/projects';
 
 const root = { id: 'root-main', org: 'team', repoName: 'mono', repo: 'https://drive.example/team/git/mono', sourcePath: '', branch: 'main', updatedAt: 1 } as Project;
@@ -50,4 +50,19 @@ test('malformed or duplicated project lists do not select partial results', () =
   for (const raw of [{}, { projects: {} }, { projects: [null] }, { projects: [root, root] }, { projects: [root, { ...folder, branch: null }] }, { projects: [{ ...root, sourcePath: [] }] }]) {
     assert.equal(readRepoProjectList(raw, 'team', 'mono'), null);
   }
+});
+
+
+test('project links cannot collide with application routes, knowledge authors or unsafe path names', () => {
+  for (const org of [...RESERVED_FIRST_SEGMENTS, 'Models', '0x' + 'a'.repeat(40), '.hidden', '_private', '-drive', 'two words', 'team/other']) {
+    const p = { ...folderPreview, org };
+    assert.equal(projectPath(p), '/projects/app-preview', org);
+    assert.equal(projectRedirectPath(p, '?project=wrong&projectId=other&tab=logs&record=build', '#environment'), '/projects/app-preview?tab=logs&record=build#environment');
+    assert.equal(projectOrganizationPath(p), null);
+  }
+  for (const repoName of ['..', 'nested/repo', 'two words']) assert.equal(projectPath({ ...root, repoName }), '/projects/root-main');
+  assert.equal(projectPath({ ...root, repoName: 'models' }), '/team/models?projectId=root-main');
+  assert.equal(projectRedirectPath(root, '?tab=settings', '#environment'), '/team/mono?tab=settings&projectId=root-main#environment');
+  assert.equal(projectOrganizationPath(root), '/team');
+  assert.equal(projectOrganizationPath({ ...root, org: 'driveId', repo: 'https://drive.example/api/drives/driveId/git/repositories/mono' }), null);
 });

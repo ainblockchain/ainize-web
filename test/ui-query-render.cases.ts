@@ -81,7 +81,7 @@ import OrgJoinPage from '../src/screens/org/OrgJoinPage';
 import OrgCreatePage from '../src/screens/org/OrgCreatePage';
 import ExplorePage from '../src/screens/ExplorePage';
 import MyProjectsPage from '../src/screens/MyProjectsPage';
-import { ProjectByNamePage, ProjectConsole, ProjectRunInput, ProjectRunPanel, RuntimeLogView } from '../src/screens/ProjectPage';
+import ProjectPage, { ProjectByNamePage, ProjectConsole, ProjectRunInput, ProjectRunPanel, RuntimeLogView } from '../src/screens/ProjectPage';
 import OrgRepositoriesPage from '../src/screens/OrgRepositoriesPage';
 import ProjectEnvVars, { DeployWatch, MissingEnvBanner } from '../src/components/ProjectEnvVars';
 import ProjectDomains from '../src/components/ProjectDomains';
@@ -3567,4 +3567,61 @@ test('creation completion offers explicit navigation and separates project creat
   const uncertain = render(ProjectCreationUnknown, appAccount, '/projects/new');
   assert.match(uncertain, /creation could not be confirmed/); assert.match(uncertain, /href="\/me\/projects"[^>]*>View My projects/);
   assert.doesNotMatch(uncertain, /Could not create it|Open the existing project/);
+});
+
+
+test('ID routes render reserved and knowledge-shaped project owners without redirect loops or unrelated breadcrumbs', () => {
+  for (const org of ['models', 'apps', '0x' + 'a'.repeat(40), '-drive']) {
+    const p = { ...folderProject, org, repo: `https://drive.example/${org}/git/mono` };
+    const other = { ...p, id: 'other-branch', branch: 'preview' };
+    const html = render(ProjectPage, [...appAccount,
+      { name: 'project', arg: { id: p.id, identity: accountIdentity }, value: p },
+      { name: 'orgProjects', arg: { org, identity: accountIdentity }, value: { projects: [p, other] } },
+      { name: 'projectDeployments', arg: { id: p.id, identity: accountIdentity }, value: { deployments: [] } },
+    ], `/projects/${p.id}`, '/projects/:id');
+    assert.match(html, /Selected worker project/);
+    assert.match(html, /mono\/worker · preview/);
+    assert.doesNotMatch(html, new RegExp(`href="/${org}"`));
+    assert.doesNotMatch(html, /Root-only project/);
+  }
+});
+
+test('ID routes do not expose controls from wrong or malformed project responses', () => {
+  for (const value of [{ ...rootProject, id: 'other' }, { ...rootProject, org: undefined }, null]) {
+    const html = render(ProjectPage, [...appAccount, { name: 'project', arg: projectArg, value }], `/projects/${rootProject.id}`, '/projects/:id');
+    assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /Root-only project|Rotate webhook secret/);
+  }
+});
+
+test('My projects uses ID destinations for route collisions and refuses malformed rows', () => {
+  const p = { ...rootProject, org: 'models' };
+  const good = render(MyProjectsPage, [...appAccount, { name: 'myProjects', arg: accountIdentity, value: { projects: [p] } }], '/me/projects');
+  assert.match(good, /href="\/projects\/root-project"/);
+  assert.doesNotMatch(good, /href="\/models\/mono/);
+  for (const projects of [[null], [{ ...p, id: undefined }], [p, p]]) {
+    const html = render(MyProjectsPage, [...appAccount, { name: 'myProjects', arg: accountIdentity, value: { projects } }], '/me/projects');
+    assert.match(html, /role="alert"/);
+    assert.doesNotMatch(html, /href="\/projects\/root-project"/);
+  }
+});
+
+
+test('Drive ID projects do not invent an organization page or report a failed organization lookup', () => {
+  const p = { ...rootProject, org: '-drive', repo: 'https://drive.example/api/drives/-drive/git/repositories/mono' };
+  const html = render(ProjectPage, [...appAccount,
+    { name: 'project', arg: { id: p.id, identity: accountIdentity }, value: p },
+    { name: 'projectDeployments', arg: { id: p.id, identity: accountIdentity }, value: { deployments: [] } },
+  ], `/projects/${p.id}`, '/projects/:id');
+  assert.match(html, /Root-only project/);
+  assert.doesNotMatch(html, /href="\/-drive"|role="status"/);
+});
+
+test('a knowledge-shaped address with an explicit invalid project selection never opens a knowledge page', () => {
+  const org = '0x' + 'a'.repeat(40);
+  const html = render(ProjectByNamePage, [...appAccount,
+    { name: 'orgProjects', arg: { org, identity: accountIdentity }, value: { projects: [] } },
+  ], `/${org}/mono?projectId=one&projectId=two`, '/:org/:repo');
+  assert.match(html, /project-selection-unavailable/);
+  assert.doesNotMatch(html, new RegExp(`href="/${org}"`));
 });

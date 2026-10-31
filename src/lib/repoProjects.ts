@@ -12,7 +12,7 @@ export function repoProjects<P extends RepoProject>(root: P, orgProjects: readon
 }
 
 /** Validate list identity before selecting or rendering, including malformed unrelated rows. */
-export function readRepoProjectList<P extends RepoProject>(raw: unknown, org: string, repo: string): P[] | null {
+export function readProjectList<P extends RepoProject>(raw: unknown): P[] | null {
   if (!raw || typeof raw !== 'object' || !Array.isArray((raw as { projects?: unknown }).projects)) return null;
   const seen = new Set<string>(), rows = (raw as { projects: unknown[] }).projects;
   for (const row of rows) {
@@ -21,7 +21,11 @@ export function readRepoProjectList<P extends RepoProject>(raw: unknown, org: st
     if (['id', 'repo', 'org', 'repoName', 'branch'].some(k => typeof value[k] !== 'string' || !value[k]) || seen.has(p.id) || p.sourcePath !== undefined && typeof p.sourcePath !== 'string' || p.repoId !== undefined && typeof p.repoId !== 'string') return null;
     seen.add(p.id);
   }
-  return (rows as P[]).filter(p => p.org.toLowerCase() === org.toLowerCase() && p.repoName.toLowerCase() === repo.toLowerCase()).sort(order);
+  return rows as P[];
+}
+
+export function readRepoProjectList<P extends RepoProject>(raw: unknown, org: string, repo: string): P[] | null {
+  return readProjectList<P>(raw)?.filter(p => p.org.toLowerCase() === org.toLowerCase() && p.repoName.toLowerCase() === repo.toLowerCase()).sort(order) ?? null;
 }
 
 /** Explicit ids/folders never fall back. A legacy address resolves only a unique root or unique remaining project. */

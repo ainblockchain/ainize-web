@@ -19,7 +19,7 @@
  * A banner over the tabs names the environment variables ainize.json declares and nobody has set yet.
  *
  * Reading is public (ainize-node docs/PROJECTS.md "Who sees what"); the node says with `canManage` / `canOperate`
- * which buttons this caller gets. `/projects/:id` still resolves and forwards here.
+ * which buttons this caller gets. `/projects/:id` resolves the same console when a pretty route would collide.
  */
 import { createProjectManagement, ProjectManagementError, projectSyncTarget, sameProjectManagementTarget, type ProjectManagementAction } from '@/lib/projectManagement';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -41,14 +41,14 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { isReservedFirstSegment, orgPath, projectPath, projectRedirectPath } from '@/lib/reservedRoutes';
+import { hasPrettyProjectPath, isReservedFirstSegment, orgPath, projectOrganizationPath, projectPath, projectRedirectPath } from '@/lib/reservedRoutes';
 import { activeProjectUrl, hasProjectRunTargets } from '@/lib/projectActions';
 import { deploymentLogHref, deploymentPage, projectRedeployTarget, readProjectDeploymentHistory } from '@/lib/projectHistory';
 import { createProjectRedeployment } from '@/lib/projectRedeploy';
 import { createProjectRunSubmission, prepareProjectRun, projectRunSelection, readProjectRunSource, readProjectRunHistory, type ProjectRunDraft } from '@/lib/projectRun';
 import { signInHref } from '@/lib/uiNavigation';
 import { isKnowledgeAuthor } from '@/lib/detailRoutes';
-import { repoProjectLabel, repoProjects, selectRepoProject, readRepoProjectList } from '@/lib/repoProjects';
+import { repoProjectLabel, repoProjects, selectRepoProject, readProjectList, readRepoProjectList } from '@/lib/repoProjects';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
@@ -537,7 +537,7 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
   return (
     <PageWrapper $wide>
       <Crumbs aria-label="breadcrumb">
-        <Link to={orgPath(p.org)}>{p.org}</Link><span className="sep">/</span><span>{p.repoName}</span>
+        {projectOrganizationPath(p) ? <Link to={projectOrganizationPath(p)!}>{p.org}</Link> : <span>{p.org}</span>}<span className="sep">/</span><span>{p.repoName}</span>
         {p.sourcePath && <><span className="sep">/</span><span>{p.sourcePath}</span></>}
         <StatusDot status={p.status} />
       </Crumbs>
@@ -698,9 +698,9 @@ export function ProjectByNamePage() {
   const location = useLocation();
   useTitle(`${org}/${repo}`);
   const reserved = isReservedFirstSegment(org);
-  const knowledge = isKnowledgeAuthor(org);
   const [sp, setSp] = useSearchParams();
   const id = sp.get('projectId'), folder = sp.get('project');
+  const knowledge = isKnowledgeAuthor(org) && id === null && folder === null;
   const invalid = sp.getAll('projectId').length > 1 || sp.getAll('project').length > 1 || id === '';
   const exact = useProjectQuery({ id: id ?? '', identity: cacheIdentity }, { skip: reserved || knowledge || !id || invalid });
   const orgQ = useOrgProjectsQuery({ org, identity: cacheIdentity }, { skip: reserved || knowledge });
@@ -719,13 +719,14 @@ export function ProjectByNamePage() {
     if (p) setSp(new URLSearchParams(projectPath(p).split('?')[1] ?? ''));
   };
   if (selected) {
+    if (!hasPrettyProjectPath(selected)) return <Navigate to={projectRedirectPath(selected, location.search, location.hash)} replace />;
     const switcher = all.length > 1 ? <RepoDeployments projects={all} selected={selected.id} onPick={pick} /> : undefined;
     return <>{id && listed === null && !orgQ.isFetching && <Alert role="status" $tone="warning">{t('projects.page.siblings_failed')} <Button onClick={() => void orgQ.refetch()}>{t('projects.page.retry')}</Button></Alert>}<ProjectConsole key={`${cacheIdentity}:${selected.id}`} project={selected} switcher={switcher} /></>;
   }
   const why = projectApiErrorOf(id ? exact.error : orgQ.error);
   const unavailable = why.status === 404 || why.status === 401 || why.status === 403;
   return <PageWrapper>
-    <Crumbs><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span></Crumbs>
+    <Crumbs>{isKnowledgeAuthor(org) ? <span>{org}</span> : <Link to={orgPath(org)}>{org}</Link>}<span className="sep">/</span><span>{repo}</span></Crumbs>
     {failed ? <Alert role="alert" $tone="error">{t(unavailable ? 'projects.page.unavailable' : 'projects.page.load_failed')}</Alert>
       : <Empty data-testid="project-selection-unavailable">{t(!invalid && !id && all.filter(p => folder === null || (p.sourcePath ?? '') === folder).length > 1 ? 'projects.page.choose_project' : 'projects.page.folder_unavailable', { folder: id ?? folder ?? repo })}</Empty>}
     <Actions>
@@ -738,7 +739,7 @@ export function ProjectByNamePage() {
 }
 
 /**
- * `/projects/:id` keeps exact identity when forwarding to the repository's pretty address.
+ * `/projects/:id` keeps exact identity, using the repository's pretty address only when that route is unambiguous.
  * Folder and branch ambiguity cannot replace the selected project; record/run parameters ride along.
  */
 export default function ProjectPage() {
@@ -747,8 +748,33 @@ export default function ProjectPage() {
   const location = useLocation();
   const q = useProjectQuery({ id, identity: useAuth().cacheIdentity });
   if (!q.currentData && q.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
-  // A folder project's page is its repository's, with it selected (`?project=<folder>`); other parameters ride along.
-  if (q.currentData?.id === id && !q.error) return <Navigate to={projectRedirectPath(q.currentData, location.search)} replace />;
+  const project = readProjectList<Project>({ projects: q.currentData ? [q.currentData] : [] })?.find(p => p.id === id);
+  if (project && !q.error) {
+    const target = projectRedirectPath(project, location.search, location.hash);
+    if (target !== `${location.pathname}${location.search}${location.hash}`) return <Navigate to={target} replace />;
+    return <ProjectAtId project={project} />;
+  }
   const why = projectApiErrorOf(q.error);
   return <PageWrapper><SubTitle>{t('projects.page.title')}</SubTitle><Empty>{why.code === 'not_found' || why.status === 404 ? t('projects.page.not_found') : (why.message ?? t(`projects.api.${why.code}`))}</Empty><Button loading={q.isFetching} onClick={() => void q.refetch()}>{t('projects.page.retry')}</Button></PageWrapper>;
+}
+
+/** Keep folder/branch choices available even when the repository name cannot use a pretty route. */
+function ProjectAtId({ project }: { project: Project }) {
+  const { cacheIdentity } = useAuth();
+  const { t } = useT();
+  const navigate = useNavigate();
+  const location = useLocation();
+  let driveIdSource = true;
+  try { driveIdSource = new URL(project.repo).pathname.startsWith('/api/drives/'); } catch { /* no verified organization source */ }
+  const siblings = useOrgProjectsQuery({ org: project.org, identity: cacheIdentity }, { skip: driveIdSource });
+  const listed = siblings.isError ? null : readRepoProjectList<Project>(siblings.currentData, project.org, project.repoName);
+  const all = repoProjects(project, listed ?? []);
+  const pick = (id: string) => {
+    const next = all.find(p => p.id === id);
+    if (next) navigate(projectRedirectPath(next, '', location.hash));
+  };
+  return <>
+    {!driveIdSource && listed === null && !siblings.isFetching && <Alert role="status" $tone="warning">{t('projects.page.siblings_failed')} <Button onClick={() => void siblings.refetch()}>{t('projects.page.retry')}</Button></Alert>}
+    <ProjectConsole project={project} switcher={all.length > 1 ? <RepoDeployments projects={all} selected={project.id} onPick={pick} /> : undefined} />
+  </>;
 }
