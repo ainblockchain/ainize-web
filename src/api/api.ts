@@ -179,7 +179,7 @@ export const api = createApi({
     myProjects: b.query<ProjectsResponse, string>({ keepUnusedDataFor: 0, query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
     project: b.query<Project, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id }] }),
     createProject: b.mutation<ProjectCreated, ProjectCreateInput>({ query: (body) => ({ url: 'api/projects', method: 'POST', body }), invalidatesTags: ['Project'] }),
-    deleteProject: b.mutation<{ ok: true; id: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Project'] }),
+    deleteProject: b.mutation<{ ok: true; id: string; cleanup: 'complete' }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Project'] }),
     projectDeployments: b.query<DeploymentsResponse, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/projects/${encodeURIComponent(id)}/deployments`, providesTags: (_r, _e, { id }) => [{ type: 'Project', id }] }),
     /** `/<org>/<repo>` → the project (public). */
     projectByName: b.query<Project, { org: string; repo: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ org, repo }) => `api/projects/by-name${toQuery({ org, repo })}`, providesTags: (r) => (r ? [{ type: 'Project', id: r.id }] : ['Project']) }),

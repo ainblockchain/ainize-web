@@ -6,7 +6,7 @@ const p = { id: 'project', repo: 'https://aindrive.ainetwork.ai/team/git/app', u
   hookUrl: 'https://node.example/api/projects/project/hook', sourcePath: 'web', canManage: true, canOperate: true } as Project;
 const rotation = { id: p.id, hookUrl: p.hookUrl, webhookSecret: `whsec_${'a'.repeat(48)}` };
 const sync = { projectId: p.id, repository: p.repo, requested: true, requestedAt: '2026-10-31T01:00:00.000Z' };
-const deletion = { id: p.id, ok: true };
+const deletion = { id: p.id, ok: true, cleanup: 'complete' };
 const active = () => true;
 
 test('management receipts bind the operation and exact project rather than trusting HTTP success', () => {
@@ -15,7 +15,7 @@ test('management receipts bind the operation and exact project rather than trust
   assert.equal(projectManagementReceipt(deletion, p, 'delete')?.kind, 'delete');
   for (const raw of [null, {}, { ...rotation, id: 'other' }, { ...rotation, hookUrl: 'https://elsewhere.example/hook' }, { ...rotation, webhookSecret: 'short' }]) assert.equal(projectManagementReceipt(raw, p, 'rotate'), null);
   for (const raw of [{}, { ...sync, projectId: 'other' }, { ...sync, repository: 'other' }, { ...sync, requested: false }, { ...sync, requestedAt: 'today' }]) assert.equal(projectManagementReceipt(raw, p, 'sync'), null);
-  for (const raw of [{}, { ...deletion, id: 'other' }, { ...deletion, ok: false }]) assert.equal(projectManagementReceipt(raw, p, 'delete'), null);
+  for (const raw of [{}, { id: p.id, ok: true }, { ...deletion, cleanup: 'pending' }, { ...deletion, id: 'other' }, { ...deletion, ok: false }]) assert.equal(projectManagementReceipt(raw, p, 'delete'), null);
 });
 
 test('preflight requires the reviewed target and action permission but permits unrelated build updates', () => {
@@ -68,4 +68,16 @@ test('leaving during preflight prevents dispatch and leaving during dispatch sup
   here = true;
   const after = createProjectManagement().run(p, 'rotate', { read: async () => p, send: () => new Promise(r => { release = r; }), active: () => here });
   await Promise.resolve(); here = false; release(rotation); assert.equal(await after, null);
+});
+
+
+test('pending deletion blocks other management while explicit partial cleanup permits manual continuation', async () => {
+  const pending = { ...p, deletionRequestedAt: 1 };
+  assert.equal(sameProjectManagementTarget(pending, pending, 'delete'), true);
+  assert.equal(sameProjectManagementTarget(pending, pending, 'rotate'), false);
+  assert.equal(sameProjectManagementTarget(pending, pending, 'sync'), false);
+  const gate = createProjectManagement();
+  await assert.rejects(gate.run(p, 'delete', { read: async () => p, send: async () => { throw { status: 503, data: { error: { code: 'project_cleanup_pending' } } }; }, active }));
+  assert.equal(gate.uncertain(), false);
+  assert.equal((await gate.run(pending, 'delete', { read: async () => pending, send: async () => deletion, active }))?.kind, 'delete');
 });

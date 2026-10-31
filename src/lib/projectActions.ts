@@ -10,6 +10,7 @@ export const hasProjectRunTargets = (project: Pick<Project, 'kind' | 'manifest'>
 
 /** Visit opens the active deployment, never an arbitrary historical successful build. */
 export function activeProjectUrl(project: Project, deployments?: Deployment[]): string | null {
+  if (project.deletionRequestedAt !== undefined) return null;
   if (!['nextjs', 'service', 'agent'].includes(project.kind ?? project.manifest?.kind ?? '')) return null;
   const rows = (deployments ?? (project.lastDeployment ? [project.lastDeployment] : []))
     .filter(row => (!project.id || row.projectId === project.id) && row.trigger !== 'run');

@@ -179,6 +179,8 @@ export const projects: Dict = {
   'projects.aindrive.open_logs': { ko: 'AinDrive 로그', en: 'AinDrive logs' },
   'projects.settings.rotate': { ko: '웹훅 비밀값 교체', en: 'Rotate webhook secret' },
   'projects.settings.rotate_confirm': { ko: '새 비밀값을 만들까요? 이전 값은 즉시 무효가 되고, 새 값을 드라이브의 리포 설정에 넣어야 push가 다시 배포됩니다.', en: 'Make a new secret? The old one stops working at once; paste the new one into the repo\'s settings in the drive or pushes stop deploying.' },
+  'projects.settings.deleting': { ko: '프로젝트 삭제를 위한 정리가 진행 중이거나 완료되지 않았습니다. 새 실행과 설정 변경은 차단됩니다. 정리가 멈췄다면 삭제 계속을 눌러 다시 시도하세요.', en: 'Project deletion cleanup is in progress or incomplete. New execution and settings changes are blocked. If cleanup has stopped, resume deletion to retry.' },
+  'projects.settings.resume_delete': { ko: '삭제 계속', en: 'Resume deletion' },
   'projects.settings.changed': { ko: '프로젝트나 권한이 변경되었습니다. 최신 내용을 확인한 뒤 다시 선택해 주세요.', en: 'The project or your permissions changed. Review the current details before choosing again.' },
   'projects.settings.unconfirmed': { ko: '작업 결과를 확인하지 못했습니다. 중복 실행을 막기 위해 이 화면의 관리 작업을 잠갔습니다. 새로고침만으로 비밀값 교체나 삭제 결과가 확인되지는 않습니다.', en: 'The operation could not be confirmed. Management actions are locked in this view to avoid repeating it. Refreshing details does not confirm a secret rotation or deletion.' },
   'projects.settings.rotated': { ko: '새 웹훅 비밀값 — 지금 한 번만 보여 줍니다:', en: 'New webhook secret — shown only now:' },

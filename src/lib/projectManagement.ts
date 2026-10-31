@@ -17,6 +17,7 @@ export function sameProjectManagementTarget(raw: unknown, selected: Project, act
     || (raw.sourcePath ?? '') !== (selected.sourcePath ?? '') || raw.owner !== selected.owner
     || raw.hookUrl !== selected.hookUrl || raw.upstreamRepo !== selected.upstreamRepo
     || (action === 'sync' ? raw.canOperate !== true : raw.canManage !== true)) return false;
+  if (action !== 'delete' && raw.deletionRequestedAt !== undefined) return false;
   if (action === 'rotate' && (!url(raw.hookUrl) || new URL(raw.hookUrl).pathname !== `/api/projects/${encodeURIComponent(selected.id)}/hook`
     || new URL(raw.hookUrl).search || new URL(raw.hookUrl).hash)) return false;
   return action !== 'sync' || projectSyncTarget(raw as unknown as Project);
@@ -24,7 +25,7 @@ export function sameProjectManagementTarget(raw: unknown, selected: Project, act
 export type ProjectManagementResult = { kind: 'delete'; id: string } | { kind: 'rotate'; receipt: RotatedSecret } | { kind: 'sync'; requestedAt: string };
 export function projectManagementReceipt(raw: unknown, p: Project, action: ProjectManagementAction): ProjectManagementResult | null {
   if (!object(raw)) return null;
-  if (action === 'delete') return raw.ok === true && raw.id === p.id ? { kind: 'delete', id: p.id } : null;
+  if (action === 'delete') return raw.ok === true && raw.id === p.id && raw.cleanup === 'complete' ? { kind: 'delete', id: p.id } : null;
   if (action === 'rotate') return raw.id === p.id && raw.hookUrl === p.hookUrl && typeof raw.webhookSecret === 'string' && /^whsec_[a-f0-9]{48}$/.test(raw.webhookSecret)
     ? { kind: 'rotate', receipt: { id: p.id, hookUrl: raw.hookUrl as string, webhookSecret: raw.webhookSecret } } : null;
   return raw.projectId === p.id && raw.repository === p.repo && raw.requested === true && typeof raw.requestedAt === 'string'
@@ -34,11 +35,11 @@ export function projectManagementReceipt(raw: unknown, p: Project, action: Proje
 export class ProjectManagementError extends Error {
   constructor(readonly reason: 'changed' | 'unconfirmed') { super(reason); }
 }
-const refused = (error: unknown) => {
+const refused = (error: unknown, action: ProjectManagementAction) => {
   const e = error as { status?: unknown; data?: { error?: { code?: unknown } } } | null;
   const s = e?.status, c = e?.data?.error?.code;
-  return s === 503 && c === 'github_sync_off' || typeof s === 'number' && s >= 400 && s < 500
-    && typeof c === 'string' && ['not_signed_in', 'not_found', 'not_member', 'forbidden', 'ax_cleanup_required', 'not_aindrive', 'github_upstream_unknown'].includes(c);
+  return s === 503 && (c === 'github_sync_off' || c === 'project_cleanup_unavailable' || action === 'delete' && c === 'project_cleanup_pending') || typeof s === 'number' && s >= 400 && s < 500
+    && typeof c === 'string' && ['not_signed_in', 'not_found', 'not_member', 'forbidden', 'ax_cleanup_required', 'project_busy', 'project_delete_busy', 'project_deleting', 'not_aindrive', 'github_upstream_unknown'].includes(c);
 };
 /** Per-view exclusion only: unknown outcomes cannot be recovered by refreshing metadata. */
 export function createProjectManagement() {
@@ -60,7 +61,7 @@ export function createProjectManagement() {
         if (!result) throw new ProjectManagementError('unconfirmed');
         return result;
       } catch (error) {
-        if (dispatched && !refused(error)) unknown = true;
+        if (dispatched && !refused(error, action)) unknown = true;
         throw error;
       } finally { busy = false; }
     },

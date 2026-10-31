@@ -523,6 +523,16 @@ function ProjectConsoleContent({ project: initial, switcher }: { project: Projec
 
   if (projectQ.isError || projectQ.currentData && projectQ.currentData.id !== initial.id) return <PageWrapper><Alert role="alert" $tone="error">{error ?? t('projects.page.load_failed')} <Button loading={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button></Alert></PageWrapper>;
 
+  if (p.deletionRequestedAt !== undefined) return <PageWrapper>
+    <h1>{p.name}</h1>
+    <Alert role="status" $tone="warning">{t('projects.settings.deleting')}</Alert>
+    {error && <Alert role="alert" $tone="error">{error}</Alert>}
+    <Actions>
+      <Button disabled={projectQ.isFetching} onClick={() => void projectQ.refetch()}>{t('projects.page.retry')}</Button>
+      {isSignedIn && p.canManage && <Button color="secondary" disabled={managementDisabled} loading={removing} onClick={del}>{t('projects.settings.resume_delete')}</Button>}
+    </Actions>
+  </PageWrapper>;
+
   return (
     <PageWrapper $wide>
       <Crumbs aria-label="breadcrumb">

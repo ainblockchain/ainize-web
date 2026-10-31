@@ -3279,3 +3279,16 @@ test('signed-out project views do not inherit private management buttons from su
   const html = render(Page, signedOut, '/studio/mono?tab=settings');
   assert.doesNotMatch(html, /Rotate webhook secret|Delete project|Sync from GitHub now/);
 });
+
+
+test('pending deletion replaces normal project actions with cleanup status and owner continuation', () => {
+  const project = { ...rootProject, deletionRequestedAt: 42, upstreamRepo: 'https://github.com/team/app' };
+  const Page = () => createElement(ProjectConsole, { project });
+  const html = render(Page, deploymentHistoryFixtures(project, [deploymentFixture('latest')]), '/studio/mono?tab=settings');
+  assert.match(html, /Project deletion cleanup/); assert.match(html, /Resume deletion/);
+  assert.doesNotMatch(html, /Rotate webhook secret|Sync from GitHub now|Environment variables|Add domain/);
+  const viewer = { ...project, canManage: false, canOperate: false };
+  const Viewer = () => createElement(ProjectConsole, { project: viewer });
+  const denied = render(Viewer, deploymentHistoryFixtures(viewer, []), '/studio/mono');
+  assert.doesNotMatch(denied, /Resume deletion/); assert.match(denied, /Project deletion cleanup/);
+});

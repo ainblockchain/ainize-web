@@ -42,6 +42,7 @@ export interface ProjectSource { repoId: string; target: 'head' | 'commit' | 'de
  * rotate) and `canOperate` (run, redeploy) say what the signed-in caller may do here.
  */
 export interface Project {
+  deletionRequestedAt?: number;
   id: string;
   org: string;
   repoName: string;
