@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-327 operations on 272 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+330 operations on 275 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -352,6 +352,9 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/me/teach/bans`](#get-apimeteachbans) | operator | Blocked keys / IPs |
 | `POST` | [`/api/me/teach/bans`](#post-apimeteachbans) | operator | Block a key or IP |
 | `DELETE` | [`/api/me/teach/bans/{id}`](#delete-apimeteachbansid) | operator | Unblock |
+| `POST` | [`/api/patches/{id}/buy-review`](#post-apipatchesidbuy-review) | operator | Review the exact purchase family and per-currency maximums without purchasing |
+| `POST` | [`/api/patches/{id}/buy-reviewed`](#post-apipatchesidbuy-reviewed) | operator | Execute an exact reviewed purchase with a durable request identifier |
+| `GET` | [`/api/purchases/requests/{id}`](#get-apipurchasesrequestsid) | operator | Read this operator’s saved purchase request without resubmitting |
 | `POST` | [`/api/patches/{id}/buy`](#post-apipatchesidbuy) | operator | Buy as this node (x402 handled automatically) |
 | `POST` | [`/api/patches/{id}/collect-reviewed`](#post-apipatchesidcollect-reviewed) | operator | Collect the exact selected file without submitting an unresolved payment |
 | `POST` | [`/api/patches/{id}/collect`](#post-apipatchesidcollect) | operator | Recover a purchased file or an unresolved recorded payment |
@@ -6912,6 +6915,83 @@ Unblock
 | Code | Description | Body |
 |---|---|---|
 | `200` | ok | `object` |
+
+### `POST /api/patches/{id}/buy-review`
+
+Review the exact purchase family and per-currency maximums without purchasing
+
+Read-only review: version:1, revision, node, patch_id, again, items[] and maximum[]. Includes full selected anchors and prerequisite order, current rights/file/pending state, and each buy/collect/keep decision. Missing/cyclic/deep prerequisites, unavailable purchases and unresolved prior payments refuse. Owned/purchased/licensed files are distinct from verification-only copies. Again authorizes a new payment only for the root. Prices and states are not reserved; confirmation must send the revision.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Description |
+|---|---|---|
+| `again` | `boolean` | (default `false`) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {review} | `object` |
+| `409` | purchase_review_changed or payment_pending; no purchase is started |   |
+
+### `POST /api/patches/{id}/buy-reviewed`
+
+Execute an exact reviewed purchase with a durable request identifier
+
+Stores intent under the current operator and node before execution. The same request_id and parameters return its stored state, never repeat work; changed parameters conflict. Rechecks the full review while holding a process-local gate for all selected IDs, then checks each item immediately before its turn. Each seller payment must match the reviewed recipient/resource/method/currency and not exceed its price; amounts that cannot round-trip through the payment transport refuse. Acquires prerequisites first without loading a model. Writes partial progress after each completed item. An item failure stops remaining purchases and returns incomplete with completed receipts and confirmed_totals, which exclude unknown spend. Running/interrupted/failed outcomes are not proof of no charge. A refused request is specifically before any execution. There is no automatic resume across a restart; reread the stored request. This is not an atomic bundle, distributed lock or crash-atomic transaction with the remote seller.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `request_id` | `string` | yes | Random 128-bit ID saved by the client before POST. Never replace automatically after a lost response. |
+| `again` | `boolean` | yes |   |
+| `expected_review` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {request}: version, id, node, subject, patch_id, again, revision, state (running/finished/failed/interrupted/refused), created_at, updated_at, result, error. Result identifies complete/incomplete, ordered item outcomes with receipts and confirmed_totals. | `object` |
+| `409` | purchase_request_conflict; the same identifier was already used for another decision |   |
+
+### `GET /api/purchases/requests/{id}`
+
+Read this operator’s saved purchase request without resubmitting
+
+Request IDs are scoped to node and operator. A running row with no active worker in this process is interrupted, never resumed. Durable progress may be incomplete if a process stopped after payment but before recording its result. Missing records do not prove no payment occurred. Reading does not pay, collect, load a model or cancel work.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {request} | `object` |
+| `404` | No request found for the current operator and node |   |
 
 ### `POST /api/patches/{id}/buy`
 

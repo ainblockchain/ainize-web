@@ -474,7 +474,7 @@ export interface PurchaseResult {
   /** Every knowledge this purchase paid for, bases first (item 270). */
   purchases?: { patch_id: string; amount: string; currency: string; scheme: string; tx_hash: string; free?: boolean }[];
   total?: string; currency?: string;
-  /** The payment was already settled and the seller re-issued the manifest — nothing was charged (item 273). */
+  /** Earlier payment reused; only versioned charge totals establish whether this call added a charge. */
   redeemed?: boolean;
 }
 /** One layer of the loaded stack, deepest first (lineage design §5.4, SC-18) — `base: true` = loaded under a child. */

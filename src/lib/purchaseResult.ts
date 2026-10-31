@@ -48,3 +48,5 @@ export function purchaseQuoteTotals(quote: PatchQuote | null | undefined): strin
   if (quote.totals && (!Array.isArray(quote.totals) || !quote.totals.every(r => r && amount(r.amount) && text(r.currency)) || !sameTotals(expected, totals(quote.totals)))) return null;
   return expected.map(r => `${r.amount} ${r.currency}`).join(' + ') || '0';
 }
+
+export { totals as purchaseChargeTotals };

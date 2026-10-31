@@ -1,7 +1,9 @@
+import { useAuth } from '@/auth/AuthContext';
+import { PurchaseReviewLauncher } from '@/components/detail/PurchaseReview';
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useBuyMutation, useRequestPatchMutation } from '@/api/api';
+import { errorMessage, useRequestPatchMutation } from '@/api/api';
 import type { CatalogEntry, ChatLock, ChatOverlap, ElsewhereRow, RuntimeStatus } from '@/api/types';
 import { useT } from '@/i18n';
 import { StatusChip } from '@/components/ui/Misc';
@@ -115,6 +117,8 @@ export interface KnowledgePickerProps {
 }
 
 export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsMine = false, selectedIds, onToggle, onReorder, onClear, mineJobId, applied = [], overlaps = [], lessons = [], dirty = [], elsewhere = [], operator = false }: KnowledgePickerProps) {
+  const auth = useAuth();
+  const [purchaseSelection, setPurchaseSelection] = useState<{ id: string; author: string; nonce: number; identity: string; node: string | null } | null>(null);
   const { t, term, help, tech, locale } = useT();
   const kind = lockKind(lock, lockIsMine);
   // the banner's clock ticks every second instead of freezing until the next 20 s poll
@@ -376,23 +380,21 @@ export function KnowledgePicker({ items, runtime, lock, clockSkewMs = 0, lockIsM
         <>
           <Section>{t('chat.picker.elsewhere')}</Section>
           <Hint>{t('chat.picker.elsewhere_help')}</Hint>
-          <List>{elsewhere.map((e) => <ElsewhereItem key={e.patch_id} row={e} operator={operator} />)}</List>
+          <List>{elsewhere.map((e) => <ElsewhereItem key={e.patch_id} row={e} operator={operator} onPurchase={() => setPurchaseSelection(previous => ({ id: e.patch_id, author: e.author, identity: auth.cacheIdentity, node: auth.address, nonce: (previous?.nonce ?? 0) + 1 }))} />)}</List>
         </>
       )}
+      {purchaseSelection && purchaseSelection.identity === auth.cacheIdentity && purchaseSelection.node === auth.address && <PurchaseReviewLauncher selection={purchaseSelection} />}
     </Panel>
   );
 }
 
 /** One knowledge that cannot be tested here: what it costs, who sells it, and the one thing the reader can do. */
-function ElsewhereItem({ row, operator }: { row: ElsewhereRow; operator: boolean }) {
-  const { t, term, locale } = useT();
-  const [buy, buyState] = useBuyMutation();
+function ElsewhereItem({ row, operator, onPurchase }: { row: ElsewhereRow; operator: boolean; onPurchase: () => void }) {
+  const { t } = useT();
   const [request, reqState] = useRequestPatchMutation();
   const [asked, setAsked] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const price = Number(row.price)
-    ? `${Number(row.price).toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US', { maximumFractionDigits: 6 })} ${row.currency === 'CREDIT' ? term('credit') : row.currency}`
-    : t('common.free');
+  const price = /[1-9]/.test(row.price) ? `${row.price} ${row.currency}` : t('common.free');
   const asks = asked ?? row.requests;
   return (
     <li>
@@ -410,8 +412,8 @@ function ElsewhereItem({ row, operator }: { row: ElsewhereRow; operator: boolean
           {asks > 0 && <PriceNote data-testid="picker-requests">{t('chat.picker.asked', { n: asks }, asks)}</PriceNote>}
           <ChipRow>
             {operator
-              ? <SmallButton type="button" disabled={!row.buyable || buyState.isLoading} onClick={() => { setError(null); buy({ id: row.patch_id }).unwrap().catch((e) => setError(errorMessage(e))); }}>
-                {buyState.isLoading ? t('chat.picker.buying') : t('chat.picker.buy', { price })}
+              ? <SmallButton type="button" disabled={!row.buyable} onClick={onPurchase}>
+                {t('detail.purchaseReview.title')}
               </SmallButton>
               : <SmallButton type="button" disabled={reqState.isLoading || asked !== null} onClick={() => { setError(null); request(row.patch_id).unwrap().then((r) => setAsked(r.requests)).catch((e) => setError(errorMessage(e))); }}>
                 {asked !== null ? t('chat.picker.asked_done') : t('chat.picker.ask')}

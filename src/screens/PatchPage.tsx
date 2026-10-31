@@ -1,3 +1,4 @@
+import { usePurchaseReview } from '@/components/detail/PurchaseReview';
 import { CollectKnowledge } from '@/components/detail/CollectKnowledge';
 import { purchaseResult, purchaseQuoteTotals } from '@/lib/purchaseResult';
 import { purchaseRows } from '@/lib/purchaseView';
@@ -11,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import {
-  errorMessage, useBenchmarkQuery, useBuyMutation, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
+  errorMessage, useBenchmarkQuery, useInfoQuery, useMyCreditQuery, useMyPurchasesQuery, usePatchTreeQuery,
   usePatchIssuesQuery, usePatchQuery, usePatchRecordsQuery, usePatchSignalsQuery, useTeachPolicyQuery,
 } from '@/api/api';
 import type { Attestation, CatalogEntry, ConflictInfo, LineageRef, PatchDetail, PurchaseResult, TreeResponse } from '@/api/types';
@@ -1265,12 +1266,11 @@ function VisitorBuy({ id, gw, priceText }: { id: string; gw: string; priceText: 
  * for — loading the knowledge into the model — and a second payment is a separate, confirmed act that says what it
  * costs and what it overwrites. A free re-download would need a node-side route; nothing here promises one.
  */
-function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
-  d: PatchDetail; priceText: string; runtimeReady: boolean; onBuyAgain: () => void; buying: boolean;
+function PaidFor({ d, runtimeReady, onBuyAgain, buying, ready }: {
+  d: PatchDetail; runtimeReady: boolean; onBuyAgain: () => void; buying: boolean; ready: boolean;
 }) {
   const { t } = useT();
   const f = useDetailFormat();
-  const [again, setAgain] = useState(false);
   const auth = useAuth();
   const purchases = useMyPurchasesQuery({ identity: auth.cacheIdentity }, { skip: auth.loading || !auth.isOwner });
   const rows = !purchases.isError && auth.isOwner ? purchaseRows(purchases.currentData) : null;
@@ -1303,26 +1303,20 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
       {chain.error && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="apply-error">{chain.error}</Alert>}
       {chain.notice && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="apply-order">{chain.notice}</Alert>}
       {chain.dialog}
-      {!again
-        ? <Actions><TextBtn type="button" onClick={() => setAgain(true)} data-testid="buy-again-open">{t('detail.buy.again_open')}</TextBtn></Actions>
-        : (
-          <Alert $tone="warning" style={{ marginTop: 12 }} data-testid="buy-again-confirm">
-            <b>{t('detail.buy.again_title')}</b> {t('detail.buy.again_body', { id: d.anchor.id, price: priceText })}
-            <Actions>
-              <Button color="secondary" loading={buying} loadingText={t('detail.buy.paying')} onClick={onBuyAgain} data-testid="buy-again-pay">{t('detail.buy.again_confirm', { price: priceText })}</Button>
-              <TextBtn type="button" onClick={() => setAgain(false)}>{t('common.cancel')}</TextBtn>
-            </Actions>
-          </Alert>
-        )}
+      <Actions><Button variant="text" disabled={buying || !ready} onClick={onBuyAgain} data-testid="buy-again-open">{t('detail.purchaseReview.again')}</Button></Actions>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------- 구매 */
-function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
+function Buy(props: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
+  const auth = useAuth();
+  return <BuyView key={JSON.stringify([auth.cacheIdentity, auth.address, props.d.anchor.id, props.d.anchor.patch_sha256])} {...props} />;
+}
+function BuyView({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string; isOperator: boolean }) {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
-  const [buy, { data: result, isLoading, error, reset }] = useBuyMutation();
+  const purchase = usePurchaseReview(d.anchor);
   /**
    * Item 275: `gateway_url` is frozen into the anchor and stops resolving the moment the seller changes its port,
    * so what a visitor is told to call is the address the node says answers TODAY; the record's is shown only when
@@ -1539,7 +1533,7 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
         <H3>{isOperator ? t('detail.buy.from_node') : t('detail.buy.visitor_title')}</H3>
         {isOperator && d.owned && <P>{t('detail.buy.owned')}<StyledLink to={`/project/${authorSlug}/${encodeURIComponent(a.id)}`}>{t('detail.buy.owned_manage')}</StyledLink></P>}
         {isOperator && !d.owned && d.purchased && (
-          <PaidFor d={d} priceText={priceText} runtimeReady={runtimeReady} buying={isLoading} onBuyAgain={() => { reset(); void buy({ id: a.id, again: true }); }} />
+          <PaidFor d={d} runtimeReady={runtimeReady} buying={purchase.busy} ready={purchase.ready} onBuyAgain={() => purchase.launch(true)} />
         )}
         {/* Item 3: why it cannot be bought is public — a visitor used to be shown the price and no reason at all. */}
         {!d.owned && !d.quorum_ok && <Alert $tone="warning" title={tech('verified')}>{t('detail.buy.not_verified', { passed: d.passed, quorum: d.quorum })}</Alert>}
@@ -1562,15 +1556,8 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
           <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             {/* Item 4: on a replaced version the loud control is the link to the successor; paying for the old one
                 stays possible, but as an outlined button that says which version the money buys. */}
-            <Button
-              variant={superseded ? 'outlined' : 'contained'} loading={isLoading} loadingText={t('detail.buy.paying')}
-              onClick={() => { reset(); void buy({ id: a.id, bundle: missing.length > 0 }); }} title={help('autoPay')} data-testid="buy-button"
-            >
-              {/* The button says what leaves the wallet: the family total when a base has to come with it. */}
-              {missing.length > 0 ? t('detail.buy.button_family', { price: totalText, n: missing.length + 1 })
-                : superseded ? t('detail.buy.button_old', { price: priceText })
-                : t('detail.buy.button', { price: priceText })}
-            </Button>
+            <Button variant={superseded ? 'outlined' : 'contained'} disabled={!purchase.ready || purchase.busy}
+              onClick={() => purchase.launch(false)} data-testid="buy-button">{t('detail.purchaseReview.title')}</Button>
             {superseded && head && <StyledLink to={`/${authorSlug}/${encodeURIComponent(head.anchor.id)}`}>{t('detail.buy.old_open')} →</StyledLink>}
             <Quorum>{a.currency === 'AIN' ? t('detail.buy.pays_from_ain') : t('detail.buy.pays_from_credit')}{note && <> · {note}</>}</Quorum>
             {/* Item 351: what a purchase publishes about the buyer, said before the button and not after it. */}
@@ -1580,8 +1567,8 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
             )}
           </div>
         )}
-        {error && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(error)}</Alert>}
-        {result && <PurchaseTimeline r={result} d={d} />}
+        {purchase.submitted && <Button variant="text" onClick={() => purchase.launch(false)}>{t('detail.purchaseReview.inspect')}</Button>}
+        {purchase.dialog}
         <Note style={{ margin: '16px 0 0' }}>{term('apply')}: {help('apply')} {term('remove')}: {help('remove')}</Note>
       </Section>
     </>

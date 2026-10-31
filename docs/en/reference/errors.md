@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 80 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 84 codes a client can match on.
 
 ## The error envelope
 
@@ -37,7 +37,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-80 codes are raised by name, in 139 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+84 codes are raised by name, in 143 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -110,6 +110,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `invalid` | `400` | there is no question #\<op.index> in this dataset | `src/teach-datasets.ts` |
 | `invalid` | `400` | those are the same knowledge | `src/teach.ts` |
 | `invalid` | `400` | two knowledges are needed to combine | `src/teach.ts` |
+| `invalid_purchase_request` | `400` | expected a random 128-bit identifier | `src/purchase-requests.ts` |
 | `invalid_runtime_request_id` | `400` | expected server timestamp and a random 128-bit suffix | `src/runtime-jobs.ts` |
 | `invalid_signature` | `401` | download token missing, wrong or expired — make a new link from Your knowledge | `src/api.ts` |
 | `invalid_signature` | `401` | the claim signature does not verify for this teaching key | `src/teach.ts` |
@@ -136,9 +137,12 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `nothing_to_add` | `400` | combining these two would leave no questions at all | `src/teach.ts` |
 | `nothing_to_add` | `400` | combining these two would teach nothing new | `src/teach.ts` |
 | `parent_not_listed` | `400` | publish \<b.patch_id> first — it is the base of this lesson | `src/teach.ts` |
+| `payment_pending` | `409` | \<key> has an unresolved payment; inspect it before purchasing | `src/purchase-review.ts` |
 | `publish_disabled` | `403` | this node accepts lessons but does not publish them | `src/teach.ts` |
 | `published_immutable` | `409` | published knowledge cannot be deleted | `src/teach.ts` |
-| `purchase_action_busy` | `409` | another purchase or collection for this item is running | `src/purchase-result.ts` |
+| `purchase_action_busy` | `409` | another purchase or collection for a selected item is running | `src/purchase-result.ts` |
+| `purchase_request_conflict` | `409` | this request identifier belongs to another purchase | `src/purchase-requests.ts` |
+| `purchase_review_changed` | `409` | \<message>; refresh the purchase review | `src/purchase-review.ts` |
 | `quota_bytes` | `429` | you have uploaded as much as this node accepts from one teaching key today | `src/teach-datasets.ts` |
 | `quota_chat` | `429` | free live-test quota exhausted for this hour (this pre-flight needs \<units> unit(s)) — try again later | `src/api.ts` |
 | `quota_dataset` | `429` | \<c.perKeyPerDay> new datasets per day for one teaching key | `src/teach-datasets.ts` |
@@ -185,7 +189,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 Not every error carries a code. 168 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 113 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 115 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|

@@ -1,3 +1,7 @@
+import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
+import { purchaseReviewFixture, purchaseRequestFixture } from './purchase-review-fixture';
+const purchaseSheetProps = () => ({ review: null, request: null, busy: false, error: null, submitted: false, verified: false,
+  onConfirm() {}, onRefresh() {}, onInspect() {}, onClose() {}, onDone() {} });
 import { purchaseFixture } from './fixtures/purchase';
 import { TrackAdditionSheet } from '../src/components/operator/TrackAdditionForm';
 import { additionFixture } from './track-addition-fixture';
@@ -2316,4 +2320,37 @@ test('purchase response uses separate exact units and refuses stale or unrelated
     const unknown = render(() => createElement(PurchaseTimeline, { r, d }), accessAuth);
     assert.match(unknown, /does not confirm the selected purchase/); assert.doesNotMatch(unknown, /reported charges:/);
   }
+});
+
+test('purchase review shows exact per-currency limits and the selected prerequisite actions', () => {
+  const review = purchaseReviewFixture();
+  const html = render(() => createElement(PurchaseReviewSheet, { ...purchaseSheetProps(), review }), signedOut);
+  assert.match(html, /Maximum charge: 0.00000001 AIN \+ 2 CREDIT/); assert.match(html, /View 2 items/);
+  assert.match(html, /Each item is paid separately/); assert.match(html, /Loading them into a model is a separate action/);
+  assert.match(html, /purchase-review-confirm/);
+});
+test('purchase confirmation is unavailable before valid review or after submission', () => {
+  for (const overrides of [{ review: null }, { error: 'Changed price' }, { busy: true }]) {
+    const html = render(() => createElement(PurchaseReviewSheet, { ...purchaseSheetProps(), review: purchaseReviewFixture(), ...overrides }), signedOut);
+    const button = html.match(/<button[^>]*data-testid="purchase-review-confirm"[^>]*>/)?.[0]; assert.ok(button); assert.match(button, /disabled/);
+  }
+  const { op, request } = purchaseRequestFixture(); request.state = 'running'; request.result = null;
+  const submitted = render(() => createElement(PurchaseReviewSheet, { ...purchaseSheetProps(), review: op.review, request, submitted: true }), signedOut);
+  assert.doesNotMatch(submitted, /purchase-review-confirm/); assert.match(submitted, /only reads records/);
+});
+test('partial purchase outcomes label completed charges without claiming overall success', () => {
+  const { op, request } = purchaseRequestFixture(); request.result.state = 'incomplete';
+  request.result.items[1] = { id: 'root', state: 'failed', error: 'Payment response lost' };
+  request.result.confirmed_totals = [{ amount: '2', currency: 'CREDIT' }];
+  const html = render(() => createElement(PurchaseReviewSheet, { ...purchaseSheetProps(), review: op.review, request, submitted: true }), signedOut);
+  assert.match(html, /Confirmed charges for completed items: 2 CREDIT/); assert.match(html, /may already have been charged/);
+  assert.match(html, /Completion unconfirmed/); assert.doesNotMatch(html, /storage of the selected files are confirmed/);
+});
+test('chat picker offers a purchase review and preserves small exact prices', () => {
+  const row: any = { patch_id: 'selected', name: 'Selected knowledge', author: accessTarget, author_name: null,
+    price: '0.00000001', currency: 'AIN', status: 'VERIFIED', rows: 1, queries: 1, reason: 'not_held', buyable: true, requests: 0, gateway_url: null };
+  const html = render(() => createElement(KnowledgePicker, { items: [], selectedIds: [], runtime: undefined, lock: null,
+    onToggle() {}, onClear() {}, elsewhere: [row], operator: true }), accessAuth, '/chat');
+  assert.match(html, /0.00000001 AIN/); assert.match(html, /Review purchase/);
+  assert.doesNotMatch(html, /Buy for 0 AIN/);
 });
