@@ -1,5 +1,5 @@
 import { projectRepoRef, type ProjectCreated, type ProjectCreateInput } from '../api/projects';
-import { looksLikeSlug, SLUG_PATTERN } from './reservedRoutes';
+import { isReservedFirstSegment, SLUG_PATTERN } from './reservedRoutes';
 
 export function projectBranchValid(branch: string): boolean {
   return !!branch && branch.length <= 200 && /^[A-Za-z0-9._/-]+$/.test(branch) && !branch.includes('..')
@@ -12,7 +12,7 @@ export function createdProjectReceipt(raw: unknown, input: ProjectCreateInput, p
   const p = raw as ProjectCreated, repo = projectRepoRef(input.repo);
   if (!repo || !principal || p.owner !== principal || !/^prj_[a-f0-9]{16}$/.test(p.id)
     || p.repo !== repo.url || p.org !== repo.org || p.repoName !== repo.repoName
-    || !looksLikeSlug(p.org) || !SLUG_PATTERN.test(p.repoName) || p.branch !== input.branch
+    || (!/^[A-Za-z0-9._-]+$/.test(p.org) || isReservedFirstSegment(p.org)) || !SLUG_PATTERN.test(p.repoName) || p.branch !== input.branch
     || (p.sourcePath ?? '') !== '' || p.canManage !== true || p.deletionRequestedAt !== undefined
     || typeof p.hasDeployToken !== 'boolean' || p.hasDeployToken !== !!input.deployToken
     || !/^whsec_[a-f0-9]{48}$/.test(p.webhookSecret)) return null;

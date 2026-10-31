@@ -317,26 +317,32 @@ export function connectParamsOf(search: string, aindriveOrigin = AINDRIVE_URL): 
 }
 
 /** Compare creation receipts using the node's URL spelling, without silently discarding URL selectors. */
-export function projectRepoRef(repo: string): { url: string; org: string; repoName: string } | null {
+export function projectRepoRef(input: string): { url: string; org: string; repoName: string } | null {
   try {
-    if (/[\u0000-\u0020\u007f\\]/.test(repo)) return null;
-    const u = new URL(repo);
+    const raw = input.trim();
+    if (/[\u0000-\u0020\u007f\\]/.test(raw)) return null;
+    const u = new URL(raw);
     if (u.username || u.password || u.search || u.hash) return null;
-    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(u.hostname))) return null;
-    const rawPath = repo.slice(repo.indexOf('://') + 3).replace(/^[^/]+/, '');
+    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) return null;
+    // Inspect the spelling before URL() can remove literal/encoded dot segments.
+    const rawPath = raw.slice(raw.indexOf('://') + 3).replace(/^[^/]+/, '');
     const segs = rawPath.replace(/\/$/, '').split('/').slice(1).map(decodeURIComponent);
     if (segs.some(s => !s || s === '.' || s === '..' || /[/\\\u0000-\u001f\u007f]/.test(s))) return null;
-    const at = segs.indexOf('git');
-    if (!(at === 1 || at === 3 && segs[0] === 'api' && segs[1] === 'drives') || at >= segs.length - 1) return null;
-    const before = segs.slice(0, at);
+    const drive = segs[0] === 'api' && segs[1] === 'drives' && segs[3] === 'git';
+    const at = drive ? 3 : 1;
+    if (segs[at] !== 'git' || segs.length <= at + 1) return null;
     let after = segs.slice(at + 1);
-    if (after[0] === 'repositories' && after.length > 1) after = after.slice(1);
-    const org = before[before.length - 1]!;
+    // Only the documented friendly legacy alias has an implied folder. A browser file/tree URL is not a repo.
+    if (!drive && after.length === 2 && after[0] === 'repositories') after = after.slice(1);
+    if (!drive && after.length !== 1) return null;
+    const org = segs[at - 1]!;
     const repoName = after[after.length - 1]!.replace(/\.git$/, '');
-    if (!/^[A-Za-z0-9._-]+$/.test(org) || !/^[A-Za-z0-9._-]+$/.test(repoName)) return null;
-    return { url: `${u.origin}/${[...before, 'git', ...after.slice(0, -1), repoName].map(encodeURIComponent).join('/')}`, org, repoName };
+    if (!/^[A-Za-z0-9._-]+$/.test(org) || !/^[A-Za-z0-9._-]+$/.test(repoName) || repoName === '.' || repoName === '..' || repoName.endsWith('.git')) return null;
+    const path = [...segs.slice(0, at), 'git', ...after.slice(0, -1), repoName].map(encodeURIComponent).join('/');
+    return { url: `${u.origin}/${path}`, org, repoName };
   } catch { return null; }
 }
+
 export const repoUrlLooksRight = (repo: string): boolean => projectRepoRef(repo) !== null;
 
 /** The repo's org/name as the node will read them — for the page's heading before the node has answered. */

@@ -54,7 +54,7 @@ test('ambiguous incoming target selectors are refused and return links cannot sw
 });
 test('repository and branch selectors reject silently ignored or invalid values', () => {
   assert.equal(projectRepoRef(input.repo)?.url, receipt().repo);
-  for (const repo of ['https://d.test/o/git/r?branch=other', 'https://d.test/o/git/r#other', 'https://user@d.test/o/git/r', 'https://d.test/o/git/%XX', 'https://d.test/o/git/r%2Fs', 'https://d.test/o/git//r', 'https://d.test/o/git/a/../r', 'https://d.test/o/git/%2e%2e/r']) assert.equal(projectRepoRef(repo), null);
+  for (const repo of ['https://d.test/o/git/r?branch=other', 'https://d.test/o/git/r#other', 'https://user@d.test/o/git/r', 'https://d.test/o/git/%XX', 'https://d.test/o/git/r%2Fs', 'https://d.test/o/git//r', 'https://d.test/o/git/a/../r', 'https://d.test/o/git/%2e%2e/r', 'https://d.test/o/git/r/blob/main/app.py', 'https://d.test/o/git/r/tree/main']) assert.equal(projectRepoRef(repo), null);
   for (const branch of ['', '..', 'main..other', 'a//b', 'a/.b', 'a.lock', 'a/', '.hidden', 'main.', 'a@{b']) assert.equal(projectBranchValid(branch), false, branch);
   for (const branch of ['main', 'feature/one', 'release-1.2']) assert.equal(projectBranchValid(branch), true);
 });
@@ -81,4 +81,13 @@ test('handoff timeout and cancelled views report uncertainty instead of waiting 
   const pending = connectRepoOnAindrive(request, { fetchImpl: (async (_url, init) => new Promise<Response>((_resolve, reject) => { init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true }); })) as typeof fetch });
   t.mock.timers.tick(15000);
   assert.equal((await pending).ok, false);
+});
+
+test('drive-id creation keeps literal folders distinct and accepts a leading-hyphen drive id in its receipt', () => {
+  const repo = 'https://aindrive.ainetwork.ai/api/drives/-drive/git/repositories/demo';
+  const exact = { ...receipt(), repo, org: '-drive' };
+  assert.ok(createdProjectReceipt(exact, { ...input, repo }, 'sso:one'));
+  assert.equal(createdProjectReceipt({ ...exact, repo: repo.replace('/repositories/', '/') }, { ...input, repo }, 'sso:one'), null);
+  assert.notEqual(projectRepoRef(repo)?.url, projectRepoRef(repo.replace('/repositories/', '/'))?.url);
+  assert.equal(projectRepoRef('http://[::1]:123/api/drives/-drive/git/repositories/demo')?.org, '-drive');
 });
