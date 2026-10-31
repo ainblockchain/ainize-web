@@ -38,6 +38,12 @@ Use **Manage your keys** to see each key's identifier, organization and status. 
 be confirmed, reload the list before deciding what to do next; a lost response does not prove that the action
 failed. The server cannot recover a lost secret from its hash.
 
+Key revocation records the selected identifier in your browser before sending the request. If the response is
+lost, **Check status** only reads the current list. Reloading the account page resumes that check without
+repeating revocation. If the same key is still present, **Retry revoking this key** is an explicit retry of that
+identifier. A confirmed record stays visible until you close it. This record contains identifiers and labels,
+not the key secret, and belongs to that account and node in this browser.
+
 A program that already holds a wallet — an agent that also sends transactions — can pass `private_key=` instead
 and be issued a key automatically. That is the exception, not the quickstart.
 

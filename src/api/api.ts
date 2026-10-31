@@ -112,14 +112,14 @@ export const api = createApi({
     // These cache arguments distinguish viewers; authorization still comes only from the session cookie.
     apiKeys: b.query<unknown, string>({
       keepUnusedDataFor: 0,
-      query: () => 'api/keys', providesTags: ['ApiKeys'],
+      query: () => ({ url: 'api/keys', timeout: 15_000 }), providesTags: ['ApiKeys'],
     }),
     /** Issue one. The secret is in this response and nowhere else, ever again. */
     createApiKey: b.mutation<unknown, { label: string; org_id: string | null; expected_owner: string; expected_node: string }>({
       query: (body) => ({ url: 'api/keys', method: 'POST', body }), invalidatesTags: ['ApiKeys'],
     }),
     revokeApiKey: b.mutation<unknown, { id: string; context: ApiKeyContext }>({
-      query: ({ id, context }) => ({ url: `api/keys/${encodeURIComponent(id)}${toQuery({ expected_owner: context.owner, expected_node: context.node })}`, method: 'DELETE' }), invalidatesTags: ['ApiKeys'],
+      query: ({ id, context }) => ({ url: `api/keys/${encodeURIComponent(id)}${toQuery({ expected_owner: context.owner, expected_node: context.node })}`, method: 'DELETE', timeout: 15_000 }), invalidatesTags: ['ApiKeys'],
     }),
     catalog: b.query<CatalogResponse, CatalogQuery | void>({ query: (q) => `api/catalog${toQuery({ ...(q ?? {}) })}`, providesTags: ['Catalog'] }),
     managedPatch: b.query<PatchDetail, { id: string; identity: string }>({ query: ({ id }) => `api/patches/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'Patch', id }, 'Catalog', 'Me'] }),

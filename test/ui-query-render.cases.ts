@@ -1,3 +1,4 @@
+import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
 import { issuedKeyScope } from '../src/screens/models/issuedKeyMemory';
 import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
 import { reconciliationFixture } from './purchase-reconciliation-fixture';
@@ -2494,4 +2495,37 @@ test('a list for a different principal or node never enables account key actions
     assert.match(html, /The key list could not be verified/);
     assert.doesNotMatch(html, /No keys yet/);
   }
+});
+
+
+test('revocation recovery exposes read-only inspection, explicit retry and confirmed acknowledgement separately', () => {
+  const target = { version: 1 as const, id: '1'.repeat(32), context: { owner: 'sso:viewer', node: keyNode },
+    key: { key_id: 'deadbeef' + '1'.repeat(56), prefix: 'deadbeef', label: 'Recovery target', org_id: null, disabled: false, issuedAt: 1 },
+    requestedAt: 100, state: 'pending' as const };
+  for (const status of ['unknown', 'present', 'changed', 'confirmed'] as const) {
+    const action: Parameters<typeof KeyRevocationNotice>[0]['action'] = {
+      operation: { ...target, state: status === 'confirmed' ? 'confirmed' : 'pending' }, status,
+      error: null, ready: true, running: false, blocked: false, inspect: async () => {}, reload() {},
+      start: async () => {}, retry: async () => {}, acknowledge: async () => {},
+    };
+    const Page = () => createElement(KeyRevocationNotice, { action });
+    const html = render(Page, appAccount, '/me');
+    assert.match(html, /Recovery target/); assert.ok(html.includes(target.key.key_id));
+    if (status === 'present') assert.match(html, /Retry revoking this key/);
+    else assert.doesNotMatch(html, /Retry revoking this key/);
+    if (status === 'confirmed') { assert.match(html, /Done — close record/); assert.doesNotMatch(html, /Check status/); }
+    else { assert.match(html, /Check status/); assert.doesNotMatch(html, /Done — close record/); }
+  }
+});
+
+test('storage failures offer recovery without presenting a completed revocation', () => {
+  const action: Parameters<typeof KeyRevocationNotice>[0]['action'] = {
+    operation: null, status: 'unknown', error: 'storage', ready: false, running: false, blocked: false,
+    inspect: async () => {}, reload() {}, start: async () => {}, retry: async () => {}, acknowledge: async () => {},
+  };
+  const Page = () => createElement(KeyRevocationNotice, { action });
+  const html = render(Page, appAccount, '/me');
+  assert.match(html, /request record could not be safely saved or read/);
+  assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /revocation is confirmed|Retry revoking this key|Done — close record/);
 });

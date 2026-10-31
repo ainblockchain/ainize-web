@@ -12,7 +12,7 @@
  */
 import { useRef, useState } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useMyOrgsQuery, useMyNodesQuery, useRevokeApiKeyMutation } from '@/api/api';
+import { errorMessage, useApiKeysQuery, useCreateApiKeyMutation, useMeQuery, useMyOrgsQuery, useMyNodesQuery } from '@/api/api';
 import { parseOrgList } from '@/api/organizations';
 import { defaultKeyScope, keyScopeOptions } from '@/api/sharedAgents';
 import { useAuth } from '@/auth/AuthContext';
@@ -21,8 +21,10 @@ import { useClipboardCopy } from '@/hooks/useClipboardCopy';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
+import { useApiKeyRevocation } from '@/hooks/useApiKeyRevocation';
+import { KeyRevocationNotice } from '@/components/KeyRevocationNotice';
 import { useActiveView } from '@/hooks/useActiveView';
-import { apiKeyContext, apiKeyExpected, apiKeyId, apiKeySnapshot, createdApiKey, revokedApiKey } from '@/api/apiKeyEvidence';
+import { apiKeyContext, apiKeyExpected, apiKeyId, apiKeySnapshot, createdApiKey } from '@/api/apiKeyEvidence';
 import { issuedKeyScope } from './models/issuedKeyMemory';
 import { useIssuedKey } from './models/useIssuedKey';
 import { signInHref } from '@/lib/uiNavigation';
@@ -82,8 +84,6 @@ function MyAccount() {
   const nodesQuery = useMyNodesQuery(cacheIdentity, { skip: !isSignedIn || !(me?.subject || sso) });
   const myNodes = nodesQuery.currentData;
   const [createKey, createState] = useCreateApiKeyMutation();
-  const [revokeKey, revokeState] = useRevokeApiKeyMutation();
-  const [revoked, setRevoked] = useState<string | null>(null);
   const [keyName, setKeyName] = useState('');
   const label = keyName.trim();
   const duplicateName = !!label && !!keys?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === label.toLocaleLowerCase());
@@ -92,6 +92,8 @@ function MyAccount() {
   const { key: issued, state: heldState, remember, forget, forgetById } = useIssuedKey(cacheIdentity, address, keyActor, keysReady ? keysQuery.currentData : undefined, keysQuery.startedTimeStamp);
   const copy = useClipboardCopy(issued ?? '');
   const [error, setError] = useState<string | null>(null);
+
+  const revocation = useApiKeyRevocation({ context: keyActor, current, busy: keyBusy, otherBusy: createState.isLoading, load: () => keysQuery.refetch().unwrap(), confirmed: forgetById });
 
   const refreshKeys = async () => { await auth.refresh(); if (current()) await keysQuery.refetch(); };
 
@@ -141,7 +143,7 @@ function MyAccount() {
         {keysQuery.isLoading && <CenterProgress />}
         {keysQuery.error && <Alert role="alert" $tone="error" data-testid="me-keys-error">{t('common.error', { message: errorMessage(keysQuery.error) })} <Button size="small" disabled={keysQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
         {invalidKeys && <Alert role="alert" $tone="error">{t('me.keys.invalid')} <Button size="small" disabled={keysQuery.isFetching} onClick={() => void refreshKeys()}>{t('orgs.retry')}</Button></Alert>}
-        {revoked && <Description role="status">{t('me.keys.revoked', { label: revoked })}</Description>}
+        <KeyRevocationNotice action={revocation} />
         {keysReady && keys.keys.length === 0 && !issued && <Description>{t('me.keys.none')}</Description>}
         {(keys?.keys.length ?? 0) > 0 && (
           <TableWrapper style={{ marginTop: 8 }}>
@@ -163,25 +165,10 @@ function MyAccount() {
                     <TableData>
                       <Button
                         size="small" variant="text" color="secondary" type="button"
-                        disabled={!keysReady || createState.isLoading || revokeState.isLoading}
-                        onClick={() => {
-                          if (!current() || keyBusy.current || !keysReady || !keyActor) return;
-                          keyBusy.current = true;
-                          setRevoked(null); setError(null);
-                          void (async () => {
-                            try {
-                              const receipt = await revokeKey({ id: apiKeyId(k), context: keyActor }).unwrap();
-                              if (!auth.isCurrentAccount()) return;
-                              if (!revokedApiKey(receipt, apiKeyId(k), keyActor)) throw new Error(t('me.keys.receipt'));
-                              forgetById(apiKeyId(k));
-                              if (current()) setRevoked(`${k.label ?? ''} (${k.prefix})`);
-                            } catch (e) {
-                              if (current()) setError(t('me.keys.revoke_unknown', { why: errorMessage(e) }));
-                            } finally { keyBusy.current = false; }
-                          })();
-                        }}
+                        disabled={!keysReady || !revocation.ready || !!revocation.operation || createState.isLoading || revocation.running}
+                        onClick={() => { if (keysReady && !createState.isLoading) void revocation.start(k); }}
                       >
-                        {t(revokeState.isLoading && revokeState.originalArgs?.id === apiKeyId(k) ? 'me.keys.revoking' : 'me.keys.revoke')}
+                        {t('me.keys.revoke')}
                       </Button>
                     </TableData>
                   </TableRow>
@@ -193,7 +180,7 @@ function MyAccount() {
         {keyOrgs.length > 0 && (
           <Row>
             <label htmlFor="me-key-for">{t('me.keys.for')}</label>
-            <select id="me-key-for" data-testid="me-key-for" value={scope ?? ''} disabled={createState.isLoading || revokeState.isLoading} onChange={(e) => setKeyFor(e.target.value || null)}>
+            <select id="me-key-for" data-testid="me-key-for" value={scope ?? ''} disabled={createState.isLoading || revocation.running} onChange={(e) => setKeyFor(e.target.value || null)}>
               {keyOrgs.map((o) => <option key={o.org_id} value={o.org_id}>{o.name}</option>)}
               <option value="">{t('me.keys.personal')}</option>
             </select>
@@ -218,9 +205,9 @@ function MyAccount() {
           <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
             helper={duplicateName ? t('me.keys.name_duplicate') : t('me.keys.name_hint')} error={duplicateName}
             data-testid="me-key-name" value={keyName} onChange={(event) => setKeyName(event.target.value)}
-            maxLength={60} required disabled={createState.isLoading || revokeState.isLoading} />
+            maxLength={60} required disabled={createState.isLoading || revocation.running} />
           <Row>
-            <Button type="submit" data-testid="me-create-key" disabled={!keysReady || createState.isLoading || revokeState.isLoading || !label || duplicateName}>
+            <Button type="submit" data-testid="me-create-key" disabled={!keysReady || createState.isLoading || revocation.running || !label || duplicateName}>
               {createState.isLoading ? t('me.keys.creating') : t('me.keys.create')}
             </Button>
             <StyledLink to="/models">{t('me.keys.models')}</StyledLink>
