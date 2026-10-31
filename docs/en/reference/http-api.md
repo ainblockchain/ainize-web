@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-331 operations on 276 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+332 operations on 276 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -59,7 +59,8 @@ See [Error codes](./errors.md) for the full list.
 |---|---|---|---|
 | `POST` | [`/api/chat/feedback`](#post-apichatfeedback) | none | Mark an answer wrong — with or without sharing the question |
 | `GET` | [`/api/chat/patches`](#get-apichatpatches) | teaching key (optional) | Knowledge that can be live-tested on this node |
-| `POST` | [`/api/chat/patches/{id}/request`](#post-apichatpatchesidrequest) | none | Ask this node’s operator to get a knowledge it does not hold |
+| `GET` | [`/api/chat/patches/{id}/request`](#get-apichatpatchesidrequest) | none | Inspect this requester’s retained demand record and current selected file |
+| `POST` | [`/api/chat/patches/{id}/request`](#post-apichatpatchesidrequest) | none | Record a request for this node’s operator without purchasing or loading knowledge |
 | `GET` | [`/api/chat/status`](#get-apichatstatus) | none | Is my live test still queued behind the shared model? |
 | `POST` | [`/api/chat/cancel`](#post-apichatcancel) | none | Give up waiting for the shared model |
 | `POST` | [`/api/chat`](#post-apichat) | none | Compare answers before vs after the knowledge is loaded |
@@ -831,11 +832,11 @@ Knowledge that can be live-tested on this node
 |---|---|---|
 | `200` | list + runtime state + shared-model lock | [`ChatPatches`](./schemas.md#chatpatches) |
 
-### `POST /api/chat/patches/{id}/request`
+### `GET /api/chat/patches/{id}/request`
 
-Ask this node’s operator to get a knowledge it does not hold
+Inspect this requester’s retained demand record and current selected file
 
-Buying is operator-only, so this is a visitor’s first step: it writes one `demand` event with the price and the command that satisfies it, and answers how many different people have asked. Asking twice from the same visitor does not count twice.
+Does not record demand, buy or load knowledge. Returns version:1, node, patch_id, author, patch_sha256, opaque requester, actor (the current principal or null), scope (account/network), requested, available, can_request, requests, count_scope:retained_requests and event_id. Signed-in principals have separate state; anonymous requests share the observed network identity, not a verified person. Counts cover deduplicated retained demand records without the old 500-event cap; log pruning can reduce them. Legacy records without exact seller/file binding remain counted but do not confirm this selected file. Private drafts are not visible. Requester identity is node-specific and does not expose the IP.
 
 **Auth** — none
 
@@ -849,8 +850,39 @@ Buying is operator-only, so this is a visitor’s first step: it writes one `dem
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | {patch_id, requests} | `object` |
-| `409` | this node already holds it |   |
+| `200` | versioned demand status | `object` |
+| `404` | Unknown or private item |   |
+
+### `POST /api/chat/patches/{id}/request`
+
+Record a request for this node’s operator without purchasing or loading knowledge
+
+Current UI callers first read status and send its exact target/requester. A changed item, author, file or requester refuses before logging; an existing matching retained request returns its original record. Already-held licensed knowledge refuses a new request. New records bind requester, seller and selected file. Returns the same versioned status contract as GET; clients must confirm the matching current record, not treat a resolved promise as success. Legacy callers may omit expected; this does not authorize purchasing or loading. Local synchronous deduplication and retained-record counts are not permanent or distributed exactly-once delivery.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, optional
+
+| Field | Type | Required |
+|---|---|---|
+| `expected` | `object` |   |
+| `expected.patch_id` | `string` | yes |
+| `expected.author` | `string` | yes |
+| `expected.patch_sha256` | `string` | yes |
+| `expected.requester` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | versioned demand status; requested:true identifies a retained log entry, not a purchase | `object` |
+| `409` | knowledge_request_changed or knowledge_request_available |   |
 
 ### `GET /api/chat/status`
 

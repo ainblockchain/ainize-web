@@ -546,7 +546,8 @@ export const api = createApi({
     trackReview: b.query<unknown, { name: string; action: 'subscribe' | 'sync'; identity: string }>({ query: ({ name, action }) => ({ url: `api/branches/${encodeURIComponent(name)}/review`, method: 'POST', body: { action } }) }),
     syncBranch: b.mutation<SubscribeResult, { name: string; expected_review: string; replace: boolean }>({ query: ({ name, ...body }) => ({ url: `api/branches/${encodeURIComponent(name)}/sync`, method: 'POST', body }), invalidatesTags: ['Branches', 'Ledger', 'Runtime', 'Events', 'Me'] }),
     /** Item 297 — a visitor asks the operator to get a knowledge this node does not hold. */
-    requestPatch: b.mutation<{ patch_id: string; requests: number }, string>({ query: (id) => ({ url: `api/chat/patches/${encodeURIComponent(id)}/request`, method: 'POST' }), invalidatesTags: ['Chat'] }),
+    knowledgeDemand: b.query<unknown, { id: string; identity: string }>({ query: ({ id }) => `api/chat/patches/${encodeURIComponent(id)}/request` }),
+    requestPatch: b.mutation<unknown, { id: string; expected: import('../lib/knowledgeDemand').KnowledgeDemandTarget }>({ query: ({ id, expected }) => ({ url: `api/chat/patches/${encodeURIComponent(id)}/request`, method: 'POST', body: { expected } }), invalidatesTags: ['Chat'] }),
     complete: b.mutation<{ text: string }, { prompt: string; max_tokens?: number }>({ query: (body) => ({ url: 'api/runtime/complete', method: 'POST', body }) }),
     addPeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'POST', body }), invalidatesTags: ['Nodes', 'Info'] }),
     removePeer: b.mutation<unknown, { endpoint: string }>({ query: (body) => ({ url: 'api/peers', method: 'DELETE', body }), invalidatesTags: ['Nodes', 'Info'] }),

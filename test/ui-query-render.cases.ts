@@ -1,5 +1,7 @@
 import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
 import { reconciliationFixture } from './purchase-reconciliation-fixture';
+import { RequestKnowledgeFeedback } from '../src/components/chat/RequestKnowledge';
+import { demandFixture } from './knowledge-demand-fixture';
 import { purchaseReviewFixture, purchaseRequestFixture } from './purchase-review-fixture';
 const purchaseSheetProps = () => ({ review: null, request: null, busy: false, error: null, submitted: false, verified: false,
   onConfirm() {}, onRefresh() {}, onInspect() {}, onClose() {}, onDone() {} });
@@ -2375,4 +2377,26 @@ test('recovered current status precedes a collapsed historical failure and no ne
   assert.match(html, /<details data-testid="purchase-recorded-history"><summary>View earlier execution result/);
   assert.ok(html.indexOf('purchase-reconciliation') < html.indexOf('purchase-recorded-history'));
   assert.match(html, /storage of the selected files are confirmed/); assert.doesNotMatch(html, /purchase-review-confirm/);
+});
+
+test('visitor demand counts are retained records rather than identifiable people', () => {
+  const row: any = { patch_id: 'selected', name: 'Selected knowledge', author: accessTarget, author_name: null,
+    price: '0.00000001', currency: 'AIN', status: 'VERIFIED', rows: 1, queries: 1, reason: 'not_held', buyable: true, requests: 601, gateway_url: null };
+  const html = render(() => createElement(KnowledgePicker, { items: [], selectedIds: [], runtime: undefined, lock: null,
+    onToggle() {}, onClear() {}, elsewhere: [row], operator: false }), signedOut, '/chat');
+  assert.match(html, /601 retained requests/); assert.match(html, /Ask operator to add it/);
+  assert.match(html, /does not purchase or load knowledge/); assert.doesNotMatch(html, /visitors have asked|Review purchase/);
+  assert.match(html, /white-space:normal;max-width:100%/);
+});
+test('network demand confirmation does not claim the current person submitted it', () => {
+  const status = { ...demandFixture(true), actor: null, scope: 'network' as const };
+  const html = render(() => createElement(RequestKnowledgeFeedback, { status, requests: 999 }), signedOut);
+  assert.match(html, /2 retained requests/); assert.match(html, /A request from this network is recorded/);
+  assert.doesNotMatch(html, /Your request is recorded|999|visitors have asked/);
+});
+test('testable picker items retain small positive prices instead of rounding them to zero', () => {
+  const entry = manageFixture('tiny-price'); entry.anchor.price = '0.00000001'; entry.anchor.currency = 'AIN';
+  const html = render(() => createElement(KnowledgePicker, { items: [entry], selectedIds: [], runtime: undefined, lock: null,
+    onToggle() {}, onClear() {} }), signedOut, '/chat');
+  assert.match(html, /0.00000001 AIN/);
 });

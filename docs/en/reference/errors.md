@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 84 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 85 codes a client can match on.
 
 ## The error envelope
 
@@ -37,7 +37,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-84 codes are raised by name, in 143 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+85 codes are raised by name, in 144 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -127,6 +127,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `job_not_ready` | `409` | this lesson has not been measured in the live model yet — run a re-check first | `src/teach.ts` |
 | `job_not_ready` | `409` | this lesson was already checked in the live model | `src/teach.ts` |
 | `knowledge_not_held` | `400` | "\<id>" is listed on this node but its file is not here — get it first (\<price>), then teach on top of it | `src/teach.ts` |
+| `knowledge_request_changed` | `409` | the selected item or requester changed; check its current status | `src/knowledge-demand.ts` |
 | `lineage_disabled` | `403` | building on top of another knowledge is not enabled on this node yet (config teach.lineage) | `src/teach.ts` |
 | `lineage_disabled` | `403` | combining two knowledges is not enabled on this node yet (config teach.lineage) | `src/teach.ts` |
 | `lineage_disabled` | `403` | copying another knowledge's questions is not enabled on this node yet (config teach.lineage) | `src/teach.ts` |
