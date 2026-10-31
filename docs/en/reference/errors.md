@@ -187,7 +187,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 219 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 220 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 122 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -249,6 +249,7 @@ A further 122 throw sites build their message at the time (a validator's own wor
 | `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
 | `null` | invalid_redeploy_target | `src/project-redeploy.ts`, `src/project-routes.ts` |
+| `null` | linked agent changed after review | `src/linked-agent-store.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
 | `null` | Model backend failed | `src/peer-models.ts` |
 | `null` | no such file or directory: \<rel> | `src/hosted-qa-engine.ts` |

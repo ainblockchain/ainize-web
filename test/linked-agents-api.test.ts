@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {
   agentsOwnedBy, isAgentOwnedBy, isLinkedAgentIdValid, isLinkedAgentRow, isLinkedAgentUpstreamValid, linkedAgentApiErrorOf,
   linkedAgentDraftFromView, linkedAgentFormProblems, linkedAgentIdFromName, linkedAgentInputFromDraft, parseLinkedAgentResponse,
-  viewerPrincipals, type LinkedAgentFormDraft,
+  viewerPrincipals, linkedAgentSaveMatches, type LinkedAgentFormDraft,
 } from '../src/api/linkedAgents';
 import { HOSTED_AGENT_RESERVED_IDS } from '../src/api/hostedAgents';
 import type { AgentSummary } from '../src/api/types';
@@ -59,7 +59,7 @@ test('the node’s answer is read defensively, and the owner’s read carries th
   assert.equal(parseLinkedAgentResponse(null), null);
   assert.equal(parseLinkedAgentResponse({ agent: { id: 'x' } }), null, 'half a record is no record');
   const v = parseLinkedAgentResponse({ agent: { id: 'coffee', name: 'Coffee Bot', description: 'd', owner: 'sso:carol', a2a_url: 'https://n/agents/coffee', card_url: 'https://n/agents/coffee/.well-known/agent-card.json', reachable: false, error: 'upstream timeout' } });
-  assert.deepEqual(v, { id: 'coffee', name: 'Coffee Bot', description: 'd', owner: 'sso:carol', a2a_url: 'https://n/agents/coffee', card_url: 'https://n/agents/coffee/.well-known/agent-card.json', upstream: null, reachable: false, error: 'upstream timeout', visibility: null, orgId: null });
+  assert.deepEqual(v, { id: 'coffee', name: 'Coffee Bot', description: 'd', owner: 'sso:carol', a2a_url: 'https://n/agents/coffee', card_url: 'https://n/agents/coffee/.well-known/agent-card.json', upstream: null, editRevision: null, reachable: false, error: 'upstream timeout', visibility: null, orgId: null });
   const owned = parseLinkedAgentResponse({ agent: { ...{ id: 'coffee', name: 'Coffee Bot', a2a_url: 'a', card_url: 'c' }, upstream: 'https://coffee.example' } })!;
   assert.deepEqual(linkedAgentDraftFromView(owned), { id: 'coffee', name: 'Coffee Bot', description: '', upstream: 'https://coffee.example', visibility: 'public', orgId: null }, 'an older node’s record reads as public — what every agent was');
   const shared = parseLinkedAgentResponse({ agent: { id: 'coffee', name: 'Coffee Bot', a2a_url: 'a', card_url: 'c', visibility: 'org', org_id: 'org_comcom' } })!;
@@ -69,7 +69,7 @@ test('the node’s answer is read defensively, and the owner’s read carries th
 
 test('refusals: a coded body, a text body, no answer at all', () => {
   assert.deepEqual(linkedAgentApiErrorOf({ status: 400, data: { error: { code: 'upstream_not_public', message: 'no' } } }), { status: 400, code: 'upstream_not_public', message: 'no' });
-  assert.deepEqual(linkedAgentApiErrorOf({ status: 409, data: { error: 'taken' } }), { status: 409, code: 'id_taken', message: 'taken' });
+  assert.deepEqual(linkedAgentApiErrorOf({ status: 409, data: { error: 'taken' } }), { status: 409, code: 'unknown', message: 'taken' });
   assert.deepEqual(linkedAgentApiErrorOf({ status: 500, data: { error: { code: 'weird' } } }), { status: 500, code: 'unknown', message: null });
   assert.deepEqual(linkedAgentApiErrorOf({ status: 'FETCH_ERROR', error: 'TypeError: fetch failed' }), { status: null, code: 'unreachable', message: 'TypeError: fetch failed' });
   assert.equal(linkedAgentApiErrorOf({ status: 401 }).code, 'not_signed_in');
@@ -110,4 +110,55 @@ test('a Google-only viewer (the site-vouched `google:<sub>`) owns what it made; 
   assert.deepEqual(viewerPrincipals(null, 'google:1100AB', 'google:1100AB'), ['google:1100AB']);
   assert.deepEqual(viewerPrincipals('0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', null, 'google:1100AB'), ['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'google:1100AB']);
   assert.deepEqual(viewerPrincipals(null, null, null), []);
+});
+
+
+test('save confirmation requires the exact agent, owner, address, sharing and a new review', () => {
+  const body = linkedAgentInputFromDraft(draft({ description: 'Description' }));
+  const raw = { ...body, owner: 'sso:owner', a2a_url: '/agents/coffee-bot', card_url: '/agents/coffee-bot/card', edit_revision: 'b'.repeat(64) };
+  const valid = parseLinkedAgentResponse({ agent: raw });
+  assert.equal(linkedAgentSaveMatches(valid, body, 'sso:owner', 'a'.repeat(64)), true);
+  for (const patch of [{ id: 'other' }, { owner: 'sso:other' }, { upstream: 'https://other.example' }, { visibility: 'private' }, { name: 'Other' }, { description: 'Other' }, { edit_revision: 'a'.repeat(64) }, { edit_revision: null }]) {
+    assert.equal(linkedAgentSaveMatches(parseLinkedAgentResponse({ agent: { ...raw, ...patch } }), body, 'sso:owner', 'a'.repeat(64)), false, JSON.stringify(patch));
+  }
+  assert.equal(linkedAgentSaveMatches(null, body, 'sso:owner'), false);
+  assert.equal(linkedAgentSaveMatches(valid, body, null), false);
+  assert.equal(linkedAgentSaveMatches(valid, { ...body, name: '', description: '' }, 'sso:owner'), true, 'blank fields deliberately use the upstream card');
+  const shared = { ...body, visibility: 'org' as const, orgId: 'chosen' };
+  assert.equal(linkedAgentSaveMatches(parseLinkedAgentResponse({ agent: { ...raw, visibility: 'org', org_id: 'other' } }), shared, 'sso:owner'), false);
+});
+
+test('review and sharing refusals are not mistaken for an id collision', () => {
+  for (const code of ['review_changed', 'review_required', 'sharing_denied']) {
+    assert.equal(linkedAgentApiErrorOf({ status: 409, data: { error: { code } } }).code, code);
+  }
+});
+
+test('actual edit mutation sends the captured revision once and preserves a conflict response', async () => {
+  const { configureStore } = await import('@reduxjs/toolkit');
+  const { api } = await import('../src/api/api');
+  const nativeFetch = globalThis.fetch, NativeRequest = globalThis.Request;
+  const body = { ...linkedAgentInputFromDraft(draft()), expected_revision: 'a'.repeat(64) };
+  let writes = 0;
+  globalThis.Request = class extends NativeRequest { constructor(input: RequestInfo | URL, init?: RequestInit) { super(typeof input === 'string' ? new URL(input, 'https://fixture.invalid') : input, init); } };
+  globalThis.fetch = async (input, init) => {
+    const req = new Request(input, init);
+    assert.equal(req.method, 'PUT'); assert.equal(new URL(req.url).pathname, '/api/linked-agents/coffee-bot');
+    assert.deepEqual(await req.json(), body); writes++;
+    return Response.json({ error: { code: 'review_changed', message: 'changed' } }, { status: 409 });
+  };
+  const store = configureStore({ reducer: { [api.reducerPath]: api.reducer }, middleware: gdm => gdm().concat(api.middleware) });
+  try {
+    await assert.rejects(store.dispatch(api.endpoints.updateLinkedAgent.initiate(body)).unwrap(), error => linkedAgentApiErrorOf(error).code === 'review_changed');
+    assert.equal(writes, 1);
+  } finally { store.dispatch(api.util.resetApiState()); globalThis.fetch = nativeFetch; globalThis.Request = NativeRequest; }
+});
+
+
+test('a reviewed edit cannot initialize missing sharing or owner fields as public defaults', () => {
+  const raw = { id: 'chosen', name: 'Chosen', owner: 'sso:owner', a2a_url: '/agents/chosen', card_url: '/agents/chosen/card', upstream: 'https://agent.example', visibility: 'private', org_id: null, edit_revision: 'b'.repeat(64) };
+  assert.ok(parseLinkedAgentResponse({ agent: raw }));
+  for (const patch of [{ owner: '' }, { visibility: undefined }, { visibility: 'org', org_id: null }, { org_id: 'other' }, { upstream: undefined }]) {
+    assert.equal(parseLinkedAgentResponse({ agent: { ...raw, ...patch } }), null);
+  }
 });

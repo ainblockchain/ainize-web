@@ -17,7 +17,7 @@ import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useUpdateLinkedAgent
 import { createWithFreeAgentId } from '@/api/agentIds';
 import {
   linkedAgentApiErrorOf, linkedAgentDraftFromView, linkedAgentFormProblems, linkedAgentIdFromName, linkedAgentInputFromDraft,
-  parseLinkedAgentResponse, type LinkedAgentFormDraft, type LinkedAgentFormField,
+  parseLinkedAgentResponse, linkedAgentSaveMatches, type LinkedAgentFormDraft, type LinkedAgentFormField,
 } from '@/api/linkedAgents';
 import { useActiveView } from '@/hooks/useActiveView';
 import { signInHref } from '@/lib/uiNavigation';
@@ -60,7 +60,7 @@ function AgentLinkPageContent() {
   const editing = !!editId;
   useTitle(t(editing ? 'agentLink.title_edit' : 'agentLink.title'));
 
-  const stored = useLinkedAgentQuery({ id: editId ?? '', identity: auth.cacheIdentity }, { skip: !editing || !auth.isSignedIn || auth.loading });
+  const stored = useLinkedAgentQuery({ id: editId ?? '', identity: auth.cacheIdentity }, { skip: !editing || !auth.isSignedIn || auth.loading, refetchOnMountOrArgChange: true });
   const storedView = useMemo(() => parseLinkedAgentResponse(stored.currentData), [stored.currentData]);
 
   // `?org=<id>` (the organization page's "share an agent" door): start shared with that organization.
@@ -74,13 +74,20 @@ function AgentLinkPageContent() {
   const [update] = useUpdateLinkedAgentMutation();
 
   const [loaded, setLoaded] = useState(false);
-  const editable = !!storedView?.upstream && storedView.id === editId;
+  const [editRevision, setEditRevision] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [attemptedId, setAttemptedId] = useState(editId ?? '');
+  const editable = !!storedView?.upstream && storedView.id === editId && storedView.owner === auth.principal && !!storedView.editRevision;
+  const readFailed = editing && (!!stored.error || !editable);
+  const changed = editing && loaded && (conflict || editable && editRevision !== storedView?.editRevision);
   useEffect(() => {
-    if (!loaded && !stored.error && editable && storedView) {
+    if (!loaded && !stored.isFetching && !stored.error && editable && storedView) {
       setLoaded(true);
+      setEditRevision(storedView.editRevision);
       setDraft(linkedAgentDraftFromView(storedView));
     }
-  }, [storedView, editable, stored.error, loaded]);
+  }, [storedView, editable, stored.error, stored.isFetching, loaded]);
 
   const set = <K extends keyof LinkedAgentFormDraft>(k: K, v: LinkedAgentFormDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
   // The id follows the name until the person types an id of their own — the same courtesy the hosted form does.
@@ -90,7 +97,7 @@ function AgentLinkPageContent() {
   const problemFor = (f: LinkedAgentFormField) => (touched ? problems.find((p) => p.field === f) : undefined);
 
   const submit = async () => {
-    if (pending.current || !active() || (editing && (stored.error || !editable))) return;
+    if (pending.current || unconfirmed || changed || !active() || !auth.isCurrentAccount() || (editing && (stored.error || stored.isFetching || !editable || !editRevision))) return;
     setTouched(true);
     setServerError(null);
     if (problems.length) return;
@@ -99,17 +106,20 @@ function AgentLinkPageContent() {
     try {
       let body = linkedAgentInputFromDraft(draft);
       let answer: unknown;
-      if (editing) answer = await update(body).unwrap();
+      setAttemptedId(body.id);
+      if (editing) answer = await update({ ...body, expected_revision: editRevision! }).unwrap();
       else if (idTouched) answer = await create(body).unwrap();
       else {
         // A suggested id that is taken becomes `-2`, `-3`… — never a hash. A typed one goes back to the person.
-        body = await createWithFreeAgentId(body, async (b) => { if (!active()) throw new Error('Agent editor closed'); answer = await create(b).unwrap(); }, (e) => active() && linkedAgentApiErrorOf(e).code === 'id_taken');
+        body = await createWithFreeAgentId(body, async (b) => { if (!active() || !auth.isCurrentAccount()) throw new Error('Agent editor closed'); setAttemptedId(b.id); answer = await create(b).unwrap(); }, (e) => active() && auth.isCurrentAccount() && linkedAgentApiErrorOf(e).code === 'id_taken');
         if (!active()) return;
         const accepted = body.id;
         setDraft((d) => ({ ...d, id: accepted }));
       }
       if (!active()) return;
+      if (!auth.isCurrentAccount()) return;
       const view = parseLinkedAgentResponse(answer);
+      if (!linkedAgentSaveMatches(view, body, auth.principal, editing ? editRevision : null)) { setUnconfirmed(true); return; }
       const name = view?.name ?? body.name ?? body.id;
       const note = view?.reachable === false
         ? t('agentLink.done.unreachable', { name, why: view.error ?? 'no card' })
@@ -118,11 +128,27 @@ function AgentLinkPageContent() {
     } catch (err) {
       if (!active()) return;
       const e = linkedAgentApiErrorOf(err);
+      if (e.status === null || e.status >= 500 || e.status < 400) { setUnconfirmed(true); return; }
+      if (e.code === 'review_changed') setConflict(true);
       setServerError(e.message ? `${t(`agentLink.api.${e.code}`)} — ${e.message}` : t(`agentLink.api.${e.code}`));
     } finally {
       pending.current = false;
       if (active()) setSaving(false);
     }
+  };
+
+  const reloadSettings = async () => {
+    if (pending.current || unconfirmed || !active() || !auth.isCurrentAccount()) return;
+    pending.current = true; setSaving(true);
+    try {
+      const view = parseLinkedAgentResponse(await stored.refetch().unwrap());
+      if (!active()) return;
+      if (!auth.isCurrentAccount()) return;
+      if (!view || view.id !== editId || !view.upstream || !view.editRevision || view.owner !== auth.principal) throw new Error('unreadable');
+      setDraft(linkedAgentDraftFromView(view)); setEditRevision(view.editRevision); setConflict(false); setTouched(false); setServerError(null);
+    } catch {
+      if (active()) setServerError(t('agentLink.edit.unreadable', { id: editId ?? '' }));
+    } finally { pending.current = false; if (active()) setSaving(false); }
   };
 
   if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
@@ -139,14 +165,14 @@ function AgentLinkPageContent() {
     );
   }
 
-  if (editing && !stored.currentData && stored.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (editing && (stored.error || !editable)) {
+  if (editing && !loaded && !stored.currentData && stored.isFetching) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (editing && !loaded && (stored.error || !editable)) {
     const e = stored.error ? linkedAgentApiErrorOf(stored.error) : null;
     return (
       <PageWrapper>
         <TitleRow><Title>{t('agentLink.title_edit')}</Title></TitleRow>
         <Empty data-testid="agent-link-unavailable">
-          {e ? t(`agentLink.api.${e.code}`) : t('agentLink.edit.unreadable', { id: editId ?? '' })}{' '}
+          {e ? t(`agentLink.api.${e.code}`) : storedView?.upstream && !storedView.editRevision ? t('agentLink.api.review_required') : t('agentLink.edit.unreadable', { id: editId ?? '' })}{' '}
           <Button type="button" size="small" disabled={stored.isFetching} onClick={() => void stored.refetch()}>{t('aincode.retry')}</Button>{' '}
           <StyledLink to={`/agent/${encodeURIComponent(editId ?? '')}`}>{t('agentLink.edit.back')}</StyledLink>
         </Empty>
@@ -162,7 +188,16 @@ function AgentLinkPageContent() {
       <Description>{t('agentLink.lede')}</Description>
 
       <AgentLinkForm onSubmit={(e) => { e.preventDefault(); void submit(); }} noValidate data-testid="agent-link-form">
-        <FormFields disabled={saving}>
+        {readFailed && !unconfirmed && <Alert $tone="error" data-testid="agent-link-read-failed">{t('agentLink.edit.read_failed')}{' '}
+          <Button type="button" disabled={saving || stored.isFetching} onClick={() => void stored.refetch()}>{t('aincode.retry')}</Button>
+        </Alert>}
+        {changed && !readFailed && !unconfirmed && <Alert $tone="error" data-testid="agent-link-conflict">{t('agentLink.api.review_changed')}{' '}
+          <Button type="button" disabled={saving || stored.isFetching} onClick={() => void reloadSettings()}>{t('agentLink.edit.reload')}</Button>
+        </Alert>}
+        {unconfirmed && <Alert $tone="error" data-testid="agent-link-unconfirmed">{t('agentLink.unconfirmed')}{' '}
+          <StyledLink to={`/agent/${encodeURIComponent(attemptedId)}`}>{t('agentLink.check_current')}</StyledLink>
+        </Alert>}
+        <FormFields disabled={saving || unconfirmed}>
         <AgentLinkSection>
           <h2>{t('agentLink.section.address')}</h2>
           <Field>
@@ -210,7 +245,7 @@ function AgentLinkPageContent() {
         {serverError && <Alert $tone="error" data-testid="agent-link-error">{serverError}</Alert>}
 
         <AgentLinkActions>
-          <Button type="submit" variant="contained" loading={saving} loadingText={t('agentLink.submitting')} data-testid="agent-link-submit">
+          <Button type="submit" variant="contained" disabled={changed || readFailed || unconfirmed || editing && stored.isFetching} loading={saving} loadingText={t('agentLink.submitting')} data-testid="agent-link-submit">
             {t(editing ? 'agentLink.submit_edit' : 'agentLink.submit')}
           </Button>
           <StyledLink to="/me/agents">{t('myAgents.title')}</StyledLink>

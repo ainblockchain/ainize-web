@@ -246,12 +246,12 @@ export const api = createApi({
      * `unknown` and read through `src/api/linkedAgents.ts`, as the hosted ones are and for the same reason.
      */
     myLinkedAgents: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/linked-agents?mine=1', providesTags: ['LinkedAgent', 'Me'] }),
-    /** The stored record, upstream included — owner only; anyone else gets 403. */
+    /** Owner detail includes upstream and edit revision; other visible readers get listing fields only. */
     linkedAgent: b.query<unknown, { id: string; identity: string }>({ keepUnusedDataFor: 0, query: ({ id }) => `api/linked-agents/${encodeURIComponent(id)}`, providesTags: (_r, _e, { id }) => [{ type: 'LinkedAgent', id }] }),
     createLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
       query: (body) => ({ url: 'api/linked-agents', method: 'POST', body }), invalidatesTags: ['Agents', 'LinkedAgent', 'Org'],
     }),
-    updateLinkedAgent: b.mutation<unknown, LinkedAgentInput>({
+    updateLinkedAgent: b.mutation<unknown, LinkedAgentInput & { expected_revision: string }>({
       query: (body) => ({ url: `api/linked-agents/${encodeURIComponent(body.id)}`, method: 'PUT', body }),
       invalidatesTags: (_r, _e, a) => ['Agents', 'Org', { type: 'LinkedAgent', id: a.id }],
     }),

@@ -4254,3 +4254,11 @@ test('ambiguous account connection offers a read-only check and explicit sign-in
     else assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fapps%3Fq%3Dselected%23result"/);
   }
 });
+
+
+test('linked edit on an older node explains the missing reviewed-save support', () => {
+  const html = render(AgentLinkPage, [...appAccount, { name: 'linkedAgent', arg: editorArg, value: { agent: { ...privateLinked, id: 'chosen', upstream: 'https://private.example' } } }], '/agent/chosen/link', '/agent/:id/link');
+  assert.match(html, /Update the node to edit this agent/);
+  assert.match(html, /agent-link-unavailable/);
+  assert.doesNotMatch(html, /agent-link-form/);
+});

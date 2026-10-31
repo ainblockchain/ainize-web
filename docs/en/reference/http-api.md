@@ -233,7 +233,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/agents`](#get-apiagents) | operator | The agent catalogue |
 | `GET` | [`/api/linked-agents`](#get-apilinked-agents) | operator | Linked agents — external A2A agents people registered by URL |
 | `POST` | [`/api/linked-agents`](#post-apilinked-agents) | none | Register an external A2A agent |
-| `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise |
+| `GET` | [`/api/linked-agents/{id}`](#get-apilinked-agentsid) | none | One linked agent — the owner sees upstream and edit_revision; anyone it is visible to sees the listing view; 404 otherwise |
 | `PUT` | [`/api/linked-agents/{id}`](#put-apilinked-agentsid) | none | Change a linked agent — owner only; the id cannot change |
 | `DELETE` | [`/api/linked-agents/{id}`](#delete-apilinked-agentsid) | none | Remove a linked agent — its registrant, or an admin of the organization it is shared with |
 | `GET` | [`/api/agent-archives`](#get-apiagent-archives) | none | List your privately retained deleted agents |
@@ -4612,7 +4612,7 @@ Anyone signed in — a wallet session, an AIN SSO session, or an Ainize API key 
 
 ### `GET /api/linked-agents/{id}`
 
-One linked agent — the owner sees the upstream too; anyone it is visible to sees the listing view; 404 otherwise
+One linked agent — the owner sees upstream and edit_revision; anyone it is visible to sees the listing view; 404 otherwise
 
 **Auth** — none
 
@@ -4634,6 +4634,8 @@ One linked agent — the owner sees the upstream too; anyone it is visible to se
 
 Change a linked agent — owner only; the id cannot change
 
+Read the owner detail first and send edit_revision as expected_revision. Missing review is refused. A changed record, account or sharing permission before or during upstream probing is refused without overwriting the current settings. Only the owner receives the updated upstream and edit_revision. This comparison is not an operation receipt; an unavailable response must not be automatically retried.
+
 **Auth** — none
 
 **Parameters**
@@ -4646,6 +4648,7 @@ Change a linked agent — owner only; the id cannot change
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `expected_revision` | `string` | yes | edit_revision from the exact owner detail used to initialize this edit |
 | `id` | `string` | yes | becomes the public address `/agents/{id}`; cannot change |
 | `name` | `string` |   | omitted → the card's name (at most 80 characters) |
 | `description` | `string` |   | (at most 500 characters) |
@@ -4658,8 +4661,9 @@ Change a linked agent — owner only; the id cannot change
 | Code | Description | Body |
 |---|---|---|
 | `200` | agent | `object` |
-| `400` | invalid, or the id differs |   |
-| `403` | `not_owner` |   |
+| `400` | invalid, the id differs, or `review_required` |   |
+| `403` | `not_owner` or `sharing_denied` |   |
+| `409` | `review_changed`; reload and review current settings without automatically resubmitting |   |
 
 ### `DELETE /api/linked-agents/{id}`
 
