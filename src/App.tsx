@@ -30,6 +30,8 @@ const ProjectByNamePage = lazy(() => import('./screens/ProjectPage').then((m) =>
 const OrgRepositoriesPage = lazy(() => import('./screens/OrgRepositoriesPage'));
 const SearchPage = lazy(() => import('./screens/SearchPage'));
 const AppsPage = lazy(() => import('./screens/AppsPage'));
+// Runs — script projects that run on demand, on a schedule, on an AIN blockchain write, or by webhook.
+const RunsPage = lazy(() => import('./screens/RunsPage'));
 const MyProjectsPage = lazy(() => import('./screens/MyProjectsPage'));
 const AgentPage = lazy(() => import('./screens/AgentPage'));
 // Hosted agents (ainize-node hosted-agents design): a model's own page, and the form that builds an agent on it.
@@ -91,6 +93,12 @@ function ExploreEntry() {
     : <Navigate to={`/train/knowledge${location.search}${location.hash}`} replace />;
 }
 
+/** `/apps` was the Deployments landing's first address; links to it (and its `?q=`) keep working. */
+function LegacyAppsRoute() {
+  const { search, hash } = useLocation();
+  return <Navigate to={`/deployments${search}${hash}`} replace />;
+}
+
 function AccountEntry() {
   const { isOwner } = useAuth();
   return isOwner ? <AccountPage /> : <MyPage />;
@@ -112,7 +120,10 @@ export default function App() {
                 {/* Public pages (Layout) */}
                 <Route path="/explore" element={<ExploreEntry />} />
                 <Route path="/search" element={<Layout><SearchPage /></Layout>} />
-                <Route path="/apps" element={<Layout><AppsPage /></Layout>} />
+                {/* Deployments (web apps, API services, agents) and Runs (scripts with triggers) — the two product landings. */}
+                <Route path="/deployments" element={<Layout><AppsPage /></Layout>} />
+                <Route path="/apps" element={<LegacyAppsRoute />} />
+                <Route path="/runs" element={<Layout><RunsPage /></Layout>} />
                 <Route path="/models" element={<Layout><ModelsPage /></Layout>} />
                 <Route path="/aincode" element={<Layout><AinCodePage /></Layout>} />
                 <Route path="/models/:id" element={<Layout><ModelDetailPage /></Layout>} />

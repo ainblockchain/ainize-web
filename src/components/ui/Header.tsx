@@ -152,7 +152,11 @@ export function Header() {
           {/* What the network's nodes serve over the LLM API, and a place to press it. It was documentation three levels
               down, which is not where somebody arriving to see what this can do will find it. */}
           <NavItem to="/models" data-testid="nav-models">{t('nav.models')}</NavItem>
-          <NavPlain to="/apps" data-testid="nav-apps" $active={section === "apps"} aria-current={section === "apps" ? "page" : undefined}>{t('nav.apps')}</NavPlain>
+          {/* Two products out of one project API: Deployments (web apps, API services, agents — a push deploys them) and
+              Runs (scripts that run on demand, on a schedule, on an AIN blockchain write or by webhook). "Apps" was the
+              first and hid the second; /apps forwards to /deployments. */}
+          <NavPlain to="/deployments" data-testid="nav-deployments" $active={section === "deployments"} aria-current={section === "deployments" ? "page" : undefined}>{t('nav.apps')}</NavPlain>
+          <NavPlain to="/runs" data-testid="nav-runs" $active={section === "runs"} aria-current={section === "runs" ? "page" : undefined}>{t('nav.runs')}</NavPlain>
           <NavPlain to="/train" data-testid="nav-train" $active={teaching} aria-current={teaching ? 'page' : undefined}>{t('nav.train')}</NavPlain>
           {/* Where each AinCode session runs and what it works on — a member once worked for hours in the personal
               workspace on an organization project without noticing. */}

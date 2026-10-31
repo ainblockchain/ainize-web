@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-320 operations on 265 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+328 operations on 273 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -298,6 +298,14 @@ See [Error codes](./errors.md) for the full list.
 | `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
 | `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
 | `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
+| `GET` | [`/api/projects/{id}/triggers`](#get-apiprojectsidtriggers) | operator | The installed triggers of a script project (readable as the project is) |
+| `POST` | [`/api/projects/{id}/triggers/{name}/enable`](#post-apiprojectsidtriggersnameenable) | operator | Enable a trigger — owner or organization member |
+| `POST` | [`/api/projects/{id}/triggers/{name}/disable`](#post-apiprojectsidtriggersnamedisable) | operator | Disable a trigger — owner or organization member |
+| `POST` | [`/api/projects/{id}/triggers/{name}/rotate-token`](#post-apiprojectsidtriggersnamerotate-token) | operator | A new fire token for an http or ain trigger, shown once — owner or organization member |
+| `POST` | [`/api/projects/{id}/triggers/{name}/run`](#post-apiprojectsidtriggersnamerun) | operator | Fire a trigger by hand with a synthetic event — owner or organization member |
+| `GET` | [`/api/projects/{id}/triggers/{name}/ain-rule`](#get-apiprojectsidtriggersnameain-rule) | operator | The AIN DB `.function` rule that makes the chain call an ain trigger — owner or organization member |
+| `POST` | [`/api/projects/{id}/triggers/{name}/ain-rule/install`](#post-apiprojectsidtriggersnameain-ruleinstall) | operator | Set the ain rule on chain with the node's AIN key — owner or organization member |
+| `POST` | [`/api/projects/{id}/triggers/{name}/fire`](#post-apiprojectsidtriggersnamefire) | operator | Fire an http or ain trigger — the webhook URL, and what the AIN blockchain's `_function` calls |
 | `POST` | [`/api/deployments/{id}/redeploy`](#post-apideploymentsidredeploy) | operator | Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member |
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
 | `GET` | [`/api/projects/{id}/deployments`](#get-apiprojectsiddeployments) | operator | A project's deployments (pushes and redeploys), newest first — readable as the project is |
@@ -5654,7 +5662,7 @@ The old secret stops verifying at once; paste the new one into the repo's settin
 
 Ad-hoc runs of a script project, newest first (readable as the project is)
 
-Each run is a deployment-shaped record with `trigger: "run"`, the `entry`, the NAMES of the inputs and env it was started with (`inputKeys`, `envKeys` — values are never read back, by members either), and `logUrl`. 404 for an org-private project the viewer may not see.
+Each run is a deployment-shaped record with `trigger: "run"` (a person's), or `schedule` / `ain` / `http` with `triggerName` (an installed trigger's), the `entry`, the NAMES of the inputs and env it was started with (`inputKeys`, `envKeys` — values are never read back, by members either), and `logUrl`. 404 for an org-private project the viewer may not see.
 
 **Auth** — operator
 
@@ -5700,6 +5708,207 @@ Body `{ entry?, inputs?: { <name>: value }, env?: { <NAME>: value }, timeoutMs? 
 | `202` | { runId, deploymentId, status } |
 | `403` | `not_member` |
 | `409` | `not_a_script` |
+
+### `GET /api/projects/{id}/triggers`
+
+The installed triggers of a script project (readable as the project is)
+
+What the last `ready` deployment's ainize.json `triggers` installed (docs/PROJECTS.md "Triggers"): `{ triggers: [{ name, type: schedule|ain|http, cron?, timezone?, path?, entry?, inputKeys, enabled, nextRunAt?, lastRunAt?, lastRunId?, fireUrl?, hasToken }] }`. `fireUrl` (http and ain) is shown only to the owner or an active member; the token itself is never read back. 404 for an org-private project the viewer may not see.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | triggers | `object` |
+
+### `POST /api/projects/{id}/triggers/{name}/enable`
+
+Enable a trigger — owner or organization member
+
+A re-enabled schedule fires at its next future slot (never the slots it slept through). `{ trigger }`. 404 `no_trigger` when the name is not installed.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes | the trigger name (ainize.json `triggers` key) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | trigger | `object` |
+| `403` | `not_member` |   |
+| `404` | `not_found` / `no_trigger` |   |
+
+### `POST /api/projects/{id}/triggers/{name}/disable`
+
+Disable a trigger — owner or organization member
+
+A disabled schedule is skipped by the scheduler; a disabled http/ain trigger answers 409 `trigger_disabled` when fired. `{ trigger }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes | the trigger name (ainize.json `triggers` key) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | trigger | `object` |
+| `403` | `not_member` |   |
+| `404` | `not_found` / `no_trigger` |   |
+
+### `POST /api/projects/{id}/triggers/{name}/rotate-token`
+
+A new fire token for an http or ain trigger, shown once — owner or organization member
+
+Tokens are minted here (and by `GET …/ain-rule`), never at install: 32 random bytes, base64url, sealed at rest like the webhook secret and returned once as `{ name, token, fireUrl }`. The old token stops verifying at once — an ain rule set on chain with it must be set again. 409 `not_a_webhook` for a schedule.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes | the trigger name (ainize.json `triggers` key) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | token, once | `object` |
+| `403` | `not_member` |   |
+| `404` | `not_found` / `no_trigger` |   |
+| `409` | `not_a_webhook` |   |
+
+### `POST /api/projects/{id}/triggers/{name}/run`
+
+Fire a trigger by hand with a synthetic event — owner or organization member
+
+The console's "Run now": a run of the deployed commit with the trigger's entry and inputs and `AINIZE_TRIGGER_EVENT` = `{ "type": "manual", name, firedAt, actor }`, recorded as `trigger: <the trigger's type>` with `triggerName`. 202 `{ runId, deploymentId, status }`; 409 `no_deployment`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes | the trigger name (ainize.json `triggers` key) |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | { runId, deploymentId, status } |
+| `403` | `not_member` |
+| `404` | `not_found` / `no_trigger` |
+| `409` | `no_deployment` |
+
+### `GET /api/projects/{id}/triggers/{name}/ain-rule`
+
+The AIN DB `.function` rule that makes the chain call an ain trigger — owner or organization member
+
+`{ path, rule, canInstall }` — `rule` is the exact value to set as `.function` at `path`: `{ "ainize-<projectId>-<name>": { function_type: "REST", function_url: "<fireUrl>?token=…", function_id: "ainize-<projectId>-<name>" } }`. The chain's REST `_function` call cannot set a header, so the URL carries the fire token (minted here when the trigger has none yet) — hence operators only. `canInstall` says whether `POST …/ain-rule/install` can set it with the node's own key. 409 `not_an_ain_trigger`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes | the trigger name (ainize.json `triggers` key) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | { path, rule, canInstall } | `object` |
+| `403` | `not_member` |   |
+| `404` | `not_found` / `no_trigger` |   |
+| `409` | `not_an_ain_trigger` |   |
+
+### `POST /api/projects/{id}/triggers/{name}/ain-rule/install`
+
+Set the ain rule on chain with the node's AIN key — owner or organization member
+
+Only on a node that holds an AIN key with write permission on the path (otherwise 503 `ain_install_off`: set the rule from `GET …/ain-rule` with your own key). `{ installed: true, path, txHash }`; 502 `ain_install_failed` when the chain refuses.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes | the trigger name (ainize.json `triggers` key) |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | { installed, path, txHash } | `object` |
+| `403` | `not_member` |   |
+| `404` | `not_found` / `no_trigger` |   |
+| `409` | `not_an_ain_trigger` |   |
+| `502` | `ain_install_failed` |   |
+| `503` | `ain_install_off` |   |
+
+### `POST /api/projects/{id}/triggers/{name}/fire`
+
+Fire an http or ain trigger — the webhook URL, and what the AIN blockchain's `_function` calls
+
+No session: the trigger's own token, as `Authorization: Bearer <token>` or `?token=<token>` (the chain cannot set a header). The body is the event, at most 64 KiB, JSON or text. The run executes the deployed commit with the trigger's entry and inputs (`$event.<field>` references filled in) and gets `AINIZE_TRIGGER_EVENT` (http: `{ type, name, method, query, headers: { content-type }, body }`; ain: `{ type, name, path, params, value, prevValue?, timestamp, auth: { addr }, txHash?, raw }`), `AINIZE_TRIGGER` and `AINIZE_TRIGGER_TYPE`. 202 `{ runId, deploymentId, status }`. At most 60 firings a minute per trigger.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes |   |
+| `name` | `path` | `string` | yes | the trigger name (ainize.json `triggers` key) |
+| `token` | `query` | `string` |   | the fire token, when a header cannot be set |
+
+**Request body** — `application/json`, optional
+
+the event (any JSON; an ain call's `transaction.tx_body.operation.ref` / `.value` are read as the path and value)
+
+`` {"type":"object","description":"the event (any JSON; an ain call's `transaction.tx_body.operation.ref` / `.value` are read as the path and value)"} ``
+
+**Request body** — `text/plain`, optional
+
+`{"type":"string"}`
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | { runId, deploymentId, status } |
+| `401` | `bad_token` |
+| `404` | `not_found` — no such project, or no http/ain trigger of that name |
+| `409` | `trigger_disabled` / `no_deployment` |
+| `413` | `event_too_large` |
+| `429` | `rate_limited` |
 
 ### `POST /api/deployments/{id}/redeploy`
 
@@ -5777,7 +5986,7 @@ Anyone for a public project; an active member for an org-private one (404 otherw
 
 One deployment or run (readable as its project is)
 
-Anyone for a public project; an active member for an org-private one (404 otherwise; also for `/log` and `/output`). `{ id, projectId, sha, ref, kind, status: queued|building|ready|error, trigger: push|redeploy|run, subject?, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }`. `pusher` is `{ subject }`; a run carries `inputKeys` / `envKeys`, never their values. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
+Anyone for a public project; an active member for an org-private one (404 otherwise; also for `/log` and `/output`). `{ id, projectId, sha, ref, kind, status: queued|building|ready|error, trigger: push|redeploy|run|schedule|ain|http, triggerName?, subject?, pusher, startedAt, finishedAt, ms, exitCode?, error?, logUrl, outputUrl? }`. `pusher` is `{ subject }`; a run carries `inputKeys` / `envKeys`, never their values. `outputUrl`: a script's stdout, a service's `/svc/<projectId>/`, an agent's `/agents/<id>`.
 
 **Auth** — operator
 

@@ -297,7 +297,8 @@ export default function LandingPage() {
                 one without it — which is the nav a first-time visitor actually sees. */}
             <NavLink to="/explore?kind=agent" data-testid="landing-nav-agents">{t('nav.agents')}</NavLink>
             <NavLink to="/models" data-testid="landing-nav-models">{t('nav.models')}</NavLink>
-            <NavLink to="/apps" data-testid="landing-nav-apps">{t('nav.apps')}</NavLink>
+            <NavLink to="/deployments" data-testid="landing-nav-deployments">{t('nav.apps')}</NavLink>
+            <NavLink to="/runs" data-testid="landing-nav-runs">{t('nav.runs')}</NavLink>
             <NavLink to="/train" data-testid="landing-nav-train">{t('nav.train')}</NavLink>
             <NavLink to="/aincode" data-testid="landing-nav-aincode">{t('nav.aincode')}</NavLink>
             {/* The network and the public record were in every page's header and in neither of the landing's
