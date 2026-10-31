@@ -39,6 +39,7 @@ import OrgPage from '../src/screens/org/OrgPage';
 import OrgsPage from '../src/screens/org/OrgsPage';
 import OrgSettingsPage from '../src/screens/org/OrgSettingsPage';
 import OrgJoinPage from '../src/screens/org/OrgJoinPage';
+import OrgCreatePage from '../src/screens/org/OrgCreatePage';
 import ExplorePage from '../src/screens/ExplorePage';
 import MyProjectsPage from '../src/screens/MyProjectsPage';
 import { ProjectByNamePage, ProjectConsole } from '../src/screens/ProjectPage';
@@ -553,6 +554,50 @@ test('invite outages are retryable and do not render a stale acceptance button o
   assert.match(absent, /data-testid="org-join-invalid"/);
   const otherToken = render(OrgJoinPage, [...appAccount, { name: 'peekOrgInvite', arg: 'old-invite', value: peek }], '/org/join/new-invite', '/org/join/:token');
   assert.doesNotMatch(otherToken, /Current studio|data-testid="org-join-accept"/);
+});
+
+test('organization creation blocks unavailable domain reads, keeps retry separate from submit, and excludes another account', () => {
+  const available = { orgs: [], signed_in: true, email_domain: 'studio.example', domain_org: null };
+  for (const fixture of [
+    { name: 'myOrgs', arg: accountIdentity, status: 'pending' as const },
+    { name: 'myOrgs', arg: accountIdentity, value: available, status: 'rejected' as const },
+    { name: 'myOrgs', arg: accountIdentity, value: {} },
+    { name: 'myOrgs', arg: 'different-account', value: available },
+  ]) {
+    const html = render(OrgCreatePage, [...appAccount, fixture], '/org/new');
+    assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="org-new-submit"/);
+    assert.doesNotMatch(html, /data-testid="org-new-claim"|Signed in with a wallet|studio\.example/);
+    if (fixture.status === 'rejected' || fixture.value && fixture.arg === accountIdentity) {
+      assert.match(html, /data-testid="org-read-error"/);
+      assert.match(html, /<button[^>]*type="button"[^>]*>Try again<\/button>/);
+    }
+  }
+});
+
+test('domain membership is explicit opt-in and uses server identity metadata for every sign-in provider', () => {
+  const html = render(OrgCreatePage, [...appAccount, { name: 'myOrgs', arg: accountIdentity,
+    value: { orgs: [], signed_in: true, email_domain: 'studio.example', domain_org: null } }], '/org/new');
+  assert.match(html, /Everyone who signs in with @studio\.example/);
+  const checkbox = html.match(/<input[^>]*data-testid="org-new-claim"[^>]*>/)?.[0];
+  assert.ok(checkbox);
+  assert.doesNotMatch(checkbox, /checked=""/);
+  assert.doesNotMatch(html.match(/<button[^>]*data-testid="org-new-submit"[^>]*>/)![0], /disabled=""/);
+});
+
+test('organizations without a domain stay creatable and do not misidentify the account as a wallet', () => {
+  for (const [email_domain, domain_org] of [[null, null], ['studio.example', 'existing']] as const) {
+    const html = render(OrgCreatePage, [...appAccount, { name: 'myOrgs', arg: accountIdentity,
+      value: { orgs: [], signed_in: true, email_domain, domain_org } }], '/org/new');
+    assert.doesNotMatch(html, /data-testid="org-new-claim"|Signed in with a wallet/);
+    assert.doesNotMatch(html.match(/<button[^>]*data-testid="org-new-submit"[^>]*>/)![0], /disabled=""/);
+  }
+});
+
+test('unknown invitation roles show recovery rather than an invented read permission and Join action', () => {
+  const html = render(OrgJoinPage, [...appAccount, { name: 'peekOrgInvite', arg: 'fixture-invite',
+    value: { org: { id: 'studio', name: 'Studio' }, role: 'unknown' } }], '/org/join/fixture-invite', '/org/join/:token');
+  assert.match(html, /data-testid="org-read-error"/);
+  assert.doesNotMatch(html, /data-testid="org-join-accept"|You are invited/);
 });
 
 test('malformed organization lists offer recovery rather than claiming no memberships', () => {

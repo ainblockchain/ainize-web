@@ -11,7 +11,7 @@ export function OrgReadStatus({ query, valid }: {
   const { t } = useT();
   if (query.isFetching && !query.currentData) return <div role="status" data-testid="org-read-loading"><CenterProgress /></div>;
   if (query.isError || !valid) return <Alert role="alert" $tone="error" data-testid="org-read-error">
-    {t('org.read_failed')} <Button size="small" variant="text" disabled={query.isFetching} onClick={() => query.refetch()}>{t('orgs.retry')}</Button>
+    {t('org.read_failed')} <Button type="button" size="small" variant="text" disabled={query.isFetching} onClick={() => query.refetch()}>{t('orgs.retry')}</Button>
   </Alert>;
   return null;
 }
