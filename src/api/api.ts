@@ -400,6 +400,11 @@ export const api = createApi({
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number; identity: string }>({ query: ({ identity: _identity, ...q }) => `api/events${toQuery(q)}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
     runtime: b.query<RuntimeResponse, { identity: string } | void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
+    runtimeOperationCapabilities: b.query<unknown, { identity: string }>({ query: () => ({ url: 'api/runtime/jobs/capabilities', timeout: 15_000 }) }),
+    runtimeOperation: b.query<unknown, { identity: string; id: string }>({ query: ({ id }) => ({ url: `api/runtime/jobs/${encodeURIComponent(id)}`, timeout: 15_000 }) }),
+    startRuntimeOperation: b.mutation<unknown, { id: string; kind: 'load' | 'unload'; body: { async: true; request_id: string; instance: string; with_base?: boolean; cascade?: boolean } }>({
+      query: ({ id, kind, body }) => ({ url: `api/patches/${encodeURIComponent(id)}/${kind === 'load' ? 'apply' : 'remove'}`, method: 'POST', body, timeout: 15_000 }),
+    }),
     drive: b.query<DriveResponse, void>({ query: () => 'api/drive', providesTags: ['Drive'] }),
     driveChanges: b.query<DriveChangesResponse, string>({ query: (path) => `api/drive/changes${toQuery({ path })}`, providesTags: ['Drive'] }),
     docs: b.query<DocsResponse, void>({ query: () => 'api/docs' }),

@@ -90,10 +90,7 @@ function ManageView() {
    * SC-15 — an add-on is loaded with what it was trained on top of, and unloading something with a knowledge on top
    * of it says which one. The bare apply this page used to send answered `needs_base` with a code and no way out.
    */
-  const chain = useLoadChain((id) => catalogItems?.find((e) => e.anchor.id === id)?.anchor.name || id, {
-    onLoaded: () => { if (current()) setNotice(t('op.manage.runtime.loaded_ok')); },
-    onUnloaded: () => { if (current()) setNotice(t('op.manage.runtime.unloaded_ok')); },
-  });
+  const chain = useLoadChain((id) => catalogItems?.find((e) => e.anchor.id === id)?.anchor.name || id);
   const [del, delState] = useDeletePatchMutation();
   const [retire, retireState] = useRetireMutation();
   /** Item 278: a published price was permanent — the only re-pricing was republishing, which supersedes your own item. */
@@ -274,6 +271,7 @@ function ManageView() {
 
   return (
     <PageWrapper>
+      {chain.dialog}
       <fieldset disabled={busy || chain.busy} aria-busy={busy || chain.busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ProjectName>{a.name || a.id}</ProjectName>
       <Row $gap={10} style={{ marginTop: 8 }}><StatusChip status={p.status} /><Muted><Mono>{a.id}</Mono></Muted></Row>
@@ -573,7 +571,6 @@ function ManageView() {
       </SaveRow>
       {chain.notice && <Alert $tone="success" style={{ marginTop: 12 }} data-testid="apply-order">{chain.notice}</Alert>}
       {chain.error && <Alert $tone="error" style={{ marginTop: 12 }} data-testid="apply-error">{chain.error}</Alert>}
-      {chain.dialog}
 
       {/* ------------------------------------------------------------ markdown snippet */}
       <SubTitle $mt={56}>{t('op.manage.badge.title')}</SubTitle>

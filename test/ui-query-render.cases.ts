@@ -86,6 +86,8 @@ import { EventLog } from '../src/components/operator/EventLog';
 import { trackAuthor } from './fixtures/track';
 import { VerificationWork } from '../src/components/operator/VerificationWork';
 import { DashboardContent } from '../src/screens/DashboardPage';
+import { RuntimeOperationStatus } from '../src/components/detail/RuntimeOperationStatus';
+import { prepareRuntimeOperation } from '../src/lib/runtimeOperation';
 import { dashboardEntry, dashboardAttest, verificationPayment } from './fixtures/dashboard';
 import { BenchmarkCoverage } from '../src/components/detail/BenchmarkCoverage';
 import { PatchListItem } from '../src/components/public/PatchListItem';
@@ -2057,4 +2059,27 @@ test('track cards recognize server applied IDs and do not mistake failed or fore
     const unknown = render(card, [...appAccount, failure], '/dashboard');
     assert.match(unknown, /what is loaded cannot be read/); assert.doesNotMatch(unknown, /Recorded as loaded|no load record for/);
   }
+});
+
+const runtimeStatusOperation = () => prepareRuntimeOperation('test-owner', manageFixture().anchor, 'load', false, [],
+  { instance: 'a'.repeat(32), server_time: 1_800_000_000_000, request_window_ms: 600_000 }, 'b'.repeat(32));
+const runtimeStatusProps = () => ({ operation: runtimeStatusOperation(), review: null, onRetry() {}, onReview() {}, onCloseReview() {}, onDismiss() {} });
+test('runtime progress names the selected target and distinguishes queue, execution and confirmation', () => {
+  for (const [phase, label] of [['submitting', 'Sending request'], ['checking', 'Checking existing operation'], ['queued', 'Waiting in queue'], ['running', 'Running'], ['confirming', 'Confirming current load records']] as const) {
+    const html = render(() => createElement(RuntimeOperationStatus, { ...runtimeStatusProps(), phase, checking: true }), signedOut);
+    assert.match(html, /Knowledge chosen/); assert.ok(html.includes(label)); assert.match(html, /role="status"/);
+    assert.doesNotMatch(html, /runtime-operation-retry|runtime-operation-dismiss/);
+  }
+});
+test('interrupted runtime tracking offers read-only recheck and explicit record review, without claiming success', () => {
+  const html = render(() => createElement(RuntimeOperationStatus, { ...runtimeStatusProps(), phase: 'interrupted', checking: false, error: 'Original request retained after disconnect' }), signedOut);
+  assert.match(html, /Result needs checking/); assert.match(html, /Original request retained after disconnect/); assert.match(html, /role="alert"/); assert.match(html, /Check operation again/); assert.match(html, /Review current records/);
+  assert.match(html, /runtime-operation-retry/); assert.doesNotMatch(html, /runtime-operation-dismiss|Confirmed load record/);
+});
+test('closing runtime tracking requires a record review and says it does not cancel server work', () => {
+  const row = { patch_id: 'original-id', name: 'Actual loaded layer', sha256: 'abcdef1234567890' } as any;
+  const html = render(() => createElement(RuntimeOperationStatus, { ...runtimeStatusProps(), phase: 'interrupted', checking: false, review: [row] }), signedOut);
+  assert.match(html, /runtime-operation-review-sheet/); assert.match(html, /does not cancel server work/);
+  assert.match(html, /Actual loaded layer/); assert.match(html, /original-id/); assert.match(html, /abcdef123456/);
+  assert.match(html, /Acknowledge records and close tracking/); assert.match(html, /runtime-operation-dismiss/);
 });
