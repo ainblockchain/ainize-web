@@ -1,5 +1,5 @@
 import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
-import { loadTrackCatalog, type TrackCatalog } from '@/lib/trackView';
+import { loadTrackCatalog, loadCatalogSnapshot, type TrackCatalog, type CatalogSnapshot } from '@/lib/trackView';
 import type { AppDomain, AppDomainsResponse } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
 import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
@@ -142,6 +142,7 @@ export const api = createApi({
     graph: b.query<GraphResponse, void>({ query: () => 'api/ledger/graph', providesTags: ['Ledger', 'Catalog'] }),
     branches: b.query<BranchesResponse, void>({ query: () => 'api/branches', providesTags: ['Branches'] }),
     trackCatalog: b.query<TrackCatalog, string>({ queryFn: (name, api, _extra, baseQuery) => loadTrackCatalog(name, async (url) => baseQuery(url), api.signal), providesTags: ['Catalog', 'Branches'] }),
+    catalogSnapshot: b.query<CatalogSnapshot, void>({ queryFn: (_arg, api, _extra, baseQuery) => loadCatalogSnapshot(async (url) => baseQuery(url), api.signal), providesTags: ['Catalog', 'Branches'] }),
     route: b.query<RouteResponse, Record<string, string>>({ query: (ctx) => `api/route${toQuery(ctx)}`, providesTags: ['Branches', 'Nodes'] }),
     nodes: b.query<NodesResponse, void>({ query: () => 'api/nodes', providesTags: ['Nodes'] }),
     /** A2A agents this node operates (§6.1). Polled, because "is it answering" is a live question. */
@@ -662,6 +663,7 @@ export const api = createApi({
 
 export const {
   useTrackCatalogQuery,
+  useCatalogSnapshotQuery,
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,

@@ -62,6 +62,7 @@ import TrackPage from '../src/screens/TrackPage';
 import { trackName, trackEntry, trackBranches, trackHistory } from './fixtures/track';
 import NetworkPage, { NetworkRouteResult } from '../src/screens/NetworkPage';
 import { matchedRoute, unmatchedRoute, routeCondition } from './fixtures/networkRoute';
+import { networkInfoFixture, networkNodesFixture, networkLedgerFixture } from './fixtures/networkView';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -114,15 +115,73 @@ test('routing distinguishes no match and no current knowledge from a node servin
 
 test('network page does not recommend subscribing to an arbitrary first track before routing', () => {
   const html = render(NetworkPage, [...signedOut,
-    { name: 'info', value: { node: { name: 'Selected node', address: 'node', endpoint: 'https://node.example', roles: [], blobs: [], branches: [], version: 'test' }, ledger: { kind: 'local', records: 0 }, runtime: { available: false, hook: false }, peers: 0 } },
+    { name: 'info', value: networkInfoFixture() },
     { name: 'branches', value: trackBranches() },
-    { name: 'nodes', value: { peers: [], nodes: [] } },
-    { name: 'catalog', arg: { limit: 200 }, value: { items: [] } },
+    { name: 'nodes', value: { self: 'self', peers: [], nodes: [] } },
+    { name: 'catalogSnapshot', value: { items: [] } },
     { name: 'ledger', arg: { limit: 5000 }, value: { info: { records: 0 }, records: [] } },
   ], '/network');
   assert.match(html, /Find nodes/);
   assert.match(html, /jurisdiction=KR/);
   assert.doesNotMatch(html, /ainize branch subscribe|law\/KR/);
+});
+
+const networkFixtures: Fixture[] = [
+  { name: 'info', value: networkInfoFixture() },
+  { name: 'nodes', value: networkNodesFixture() },
+  { name: 'branches', value: { branches: [], mine: [] } },
+  { name: 'ledger', arg: { limit: 5000 }, value: networkLedgerFixture() },
+];
+test('network peer failures and pending reads do not claim an empty connected network', () => {
+  for (const fixture of [
+    { name: 'nodes', status: 'pending' as const },
+    { name: 'nodes', status: 'rejected' as const, value: networkNodesFixture() },
+    { name: 'nodes', value: { self: 'self', nodes: [{}], peers: [] } },
+  ]) {
+    const html = render(NetworkPage, [...signedOut, ...networkFixtures.filter(f => f.name !== 'nodes'), fixture], '/network');
+    assert.doesNotMatch(html, /No connected nodes\.|Node peer/);
+    assert.match(html, fixture.status === 'pending' ? /network-nodes-loading/ : /offline-retry/);
+  }
+});
+
+test('network ledger errors hide retained counts while successful partial windows show paid sales and their scope', () => {
+  const failed = render(NetworkPage, [...signedOut, ...networkFixtures.filter(f => f.name !== 'ledger'),
+    { name: 'ledger', arg: { limit: 5000 }, value: networkLedgerFixture(), status: 'rejected' },
+  ], '/network');
+  assert.match(failed, /offline-retry/);
+  assert.doesNotMatch(failed, /no activity in loaded records|data-testid="net-record"|network-record-window/);
+  const valid = render(NetworkPage, [...signedOut, ...networkFixtures], '/network');
+  assert.match(valid, /4 loaded public records out of 9,000 ledger records/);
+  assert.match(valid, /1 sold · 0 listed/);
+  assert.match(valid, /1 attestation records/);
+  assert.doesNotMatch(valid, /3 sold|1 verified|on the record since/);
+});
+
+test('failed or malformed network track lists provide retry instead of an endless spinner or empty list', () => {
+  for (const fixture of [
+    { name: 'branches', status: 'rejected' as const },
+    { name: 'branches', value: { branches: [{}], mine: [] } },
+  ]) {
+    const html = render(NetworkPage, [...signedOut, ...networkFixtures.filter(f => f.name !== 'branches'), fixture], '/network');
+    assert.match(html, /offline-retry/);
+    assert.doesNotMatch(html, /network-tracks-loading/);
+  }
+});
+
+test('a failed top-level network refresh cannot retain the old node status and routing controls', () => {
+  const html = render(NetworkPage, [...signedOut, ...networkFixtures.filter(f => f.name !== 'info'),
+    { name: 'info', value: networkInfoFixture(), status: 'rejected' },
+  ], '/network');
+  assert.match(html, /offline-retry/);
+  assert.doesNotMatch(html, /Node self|Find nodes/);
+});
+
+test('network freshness requires all current versions, rather than reporting the newest of a partial subset', () => {
+  const fixtures = [...signedOut, ...networkFixtures.filter(f => f.name !== 'branches'), { name: 'branches', value: trackBranches(['selected', 'missing']) }];
+  (fixtures.at(-1)!.value as ReturnType<typeof trackBranches>).branches[0].current = ['selected', 'missing'];
+  const html = render(NetworkPage, [...fixtures, { name: 'catalogSnapshot', value: { items: [trackEntry('selected')] } }], '/network');
+  assert.match(html, /<td[^>]*>Unavailable<\/td>/);
+  assert.match(html, /href="\/patch\/missing"/);
 });
 
 const trackFixtures: Fixture[] = [

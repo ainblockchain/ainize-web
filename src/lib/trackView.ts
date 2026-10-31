@@ -30,7 +30,13 @@ function trackEntry(raw: unknown): raw is CatalogEntry {
     && !!object(p.sales) && count(p.sales.sales_all) && statuses.includes(p.status);
 }
 
-export interface TrackCatalog { name: string; items: CatalogEntry[] }
+export interface CatalogSnapshot { items: CatalogEntry[] }
+export interface TrackCatalog extends CatalogSnapshot { name: string }
+export function catalogSnapshotView(raw: unknown): CatalogSnapshot | null {
+  const p = object(raw);
+  return p && Array.isArray(p.items) && p.items.every(trackEntry)
+    && new Set(p.items.map((e: CatalogEntry) => e.anchor.id)).size === p.items.length ? p as CatalogSnapshot : null;
+}
 export function trackCatalogView(raw: unknown, name: string): TrackCatalog | null {
   const p = object(raw);
   return p?.name === name && Array.isArray(p.items) && p.items.every(trackEntry)
@@ -39,11 +45,17 @@ export function trackCatalogView(raw: unknown, name: string): TrackCatalog | nul
 
 /** The public catalog caps each page at 200 and omits retired knowledge unless explicitly requested. */
 export async function loadTrackCatalog(name: string, query: (url: string) => Promise<{ data?: unknown; error?: FetchBaseQueryError }>, signal?: AbortSignal): Promise<{ data: TrackCatalog } | { error: FetchBaseQueryError }> {
+  const result = await loadCatalogSnapshot(query, signal, name);
+  return 'data' in result ? { data: { name, ...result.data } } : result;
+}
+
+export async function loadCatalogSnapshot(query: (url: string) => Promise<{ data?: unknown; error?: FetchBaseQueryError }>, signal?: AbortSignal, branch?: string): Promise<{ data: CatalogSnapshot } | { error: FetchBaseQueryError }> {
   const items: CatalogEntry[] = [], seen = new Set<string>();
   let total: number | undefined;
   do {
     if (signal?.aborted) return { error: { status: 'CUSTOM_ERROR', error: 'Track read cancelled' } };
-    const params = new URLSearchParams({ branch: name, status: statuses.join(','), limit: '200', offset: String(items.length) });
+    const params = new URLSearchParams({ status: statuses.join(','), limit: '200', offset: String(items.length) });
+    if (branch !== undefined) params.set('branch', branch);
     const reply = await query(`api/catalog?${params}`);
     if (reply.error) return { error: reply.error };
     const page = object(reply.data);
@@ -55,7 +67,7 @@ export async function loadTrackCatalog(name: string, query: (url: string) => Pro
       seen.add(entry.anchor.id); items.push(entry);
     }
   } while (items.length < total!);
-  return { data: { name, items } };
+  return { data: { items } };
 }
 
 /** Missing public records mean a partial summary, not zero sales. Currencies must never be added together. */

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
+import { errorMessage, useBranchesQuery, useCatalogSnapshotQuery, useInfoQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Offline } from '@/components/ui/Offline';
@@ -15,7 +15,8 @@ import { useDetailFormat } from './detail/recordText';
 import { trackHref } from './TrackPage';
 import { knowledgeLookupPath } from '@/lib/detailRoutes';
 import { nodeApiUrl, routeCurlCommand, type RouteInput } from '@/lib/networkRoute';
-import { trackSubscribeCommand } from '@/lib/trackView';
+import { trackSubscribeCommand, trackBranches, catalogSnapshotView } from '@/lib/trackView';
+import { networkInfo, networkNodes, networkRecords } from '@/lib/networkView';
 import { useNetworkRoute } from '@/hooks/useNetworkRoute';
 import { networkEntryKey, orderNetworkEntries, uniqueNetworkWarnings } from '@/utils/networkOrder';
 
@@ -117,12 +118,13 @@ export default function NetworkPage() {
   // only to whoever runs it. Any connected wallet seeing them would be the old "signed in = operator" mistake.
   const { isOwner } = useAuth();
   const infoQ = useInfoQuery(undefined, { pollingInterval: 15_000 });
-  const info = infoQ.data;
-  const { data: nodes } = useNodesQuery(undefined, { pollingInterval: 15_000 });
-  const { data: branches } = useBranchesQuery(undefined, { pollingInterval: 20_000 });
-  // Finding 268: the track table said what a track contains but not what a subscriber would get today, nor how old
-  // it is. Both come from the catalogue, which is one cached request shared with /explore.
-  const { data: catalog } = useCatalogQuery({ limit: 200 });
+  const info = infoQ.isError ? null : networkInfo(infoQ.currentData);
+  const nodesQ = useNodesQuery(undefined, { pollingInterval: 15_000 });
+  const nodes = nodesQ.isError ? null : networkNodes(nodesQ.currentData);
+  const branchesQ = useBranchesQuery(undefined, { pollingInterval: 20_000 });
+  const branches = branchesQ.isError ? null : trackBranches(branchesQ.currentData);
+  const catalogQ = useCatalogSnapshotQuery(undefined, { skip: !branches?.branches.length, pollingInterval: 30_000 });
+  const catalog = catalogQ.isError ? null : catalogSnapshotView(catalogQ.currentData);
   /**
    * Item 348 — the table showed an endpoint, a self-declared name, an address, roles, a ledger, a model, a body
    * count and a last-seen time: two of those are asserted by the node itself and none of them says whether a
@@ -131,32 +133,12 @@ export default function NetworkPage() {
    * anchors, settlements, attestations and challenges, each signed by the node it is counted against.
    */
   const ledger = useLedgerQuery({ limit: 5000 }, { pollingInterval: 60_000 });
-  const record = useMemo(() => {
-    const m = new Map<string, { listed: number; sold: number; bought: number; attested: number; challenged: number; since: number }>();
-    const at = (address: string) => {
-      const k = address.toLowerCase();
-      const cur = m.get(k) ?? { listed: 0, sold: 0, bought: 0, attested: 0, challenged: 0, since: 0 };
-      m.set(k, cur);
-      return cur;
-    };
-    const seen = (row: { since: number }, ts: number) => { row.since = row.since ? Math.min(row.since, ts) : ts; };
-    for (const r of ledger.data?.records ?? []) {
-      const b = (r.body ?? {}) as Record<string, unknown>;
-      if (r.kind === 'anchor' && typeof b.author === 'string') { const row = at(b.author); row.listed += 1; seen(row, r.ts); }
-      if (r.kind === 'attest' && typeof b.verifier === 'string') { const row = at(b.verifier); row.attested += 1; seen(row, r.ts); }
-      if (r.kind === 'challenge' && typeof b.challenger === 'string') { const row = at(b.challenger); row.challenged += 1; seen(row, r.ts); }
-      if (r.kind === 'settle') {
-        if (typeof b.seller === 'string') { const row = at(b.seller); row.sold += 1; seen(row, r.ts); }
-        if (typeof b.buyer === 'string') { const row = at(b.buyer); row.bought += 1; seen(row, r.ts); }
-      }
-      if (r.kind === 'node' && typeof b.address === 'string') seen(at(b.address), r.ts);
-    }
-    return (address?: string | null) => (address ? m.get(address.toLowerCase()) ?? null : null);
-  }, [ledger.data]);
-  /** One cell: what the record says this node has actually done. Never a guess — an unknown node reads "nothing yet". */
+  const record = useMemo(() => ledger.isError ? null : networkRecords(ledger.currentData), [ledger.currentData, ledger.isError]);
   const TrackRecord = ({ address }: { address?: string | null }) => {
-    const r = record(address);
-    if (!r || (!r.listed && !r.sold && !r.attested && !r.challenged && !r.since)) return <span title={t('detail.net.record_help')}>{t('detail.net.record_none')}</span>;
+    if (!record) return <span>{t(ledger.isFetching ? 'track.loading' : 'track.sales_unavailable')}</span>;
+    if (!address) return <span>{t('track.sales_unavailable')}</span>;
+    const r = record.rows.get(address.toLowerCase());
+    if (!r) return <span title={t('detail.net.record_help')}>{t('detail.net.record_none')}</span>;
     return (
       <span title={t('detail.net.record_help')} data-testid="net-record">
         {t('detail.net.record_sales', { sold: num(r.sold), listed: num(r.listed) })}
@@ -174,7 +156,7 @@ export default function NetworkPage() {
 
   const onRoute = (e: FormEvent) => { e.preventDefault(); void route.run(); };
 
-  if (infoQ.isLoading) return <PageWrapper $wide><CenterProgress /></PageWrapper>;
+  if (!infoQ.currentData && infoQ.isFetching) return <PageWrapper $wide><CenterProgress /></PageWrapper>;
   /*
    * Finding 77: with the node unreachable this page used to render nothing at all between the header and the
    * footer — a visitor could not tell an outage from an empty network. Nothing below can be drawn without
@@ -193,9 +175,9 @@ export default function NetworkPage() {
   const peers = orderNetworkEntries(nodes?.peers ?? []);
   // item 170: a peer on the other ledger answers everything and serves an empty record set forever
   const ps = info.peer_status ?? nodes?.peer_status;
-  const known = orderNetworkEntries((nodes?.nodes ?? []).filter((n) => n.address !== self.address));
+  const known = orderNetworkEntries((nodes?.nodes ?? []).filter((n) => n.address.toLowerCase() !== self.address.toLowerCase()));
   const mismatches = uniqueNetworkWarnings(ps?.mismatched ?? []);
-  const ledgerKind = (k: string) => (k === 'ain' ? t('detail.ledger_kind.ain') : t('detail.ledger_kind.local'));
+  const ledgerKind = (k: string) => k === 'ain' ? t('detail.ledger_kind.ain') : k === 'local' ? t('detail.ledger_kind.local') : '—';
   const nodeName = (name?: string | null) => <>{name ?? '—'}{name && /^ain-kpi-gpu-0?[1-5]$/.test(name) && (
     <GpuAllocation title={t('detail.net.gpu_allocation_help')}>{t('detail.net.gpu_allocation')}</GpuAllocation>
   )}</>;
@@ -217,7 +199,7 @@ export default function NetworkPage() {
             <dt>{t('detail.net.endpoint')}</dt><dd><Endpoint url={self.endpoint} hidden={t('detail.net.endpoint_private')} /></dd>
             <dt>{t('detail.net.roles')}</dt><dd>{roles(self.roles)}</dd>
             <dt title={tech('ledger')}>{t('detail.net.ledger')}</dt><dd>{t('detail.net.ledger_records', { kind: info.ledger.kind === 'ain' ? `${t('detail.ledger_kind.ain')} (${info.ledger.provider ?? ''})` : t('detail.ledger_kind.local'), n: num(info.ledger.records) })}</dd>
-            <dt>{t('detail.net.peers')}</dt><dd>{ps
+            <dt>{t('detail.net.peers')}</dt><dd>{!nodes ? t('track.sales_unavailable') : ps
               ? t('detail.net.peers_value_health', { peers: num(ps.known), answered: num(ps.reachable), verifiers: num(ps.verifiers), known: num(known.length) })
               : t('detail.net.peers_value', { peers: num(info.peers), known: num(known.length) })}</dd>
             <dt title={t('detail.tech.blobs')}>{t('detail.net.bodies')}</dt><dd>{t('detail.net.bodies_value', { n: num(self.blobs.length) })}</dd>
@@ -255,6 +237,12 @@ export default function NetworkPage() {
       </Cards>
 
       <SubTitle $mt={40}>{t('detail.net.peers_title')}</SubTitle>
+      {!nodes && (!nodesQ.currentData && nodesQ.isFetching
+        ? <div role="status" data-testid="network-nodes-loading"><CenterProgress /></div>
+        : <Offline error={nodesQ.error} what={t('detail.net.peers_title')} retrying={nodesQ.isFetching} onRetry={() => { void nodesQ.refetch(); }} />)}
+      {record ? <Description data-testid="network-record-window">{t('detail.net.record_window', { shown: num(record.shown), total: num(record.total) })}</Description>
+        : !ledger.currentData && ledger.isFetching ? <div role="status">{t('detail.net.record_loading')}</div>
+          : <Offline error={ledger.error} what={t('detail.net.h.record')} retrying={ledger.isFetching} onRetry={() => { void ledger.refetch(); }} />}
       {!!mismatches.length && ps && (
         <Alert $tone="warning" style={{ marginTop: 12 }}>
           <WarningDetails>
@@ -270,7 +258,7 @@ export default function NetworkPage() {
           </WarningDetails>
         </Alert>
       )}
-      {peers.length === 0 && known.length === 0 && <Empty style={{ marginTop: 12 }}>{t('detail.net.peers_empty')}</Empty>}
+      {nodes && peers.length === 0 && known.length === 0 && <Empty style={{ marginTop: 12 }}>{t('detail.net.peers_empty')}</Empty>}
       {(peers.length > 0 || known.length > 0) && (
         <TableWrapper style={{ marginTop: 12, background: '#fff', border: '1px solid #dadada' }}>
           <Table>
@@ -280,8 +268,8 @@ export default function NetworkPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {peers.map((p) => (
-                <TableRow key={p.endpoint ?? p.address ?? p.info?.name ?? ''}>
+              {peers.map((p, index) => (
+                <TableRow key={JSON.stringify([networkEntryKey(p), p.endpoint ?? index])}>
                   <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={p.failures === 0 && p.last_seen > 0} /><Endpoint url={p.endpoint} hidden={t('detail.net.endpoint_private')} /></TableData>
                   <TableData $align="left">{nodeName(p.info?.name)}</TableData>
                   <TableData $align="left" $mono title={p.address ?? ''}>{shortAddr(p.address, 8)}</TableData>
@@ -290,12 +278,12 @@ export default function NetworkPage() {
                   <TableData $align="left"><Terms info={p.info} t={t} /></TableData>
                   <TableData>{p.info ? ledgerKind(p.info.ledger) : '—'}</TableData>
                   <TableData title={p.info?.model ?? ''}>{p.info?.model ?? '—'}</TableData>
-                  <TableData>{num(p.info?.blobs.length ?? 0)}</TableData>
-                  <TableData title={(p.info?.branches ?? []).join(', ')}>{p.info?.branches.length ?? 0}</TableData>
+                  <TableData>{p.info ? num(p.info.blobs.length) : '—'}</TableData>
+                  <TableData title={(p.info?.branches ?? []).join(', ')}>{p.info ? p.info.branches.length : '—'}</TableData>
                   <TableData $align="right" $padding="0 24px 0 8px">{p.last_seen ? f.ago(p.last_seen) : (p.failures ? t('detail.net.failed', { n: p.failures }) : t('detail.net.pending'))}</TableData>
                 </TableRow>
               ))}
-              {known.filter((n) => !peers.some((p) => p.address === n.address)).map((n) => (
+              {known.filter((n) => !peers.some((p) => p.address?.toLowerCase() === n.address.toLowerCase())).map((n) => (
                 <TableRow key={n.address}>
                   <TableData $align="left" $padding="0 0 0 24px" $mono><Dot $ok={false} /><Endpoint url={n.endpoint} hidden={t('detail.net.endpoint_private')} /></TableData>
                   <TableData $align="left">{nodeName(n.name)}</TableData>
@@ -317,7 +305,12 @@ export default function NetworkPage() {
 
       <SubTitle id="tracks" $mt={40} title={`${help('branch')} (${tech('branch')})`}>{t('detail.net.tracks_title')}</SubTitle>
       <Description>{t('detail.net.tracks_note')}</Description>
-      {!branches && <CenterProgress />}
+      {!branches && (!branchesQ.currentData && branchesQ.isFetching
+        ? <div role="status" data-testid="network-tracks-loading"><CenterProgress /></div>
+        : <Offline error={branchesQ.error} what={t('detail.net.tracks_title')} retrying={branchesQ.isFetching} onRetry={() => { void branchesQ.refetch(); }} />)}
+      {!!branches?.branches.length && !catalog && (!catalogQ.currentData && catalogQ.isFetching
+        ? <div role="status">{t('track.loading')}</div>
+        : <Offline error={catalogQ.error} what={t('track.net.h.updated')} retrying={catalogQ.isFetching} onRetry={() => { void catalogQ.refetch(); }} />)}
       {branches && branches.branches.length === 0 && <Empty style={{ marginTop: 12 }}>{t('detail.net.tracks_empty')}</Empty>}
       {branches && branches.branches.length > 0 && (
         <TableWrapper style={{ marginTop: 12, background: '#fff', border: '1px solid #dadada' }}>
@@ -328,13 +321,13 @@ export default function NetworkPage() {
             <TableBody>
               {branches.branches.map((b) => {
                 const current = b.current ?? [];
-                const newest = current.map((id) => entries.get(id)?.anchor.created_at ?? 0).reduce((x, y) => Math.max(x, y), 0);
+                const newest = catalog && current.every(id => entries.has(id)) ? current.map((id) => entries.get(id)!.anchor.created_at).reduce((x, y) => Math.max(x, y), 0) : null;
                 return (
                 <TableRow key={b.name}>
                   <TableData $align="left" $padding="0 0 0 24px" $weight={600} title={b.description}><StyledLink to={trackHref(b.name)}>{b.name}</StyledLink>{branches.mine.includes(b.name) && <span style={{ marginLeft: 8, fontSize: 11, color: '#44a45f' }}>{t('detail.net.subscribed')}</span>}</TableData>
                   <TableData $align="left">{Object.entries(b.context).map(([k, v]) => <CtxChip key={k}>{k}={v}</CtxChip>)}{Object.keys(b.context).length === 0 && '—'}</TableData>
                   <TableData $align="left" $maxWidth="360px" title={current.join(', ') || t('track.net.none')}>{current.slice(0, 2).map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={knowledgeLookupPath(id)}>{id}</StyledLink></span>)}{current.length > 2 && ` +${current.length - 2}`}{current.length === 0 && t('track.net.none')}</TableData>
-                  <TableData>{newest ? f.ago(newest) : '—'}</TableData>
+                  <TableData>{newest === null ? t(catalogQ.isFetching ? 'track.loading' : 'track.sales_unavailable') : newest ? f.ago(newest) : '—'}</TableData>
                   <TableData $mono title={b.owner}>{shortAddr(b.owner, 6)}</TableData>
                   <TableData $align="right" $padding="0 24px 0 8px" title={b.subscribers.map((s) => s.name ?? s.address ?? '').join(', ')}>{num(b.subscribers.length)}</TableData>
                 </TableRow>
