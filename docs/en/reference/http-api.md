@@ -131,7 +131,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/patches`](#post-apipatches) | operator | Register knowledge (created as a DRAFT) |
 | `POST` | [`/api/patches/{id}/announce`](#post-apipatchesidannounce) | operator | Announce — record on the ledger and request verification |
 | `POST` | [`/api/patches/{id}/retire`](#post-apipatchesidretire) | operator | Retire — take your own published knowledge off sale for good |
-| `POST` | [`/api/patches/{id}/verify`](#post-apipatchesidverify) | operator | Run verification on this node now (verifier role) |
+| `POST` | [`/api/patches/{id}/verify`](#post-apipatchesidverify) | operator | Run and record verification on this node (verifier role) |
 | `POST` | [`/api/patches/{id}/challenge`](#post-apipatchesidchallenge) | operator | Request re-verification (challenge) |
 
 **Public record** — ledger, provenance graph, network
@@ -2314,9 +2314,9 @@ Appends an author-signed `retire` record. The anchor stays on the permanent reco
 
 ### `POST /api/patches/{id}/verify`
 
-Run verification on this node now (verifier role)
+Run and record verification on this node (verifier role)
 
-Refused with 409 when this node published the knowledge (a self-attestation never counts) or when it already attested it and no challenge is open (the re-attestation would be discarded).
+Operator-only. Legacy synchronous calls return {attestation}. async:true requires a caller-generated request_id, current instance and expected selected target; HTTP 202 returns a recoverable kind:verify job. Poll /api/runtime/jobs/{id}. The same request and target/options return the original job even after the item disappears; different recheck or expected fields conflict. The target is reread and matched before preparation; private drafts are refused. Self-attestation and existing results follow verifier policy; recheck:true explicitly records a new measurement without challenging the listing. Concurrent identical background/manual attempts share one verification; different artifacts/recheck options are refused while it runs. A running job may be preparing files or waiting for the model queue. Completion means an attestation was recorded, not that its benchmark passed or even ran: inspect passed and verified_on. Runtime fallback may produce hash-only evidence. Check capabilities.verification_jobs before using recovery.
 
 **Auth** — operator
 
@@ -2326,12 +2326,40 @@ Refused with 409 when this node published the knowledge (a self-attestation neve
 |---|---|---|---|
 | `id` | `path` | `string` | yes |
 
+**Request body** — `application/json`, optional
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `async` | `boolean` |   | Answer 202 with a job; poll /api/runtime/jobs/{id} for completion. |
+| `request_id` | `string` |   | Optional recovery ID: capabilities.server_time + "-" + 128 random bits in lowercase hex. Supply together with instance and async:true. Reuse exactly this ID and parameters after a lost response; never generate a replacement automatically. |
+| `instance` | `string` |   | The boot identity from GET /api/runtime/jobs/capabilities. Recovery IDs from a previous node instance are refused. (at most 64 characters) |
+| `recheck` | `boolean` |   | Intentionally remeasure an existing result; a new FAIL can withdraw this node’s earlier PASS. |
+| `expected` | `object` |   | Required for async verification. Exact selected fields from the anchor; included in recovery deduplication. |
+| `expected.id` | `string` | yes |   |
+| `expected.name` | `string` | yes |   |
+| `expected.author` | `string` | yes |   |
+| `expected.patch_sha256` | `string` | yes |   |
+| `expected.benchmark_hash` | `string` | yes |   |
+| `expected.created_at` | `integer` | yes | (at least 0) |
+| `expected.model` | `object` | yes |   |
+| `expected.model.id_M` | `string` | yes |   |
+| `expected.base` | `object` |   |   |
+
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | attestation | [`Attestation`](./schemas.md#attestation) |
-| `409` | self-attestation, or a re-attestation that would not be counted |   |
+| `200` | attestation | `object` |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
+| `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
+| `409` | verification_target_changed, verification_private_draft, verification_in_progress, self-attestation policy, already-attested without recheck or no clean baseline; async execution refusals are retained as failed jobs. |   |
+| `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `attestation` | [`Attestation`](./schemas.md#attestation) |
 
 ### `POST /api/patches/{id}/challenge`
 
@@ -6998,7 +7026,7 @@ Loads the ordered stack under one runtime lock: the bases first, then this knowl
 | Code | Description | Body |
 |---|---|---|
 | `200` | result, order[], loaded[], aliases + the ordered stack | `object` |
-| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?}. |   |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
 | `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
 | `409` | needs_base { missing } · base_not_held { missing } · base_mismatch { patch_id, rows_differ, applied, removed }; execution guards: runtime_plan_changed, base_artifact_changed, runtime_artifact_changed, runtime_stack_changed, runtime_stack_ambiguous, runtime_base_order. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired before running anything. |   |
 | `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
@@ -7032,7 +7060,7 @@ Identical to `POST /api/patches/{id}/remove`. Replays the journal written when t
 | Code | Description | Body |
 |---|---|---|
 | `200` | result + the ordered stack | `object` |
-| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?}. |   |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
 | `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
 | `409` | has_dependents { ids }; execution guards: not_loaded (require_recorded), runtime_plan_changed, runtime_artifact_changed, runtime_stack_changed, runtime_unwind_unavailable. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired. |   |
 | `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
@@ -7066,7 +7094,7 @@ The same operation as `DELETE /api/patches/{id}/apply`, for clients that cannot 
 | Code | Description | Body |
 |---|---|---|
 | `200` | result + the ordered stack | `object` |
-| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?}. |   |
+| `202` | {job}: accepted or an existing job for this request ID. Completion can be done or failed; a missing target fails inside the job. A done job includes result text and outcome {result, stack, order?, loaded?, aliases?} for load/remove, or {result, attestation} for verification. A done verification may record PASS or FAIL; inspect passed and verified_on instead of treating done as benchmark success. |   |
 | `400` | Malformed recovery ID, or request_id/instance supplied without each other and async:true. |   |
 | `409` | has_dependents { ids }; execution guards: not_loaded (require_recorded), runtime_plan_changed, runtime_artifact_changed, runtime_stack_changed, runtime_unwind_unavailable. Recovery admission may refuse runtime_instance_changed, runtime_request_conflict or runtime_request_expired. |   |
 | `429` | runtime_job_capacity: active/recent receipts fill the log; no new job was accepted. |   |
@@ -7788,7 +7816,7 @@ The latest 50 queued/running/terminal jobs, plus instance, server_time and reque
 
 Runtime job recovery capabilities
 
-Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. apply_preview:true advertises apply-preview and enforcement of expected_preview at execution. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
+Read the current process instance, server_time (milliseconds) and request_window_ms (600000) before creating an async request ID. verification_jobs:true advertises recoverable verification and is false when the verifier service is unavailable. apply_preview:true advertises apply-preview and enforcement of expected_preview at execution. recorded_remove:true advertises enforcement of require_recorded on unload; older nodes may silently ignore an unknown field. A new ID is accepted for 10 minutes after its timestamp, with at most 60 seconds of future clock skew. Retrying an existing ID with the same target, operation and flags returns its existing job.
 
 **Auth** — operator
 
@@ -7796,7 +7824,7 @@ Read the current process instance, server_time (milliseconds) and request_window
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | instance, server_time, request_window_ms, recorded_remove, apply_preview | `object` |
+| `200` | instance, server_time, request_window_ms, recorded_remove, apply_preview, verification_jobs | `object` |
 
 ### `GET /api/runtime/jobs/{id}`
 

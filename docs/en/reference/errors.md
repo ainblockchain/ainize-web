@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 74 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 76 codes a client can match on.
 
 ## The error envelope
 
@@ -36,7 +36,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-74 codes are raised by name, in 133 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+76 codes are raised by name, in 135 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
@@ -152,10 +152,10 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `row_not_found` | `404` | none of those lines are refused rows of this dataset | `src/teach-datasets.ts` |
 | `runtime_artifact_changed` | `409` | \<layer.id> is recorded with another file; inspect the stack before applying it | `src/runtime-stack-plan.ts` |
 | `runtime_base_order` | `409` | \<base.patch_id> is not recorded underneath \<layer.id>; review the existing stack instead of reordering it automatically | `src/runtime-stack-plan.ts` |
-| `runtime_instance_changed` | `409` | the node restarted; inspect its current load records before starting another operation | `src/runtime-jobs.ts` |
+| `runtime_instance_changed` | `409` | the node restarted; inspect the operation’s current records before starting another operation | `src/runtime-jobs.ts` |
 | `runtime_job_capacity` | `429` | active or recent jobs fill the operation log; retry after existing work finishes and receipts expire | `src/runtime-jobs.ts` |
 | `runtime_request_conflict` | `409` | this request id belongs to different operation parameters | `src/runtime-jobs.ts` |
-| `runtime_request_expired` | `409` | this request can no longer be started; inspect current load records before creating another request | `src/runtime-jobs.ts` |
+| `runtime_request_expired` | `409` | this request can no longer be started; inspect the operation’s current records before creating another request | `src/runtime-jobs.ts` |
 | `runtime_stack_ambiguous` | `409` | duplicate layer identities or files are recorded; inspect the stack before applying more knowledge | `src/runtime-stack-plan.ts` |
 | `runtime_stack_changed` | `409` | a recorded layer cannot be resolved to the same file; inspect the current stack before changing it | `src/runtime-stack-plan.ts` |
 | `subscription_incomplete` | `409` | \<failed.length> of … item(s) could not be acquired, so \<branch> was NOT subscribed to and this node is not advertised as serving it. …… | `src/market.ts` |
@@ -173,12 +173,14 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 | `undeclared_parent` | `400` | the questions of this lesson came from \<dataset.parent_patch>; a lesson built on them must name it as its base. Re-train the dataset with that knowledge as the base before publishing. | `src/teach.ts` |
 | `undeclared_parent` | `400` | these questions came from … — a lesson trained on them has to say so, or its creator is paid nothing. Train it on top of that knowledge (`--on <dataset.parent_patch>`, or "builds on" in the browser). | `src/teach.ts` |
 | `unknown_knowledge` | `400` | this node does not have "\<id>" — check the id, or teach on a node that holds it | `src/teach.ts` |
+| `verification_in_progress` | `409` | a different verification of this knowledge is still running | `src/verification-request.ts` |
+| `verification_target_changed` | `409` | the selected knowledge changed; reread it before verifying | `src/verification-request.ts` |
 
 ## Messages without a code
 
 Not every error carries a code. 167 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 110 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 113 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
