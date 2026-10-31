@@ -138,6 +138,13 @@ export const landing: Dict = {
 };
 
 export const listing: Dict = {
+  'explore.selection.invalid': { ko: '목록의 선택 조건을 확인할 수 없습니다. 조건을 초기화해 다시 선택해 주세요.', en: 'This list selection is invalid. Reset the filters and choose again.' },
+  'explore.selection.reset': { ko: '선택 초기화', en: 'Reset selection' },
+  'explore.selection.signin': { ko: '선택한 에이전트 목록을 보려면 로그인하세요.', en: 'Sign in to view the selected agent list.' },
+  'explore.selection.org': { ko: '위에서 에이전트를 볼 조직을 선택하세요.', en: 'Choose an organization above to view its agents.' },
+  'explore.selection.page_missing': { ko: '선택한 페이지에는 결과가 없습니다.', en: 'There are no results on the selected page.' },
+  'explore.selection.first_page': { ko: '첫 페이지로', en: 'Go to first page' },
+
   // sort
   'explore.sort.popular': { ko: '인기순', en: 'Most popular' },
   'explore.sort.latest': { ko: '등록순', en: 'Newest' },

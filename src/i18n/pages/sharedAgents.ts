@@ -67,8 +67,8 @@ export const sharedAgents: Dict = {
   'explore.agents.filter.org': { ko: '내 조직', en: 'My organization' },
   'explore.agents.filter.org_pick': { ko: '조직: {org}', en: 'Organization: {org}' },
   'explore.agents.org_unsupported': {
-    ko: '이 노드는 조직 공유를 아직 지원하지 않아 공개 목록을 보여 줍니다.',
-    en: 'This node does not support organization sharing yet, so this is the public list.',
+    ko: '이 노드는 조직 에이전트 목록을 지원하지 않습니다.',
+    en: 'This node does not support organization agent lists.',
   },
   'explore.agents.org_label': { ko: '조직', en: 'Organization' },
   'explore.agents.org_manage': { ko: '조직 관리', en: 'Manage organization' },

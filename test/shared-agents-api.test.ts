@@ -154,11 +154,11 @@ test('a contract refusal reads as its message, never as the object (React #31 to
   assert.equal(errorMessage({ status: 400, data: { error: 'bad', issues: [{ message: 'x' }] } }), 'bad: x');
 });
 
-test('without the registry, "mine" is the public list by owner and "org" is the public list as is', () => {
+test('without the registry, "mine" can filter exact owners but "org" has no safe substitute', () => {
   const rows = [row({ id: 'cfg', owner: null }), row({ id: 'mine', owner: 'sso:Carol' }), row({ id: 'wallet', owner: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' }), row({ id: 'theirs', owner: 'sso:Dave' })];
   const principals = ['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'sso:Carol'];
   assert.deepEqual(fallbackRows('mine', rows, principals).map((r) => r.id), ['mine', 'wallet']);
-  assert.deepEqual(fallbackRows('org', rows, principals).map((r) => r.id), ['cfg', 'mine', 'wallet', 'theirs']);
+  assert.deepEqual(fallbackRows('org', rows, principals), []);
   assert.deepEqual(fallbackRows('all', rows, []).length, 4);
 });
 

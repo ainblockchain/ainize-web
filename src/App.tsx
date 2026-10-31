@@ -1,3 +1,4 @@
+import { readExploreSelection } from '@/lib/exploreSelection';
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router';
 import { Provider } from 'react-redux';
@@ -92,9 +93,10 @@ function LegacyAgentsRoute() {
 
 function ExploreEntry() {
   const location = useLocation();
-  return new URLSearchParams(location.search).get('kind') === 'agent'
-    ? <Layout><ExplorePage fixedKind="agent" /></Layout>
-    : <Navigate to={`/train/knowledge${location.search}${location.hash}`} replace />;
+  const selection = readExploreSelection(new URLSearchParams(location.search));
+  return selection.kind === 'knowledge' && !selection.invalid
+    ? <Navigate to={`/train/knowledge${location.search}${location.hash}`} replace />
+    : <Layout><ExplorePage /></Layout>;
 }
 
 function AccountEntry() {

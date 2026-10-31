@@ -336,10 +336,11 @@ export function sharedAgentsErrorCode(err: unknown): string | null {
  * The public list, when the registry is unavailable and the chip asks for more than "everyone's".
  *
  * `mine` can be answered from `/api/agents` by owner, as `/me/agents` does. `org` cannot — an older node has no
- * organizations — so the fallback is the public list and the page says the node does not know about organizations.
+ * organizations — so it has no safe substitute rows. The page must explain the unavailable scope.
  */
 export function fallbackRows(filter: AgentListFilter, agents: readonly AgentSummary[], principals: readonly string[]): AgentSummary[] {
-  if (filter !== 'mine') return [...agents];
+  if (filter === 'org') return [];
+  if (filter === 'all') return [...agents];
   return agents.filter((a) => {
     const o = a.owner;
     if (!o) return false;

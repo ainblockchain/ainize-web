@@ -3625,3 +3625,66 @@ test('a knowledge-shaped address with an explicit invalid project selection neve
   assert.match(html, /project-selection-unavailable/);
   assert.doesNotMatch(html, new RegExp(`href="/${org}"`));
 });
+
+
+test('private agent scope links require sign-in and never replace selection with public rows', () => {
+  for (const query of ['kind=agent&agents=mine', 'kind=agent&agents=org&org=studio', 'agents=mine']) {
+    const path = '/explore?' + query;
+    const html = render(ExplorePage, [...signedOut, { name: 'agents', value: { agents: [detailAgent] } }], path);
+    assert.match(html, /explore-signin-required/);
+    assert.ok(html.includes(`href="/signing?next=${encodeURIComponent(path)}"`));
+    assert.doesNotMatch(html, /data-testid="agent-row"/);
+  }
+});
+test('ambiguous organization scope asks for a choice instead of opening the first membership', () => {
+  const html = render(ExplorePage, [...appAccount,
+    { name: 'myOrgs', arg: accountIdentity, value: { orgs: [studio, { ...studio, id: 'second', name: 'Second' }], signed_in: true } }, orgFixture,
+    { name: 'agents', value: { agents: [detailAgent] } },
+  ], '/explore?kind=agent&agents=org');
+  assert.match(html, /agents-choose-org/);
+  assert.doesNotMatch(html, /data-testid="agent-row"|href="\/agent\/new"|agents-org-none/);
+});
+test('unsupported organization lists never show public agents under the organization selection', () => {
+  const html = render(ExplorePage, [...appAccount,
+    { name: 'myOrgs', arg: accountIdentity, status: 'rejected', errorStatus: 404 },
+    { name: 'agents', value: { agents: [detailAgent] } },
+  ], '/explore?kind=agent&agents=org');
+  assert.match(html, /agents-org-unsupported/);
+  assert.doesNotMatch(html, /data-testid="agent-row"|this is the public list/);
+});
+test('invalid explore addresses provide recovery rather than unrelated cached results', () => {
+  for (const query of ['kind=agent&org=', 'kind=agent&agents=all&org=studio', 'kind=agent&agents=mine&agents=all', 'sort=unknown']) {
+    const html = render(ExplorePage, [...appAccount, { name: 'agents', value: { agents: [detailAgent] } }], '/explore?' + query);
+    assert.match(html, /explore-selection-invalid/); assert.doesNotMatch(html, /data-testid="agent-row"/);
+  }
+});
+test('knowledge address requests the exact page and all filters on first render', () => {
+  const query = 'q=needle&sort=latest&model=chosen-model&schema=chosen-topic&branch=chosen-branch&versions=all&page=3';
+  const entry = legacyBenchmarkEntry('selected-knowledge');
+  const html = render(() => createElement(ExplorePage, { fixedKind: 'knowledge' }), [...signedOut,
+    { name: 'catalog', arg: { sort: 'latest', model: 'chosen-model', schema: 'chosen-topic', branch: 'chosen-branch', q: 'needle', limit: 10, offset: 20 },
+      value: { items: [entry], total: 21, models: [], schemas: [] } },
+    { name: 'branches', value: { branches: [], mine: [] } },
+  ], '/train/knowledge?' + query);
+  assert.match(html, /selected-knowledge/);
+  for (const selected of ['chosen-model', 'chosen-topic', 'chosen-branch']) assert.ok(html.includes(selected));
+});
+test('an out-of-range knowledge page offers the first page without claiming the catalogue is empty', () => {
+  const html = render(() => createElement(ExplorePage, { fixedKind: 'knowledge' }), [...signedOut,
+    { name: 'catalog', arg: { sort: 'popular', status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: 10, offset: 90, q: 'needle' }, value: { items: [], total: 12, models: [], schemas: [] } },
+  ], '/train/knowledge?q=needle&page=10');
+  assert.match(html, /There are no results on the selected page/); assert.match(html, /Go to first page/);
+});
+
+
+test('selected taught topics remain visible without counting the wildcard as an extra topic', () => {
+  for (const schema of ['taught/*', 'taught/exact']) {
+    const html = render(() => createElement(ExplorePage, { fixedKind: 'knowledge' }), [...signedOut,
+      { name: 'catalog', arg: { sort: 'popular', schema, q: 'needle', status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: 10, offset: 0 },
+        value: { items: [], total: 0, models: [], schemas: ['taught/one', 'taught/two'] } },
+    ], '/train/knowledge?q=needle&schema=' + encodeURIComponent(schema));
+    assert.match(html, /Taught lessons \(2\)/);
+    assert.doesNotMatch(html, /Taught lessons \(3\)/);
+    if (schema === 'taught/exact') assert.match(html, /taught\/exact<\/button>/);
+  }
+});

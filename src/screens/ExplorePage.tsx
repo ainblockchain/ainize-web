@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useMyOrgsQuery, useOrgQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
 import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgList, parseOrgProfile } from '@/api/organizations';
 import {
-  AGENT_LIST_FILTERS, agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsUnsupported,
+  agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsUnsupported,
   type AgentListFilter,
 } from '@/api/sharedAgents';
 import { viewerPrincipals } from '@/api/linkedAgents';
@@ -17,11 +17,12 @@ import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, Styled
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { docsFromAgents, matchingSearchIds } from '@/lib/globalSearch';
+import { exploreSelectionHref, readExploreSelection, EXPLORE_SORTS as SORTS, type ExploreSort as Sort, type ExploreKind as Kind } from '@/lib/exploreSelection';
+import { signInHref } from '@/lib/uiNavigation';
 import { num } from '@/utils/format';
 
 // `built_on` and `trending` are the two orderings §10 of the lineage design defines: most built on (children on the
 // ledger plus this node's derive intents) and doing well this week (3·sales + 2·builds-on + loads + ½·tests·hit-rate).
-type Sort = 'popular' | 'latest' | 'price' | 'rows' | 'built_on' | 'trending' | 'fresh';
 /**
  * A node sells two kinds of thing, and until now the browse page knew about one of them. Knowledge is memory a
  * model loads; an agent is a process that does the work. They are two lists rather than one merged one because
@@ -31,9 +32,7 @@ type Sort = 'popular' | 'latest' | 'price' | 'rows' | 'built_on' | 'trending' | 
  * The axis lives in the URL (`?kind=agent`) so the two halves of the marketplace are linkable: the agents view is
  * a place a card, a docs page or a workspace invite can point at.
  */
-type Kind = 'knowledge' | 'agent';
 // `fresh` is item 267's ordering: by the day the DATA is true of, not the day the file was registered.
-const SORTS: Sort[] = ['popular', 'trending', 'built_on', 'fresh', 'latest', 'price', 'rows'];
 /** Item 188: the subject chips are capped, and every taught lesson's own subject is one chip behind this prefix. */
 const SCHEMA_CHIPS = 8;
 const TAUGHT = 'taught/';
@@ -132,43 +131,35 @@ function ListSkeleton() {
 
 export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const { t, tech, help, term } = useT();
-  const [params, setParams] = useSearchParams();
-  const kind: Kind = fixedKind ?? (params.get('kind') === 'agent' ? 'agent' : 'knowledge');
-  // after `kind`, never before: read through a closure this ran in the temporal dead zone of `params`
-  useTitle(kind === 'agent' ? t('explore.title_agent') : t('explore.title'));
-  const [sort, setSort] = useState<Sort>('popular');
-  const [model, setModel] = useState('');
-  const [schema, setSchema] = useState('');
-  /** Item 206: the API has always accepted `branch`; nothing on the page could ask for it. */
-  const [branch, setBranch] = useState('');
-  /** `?q=` is how the header's search hands over its query ("See all knowledge" / "See all agents"). */
-  const q = params.get('q') ?? '';
-  useEffect(() => { setPage(1); }, [q]);
-  const [showAll, setShowAll] = useState(false);
-  const [page, setPage] = useState(1);
-  /**
-   * Which agents: everyone's, mine, or my organization's (`?agents=mine|org`). The registry answers by scope
-   * (`/api/shared-agents`); an older node has no registry, and then "mine" is the public list filtered by owner
-   * here and "my organization" is the public list with a sentence saying why.
-   */
+  const [params] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const selection = readExploreSelection(params, fixedKind);
+  const { kind, sort, model, schema, branch, q, showAll, page, invalid } = selection;
   const auth = useAuth();
-  const agentFilter: AgentListFilter = (AGENT_LIST_FILTERS as readonly string[]).includes(params.get('agents') ?? '') && auth.isSignedIn ? (params.get('agents') as AgentListFilter) : 'all';
-  const setAgentFilter = (f: AgentListFilter) => {
-    const next = new URLSearchParams(params);
-    if (f === 'all') next.delete('agents'); else next.set('agents', f);
-    if (f !== 'org') next.delete('org');
-    setParams(next, { replace: true });
-  };
+  const agentFilter = selection.scope;
+  const privateScope = kind === 'agent' && agentFilter !== 'all';
+  const signInRequired = privateScope && !auth.isSignedIn;
+  const blocked = invalid || signInRequired || privateScope && auth.loading;
+  useTitle(kind === 'agent' ? t('explore.title_agent') : t('explore.title'));
+  const change = (values: Parameters<typeof exploreSelectionHref>[1], resetPage = true) => navigate(exploreSelectionHref(location, values, resetPage));
+  const setSort = (value: Sort) => change({ sort: value === 'popular' ? null : value });
+  const setModel = (value: string) => change({ model: value });
+  const setSchema = (value: string) => change({ schema: value });
+  const setBranch = (value: string) => change({ branch: value });
+  const setShowAll = (value: boolean) => change({ versions: value ? 'all' : null });
+  const setPage = (value: number) => change({ page: value === 1 ? null : String(value) }, false);
+  const setAgentFilter = (scope: AgentListFilter) => change({ kind: 'agent', agents: scope === 'all' ? null : scope, ...(scope !== 'org' ? { org: null } : {}) });
   const { data: info } = useInfoQuery();
   const { data: tracks } = useBranchesQuery();
   // "is it answering" goes stale as it is rendered, so the list re-checks; the node caches the probe for 30 s.
-  const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { pollingInterval: 60_000 });
+  const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { skip: blocked || kind !== 'agent', pollingInterval: 60_000 });
   const allAgents = useMemo(() => agentData?.agents ?? [], [agentData]);
   // "Mine" asks the shared-agent registry. "My organization" asks the organization API — the one `/org` and
   // `/org/:id` read — so the organizations, their agents and their counts here are the same ones those pages show,
   // for every kind of sign-in (the registry's org scope answers only an AIN SSO session, for one organization).
   // Fetched whenever a signed-in person is on the agents tab, not only when the chip is picked: every chip carries its count.
-  const scopesOn = kind === 'agent' && auth.isSignedIn;
+  const scopesOn = kind === 'agent' && auth.isSignedIn && !auth.loading && !invalid;
   const shared = useSharedAgentsQuery({ identity: auth.cacheIdentity, scope: scopeForFilter('mine'), limit: 200 }, { skip: !scopesOn, pollingInterval: 60_000 });
   const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.currentData), [shared.currentData]);
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
@@ -177,23 +168,18 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const orgsLoading = !myOrgs.currentData && (myOrgs.isLoading || myOrgs.isFetching);
   const orgList = useMemo(() => parseOrgList(myOrgs.currentData), [myOrgs.currentData]);
   const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
-  const orgParam = params.get('org');
+  const orgParam = selection.org;
   // An explicit organization URL must never silently select a different membership.
-  const orgId = orgParam || orgList.orgs[0]?.id || null;
-  const orgQuery = useOrgQuery({ id: orgId ?? '', identity: auth.cacheIdentity }, { skip: !orgView || !orgId, pollingInterval: 60_000 });
+  const orgId = orgParam ?? (orgList.orgs.length === 1 ? orgList.orgs[0].id : null);
+  const orgQuery = useOrgQuery({ id: orgId ?? '', identity: auth.cacheIdentity }, { skip: blocked || !orgView || !orgId, pollingInterval: 60_000 });
   const orgProfile = useMemo(() => parseOrgProfile(orgQuery.currentData), [orgQuery.currentData]);
-  const setOrg = (id: string) => {
-    const next = new URLSearchParams(params);
-    next.set('agents', 'org');
-    next.set('org', id);
-    setParams(next, { replace: true });
-  };
+  const setOrg = (id: string) => change({ kind: 'agent', agents: 'org', org: id });
   const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal), [auth.subject, auth.sso?.principal, auth.sitePrincipal]);
   /** The rows for the chip in force: the registry's or the organization's when they answered, the public list (filtered where it can be) otherwise. */
   const scopedAgents = useMemo(() => {
     if (agentFilter === 'all') return allAgents;
     if (agentFilter === 'org') {
-      if (orgsMissing) return fallbackRows('org', allAgents, principals);
+      if (orgsMissing) return [];
       return orgProfile?.agents.map(agentSummaryFromOrgAgent) ?? [];
     }
     if (sharedPage) return sharedPage.items.map((it) => agentSummaryFromRef(it.ref, info?.node?.endpoint ?? null));
@@ -201,10 +187,10 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
     return [];
   }, [agentFilter, allAgents, sharedPage, registryMissing, orgsMissing, orgProfile, principals, info?.node?.endpoint]);
   const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
-  const { currentData: data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: ITEM_LIMIT, offset: (page - 1) * ITEM_LIMIT }, { skip: kind !== 'knowledge' });
+  const { currentData: data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: ITEM_LIMIT, offset: (page - 1) * ITEM_LIMIT }, { skip: blocked || kind !== 'knowledge' });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
   // page-of-one call for its `total`, never a node-wide count that would not match what is on screen.
-  const { data: unfiltered } = useCatalogQuery({ ...filters, limit: 1 }, { skip: showAll || kind !== 'knowledge' });
+  const { currentData: unfiltered } = useCatalogQuery({ ...filters, limit: 1 }, { skip: blocked || showAll || kind !== 'knowledge' });
   const hidden = showAll || !data || !unfiltered ? 0 : Math.max(0, unfiltered.total - data.total);
 
   /**
@@ -214,17 +200,18 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
    */
   const facets = useRef<{ models: string[]; schemas: string[] }>({ models: [], schemas: [] });
   useEffect(() => { if (data) facets.current = { models: data.models, schemas: data.schemas }; }, [data]);
-  const models = data?.models ?? facets.current.models;
-  const schemas = data?.schemas ?? facets.current.schemas;
+  const models = [...new Set([...(data?.models ?? facets.current.models), ...(model ? [model] : [])])];
+  const knownSchemas = data?.schemas ?? facets.current.schemas;
+  const schemas = [...new Set([...knownSchemas, ...(schema ? [schema] : [])])];
   /**
    * Item 188 — `createLessonDraft` gives every lesson its own benchmark schema (`taught/<name>-<hex>`, by design F15
    * so a lesson never supersedes its base), and this filter row printed one chip per schema with no cap: 136 of them
    * on node-u. Taught lessons collapse into one chip, the rest are capped, and the cap is a click away.
    */
   const [allSchemas, setAllSchemas] = useState(false);
-  const taughtCount = schemas.filter((x) => x.startsWith(TAUGHT)).length;
+  const taughtCount = knownSchemas.filter((x) => x.startsWith(TAUGHT)).length;
   const plainSchemas = schemas.filter((x) => !x.startsWith(TAUGHT));
-  const shownSchemas = allSchemas ? plainSchemas : plainSchemas.slice(0, SCHEMA_CHIPS);
+  const shownSchemas = allSchemas ? plainSchemas : [...new Set([...plainSchemas.slice(0, SCHEMA_CHIPS), ...(schema && !schema.startsWith(TAUGHT) ? [schema] : [])])];
   const restSchemas = plainSchemas.length - shownSchemas.length;
 
   const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
@@ -257,7 +244,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
     : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
   // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
-  const fromPublic = agentFilter === 'all' || (agentFilter === 'mine' && registryMissing) || (agentFilter === 'org' && orgsMissing);
+  const fromPublic = agentFilter === 'all' || (agentFilter === 'mine' && registryMissing);
   const listLoading = fromPublic ? agentsLoading : scopedLoading;
   const listError = fromPublic && !!agentError;
   const mineCount = sharedPage ? sharedPage.items.length : registryMissing ? fallbackRows('mine', allAgents, principals).length : null;
@@ -265,12 +252,16 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const noOrg = orgView && !orgsLoading && !!myOrgs.currentData && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
-  const reset = () => setPage(1);
+  const chooseOrg = orgView && !orgId && !orgsMissing && !orgsLoading && !myOrgs.error && orgList.orgs.length > 1;
+  const branches = [...(tracks?.branches ?? []), ...(branch && !tracks?.branches.some(b => b.name === branch) ? [{ name: branch, description: '' }] : [])];
+  if (invalid) return <PageWrapper><Alert role="alert" $tone="error" data-testid="explore-selection-invalid">{t('explore.selection.invalid')} <StyledLink to={kind === 'knowledge' ? '/train/knowledge' : '/explore?kind=agent'}>{t('explore.selection.reset')}</StyledLink></Alert></PageWrapper>;
+  if (privateScope && auth.loading) return <PageWrapper><ListSkeleton /></PageWrapper>;
+  if (signInRequired) return <PageWrapper><Empty data-testid="explore-signin-required">{t('explore.selection.signin')} <StyledLink to={signInHref(location)}>{t('nav.signin')}</StyledLink></Empty></PageWrapper>;
 
   return (
     <PageWrapper>
       <SectionTitle>{kind === 'agent' ? t('nav.agents') : t('train.knowledge')}</SectionTitle>
-      {kind === 'knowledge' && <TitleRow><SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} /></TitleRow>}
+      {kind === 'knowledge' && <TitleRow><SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); }} label={t('common.sort_aria')} /></TitleRow>}
       {q && <Intro>{t('search.query', { q })}</Intro>}
       <Skip href="#explore-results">{t('explore.skip')}</Skip>
 
@@ -282,20 +273,20 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
             and counts `/org` shows. "Public", not "All": an organization's agents are not in that list. */}
         {kind === 'agent' && auth.isSignedIn && (
           <FilterGroup data-testid="agents-scope">
-            <Chip $active={agentFilter === 'all'} onClick={() => { setAgentFilter('all'); reset(); }} data-testid="agents-filter-all">
+            <Chip $active={agentFilter === 'all'} onClick={() => { setAgentFilter('all'); }} data-testid="agents-filter-all">
               {t('explore.agents.filter.all')}{` · ${num(allAgents.length)}`}
             </Chip>
-            <Chip $active={agentFilter === 'mine'} onClick={() => { setAgentFilter('mine'); reset(); }} data-testid="agents-filter-mine">
+            <Chip $active={agentFilter === 'mine'} onClick={() => { setAgentFilter('mine'); }} data-testid="agents-filter-mine">
               {t('explore.agents.filter.mine')}{mineCount !== null ? ` · ${num(mineCount)}${mineMore ? '+' : ''}` : ''}
             </Chip>
             {orgsMissing ? (
-              <Chip $active={agentFilter === 'org'} onClick={() => { setAgentFilter('org'); reset(); }} data-testid="agents-filter-org">{t('explore.agents.filter.org')}</Chip>
+              <Chip $active={agentFilter === 'org'} onClick={() => { setAgentFilter('org'); }} data-testid="agents-filter-org">{t('explore.agents.filter.org')}</Chip>
             ) : orgList.orgs.length > 0 && (
               <>
                 <Divider aria-hidden="true" />
                 <span className="label">{t('explore.agents.org_label')}</span>
                 {orgList.orgs.map((o) => (
-                  <Chip key={o.id} $active={agentFilter === 'org' && o.id === orgId} onClick={() => { setOrg(o.id); reset(); }} data-testid={`agents-org-${o.id}`}>
+                  <Chip key={o.id} $active={agentFilter === 'org' && o.id === orgId} onClick={() => { setOrg(o.id); }} data-testid={`agents-org-${o.id}`}>
                     {o.name} · {num(o.agent_count)}
                   </Chip>
                 ))}
@@ -306,23 +297,24 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
         {kind === 'knowledge' && !!models.length && (
           <FilterGroup>
             <span className="label">{t('explore.filter.model')}</span>
-            <Chip $active={!model} onClick={() => { setModel(''); reset(); }}>{t('explore.filter.all')}</Chip>
-            {models.map((m) => <Chip key={m} $active={model === m} onClick={() => { setModel(model === m ? '' : m); reset(); }}>{m}</Chip>)}
+            <Chip $active={!model} onClick={() => { setModel(''); }}>{t('explore.filter.all')}</Chip>
+            {models.map((m) => <Chip key={m} $active={model === m} onClick={() => { setModel(model === m ? '' : m); }}>{m}</Chip>)}
           </FilterGroup>
         )}
         {kind === 'knowledge' && !!schemas.length && (
           <FilterGroup>
             <span className="label" title={`${t('explore.filter.schema_help')} (${tech('facts')})`}>{t('explore.filter.schema')}</span>
-            <Chip $active={!schema} onClick={() => { setSchema(''); reset(); }}>{t('explore.filter.all')}</Chip>
-            {shownSchemas.map((s) => <Chip key={s} $active={schema === s} onClick={() => { setSchema(schema === s ? '' : s); reset(); }}>{s}</Chip>)}
+            <Chip $active={!schema} onClick={() => { setSchema(''); }}>{t('explore.filter.all')}</Chip>
+            {shownSchemas.map((s) => <Chip key={s} $active={schema === s} onClick={() => { setSchema(schema === s ? '' : s); }}>{s}</Chip>)}
             {/* Item 188 — every taught lesson gets its own `taught/<slug>-<hex>` subject by design, so this row was
                 136 chips on a teaching node and the first card sat 4,297 px down a 360 px screen. The subjects with
                 the most knowledge come first, the rest are behind "more", and every lesson's subject is one chip. */}
-            {taughtCount > 0 && (
-              <Chip $active={schema.startsWith(TAUGHT)} onClick={() => { setSchema(schema.startsWith(TAUGHT) ? '' : `${TAUGHT}*`); reset(); }} data-testid="schema-taught">
+            {(taughtCount > 0 || schema === `${TAUGHT}*`) && (
+              <Chip $active={schema === `${TAUGHT}*`} onClick={() => { setSchema(schema === `${TAUGHT}*` ? '' : `${TAUGHT}*`); }} data-testid="schema-taught">
                 {t('explore.filter.schema_taught', { n: num(taughtCount) })}
               </Chip>
             )}
+            {schema.startsWith(TAUGHT) && schema !== `${TAUGHT}*` && <Chip $active onClick={() => setSchema('')}>{schema}</Chip>}
             {restSchemas > 0 && !allSchemas && (
               <Chip $active={false} onClick={() => setAllSchemas(true)} data-testid="schema-more">{t('explore.filter.schema_more', { n: num(restSchemas) })}</Chip>
             )}
@@ -330,18 +322,18 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
         )}
         {/* Item 206: a track is how a returning consumer thinks about a catalogue ("today's KRX bake"), and it was
             the one axis of the API the browse page never offered. Only rendered when this node knows any. */}
-        {kind === 'knowledge' && !!tracks?.branches.length && (
+        {kind === 'knowledge' && !!branches.length && (
           <FilterGroup>
             <span className="label" title={`${help('branch')} (${tech('branch')})`}>{t('explore.filter.track')}</span>
-            <Chip $active={!branch} onClick={() => { setBranch(''); reset(); }}>{t('explore.filter.all')}</Chip>
-            {tracks.branches.map((b) => <Chip key={b.name} $active={branch === b.name} title={b.description} onClick={() => { setBranch(branch === b.name ? '' : b.name); reset(); }}>{b.name}</Chip>)}
+            <Chip $active={!branch} onClick={() => { setBranch(''); }}>{t('explore.filter.all')}</Chip>
+            {branches.map((b) => <Chip key={b.name} $active={branch === b.name} title={b.description} onClick={() => { setBranch(branch === b.name ? '' : b.name); }}>{b.name}</Chip>)}
           </FilterGroup>
         )}
         {kind === 'knowledge' && (
           <FilterGroup>
             <span className="label" title={t('explore.filter.show_help')}>{t('explore.filter.show')}</span>
-            <Chip $active={!showAll} onClick={() => { setShowAll(false); reset(); }}>{t('explore.filter.current')}</Chip>
-            <Chip $active={showAll} onClick={() => { setShowAll(true); reset(); }}>{t('explore.filter.all_versions')}</Chip>
+            <Chip $active={!showAll} onClick={() => { setShowAll(false); }}>{t('explore.filter.current')}</Chip>
+            <Chip $active={showAll} onClick={() => { setShowAll(true); }}>{t('explore.filter.all_versions')}</Chip>
           </FilterGroup>
         )}
       </Filters>
@@ -350,7 +342,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
 
       {kind === 'agent' && (
         <section id="explore-results" tabIndex={-1} aria-label={t('nav.agents')}>
-          {auth.isSignedIn && <ResultBar>
+          {auth.isSignedIn && (!orgView || !!orgId) && <ResultBar>
             {/* The doors to make more, beside the list they land in. Each asks for an owner, so signed-in only. */}
               <MakeRow data-testid="agents-make">
                 {orgView && orgProfile && <StyledLink to={`/org/${encodeURIComponent(orgProfile.id)}`} data-testid="agents-org-page">{t('explore.agents.org_manage')} →</StyledLink>}
@@ -371,8 +363,9 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
             }}>{t('orgs.retry')}</Retry>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(scopedError)}</code></details>
           </Failure>}
+          {chooseOrg && <Empty data-testid="agents-choose-org">{t('explore.selection.org')}</Empty>}
           {listLoading && <ListSkeleton />}
-          {!listLoading && !listError && !scopedError && (
+          {!chooseOrg && !(orgView && orgsMissing) && !listLoading && !listError && !scopedError && (
             <>
               {/* Keyed by node and id: two nodes may each run a `donga-desk`, and one key for both re-used one row's state for the other. */}
               <div>{agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}</div>
@@ -411,7 +404,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
           {hidden > 0 && (
             <Hidden data-testid="explore-hidden" title={t('explore.filter.show_help')}>
               {t('explore.hidden', { n: num(hidden) }, hidden)}{' · '}
-              <button type="button" onClick={() => { setShowAll(true); reset(); }}>{t('explore.hidden_show')}</button>
+              <button type="button" onClick={() => { setShowAll(true); }}>{t('explore.hidden_show')}</button>
             </Hidden>
           )}
           {items.length > 0 && <TermsLegend title={help('liveTest')} />}
@@ -421,7 +414,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
           <div>
             {visible.map((e) => <PatchListItem key={e.anchor.id} entry={e} currency={info?.currency} nameOf={nameOf} />)}
           </div>
-          {items.length === 0 && <Empty>{t('explore.empty')}</Empty>}
+          {items.length === 0 && <Empty>{t(page > pageCount ? 'explore.selection.page_missing' : 'explore.empty')}{page > pageCount && <Retry onClick={() => setPage(1)}>{t('explore.selection.first_page')}</Retry>}</Empty>}
           {data.total > ITEM_LIMIT && <Pagination page={current} pageCount={pageCount} onChange={setPage} />}
         </>
       )}
