@@ -177,6 +177,23 @@ export function parseOrgList(raw: unknown): OrgListView {
   };
 }
 
+/** A membership selector must never silently discard rows and auto-select the remaining organization. */
+export function parseCompleteOrgList(raw: unknown): OrgListView | null {
+  const r = obj(raw), list = parseOrgList(raw);
+  if (!r || !Array.isArray(r.orgs) || typeof r.signed_in !== 'boolean' || r.orgs.length !== list.orgs.length
+    || new Set(list.orgs.map(o => o.id)).size !== list.orgs.length) return null;
+  return list;
+}
+
+/** The agent view needs a complete list belonging to the exact selected organization. */
+export function parseOrgAgentList(raw: unknown, expectedId: string): OrgProfile | null {
+  const r = obj((raw as { org?: unknown } | null)?.org ?? raw), profile = parseOrgProfile(raw, expectedId);
+  if (!r || !profile || !Array.isArray(r.agents) || r.agents.length !== profile.agents.length
+    || new Set(profile.agents.map(a => a.id)).size !== profile.agents.length
+    || profile.agents.some(a => a.org_id !== null && a.org_id !== expectedId && !profile.sso_org_ids.includes(a.org_id))) return null;
+  return profile;
+}
+
 export interface OrgInviteView { id: string | null; token: string | null; token_prefix: string; role: OrgRole; email: string | null; created_by: string; created_at: number | null; expires_at: number | null; used_by: string | null; url: string | null }
 export function parseOrgInvite(raw: unknown): OrgInviteView | null {
   const r = obj((raw as { invite?: unknown } | null | undefined)?.invite ?? raw);

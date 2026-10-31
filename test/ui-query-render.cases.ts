@@ -1435,7 +1435,7 @@ test('an explicit organization agent URL does not fall back to a different organ
     { name: 'org', arg: { id: 'requested-org', identity: accountIdentity }, status: 'rejected', errorStatus: 403 },
     { name: 'agents', value: { agents: [] } },
   ], '/explore?kind=agent&agents=org&org=requested-org');
-  assert.match(html, /href="\/agent\/new\?org=requested-org"/);
+  assert.doesNotMatch(html, /agents-make|href="\/agent\/new\?org=requested-org"/);
   assert.doesNotMatch(html, /href="\/agent\/new\?org=studio"|href="\/org\/studio"/);
   assert.match(html, /data-testid="agents-scope-error"/);
   assert.match(html, /Try again/);
@@ -3726,4 +3726,88 @@ test('stale or malformed private registry pages offer recovery without displayin
     assert.match(html, /agents-scope-error/); assert.match(html, /agents-first-page/);
     assert.doesNotMatch(html, /Stale private agent|agents-next-page/);
   }
+});
+
+test('public agent catalogue refuses malformed and duplicate rows instead of claiming no results', () => {
+  for (const value of [null, {}, { agents: [null] }, { agents: [detailAgent, { id: 'broken' }] },
+    { agents: [detailAgent, detailAgent] }, { agents: [{ ...detailAgent, skills: {} }] },
+    { agents: [{ ...detailAgent, card_url: 'javascript:alert(1)' }] }]) {
+    const html = render(ExplorePage, [...signedOut, { name: 'agents', value }], '/explore?kind=agent');
+    assert.match(html, /agents-error/); assert.match(html, /agents-retry/);
+    assert.doesNotMatch(html, /data-testid="agent-row"|No agents/);
+  }
+});
+test('public list preserves peer identity and does not render rejected cached rows', () => {
+  const peer = { ...detailAgent, name: 'Peer namesake', node: { address: 'peer-address', name: 'Peer' } };
+  const valid = render(ExplorePage, [...signedOut, { name: 'agents', value: { agents: [detailAgent, peer] } }], '/explore?kind=agent');
+  assert.match(valid, /href="\/agent\/chosen"/); assert.match(valid, /href="\/agent\/chosen\?node=peer-address"/);
+  const failed = render(ExplorePage, [...signedOut, { name: 'agents', value: { agents: [detailAgent] }, status: 'rejected', errorStatus: 503 }], '/explore?kind=agent');
+  assert.match(failed, /agents-error/); assert.doesNotMatch(failed, /Chosen agent|data-testid="agent-row"/);
+});
+test('organization selection refuses partial or duplicate memberships and never auto-selects the leftover row', () => {
+  for (const value of [{}, { orgs: [studio, null], signed_in: true }, { orgs: [studio, studio], signed_in: true }, { orgs: [studio], signed_in: false }]) {
+    const html = render(ExplorePage, [...appAccount, { name: 'myOrgs', arg: accountIdentity, value }, orgFixture], '/explore?kind=agent&agents=org');
+    assert.match(html, /agents-scope-error/);
+    assert.doesNotMatch(html, /agents-org-none|agents-choose-org|agents-make|agents-org-studio/);
+  }
+});
+test('organization agent list requires the exact organization and complete current response before offering actions', () => {
+  const agent = { id: 'team-helper', name: 'Team helper', a2a_url: '/agents/team-helper', org_id: 'studio' };
+  for (const fixture of [
+    { value: { org: { ...studio, id: 'other', agents: [agent] } } },
+    { value: { org: { ...studio, agents: undefined } } },
+    { value: { org: { ...studio, agents: [agent, null] } } },
+    { value: { org: { ...studio, agents: [agent, agent] } } },
+    { value: { org: { ...studio, agents: [{ ...agent, org_id: 'other' }] } } },
+    { value: { org: { ...studio, agents: [agent] } }, status: 'rejected' as const, errorStatus: 403 },
+  ]) {
+    const html = render(ExplorePage, [...appAccount,
+      { name: 'myOrgs', arg: accountIdentity, value: { orgs: [studio], signed_in: true } },
+      { name: 'org', arg: orgScope, ...fixture },
+    ], '/explore?kind=agent&agents=org&org=studio');
+    assert.match(html, /agents-scope-error/);
+    assert.doesNotMatch(html, /Team helper|agents-make|agents-org-page|data-testid="agent-row"/);
+  }
+});
+test('valid empty organization and public lists remain readable rather than errors', () => {
+  const publicHtml = render(ExplorePage, [...signedOut, { name: 'agents', value: { agents: [] } }], '/explore?kind=agent');
+  assert.doesNotMatch(publicHtml, /agents-error/);
+  const orgHtml = render(ExplorePage, [...appAccount,
+    { name: 'myOrgs', arg: accountIdentity, value: { orgs: [studio], signed_in: true } }, orgFixture,
+  ], '/explore?kind=agent&agents=org&org=studio');
+  assert.doesNotMatch(orgHtml, /agents-scope-error|agents-org-none/);
+  assert.match(orgHtml, /agents-org-page/); assert.match(orgHtml, /href="\/agent\/new\?org=studio"/);
+});
+
+test('global search reports failed or malformed agents and never links stale cached matches', () => {
+  for (const fixture of [
+    { value: { agents: [detailAgent] }, status: 'rejected' as const, errorStatus: 503 },
+    { value: { agents: [detailAgent, null] } }, { value: {} },
+  ]) {
+    const html = render(SearchPage, [...signedOut,
+      { name: 'models', value: { data: [] } }, { name: 'networkModels', value: { data: [] } },
+      { name: 'agents', ...fixture },
+      { name: 'catalog', arg: { q: 'Chosen', status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: 8 }, value: { items: [], total: 0 } },
+    ], '/search?q=Chosen');
+    assert.match(html, /role="alert"/); assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /href="\/agent\/chosen"|No results/);
+  }
+});
+test('organization directory refuses duplicate membership rows rather than duplicate navigation targets', () => {
+  const html = render(OrgsPage, [...appAccount, { name: 'myOrgs', arg: accountIdentity, value: { signed_in: true, orgs: [studio, studio] } }], '/org');
+  assert.match(html, /org-read-error/); assert.doesNotMatch(html, /orgs-list|orgs-empty/);
+});
+
+test('refreshing malformed agent data waits for the response instead of rendering an empty list', () => {
+  const publicHtml = render(ExplorePage, [...signedOut, { name: 'agents', value: {}, status: 'pending' }], '/explore?kind=agent');
+  const mineHtml = render(ExplorePage, [...appAccount, { name: 'sharedAgents', arg: registryArg, value: {}, status: 'pending' }], '/explore?kind=agent&agents=mine');
+  const orgHtml = render(ExplorePage, [...appAccount,
+    { name: 'myOrgs', arg: accountIdentity, value: {}, status: 'pending' },
+  ], '/explore?kind=agent&agents=org');
+  for (const html of [publicHtml, mineHtml, orgHtml]) {
+    assert.match(html, /explore-skeleton/);
+    assert.doesNotMatch(html, /No agents|No matches|agents-org-none|agents-scope-error|agents-error/);
+  }
+  assert.doesNotMatch(orgHtml, /agents-make/);
+  assert.match(orgHtml, /agents-filter-org/);
 });

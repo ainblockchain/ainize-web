@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { useAgentsQuery, useBranchesQuery, useCatalogQuery, useInfoQuery, useMyOrgsQuery, useOrgQuery, useSharedAgentsQuery, errorMessage } from '@/api/api';
-import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgList, parseOrgProfile } from '@/api/organizations';
+import { agentSummaryFromOrgAgent, orgApiErrorOf, parseCompleteOrgList, parseOrgAgentList } from '@/api/organizations';
 import {
   agentListKey, agentSummaryFromRef, fallbackRows, parseSharedAgentsResponse, scopeForFilter, sharedAgentsUnsupported,
   type AgentListFilter,
 } from '@/api/sharedAgents';
+import { parseAgentCatalogue } from '@/api/agentCatalogue';
 import { viewerPrincipals } from '@/api/linkedAgents';
 import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
@@ -154,8 +155,12 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const { data: info } = useInfoQuery();
   const { data: tracks } = useBranchesQuery();
   // "is it answering" goes stale as it is rendered, so the list re-checks; the node caches the probe for 30 s.
-  const { data: agentData, isLoading: agentsLoading, error: agentError } = useAgentsQuery(undefined, { skip: blocked || kind !== 'agent', pollingInterval: 60_000 });
-  const allAgents = useMemo(() => agentData?.agents ?? [], [agentData]);
+  const publicQuery = useAgentsQuery(undefined, { skip: blocked || kind !== 'agent', pollingInterval: 60_000 });
+  const publicAgents = useMemo(() => publicQuery.isError ? null : parseAgentCatalogue(publicQuery.currentData), [publicQuery.currentData, publicQuery.isError]);
+  const allAgents = publicAgents ?? [];
+  const agentsLoading = !publicAgents && publicQuery.isFetching;
+  const invalidPage = { status: 502, data: { error: { message: t('explore.agents.invalid_page') } } };
+  const agentError = publicQuery.error ?? (!publicQuery.isFetching && publicQuery.isSuccess && !publicAgents ? invalidPage : null);
   // "Mine" asks the shared-agent registry. "My organization" asks the organization API — the one `/org` and
   // `/org/:id` read — so the organizations, their agents and their counts here are the same ones those pages show,
   // for every kind of sign-in (the registry's org scope answers only an AIN SSO session, for one organization).
@@ -167,14 +172,17 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const sharedInvalid = !shared.isFetching && !shared.error && shared.isSuccess && !sharedPage;
   const orgView = kind === 'agent' && agentFilter === 'org';
   const myOrgs = useMyOrgsQuery(auth.cacheIdentity, { skip: !scopesOn });
-  const orgsLoading = !myOrgs.currentData && (myOrgs.isLoading || myOrgs.isFetching);
-  const orgList = useMemo(() => parseOrgList(myOrgs.currentData), [myOrgs.currentData]);
+  const orgList = useMemo(() => myOrgs.isError ? null : parseCompleteOrgList(myOrgs.currentData), [myOrgs.currentData, myOrgs.isError]);
+  const orgs = orgList?.signed_in ? orgList.orgs : [];
+  const orgsLoading = !orgList?.signed_in && (myOrgs.isLoading || myOrgs.isFetching);
+  const orgListInvalid = !myOrgs.isFetching && myOrgs.isSuccess && (!orgList || !orgList.signed_in);
   const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
   const orgParam = selection.org;
   // An explicit organization URL must never silently select a different membership.
-  const orgId = orgParam ?? (orgList.orgs.length === 1 ? orgList.orgs[0].id : null);
+  const orgId = orgParam ?? (orgs.length === 1 ? orgs[0].id : null);
   const orgQuery = useOrgQuery({ id: orgId ?? '', identity: auth.cacheIdentity }, { skip: blocked || !orgView || !orgId, pollingInterval: 60_000 });
-  const orgProfile = useMemo(() => parseOrgProfile(orgQuery.currentData), [orgQuery.currentData]);
+  const orgProfile = useMemo(() => orgQuery.isError || !orgId ? null : parseOrgAgentList(orgQuery.currentData, orgId), [orgQuery.currentData, orgQuery.isError, orgId]);
+  const orgProfileInvalid = !!orgId && !orgQuery.isFetching && orgQuery.isSuccess && !orgProfile;
   const setOrg = (id: string) => change({ kind: 'agent', agents: 'org', org: id });
   const principals = useMemo(() => viewerPrincipals(auth.subject, auth.sso?.principal, auth.sitePrincipal), [auth.subject, auth.sso?.principal, auth.sitePrincipal]);
   /** The rows for the chip in force: the registry's or the organization's when they answered, the public list (filtered where it can be) otherwise. */
@@ -242,19 +250,19 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
     const matches = matchingSearchIds(docsFromAgents(scopedAgents), q);
     return scopedAgents.filter((a) => matches.has(agentListKey(a)));
   }, [scopedAgents, q, agentFilter, sharedPage]);
-  const scopedLoading = agentFilter === 'mine' ? !shared.currentData && shared.isFetching : agentFilter === 'org' ? orgsLoading || (!orgQuery.currentData && orgQuery.isFetching) : false;
-  const scopedError = agentFilter === 'mine' ? (sharedInvalid ? { status: 502, data: { error: { message: t('explore.agents.invalid_page') } } } : shared.error && !registryMissing ? shared.error : null)
-    : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
+  const scopedLoading = agentFilter === 'mine' ? !sharedPage && shared.isFetching : agentFilter === 'org' ? orgsLoading || (!orgProfile && orgQuery.isFetching) : false;
+  const scopedError = agentFilter === 'mine' ? (sharedInvalid ? invalidPage : shared.error && !registryMissing ? shared.error : null)
+    : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgListInvalid || orgProfileInvalid ? invalidPage : orgQuery.error ?? null) : null;
   // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
   const fromPublic = agentFilter === 'all' || (agentFilter === 'mine' && registryMissing);
   const listLoading = fromPublic ? agentsLoading : scopedLoading;
   const listError = fromPublic && !!agentError;
-  const mineCount = q || selection.cursor && sharedPage?.total === null ? null : sharedPage ? sharedPage.total ?? sharedPage.items.length : registryMissing ? fallbackRows('mine', allAgents, principals).length : null;
+  const mineCount = q || selection.cursor && sharedPage?.total === null ? null : sharedPage ? sharedPage.total ?? sharedPage.items.length : registryMissing && publicAgents ? fallbackRows('mine', allAgents, principals).length : null;
   const mineMore = !!sharedPage?.nextCursor && sharedPage.total === null;
-  const noOrg = orgView && !orgsLoading && !!myOrgs.currentData && !myOrgs.error && orgList.orgs.length === 0;
+  const noOrg = orgView && !orgId && !orgsLoading && !!orgList?.signed_in && !myOrgs.error && orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
-  const chooseOrg = orgView && !orgId && !orgsMissing && !orgsLoading && !myOrgs.error && orgList.orgs.length > 1;
+  const chooseOrg = orgView && !orgId && !orgsMissing && !orgsLoading && !myOrgs.error && orgs.length > 1;
   const branches = [...(tracks?.branches ?? []), ...(branch && !tracks?.branches.some(b => b.name === branch) ? [{ name: branch, description: '' }] : [])];
   if (invalid) return <PageWrapper><Alert role="alert" $tone="error" data-testid="explore-selection-invalid">{t('explore.selection.invalid')} <StyledLink to={kind === 'knowledge' ? '/train/knowledge' : '/explore?kind=agent'}>{t('explore.selection.reset')}</StyledLink></Alert></PageWrapper>;
   if (privateScope && auth.loading) return <PageWrapper><ListSkeleton /></PageWrapper>;
@@ -276,18 +284,18 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
         {kind === 'agent' && auth.isSignedIn && (
           <FilterGroup data-testid="agents-scope">
             <Chip $active={agentFilter === 'all'} onClick={() => { setAgentFilter('all'); }} data-testid="agents-filter-all">
-              {t('explore.agents.filter.all')}{` · ${num(allAgents.length)}`}
+              {t('explore.agents.filter.all')}{publicAgents ? ` · ${num(publicAgents.length)}` : ''}
             </Chip>
             <Chip $active={agentFilter === 'mine'} onClick={() => { setAgentFilter('mine'); }} data-testid="agents-filter-mine">
               {t('explore.agents.filter.mine')}{mineCount !== null ? ` · ${num(mineCount)}${mineMore ? '+' : ''}` : ''}
             </Chip>
-            {orgsMissing ? (
+            {orgsMissing || orgListInvalid || myOrgs.isError || orgsLoading ? (
               <Chip $active={agentFilter === 'org'} onClick={() => { setAgentFilter('org'); }} data-testid="agents-filter-org">{t('explore.agents.filter.org')}</Chip>
-            ) : orgList.orgs.length > 0 && (
+            ) : orgs.length > 0 && (
               <>
                 <Divider aria-hidden="true" />
                 <span className="label">{t('explore.agents.org_label')}</span>
-                {orgList.orgs.map((o) => (
+                {orgs.map((o) => (
                   <Chip key={o.id} $active={agentFilter === 'org' && o.id === orgId} onClick={() => { setOrg(o.id); }} data-testid={`agents-org-${o.id}`}>
                     {o.name} · {num(o.agent_count)}
                   </Chip>
@@ -344,7 +352,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
 
       {kind === 'agent' && (
         <section id="explore-results" tabIndex={-1} aria-label={t('nav.agents')}>
-          {auth.isSignedIn && (!orgView || !!orgId) && <ResultBar>
+          {auth.isSignedIn && (!orgView || !!orgProfile && !scopedError && !orgsMissing && !listLoading) && <ResultBar>
             {/* The doors to make more, beside the list they land in. Each asks for an owner, so signed-in only. */}
               <MakeRow data-testid="agents-make">
                 {orgView && orgProfile && <StyledLink to={`/org/${encodeURIComponent(orgProfile.id)}`} data-testid="agents-org-page">{t('explore.agents.org_manage')} →</StyledLink>}
@@ -355,6 +363,7 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
           {orgView && orgsMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
           {listError && <Failure $tone="error" data-testid="agents-error">
             <span>{t('explore.agents.unreachable')}</span>
+            <Retry type="button" disabled={publicQuery.isFetching} onClick={() => void publicQuery.refetch()} data-testid="agents-retry">{t('orgs.retry')}</Retry>
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(agentError)}</code></details>
           </Failure>}
           {scopedError && <Failure $tone="error" data-testid="agents-scope-error">

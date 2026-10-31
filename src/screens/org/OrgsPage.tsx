@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import { useLocation } from 'react-router';
 import styled from 'styled-components';
 import { useMyOrgsQuery } from '@/api/api';
-import { orgApiErrorOf, parseOrgList } from '@/api/organizations';
+import { orgApiErrorOf, parseOrgList, parseCompleteOrgList } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Alert } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
@@ -37,8 +37,7 @@ export default function OrgsPage() {
   const { currentData: data, isLoading, isFetching, error } = query;
   const waiting = !data && (isLoading || isFetching);
   const list = useMemo(() => parseOrgList(data), [data]);
-  const rawOrgs = (data as { orgs?: unknown } | undefined)?.orgs;
-  const valid = Array.isArray(rawOrgs) && rawOrgs.length === list.orgs.length;
+  const valid = !!parseCompleteOrgList(data)?.signed_in;
   const err = error ? orgApiErrorOf(error) : null;
 
   if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useAccessibleAppsQuery, useAgentsQuery, useCatalogQuery, useModelsQuery, useNetworkModelsQuery } from '@/api/api';
 import { networkModelCatalogue, readNetworkModelsResponse } from '@/api/networkModels';
 import { modelsFetchState, readModelsResponse } from '@/api/models';
+import { parseAgentCatalogue } from '@/api/agentCatalogue';
 import { useAuth } from '@/auth/AuthContext';
 import { docsFromAgents, docsFromCatalog, docsFromModels, docsFromProjects, searchDocs, type SearchKind } from './globalSearch';
 
@@ -15,6 +16,7 @@ export function useSearchResults(query: string, enabled: boolean, perKind = 4) {
   const apps = useAccessibleAppsQuery({ principal: auth.cacheIdentity, orgs: auth.sso?.orgs.map((o) => o.slug) ?? [] }, { skip: !active || !auth.isSignedIn });
   const catalog = useCatalogQuery({ q: query.trim(), status: 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED', limit: perKind }, { skip: !active });
   const ownRead = useMemo(() => models.isError ? null : readModelsResponse(models.currentData), [models.currentData, models.isError]);
+  const agentRead = useMemo(() => agents.isError ? null : parseAgentCatalogue(agents.currentData), [agents.currentData, agents.isError]);
   const networkRead = useMemo(() => network.isError ? null : readNetworkModelsResponse(network.currentData, auth.address), [network.currentData, network.isError, auth.address]);
   const oldNetwork = modelsFetchState(network.error as Parameters<typeof modelsFetchState>[0]) === 'outdated';
   const modelFailure = !!(ownRead?.unsupported || networkRead?.unsupported) || (!models.isFetching && !ownRead) || (!network.isFetching && !networkRead && !oldNetwork);
@@ -23,16 +25,16 @@ export function useSearchResults(query: string, enabled: boolean, perKind = 4) {
     const result = searchDocs([
       ...docsFromProjects(auth.isSignedIn ? apps.currentData?.projects ?? [] : []),
       ...docsFromModels(networkModelCatalogue(ownRead?.models ?? [], networkRead?.models ?? [], auth.address)),
-      ...docsFromAgents(agents.currentData?.agents ?? []),
+      ...docsFromAgents(agentRead ?? []),
     ], query, perKind);
     const knowledge = catalog.currentData;
     if (knowledge?.items.length) result.push({ kind: 'knowledge', hits: docsFromCatalog(knowledge.items).map((d) => ({ ...d, score: 0 })), total: knowledge.total });
     return result;
-  }, [active, query, perKind, auth.isSignedIn, apps.currentData, ownRead, networkRead, auth.address, agents.currentData, catalog.currentData]);
+  }, [active, query, perKind, auth.isSignedIn, apps.currentData, ownRead, networkRead, auth.address, agentRead, catalog.currentData]);
   const failures: SearchKind[] = active ? [
     ...(auth.isSignedIn && (apps.isError || !!apps.currentData?.failedSources?.length) ? ['app' as const] : []),
     ...(modelFailure ? ['model' as const] : []),
-    ...(agents.isError ? ['agent' as const] : []),
+    ...(agents.isError || !agents.isFetching && agents.isSuccess && !agentRead ? ['agent' as const] : []),
     ...(catalog.isError ? ['knowledge' as const] : []),
   ] : [];
   const loading = active && (models.isFetching || network.isFetching || agents.isFetching || catalog.isFetching || (auth.isSignedIn && apps.isFetching));
