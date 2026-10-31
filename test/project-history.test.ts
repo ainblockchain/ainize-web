@@ -12,7 +12,7 @@ test('deployment history refuses wrong project, wrong category, malformed and du
   const good = record('selected');
   assert.deepEqual(readProjectDeploymentHistory({ deployments: [] }, 'project'), []);
   for (const raw of [null, {}, { deployments: {} }, { deployments: [null] }, { deployments: [good, good] },
-    ...[{ projectId: 'other' }, { trigger: 'run' }, { trigger: 'unknown' }, { status: 'unknown' }, { sha: 'a'.repeat(41) }, { ref: null },
+    ...[{ projectId: 'other' }, { trigger: 'run' }, { trigger: 'unknown' }, { trigger: { toString: 'push' } }, { status: 'unknown' }, { sha: 'a'.repeat(41) }, { ref: null },
       { createdAt: NaN }, { logUrl: 'javascript:alert(1)' }, { outputUrl: 'https://user:password@app.example/' }].map(patch => ({ deployments: [{ ...good, ...patch }] }))]) {
     assert.equal(readProjectDeploymentHistory(raw, 'project'), null);
   }

@@ -18,7 +18,7 @@ function readHistory(raw: unknown, projectId: string, key: 'runs' | 'deployments
     try { const parsed = new URL(v); return ['https:', 'http:'].includes(parsed.protocol) && !parsed.username && !parsed.password; } catch { return false; }
   };
   for (const row of raw[key]) {
-    if (!object(row) || !text(row.id) || row.id !== row.id.trim() || seen.has(row.id) || row.projectId !== projectId || (key === 'runs' ? row.trigger !== 'run' : !['push', 'redeploy'].includes(String(row.trigger)))
+    if (!object(row) || !text(row.id) || row.id !== row.id.trim() || seen.has(row.id) || row.projectId !== projectId || typeof row.trigger !== 'string' || (key === 'runs' ? row.trigger !== 'run' : !['push', 'redeploy'].includes(row.trigger))
       || (row.sha !== '' && !sha(row.sha)) || typeof row.ref !== 'string'
       || typeof row.status !== 'string' || !['queued', 'building', 'ready', 'error'].includes(row.status)
       || !number(row.createdAt) || !optionalNumber(row.startedAt) || !optionalNumber(row.finishedAt) || !optionalNumber(row.ms)
