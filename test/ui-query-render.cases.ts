@@ -3979,7 +3979,7 @@ test('old servers, failed refreshes and foreign setup records cannot expose a le
   assert.match(offline, /Could not verify the current setup state/); assert.match(offline, /Refresh status/); assert.doesNotMatch(offline, />Set up app on chain<|>Retry setup</);
   for (const patch of [{ value: { ...setupStatusFixture, capabilities: undefined } }, { status: 'rejected' as const, errorStatus: 404 }, { value: { ...setupStatusFixture, context: { ...setupContextFixture, chain_id: 0 } } }, { value: { created: true } }]) {
     const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, ...patch } : f), '/account');
-    assert.match(html, /query-retry/); assert.doesNotMatch(html, />Set up app on chain<|chain-setup-panel|market rules are verified/);
+    assert.match(html, /query-retry/); assert.doesNotMatch(html, />Set up app on chain<|chain-setup-result|market rules are verified/);
   }
 });
 
@@ -4087,4 +4087,55 @@ test('verified rules do not erase a still-running setup journal warning or offer
   const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, value: { ...setupStatusFixture, verification: { valid: true, errors: [] }, operation: savedSetupOperation('running') } } : f), '/account');
   assert.match(html, /market rules are verified/); assert.match(html, /saved setup request is still running/);
   assert.doesNotMatch(html, />Set up app on chain<|>Retry setup</);
+});
+
+test('setup receipt URL shows the exact historical request and preserves unrelated account selections', () => {
+  const id = 'b'.repeat(32), other = 'c'.repeat(32);
+  const fixtures: Fixture[] = [...chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, value: { ...setupStatusFixture, operation: { ...savedSetupOperation('running'), id: other } } } : f),
+    { name: 'chainSetupRequest', arg: { identity: accountIdentity, context: setupContextFixture, id }, value: { ...setupStatusFixture, operation: savedSetupOperation('verified') } }];
+  const html = render(AccountPage, fixtures, '/account?chainRequest=' + id + '&q=keep');
+  assert.match(html, /chain-setup-receipt/); assert.match(html, new RegExp(id)); assert.doesNotMatch(html, new RegExp(other));
+  assert.match(html, /href="\/account\?q=keep#chain-setup"/); assert.match(html, /Requested by:/);
+  assert.match(html, /Refresh never executes setup again/);
+  assert.doesNotMatch(html, />Set up app on chain<|>Retry setup<|saved setup request is still running|market rules are verified/);
+});
+
+test('setup exact receipt failures remain distinct from a valid latest request and never expose resend', () => {
+  const id = 'b'.repeat(32);
+  for (const [errorStatus, text] of [[404, 'does not prove it never ran'], [409, 'different chain configuration'], [503, 'query-retry']] as const) {
+    const html = render(AccountPage, [...chainAccountFixtures().map(f => f.name === 'chainSetupStatus' ? { ...f, value: { ...setupStatusFixture, verification: { valid: true, errors: [] }, operation: savedSetupOperation('verified') } } : f),
+      { name: 'chainSetupRequest', arg: { identity: accountIdentity, context: setupContextFixture, id }, status: 'rejected', errorStatus }], '/account?chainRequest=' + id);
+    assert.match(html, new RegExp(text)); assert.match(html, new RegExp(id));
+    assert.doesNotMatch(html, /chain-setup-result|market rules are verified|>Set up app on chain<|>Retry setup</);
+  }
+});
+
+test('setup links reject duplicate and invalid IDs without substituting latest', () => {
+  for (const query of ['chainRequest=', 'chainRequest=bad', 'chainRequest=' + 'b'.repeat(32) + '&chainRequest=' + 'c'.repeat(32)]) {
+    const html = render(AccountPage, chainAccountFixtures(), '/account?' + query);
+    assert.match(html, /chain-setup-invalid/); assert.match(html, /Back to current setup/);
+    assert.doesNotMatch(html, /chain-setup-result|chain-setup-receipt|>Set up app on chain<|>Retry setup</);
+  }
+});
+
+test('setup exact views reject wrong receipts and hide another account cache', () => {
+  const id = 'b'.repeat(32);
+  for (const patch of [
+    { arg: { identity: 'previous-account', context: setupContextFixture, id }, value: { ...setupStatusFixture, operation: savedSetupOperation('verified') } },
+    { arg: { identity: accountIdentity, context: setupContextFixture, id }, value: { ...setupStatusFixture, operation: { ...savedSetupOperation('verified'), id: 'c'.repeat(32) } } },
+  ]) {
+    const html = render(AccountPage, [...chainAccountFixtures(), { name: 'chainSetupRequest', ...patch }], '/account?chainRequest=' + id);
+    assert.match(html, /chain-setup-receipt/); assert.doesNotMatch(html, /chain-setup-result|The app already exists|market rules are verified|>Set up app on chain</);
+  }
+  const unauthorized = render(AccountPage, chainAccountFixtures().map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), isOwner: false } } : f), '/account?chainRequest=' + id);
+  assert.doesNotMatch(unauthorized, /chain-setup-receipt|chain-setup-panel/);
+});
+
+test('setup exact view distinguishes current verified rules from an unresolved saved request', () => {
+  const id = 'b'.repeat(32);
+  for (const state of ['running', 'unconfirmed']) {
+    const html = render(AccountPage, [...chainAccountFixtures(), { name: 'chainSetupRequest', arg: { identity: accountIdentity, context: setupContextFixture, id }, value: { ...setupStatusFixture, verification: { valid: true, errors: [] }, operation: savedSetupOperation(state) } }], '/account?chainRequest=' + id);
+    assert.match(html, /market rules are verified/); assert.match(html, state === 'running' ? /saved setup request is still running/ : /saved request is unconfirmed/);
+    assert.doesNotMatch(html, />Set up app on chain<|>Retry setup</);
+  }
 });

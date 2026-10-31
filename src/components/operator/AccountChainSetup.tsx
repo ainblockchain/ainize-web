@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
+import { useDispatch } from 'react-redux';
+import type { AppDispatch } from '@/store';
 import type { InfoResponse } from '@/api/types';
-import { useChainSetupStatusQuery, useReviewedChainSetupMutation } from '@/api/api';
+import { api, useChainSetupStatusQuery, useChainSetupRequestQuery, useLazyChainSetupRequestQuery, useReviewedChainSetupMutation } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useActiveView } from '@/hooks/useActiveView';
 import { useT } from '@/i18n';
 import { createNodeActionTask } from '@/lib/accountNodeActions';
-import { chainSetupContext, chainSetupKey, prepareAccountChain, readChainSetup, ChainSetupActionError, type ChainSetupContext, type ChainSetupStatus } from '@/lib/accountChainSetup';
+import { chainSetupContext, chainSetupKey, chainSetupSelection, chainSetupLink, prepareAccountChain, readChainSetup, ChainSetupActionError, type ChainSetupContext, type ChainSetupStatus } from '@/lib/accountChainSetup';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
-import { CenterProgress, Mono } from '@/components/ui/Misc';
+import { CenterProgress, Mono, StyledLink } from '@/components/ui/Misc';
 import { Muted, QueryError, Row } from './common';
 
 export function AccountChainSetup({ info }: { info: InfoResponse }) {
@@ -18,38 +21,84 @@ export function AccountChainSetup({ info }: { info: InfoResponse }) {
   return <Setup key={auth.cacheIdentity + chainSetupKey(context)} context={context} />;
 }
 function Setup({ context }: { context: ChainSetupContext }) {
-  const auth = useAuth(), { t } = useT(), active = useActiveView();
-  const query = useChainSetupStatusQuery({ identity: auth.cacheIdentity, context });
+  const auth = useAuth(), { t } = useT(), active = useActiveView(), dispatch = useDispatch<AppDispatch>();
+  const [params] = useSearchParams(), navigate = useNavigate(), section = useRef<HTMLDivElement>(null);
+  const selection = chainSetupSelection(params), selectionKey = JSON.stringify(selection);
+  const selectedRef = useRef(selectionKey), paramsRef = useRef(params);
+  selectedRef.current = selectionKey; paramsRef.current = params;
+  const scope = { identity: auth.cacheIdentity, context };
+  const query = useChainSetupStatusQuery(scope, { skip: selection.kind !== 'current', refetchOnMountOrArgChange: true });
   const value = !query.isError ? readChainSetup(query.currentData, context) : null;
-  const [write] = useReviewedChainSetupMutation();
-  const [task] = useState(createNodeActionTask), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
-  const current = () => active() && auth.isOwner && auth.isCurrentAccount();
+  const [readRequest] = useLazyChainSetupRequestQuery(), [write] = useReviewedChainSetupMutation();
+  const [task] = useState(createNodeActionTask), [busy, setBusy] = useState(false), [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<{ key: string; message: string } | null>(null);
+  const currentAccount = () => active() && auth.isOwner && auth.isCurrentAccount();
   useEffect(() => () => task.abandon(), [task]);
+  useEffect(() => { if (selection.kind !== 'current') section.current?.scrollIntoView({ block: 'start' }); }, [selectionKey]);
   const refresh = async () => {
-    try { const result = readChainSetup(await query.refetch().unwrap(), context); if (current() && result) setError(null); } catch { /* query recovery remains visible */ }
+    const key = selectedRef.current;
+    try { const result = readChainSetup(await query.refetch().unwrap(), context); if (currentAccount() && key === selectedRef.current && result) setError(null); } catch { /* query recovery remains visible */ }
   };
   const start = async () => {
-    if (!value || query.isFetching || task.pending() || !current()) return;
+    if (!value || query.isFetching || task.pending() || busy || selection.kind !== 'current' || !currentAccount()) return;
+    let reviewedSelection = selectionKey;
+    const current = () => currentAccount() && selectedRef.current === reviewedSelection;
     setBusy(true); setError(null);
     try {
-      await task.run(current, current => prepareAccountChain(context, value.operation?.state === 'unconfirmed' ? value.operation.id : null, {
-        current, requestId: () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''),
-        read: () => query.refetch().unwrap(), write: body => write(body).unwrap(),
+      const result = await task.run(current, current => prepareAccountChain(context, value.operation?.state === 'unconfirmed' ? value.operation.id : null, {
+        current, actor: auth.subject ?? '', requestId: () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''),
+        read: () => query.refetch().unwrap(),
+        retain: id => {
+          if (!current()) return;
+          reviewedSelection = JSON.stringify({ kind: 'request', id }); selectedRef.current = reviewedSelection;
+          setBusyId(id); navigate(chainSetupLink(paramsRef.current, id));
+        },
+        readRequest: id => readRequest({ ...scope, id }, false).unwrap(), write: body => write(body).unwrap(),
       }));
-    } catch (e) { if (current()) setError(t(`op.account.chain.error.${e instanceof ChainSetupActionError ? e.code : 'read'}`)); }
-    finally { if (current()) setBusy(false); }
+      if (result && current()) {
+        if (result.operation) await dispatch(api.util.upsertQueryData('chainSetupRequest', { ...scope, id: result.operation.id }, result));
+      }
+    } catch (e) {
+      // After admission the exact URL/receipt reader owns recovery, including missing or unreadable records.
+      if (current() && selectedRef.current === JSON.stringify({ kind: 'current' })) setError({ key: reviewedSelection, message: t(`op.account.chain.error.${e instanceof ChainSetupActionError ? e.code : 'read'}`) });
+    } finally { if (currentAccount()) { setBusy(false); setBusyId(null); } }
   };
-  if (!value) return query.isFetching ? <CenterProgress /> : <QueryError error={query.error} what={t('op.account.chain.setup')} onRetry={() => void query.refetch()} retrying={query.isFetching} />;
-  return <div style={{ marginTop: 12, minWidth: 0, overflowWrap: 'anywhere' }} data-testid="chain-setup-panel">
-    <ChainSetupResult value={value} />
-    {error && <Alert $tone="warning" role="alert">{error}</Alert>}
-    <Row $wrap $gap={12} style={{ marginTop: 8 }}>
-      {value.verification && !value.verification.valid && value.operation?.state !== 'running' && <Button size="small" onClick={() => void start()} disabled={busy || query.isFetching} loading={busy} loadingText={t('op.account.chain.setting')}>
-        {t(value.operation?.state === 'unconfirmed' ? 'op.account.chain.retry' : 'op.account.chain.setup')}
-      </Button>}
-      <Button size="small" variant="text" disabled={busy || query.isFetching} onClick={() => void refresh()}>{t('op.account.chain.refresh')}</Button>
-    </Row>
-    <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.chain.note')}</Muted>
+  return <div ref={section} id="chain-setup" style={{ marginTop: 12, minWidth: 0, overflowWrap: 'anywhere', scrollMarginTop: 96 }} data-testid="chain-setup-panel">
+    {selection.kind === 'invalid' ? <div role="alert" data-testid="chain-setup-invalid">
+      <p>{t('op.account.chain.receipt.invalid')}</p><StyledLink to={chainSetupLink(params, null)}>{t('op.account.chain.receipt.back')}</StyledLink>
+    </div> : selection.kind === 'request' ? <ChainSetupDetail key={selection.id} context={context} id={selection.id} submitting={busy && busyId === selection.id} />
+      : !value ? query.isFetching ? <CenterProgress /> : <QueryError error={query.error} what={t('op.account.chain.setup')} onRetry={() => void query.refetch()} retrying={query.isFetching} />
+      : <>
+        <ChainSetupResult value={value} />
+        {error?.key === selectionKey && <Alert $tone="warning" role="alert">{error.message}</Alert>}
+        <Row $wrap $gap={12} style={{ marginTop: 8 }}>
+          {value.verification && !value.verification.valid && value.operation?.state !== 'running' && <Button size="small" onClick={() => void start()} disabled={busy || query.isFetching} loading={busy} loadingText={t('op.account.chain.setting')}>
+            {t(value.operation?.state === 'unconfirmed' ? 'op.account.chain.retry' : 'op.account.chain.setup')}
+          </Button>}
+          <Button size="small" variant="text" disabled={busy || query.isFetching} onClick={() => void refresh()}>{t('op.account.chain.refresh')}</Button>
+          {value.operation && <StyledLink to={chainSetupLink(params, value.operation.id)}>{t('op.account.chain.receipt.open')}</StyledLink>}
+        </Row>
+        <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.chain.note')}</Muted>
+      </>}
+  </div>;
+}
+export function ChainSetupDetail({ context, id, submitting = false }: { context: ChainSetupContext; id: string; submitting?: boolean }) {
+  const auth = useAuth(), { t } = useT(), [params] = useSearchParams();
+  const query = useChainSetupRequestQuery({ identity: auth.cacheIdentity, context, id }, { skip: !auth.isOwner || submitting, refetchOnMountOrArgChange: true });
+  const value = !query.isError ? readChainSetup(query.currentData, context, id) : null;
+  const status = query.isError && query.error && 'status' in query.error ? query.error.status : null;
+  if (!auth.isOwner) return null;
+  return <div data-testid="chain-setup-receipt">
+    <StyledLink to={chainSetupLink(params, null)}>{t('op.account.chain.receipt.back')}</StyledLink>
+    <p style={{ margin: '8px 0' }}>{t('op.account.chain.request')} <Mono>{id}</Mono></p>
+    {submitting ? <div role="status"><CenterProgress />{t('op.account.chain.receipt.waiting')}</div>
+      : !value && query.isFetching ? <CenterProgress />
+      : status === 404 ? <Alert $tone="warning" role="alert">{t('op.account.chain.receipt.missing')}</Alert>
+      : status === 409 ? <Alert $tone="warning" role="alert">{t('op.account.chain.receipt.context')}</Alert>
+      : !value ? <QueryError error={query.error} what={t('op.account.chain.receipt.title')} onRetry={() => void query.refetch()} retrying={query.isFetching} />
+      : <ChainSetupResult value={value} />}
+    <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.chain.receipt.read_only')}</Muted>
+    <Button size="small" variant="text" disabled={submitting || query.isFetching} onClick={() => void query.refetch()}>{t('op.account.chain.refresh')}</Button>
   </div>;
 }
 export function ChainSetupResult({ value }: { value: ChainSetupStatus }) {
@@ -62,6 +111,8 @@ export function ChainSetupResult({ value }: { value: ChainSetupStatus }) {
     {(op || !!value.verification?.errors.length) && <details style={{ marginTop: 6 }}><summary>{t('op.account.chain.details')}</summary>
     {op && <div style={{ marginTop: 6 }}>
       <Muted>{t('op.account.chain.request')} <Mono>{op.id}</Mono></Muted>
+      <div>{t('op.account.chain.receipt.operator')} <Mono>{op.actor}</Mono></div>
+      <div>Chain ID {op.context.chain_id} · <Mono>{op.context.provider}</Mono></div>
       {op.created === true && <div>{t('op.account.chain.created')}</div>}
       {op.created === false && <div>{t('op.account.chain.existed')}</div>}
       {op.admin && <div>{t('op.account.chain.admin')} <Mono>{op.admin}</Mono></div>}
