@@ -68,7 +68,7 @@ See [Error codes](./errors.md) for the full list.
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
-| `GET` | [`/api/models`](#get-apimodels) | operator | Configured models and current backend availability |
+| `GET` | [`/api/models`](#get-apimodels) | operator | Models this node or a fresh peer serves, and whether a call would be answered |
 | `POST` | [`/api/transcribe`](#post-apitranscribe) | operator | Free transcription trial on a configured audio backend |
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
 | `POST` | [`/api/run`](#post-apirun) | operator | Run one script in the hosted-agent sandbox and stream its output |
@@ -953,7 +953,7 @@ what this node serves over the LLM API, and the free trials of it — the public
 
 ### `GET /api/models`
 
-Configured models and current backend availability
+Models this node or a fresh peer serves, and whether a call would be answered
 
 **Auth** — operator
 
