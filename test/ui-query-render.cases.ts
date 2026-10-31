@@ -60,6 +60,8 @@ import KnowledgeByIdPage from '../src/screens/KnowledgeByIdPage';
 import { teacherProfile, verifierProfile, providerAddress } from './fixtures/providerProfiles';
 import TrackPage from '../src/screens/TrackPage';
 import { trackName, trackEntry, trackBranches, trackHistory } from './fixtures/track';
+import NetworkPage, { NetworkRouteResult } from '../src/screens/NetworkPage';
+import { matchedRoute, unmatchedRoute, routeCondition } from './fixtures/networkRoute';
 
 // Real RTK hooks render cached server responses. No fetch, browser identity, or production mutations.
 const makeStore = (preloadedState?: any) => configureStore({
@@ -92,6 +94,36 @@ const signedOut: Fixture[] = [
   { name: 'ssoStatus', value: { configured: true } },
 ];
 const policy: Fixture = { name: 'teachPolicy', value: { enabled: false, trainer: 'paused' } };
+
+test('routing results link to the chosen track and exact knowledge id, not the track owner', () => {
+  const html = render(() => createElement(NetworkRouteResult, { routed: matchedRoute(), input: routeCondition }), signedOut, '/network');
+  assert.match(html, /href="\/tracks\/finance\/chosen"/);
+  assert.match(html, /href="\/patch\/chosen%2Fid"/);
+  assert.doesNotMatch(html, new RegExp(`href="/0x${'b'.repeat(40)}/`));
+  assert.match(html, /href="https:\/\/serving.example\/base\/api\/info"/);
+});
+
+test('routing distinguishes no match and no current knowledge from a node serving a track', () => {
+  const missing = render(() => createElement(NetworkRouteResult, { routed: unmatchedRoute(), input: { key: 'jurisdiction', value: 'US' } }), signedOut, '/network');
+  assert.match(missing, /No track matches jurisdiction=US/);
+  const empty = matchedRoute(); empty.current = [];
+  const html = render(() => createElement(NetworkRouteResult, { routed: empty, input: routeCondition }), signedOut, '/network');
+  assert.match(html, /no currently available knowledge/);
+  assert.doesNotMatch(html, /serving the whole track/);
+});
+
+test('network page does not recommend subscribing to an arbitrary first track before routing', () => {
+  const html = render(NetworkPage, [...signedOut,
+    { name: 'info', value: { node: { name: 'Selected node', address: 'node', endpoint: 'https://node.example', roles: [], blobs: [], branches: [], version: 'test' }, ledger: { kind: 'local', records: 0 }, runtime: { available: false, hook: false }, peers: 0 } },
+    { name: 'branches', value: trackBranches() },
+    { name: 'nodes', value: { peers: [], nodes: [] } },
+    { name: 'catalog', arg: { limit: 200 }, value: { items: [] } },
+    { name: 'ledger', arg: { limit: 5000 }, value: { info: { records: 0 }, records: [] } },
+  ], '/network');
+  assert.match(html, /Find nodes/);
+  assert.match(html, /jurisdiction=KR/);
+  assert.doesNotMatch(html, /ainize branch subscribe|law\/KR/);
+});
 
 const trackFixtures: Fixture[] = [
   { name: 'branches', value: trackBranches() },

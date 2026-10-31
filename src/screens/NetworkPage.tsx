@@ -1,19 +1,22 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
-import { errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, useLazyRouteQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
+import { errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, useLedgerQuery, useNodesQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Offline } from '@/components/ui/Offline';
 import { Alert, Input } from '@/components/ui/Form';
 import { CenterProgress, Description, Empty, ExternalLink, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title, TitleRow } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
-import type { PeerInfo } from '@/api/types';
+import type { PeerInfo, RouteResponse } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { bytes, num, shortAddr } from '@/utils/format';
 import { useDetailFormat } from './detail/recordText';
 import { trackHref } from './TrackPage';
 import { knowledgeLookupPath } from '@/lib/detailRoutes';
+import { nodeApiUrl, routeCurlCommand, type RouteInput } from '@/lib/networkRoute';
+import { trackSubscribeCommand } from '@/lib/trackView';
+import { useNetworkRoute } from '@/hooks/useNetworkRoute';
 import { networkEntryKey, orderNetworkEntries, uniqueNetworkWarnings } from '@/utils/networkOrder';
 
 const GpuAllocation = styled.span`
@@ -101,12 +104,13 @@ function Endpoint({ url, hidden }: { url: string | null; hidden: string }) {
   // A dash, not the sentence. The sentence is true of every hidden row, and on a table of seventy peers it
   // printed itself seventy times and pushed the columns that differ off the screen; it belongs in the legend
   // below the table, once. The cell still says something is there, and hovering says what.
-  if (!url) return <Soft title={hidden}>—</Soft>;
-  return <ExternalLink href={`${url}/api/info`} target="_blank" rel="noopener noreferrer">{url}</ExternalLink>;
+  const href = nodeApiUrl(url, 'info');
+  if (!href) return <Soft title={hidden}>—</Soft>;
+  return <ExternalLink href={href} target="_blank" rel="noopener noreferrer">{url}</ExternalLink>;
 }
 
 export default function NetworkPage() {
-  const { t, term, help, tech } = useT();
+  const { t, help, tech } = useT();
   useTitle(t('detail.net.title'));
   const f = useDetailFormat();
   // `isOwner`: the runtime API and the repo path are this machine's private details, and the node shows them
@@ -163,9 +167,12 @@ export default function NetworkPage() {
   };
   const [routeKey, setRouteKey] = useState('jurisdiction');
   const [routeValue, setRouteValue] = useState('KR');
-  const [route, { data: routed, isFetching: routing, error: routeError }] = useLazyRouteQuery();
+  const route = useNetworkRoute(routeKey, routeValue);
+  const routed = route.state.phase === 'ready' ? route.state.data : null;
+  const routing = route.state.phase === 'loading';
+  const routeError = route.state.phase === 'error' ? route.state.error : null;
 
-  const onRoute = (e: FormEvent) => { e.preventDefault(); if (routeKey.trim()) void route({ [routeKey.trim()]: routeValue.trim() }); };
+  const onRoute = (e: FormEvent) => { e.preventDefault(); void route.run(); };
 
   if (infoQ.isLoading) return <PageWrapper $wide><CenterProgress /></PageWrapper>;
   /*
@@ -193,7 +200,7 @@ export default function NetworkPage() {
     <GpuAllocation title={t('detail.net.gpu_allocation_help')}>{t('detail.net.gpu_allocation')}</GpuAllocation>
   )}</>;
   const roles = (rs: string[]) => rs.map((r) => <RoleChip key={r} $role={r} title={r}>{f.roleLabel(r)}</RoleChip>);
-  const routeExample = routed?.branch?.name ?? branches?.branches[0]?.name ?? 'law/KR';
+  const routeCommand = routeCurlCommand(self.endpoint, route.input);
   const entries = new Map((catalog?.items ?? []).map((e) => [e.anchor.id, e]));
 
   return (
@@ -207,7 +214,7 @@ export default function NetworkPage() {
           <h3>{self.name}</h3>
           <KeyValue style={{ marginTop: 8 }}>
             <dt>{t('detail.net.address')}</dt><dd><Mono>{self.address}</Mono></dd>
-            <dt>{t('detail.net.endpoint')}</dt><dd><ExternalLink href={`${self.endpoint}/api/info`} target="_blank" rel="noopener noreferrer">{self.endpoint}</ExternalLink></dd>
+            <dt>{t('detail.net.endpoint')}</dt><dd><Endpoint url={self.endpoint} hidden={t('detail.net.endpoint_private')} /></dd>
             <dt>{t('detail.net.roles')}</dt><dd>{roles(self.roles)}</dd>
             <dt title={tech('ledger')}>{t('detail.net.ledger')}</dt><dd>{t('detail.net.ledger_records', { kind: info.ledger.kind === 'ain' ? `${t('detail.ledger_kind.ain')} (${info.ledger.provider ?? ''})` : t('detail.ledger_kind.local'), n: num(info.ledger.records) })}</dd>
             <dt>{t('detail.net.peers')}</dt><dd>{ps
@@ -343,17 +350,33 @@ export default function NetworkPage() {
       <RouterForm onSubmit={onRoute}>
         <label>{t('detail.net.attribute')}<Input value={routeKey} onChange={(e) => setRouteKey(e.target.value)} placeholder="jurisdiction" /></label>
         <label>{t('detail.net.value')}<Input value={routeValue} onChange={(e) => setRouteValue(e.target.value)} placeholder="KR" /></label>
-        <Button type="submit" loading={routing} loadingText={t('detail.net.routing')}>{t('detail.net.route')}</Button>
+        <Button type="submit" disabled={!route.input} loading={routing} loadingText={t('detail.net.routing')}>{t('detail.net.route')}</Button>
       </RouterForm>
-      {routeError && <Alert $tone="error" style={{ marginTop: 12 }}>{errorMessage(routeError)}</Alert>}
-      {routed && (
+      {!route.input && <Alert $tone="warning" style={{ marginTop: 12 }}>{t('detail.net.route_invalid')}</Alert>}
+      {route.state.phase === 'error' && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{t('detail.net.route_failed')} {errorMessage(routeError)}</Alert>}
+      {routed && route.input && <NetworkRouteResult routed={routed} input={route.input} />}
+
+      <DevBox>
+        <summary title={tech('node')}>{t('detail.net.dev_title')}</summary>
+        <Description>{t('detail.net.dev_selected')}</Description>
+        {routeCommand && <Cmd>{`${t('detail.net.dev_route')}\n${routeCommand}`}</Cmd>}
+        {routed?.branch && <><Cmd>{`${t('detail.net.dev_subscribe')}\n${trackSubscribeCommand(routed.branch.name)}`}</Cmd><Description>{t('detail.net.dev_subscription_cost')}</Description></>}
+      </DevBox>
+    </PageWrapper>
+  );
+}
+
+/** The result is rendered only after the submitted input and response have been matched. */
+export function NetworkRouteResult({ routed, input }: { routed: RouteResponse; input: RouteInput }) {
+  const { t } = useT();
+  return (
         <RouteResult>
-          {!routed.branch && <Alert $tone="warning">{t('detail.net.no_match', { key: routeKey, value: routeValue })}</Alert>}
+          {!routed.branch && <Alert $tone="warning">{t('detail.net.no_match', { key: input.key, value: input.value })}</Alert>}
           {routed.branch && (
             <KeyValue style={{ marginTop: 0 }}>
-              <dt>{t('detail.net.r.track')}</dt><dd><b>{routed.branch.name}</b> — {routed.branch.description || t('detail.net.r.no_description')}</dd>
+              <dt>{t('detail.net.r.track')}</dt><dd><StyledLink to={trackHref(routed.branch.name)}>{routed.branch.name}</StyledLink> — {routed.branch.description || t('detail.net.r.no_description')}</dd>
               <dt>{t('detail.net.r.context')}</dt><dd>{Object.entries(routed.branch.context).map(([k, v]) => <CtxChip key={k}>{k}={v}</CtxChip>)}</dd>
-              <dt>{t('detail.net.r.patches')}</dt><dd>{routed.branch.patch_ids.map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={`/${encodeURIComponent(routed.branch!.owner)}/${encodeURIComponent(id)}`}>{id}</StyledLink></span>)}{routed.branch.patch_ids.length === 0 && '—'}</dd>
+              <dt>{t('detail.net.r.patches')}</dt><dd>{routed.branch.patch_ids.map((id, i) => <span key={id}>{i > 0 && ', '}<StyledLink to={knowledgeLookupPath(id)}>{id}</StyledLink></span>)}{routed.branch.patch_ids.length === 0 && '—'}</dd>
               {/* Item 234 — which attributes actually matched, and whether the answer was one of several. */}
               <dt>{t('detail.net.r.matched')}</dt>
               <dd>
@@ -368,7 +391,7 @@ export default function NetworkPage() {
                 {routed.nodes.map((n) => (
                   <div key={n.address}>
                     <Endpoint url={n.endpoint} hidden={t('detail.net.endpoint_private')} /> <Mono>{shortAddr(n.address, 6)}</Mono> {n.model ? `· ${n.model}` : ''}
-                    {n.current === false
+                    {routed.current?.length === 0 ? <Muted> · {t('detail.net.r.no_current')}</Muted> : n.current === false
                       ? <Muted style={{ color: '#e6173e' }}> · {t('detail.net.r.stale', { ids: (n.missing ?? []).join(', ') })}</Muted>
                       : n.current === true ? <Muted> · {t('detail.net.r.serving')}</Muted>
                         : <Muted> · {t('detail.net.r.unknown_load')}</Muted>}
@@ -378,13 +401,5 @@ export default function NetworkPage() {
             </KeyValue>
           )}
         </RouteResult>
-      )}
-
-      <DevBox>
-        <summary title={tech('node')}>{t('detail.net.dev_title')}</summary>
-        <Description>{t('detail.net.dev_note')} <span title={tech('autoPay')}>({term('autoPay')})</span></Description>
-        <Cmd>{`${t('detail.net.dev_route')}\ncurl "${self.endpoint}/api/route?${encodeURIComponent(routeKey)}=${encodeURIComponent(routeValue)}"\n\n${t('detail.net.dev_peer')}\nainize peers add http://host:port\n\n${t('detail.net.dev_subscribe')}\nainize branch subscribe ${routeExample}\n\n${t('detail.net.dev_agent')}\nnode packages/agent/dist/bin.js run --market ${self.endpoint}`}</Cmd>
-      </DevBox>
-    </PageWrapper>
   );
 }
