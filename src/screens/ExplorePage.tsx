@@ -37,6 +37,7 @@ import { num } from '@/utils/format';
 const SCHEMA_CHIPS = 8;
 const TAUGHT = 'taught/';
 const ITEM_LIMIT = 10;
+const AGENT_PAGE_SIZE = 20;
 /**
  * "Current only" — everything a visitor could sensibly load today. SUPERSEDED and REJECTED are the two states that
  * are not, and on the demo node three of the four listings are superseded, so the default view was 75% dead rows.
@@ -160,9 +161,10 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   // for every kind of sign-in (the registry's org scope answers only an AIN SSO session, for one organization).
   // Fetched whenever a signed-in person is on the agents tab, not only when the chip is picked: every chip carries its count.
   const scopesOn = kind === 'agent' && auth.isSignedIn && !auth.loading && !invalid;
-  const shared = useSharedAgentsQuery({ identity: auth.cacheIdentity, scope: scopeForFilter('mine'), limit: 200 }, { skip: !scopesOn, pollingInterval: 60_000 });
-  const sharedPage = useMemo(() => parseSharedAgentsResponse(shared.currentData), [shared.currentData]);
-  const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
+  const shared = useSharedAgentsQuery({ identity: auth.cacheIdentity, scope: scopeForFilter('mine'), limit: AGENT_PAGE_SIZE, q: agentFilter === 'mine' && q ? q : undefined, cursor: selection.cursor ?? undefined }, { skip: !scopesOn, pollingInterval: 60_000 });
+  const sharedPage = useMemo(() => shared.isError ? null : parseSharedAgentsResponse(shared.currentData, selection.cursor ?? undefined), [shared.currentData, shared.isError, selection.cursor]);
+  const registryMissing = !selection.cursor && !!shared.error && sharedAgentsUnsupported(shared.error);
+  const sharedInvalid = !shared.isFetching && !shared.error && shared.isSuccess && !sharedPage;
   const orgView = kind === 'agent' && agentFilter === 'org';
   const myOrgs = useMyOrgsQuery(auth.cacheIdentity, { skip: !scopesOn });
   const orgsLoading = !myOrgs.currentData && (myOrgs.isLoading || myOrgs.isFetching);
@@ -232,23 +234,23 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
    */
   const verified = items.filter((e) => e.quorum_ok && e.sellable !== false).length;
   /**
-   * The same search box serves both halves. The catalogue searches server-side because it is paged and can be
-   * large; the agent list is a handful of rows a node declares in its own config, so it is filtered here — over
-   * everything a reader can see on the row, which includes the skills the agent's card names.
+   * The catalogue and private registry search before paging on the server. The public/organization endpoints
+   * return their lists together, so those views still search visible card fields locally.
    */
   const agents = useMemo(() => {
+    if (agentFilter === 'mine' && sharedPage) return scopedAgents; // server searched the complete authorized registry before paging
     const matches = matchingSearchIds(docsFromAgents(scopedAgents), q);
     return scopedAgents.filter((a) => matches.has(agentListKey(a)));
-  }, [scopedAgents, q]);
+  }, [scopedAgents, q, agentFilter, sharedPage]);
   const scopedLoading = agentFilter === 'mine' ? !shared.currentData && shared.isFetching : agentFilter === 'org' ? orgsLoading || (!orgQuery.currentData && orgQuery.isFetching) : false;
-  const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
+  const scopedError = agentFilter === 'mine' ? (sharedInvalid ? { status: 502, data: { error: { message: t('explore.agents.invalid_page') } } } : shared.error && !registryMissing ? shared.error : null)
     : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
   // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
   const fromPublic = agentFilter === 'all' || (agentFilter === 'mine' && registryMissing);
   const listLoading = fromPublic ? agentsLoading : scopedLoading;
   const listError = fromPublic && !!agentError;
-  const mineCount = sharedPage ? sharedPage.items.length : registryMissing ? fallbackRows('mine', allAgents, principals).length : null;
-  const mineMore = !!sharedPage?.nextCursor;
+  const mineCount = q || selection.cursor && sharedPage?.total === null ? null : sharedPage ? sharedPage.total ?? sharedPage.items.length : registryMissing ? fallbackRows('mine', allAgents, principals).length : null;
+  const mineMore = !!sharedPage?.nextCursor && sharedPage.total === null;
   const noOrg = orgView && !orgsLoading && !!myOrgs.currentData && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
@@ -364,11 +366,14 @@ export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
             <details><summary>{t('explore.error_detail')}</summary><code>{errorMessage(scopedError)}</code></details>
           </Failure>}
           {chooseOrg && <Empty data-testid="agents-choose-org">{t('explore.selection.org')}</Empty>}
+          {agentFilter === 'mine' && selection.cursor && sharedPage?.previousCursor !== undefined && <Retry disabled={shared.isFetching} onClick={() => change({ cursor: sharedPage.previousCursor ?? null }, false)} data-testid="agents-previous-page">{t('explore.agents.previous_page')}</Retry>}
+          {agentFilter === 'mine' && selection.cursor && <Retry onClick={() => change({ cursor: null })} data-testid="agents-first-page">{t('explore.selection.first_page')}</Retry>}
           {listLoading && <ListSkeleton />}
           {!chooseOrg && !(orgView && orgsMissing) && !listLoading && !listError && !scopedError && (
             <>
               {/* Keyed by node and id: two nodes may each run a `donga-desk`, and one key for both re-used one row's state for the other. */}
               <div>{agents.map((a) => <AgentListItem key={agentListKey(a)} agent={a} />)}</div>
+              {agentFilter === 'mine' && sharedPage?.nextCursor && <Retry disabled={shared.isFetching} onClick={() => change({ cursor: sharedPage.nextCursor }, false)} data-testid="agents-next-page">{t('explore.agents.next_page')}</Retry>}
               {agents.length === 0 && (
                 <Empty data-testid={noOrg ? 'agents-org-none' : undefined}>
                   {q.trim() ? t('explore.agents.empty_search')

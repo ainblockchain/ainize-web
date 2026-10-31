@@ -317,9 +317,9 @@ export const api = createApi({
      * see, by scope. Typed `unknown` and read through `src/api/sharedAgents.ts`; an older node answers 404 and the
      * page falls back to `agents`. `org` narrows `shared_with_org` to one organization.
      */
-    sharedAgents: b.query<unknown, { identity: string; scope: AgentListScope; q?: string; org?: string; limit?: number }>({
+    sharedAgents: b.query<unknown, { identity: string; scope: AgentListScope; q?: string; org?: string; limit?: number; cursor?: string }>({
       keepUnusedDataFor: 0,
-      query: ({ scope, q, org, limit }) => `api/shared-agents${toQuery({ scope, q, org, limit })}`, providesTags: ['Agents', 'HostedAgent', 'LinkedAgent'],
+      query: ({ scope, q, org, limit, cursor }) => `api/shared-agents${toQuery({ scope, q, org, limit, cursor })}`, providesTags: ['Agents', 'HostedAgent', 'LinkedAgent'],
     }),
     /** Who may see one agent — owner or node operator. Applies to hosted and linked agents alike. */
     setAgentVisibility: b.mutation<unknown, AgentVisibilityInput>({

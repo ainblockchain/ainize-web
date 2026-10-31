@@ -3688,3 +3688,42 @@ test('selected taught topics remain visible without counting the wildcard as an 
     if (schema === 'taught/exact') assert.match(html, /taught\/exact<\/button>/);
   }
 });
+
+
+const registryItem = (id: string, name: string) => ({ canInvoke: true, ref: {
+  registryIssuer: 'https://ainize.test', agentId: id, releaseId: 'v1', ownerRef: { kind: 'principal', issuer: 'https://ainize.test', subject: 'alice' }, visibility: 'private',
+  endpoint: `https://ainize.test/agents/${id}`, agentCardUrl: `https://ainize.test/agents/${id}/.well-known/agent-card.json`,
+  displayName: name, description: null, status: 'active', skills: [], inputModes: ['text'], outputModes: ['text'], uiCapabilities: [], supportedProtocolVersions: ['0.3.0'],
+} });
+const registryPage = (items: unknown[], nextCursor: string | null = null) => ({ contract: '1.0', asOf: '2026-10-31T00:00:00Z', total: 205, nextCursor, items });
+const registryArg = { identity: accountIdentity, scope: 'mine', limit: 20 };
+
+test('Mine exposes continuation and reads the exact next page without reusing first-page rows', () => {
+  const initial: Fixture = { name: 'sharedAgents', arg: registryArg, value: registryPage([registryItem('early', 'Earlier agent')], 'page-two') };
+  const first = render(ExplorePage, [...appAccount, initial], '/explore?kind=agent&agents=mine');
+  assert.match(first, /agents-next-page/); assert.match(first, /Earlier agent/); assert.match(first, /205/);
+  const next = render(ExplorePage, [...appAccount, initial,
+    { name: 'sharedAgents', arg: { ...registryArg, cursor: 'page-two' }, value: { ...registryPage([registryItem('late', 'Beyond initial page')]), previousCursor: null } },
+  ], '/explore?kind=agent&agents=mine&cursor=page-two');
+  assert.match(next, /Beyond initial page/); assert.match(next, /agents-first-page/); assert.match(next, /agents-previous-page/);
+  assert.doesNotMatch(next, /Earlier agent|agents-next-page/);
+});
+test('Mine search is a new server query across the registry rather than a first-page local filter', () => {
+  const html = render(ExplorePage, [...appAccount,
+    { name: 'sharedAgents', arg: registryArg, value: registryPage([registryItem('early', 'Earlier agent')], 'page-two') },
+    { name: 'sharedAgents', arg: { ...registryArg, q: 'needle' }, value: { ...registryPage([registryItem('late', 'Needle result')]), total: 1 } },
+  ], '/explore?kind=agent&agents=mine&q=needle');
+  assert.match(html, /Needle result/); assert.doesNotMatch(html, /Earlier agent/);
+});
+test('stale or malformed private registry pages offer recovery without displaying cached rows as valid', () => {
+  for (const fixture of [
+    { value: registryPage([registryItem('late', 'Stale private agent')]), status: 'rejected' as const, errorStatus: 409 },
+    { value: { ...registryPage([registryItem('late', 'Stale private agent')]), nextCursor: {} } },
+    { value: null },
+    { value: registryPage([registryItem('late', 'Stale private agent')], 'page-two') },
+  ]) {
+    const html = render(ExplorePage, [...appAccount, { name: 'sharedAgents', arg: { ...registryArg, cursor: 'page-two' }, ...fixture }], '/explore?kind=agent&agents=mine&cursor=page-two');
+    assert.match(html, /agents-scope-error/); assert.match(html, /agents-first-page/);
+    assert.doesNotMatch(html, /Stale private agent|agents-next-page/);
+  }
+});

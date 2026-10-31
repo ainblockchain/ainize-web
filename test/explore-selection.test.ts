@@ -6,7 +6,7 @@ const read = (query: string) => readExploreSelection(new URLSearchParams(query))
 
 test('knowledge URL restores every selected filter, order, version and page', () => {
   assert.deepEqual(read('kind=knowledge&q=hello&sort=latest&model=m&schema=taught%2Fone&branch=main&versions=all&page=3'), {
-    invalid: false, kind: 'knowledge', scope: 'all', sort: 'latest', q: 'hello', model: 'm', schema: 'taught/one', branch: 'main', showAll: true, page: 3, org: null,
+    invalid: false, kind: 'knowledge', scope: 'all', sort: 'latest', q: 'hello', model: 'm', schema: 'taught/one', branch: 'main', showAll: true, page: 3, org: null, cursor: null,
   });
 });
 test('each filter update resets the page in the same navigation and leaves unrelated selection intact', () => {
@@ -49,4 +49,14 @@ test('switching an implicit private-agent bookmark to Public stays in the agent 
   const path = exploreSelectionHref({ pathname: '/explore', search: '?agents=mine&q=guide', hash: '' }, { kind: 'agent', agents: null, org: null });
   const selected = readExploreSelection(new URL(path, 'https://ainize.test').searchParams);
   assert.equal(selected.kind, 'agent'); assert.equal(selected.scope, 'all'); assert.equal(selected.q, 'guide');
+});
+
+
+test('private list cursors survive next-page navigation and reset atomically when search or scope changes', () => {
+  const params = new URLSearchParams('kind=agent&agents=mine&q=guide&cursor=page-two');
+  assert.equal(readExploreSelection(params).cursor, 'page-two');
+  assert.equal(changeExploreSelection(params, { q: 'other' }).get('cursor'), null);
+  assert.equal(changeExploreSelection(params, { agents: 'org', org: 'chosen' }).get('cursor'), null);
+  assert.equal(changeExploreSelection(params, { cursor: 'page-three' }, false).get('cursor'), 'page-three');
+  for (const query of ['kind=agent&cursor=other', 'kind=agent&agents=org&cursor=other', 'kind=knowledge&cursor=other', 'kind=agent&agents=mine&cursor=a&cursor=b']) assert.equal(readExploreSelection(new URLSearchParams(query)).invalid, true);
 });

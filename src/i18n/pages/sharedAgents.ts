@@ -66,6 +66,9 @@ export const sharedAgents: Dict = {
   'explore.agents.filter.mine': { ko: '내 것', en: 'Mine' },
   'explore.agents.filter.org': { ko: '내 조직', en: 'My organization' },
   'explore.agents.filter.org_pick': { ko: '조직: {org}', en: 'Organization: {org}' },
+  'explore.agents.invalid_page': { ko: '에이전트 목록의 응답을 확인할 수 없습니다. 다시 불러와 주세요.', en: 'The agent list response could not be verified. Reload the list.' },
+  'explore.agents.previous_page': { ko: '이전 에이전트', en: 'Previous agents' },
+  'explore.agents.next_page': { ko: '다음 에이전트', en: 'Next agents' },
   'explore.agents.org_unsupported': {
     ko: '이 노드는 조직 에이전트 목록을 지원하지 않습니다.',
     en: 'This node does not support organization agent lists.',

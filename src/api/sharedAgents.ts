@@ -178,7 +178,7 @@ export interface AgentRef {
   updatedAt: string | null;
 }
 
-export interface SharedAgentsPage { items: { ref: AgentRef; canInvoke: boolean }[]; nextCursor: string | null; asOf: string | null }
+export interface SharedAgentsPage { items: { ref: AgentRef; canInvoke: boolean }[]; nextCursor: string | null; asOf: string | null; total: number | null; previousCursor?: string | null }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
@@ -228,16 +228,26 @@ export function parseAgentRef(raw: unknown): AgentRef | null {
 }
 
 /** `GET /api/shared-agents` → the page, or `null` when the body is not one (an older node's 404 page, a proxy error). */
-export function parseSharedAgentsResponse(raw: unknown): SharedAgentsPage | null {
+export function parseSharedAgentsResponse(raw: unknown, cursor?: string): SharedAgentsPage | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  if (!Array.isArray(r.items)) return null;
-  const items: SharedAgentsPage['items'] = [];
+  if (r.contract !== '1.0' || !Array.isArray(r.items) || typeof r.asOf !== 'string' || !Number.isFinite(Date.parse(r.asOf))
+    || r.nextCursor !== null && (typeof r.nextCursor !== 'string' || !/^[A-Za-z0-9._~+/=-]{1,512}$/.test(r.nextCursor))
+    || r.previousCursor !== undefined && r.previousCursor !== null && (typeof r.previousCursor !== 'string' || !/^[A-Za-z0-9._~+/=-]{1,512}$/.test(r.previousCursor))
+    || r.total !== undefined && (typeof r.total !== 'number' || !Number.isSafeInteger(r.total) || r.total < r.items.length)) return null;
+  const items: SharedAgentsPage['items'] = [], seen = new Set<string>();
   for (const it of r.items) {
-    const ref = parseAgentRef((it as { ref?: unknown } | null)?.ref);
-    if (ref) items.push({ ref, canInvoke: (it as { canInvoke?: unknown }).canInvoke !== false });
+    const value = it as { ref?: Record<string, unknown>; canInvoke?: unknown } | null;
+    const ref = parseAgentRef(value?.ref);
+    if (!ref || !ref.registryIssuer || typeof value?.canInvoke !== 'boolean' || !oneOf(AGENT_REF_STATUSES, value.ref?.status)) return null;
+    const key = `${ref.registryIssuer}#${ref.agentId}`;
+    if (seen.has(key)) return null;
+    seen.add(key); items.push({ ref, canInvoke: value.canInvoke });
   }
-  return { items, nextCursor: str(r.nextCursor), asOf: str(r.asOf) };
+  if (r.nextCursor && !items.length || cursor && (!items.length || r.nextCursor === cursor || r.previousCursor === cursor)) return null;
+  if (!cursor && r.previousCursor || r.nextCursor && r.nextCursor === r.previousCursor) return null;
+  if (!cursor && typeof r.total === 'number' && (r.nextCursor ? r.total <= items.length : r.total !== items.length)) return null;
+  return { items, nextCursor: r.nextCursor as string | null, asOf: r.asOf, total: typeof r.total === 'number' ? r.total : null, ...(r.previousCursor !== undefined ? { previousCursor: r.previousCursor as string | null } : {}) };
 }
 
 /** `releaseId` → the row's `kind`: a linked or config agent is an upstream the node forwards to; a hosted one's mode is not in the ref. */

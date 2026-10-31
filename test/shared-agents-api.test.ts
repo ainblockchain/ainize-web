@@ -130,7 +130,7 @@ test('a ref is read defensively and becomes a marketplace row', () => {
 test('a page of refs; a body that is not one is null', () => {
   assert.equal(parseSharedAgentsResponse('<html>Cannot GET</html>'), null);
   assert.equal(parseSharedAgentsResponse({ agents: [] }), null, 'the old list shape is not the contract');
-  const page = parseSharedAgentsResponse({ contract: '1.0', asOf: 't', nextCursor: null, items: [{ ref: ref(), canInvoke: true }, { ref: { agentId: 'broken' }, canInvoke: true }] })!;
+  const page = parseSharedAgentsResponse({ contract: '1.0', asOf: '2026-10-31T00:00:00Z', nextCursor: null, items: [{ ref: ref(), canInvoke: true }] })!;
   assert.equal(page.items.length, 1);
   assert.equal(page.nextCursor, null);
 });
@@ -180,4 +180,25 @@ test('a hosted spec or a linked-agents row becomes the agent page’s row when t
   assert.equal(agentSummaryFromLinkedList({ agents: [] }, 'x'), null);
   const fromLinked = agentSummaryFromLinkedList({ agents: [{ id: 'coffee', name: 'Coffee', owner: '0xABC', a2a_url: 'https://n/agents/coffee', card_url: 'https://n/agents/coffee/.well-known/agent-card.json', visibility: 'org', org_id: 'org_comcom', reachable: true }] }, 'coffee')!;
   assert.deepEqual([fromLinked.kind, fromLinked.owner, fromLinked.visibility, fromLinked.org_id, fromLinked.reachable], ['upstream', '0xabc', 'org', 'org_comcom', true]);
+});
+
+
+test('registry pages refuse dropped rows, unknown permissions, duplicate identities and malformed continuation metadata', () => {
+  const good = { contract: '1.0', asOf: '2026-10-31T00:00:00Z', nextCursor: null, total: 1, items: [{ ref: ref(), canInvoke: true }] };
+  assert.equal(parseSharedAgentsResponse(good)?.total, 1);
+  for (const patch of [{ contract: '2.0' }, { asOf: 'bad' }, { nextCursor: {} }, { nextCursor: '' }, { total: -1 }, { total: 0 }, { total: 1.5 },
+    { items: [good.items[0], { ref: null, canInvoke: true }] }, { items: [{ ref: ref() }] }, { items: [{ ref: ref({ status: 'unknown' }), canInvoke: true }] },
+    { items: [good.items[0], good.items[0]] }, { items: [], nextCursor: 'loop' }]) assert.equal(parseSharedAgentsResponse({ ...good, ...patch }), null, JSON.stringify(patch));
+  assert.equal(parseSharedAgentsResponse({ ...good, total: undefined })?.total, null, 'older nodes have no total count');
+});
+
+
+test('registry continuation metadata cannot hide truncation or leave Next on the same page', () => {
+  const page = { contract: '1.0', asOf: '2026-10-31T00:00:00Z', nextCursor: null, total: 3, items: [{ ref: ref(), canInvoke: true }] };
+  assert.equal(parseSharedAgentsResponse(page), null);
+  assert.ok(parseSharedAgentsResponse(page, 'last-page'));
+  assert.equal(parseSharedAgentsResponse({ ...page, nextCursor: 'same-page' }, 'same-page'), null);
+  assert.equal(parseSharedAgentsResponse({ ...page, total: 1, previousCursor: 'unexpected-page' }), null);
+  assert.equal(parseSharedAgentsResponse({ ...page, nextCursor: 'other-page', previousCursor: 'other-page' }, 'current-page'), null);
+  assert.equal(parseSharedAgentsResponse({ ...page, items: [] }, 'last-page'), null);
 });
