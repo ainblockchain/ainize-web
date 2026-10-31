@@ -11,6 +11,7 @@ export function WalletSendResult({ value }: { value: WalletSendStatus }) {
     <Alert $tone={op.state === 'confirmed' ? 'success' : 'warning'} role="status">{t(`op.account.send.state.${op.state}`)}</Alert>
     <div style={{ marginTop: 6 }}>{t('op.account.send.amount', { currency: 'AIN' })}: <strong>{op.amount} AIN</strong></div>
     <div>{t('op.account.send.to')}: <Mono>{op.to}</Mono></div>
+    {op.memo != null && <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{t('op.account.send.memo')}: {op.memo}</div>}
     {op.state === 'prepared' && <><div>{t('op.account.send.from')}: <Mono>{op.context.node}</Mono></div><div>Chain ID {op.context.chain_id} · <Mono>{op.context.rpc_url}</Mono></div><Muted>{t('op.account.send.desc')} {t('op.account.send.fees')}</Muted></>}
     <details style={{ marginTop: 6 }}><summary>{t('op.account.send.details')}</summary>
       <div>{t('op.account.send.from')}: <Mono>{op.context.node}</Mono></div>

@@ -160,6 +160,7 @@ export const operatorDash: Dict = {
   'op.account.send.title': { ko: '보내기', en: 'Send' },
   'op.account.send.desc': { ko: '이 노드 지갑에서 다른 주소로 AIN을 보냅니다. 체인 전송은 되돌릴 수 없습니다.', en: 'Send AIN from this node’s wallet to another address. A transfer on the chain cannot be undone.' },
   'op.account.send.to': { ko: '받는 주소 (0x…)', en: 'To (0x… address)' },
+  'op.account.send.memo': { ko: '메모 (노드 기록에만 저장)', en: 'Memo (node record only)' },
   'op.account.send.amount': { ko: '금액 ({currency})', en: 'Amount ({currency})' },
   'op.account.send.button': { ko: '보내기', en: 'Send' },
   'op.account.send.working': { ko: '보내는 중…', en: 'sending…' },

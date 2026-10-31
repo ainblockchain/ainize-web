@@ -110,3 +110,25 @@ test('fresh exact receipts synchronize the active request without promoting old 
     assert.equal((api.endpoints.walletSendStatus.select(scope)(store.getState()).data as any).operation.state, 'confirmed');
   } finally { store.dispatch(api.util.resetApiState()); }
 });
+
+test('CLI memos remain visible as receipt data and bind review and reconciliation to the same intent', async () => {
+  const saved = { ...op(), memo: 'invoice <b>literal</b>' };
+  assert.equal(readWalletSend(status(saved), context)?.operation?.memo, saved.memo);
+  for (const memo of [[], {}, 1, 'x'.repeat(201)]) assert.equal(readWalletSend(status({ ...op(), memo }), context), null);
+  await assert.rejects(actOnWalletSend(context, { kind: 'submit', operation: saved }, {
+    current: () => true, read: async () => status({ ...saved, memo: 'another invoice' }), write: async () => assert.fail('changed memo cannot submit'),
+  }), e => e instanceof WalletSendActionError && e.code === 'changed');
+  let reads = 0;
+  await assert.rejects(actOnWalletSend(context, { kind: 'submit', operation: saved }, {
+    current: () => true, read: async () => status(++reads === 1 ? saved : { ...saved, state: 'confirmed', memo: 'another invoice' }), write: async () => ({}),
+  }), e => e instanceof WalletSendActionError && e.code === 'unconfirmed');
+  const { configureStore } = await import('@reduxjs/toolkit'), { api } = await import('../src/api/api'), { syncWalletSendReceipt } = await import('../src/lib/walletSendCache');
+  const store = configureStore({ reducer: { [api.reducerPath]: api.reducer }, middleware: gdm => gdm().concat(api.middleware) });
+  const scope = { identity: 'memo-owner', context };
+  try {
+    await store.dispatch(api.util.upsertQueryData('walletSendStatus', scope, status(saved)));
+    syncWalletSendReceipt(store.dispatch, scope, status({ ...saved, state: 'confirmed', memo: 'changed', updated_at: 3 }));
+    const retained = api.endpoints.walletSendStatus.select(scope)(store.getState()).data as any;
+    assert.equal(retained.operation.memo, saved.memo); assert.equal(retained.operation.state, 'prepared');
+  } finally { store.dispatch(api.util.resetApiState()); }
+});

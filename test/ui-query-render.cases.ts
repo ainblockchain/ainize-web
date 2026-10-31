@@ -4073,3 +4073,12 @@ test('history paging keeps the current account URL options and distinguishes the
   const end = render(Page, [...chainAccountFixtures(), transferHistoryFixture([], cursor)], '/account?sendCursor=' + cursor);
   assert.match(end, /No older transfers/); assert.doesNotMatch(end, /No saved transfers yet/);
 });
+
+test('reviewed CLI memo renders as literal wrapped receipt text in the web', () => {
+  const memo = 'Invoice <script>literal</script> & receipt';
+  const html = render(AccountPage, chainAccountFixtures().map(f => f.name === 'walletSendStatus' ? { ...f, value: { ...sendStatusFixture, operation: { ...savedSendOperation('prepared'), memo } } } : f), '/account');
+  assert.match(html, /Memo \(node record only\)/);
+  assert.match(html, /Invoice &lt;script&gt;literal&lt;\/script&gt; &amp; receipt/);
+  assert.doesNotMatch(html, /<script>literal/);
+  assert.match(html, /white-space:pre-wrap;overflow-wrap:anywhere/);
+});

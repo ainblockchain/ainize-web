@@ -2,7 +2,7 @@ import type { InfoResponse } from '../api/types';
 export interface WalletSendContext { node: string; rpc_url: string; chain_id: number; gas_price: number }
 export interface WalletSendReceipt {
   version: 1; id: string; context: WalletSendContext; actor: string; to: string; amount: string;
-  currency: 'AIN'; tx_hash: string; state: 'prepared' | 'submitted' | 'confirmed' | 'rejected' | 'cancelled'; created_at: number; updated_at: number;
+  currency: 'AIN'; memo?: string | null; tx_hash: string; state: 'prepared' | 'submitted' | 'confirmed' | 'rejected' | 'cancelled'; created_at: number; updated_at: number;
 }
 export interface WalletSendStatus { version: 1; context: WalletSendContext; operation: WalletSendReceipt | null; read_error: string | null }
 export interface WalletSendHistory { version: 1; context: WalletSendContext; cursor: string | null; items: WalletSendReceipt[]; next_cursor: string | null }
@@ -39,6 +39,7 @@ export function readWalletSend(raw: unknown, expected: WalletSendContext): Walle
   // A previous chain's unresolved request must remain visible; its context is shown and submission is disabled.
   if (op !== null && (!object(op) || op.version !== 1 || !id(op.id) || !contextValid(op.context) || op.context.node.toLowerCase() !== expected.node.toLowerCase()
     || !sendAddress(op.actor) || !sendAddress(op.to) || op.to.toLowerCase() === expected.node.toLowerCase() || typeof op.amount !== 'string' || walletSendAmount(op.amount) !== op.amount
+    || op.memo != null && (typeof op.memo !== 'string' || op.memo.length > 200)
     || op.currency !== 'AIN' || typeof op.tx_hash !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(op.tx_hash)
     || !['prepared', 'submitted', 'confirmed', 'rejected', 'cancelled'].includes(op.state)
     || !Number.isSafeInteger(op.created_at) || op.created_at < 0 || !Number.isSafeInteger(op.updated_at) || op.updated_at < op.created_at
@@ -58,7 +59,7 @@ export function readWalletSendHistory(raw: unknown, expected: WalletSendContext,
   return raw as WalletSendHistory;
 }
 export type WalletSendAction = { kind: 'prepare'; request_id: string; to: string; amount: string } | { kind: 'submit' | 'cancel'; operation: WalletSendReceipt };
-const receiptKey = (op: WalletSendReceipt) => JSON.stringify([op.id, walletSendContextKey(op.context), op.actor.toLowerCase(), op.to.toLowerCase(), op.amount, op.tx_hash, op.state, op.created_at, op.updated_at]);
+const receiptKey = (op: WalletSendReceipt) => JSON.stringify([op.id, walletSendContextKey(op.context), op.actor.toLowerCase(), op.to.toLowerCase(), op.amount, op.memo ?? null, op.tx_hash, op.state, op.created_at, op.updated_at]);
 export class WalletSendActionError extends Error { constructor(readonly code: 'changed' | 'read' | 'unconfirmed' | 'not_submitted' | 'prepare_failed') { super(code); } }
 /** At most one write per deliberate action; recovery is a read, never a fallback to legacy send. */
 export async function actOnWalletSend(context: WalletSendContext, action: WalletSendAction, deps: {
@@ -80,8 +81,8 @@ export async function actOnWalletSend(context: WalletSendContext, action: Wallet
   if (!deps.current()) return null;
   if (action.kind === 'prepare' && after && (!op || op.id !== requestId)) throw new WalletSendActionError('prepare_failed');
   if (action.kind === 'submit' && op?.id === requestId && op.state === 'prepared') throw new WalletSendActionError('not_submitted');
-  if (!op || op.id !== requestId || action.kind === 'prepare' && (op.to.toLowerCase() !== action.to.toLowerCase() || op.amount !== action.amount)
-    || action.kind !== 'prepare' && (op.tx_hash !== action.operation.tx_hash || op.to !== action.operation.to || op.amount !== action.operation.amount || op.actor !== action.operation.actor || walletSendContextKey(op.context) !== walletSendContextKey(action.operation.context))
+  if (!op || op.id !== requestId || action.kind === 'prepare' && (op.to.toLowerCase() !== action.to.toLowerCase() || op.amount !== action.amount || op.memo != null)
+    || action.kind !== 'prepare' && (op.tx_hash !== action.operation.tx_hash || op.to !== action.operation.to || op.amount !== action.operation.amount || (op.memo ?? null) !== (action.operation.memo ?? null) || op.actor !== action.operation.actor || walletSendContextKey(op.context) !== walletSendContextKey(action.operation.context))
     || action.kind === 'submit' && op.state === 'prepared' || action.kind === 'cancel' && op.state === 'prepared') throw new WalletSendActionError('unconfirmed');
   return after;
 }

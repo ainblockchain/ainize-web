@@ -7,7 +7,7 @@ const snapshot = (value: unknown) => isDraft(value) ? current(value as object) :
 function retainProgress(previous: WalletSendStatus | null, incoming: WalletSendStatus): WalletSendStatus {
   const a = previous?.operation, b = incoming.operation;
   if (!a || !b || a.id !== b.id) return incoming;
-  const sameIntent = a.tx_hash === b.tx_hash && a.to === b.to && a.actor === b.actor && a.amount === b.amount && a.created_at === b.created_at && walletSendContextKey(a.context) === walletSendContextKey(b.context);
+  const sameIntent = a.tx_hash === b.tx_hash && a.to === b.to && a.actor === b.actor && a.amount === b.amount && (a.memo ?? null) === (b.memo ?? null) && a.created_at === b.created_at && walletSendContextKey(a.context) === walletSendContextKey(b.context);
   const transitions = { prepared: ['prepared', 'submitted', 'confirmed', 'rejected', 'cancelled'], submitted: ['submitted', 'confirmed', 'rejected'], confirmed: ['confirmed'], rejected: ['rejected'], cancelled: ['cancelled'] };
   return !sameIntent || b.updated_at < a.updated_at || !transitions[a.state].includes(b.state) ? previous! : incoming;
 }
