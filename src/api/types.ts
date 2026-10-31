@@ -408,6 +408,8 @@ export interface Binding { delegate: string; owner: string; label: string | null
  * name and its address, and what a list of your nodes is for is seeing that they are all still there.
  */
 export interface MyNode {
+  /** Opaque node-link generation; absent on older servers, null for an intrinsic operator row. */
+  revision?: string | null;
   can_unlink?: boolean;
   address: string;
   name: string | null;

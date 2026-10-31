@@ -62,6 +62,7 @@ import { BASKET_PREFIX, chatStorageOwner } from '../src/lib/teachStore';
 import { loadComposerDraft, loadStack, loadTurns, saveComposerDraft, saveStack, saveTurns } from '../src/components/chat/util';
 import MyAgentsPage from '../src/screens/MyAgentsPage';
 import AinCodePage from '../src/screens/AinCodePage';
+import MyNodesPage from '../src/screens/MyNodesPage';
 import AgentCreatePage from '../src/screens/AgentCreatePage';
 import AgentLinkPage from '../src/screens/AgentLinkPage';
 import { AinftBenefitsPanel } from '../src/screens/agent/AinftBenefitsPanel';
@@ -3836,4 +3837,50 @@ test('knowledge log window and severity come from its URL and manual refresh rem
   ], logPath + '?limit=500&level=warn&follow=0', logRoute);
   assert.match(html, /Selected event message/); assert.doesNotMatch(html, /Below selected severity|checked=""/);
   assert.match(html, /newest 500 events/); assert.match(html, /event-log-refresh/);
+});
+
+const inventoryNode = { address: '0x' + 'b'.repeat(40), name: 'Reviewed remote node', roles: [], ledger: null, version: '1.2.3', agents: [], seen: true, last_seen: 1, connected_at: 1, is_this_hub: false, operable: false, can_unlink: true, revision: 'c'.repeat(64) };
+const myNodesFixture = (nodes: unknown[] = [inventoryNode]): Fixture => ({ name: 'myNodes', arg: accountIdentity, value: { nodes, hub: 'https://node.test', hub_address: keyNode, owner: 'sso:viewer' } });
+test('My Nodes renders reviewed remote connections without borrowing local operator destinations', () => {
+  const html = render(MyNodesPage, [...appAccount, myNodesFixture()], '/my-nodes');
+  assert.match(html, /Reviewed remote node/); assert.match(html, /recent heartbeat/);
+  assert.match(html, /Agent inventory not reported/); assert.match(html, /1.2.3/);
+  assert.match(html, />Disconnect</); assert.match(html, /The node keeps running and its data remains/);
+  assert.doesNotMatch(html, /href="\/(logs|dashboard)"|no agents|answering|sso:viewer…/);
+});
+test('My Nodes shows local operator destinations only for the exact hub and hides intrinsic disconnect', () => {
+  const html = render(MyNodesPage, [...appAccount, myNodesFixture([{ ...inventoryNode, address: keyNode, is_this_hub: true, operable: true, can_unlink: false, revision: null }])], '/my-nodes');
+  assert.match(html, /href="\/logs"/); assert.match(html, /href="\/dashboard"/);
+  assert.doesNotMatch(html, />Disconnect<|recent heartbeat/);
+});
+test('My Nodes failure, foreign owner and malformed inventory cannot retain stale actions or claim empty', () => {
+  for (const fixture of [
+    { ...myNodesFixture(), status: 'rejected' as const },
+    { ...myNodesFixture(), value: { ...(myNodesFixture().value as any), owner: 'sso:other' } },
+    myNodesFixture([inventoryNode, inventoryNode]),
+    myNodesFixture([{ ...inventoryNode, operable: true }]),
+    myNodesFixture([null]),
+  ]) {
+    const html = render(MyNodesPage, [...appAccount, fixture], '/my-nodes');
+    assert.match(html, /data-testid="query-retry"/);
+    assert.doesNotMatch(html, /Reviewed remote node|>Disconnect<|href="\/(logs|dashboard)"|data-testid="mynodes-empty"/);
+  }
+});
+test('My Nodes waits for the inventory and reserves empty state for a successful empty list', () => {
+  const pending = render(MyNodesPage, [...appAccount, { ...myNodesFixture(), value: undefined, status: 'pending' }], '/my-nodes');
+  assert.doesNotMatch(pending, /data-testid="mynodes-empty"|query-retry|>Disconnect</);
+  const empty = render(MyNodesPage, [...appAccount, myNodesFixture([])], '/my-nodes');
+  assert.match(empty, /data-testid="mynodes-empty"/);
+});
+test('old node inventories remain readable but cannot issue unreviewed actions', () => {
+  const html = render(MyNodesPage, [...appAccount, { ...myNodesFixture(), value: { nodes: [inventoryNode], hub: 'https://node.test' } }], '/my-nodes');
+  assert.match(html, /Reviewed remote node/); assert.match(html, /data-testid="mynodes-upgrade"/);
+  assert.doesNotMatch(html, />Disconnect<|href="\/(logs|dashboard)"/);
+});
+test('Google-only My Nodes explicitly offers supported sign-in without a redirect loop', () => {
+  const html = render(MyNodesPage, [...signedOut.filter(f => f.name !== 'googleSession'), { name: 'googleSession', value: { configured: true, identity: { sub: 'viewer', email: 'viewer@example.test' } } }], '/my-nodes?view=all#connections');
+  assert.match(html, /data-testid="mynodes-account-required"/);
+  assert.match(html, /href="\/api\/auth\/sso\/start\?next=%2Fmy-nodes%3Fview%3Dall%23connections"/);
+  assert.match(html, /href="\/signing\?next=%2Fmy-nodes%3Fview%3Dall%23connections&amp;wallet=1"/);
+  assert.doesNotMatch(html, /data-testid="mynodes-empty"|>Disconnect</);
 });

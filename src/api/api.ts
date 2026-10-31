@@ -471,7 +471,7 @@ export const api = createApi({
      * screen could ask before: node ownership lives in each node's own database, and a node only becomes
      * connected to a person when it asks this hub for a code at startup and that person approves it.
      */
-    unlinkNode: b.mutation<{ ok: boolean }, string>({ query: (address) => ({ url: `api/my/nodes/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
+    unlinkNode: b.mutation<{ ok: boolean; address: string; revision: string }, { address: string; expected_revision: string }>({ query: ({ address, expected_revision }) => ({ url: `api/my/nodes/${encodeURIComponent(address)}`, method: 'DELETE', body: { expected_revision } }), invalidatesTags: ['Me'] }),
     myNodes: b.query<{ nodes: MyNode[]; hub: string }, string>({ keepUnusedDataFor: 0, query: () => 'api/my/nodes', providesTags: ['Me'] }),
     removeBinding: b.mutation<{ ok: boolean; delegate: string; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
