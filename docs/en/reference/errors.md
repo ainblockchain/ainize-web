@@ -188,7 +188,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 178 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 187 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 115 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -313,7 +313,7 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `400` | contributors must be an array | `../ainize-core/src/catalog.ts` |
 | `400` | duplicate contributor address: \<c.address> | `../ainize-core/src/catalog.ts` |
 | `400` | invalid_actor | `src/run-actor.ts` |
-| `400` | invalid_request | `src/server.ts` |
+| `400` | invalid_request | `src/agent-archive-operations.ts`, `src/server.ts` |
 | `400` | model_not_served | `src/server.ts` |
 | `400` | node address required | `src/api.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
@@ -336,6 +336,7 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `402` | payment required: buy the patch via /x402/patch/:id (its author, a buyer holding a download token, and a verifier while it is being verified can fetch it) | `src/api.ts` |
 | `403` | … does not own this node — this is for whoever runs it | `src/api.ts` |
 | `403` | account_suspended | `src/run-actor.ts` |
+| `403` | not_allowed | `src/agent-archive-routes.ts` |
 | `403` | only the author of \<entry.anchor.id> may place its body here | `src/api.ts` |
 | `403` | only the branch owner can add patches | `src/market.ts` |
 | `403` | only the owner of \<name> (\<b.owner>) can archive it | `src/market.ts` |
@@ -344,11 +345,17 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `403` | this payout is owed to a different address | `src/payouts.ts` |
 | `404` | \<address> does not own this node | `src/api.ts` |
 | `404` | \<delegate> does not act as you | `src/api.ts` |
+| `404` | not_found | `src/agent-archive-routes.ts` |
 | `404` | patch not found | `src/api.ts` |
 | `404` | payout \<id> not found | `src/payouts.ts` |
 | `409` | \<name> is curated by \<b.owner>, not by this node | `src/api.ts` |
 | `409` | \<name> is free to follow: it has no curation fee | `src/api.ts` |
 | `409` | active_version_missing | `src/agent-archive-restore.ts` |
+| `409` | archive_context_changed | `src/agent-archive-routes.ts` |
+| `409` | archive_operation_conflict | `src/agent-archive-operations.ts` |
+| `409` | archive_operation_pending | `src/agent-archive-operations.ts` |
+| `409` | archive_target_changed | `src/agent-archive-routes.ts` |
+| `409` | export_required | `src/agent-archive-routes.ts` |
 | `409` | id_taken | `src/agent-archive-restore.ts` |
 | `409` | node link was revoked or replaced | `src/api.ts` |
 | `409` | not sold here; gateway is … | `src/api.ts` |
@@ -360,11 +367,13 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `409` | this payout was already sent (\<row.tx_hash>) | `src/payouts.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
 | `423` | patch not listed yet (verification \<e.passed>/\<e.quorum>) | `src/api.ts` |
+| `429` | archive_operation_capacity | `src/agent-archive-operations.ts` |
 | `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
 | `501` | docker_unavailable | `src/server.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
 | `502` | restore_cleanup_failed | `src/agent-archive-restore.ts` |
+| `503` | archive_operation_unavailable | `src/agent-archive-operations.ts` |
 | `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
 | `503` | runtime_restore_\<code>: \<detail> | `src/market.ts`, `src/runtime-restoration.ts`, `src/verifier.ts` |

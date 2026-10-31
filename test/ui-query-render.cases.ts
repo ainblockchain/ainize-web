@@ -1,6 +1,8 @@
 import { KeyRevocationNotice } from '../src/components/KeyRevocationNotice';
 import { AgentArchivePanel, agentArchiveScope } from '../src/screens/agent/AgentArchivePanel';
 import { archivedAgent } from './fixtures/agentArchive';
+import { ArchiveOperationNotice } from '../src/components/ArchiveOperationNotice';
+import { pendingArchiveOperation, archiveOperationJob } from './fixtures/agentArchiveOperation';
 import { KeyCreationNotice } from '../src/components/KeyCreationNotice';
 import { issuedKeyScope } from '../src/screens/models/issuedKeyMemory';
 import { PurchaseReviewSheet } from '../src/components/detail/PurchaseReview';
@@ -1010,7 +1012,7 @@ test('archives show reviewed rows, export prerequisite and exact actions without
   assert.match(html, /<button[^>]*disabled=""[^>]*>Permanently delete archive<\/button>/);
   assert.doesNotMatch(html, /Restored\.|Restore confirmed|Remove downloaded archive|No retained agents/);
   const exported = render(AgentArchivePanel, [...appAccount, archiveFixture([{ ...archivedAgent(), exportedAt: 1700000000100 }])]);
-  assert.match(exported, /<button(?![^>]*disabled)[^>]*>Permanently delete archive<\/button>/);
+  assert.match(exported, /<button[^>]*disabled=""[^>]*>Permanently delete archive<\/button>/, 'recovery storage must initialize before any mutation');
 });
 
 test('failed and malformed archive reads hide cached actions and never claim an empty list', () => {
@@ -1038,6 +1040,40 @@ test('archive cache is separated by account and node and hidden during sign-out'
     const html = render(AgentArchivePanel, [...auth, archiveFixture()]);
     assert.doesNotMatch(html, /Retained assistant|>Restore same address<|No retained agents/);
   }
+});
+
+const archiveNotice = (operation: any, error: string | null = null, ready = true) => render(() => createElement(ArchiveOperationNotice, {
+  operation, error, ready, running: false, inspect() {}, cancel() {}, acknowledge() {}, reload() {},
+}), signedOut);
+test('an unconfirmed saved archive request offers read recovery and cancellation only before known admission', () => {
+  const op = pendingArchiveOperation(), html = archiveNotice(op);
+  assert.match(html, /Confirmation is needed/); assert.match(html, /Check request status/); assert.match(html, /Cancel if not admitted/);
+  assert.doesNotMatch(html, /Restore confirmed|Acknowledge and close/);
+  const running = archiveNotice({ ...op, job: archiveOperationJob(op, 'running') });
+  assert.match(running, /server is processing/); assert.doesNotMatch(running, /Cancel if not admitted|Restore confirmed|Acknowledge and close/);
+});
+test('interrupted and unknown archive requests retain inspection without a repeat or success action', () => {
+  const op = pendingArchiveOperation();
+  const interrupted = archiveNotice({ ...op, job: archiveOperationJob(op, 'interrupted') });
+  assert.match(interrupted, /server restart interrupted confirmation/);
+  const unknown = archiveNotice({ ...op, job: { ...archiveOperationJob(op, 'unknown'), error: { status: 502, code: 'archive_operation_unknown', message: 'Inspect state' } } });
+  for (const html of [interrupted, unknown]) {
+    assert.match(html, /Check request status|Inspect agent state/);
+    assert.doesNotMatch(html, /Acknowledge and close|Cancel if not admitted|Restore confirmed/);
+  }
+});
+test('confirmed archive requests show the exact restored target and allow acknowledgment', () => {
+  const op = pendingArchiveOperation(), html = archiveNotice({ ...op, job: archiveOperationJob(op) });
+  assert.match(html, /Restore confirmed/); assert.match(html, /v7/); assert.match(html, /href="\/agent\/saved-agent\/edit"/);
+  assert.match(html, /Secrets to set again.*TOKEN/); assert.match(html, /Acknowledge and close/);
+  const cancelled = archiveNotice({ ...op, job: { ...archiveOperationJob(op, 'refused'), error: { status: 409, code: 'archive_operation_cancelled', message: 'Cancelled' } } });
+  assert.match(cancelled, /Cancelled before admission/); assert.match(cancelled, /Acknowledge and close/); assert.doesNotMatch(cancelled, /Restore confirmed/);
+});
+test('foreign archive operation receipts and unavailable storage cannot enable success or new mutations', () => {
+  const op = pendingArchiveOperation(), foreign = archiveNotice({ ...op, job: { ...archiveOperationJob(op), id: 'b'.repeat(32) } });
+  assert.doesNotMatch(foreign, /Restore confirmed|Acknowledge and close|Open agent settings/);
+  const blocked = archiveNotice(null, 'storage', false);
+  assert.match(blocked, /new restore\/delete actions are unavailable/); assert.match(blocked, /Check again/);
 });
 
 test('My agents includes private linked agents and routes Open and Edit to that exact resource', () => {

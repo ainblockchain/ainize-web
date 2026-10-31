@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-333 operations on 277 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+337 operations on 280 paths, grouped into the 12 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -220,6 +220,10 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/agent-previews/{preview}`](#get-apiagent-previewspreview) | operator | Read your temporary proposal runtime |
 | `DELETE` | [`/api/agent-previews/{preview}`](#delete-apiagent-previewspreview) | operator | Stop your temporary proposal runtime |
 | `POST` | [`/api/agent-previews/{preview}/rpc`](#post-apiagent-previewspreviewrpc) | operator | Talk to your proposal before merging |
+| `GET` | [`/api/agent-archive-operations`](#get-apiagent-archive-operations) | none | List your retained archive operation receipts |
+| `GET` | [`/api/agent-archive-operations/{requestId}`](#get-apiagent-archive-operationsrequestid) | none | Read an archive request without repeating its mutation |
+| `POST` | [`/api/agent-archive-operations/{requestId}`](#post-apiagent-archive-operationsrequestid) | none | Restore or remove a reviewed archive with durable request identity |
+| `POST` | [`/api/agent-archive-operations/{requestId}/cancel`](#post-apiagent-archive-operationsrequestidcancel) | none | Cancel an archive request only if it has not been admitted |
 | `GET` | [`/api/shared-agents`](#get-apishared-agents) | operator | Agents this node runs or proxies, in the cross-product registry shape (contract 1.0) |
 | `PUT` | [`/api/shared-agents/{id}/visibility`](#put-apishared-agentsidvisibility) | none | Change who sees an agent (owner or organization admin, into organizations where they are contributor+; the node's operator anywhere) |
 | `GET` | [`/api/agent-aliases/{name}`](#get-apiagent-aliasesname) | none | Resolve an agent alias (or id) to the agent's canonical id |
@@ -4069,6 +4073,256 @@ Owner/source-reader only, ready preview required. A2A JSON-RPC message/send, mes
 | `403` | Operation not permitted |
 | `404` | Unknown or unreadable resource |
 | `409` | Read-only source, conflict or runtime not ready |
+
+### `GET /api/agent-archive-operations`
+
+List your retained archive operation receipts
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed. Returns the complete owner ledger (up to 1000 records); no secret values or repository contents.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `expected_owner` | `query` | `string` | yes |
+| `expected_node` | `query` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {format:1,node,owner,operations} | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operations` | `object`[] |   |   |
+| `operations[].format` | `object` | yes |   |
+| `operations[].id` | `string` | yes |   |
+| `operations[].node` | `string` | yes |   |
+| `operations[].owner` | `string` | yes |   |
+| `operations[].archiveId` | `string` | yes |   |
+| `operations[].agentId` | `string` | yes |   |
+| `operations[].action` | `"restore"` \| `"delete"` | yes |   |
+| `operations[].version` | `integer` | yes | (at least 1) |
+| `operations[].restoredAt` | `number,null` | yes |   |
+| `operations[].state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operations[].createdAt` | `number` | yes |   |
+| `operations[].updatedAt` | `number` | yes |   |
+| `operations[].result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operations[].error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+### `GET /api/agent-archive-operations/{requestId}`
+
+Read an archive request without repeating its mutation
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `requestId` | `path` | `string` | yes |
+| `expected_owner` | `query` | `string` | yes |
+| `expected_node` | `query` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `404` | archive_operation_not_found; inspect or explicitly cancel the unadmitted ID, never infer safe resubmission |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+### `POST /api/agent-archive-operations/{requestId}`
+
+Restore or remove a reviewed archive with durable request identity
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed. Generate 128 random bits once and persist in the client before submission. Under the shared repository queue, the node persists admission before mutation and rechecks archive id, agent id, archived version and restoredAt. Identical repeats return the original operation; parameter changes conflict. Unresolved operations block new mutations of that archive/agent, including legacy archive endpoints. done means the exact result was persisted; refused records a recognized no-effect/rolled-back refusal; unknown requires reconciliation. History is single-writer and capped without eviction.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `requestId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected_owner` | `string` | yes |   |
+| `expected_node` | `string` | yes |   |
+| `archiveId` | `string` | yes |   |
+| `agentId` | `string` | yes |   |
+| `action` | `"restore"` \| `"delete"` | yes |   |
+| `version` | `integer` | yes | (at least 1) |
+| `restoredAt` | `number,null` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `202` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+**`202` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+### `POST /api/agent-archive-operations/{requestId}/cancel`
+
+Cancel an archive request only if it has not been admitted
+
+Owner-private/no-store. expected_owner and expected_node must match this authenticated account and node. Durable KV records retain the exact request and target across process restarts and archive deletion. Missing status is not permission to resubmit. Interrupted/unknown work is not automatically replayed. Saves a durable refused/archive_operation_cancelled tombstone for an absent request ID. A delayed submission then returns that tombstone without execution. An already-admitted ID returns its current state; this does not abort or reverse a restore/delete.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `requestId` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expected_owner` | `string` | yes |   |
+| `expected_node` | `string` | yes |   |
+| `archiveId` | `string` | yes |   |
+| `agentId` | `string` | yes |   |
+| `action` | `"restore"` \| `"delete"` | yes |   |
+| `version` | `integer` | yes | (at least 1) |
+| `restoredAt` | `number,null` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `202` | {operation}; check state and exact identity, not HTTP status alone. | `object` |
+| `400` | invalid_request |   |
+| `401` | not_signed_in |   |
+| `409` | archive_context_changed, archive_operation_conflict or archive_operation_pending (includes prior operationId) |   |
+| `429` | archive_operation_capacity; retained receipts are never evicted to admit new work |   |
+| `503` | archive_operation_unavailable; read the same request before further action |   |
+
+**`200` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
+
+**`202` response body**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `operation` | `object` | yes |   |
+| `operation.format` | `object` | yes |   |
+| `operation.id` | `string` | yes |   |
+| `operation.node` | `string` | yes |   |
+| `operation.owner` | `string` | yes |   |
+| `operation.archiveId` | `string` | yes |   |
+| `operation.agentId` | `string` | yes |   |
+| `operation.action` | `"restore"` \| `"delete"` | yes |   |
+| `operation.version` | `integer` | yes | (at least 1) |
+| `operation.restoredAt` | `number,null` | yes |   |
+| `operation.state` | `"running"` \| `"done"` \| `"refused"` \| `"unknown"` \| `"interrupted"` | yes |   |
+| `operation.createdAt` | `number` | yes |   |
+| `operation.updatedAt` | `number` | yes |   |
+| `operation.result` | `object,null` | yes | done only: exact archive restoration receipt or {deleted: archiveId}; null otherwise. |
+| `operation.error` | `object,null` | yes | refused/unknown only: {status, code, message}; null otherwise. |
 
 ### `GET /api/shared-agents`
 

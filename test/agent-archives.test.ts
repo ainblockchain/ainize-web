@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readAgentArchivePage, reviewAgentArchive, readAgentArchiveRestore, readAgentArchiveDownload, agentArchiveDeleted } from '../src/api/agentArchiveEvidence';
-import { createAgentArchiveActions } from '../src/lib/agentArchiveAction';
+import { createAgentArchiveDownload } from '../src/lib/agentArchiveAction';
 import { archivedAgent, archiveDetail, archiveReceipt } from './fixtures/agentArchive';
 const record = archivedAgent();
 const page = () => ({ archives: [record], total: 1, offset: 0, limit: 10 });
@@ -56,62 +56,16 @@ test('download rejects HTML/sign-in, foreign filenames and non-gzip bodies befor
   await assert.rejects(readAgentArchiveDownload(new Response(JSON.stringify({ error: { code: 'not_found' } }), { status: 404 }), record), (e: any) => e.status === 404);
 });
 
-test('synchronous action lock prevents double restore admission during delayed preflight', async () => {
-  const controller = createAgentArchiveActions(); let reads = 0, writes = 0, release!: (v: unknown) => void;
-  const d = { ...deps(), read: () => { reads++; return new Promise(resolve => { release = resolve; }); }, perform: async () => { writes++; return archiveReceipt(); } };
-  const first = controller.run(record, 'restore', d);
-  assert.deepEqual(await controller.run(record, 'restore', d), { kind: 'busy' });
-  release(archiveDetail()); assert.equal((await first).kind, 'restored'); assert.equal(reads, 1); assert.equal(writes, 1);
-});
-
-test('account departure and changed/failed review perform no write or success update', async () => {
-  for (const read of [async () => ({ archive: null }), async () => { throw new Error('offline'); }]) {
-    const result = await createAgentArchiveActions().run(record, 'restore', { ...deps(), read, perform: async () => assert.fail('no write') });
-    assert.ok(result.kind === 'changed' || result.kind === 'failed');
-  }
-  let active = true;
-  const result = await createAgentArchiveActions().run(record, 'restore', { ...deps(), current: () => active,
-    read: async () => { active = false; return archiveDetail(); }, perform: async () => assert.fail('no write after departure') });
-  assert.equal(result.kind, 'departed');
-});
-
-test('unexported archives cannot be deleted even when the stale row claimed an export', async () => {
-  const selected = { ...record, exportedAt: record.createdAt + 1 };
-  assert.equal((await createAgentArchiveActions().run(selected, 'delete', { ...deps(), perform: async () => assert.fail('no delete') })).kind, 'changed');
-});
-
-test('missing or lost mutation receipts lock restore/delete, while read-only export stays available', async () => {
-  for (const perform of [async () => ({}), async () => { throw new Error('lost reply'); }, async () => { throw { status: 502, data: { error: { code: 'restore_cleanup_failed' } } }; }]) {
-    const controller = createAgentArchiveActions();
-    assert.equal((await controller.run(record, 'restore', { ...deps(), perform })).kind, 'unknown');
-    assert.ok(controller.unresolved(record.id));
-    for (const action of ['restore', 'delete'] as const) assert.equal((await controller.run(record, action, { ...deps(), read: async () => assert.fail('no repeat') })).kind, 'unknown');
-    assert.equal((await controller.run(record, 'export', { ...deps(), perform: async () => new Blob(['fixture']) })).kind, 'exported');
-  }
-});
-
-test('exact pre-admission refusals allow corrected attempts but anonymous status guesses do not', async () => {
-  const controller = createAgentArchiveActions();
-  assert.equal((await controller.run(record, 'restore', { ...deps(), perform: async () => { throw { status: 409, data: { error: { code: 'project_environment_required' } } }; } })).kind, 'failed');
-  assert.equal(controller.unresolved(record.id), false);
-  assert.equal((await controller.run(record, 'restore', deps())).kind, 'restored');
-  assert.equal((await controller.run(record, 'restore', { ...deps(), perform: async () => { throw { status: 409 }; } })).kind, 'unknown');
-});
-
-test('late mutation response after account departure cannot publish another account result', async () => {
-  const controller = createAgentArchiveActions(); let active = true;
-  assert.equal((await controller.run(record, 'restore', { ...deps(), current: () => active,
-    perform: async () => { active = false; return archiveReceipt(); } })).kind, 'departed');
-  assert.ok(controller.unresolved(record.id));
-});
-
-test('archive selection is captured before awaits and deletion needs its own exact receipt', async () => {
-  const selected = { ...archivedAgent(), exportedAt: 1700000001000 }, original = structuredClone(selected);
-  const result = await createAgentArchiveActions().run(selected, 'delete', { ...deps(),
-    read: async () => { selected.agent = 'changed'; selected.id = 'archive_' + 'b'.repeat(24); return archiveDetail(original); },
-    perform: async review => { assert.equal(review.record.agent, original.agent); return { deleted: original.id }; } });
-  assert.equal(result.kind, 'deleted');
-  const controller = createAgentArchiveActions();
-  const invalid = await controller.run(original, 'delete', { ...deps(), read: async () => archiveDetail(original), perform: async () => ({ deleted: 'another' }) });
-  assert.equal(invalid.kind, 'unknown'); assert.ok(controller.unresolved(original.id));
+test('export preflight is single-flight and a late account response cannot trigger a download', async () => {
+  const controller = createAgentArchiveDownload(); let release!: (v: unknown) => void, active = true, exports = 0;
+  const d = { ...deps(), current: () => active, read: () => new Promise(resolve => { release = resolve; }),
+    perform: async () => { exports++; return new Blob(['fixture']); } };
+  const first = controller.run(record, d);
+  assert.deepEqual(await controller.run(record, d), { kind: 'busy' });
+  active = false; release(archiveDetail()); assert.equal((await first).kind, 'departed'); assert.equal(exports, 0);
+  active = true;
+  assert.equal((await controller.run(record, { ...d, read: async () => ({}), perform: async () => assert.fail('no export') })).kind, 'changed');
+  const exported = await controller.run(record, { ...d, read: async () => archiveDetail() });
+  assert.equal(exported.kind, 'exported'); assert.equal(exports, 1);
+  assert.equal((await controller.run(record, { ...d, read: async () => archiveDetail(), perform: async () => { active = false; return new Blob(); } })).kind, 'departed');
 });
