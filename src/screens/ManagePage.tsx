@@ -1,4 +1,5 @@
 import { ManagePublication } from '@/components/operator/ManagePublication';
+import { AttestationCount } from '@/components/detail/AttestationCount';
 import { challengeAvailability, requestManagedChallenge, ManageChallengeError, CHALLENGE_REASON_MIN } from '@/lib/manageChallenge';
 import { changeManagedPrice, retireManagedKnowledge, deleteManagedDraft, ManageLifecycleError } from '@/lib/manageLifecycle';
 import type { PatchDetail } from '@/api/types';
@@ -228,9 +229,6 @@ function ManageView() {
   const byId = new Map((catalogItems ?? []).map((e) => [e.anchor.id, e]));
   const billingLabel = (b: string) => { const k = `op.billing.${b}`; const v = t(k); return v === k ? b : v; };
 
-  // An attestation this node wrote on its own anchor and excluded from the count (item 146).
-  const selfCheck = (at: { verifier: string }) => p.self_checks > 0 && at.verifier.toLowerCase() === a.author.toLowerCase();
-
   /**
    * Finding 33 — what "Verify now" really spends. The stake it was accused of hiding no longer exists: the node
    * ignores `verifier.stake` and says so in its own log (server.ts), nothing is escrowed, transferred or slashed.
@@ -408,8 +406,8 @@ function ManageView() {
                 <TableData $color={at.passed ? '#44a45f' : '#e6173e'} $weight={600}>{at.passed ? t('op.manage.attest.pass') : t('op.manage.attest.fail')}</TableData>
                 <TableData title={at.verified_on !== 'hash-only' ? JSON.stringify(at.score) : t('op.term.integrity')}>{at.verified_on !== 'hash-only' ? scoreText(at.score) : '—'}</TableData>
                 <TableData title={at.verified_on}>{at.verified_on === 'hash-only' ? t('op.manage.attest.how.hash') : t('op.manage.attest.how.run', { engine: at.verified_on })}</TableData>
-                <TableData>{at.restarts_detected ?? 0}</TableData>
-                <TableData $color={selfCheck(at) ? '#8a4b00' : undefined} title={help('signedResult')}>{selfCheck(at) ? t('op.manage.attest.counts_self') : t('op.manage.attest.counts_yes')}</TableData>
+                <TableData>{at.restarts_detected ?? '—'}</TableData>
+                <TableData title={help('signedResult')}><AttestationCount entry={p} attestation={at} /></TableData>
                 <TableData>{at.created_at ? dateTime(at.created_at) : '—'}</TableData>
               </TableRow>
             ))}

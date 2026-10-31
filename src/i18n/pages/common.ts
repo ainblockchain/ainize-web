@@ -93,7 +93,7 @@ export const common: Dict = {
   'units.facts': { ko: '등록 질문 {n}개', en: '{n} declared questions' },
   // Finding 88 — called without a count this read "1 facts" on every single-fact knowledge in the live-test picker.
   'units.facts_one': { ko: '등록 질문 1개', en: '1 declared question' },
-  'units.verified_by': { ko: '검증 노드 {passed}/{quorum}', en: '{passed}/{quorum} verifiers' },
+  'units.verified_by': { ko: '검증 정족수 {passed}/{quorum}', en: 'Quorum {passed}/{quorum}' },
   // The header's unified search (huggingface-style): one box over apps, models, agents and knowledge.
   'search.placeholder': { ko: '앱·모델·에이전트·지식 검색', en: 'Search apps, models, agents, knowledge' },
   'search.title': { ko: '검색 결과', en: 'Search results' },

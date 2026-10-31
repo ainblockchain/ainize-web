@@ -1,6 +1,7 @@
 import { BenchmarkCoverage } from '@/components/detail/BenchmarkCoverage';
+import { AttestationCount } from '@/components/detail/AttestationCount';
 import { benchmarkQuestionCount } from '@/lib/benchmarkQuestions';
-import { verificationCount } from '@ainize/core/browser';
+import { verificationCount } from '@/lib/verificationView';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
@@ -863,21 +864,15 @@ function BaseRate() {
   );
 }
 
-function Verification({ d }: { d: PatchDetail }) {
+export function Verification({ d }: { d: PatchDetail }) {
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
   const bound = d.anchor.benchmark.collateral_bound_nat;
-  // `self_checks` is the number of the author's own attestations this node EXCLUDED (0 when a dev node counts them).
-  const self = (at: Attestation) => d.self_checks > 0 && at.verifier.toLowerCase() === d.anchor.author.toLowerCase();
-  // How many DISTINCT model servers produced the counted attestations (item 329). Attestations written before the
-  // fingerprint existed count as one unknown machine each — that can understate independence, never overstate it.
-  const machines = (d.executors?.length ?? 0) + (d.executors_unknown ?? 0);
-  const sharedEngine = (d.executors?.length ?? 0) > 0 && machines < d.passed;
+  // Show known server fingerprints separately from legacy records whose independence is unknown.
+  const tally = verificationCount(d);
+  const machines = tally.total !== null && Array.isArray(d.executors) ? new Set(d.executors).size : 0;
+  const sharedEngine = machines > 0 && tally.total !== null && tally.total < d.passed;
   const failing = d.attestations.filter((at) => !at.passed && at.failures?.length);
-  // Item 330 — while a challenge is open, a record written BEFORE it answers nothing. It stays here, shown for what
-  // it is, instead of quietly filling the second quorum slot with the very attestation its own author disputed.
-  const challengedAt = d.open_challenge?.created_at ?? 0;
-  const stale = (at: Attestation) => challengedAt > 0 && at.created_at <= challengedAt;
   // Item 179 — a knowledge trained on top of another is only meaningful with that other underneath. A verifier that
   // does not hold the base measures the child's OWN questions and nothing else, and the tick must say so.
   const bases = [...new Set([...(d.anchor.base?.stack ?? []).map((b) => b.patch_id), ...(d.anchor.parents ?? [])])];
@@ -953,9 +948,7 @@ function Verification({ d }: { d: PatchDetail }) {
                         : t('verifier.work_none')}
                     </TableData>
                     {/* Item 146: an attestation by the author is shown but marked as not counting; item 127: no deposit column, because no deposit exists. */}
-                    <TableData $color={self(at) || stale(at) ? '#8a4b00' : undefined} title={stale(at) ? t('verifier.stale_help') : `${help('signedResult')} (${tech('signedResult')})`}>
-                      {self(at) ? t('detail.ver.counts_self') : stale(at) ? t('verifier.stale') : t('detail.ver.counts_yes')}
-                    </TableData>
+                    <TableData title={`${help('signedResult')} (${tech('signedResult')})`}><AttestationCount entry={d} attestation={at} /></TableData>
                     <TableData $color={at.passed ? '#44a45f' : '#e6173e'} $weight={600}>{at.passed ? t('detail.pass') : t('detail.fail')}</TableData>
                     <TableData $align="right" $padding="0 32px 0 8px" title={dateTime(at.created_at)}>{f.ago(at.created_at)}</TableData>
                   </TableRow>
@@ -982,7 +975,7 @@ function Verification({ d }: { d: PatchDetail }) {
         </FailureBlock>
       ))}
       <div style={{ padding: '16px 32px 20px' }}>
-        <Note title={tech('verified')}><b>{term('verified')}</b> — {t('detail.ver.explain_count', { passed: d.passed, quorum: d.quorum, integrity: d.integrity_checks })}</Note>
+        <Note title={tech('verified')}><b>{term('verified')}</b> — {t('detail.ver.explain_count', { passed: verificationCount(d).shown, quorum: d.quorum, integrity: d.integrity_checks })}</Note>
         {machines > 0 && d.passed > 1 && <Note style={sharedEngine ? { color: '#8a4b00' } : undefined}>{t('detail.ver.executors_shared', { passed: d.passed, n: machines })}</Note>}
         {!!d.executors_unknown && <Note>{t('detail.ver.executors_unknown', { n: d.executors_unknown })}</Note>}
         {!!d.no_baseline && <Note>{t('detail.ver.no_baseline', { n: d.no_baseline })}</Note>}

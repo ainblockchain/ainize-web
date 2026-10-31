@@ -1,4 +1,6 @@
 import { ManagePublication } from '../src/components/operator/ManagePublication';
+import { Verification } from '../src/screens/PatchPage';
+import { useVerificationLabel } from '../src/components/public/PatchListItem';
 import { ManageDraftConflict } from '../src/components/operator/ManageDraftConflict';
 import { manageDraftEditor } from '../src/lib/manageDraft';
 import ManagePage from '../src/screens/ManagePage';
@@ -1922,4 +1924,60 @@ test('publication uses exact server replacement metadata outside the client cata
   assert.match(html, /Old knowledge beyond page 200/); assert.ok(html.includes(`/${trackAuthor}/old%2Fid%3Fx`));
   assert.match(html, /Sales information is unavailable/); assert.match(html, /data-testid="retire-type"/);
   assert.match(html, /<button[^>]*disabled=""[^>]*data-testid="publish-confirm"/);
+});
+
+function verificationDetail() {
+  const p = manageFixture(); p.status = 'VERIFYING'; p.passed = 2; p.quorum = 2; p.quorum_ok = false;
+  p.anchor.benchmark.samples = [{ prompt: 'Question', expect: 'Answer' }] as any;
+  p.verifiers = [walletAddress, accessTarget]; p.executors = ['shared-engine']; p.executors_unknown = 0;
+  p.attestations = [walletAddress, accessTarget].map(verifier => ({ verifier, patch_id: p.anchor.id, patch_sha256: p.anchor.patch_sha256,
+    benchmark_hash: p.anchor.benchmark_hash, created_at: 100, passed: true, verified_on: 'vllm', score: { free_generation: '4/4' },
+    executor: { api: 'https://model.test', model: 'model', instance: 'shared-engine' }, baseline: true, sig: 'fixture' } as any));
+  return p;
+}
+test('public verification summary and both tables show a shared engine as one quorum unit', () => {
+  const p = verificationDetail();
+  const detail = render(() => createElement(Verification, { d: p }), signedOut);
+  assert.match(detail, /Verification quorum/); assert.match(detail, />1\/2</);
+  assert.match(detail, /data-testid="ver-executors"[^>]*>1</);
+  assert.equal((detail.match(/data-kind="shared"/g) ?? []).length, 2);
+  const management = renderManage([...accessAuth, { ...manageRead(), value: p }, ...manageAux]);
+  assert.equal((management.match(/data-kind="shared"/g) ?? []).length, 2);
+  assert.match(management, /Counts once with results from the same server/);
+  const label = render(() => createElement('span', null, useVerificationLabel()(p)), signedOut);
+  assert.match(label, /Verifying \(quorum 1\/2\)/); assert.doesNotMatch(label, /independent verifiers|\+1 more/);
+});
+test('public and management verification rows explain non-counting evidence', () => {
+  const base = verificationDetail();
+  for (const [patch, row, kind] of [
+    [{}, { passed: false }, 'failed'], [{}, { baseline: false }, 'baseline'], [{}, { verified_on: 'hash-only' }, 'integrity'],
+    [{ self_checks: 1 }, { verifier: base.anchor.author }, 'self'],
+    [{ open_challenge: { patch_id: base.anchor.id, challenger: walletAddress, reason: 'New evidence', created_at: 100 } }, {}, 'stale'],
+  ] as const) {
+    const p = { ...base, ...patch, attestations: [{ ...base.attestations[0], ...row }] };
+    const detail = render(() => createElement(Verification, { d: p }), signedOut);
+    const management = renderManage([...accessAuth, { ...manageRead(), value: p }, ...manageAux]);
+    assert.ok(detail.includes(`data-kind="${kind}"`)); assert.ok(management.includes(`data-kind="${kind}"`));
+  }
+});
+test('legacy and file-only verification cannot be described as proven independent model runs', () => {
+  const base = verificationDetail();
+  const legacy = { ...base, passed: 1, executors: [], executors_unknown: 1, attestations: [{ ...base.attestations[0], executor: undefined }] };
+  const detail = render(() => createElement(Verification, { d: legacy }), signedOut);
+  assert.match(detail, /data-kind="legacy"/); assert.doesNotMatch(detail, /data-testid="ver-executors"/);
+  const hash = { ...legacy, anchor: { ...base.anchor, benchmark: { ...base.anchor.benchmark, samples: [] } }, attestations: [{ ...legacy.attestations[0], verified_on: 'hash-only' }] };
+  const fileOnly = render(() => createElement(Verification, { d: hash }), signedOut);
+  assert.match(fileOnly, /data-kind="integrity_counted"/); assert.match(fileOnly, /file check only, no model run/);
+  const unknown = render(() => createElement(Verification, { d: { ...base, executors: undefined, executors_unknown: undefined } }), signedOut);
+  assert.match(unknown, /—\/2/); assert.match(unknown, /Contribution unconfirmed/);
+});
+test('retired and replaced listings are not falsely labelled as challenged', () => {
+  const base = verificationDetail();
+  for (const status of ['RETIRED', 'SUPERSEDED'] as const) {
+    const p = { ...base, status, quorum_ok: true, sellable: false, executors: ['engine-1', 'engine-2'] };
+    const label = render(() => createElement('span', null, useVerificationLabel()(p)), signedOut);
+    assert.doesNotMatch(label, /challenged/);
+  }
+  const p = { ...base, open_challenge: { patch_id: base.anchor.id, challenger: walletAddress, reason: 'Check', created_at: 200 } };
+  assert.match(render(() => createElement('span', null, useVerificationLabel()(p)), signedOut), /challenged, re-verification pending/);
 });

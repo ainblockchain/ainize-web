@@ -8,7 +8,7 @@ import { useT } from '@/i18n';
 import { useNetworkKind } from '@/utils/useNetwork';
 import { num, shortAddr, shortHash } from '@/utils/format';
 
-/** An attestation counts toward 검증 완료 only when the verifier actually ran the model ('vllm' / 'hook'); 'hash-only' is integrity only. */
+/** Execution method only; quorum contribution also depends on baseline, challenge time and server policy. */
 export const isExecuted = (verifiedOn?: string) => !!verifiedOn && verifiedOn !== 'hash-only';
 
 export function useDetailFormat() {

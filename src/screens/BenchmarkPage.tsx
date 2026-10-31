@@ -1,4 +1,4 @@
-import { verificationCount } from '@ainize/core/browser';
+import { verificationCount } from '@/lib/verificationView';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
