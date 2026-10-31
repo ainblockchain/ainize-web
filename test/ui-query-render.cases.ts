@@ -3192,3 +3192,60 @@ test('runtime permission states never expose cached log content', () => {
   const denied = render(DeniedPage, [...appAccount, { name: 'projectRuntimeLogs', arg: runtimeArg, value: runtimeLogFixture }]);
   assert.match(denied, /Only a member/); assert.doesNotMatch(denied, /current running app output|Download/);
 });
+
+const appDomainFixture = (hostname = 'app.example.com', extra = {}) => ({ hostname, projectId: rootProject.id, token: `ainize-verification=${'a'.repeat(48)}`,
+  status: 'pending', message: 'Add DNS records', createdAt: 1, checkedAt: null, ...extra });
+const appDomainListFixture = (domains: unknown[]) => ({ domains, addresses: ['203.0.113.1', '2001:db8::1'], cname: 'ingress.example.com', managedBase: 'platform.com' });
+
+test('malformed domain lists cannot expose foreign tokens, unsafe links or editable empty settings', () => {
+  const Page = () => createElement(ProjectDomains, { projectId: rootProject.id });
+  for (const value of [{}, appDomainListFixture([null]), appDomainListFixture([appDomainFixture('foreign.example.com', { projectId: 'other' })]),
+    appDomainListFixture([appDomainFixture('https://unsafe.example.com')]), appDomainListFixture([appDomainFixture(), appDomainFixture()]),
+    { ...appDomainListFixture([]), addresses: ['wrong-ip'] }, { ...appDomainListFixture([]), cname: 'javascript:alert(1)' }]) {
+    const html = render(Page, [...appAccount, { name: 'projectDomains', arg: projectArg, value }]);
+    assert.match(html, /Could not confirm the domain list/); assert.match(html, /Try again/);
+    assert.doesNotMatch(html, /ainize-verification=|foreign\.example|No custom domains yet|Check configuration/);
+    assert.match(html, /<button[^>]*disabled[^>]*>Add<\/button>/);
+  }
+});
+
+test('DNS record values remain exact, labelled on mobile, and belong to the chosen hostname', () => {
+  const Page = () => createElement(ProjectDomains, { projectId: rootProject.id });
+  const html = render(Page, [...appAccount, { name: 'projectDomains', arg: projectArg, value: appDomainListFixture([appDomainFixture()]) }]);
+  assert.match(html, /_ainize\.app\.example\.com/); assert.match(html, /203\.0\.113\.1/); assert.match(html, /2001:db8::1/);
+  assert.match(html, /data-label="Type"/); assert.match(html, /data-label="Name"/); assert.match(html, /data-label="Value"/);
+  assert.match(html, /Do not add both A\/AAAA and CNAME/); assert.doesNotMatch(html, /Visit site/);
+});
+
+test('only ready domains expose Visit, and automatic assignment does not claim DNS was verified', () => {
+  const Page = () => createElement(ProjectDomains, { projectId: rootProject.id });
+  const html = render(Page, [...appAccount, { name: 'projectDomains', arg: projectArg, value: appDomainListFixture([
+    appDomainFixture('ready.example.com', { status: 'ready', checkedAt: 2 }),
+    appDomainFixture('auto.platform.com', { status: 'verified', managed: true, checkedAt: 2 }),
+  ]) }]);
+  assert.match(html, /href="https:\/\/ready.example.com"/); assert.doesNotMatch(html, /href="https:\/\/auto.platform.com"/);
+  assert.match(html, /automatic address is assigned/); assert.doesNotMatch(html, /DNS is verified/);
+  assert.match(html, /\.platform\.com/);
+});
+
+test('failed automatic DNS inspection shows its actual failure and does not ask the user for ownership TXT', () => {
+  const Page = () => createElement(ProjectDomains, { projectId: rootProject.id });
+  const html = render(Page, [...appAccount, { name: 'projectDomains', arg: projectArg, value: appDomainListFixture([
+    appDomainFixture('auto.platform.com', { managed: true, status: 'invalid', checkedAt: 2, message: 'Expected ingress address not found.' }),
+  ]) }]);
+  assert.match(html, /DNS for the automatic address could not be verified/); assert.match(html, /Expected ingress address not found/);
+  assert.doesNotMatch(html, /_ainize\.|ownership TXT|DNS is verified|Visit site/);
+});
+
+test('missing DNS destinations do not produce an empty copy target or allow an unusable custom-domain addition', () => {
+  const Page = () => createElement(ProjectDomains, { projectId: rootProject.id });
+  const html = render(Page, [...appAccount, { name: 'projectDomains', arg: projectArg, value: { ...appDomainListFixture([]), addresses: [], cname: '' } }]);
+  assert.match(html, /server did not provide a DNS target/); assert.doesNotMatch(html, /CNAME to this target/);
+  assert.match(html, /<button[^>]*disabled[^>]*>Add<\/button>/);
+});
+
+test('signed-out domain settings do not display cached ownership proof or editable controls', () => {
+  const Page = () => createElement(ProjectDomains, { projectId: rootProject.id });
+  const html = render(Page, signedOut);
+  assert.match(html, /Sign in to see domain settings/); assert.doesNotMatch(html, /ainize-verification|Check configuration|placeholder="app.example.com"/);
+});
