@@ -188,7 +188,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 168 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 171 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 115 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -224,7 +224,8 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `null` | \<rel> is not a regular file | `src/hosted-qa-engine.ts` |
 | `null` | a file path is required | `src/hosted-qa-engine.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
-| `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
+| `null` | agent source exists without its spec; reconcile before deployment | `src/project-agents.ts` |
+| `null` | agent spec names another project target | `src/project-agents.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: bad token_endpoint | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: issuer mismatch | `src/sso-service-token.ts` |
@@ -266,6 +267,7 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `null` | path refused: … is a symbolic link | `src/hosted-qa-engine.ts` |
 | `null` | path refused: \<raw> (paths are relative to the repository root; .., .git, .env files and absolute paths outside the repository are not allowed) | `src/hosted-qa-engine.ts` |
 | `null` | pattern is required | `src/hosted-qa-engine.ts` |
+| `null` | project agent binding changed while waiting; retry deployment | `src/project-agents.ts` |
 | `null` | repository id already exists | `src/agent-git.ts` |
 | `null` | repository objects must not be symlinks | `src/agent-git.ts` |
 | `null` | repository storage limit exceeded (\<bytes> > \<this.storageLimitBytes> bytes); export history or ask the operator to raise the limit | `src/agent-git.ts` |
@@ -346,6 +348,7 @@ A further 115 throw sites build their message at the time (a validator's own wor
 | `409` | not sold here; gateway is … | `src/api.ts` |
 | `409` | patch body not present on this node | `src/api.ts` |
 | `409` | payout \<id> is already paid (\<row.tx_hash>) | `src/payouts.ts` |
+| `409` | project_binding_conflict | `src/agent-archive-restore.ts` |
 | `409` | state_exists | `src/agent-archive-restore.ts` |
 | `409` | this payout was already sent (\<row.tx_hash>) | `src/payouts.ts` |
 | `413` | blob is \<file.size> bytes; this node relays at most \<max> (p2p.maxRelayBytes) | `src/api.ts` |
