@@ -711,6 +711,14 @@ export const operatorNew: Dict = {
 };
 
 export const operatorAccount: Dict = {
+  'op.account.amounts.currency_unknown': { ko: '통화 미확인', en: 'Currency unavailable' },
+  'op.account.sales.unresolved_col': { ko: '수령인 미확인 배분액', en: 'Unresolved allocation' },
+  'op.account.amounts.unavailable': { ko: '통화·지급 내역을 확인하지 못했습니다.', en: 'Currency or payment details are unavailable.' },
+  'op.account.amounts.none': { ko: '지급 내역이 없습니다.', en: 'No payment records.' },
+  'op.account.royalties.for.unknown': { ko: '구분 미확인', en: 'Kind unavailable' },
+  'op.account.owed.why.unknown': { ko: '{id} · 지급 사유 미확인', en: '{id} · reason unavailable' },
+  'op.account.owed.window': { ko: '가져온 지급 이력 {n}건과 로컬 크레딧 정산을 표시합니다. 이전 지급 이력이 모두 포함된 것은 아닙니다.', en: 'Showing {n} returned payout records plus local-credit settlements. Older payouts may be outside this window.' },
+  'op.account.sales.unresolved': { ko: '수령인 미확인 배분액 {amount} — 내 몫에서 제외', en: '{amount} allocated to unresolved recipients — excluded from your share' },
   'op.account.title': { ko: '계정 설정', en: 'Account settings' },
   'op.account.desc': { ko: '이 화면은 노드 하나를 운영합니다. 표시 이름, 알림, 비밀번호, 지갑, 연결된 노드, 모델 실행 환경을 여기서 다룹니다. 지식과 트랙은 내 지식 화면에 있습니다.', en: 'This console runs one node. Display name, notifications, password, wallet, connected nodes and the model runtime live here; knowledge and tracks are on My knowledge.' },
   'op.account.identity': { ko: '계정', en: 'Account' },

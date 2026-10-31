@@ -86,7 +86,7 @@ export const api = createApi({
   }),
   tagTypes: ['Info', 'Catalog', 'Patch', 'Ledger', 'Branches', 'Nodes', 'Me', 'GoogleSession', 'SsoStatus', 'Events', 'Runtime', 'Drive', 'Settings', 'Chat', 'Teach', 'TeachDataset', 'Teacher', 'TeachAdmin', 'Payouts', 'Issues', 'Agents', 'ApiKeys', 'HostedAgent', 'Throughput', 'LinkedAgent', 'Org', 'Project'],
   endpoints: (b) => ({
-    info: b.query<InfoResponse, void>({ query: () => 'api/info', providesTags: ['Info'] }),
+    info: b.query<InfoResponse, { identity: string } | void>({ query: () => 'api/info', providesTags: ['Info'] }),
     /**
      * What this node serves over the LLM API. Public, unlike `/v1/models`, because the page asking has no
      * visitor to authenticate — see `src/api/models.ts` for how a newer or older node's answer is read.
@@ -144,7 +144,7 @@ export const api = createApi({
     trackCatalog: b.query<TrackCatalog, string>({ queryFn: (name, api, _extra, baseQuery) => loadTrackCatalog(name, async (url) => baseQuery(url), api.signal), providesTags: ['Catalog', 'Branches'] }),
     catalogSnapshot: b.query<CatalogSnapshot, void>({ queryFn: (_arg, api, _extra, baseQuery) => loadCatalogSnapshot(async (url) => baseQuery(url), api.signal), providesTags: ['Catalog', 'Branches'] }),
     route: b.query<RouteResponse, Record<string, string>>({ query: (ctx) => `api/route${toQuery(ctx)}`, providesTags: ['Branches', 'Nodes'] }),
-    nodes: b.query<NodesResponse, void>({ query: () => 'api/nodes', providesTags: ['Nodes'] }),
+    nodes: b.query<NodesResponse, { identity: string } | void>({ query: () => 'api/nodes', providesTags: ['Nodes'] }),
     /** A2A agents this node operates (§6.1). Polled, because "is it answering" is a live question. */
     agents: b.query<AgentsResponse, void>({ query: () => 'api/agents', providesTags: ['Agents'] }),
     /**
@@ -397,7 +397,7 @@ export const api = createApi({
     }),
     events: b.query<{ events: EventRow[] }, { limit?: number; kind?: string; since?: number; identity: string }>({ query: ({ identity: _identity, ...q }) => `api/events${toQuery(q)}`, providesTags: ['Events'] }),
     chain: b.query<ChainResponse, void>({ query: () => 'api/chain', providesTags: ['Info', 'Me'] }),
-    runtime: b.query<RuntimeResponse, void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
+    runtime: b.query<RuntimeResponse, { identity: string } | void>({ query: () => 'api/runtime', providesTags: ['Runtime'] }),
     drive: b.query<DriveResponse, void>({ query: () => 'api/drive', providesTags: ['Drive'] }),
     driveChanges: b.query<DriveChangesResponse, string>({ query: (path) => `api/drive/changes${toQuery({ path })}`, providesTags: ['Drive'] }),
     docs: b.query<DocsResponse, void>({ query: () => 'api/docs' }),
@@ -445,7 +445,7 @@ export const api = createApi({
     }),
     // Every key that acts as you, and ending one. A binding outlives a session on purpose, so it has to be
     // visible and revocable — and revoking ends the sessions the key already collected.
-    bindings: b.query<{ bindings: Binding[]; via: string | null }, void>({ query: () => 'api/auth/bindings', providesTags: ['Me'] }),
+    bindings: b.query<{ bindings: Binding[]; via: string | null }, { identity: string } | void>({ query: () => 'api/auth/bindings', providesTags: ['Me'] }),
     /**
      * The nodes that belong to the signed-in wallet.
      *
@@ -460,7 +460,7 @@ export const api = createApi({
     }),
     // Who owns this node. An owner may add another from here; only what was added from here may be removed from
     // here, because the other two claims live in the node's identity and in a file on its machine.
-    owners: b.query<{ owners: NodeOwner[] }, void>({ query: () => 'api/auth/owners', providesTags: ['Me'] }),
+    owners: b.query<{ owners: NodeOwner[] }, { identity: string } | void>({ query: () => 'api/auth/owners', providesTags: ['Me'] }),
     addOwner: b.mutation<{ ok: boolean; already: boolean; owners: NodeOwner[] }, { address: string; note?: string }>({ query: (body) => ({ url: 'api/auth/owners', method: 'POST', body }), invalidatesTags: ['Me'] }),
     removeOwner: b.mutation<{ ok: boolean; sessions_ended: number; owners: NodeOwner[] }, string>({ query: (address) => ({ url: `api/auth/owners/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
     logout: b.mutation<{ ok: boolean }, void>({ query: () => ({ url: 'api/auth/logout', method: 'POST' }), invalidatesTags: ['Me', 'Catalog'] }),
@@ -541,7 +541,7 @@ export const api = createApi({
     chatStatus: b.query<ChatStatusResponse, string>({ query: (id) => `api/chat/status?request_id=${encodeURIComponent(id)}` }),
     cancelChat: b.mutation<ChatCancelResponse, string>({ query: (id) => ({ url: 'api/chat/cancel', method: 'POST', body: { request_id: id } }) }),
     // operator settings (persisted on the node)
-    settings: b.query<{ settings: Settings }, void>({ query: () => 'api/me/settings', providesTags: ['Settings'] }),
+    settings: b.query<{ settings: Settings }, { identity: string } | void>({ query: () => 'api/me/settings', providesTags: ['Settings'] }),
     updateSettings: b.mutation<{ settings: Settings }, Partial<Settings>>({ query: (body) => ({ url: 'api/me/settings', method: 'PATCH', body }), invalidatesTags: ['Settings', 'Me', 'Info'] }),
 
     // Teach mode (spec §6.2) — visitor routes signed with the browser's teaching key; poll a job every 5 s (call site: pollingInterval)
@@ -656,7 +656,7 @@ export const api = createApi({
     teachBans: b.query<{ items: BanRow[] }, void>({ query: () => 'api/me/teach/bans', providesTags: ['TeachAdmin'] }),
     addTeachBan: b.mutation<{ ban: BanRow }, { kind: 'address' | 'ip'; value: string; reason?: string }>({ query: (body) => ({ url: 'api/me/teach/bans', method: 'POST', body }), invalidatesTags: ['TeachAdmin'] }),
     deleteTeachBan: b.mutation<{ ok: boolean }, number>({ query: (id) => ({ url: `api/me/teach/bans/${id}`, method: 'DELETE' }), invalidatesTags: ['TeachAdmin'] }),
-    payouts: b.query<PayoutsResponse, { status?: 'pending' | 'paid' | 'failed'; limit?: number } | void>({ query: (q) => `api/me/payouts${toQuery({ ...(q ?? {}) })}`, providesTags: ['Payouts'] }),
+    payouts: b.query<PayoutsResponse, { status?: 'pending' | 'paid' | 'failed'; limit?: number; identity?: string } | void>({ query: (q) => { const { identity: _identity, ...filter } = q ?? {}; return `api/me/payouts${toQuery(filter)}`; }, providesTags: ['Payouts'] }),
     retryPayout: b.mutation<{ payout: PayoutRow }, number>({ query: (id) => ({ url: `api/me/payouts/${id}/retry`, method: 'POST' }), invalidatesTags: ['Payouts', 'Me', 'Teacher'] }),
   }),
 });

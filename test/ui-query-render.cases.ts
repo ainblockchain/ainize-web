@@ -1,3 +1,4 @@
+import AccountPage from '../src/screens/AccountPage';
 import { newPatchDraftKey } from '../src/lib/newPatchDraft';
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -1656,4 +1657,48 @@ test('holder credit actions stay disabled while parent work runs and ordinary ac
   assert.match(workspace, /Sign in with the holder wallet/);
   assert.ok(workspace.includes('next=%2Fagent%2Fchosen'));
   assert.doesNotMatch(workspace, /Send message|Assign work|Train selected examples/);
+});
+
+
+const walletAddress = '0x' + 'aa'.repeat(20), recipientAddress = '0x' + 'bb'.repeat(20);
+const accountSale = (currency: string, amount = '10') => ({ patch_id: 'Wallet selected item', tx_hash: currency, seller: walletAddress, buyer: recipientAddress, amount, currency, scheme: 'local-credit', created_at: 1, royalty: { [recipientAddress]: '2' }, royalty_unresolved: { missing: '1' } });
+const accountWalletValue = () => ({ address: walletAddress, balance: 20, purchases: 0, sales: [accountSale('AIN'), accountSale('CREDIT', '100')],
+  royalties: [{ patch_id: 'Royalty selected item', amount: '3', currency: 'AIN', state: 'paid', evidence: 'seller_reported', created_at: 1 }],
+  royalty_totals: { owed: '99999', credited: '99999', paid: '99999', unconfirmed: '99999' },
+  verification_total: '88888', verification: [{ amount: '4', currency: 'AIN', kind: 'verification', state: 'pending' }, { amount: '5', currency: 'CREDIT', kind: 'verification', state: 'paid', evidence: 'record' }],
+});
+function accountWalletFixtures(): Fixture[] {
+  const scope = { identity: accountIdentity };
+  return [...appAccount.map(f => f.name === 'me' ? { ...f, value: { ...(f.value as any), address: walletAddress, name: 'Selected node', roles: [] } } : f),
+    { name: 'info', arg: scope, value: { currency: 'AIN', ledger: { kind: 'ain', records: 0 }, node: { endpoint: 'https://fixture.invalid', version: 'fixture' }, quorum: 1 } },
+    { name: 'wallet', arg: scope, value: accountWalletValue() },
+    { name: 'payouts', arg: { ...scope, limit: 500 }, value: { items: [] } },
+    { name: 'owners', arg: scope, value: { owners: [] } }, { name: 'bindings', arg: scope, value: { bindings: [] } },
+  ];
+}
+test('account wallet shows currency-separated sales and payment evidence rather than mixed server totals', () => {
+  const html = render(AccountPage, accountWalletFixtures(), '/account');
+  assert.equal((html.match(/data-testid="sales-total"/g) ?? []).length, 2);
+  assert.equal((html.match(/data-testid="owed-totals"/g) ?? []).length, 2);
+  assert.match(html, /Reported by seller/); assert.match(html, /Signed payout record/); assert.match(html, /Payment pending/);
+  assert.match(html, /sale-unresolved/); assert.match(html, /owed-unresolved/);
+  assert.doesNotMatch(html.replace(/<[^>]*>/g, ' '), /99999|88888|99,999|88,888/);
+});
+test('account wallet failures and wrong identities cannot display cached money or empty success', () => {
+  for (const override of [{ status: 'rejected' as const }, { value: { ...accountWalletValue(), address: recipientAddress } }, { value: { ...accountWalletValue(), sales: [null] } }]) {
+    const html = render(AccountPage, accountWalletFixtures().map(f => f.name === 'wallet' ? { ...f, ...override } : f), '/account');
+    assert.match(html, /query-error/); assert.match(html, /query-retry/);
+    assert.doesNotMatch(html, /Wallet selected item|Royalty selected item|sales-total|owed-totals/);
+  }
+});
+test('a payout failure has its own recovery without turning the outgoing window into an empty list', () => {
+  const html = render(AccountPage, accountWalletFixtures().map(f => f.name === 'payouts' ? { ...f, status: 'rejected' as const } : f), '/account');
+  assert.match(html, /Wallet selected item/); assert.match(html, /query-error/); assert.doesNotMatch(html, /data-testid="owed-totals"|data-testid="owed-row"/);
+});
+test('account ignores another identity financial caches and unknown payment currency is not assumed', () => {
+  const fixtures = accountWalletFixtures();
+  const foreign = render(AccountPage, fixtures.map(f => ['wallet', 'payouts'].includes(f.name) ? { ...f, arg: { ...(f.arg as any), identity: 'another account' } } : f), '/account');
+  assert.doesNotMatch(foreign, /Wallet selected item|Royalty selected item|sales-total/);
+  const unknown = render(AccountPage, fixtures.map(f => f.name === 'wallet' ? { ...f, value: { ...accountWalletValue(), verification: undefined, royalties: [{ patch_id: 'Unknown currency', amount: '3', created_at: 1 }] } } : f), '/account');
+  assert.match(unknown, /Currency or payment details are unavailable/); assert.match(unknown, /Kind unavailable/);
 });

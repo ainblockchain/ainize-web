@@ -1,3 +1,5 @@
+import { accountWallet, accountSales, accountPayouts, accountOwed, accountPayments, type OwedRow } from '@/lib/accountWallet';
+import { useAuth } from '@/auth/AuthContext';
 import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import {
@@ -5,20 +7,20 @@ import {
   useRemovePeerMutation, useRuntimeQuery, useSettingsQuery, useUpdateSettingsMutation, useWalletQuery, useWalletSendMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation, useBindingsQuery, useRemoveBindingMutation,
 } from '@/api/api';
-import type { NodeOwner, PayoutRow, Settings, Settlement } from '@/api/types';
+import type { NodeOwner, Settings } from '@/api/types';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableRowEmpty, TableWrapper } from '@/components/ui/Table';
-import { DevBox, MonoBox, Muted, Pre, RadioGroup, Row, Stack, Tip, useElapsed, useMoney } from '@/components/operator/common';
+import { DevBox, MonoBox, Muted, Pre, QueryError, RadioGroup, Row, Stack, Tip, useElapsed, useMoney } from '@/components/operator/common';
 import { dateTime, num, shortAddr, shortHash } from '@/utils/format';
-import { useNetworkKind } from '@/utils/useNetwork';
+import { networkKindOf } from '@/utils/useNetwork';
 
 const Section = styled.div`margin-top: 16px;`;
 const Balance = styled.div`font-size: 28px; font-weight: 700; color: ${(p) => p.theme.color.BLACK}; margin-top: 12px; span { font-size: 14px; font-weight: 400; color: ${(p) => p.theme.color.GREY}; margin-left: 8px; }`;
-const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-top: 16px;`;
+const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 24px; margin-top: 16px;`;
 const SettingsForm = styled.form`margin-top: 16px; display: flex; flex-direction: column; gap: 18px; max-width: 640px;`;
 
 const NOTIF: Settings['notifications'][] = ['all', 'sales', 'none'];
@@ -61,31 +63,6 @@ function downloadCsv(name: string, rows: (string | number)[][]): void {
 const iso = (ts: number) => new Date(ts).toISOString();
 
 /**
- * What this node owes other people, folded per (payee, knowledge, state) — item 315. Two sources, and they never
- * overlap: an AIN sale writes a `payouts` row per payee and the transfer state lives there, while a local-credit
- * sale enqueues nothing at all because the share is already in the payee's balance the moment the record is
- * written. The old screen said the money was "pending until it runs on the AI Network", which on a local ledger
- * was true of nothing.
- */
-interface OwedRow { key: string; address: string; patch_id: string; amount: number; currency: string; n: number; last: number; state: 'credited' | PayoutRow['status'] }
-function owedRows(sales: Settlement[], payouts: PayoutRow[], me: string): OwedRow[] {
-  const out = new Map<string, OwedRow>();
-  const add = (address: string, patch_id: string, amount: number, currency: string, state: OwedRow['state'], at: number) => {
-    if (!(amount > 0) || address.toLowerCase() === me.toLowerCase()) return;
-    const key = `${address.toLowerCase()}|${patch_id}|${state}`;
-    const cur = out.get(key);
-    if (cur) { cur.amount += amount; cur.n += 1; cur.last = Math.max(cur.last, at); }
-    else out.set(key, { key, address, patch_id, amount, currency, n: 1, last: at, state });
-  };
-  for (const s of sales) {
-    if (s.scheme !== 'local-credit') continue;                       // an AIN sale is accounted by its payout rows
-    for (const [address, amount] of Object.entries(s.royalty ?? {})) add(address, s.patch_id, Number(amount), s.currency, 'credited', s.created_at);
-  }
-  for (const p of payouts) add(p.address, p.patch_id, Number(p.amount), p.currency, p.status, p.updated_at || p.created_at);
-  return [...out.values()].sort((a, b) => b.amount - a.amount);
-}
-
-/**
  * Who owns this node — the three kinds of claim, and the one kind this page may take back.
  *
  * It used to be a read-only list under the heading "who may sign in", because signing in and owning the node
@@ -98,14 +75,17 @@ function owedRows(sales: Settlement[], payouts: PayoutRow[], me: string): OwedRo
  */
 function Owners() {
   const { t } = useT();
-  const { data, isLoading } = useOwnersQuery();
+  const auth = useAuth();
+  const owners = useOwnersQuery({ identity: auth.cacheIdentity });
+  const { isLoading } = owners;
+  const data = !owners.isError ? owners.currentData : undefined;
   const [addOwner, addState] = useAddOwnerMutation();
   const [removeOwner, removeState] = useRemoveOwnerMutation();
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const valid = /^0x[0-9a-fA-F]{40}$/.test(draft.trim());
-  const busy = addState.isLoading || removeState.isLoading;
+  const busy = !data || owners.isFetching || addState.isLoading || removeState.isLoading;
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
@@ -133,6 +113,7 @@ function Owners() {
       <SubTitle $mt={56}>{t('op.account.operators.title')}</SubTitle>
       <Description>{t('op.account.operators.desc')}</Description>
       {isLoading && <CenterProgress />}
+      {owners.isError && <QueryError error={owners.error} what={t('op.account.operators.title')} onRetry={() => void owners.refetch()} retrying={owners.isFetching} />}
       <KeyValue data-testid="operators">
         {(data?.owners ?? []).map((o) => (
           <Fragment key={o.address}>
@@ -173,7 +154,10 @@ function Owners() {
  */
 function Bindings() {
   const { t } = useT();
-  const { data, isLoading } = useBindingsQuery();
+  const auth = useAuth();
+  const bindings = useBindingsQuery({ identity: auth.cacheIdentity });
+  const { isLoading } = bindings;
+  const data = !bindings.isError ? bindings.currentData : undefined;
   const [removeBinding, removeState] = useRemoveBindingMutation();
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -189,8 +173,9 @@ function Bindings() {
     <>
       <SubTitle $mt={56}>{t('op.account.bindings.title')}</SubTitle>
       <Description>{t('op.account.bindings.desc')}</Description>
+      {bindings.isError && <QueryError error={bindings.error} what={t('op.account.bindings.title')} onRetry={() => void bindings.refetch()} retrying={bindings.isFetching} />}
       {isLoading && <CenterProgress />}
-      {!isLoading && rows.length === 0 && <Muted style={{ display: 'block' }}>{t('op.account.bindings.none')}</Muted>}
+      {!isLoading && !bindings.isError && rows.length === 0 && <Muted style={{ display: 'block' }}>{t('op.account.bindings.none')}</Muted>}
       <KeyValue data-testid="bindings">
         {rows.map((b) => (
           <Fragment key={b.delegate}>
@@ -219,18 +204,26 @@ function Bindings() {
 }
 
 export default function AccountPage() {
+  const auth = useAuth();
+  if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  return <AccountView key={auth.cacheIdentity} />;
+}
+
+function AccountView() {
+  const auth = useAuth();
+  const scope = { identity: auth.cacheIdentity };
   const { t, term, help, tech } = useT();
   useTitle(t('op.account.title'));
   const money = useMoney();
   const elapsed = useElapsed();
   const { data: me } = useMeQuery();
-  const { data: info } = useInfoQuery();
-  const wallet = useWalletQuery();
-  const nodes = useNodesQuery(undefined, { pollingInterval: 15_000 });
-  const runtime = useRuntimeQuery();
-  const settings = useSettingsQuery();
-  const payouts = usePayoutsQuery({ limit: 500 });
-  const myPatches = useMyPatchesQuery();
+  const { currentData: info } = useInfoQuery(scope);
+  const wallet = useWalletQuery(scope);
+  const nodes = useNodesQuery(scope, { pollingInterval: 15_000 });
+  const runtime = useRuntimeQuery(scope);
+  const settings = useSettingsQuery(scope);
+  const payouts = usePayoutsQuery({ limit: 500, identity: auth.cacheIdentity });
+  const myPatches = useMyPatchesQuery(scope);
   const [updateSettings, settingsState] = useUpdateSettingsMutation();
   const [chainSetup, chainState] = useChainSetupMutation();
   const [addPeer, addState] = useAddPeerMutation();
@@ -254,8 +247,8 @@ export default function AccountPage() {
   const [sendAmount, setSendAmount] = useState('');
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
-  useEffect(() => { if (settings.data) setForm(settings.data.settings); }, [settings.data]);
-  const saved = settings.data?.settings;
+  useEffect(() => { if (settings.currentData) setForm(settings.currentData.settings); }, [settings.currentData]);
+  const saved = settings.currentData?.settings;
   const dirty = !!saved && (saved.notifications !== form.notifications || saved.display_name !== form.display_name);
   // item 34 — changing the one credential that guards this node, from the console
   const onSaveSettings = async (e: FormEvent) => {
@@ -272,20 +265,23 @@ export default function AccountPage() {
   const onAddPeer = (e: FormEvent) => { e.preventDefault(); if (!endpoint.trim()) return; void run(async () => { await addPeer({ endpoint: endpoint.trim().replace(/\/+$/, '') }).unwrap(); setEndpoint(''); }, t('op.account.peers.added')); };
   const onTry = () => { setCompletion(null); void run(async () => { const r = await complete({ prompt, max_tokens: 16 }).unwrap(); setCompletion(r.text); }); };
 
-  const currency = info?.currency ?? wallet.data?.network ?? '';
+  const walletView = !wallet.isError ? accountWallet(wallet.currentData, me?.address ?? '') : null;
+  const currency = info?.currency ?? '';
+  const payoutRows = !payouts.isError ? accountPayouts(payouts.currentData) : null;
   const isAin = info?.ledger.kind === 'ain';
   /**
    * Item 356: the largest number this screen shows was the one with no provenance. The kind is read off the
    * provider the node reports — by the shared rule in utils/useNetwork, which every AIN figure in the product now
    * uses, so the wallet total and a price on /explore can never disagree about which chain this is.
    */
-  const netKind = useNetworkKind().kind;
+  const netKind = info ? networkKindOf(info.ledger) : 'unknown';
   const netNote = t(`op.account.wallet.network.${netKind}`);
 
-  const sales = wallet.data?.sales ?? [];
-  const royalties = wallet.data?.royalties ?? [];
+  const sales = walletView?.sales ?? [];
+  const royalties = walletView?.royalties ?? [];
   // Item 315 — what this node owes, on the money screen instead of only under a tab about taught lessons.
-  const owed = useMemo(() => owedRows(sales, payouts.data?.items ?? [], me?.address ?? ''), [sales, payouts.data, me?.address]);
+  const owedView = useMemo(() => payoutRows ? accountOwed(sales, payoutRows, me?.address ?? '') : null, [sales, payoutRows, me?.address]);
+  const owed = owedView?.rows ?? [];
   /**
    * Item 317 — the wallet's arithmetic did not close. Sales listed the gross settlement amount (3, 3, 98, 3 = 107)
    * under a balance that was 75.5 higher than it started, and the missing 31.5 — the creator share this node paid
@@ -295,42 +291,26 @@ export default function AccountPage() {
    */
   const nameOfAddress = useMemo(() => {
     const m = new Map<string, string>();
-    for (const n of nodes.data?.nodes ?? []) if (n.name) m.set(n.address.toLowerCase(), n.name);
-    for (const p of nodes.data?.peers ?? []) if (p.info?.name && p.address) m.set(p.address.toLowerCase(), p.info.name);
-    for (const e of myPatches.data?.items ?? []) {
+    for (const n of nodes.currentData?.nodes ?? []) if (n.name) m.set(n.address.toLowerCase(), n.name);
+    for (const p of nodes.currentData?.peers ?? []) if (p.info?.name && p.address) m.set(p.address.toLowerCase(), p.info.name);
+    for (const e of myPatches.currentData?.items ?? []) {
       if (e.anchor.author_name) m.set(e.anchor.author.toLowerCase(), e.anchor.author_name);
       for (const c of e.anchor.contributors ?? []) { if (c.name) m.set(c.address.toLowerCase(), c.name); if (c.name && c.signer) m.set(c.signer.toLowerCase(), c.name); }
     }
     return (a: string) => m.get(a.toLowerCase());
-  }, [nodes.data, myPatches.data]);
-  const saleSplit = useMemo(() => {
-    const me_ = (me?.address ?? '').toLowerCase();
-    const split = new Map<string, { mine: number; shared: { address: string; amount: number }[] }>();
-    let sharedTotal = 0;
-    let grossTotal = 0;
-    for (const s of sales) {
-      const shared = Object.entries(s.royalty ?? {})
-        .map(([address, amount]) => ({ address, amount: Number(amount) }))
-        .filter((r) => r.amount > 0 && r.address.toLowerCase() !== me_);
-      const out = shared.reduce((n, r) => n + r.amount, 0);
-      split.set(s.tx_hash, { mine: Math.round((Number(s.amount) - out) * 1e6) / 1e6, shared });
-      sharedTotal += out;
-      grossTotal += Number(s.amount);
-    }
-    return { split, sharedTotal: Math.round(sharedTotal * 1e6) / 1e6, grossTotal: Math.round(grossTotal * 1e6) / 1e6, netTotal: Math.round((grossTotal - sharedTotal) * 1e6) / 1e6 };
-  }, [sales, me?.address]);
-  const owedTotals = useMemo(() => ({
-    open: owed.filter((r) => r.state === 'pending' || r.state === 'failed').reduce((n, r) => n + r.amount, 0),
-    credited: owed.filter((r) => r.state === 'credited').reduce((n, r) => n + r.amount, 0),
-    paid: owed.filter((r) => r.state === 'paid').reduce((n, r) => n + r.amount, 0),
-  }), [owed]);
+  }, [nodes.currentData, myPatches.currentData]);
+  const saleSplit = useMemo(() => accountSales(sales, me?.address ?? ''), [sales, me?.address]);
+  const royaltyGroups = accountPayments(royalties);
+  const verificationGroups = accountPayments(walletView?.verification, 'verification');
+  const paymentSummary = (groups: ReturnType<typeof accountPayments>) => !groups ? t('op.account.amounts.unavailable') : groups.length === 0 ? t('op.account.amounts.none') : groups.map(g =>
+    `${money.revenue(g.amount, g.currency)} · ${t(`op.dash.verify.payment.${g.state}`)}${g.evidence ? ` · ${t(`op.dash.verify.evidence.${g.evidence}`)}` : ''}`).join(' / ');
   /** Why this address is owed anything, from the sold anchor itself: it verified, it provided data, or it is upstream. */
   const owedWhy = (r: OwedRow): string => {
-    const e = (myPatches.data?.items ?? []).find((x) => x.anchor.id === r.patch_id);
+    const e = (myPatches.currentData?.items ?? []).find((x) => x.anchor.id === r.patch_id);
     const low = r.address.toLowerCase();
     if (e?.verifiers?.some((v) => v.toLowerCase() === low)) return t('op.account.owed.why.verification', { id: r.patch_id });
     if ((e?.anchor.contributors ?? []).some((c) => c.address?.toLowerCase() === low)) return t('op.account.owed.why.provider', { id: r.patch_id });
-    return t('op.account.owed.why.lineage', { id: r.patch_id });
+    return t('op.account.owed.why.unknown', { id: r.patch_id });
   };
   const roleLabel = (r: string) => { const k = `op.role.${r}`; const v = t(k); return v === k ? r : v; };
   const [peersBefore, peersAfter] = t('op.account.peers.desc', { link: '|' }).split('|');
@@ -417,18 +397,18 @@ export default function AccountPage() {
       {/* ------------------------------------------------------------ wallet */}
       <SubTitle $mt={56}>{t('op.account.wallet')}</SubTitle>
       <Description>{isAin ? t('op.account.wallet.desc.ain') : t('op.account.wallet.desc.credit')}</Description>
-      {wallet.isLoading ? <CenterProgress /> : wallet.data && (
+      {wallet.isFetching && !wallet.currentData ? <CenterProgress /> : !walletView || !saleSplit ? <QueryError error={wallet.error} what={t('op.account.wallet')} onRetry={() => void wallet.refetch()} retrying={wallet.isFetching} /> : (
         <>
-          <Balance title={netNote}>{wallet.data.balance === null ? '—' : num(wallet.data.balance)}<span>{money.unit(currency)}</span></Balance>
+          <Balance title={netNote}>{walletView.balance === null || !currency ? '—' : num(walletView.balance)}<span>{money.unit(currency)}</span></Balance>
           <Muted style={{ display: 'block' }} data-testid="wallet-network" title={currency === 'AIN' ? tech('ain') : tech('credit')}>
             {netNote}{isAin && info?.ledger.provider ? <> · <Mono>{info.ledger.provider}</Mono></> : null}
           </Muted>
-          <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.wallet.summary', { purchases: wallet.data.purchases, sales: sales.length, royalties: royalties.length })}</Muted>
-          {saleSplit.sharedTotal > 0 && (
-            <Muted style={{ display: 'block', marginTop: 2 }} data-testid="wallet-shared-out">
-              {t('op.account.wallet.shared_out', { gross: money.revenue(saleSplit.grossTotal, currency), shared: money.revenue(saleSplit.sharedTotal, currency), net: money.revenue(saleSplit.netTotal, currency) })}
+          <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.wallet.summary', { purchases: walletView.purchases, sales: sales.length, royalties: royalties.length })}</Muted>
+          {saleSplit.totals.filter(g => g.sharedTotal > 0).map(g => (
+            <Muted style={{ display: 'block', marginTop: 2 }} data-testid="wallet-shared-out" key={g.currency}>
+              {t('op.account.wallet.shared_out', { gross: money.revenue(g.grossTotal, g.currency), shared: money.revenue(g.sharedTotal, g.currency), net: money.revenue(g.netTotal, g.currency) })}
             </Muted>
-          )}
+          ))}
           {isAin && (
             <Row $gap={12} style={{ marginTop: 12 }}>
               <Button size="small" loading={chainState.isLoading} loadingText={t('op.account.chain.setting')} onClick={() => run(() => chainSetup().unwrap(), t('op.account.chain.done'))}>{t('op.account.chain.setup')}</Button>
@@ -475,6 +455,7 @@ export default function AccountPage() {
                         <TableRow key={s.tx_hash}>
                           <TableData $align="left" $padding="0 8px">
                             {s.patch_id}
+                            {!!sp?.unresolved && <div data-testid="sale-unresolved">{t('op.account.sales.unresolved', { amount: money.revenue(sp.unresolved, s.currency) })}</div>}
                             {/* Item 317: what left this sale, and to whom — the line that makes the balance add up. */}
                             {!!sp?.shared.length && (
                               <div style={{ fontSize: 11, color: '#8d8d8f' }} data-testid="sale-shared">
@@ -489,15 +470,15 @@ export default function AccountPage() {
                         </TableRow>
                       );
                     })}
-                    {sales.length > 0 && (
-                      <TableRow data-testid="sales-total">
+                    {saleSplit.totals.map(g => (
+                      <TableRow data-testid="sales-total" key={g.currency}>
                         <TableData $align="left" $padding="0 8px" $weight={600}>{t('op.account.sales.total')}</TableData>
                         <TableData />
-                        <TableData $weight={600}>{money.revenue(saleSplit.grossTotal, currency)}</TableData>
-                        <TableData $weight={600}>{money.revenue(saleSplit.netTotal, currency)}</TableData>
+                        <TableData $weight={600}>{money.revenue(g.grossTotal, g.currency)}</TableData>
+                        <TableData $weight={600}>{money.revenue(g.netTotal, g.currency)}</TableData>
                         <TableData />
                       </TableRow>
-                    )}
+                    ))}
                     {sales.length === 0 && <TableRowEmpty $height={72}><td colSpan={5}>{t('op.account.sales.empty')}</td></TableRowEmpty>}
                   </TableBody>
                 </Table>
@@ -505,23 +486,16 @@ export default function AccountPage() {
               {/* Item 94: 20 of 244 rows, no count, no dates, no way to the rest — on the only screen that carries them. */}
               <Rows t={t} shown={salesShown} total={sales.length} onMore={() => setSalesShown((n) => n + PAGE)} onAll={() => setSalesShown(sales.length)}
                 onCsv={() => downloadCsv(`ainize-sales-${me?.name ?? 'node'}.csv`, [
-                  [t('op.when'), t('op.knowledge'), t('op.buyer'), t('op.amount'), t('op.account.sales.yours'), t('op.account.sales.shared_col'), 'currency', 'scheme', 'tx_hash'],
+                  [t('op.when'), t('op.knowledge'), t('op.buyer'), t('op.amount'), t('op.account.sales.yours'), t('op.account.sales.shared_col'), t('op.account.sales.unresolved_col'), 'currency', 'scheme', 'tx_hash'],
                   ...sales.map((s) => [iso(s.created_at), s.patch_id, s.buyer, s.amount, saleSplit.split.get(s.tx_hash)?.mine ?? s.amount,
-                    (saleSplit.split.get(s.tx_hash)?.shared ?? []).map((r) => `${r.address}:${r.amount}`).join(' '), s.currency, s.scheme, s.tx_hash]),
+                    (saleSplit.split.get(s.tx_hash)?.shared ?? []).map((r) => `${r.address}:${r.amount}`).join(' '), saleSplit.split.get(s.tx_hash)?.unresolved ?? 0, s.currency, s.scheme, s.tx_hash]),
                 ])} />
             </div>
             <div>
               <strong style={{ fontSize: 14 }}><Tip tech={tech('lineage')}>{t('op.account.royalties')}</Tip></strong>
               {/* Item 311: a settle record naming this address is the SELLER's promise, not a receipt. Every row now
                   carries the state this node can actually defend, and the three totals can be reconciled. */}
-              {wallet.data.royalty_totals && (
-                /* `revenue`, not `fmt`: these four are amounts this node EARNED, and `fmt` renders a zero as the
-                   word "Free" — so a node that has been paid nothing read "transferred Free · unconfirmed Free". */
-                <Muted style={{ display: 'block', marginTop: 6 }} data-testid="royalty-totals">{t('op.account.royalties.totals', {
-                  owed: money.revenue(wallet.data.royalty_totals.owed, currency), credited: money.revenue(wallet.data.royalty_totals.credited, currency),
-                  paid: money.revenue(wallet.data.royalty_totals.paid, currency), unconfirmed: money.revenue(wallet.data.royalty_totals.unconfirmed, currency),
-                })}</Muted>
-              )}
+              <Muted style={{ display: 'block', marginTop: 6 }} data-testid="royalty-totals">{paymentSummary(royaltyGroups)}</Muted>
               <TableWrapper style={{ marginTop: 8 }}>
                 <Table>
                   <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.account.royalties.col')}</TableHead><TableHead>{t('op.account.royalties.for')}</TableHead><TableHead>{t('op.amount')}</TableHead><TableHead>{t('op.account.royalties.state')}</TableHead><TableHead>{t('op.when')}</TableHead></TableRow></TableHeader>
@@ -529,8 +503,8 @@ export default function AccountPage() {
                     {royalties.slice(0, royShown).map((r, i) => (
                       <TableRow key={`${r.patch_id}-${i}`}>
                         <TableData $align="left" $padding="0 8px">{r.patch_id}</TableData>
-                        <TableData>{t(r.kind === 'verification' ? 'op.account.royalties.for.verification' : 'op.account.royalties.for.lineage')}</TableData>
-                        <TableData title={money.note(r.currency ?? currency)}>{money.fmt(r.amount, r.currency ?? currency)}</TableData>
+                        <TableData>{t(r.kind === 'verification' ? 'op.account.royalties.for.verification' : r.kind === 'lineage' ? 'op.account.royalties.for.lineage' : 'op.account.royalties.for.unknown')}</TableData>
+                        <TableData title={money.note(r.currency ?? '')}>{r.currency ? money.revenue(r.amount, r.currency) : `${num(r.amount)} · ${t('op.account.amounts.currency_unknown')}`}</TableData>
                         <TableData data-testid="royalty-state" title={[r.evidence ? t(r.evidence === 'record' ? 'op.account.royalties.evidence.record' : 'op.account.royalties.evidence.seller') : null, r.tx_hash, r.last_error].filter(Boolean).join(' · ') || undefined} $color={r.state === 'credited' || r.state === 'paid' ? '#2f7d43' : r.state === 'failed' ? '#b4232f' : '#8a4b00'}>
                           {r.state === 'unconfirmed' ? t('op.account.royalties.state.unconfirmed', { days: r.days ?? 0 })
                             : r.state ? t(`op.account.royalties.state.${r.state}`) : t('op.account.royalties.state.unknown')}
@@ -545,7 +519,7 @@ export default function AccountPage() {
               <Rows t={t} shown={royShown} total={royalties.length} onMore={() => setRoyShown((n) => n + PAGE)} onAll={() => setRoyShown(royalties.length)}
                 onCsv={() => downloadCsv(`ainize-creator-share-${me?.name ?? 'node'}.csv`, [
                   [t('op.when'), t('op.account.royalties.col'), t('op.account.royalties.for'), t('op.amount'), 'currency', t('op.account.royalties.state'), 'seller', 'buyer', 'tx_hash'],
-                  ...royalties.map((r) => [iso(r.created_at), r.patch_id, r.kind ?? '', r.amount, r.currency ?? currency, r.state ?? 'unconfirmed', r.seller ?? '', r.buyer ?? '', r.tx_hash ?? '']),
+                  ...royalties.map((r) => [iso(r.created_at), r.patch_id, r.kind ?? '', r.amount, r.currency ?? '', r.state ?? 'unconfirmed', r.seller ?? '', r.buyer ?? '', r.tx_hash ?? '']),
                 ])} />
               <Muted style={{ display: 'block', marginTop: 6 }}>{t('op.account.royalties.explain')}</Muted>
               {/* Item 316: the per-sale view that reconciles owed against paid existed at /teacher/<address> and
@@ -554,18 +528,18 @@ export default function AccountPage() {
               {me?.address && <Muted style={{ display: 'block', marginTop: 4 }}><StyledLink to={`/teacher/${me.address}`} data-testid="royalties-every-sale">{t('op.account.royalties.every_sale')}</StyledLink></Muted>}
               {/* Item 325: the fourth party in this economy — the one that only paid — can now see what it earned. */}
               <strong style={{ fontSize: 14, display: 'block', marginTop: 20 }}>{t('op.account.verification')}</strong>
-              <Muted style={{ display: 'block', marginTop: 6 }} data-testid="verification-earned">{wallet.data.verification?.length
-                ? t('op.account.verification.some', { n: wallet.data.verification.length, amount: money.revenue(wallet.data.verification_total ?? '0', currency) })
-                : t('op.account.verification.none', { pct: Math.round((wallet.data.verifier_share ?? 0.05) * 100) })}</Muted>
+              <Muted style={{ display: 'block', marginTop: 6 }} data-testid="verification-earned">{paymentSummary(verificationGroups)}</Muted>
             </div>
           </Grid>
 
           {/* ---------------------------------------------------------- what this node owes other people (item 315) */}
           <SubTitle $mt={40}>{t('op.account.owed')}</SubTitle>
-          <Description data-testid="owed-desc">{isAin ? t('op.account.owed.desc.ain', { n: payouts.data?.max_attempts ?? 20 }) : t('op.account.owed.desc.local')}</Description>
-          <Muted style={{ display: 'block', marginTop: 6 }} data-testid="owed-totals">{t('op.account.owed.totals', {
-            open: money.revenue(owedTotals.open, currency), credited: money.revenue(owedTotals.credited, currency), paid: money.revenue(owedTotals.paid, currency),
-          })}</Muted>
+          {saleSplit.totals.filter(g => g.unresolvedTotal > 0).map(g => <Muted key={g.currency} data-testid="owed-unresolved">{t('op.account.sales.unresolved', { amount: money.revenue(g.unresolvedTotal, g.currency) })}</Muted>)}
+          <Description data-testid="owed-desc">{t('op.account.owed.window', { n: payoutRows?.length ?? '—' })}</Description>
+          {payouts.isFetching && !payouts.currentData ? <CenterProgress /> : !owedView ? <QueryError error={payouts.error} what={t('op.account.owed')} onRetry={() => void payouts.refetch()} retrying={payouts.isFetching} /> : <>
+          {owedView.totals.map(g => <Muted key={g.currency} style={{ display: 'block', marginTop: 6 }} data-testid="owed-totals">{t('op.account.owed.totals', {
+            open: money.revenue(g.open, g.currency), credited: money.revenue(g.credited, g.currency), paid: money.revenue(g.paid, g.currency),
+          })}</Muted>)}
           <TableWrapper style={{ marginTop: 8 }}>
             <Table>
               <TableHeader><TableRow>
@@ -595,6 +569,7 @@ export default function AccountPage() {
               [t('op.account.owed.to'), t('op.account.owed.why'), t('op.amount'), 'currency', t('op.account.owed.sales'), t('op.account.royalties.state'), t('op.when')],
               ...owed.map((r) => [r.address, r.patch_id, r.amount, r.currency, r.n, r.state, iso(r.last)]),
             ])} />
+          </>}
           <Muted style={{ display: 'block', marginTop: 8 }}>
             {t('op.account.owed.teaching')} <StyledLink to="/dashboard?tab=teaching">{t('op.account.owed.teaching.link')}</StyledLink>
           </Muted>
@@ -608,7 +583,7 @@ export default function AccountPage() {
         <Table>
           <TableHeader><TableRow><TableHead $align="left" $padding="0 8px">{t('op.account.peers.endpoint')}</TableHead><TableHead>{t('op.name')}</TableHead><TableHead>{t('op.address')}</TableHead><TableHead>{t('op.roles')}</TableHead><TableHead>{t('op.account.peers.lastseen')}</TableHead><TableHead>{t('op.account.peers.failures')}</TableHead><TableHead /></TableRow></TableHeader>
           <TableBody>
-            {(nodes.data?.peers ?? []).map((p) => (
+            {(nodes.currentData?.peers ?? []).map((p) => (
               <TableRow key={p.endpoint ?? p.address ?? ''}>
                 {/* the operator sees every address; the type is nullable because a VISITOR does not */}
                 <TableData $align="left" $padding="0 8px" $mono title={p.endpoint ?? undefined}>{p.endpoint ?? '—'}</TableData>
@@ -620,7 +595,7 @@ export default function AccountPage() {
                 <TableData><Button size="small" variant="text" color="secondary" disabled={!p.endpoint} loading={removeState.isLoading && removeState.originalArgs?.endpoint === p.endpoint} onClick={() => p.endpoint && run(() => removePeer({ endpoint: p.endpoint as string }).unwrap(), t('op.account.peers.removed'))}>{t('op.remove')}</Button></TableData>
               </TableRow>
             ))}
-            {(nodes.data?.peers ?? []).length === 0 && <TableRowEmpty $height={72}><td colSpan={7}>{t('op.account.peers.empty')}</td></TableRowEmpty>}
+            {(nodes.currentData?.peers ?? []).length === 0 && <TableRowEmpty $height={72}><td colSpan={7}>{t('op.account.peers.empty')}</td></TableRowEmpty>}
           </TableBody>
         </Table>
       </TableWrapper>
@@ -634,21 +609,21 @@ export default function AccountPage() {
       {/* ------------------------------------------------------------ runtime */}
       <SubTitle $mt={56}><Tip tech={tech('apply')}>{t('op.account.runtime')}</Tip></SubTitle>
       <Description>{t('op.account.runtime.desc')}</Description>
-      {runtime.isLoading ? <CenterProgress /> : runtime.data && (
+      {runtime.isLoading ? <CenterProgress /> : runtime.currentData && (
         <Section>
           <KeyValue>
-            <dt>{t('op.status')}</dt><dd style={{ color: runtime.data.available ? '#44a45f' : '#e6173e', fontWeight: 600 }}>{runtime.data.available ? t('op.account.runtime.available') : `${t('op.account.runtime.unavailable')}${runtime.data.error ? ` — ${runtime.data.error}` : ''}`}</dd>
-            <dt>{t('op.account.runtime.api')}</dt><dd><Mono>{runtime.data.api ?? '—'}</Mono></dd>
-            <dt>{t('op.account.runtime.model')}</dt><dd>{runtime.data.model ?? '—'}</dd>
-            <dt><Tip tech="patch hook (row read/write on the serving table)">{t('op.account.runtime.hook')}</Tip></dt><dd>{runtime.data.hook ? t('op.account.runtime.connected') : t('op.account.runtime.disconnected')}</dd>
-            <dt>{t('op.account.runtime.loaded')}</dt><dd>{runtime.data.applied.length ? runtime.data.applied.map((a) => <span key={a.patch_id} style={{ marginRight: 12 }}>{a.patch_id} <Muted>({a.reason}, {elapsed(a.applied_at)})</Muted></span>) : <Muted>{t('op.none')}</Muted>}</dd>
+            <dt>{t('op.status')}</dt><dd style={{ color: runtime.currentData.available ? '#44a45f' : '#e6173e', fontWeight: 600 }}>{runtime.currentData.available ? t('op.account.runtime.available') : `${t('op.account.runtime.unavailable')}${runtime.currentData.error ? ` — ${runtime.currentData.error}` : ''}`}</dd>
+            <dt>{t('op.account.runtime.api')}</dt><dd><Mono>{runtime.currentData.api ?? '—'}</Mono></dd>
+            <dt>{t('op.account.runtime.model')}</dt><dd>{runtime.currentData.model ?? '—'}</dd>
+            <dt><Tip tech="patch hook (row read/write on the serving table)">{t('op.account.runtime.hook')}</Tip></dt><dd>{runtime.currentData.hook ? t('op.account.runtime.connected') : t('op.account.runtime.disconnected')}</dd>
+            <dt>{t('op.account.runtime.loaded')}</dt><dd>{runtime.currentData.applied.length ? runtime.currentData.applied.map((a) => <span key={a.patch_id} style={{ marginRight: 12 }}>{a.patch_id} <Muted>({a.reason}, {elapsed(a.applied_at)})</Muted></span>) : <Muted>{t('op.none')}</Muted>}</dd>
           </KeyValue>
           <Stack $gap={12} style={{ marginTop: 20, maxWidth: 640 }}>
             <strong style={{ fontSize: 14 }}>{t('op.account.runtime.try')}</strong>
             <Muted>{tryBefore}<StyledLink to="/chat" title={help('liveTest')}>{term('liveTest')}</StyledLink>{tryAfter}</Muted>
             <Row $gap={12} $align="flex-end">
               <TextField label={t('op.account.runtime.prompt')} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-              <Button disabled={!runtime.data.model} loading={completeState.isLoading} loadingText={t('op.account.runtime.asking')} onClick={onTry}>{t('op.account.runtime.ask')}</Button>
+              <Button disabled={!runtime.currentData.model} loading={completeState.isLoading} loadingText={t('op.account.runtime.asking')} onClick={onTry}>{t('op.account.runtime.ask')}</Button>
             </Row>
             {completion !== null && <MonoBox><span style={{ color: '#8d8d8f' }}>{prompt}</span><strong>{completion}</strong></MonoBox>}
           </Stack>
