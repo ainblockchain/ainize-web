@@ -1,6 +1,6 @@
 ---
 title: "Design (draft): AIN Store — a web3 Firestore"
-summary: Status — awaiting approval. A Firestore replacement where AIN Blockchain is the index, the rules and the triggers, AinDrive holds the documents, AIN SSO is the identity behind every permission, and ainize Runs execute the triggers under that same identity.
+summary: Status — awaiting approval. A Firestore replacement where AIN Blockchain carries the authority (rules, triggers, the ordered write log and a commitment to the database), AinDrive holds the documents and the log archive, the per-project SQLite is the only index, AIN SSO is the identity behind every permission, and ainize Runs execute triggers under that identity.
 ---
 
 # Design (draft): AIN Store — a web3 Firestore
@@ -11,57 +11,65 @@ AIN Store is the database apps on ainize use in place of Firestore. It keeps wha
 
 | Part | Role | Firestore equivalent |
 | --- | --- | --- |
-| AIN Blockchain | **Index** (one entry per document: its hash and version), **rules** (`.rule`), **triggers** (`.function`), change events | Document metadata, security rules, function triggers, listeners |
-| AinDrive | **Document bodies and files**, stored under their hash | Document contents, Cloud Storage |
+| AIN Blockchain | **Authority**: rules (`.rule`), triggers (`.function`), the **ordered write log** (bounded), and one **commitment** to the database's current state | Security rules, function triggers, the commit order Google keeps internally |
+| AinDrive | **Document bodies and files** stored under their hash, plus the **log archive** | Document contents, Cloud Storage |
+| Store (per project) | **SQLite: the only index.** Built by replaying the chain log and AinDrive bodies; answers gets, queries and realtime | Firestore's storage and indexes |
 | AIN SSO | **Identity and roles** for users, orgs and services; delegations to sessions, agents and Runs | Firebase Auth, custom claims |
 | ainize Runs | **Executes triggers** under a scoped identity issued by SSO | Cloud Functions |
-| Store gateway (per project) | SDK endpoint, query cache, realtime fan-out; holds no authority | Firestore frontend |
 
 ## Principles
 
-1. **The chain is the index.** Each document has one small entry on chain. Each entry is how you find the document, how you verify it, and the point where rules and triggers attach.
-2. **Bodies live on AinDrive, addressed by hash.** The hash on chain is also the AinDrive address, so finding and verifying are the same step.
-3. **Rules and triggers are enforced by consensus.** That is what only a chain can offer, and why the index belongs there.
-4. **One identity end to end.** The SSO account that signs a write is the `auth` its rules see, and the trigger that write fires runs with permissions derived from that account or from the app's own account, never wider.
-5. **Everything else is rebuildable.** The gateway's query cache can be rebuilt at any time from the chain and AinDrive.
+1. **Index once.** Looking up a document by id or field is the database's job, and SQLite already does it. The chain never stores a per-document copy of that index; it stores what only a chain can give.
+2. **The chain orders and authorizes every write.** Each write is a log entry on chain, checked by consensus rules and able to fire triggers. The order of the log is the order of the database.
+3. **The database is a deterministic function of the log.** Replaying the log, with bodies from AinDrive, rebuilds the same SQLite, so the Store holds no authority of its own.
+4. **One commitment, not one entry per document.** The Store publishes the Merkle root of its current state. Any document can be proven against it, and anyone can recompute it by replay.
+5. **One identity end to end.** The SSO account that signs a write is the `auth` its rules see. The trigger that write fires runs with permissions derived from that account or from the app's own account, never wider.
 
 ## Data model
 
 ```text
-chain    /apps/<app>/<collection>/<docId>        = "<version>:<sha256 base64url>"
-         /apps/<app>/<collection>/.rule          write rule (consensus)
-         /apps/<app>/<collection>/$id/.function  trigger → ainize Runs
-AinDrive <org drive>/store/<app>/objects/<sha256> document body (JSON) or file bytes
+chain    /apps/<app>/log/<collection>/<key>   = { id, op, base, h }   write log, oldest entries garbage-collected
+         /apps/<app>/log/<collection>/.rule   write rule (consensus) + state rule { gc_max_siblings, max_bytes }
+         /apps/<app>/log/<collection>/$key/.function   trigger → ainize Runs
+         /apps/<app>/commit                   = { upTo, root, segment }   one value, overwritten
+AinDrive <org drive>/store/<app>/objects/<sha256>     document body (JSON) or file bytes
+         <org drive>/store/<app>/log/<segment>        archived log entries, in chain order
+Store    SQLite: documents (collection, id, version, hash, data) + declared indexes
 ```
 
-- **Index entries:** one string per document, `"<version>:<hash>"`. A single leaf keeps the cost at about 300 bytes per document; the chain bills a node as its value's size plus 160 bytes.
-- **Subcollections:** nested paths, `/apps/<app>/users/<uid>/payments/<pid>`, the same shape as Firestore.
-- **Bodies:** JSON stored on AinDrive under their sha256. An update writes a new object and a new entry. Old objects are kept for history or garbage-collected per collection policy.
-- **Private collections:** the chain is public, so for private collections `<docId>` is an HMAC of the real id under an org key. The index then reveals counts and timing, not names or contents. Bodies stay behind AinDrive permissions.
-- **Public collections:** game scores and NFT metadata may store the value itself on chain instead of a hash, so other apps can read it without us.
+- **Log entries:** `{ id, op: "set" | "merge" | "delete", base: <version it was written against>, h: <body hash> }`, about 400 bytes. `<key>` is a time-ordered push id, so the chain's state rule (`gc_max_siblings`, for example 1,000) drops the oldest entries automatically. Chain state per collection is bounded whatever the number of documents.
+- **Bodies:** JSON on AinDrive under its sha256. The log entry carries only the hash.
+- **Applying the log:** the Store tails finalized log entries in chain order, fetches each body, and applies it to SQLite. An entry whose `base` is not the document's current version is rejected the same way on every replay; that is optimistic concurrency, decided by log order.
+- **Commitment:** every N entries or minutes, the Store builds a Merkle root over `(collection, id, version, hash)`, which are the rows SQLite already holds. It overwrites `/apps/<app>/commit` with the root, the last log position it covers, and the AinDrive log segment it archived.
+- **History:** nodes keep bounded history, so the Store archives log entries to AinDrive segments before the chain garbage-collects them. Archive plus bodies is the complete original. A lost Store is rebuilt from it, and its rebuilt root must equal the committed one.
+- **Private collections:** document ids in log entries are HMACs under an org key; bodies stay behind AinDrive permissions.
+- **Public collections:** game scores and NFT metadata may put the value itself in the log entry and keep a small public mirror on chain for other apps to read.
 
 ## Write path
 
 ```text
-SDK ─► gateway ─► AinDrive: put body → sha256
-                 └► chain tx: SET_VALUE /apps/<app>/<col>/<id> = "v:hash"   (signed by the user's session key)
-                       ├ .rule checks auth (SSO account, org role), shape and version
-                       ├ finalized → change event → gateway cache + realtime listeners
-                       └ .function → ainize Runs (trigger)
+SDK ─► Store ─► AinDrive: put body → sha256
+               └► chain tx: SET_VALUE /apps/<app>/log/<col>/<key> = { id, op, base, h }   (signed by the user's session key)
+                     ├ .rule checks auth (SSO account, org role) and the entry's shape   — consensus
+                     ├ .function → ainize Runs (trigger)
+                     └ finalized → Store applies it to SQLite → realtime listeners
 ```
 
-1. The SDK applies the write locally at once and marks it pending, as Firestore's latency compensation does.
-2. The gateway puts the body on AinDrive and gets its hash.
-3. The chain transaction is signed with the user's **session key**. A batch of writes goes in one transaction, so it is atomic like a Firestore batch.
-4. The rule decides at consensus. A rejected write rolls back on the client with the rule's error.
-5. Once finalized, the change event updates the gateway's query cache and every matching `onSnapshot` listener.
+1. The SDK applies the write locally at once and marks it pending, like Firestore's latency compensation.
+2. The Store puts the body on AinDrive. The chain transaction is signed with the user's **session key**; a batch goes in one transaction.
+3. Consensus checks the rule. A rejected write rolls back on the client with the rule's error.
+4. When the entry is finalized, the Store applies it. A stale `base` is reported to the client as a conflict, as Firestore reports a failed transaction.
+
+**What rules can check.**
+- **Enforced by consensus:** who is writing (SSO account, org, role, session expiry), what is written (shape, sizes, allowed ops), and the collection's limits.
+- **Enforced on replay:** conditions on the document's existing contents, such as "only the owner may edit". The chain does not hold per-document state, so these rules run deterministically when the log is applied. A violation is rejected identically on every replay, and anyone can check it by replaying.
+- A collection that needs such a condition enforced by consensus can opt in to a small per-document field on chain, for example the owner.
 
 ## Read path
 
-- **Get by id:** read the index entry from chain, fetch the body from AinDrive by hash, and verify the hash. Verification is on by default in the SDK.
-- **Queries:** `where`, `orderBy`, `limit` and cursors run on the gateway's SQLite cache. The cache is built from chain events and AinDrive bodies, and its indexes are declared per collection. It is not a source of truth: drop it, and it is rebuilt.
-- **Realtime:** chain change events fan out to SSE listeners, filtered by each listener's read permission.
-- **Read permission:** the chain index is public, so read control applies to bodies. AinDrive enforces it with SSO roles and shares, and the gateway applies the collection's `read` rule to queries.
+- **Gets, queries, realtime:** all served by the Store's SQLite: `where`, `orderBy`, `limit`, cursors and `onSnapshot`. It is the one index, kept current by the log.
+- **Verification:** the SDK can ask for a Merkle proof with any document and check it against `/apps/<app>/commit`. It also checks the body's hash.
+- **Read permission:** the log holds hashes, not contents. Bodies are protected by AinDrive permissions under SSO roles and shares, and the Store applies each collection's `read` rule to queries and listeners.
 
 ## Permissions through AIN SSO
 
@@ -77,11 +85,11 @@ SDK ─► gateway ─► AinDrive: put body → sha256
 ### Rules
 
 ```text
-/apps/donga/articles/.rule.write:
+/apps/donga/log/articles/.rule.write:
   getValue('/apps/ain_sso/sessions/' + auth.addr + '/org') === 'org_donga'
   && ['editor','admin'].includes(getValue('/apps/ain_sso/orgs/org_donga/members/'
        + getValue('/apps/ain_sso/sessions/' + auth.addr + '/addr')))
-  && util.isString(newData)
+  && util.isDict(newData) && ['set','merge','delete'].includes(newData.op)
 ```
 
 The SDK ships helpers that compile `role in ['editor','admin']` to this form. Rules are reviewed and deployed with the app, like Firestore rules.
@@ -96,7 +104,7 @@ finalized tx ─► chain .function (REST, whitelisted URL) ─► ainize node
    Run's writes go through the same chain rules
 ```
 
-- **Declaring a trigger:** `ainize.json` declares, per trigger, the paths it may write and the AinDrive objects it may read. For example: `"on-article": { "type": "ain", "path": "/apps/donga/articles/$id", "as": "app", "writes": ["/apps/donga/translations/$id"] }`.
+- **Declaring a trigger:** `ainize.json` declares, per trigger, the paths it may write and the AinDrive objects it may read. For example: `"on-article": { "type": "ain", "path": "/apps/donga/log/articles/$key", "as": "app", "writes": ["/apps/donga/log/translations"] }`.
 - **Running as the app (`as: "app"`):** the Run acts as the project's own SSO service account, owned by the org. Its permission is the declared scope, limited to the roles the org grants that account.
 - **Running as the caller (`as: "caller"`):** the Run acts for the account that signed the triggering transaction. It can never do more than that user could.
 - **Verified events:** the node checks the event against the chain before running anything. The per-trigger URL token stays only as rate-limit protection.
@@ -105,24 +113,26 @@ finalized tx ─► chain .function (REST, whitelisted URL) ─► ainize node
 
 ## Capacity and cost
 
-| Project | Documents (measured 2026-10-31) | Index on chain at about 300 B each |
-| --- | --- | --- |
-| Donga Science | 214,566 (translations 70,067, evaluations 70,059, articles 68,287) | about 64 MB |
-| Baby Shark | 8,669 top-level, plus small subcollections | about 2.6 MB |
-| a2a orchestrator | about 6,000 records | about 1.8 MB |
+Chain state is now bounded by the log window, not by the number of documents.
 
-- The current free pool is 100 MB shared by all unstaked apps, so Donga alone does not fit. At today's total stake, staking for 64 MB would take about 270,000 AIN, since 50 AIN buys 11.9 KB.
-- **Proposal:** replace the shared pool with **explicit per-app budgets**, `resource/app_state_budget/<app>`, set by the params owner (a governance transaction) when an app is onboarded. An app over its budget fails only its own writes. Deletions are always accepted.
-- **Writes:** one transaction per write or batch. Donga writes about 15k documents per 30 days, well within chain throughput. Writes are acknowledged at finality, a few seconds; the SDK's pending state hides that, as in Firestore.
-- **Reads** never touch consensus; they hit the gateway cache and AinDrive. Donga's 5.7M reads per 30 days were the admin dashboard polling stats every 5 seconds. That is fixed separately in donga-science-backend #56 and donga-science-admin #14.
-- **Monitoring:** every 5 minutes, check per-app budget use, trigger failures and cache lag; alert AIN Teams #comcom at 70% and 85%.
+| Project | Documents (measured 2026-10-31) | Write rate | Chain state |
+| --- | --- | --- | --- |
+| Donga Science | 214,566 | About 440 new articles in October 2026, each with a translation and an evaluation | Log window 1,000 entries per collection × about 400 B ≈ 0.4 MB per collection, plus one commit value |
+| Baby Shark | 8,669 top-level | Low | Under 0.5 MB |
+| a2a orchestrator | About 6,000 | Low | Under 0.5 MB |
+
+- With per-document entries Donga would have needed about 64 MB; with the log it needs well under 5 MB. The budget increase approved for Donga covers it with a wide margin.
+- **Per-app budgets** (decision D2) remain the isolation mechanism. The chain's existing state rule `max_bytes` caps each log path as well.
+- **Writes:** one transaction per write or batch, acknowledged at finality (a few seconds) behind the SDK's pending state.
+- **Reads** never touch the chain.
+- **Monitoring:** every 5 minutes, check per-app budget use, log lag (the Store's applied position against the chain), archive lag (it must stay ahead of garbage collection), and trigger failures. Alert AIN Teams #comcom at 70% and 85%.
 
 ## Moving off Firebase
 
 | Firebase | AIN Store |
 | --- | --- |
-| Firestore documents and collections | Index entries on chain plus bodies on AinDrive |
-| Queries, `onSnapshot` | Gateway cache queries, SSE listeners on chain events |
+| Firestore documents and collections | SQLite in the Store, bodies on AinDrive, writes as chain log entries |
+| Queries, `onSnapshot` | Store queries and SSE listeners |
 | Security rules | Chain `.rule`, with SSO roles through `/apps/ain_sso` |
 | Cloud Functions triggers | Chain `.function` to ainize Runs, with SSO delegations |
 | Firebase Auth | AIN SSO; existing Firebase Auth users are exported and kept |
@@ -153,14 +163,14 @@ Today a triggered Run runs with the key of whoever last pushed the project, whic
 
 1. Chain: per-app budgets, deletions always accepted, the REST whitelist entry for ainize.
 2. SSO: publish the directory (`/apps/ain_sso` orgs, members, sessions); session keys at sign-in.
-3. Store: SDK, gateway (AinDrive bodies, query cache, SSE), rule helpers.
+3. Store: SDK, log tailer and deterministic apply, SQLite indexes, commitment and proofs, AinDrive bodies and log archive, SSE, rule helpers.
 4. Runs: verified events, delegations, `as` and `writes`, on-chain install.
 5. Migrate Baby Shark, then nft-server, then Donga Science with one week of dual-run, then the orchestrator.
 
 ## Decisions for approval
 
-- **D1. The chain is the index:** one entry per document (`"version:hash"`), bodies on AinDrive by hash.
-- **D2. Per-app state budgets** set by governance replace the shared free pool, and deletions are always accepted. This is a mainnet consensus change.
+- **D1. No per-document index on chain.** The chain holds rules, triggers, a bounded write log and one commitment; SQLite is the only index; AinDrive holds bodies and the log archive.
+- **D2. Per-app state budgets** set by governance replace the shared free pool, and deletions are always accepted. This is a mainnet consensus change. Donga's increase is approved.
 - **D3. SSO publishes orgs, members and sessions on chain, and users sign with SSO-issued session keys.**
 - **D4. Runs execute `as: "app"` (default) or `as: "caller"`, scoped by SSO resource delegations to declared paths.**
-- **D5. HMAC document ids for private collections.**
+- **D5. Data-dependent rules run on deterministic replay by default, and opt in to consensus with a per-document field.**
