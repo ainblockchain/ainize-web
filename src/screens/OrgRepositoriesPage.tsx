@@ -13,12 +13,14 @@
  */
 import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
-import { useOrgProjectsQuery, useOrgQuery, useOrgRepositoriesQuery } from '@/api/api';
+import { useMeQuery, useOrgProjectsQuery, useOrgQuery, useOrgRepositoriesQuery } from '@/api/api';
 import { parseOrgProfile } from '@/api/organizations';
 import { mergeOrgRepos, projectApiErrorOf, relativeTime, shortSha, statusToneOf } from '@/api/projects';
 import { CenterProgress, Description, Empty, ExternalLink, Mono, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { isReservedFirstSegment, projectPath } from '@/lib/reservedRoutes';
+import { withQuery } from '@/lib/uiNavigation';
+import { isScriptProject } from '@/lib/projectActions';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 
@@ -32,12 +34,13 @@ const HeaderMeta = styled.div`display: flex; gap: 14px; flex-wrap: wrap; align-i
 const List = styled.ul`list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px;`;
 const Item = styled.li`
   border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 10px; background: #fff; padding: 14px 16px;
-  display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; font-size: 14px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; font-size: 14px;
+  @media (max-width: 640px) { grid-template-columns: minmax(0, 1fr); }
 `;
-const Name = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600;`;
+const Name = styled.div`min-width: 0; overflow-wrap: anywhere; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; a { min-width: 0; }`;
 const Line = styled.div`grid-column: 1 / -1; display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: #666;`;
-const Subject = styled.span`max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
-const Quick = styled.div`display: flex; gap: 8px; align-items: center;`;
+const Subject = styled.span`max-width: min(420px, 100%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const Quick = styled.div`display: flex; flex-wrap: wrap; gap: 8px; align-items: center;`;
 const Action = styled(Link)`
   font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 4px; text-decoration: none; white-space: nowrap;
   border: 1px solid ${(p) => p.theme.color.PRIMARY}; color: ${(p) => p.theme.color.PRIMARY}; background: #fff;
@@ -51,6 +54,8 @@ export default function OrgRepositoriesPage() {
   const projectsQ = useOrgProjectsQuery(org, { skip: reserved, pollingInterval: 15_000 });
   const reposQ = useOrgRepositoriesQuery(org, { skip: reserved });
   const orgQ = useOrgQuery(org, { skip: reserved });
+  const meQ = useMeQuery();
+  const signedIn = !!(meQ.data?.signedIn || meQ.data?.sso || meQ.data?.site);
   const profile = parseOrgProfile(orgQ.data);
   useTitle(profile?.name ?? org);
   if (reserved) return <NotFoundPage />;
@@ -64,6 +69,7 @@ export default function OrgRepositoriesPage() {
   const rows = mergeOrgRepos(projectsQ.data.projects, repos);
   const driveUrl = reposQ.data?.driveUrl ?? null;
   const members = profile?.member_count ?? null;
+  const accessRequired = rows.length === 0 && reposQ.isError && projectApiErrorOf(reposQ.error).code === 'not_found';
   return (
     <PageWrapper $wide>
       <TitleRow><Title>{profile?.name ?? slug}</Title>{profile?.name && profile.name !== slug && <Chip>{slug}</Chip>}</TitleRow>
@@ -72,11 +78,11 @@ export default function OrgRepositoriesPage() {
         {profile && <StyledLink to={`/org/${encodeURIComponent(profile.id)}`}>{t('projects.org.org_page')}</StyledLink>}
         {profile && <StyledLink to={`/org/${encodeURIComponent(profile.id)}/settings?tab=storage`}>{t('storage.org_link')}</StyledLink>}
         {driveUrl && <ExternalLink href={driveUrl} target="_blank" rel="noreferrer">{t('projects.org.drive')} ↗</ExternalLink>}
-        <span>{t('projects.org.count', { n: rows.length })}</span>
+        {!accessRequired && <span>{t('projects.org.count', { n: rows.length })}</span>}
       </HeaderMeta>
       {profile?.description && <Description>{profile.description}</Description>}
       {reposQ.isError && projectApiErrorOf(reposQ.error).code === 'aindrive_off' && <Description>{t('projects.org.no_aindrive')}</Description>}
-      {rows.length === 0 ? <Empty>{t('projects.org.none')}</Empty> : (
+      {accessRequired ? <Empty><p>{t(signedIn ? 'projects.org.members_only' : 'projects.org.signin_hint')}</p><StyledLink to={`/signing?next=${encodeURIComponent(`/${org}`)}`}>{t('projects.org.signin')}</StyledLink></Empty> : rows.length === 0 && reposQ.isFetching ? <CenterProgress /> : rows.length === 0 ? <Empty>{t('projects.org.none')}</Empty> : (
         <List>
           {rows.map((r) => {
             const p = r.project;
@@ -85,7 +91,7 @@ export default function OrgRepositoriesPage() {
             const sha = last?.sha || r.repo?.headSha || null;
             const subject = last?.subject ?? r.repo?.headSubject ?? null;
             const to = p ? projectPath(p) : null;
-            const isScript = !p || kind === 'script' || kind === null;
+            const isScript = !!p && isScriptProject(p);
             return (
               <Item key={r.name}>
                 <Name>
@@ -95,7 +101,7 @@ export default function OrgRepositoriesPage() {
                   {!p && r.repo && !r.repo.hasManifest && <Chip title={t('projects.org.no_manifest_hint')}>{t('projects.org.no_manifest')}</Chip>}
                 </Name>
                 <Quick>
-                  {to && isScript && <Action to={`${to}?tab=runs`}>▶ {t('projects.runs.run')}</Action>}
+                  {to && isScript && <Action to={withQuery(to, { tab: 'runs' })}>▶ {t('projects.runs.run')}</Action>}
                   {to && !isScript && last?.status === 'ready' && last.outputUrl && <ExternalLink href={last.outputUrl} target="_blank" rel="noreferrer">{t('projects.page.visit')} ↗</ExternalLink>}
                   {to && <Action to={to}>{t('projects.org.open')}</Action>}
                   {!to && r.repo && <ExternalLink href={r.repo.cloneUrl} target="_blank" rel="noreferrer">aindrive ↗</ExternalLink>}

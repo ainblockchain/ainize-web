@@ -32,7 +32,8 @@
     "@types/react-dom": "^19.2.5",
     "jose": "^6.2.12",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "esbuild": "^0.28.2"
   },
   "license": "MIT"
 }

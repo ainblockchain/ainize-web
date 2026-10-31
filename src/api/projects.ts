@@ -120,7 +120,51 @@ export interface ProjectCreated extends Project { owner: string; hookUrl: string
 
 export interface ProjectCreateInput { repo: string; branch?: string; name?: string; deployToken?: string }
 
-export type DeploymentTrigger = 'push' | 'redeploy' | 'run';
+/** push (aindrive's hook), redeploy (a person), run (the console's Run panel), and the three triggers of a Run project. */
+export type DeploymentTrigger = 'push' | 'redeploy' | 'run' | 'schedule' | 'ain' | 'http';
+/** The triggers that start a run by themselves (ainize-node "Runs" contract §1). */
+export type TriggerType = 'schedule' | 'ain' | 'http';
+export const TRIGGER_TYPES: readonly TriggerType[] = ['schedule', 'ain', 'http'];
+/** Every trigger that is a run, not a deployment — what the Runs tab lists. */
+export const RUN_TRIGGERS: readonly DeploymentTrigger[] = ['run', 'schedule', 'ain', 'http'];
+export const isRunTrigger = (t: DeploymentTrigger): boolean => RUN_TRIGGERS.includes(t);
+
+/**
+ * One trigger as `GET /api/projects/:id/triggers` lists it — installed from the commit's `ainize.json` `triggers`
+ * when a deployment of a script project reaches `ready`. `fireUrl` arrives for operators only (http / ain); the
+ * token itself is shown once, on install or rotate, and only `hasToken` is read back.
+ */
+export interface ProjectTrigger {
+  name: string;
+  type: TriggerType;
+  cron?: string;
+  timezone?: string;
+  path?: string;
+  enabled: boolean;
+  nextRunAt?: number | null;
+  lastRunAt?: number | null;
+  lastRunId?: string | null;
+  fireUrl?: string;
+  hasToken: boolean;
+}
+export interface TriggersResponse { triggers: ProjectTrigger[] }
+/** `POST …/triggers/:name/rotate-token` — the token, once. */
+export interface TriggerToken { token: string }
+/** `POST …/triggers/:name/run` — a manual fire with a synthetic `{ "type": "manual" }` event. */
+export interface TriggerFired { runId: string; status?: DeploymentStatus }
+/** `GET …/triggers/:name/ain-rule` — the exact `.function` value to set at `path` on the AIN blockchain. */
+export interface TriggerAinRule { path: string; rule: Record<string, { function_type: 'REST'; function_url: string; function_id: string }> }
+
+/** What a trigger row says in its second column: the cron (and timezone), the AIN path, or nothing for a webhook. */
+export function triggerDetail(tr: Pick<ProjectTrigger, 'type' | 'cron' | 'timezone' | 'path'>): string {
+  if (tr.type === 'schedule') return [tr.cron ?? '', tr.timezone && tr.timezone !== 'Etc/UTC' ? tr.timezone : ''].filter(Boolean).join(' · ');
+  if (tr.type === 'ain') return tr.path ?? '';
+  return '';
+}
+/** The rows in the order the console draws them: schedules first, then AIN triggers, then webhooks; by name within. */
+export function sortTriggers(rows: readonly ProjectTrigger[]): ProjectTrigger[] {
+  return [...rows].sort((a, b) => TRIGGER_TYPES.indexOf(a.type) - TRIGGER_TYPES.indexOf(b.type) || a.name.localeCompare(b.name));
+}
 
 export interface Deployment {
   placement?: { address: string; endpoint: string; local: boolean; score: number; gpuUuids: string[]; reason: string } | null;
@@ -130,8 +174,10 @@ export interface Deployment {
   ref: string;
   status: DeploymentStatus;
   kind?: ProjectKind;
-  /** push (aindrive's hook), redeploy (a person, of an earlier commit), run (an ad-hoc run from the console). */
+  /** push (aindrive's hook), redeploy (a person, of an earlier commit), run (an ad-hoc run from the console), or a trigger. */
   trigger: DeploymentTrigger;
+  /** A triggered run (`schedule` / `ain` / `http`): the name of the trigger in `ainize.json` that started it. */
+  triggerName?: string;
   /** The commit's subject line. */
   subject?: string;
   /**
@@ -232,10 +278,10 @@ export function relativeTime(ms: number | null | undefined, now = Date.now()): s
 
 export const AINDRIVE_URL = 'https://aindrive.ainetwork.ai';
 
-export type ProjectApiErrorCode = 'not_signed_in' | 'invalid_request' | 'repo_taken' | 'limit' | 'not_found' | 'not_member' | 'not_a_script' | 'aindrive_off' | 'network' | 'unknown';
+export type ProjectApiErrorCode = 'not_signed_in' | 'invalid_request' | 'repo_taken' | 'limit' | 'not_found' | 'not_member' | 'not_a_script' | 'aindrive_off' | 'trigger_disabled' | 'network' | 'unknown';
 export interface ProjectApiError { status: number | null; code: ProjectApiErrorCode; message: string | null }
 
-const KNOWN: readonly ProjectApiErrorCode[] = ['not_signed_in', 'invalid_request', 'repo_taken', 'limit', 'not_found', 'not_member', 'not_a_script', 'aindrive_off'];
+const KNOWN: readonly ProjectApiErrorCode[] = ['not_signed_in', 'invalid_request', 'repo_taken', 'limit', 'not_found', 'not_member', 'not_a_script', 'aindrive_off', 'trigger_disabled'];
 
 /** The node's `{ error: { code, message } }` out of an RTK Query rejection; a dead connection is `network`. */
 export function projectApiErrorOf(err: unknown): ProjectApiError {

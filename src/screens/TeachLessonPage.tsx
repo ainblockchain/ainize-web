@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
@@ -23,7 +24,7 @@ import { signedDownload } from '@/lib/teachDataset';
 import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
- * `/teach/lesson/:jobId` — steps 4 and 5 on one route (design §5.6, §5.7).
+ * `/train/lesson/:jobId` — steps 4 and 5 on one route (design §5.6, §5.7).
  *
  * While the lesson moves this is the progress screen: the stage rail, a REAL `step / max_steps` bar (never a computed
  * percentage), the per-question hit counter, honest elapsed time and — only under §10's three conditions — a time left.
@@ -94,12 +95,13 @@ const Confirm = styled.div`
 
 export default function TeachLessonPage() {
   const { jobId = '' } = useParams<{ jobId: string }>();
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   const navigate = useNavigate();
   const { data: policy } = useTeachPolicyQuery();
   const { data: info } = useInfoQuery();
   const [poll, setPoll] = useState(3000);
-  const { data, error: jobError } = useTeachJobQuery(jobId, { pollingInterval: poll, skip: !jobId });
+  const { currentData: data, error: jobError } = useTeachJobQuery({ id: jobId, teacherIdentity }, { pollingInterval: poll, skip: !jobId });
   const [cancel, { isLoading: cancelling }] = useCancelTeachJobMutation();
   const [recheck, { isLoading: rechecking }] = useRecheckTeachJobMutation();
   const [retrain, { isLoading: retraining }] = useRetrainTeachJobMutation();
@@ -114,14 +116,14 @@ export default function TeachLessonPage() {
   const active = !!status && ACTIVE.has(status);
   useEffect(() => { setPoll(active ? 3000 : 30_000); }, [active]);
   useEffect(() => { if (!active) return; const h = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(h); }, [active]);
-  const { data: events } = useTeachJobEventsQuery({ id: jobId }, { skip: !jobId || !full, pollingInterval: active ? 5000 : 0 });
+  const { currentData: events } = useTeachJobEventsQuery({ teacherIdentity, id: jobId }, { skip: !jobId || !full, pollingInterval: active ? 5000 : 0 });
   /**
    * Finding 49 — the result said "1 of your 12 questions were left out: the model already answered them correctly"
    * and never said WHICH, so the visitor could not identify the question they had lost. `training.selected_indexes`
    * is the positions this lesson trained and the dataset holds the rest, so the ones left out can be named.
    */
   const leftOut = full?.preflight?.known || full?.preflight?.overlaps ? (full.dataset?.id ?? '') : '';
-  const { data: dsRows } = useTeachDatasetRowsQuery({ id: leftOut, offset: 0, limit: 200 }, { skip: !leftOut || !!full?.dataset?.deleted });
+  const { currentData: dsRows } = useTeachDatasetRowsQuery({ teacherIdentity, id: leftOut, offset: 0, limit: 200 }, { skip: !leftOut || !!full?.dataset?.deleted });
 
   // Computed before the early returns so the tab can be named like every other page's; `undefined` until the lesson
   // is known keeps the previous title rather than flashing a placeholder.
@@ -183,10 +185,10 @@ export default function TeachLessonPage() {
   const doRetrain = () => void (async () => {
     setError(null);
     const effort = nextEffort((j.training?.effort ?? 'balanced') as TeachEffort);
-    if (j.dataset?.id && !j.dataset.deleted) { navigate(`/teach/dataset/${j.dataset.id}/settings?retrain=${encodeURIComponent(j.id)}&effort=${effort}`); return; }
+    if (j.dataset?.id && !j.dataset.deleted) { navigate(`/train/dataset/${j.dataset.id}/settings?retrain=${encodeURIComponent(j.id)}&effort=${effort}`); return; }
     try {
       const out = await retrain({ id: j.id, training: { effort } }).unwrap();
-      navigate(`/teach/lesson/${out.job.id}`);
+      navigate(`/train/lesson/${out.job.id}`);
     } catch (e) { setError(mapTeachError(e, t)); }
   })();
 
@@ -297,7 +299,7 @@ export default function TeachLessonPage() {
       {/* a deleted dataset keeps its line below, but neither control is rendered: both can now only answer 404 */}
       {j.dataset?.id && !j.dataset.deleted && (
         <Description>
-          <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.dataset_link', { name: j.dataset.name ?? '', n: j.dataset.rows })}</Link>
+          <Link to={`/train/dataset/${j.dataset.id}`}>{t('teach.res.dataset_link', { name: j.dataset.name ?? '', n: j.dataset.rows })}</Link>
           {' · '}
           <button
             type="button" data-testid="download-dataset"
@@ -349,7 +351,7 @@ export default function TeachLessonPage() {
               ))}
             </tbody>
           </FactTable>
-          {learned.length > ROWS_SHOWN && <ShownNote data-testid="learned-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: learned.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
+          {learned.length > ROWS_SHOWN && <ShownNote data-testid="learned-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: learned.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/train/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
         </Panel>
       )}
       {!failedTone && !!missed.length && (
@@ -364,7 +366,7 @@ export default function TeachLessonPage() {
               ))}
             </tbody>
           </FactTable>
-          {missed.length > ROWS_SHOWN && <ShownNote data-testid="missed-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: missed.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/teach/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
+          {missed.length > ROWS_SHOWN && <ShownNote data-testid="missed-shown">{t('teach.res.showing_first', { shown: ROWS_SHOWN, total: missed.length })}{j.dataset?.id && !j.dataset.deleted ? <> <Link to={`/train/dataset/${j.dataset.id}`}>{t('teach.res.showing_all')}</Link></> : null}</ShownNote>}
         </Panel>
       )}
 
@@ -458,7 +460,7 @@ export default function TeachLessonPage() {
       {sheet === 'keep' && policy && (
         <KeepPrivateSheet
           job={j} policy={policy} runtimeModel={info?.node.model} onClose={() => setSheet(null)}
-          onPublishLater={() => setSheet('publish')} onDeleted={() => navigate('/teach/mine')}
+          onPublishLater={() => setSheet('publish')} onDeleted={() => navigate('/train/mine')}
         />
       )}
     </PageWrapper>

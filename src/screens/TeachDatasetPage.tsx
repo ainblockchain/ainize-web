@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
@@ -20,7 +21,7 @@ import { rowsPerJob, sourceLabel } from '@/components/teach/util';
 import { saveKnown, saveSelection, shortSha, signedDownload } from '@/lib/teachDataset';
 
 /**
- * `/teach/dataset/:dsId` — step 2 (design §5.4): the preview, the per-question validation and the live pre-flight.
+ * `/train/dataset/:dsId` — step 2 (design §5.4): the preview, the per-question validation and the live pre-flight.
  *
  * Two rules drive the whole screen. Nothing was silently dropped, so every source line that did not become a question
  * is counted here and inspectable; and the model-side status of a question is cleared the moment its text changes —
@@ -65,15 +66,16 @@ const StickySpacer = styled.div`height: 72px; @media (max-width: ${(p) => p.them
 
 export default function TeachDatasetPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   useTitle(t('teach.rows.title'));
   const navigate = useNavigate();
   const { search } = useLocation();          // a re-train carries `?retrain=<job>&effort=…` through to the settings screen
   const { data: policy } = useTeachPolicyQuery();
-  const { data: dsData, isLoading, error: loadError } = useTeachDatasetQuery(dsId, { skip: !dsId });
+  const { currentData: dsData, isFetching, error: loadError, refetch } = useTeachDatasetQuery({ id: dsId, teacherIdentity }, { skip: !dsId });
   const [offset, setOffset] = useState(0);
   const [origin, setOrigin] = useState<'all' | 'mine' | 'inherited' | 'changed' | 'conflicts'>('all');
-  const { data: page } = useTeachDatasetRowsQuery({ id: dsId, offset, limit: PAGE, origin }, { skip: !dsId });
+  const { currentData: page } = useTeachDatasetRowsQuery({ teacherIdentity, id: dsId, offset, limit: PAGE, origin }, { skip: !dsId });
   const { data: catalog } = useCatalogQuery({ limit: 200 }, { skip: !dsData?.dataset?.parent_patch });
   const [patch, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [reparse, { isLoading: reparsing }] = useReparseTeachDatasetMutation();
@@ -235,15 +237,16 @@ export default function TeachDatasetPage() {
     saveKnown(dsId, revision ?? 1, Object.entries(flight)
       .filter(([, f]) => f.status === 'already_known')
       .map(([index, f]) => ({ index: Number(index), base_answer: f.base_answer ?? '' })), checked);
-    navigate(`/teach/dataset/${dsId}/settings${search}`);
+    navigate(`/train/dataset/${dsId}/settings${search}`);
   };
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!dataset && isFetching) return <PageWrapper data-testid="dataset-loading"><CenterProgress /></PageWrapper>;
   if (loadError || !dataset) {
     return (
       <PageWrapper data-testid="teach-dataset">
         <Stepper current={2} />
         <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{loadError ? mapTeachError(loadError, t) : t('teach.err.dataset_not_found')}</Alert>
+        <Button size="small" variant="text" onClick={() => void refetch()}>{t('teach.data.retry')}</Button>
       </PageWrapper>
     );
   }

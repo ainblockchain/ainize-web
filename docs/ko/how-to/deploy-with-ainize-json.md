@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 70085e13e4e13c79f307cfeeb4e9922ec5aa410209b7e8d677ce62ffb9c1ef22
+source_sha256: 42093f83c36fc71bb54154379d0b3284a6241b202c57cc4fb1f6e6b71905dbba
 ---
 
 # ainize.json으로 리포 배포하기
@@ -39,6 +39,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `env` | 전체 | 빌드와 실행에 들어가는 환경변수. **비밀값 금지** — 파일이 리포에 있습니다. 샌드박스가 `AINIZE_URL`과 `AINIZE_API_KEY`(push한 사람 본인의 키)를 스스로 넣어 주므로, 스크립트는 `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])`로 모델에 닿고 키는 절대 커밋되지 않습니다. |
 | `inputs` | 전체(`script` 실행에서 사용) | 실행 전에 사람이 정하는 매개변수. GitHub Actions `workflow_dispatch` inputs와 같은 모양이며, `INPUT_<NAME>` 환경변수로 전달됩니다. [Inputs](#inputs) 참고. |
 | `timeoutMs` | `script` | 실행 1회의 제한 시간. 기본 120 000, 최대 300 000. |
+| `triggers` | `script` | 스스로 실행을 시작시키는 트리거 최대 8개 — `schedule`(cron + 시간대), `ain`(AIN 블록체인 경로 쓰기), `http`(웹훅 URL). [스크립트를 스케줄로 실행하기](./run-scripts-on-a-schedule.md) 참고. |
 | `build.dockerfile`, `build.context` | `service` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | 컨테이너가 듣는 포트. Next.js 기본 3000. |
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
@@ -60,6 +61,9 @@ ainize.json`으로 끝납니다. 파일이 계약입니다 — 그 기본값 하
 `AINIZE_URL`로 내 `AINIZE_API_KEY`와 함께 닿음). 표준 출력·표준 에러·종료 코드가 배포 로그가 되고, 종료 코드 0이면 `ready`, 그 외는 `error`입니다.
 예시, 평가, 코드가 바뀔 때마다 다시 돌아 기록을 남겨야 하는 것에 쓰세요. 샌드박스 이미지에는 표준 라이브러리, `requests`,
 `ainize` SDK가 있고, 그 밖의 의존성은 선언할 수 없습니다.
+`script` 프로젝트는 웹사이트에서 **실행(Run)** 입니다([실행](/runs)). 나머지 세 kind는 **배포(Deployment)** 입니다 —
+[둘의 차이](../concepts/deployments-and-runs.md). `triggers` 키를 더하면 스크립트가 스케줄로, AIN 블록체인 쓰기로,
+웹훅으로도 돌고, 이벤트는 `AINIZE_TRIGGER_EVENT`로 들어옵니다.
 
 **`service`** — 리포의 `Dockerfile`을 빌드하고, hosted agent와 같은 격리(내부 네트워크, 게이트웨이를 통한 egress만,
 capability 제거, 자원 제한)로 실행한 뒤, `port`의 `healthcheck`를 기다려 노드의 공개 URL 아래로 노출합니다. 무중단
@@ -145,6 +149,8 @@ curl -X POST https://ainize.ai/api/projects \
 이어갈 수 있습니다. 생성 요청을 반복해도 프로젝트가 중복 생성되거나 웹훅 시크릿이 다시 표시되지 않습니다.
 
 ## 완전한 예
+
+이 가이드는 로그인 없이 읽을 수 있습니다. 아래 ComCom 저장소와 배포 콘솔은 해당 조직에 접근 권한이 있는 AIN 계정이 필요하며, 공개 데모가 아닙니다. 위의 매니페스트와 입력 예시는 내 저장소에 적용할 수 있습니다. 모델 호출 방법은 [Clef 사용 가이드](./decision-models-clef.md)를 참고하세요.
 
 [`clef-artwork-search`](https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search)는 `script` 프로젝트입니다.
 Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 셋, 위의 `ainize.json`, 그리고 같은 것을 다른 곳에서 돌리기

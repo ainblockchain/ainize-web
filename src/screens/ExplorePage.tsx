@@ -12,10 +12,11 @@ import { useAuth } from '@/auth/AuthContext';
 import { AgentListItem } from '@/components/public/AgentListItem';
 import { PatchListItem, PriceUnitNote, TermsLegend } from '@/components/public/PatchListItem';
 import { Shelves } from '@/components/public/Shelves';
-import { Alert, Input } from '@/components/ui/Form';
-import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
+import { Alert } from '@/components/ui/Form';
+import { Description, Empty, PageWrapper, Pagination, SelectBox, Shimmer, StyledLink, SectionTitle, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { docsFromAgents, matchingSearchIds } from '@/lib/globalSearch';
 import { num } from '@/utils/format';
 
 // `built_on` and `trending` are the two orderings §10 of the lineage design defines: most built on (children on the
@@ -45,7 +46,8 @@ const ITEM_LIMIT = 10;
 const CURRENT_STATUS = 'VERIFIED,ANNOUNCED,VERIFYING,CHALLENGED';
 
 const Filters = styled.div`
-  display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 24px;
+  display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 16px;
+  &:empty { display: none; }
 `;
 const FilterGroup = styled.div`
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -58,9 +60,6 @@ const Chip = styled.button<{ $active: boolean }>`
   color: ${(p) => (p.$active ? p.theme.color.HOVER : p.theme.color.GREY)};
   transition: border-color 0.2s ease, background 0.2s ease;
   &:hover { border-color: ${(p) => p.theme.color.PRIMARY}; }
-`;
-const Search = styled(Input)`
-  max-width: 320px; margin-left: auto;
 `;
 /** Finding 81: the first result was the 19th focusable element, behind every filter chip and every sort option. */
 const Skip = styled.a`
@@ -86,7 +85,6 @@ const Intro = styled(Description)`margin: 0 0 24px;`;
 const MakeRow = styled.div`display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;`;
 /** The list's name on the left, what you can do with it on the right; wraps under on a phone. */
 const ResultBar = styled.div`display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px;`;
-const KindTabs = styled.div`margin-bottom: 16px;`;
 const Divider = styled.span`width: 1px; height: 16px; background: ${(p) => p.theme.color.LIGHT_GREY}; margin: 0 6px;`;
 const ScopeNote = styled.div`margin: -6px 0 12px; font-size: 12px; color: ${(p) => p.theme.color.GREY};`;
 /**
@@ -132,24 +130,20 @@ function ListSkeleton() {
   );
 }
 
-export default function ExplorePage() {
+export default function ExplorePage({ fixedKind }: { fixedKind?: Kind }) {
   const { t, tech, help, term } = useT();
   const [params, setParams] = useSearchParams();
-  const kind: Kind = params.get('kind') === 'agent' ? 'agent' : 'knowledge';
+  const kind: Kind = fixedKind ?? (params.get('kind') === 'agent' ? 'agent' : 'knowledge');
   // after `kind`, never before: read through a closure this ran in the temporal dead zone of `params`
   useTitle(kind === 'agent' ? t('explore.title_agent') : t('explore.title'));
-  const setKind = (k: Kind) => {
-    const next = new URLSearchParams(params);
-    if (k === 'agent') next.set('kind', 'agent'); else next.delete('kind');
-    setParams(next, { replace: true });
-  };
   const [sort, setSort] = useState<Sort>('popular');
   const [model, setModel] = useState('');
   const [schema, setSchema] = useState('');
   /** Item 206: the API has always accepted `branch`; nothing on the page could ask for it. */
   const [branch, setBranch] = useState('');
   /** `?q=` is how the header's search hands over its query ("See all knowledge" / "See all agents"). */
-  const [q, setQ] = useState(() => params.get('q') ?? '');
+  const q = params.get('q') ?? '';
+  useEffect(() => { setPage(1); }, [q]);
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
   /**
@@ -180,8 +174,9 @@ export default function ExplorePage() {
   const registryMissing = !!shared.error && sharedAgentsUnsupported(shared.error);
   const registryRefused = shared.error ? sharedAgentsErrorCode(shared.error) : null;
   const orgView = kind === 'agent' && agentFilter === 'org';
-  const myOrgs = useMyOrgsQuery(undefined, { skip: !scopesOn });
-  const orgList = useMemo(() => parseOrgList(myOrgs.data), [myOrgs.data]);
+  const myOrgs = useMyOrgsQuery(auth.cacheIdentity, { skip: !scopesOn });
+  const orgsLoading = !myOrgs.currentData && (myOrgs.isLoading || myOrgs.isFetching);
+  const orgList = useMemo(() => parseOrgList(myOrgs.currentData), [myOrgs.currentData]);
   const orgsMissing = !!myOrgs.error && orgApiErrorOf(myOrgs.error).status === 404;
   const orgParam = params.get('org');
   const orgId = orgList.orgs.find((o) => o.id === orgParam)?.id ?? orgList.orgs[0]?.id ?? null;
@@ -206,10 +201,10 @@ export default function ExplorePage() {
     return [];
   }, [agentFilter, allAgents, sharedPage, registryMissing, orgsMissing, orgProfile, principals, info?.node?.endpoint]);
   const filters = { sort, model: model || undefined, schema: schema || undefined, branch: branch || undefined, q: q || undefined };
-  const { data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: 200 });
+  const { currentData: data, isLoading, isFetching, error, refetch } = useCatalogQuery({ ...filters, status: showAll ? undefined : CURRENT_STATUS, limit: ITEM_LIMIT, offset: (page - 1) * ITEM_LIMIT }, { skip: kind !== 'knowledge' });
   // How many rows "Current only" is holding back, for exactly the model/topic/search in force — one cheap
   // page-of-one call for its `total`, never a node-wide count that would not match what is on screen.
-  const { data: unfiltered } = useCatalogQuery({ ...filters, limit: 1 }, { skip: showAll });
+  const { data: unfiltered } = useCatalogQuery({ ...filters, limit: 1 }, { skip: showAll || kind !== 'knowledge' });
   const hidden = showAll || !data || !unfiltered ? 0 : Math.max(0, unfiltered.total - data.total);
 
   /**
@@ -234,9 +229,9 @@ export default function ExplorePage() {
 
   const sortOptions = useMemo(() => SORTS.map((s) => ({ value: s, label: t(`explore.sort.${s}`) })), [t]);
   const items = data?.items ?? [];
-  const pageCount = Math.max(1, Math.ceil(items.length / ITEM_LIMIT));
-  const current = Math.min(page, pageCount);
-  const visible = useMemo(() => items.slice((current - 1) * ITEM_LIMIT, current * ITEM_LIMIT), [items, current]);
+  const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / ITEM_LIMIT));
+  const current = page;
+  const visible = items;
   /** A parent id is only an id until something on this page knows its name (findings 282, 200). */
   const nameOf = useMemo(() => {
     const m = new Map(items.map((e) => [e.anchor.id, e.anchor.name || e.anchor.id]));
@@ -255,12 +250,10 @@ export default function ExplorePage() {
    * everything a reader can see on the row, which includes the skills the agent's card names.
    */
   const agents = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return scopedAgents;
-    return scopedAgents.filter((a) => [a.name, a.description ?? '', a.id, ...a.skills.flatMap((s2) => [s2.name, s2.description ?? '', ...s2.tags])]
-      .join(' ').toLowerCase().includes(needle));
+    const matches = matchingSearchIds(docsFromAgents(scopedAgents), q);
+    return scopedAgents.filter((a) => matches.has(a.id));
   }, [scopedAgents, q]);
-  const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? myOrgs.isLoading || orgQuery.isLoading : false;
+  const scopedLoading = agentFilter === 'mine' ? shared.isLoading : agentFilter === 'org' ? orgsLoading || orgQuery.isLoading : false;
   const scopedError = agentFilter === 'mine' ? (shared.error && !registryMissing ? shared.error : null)
     : agentFilter === 'org' ? (myOrgs.error && !orgsMissing ? myOrgs.error : orgQuery.error ?? null) : null;
   // "Mine" and "My organization" wait only on their own answer; the public list is theirs only when it stands in for one.
@@ -269,41 +262,20 @@ export default function ExplorePage() {
   const listError = fromPublic && !!agentError;
   const mineCount = sharedPage ? sharedPage.items.length : registryMissing ? fallbackRows('mine', allAgents, principals).length : null;
   const mineMore = !!sharedPage?.nextCursor;
-  const scopeName = agentFilter === 'org' ? orgProfile?.name ?? orgList.orgs.find((o) => o.id === orgId)?.name ?? '' : '';
-  /** One line that says what the list is: how many, and whose. It is also where the skip link lands. */
-  const headline = listLoading || (agentFilter === 'org' && !scopeName) ? t('explore.agents.title')
-    : agentFilter === 'org' ? t('explore.agents.count_in', { n: num(agents.length), name: scopeName }, agents.length)
-      : agentFilter === 'mine' ? t('explore.agents.count_mine', { n: num(agents.length) }, agents.length)
-        : t('explore.agents.count_public', { n: num(agents.length) }, agents.length);
-  const noOrg = orgView && !myOrgs.isLoading && !myOrgs.error && orgList.orgs.length === 0;
+  const noOrg = orgView && !orgsLoading && !!myOrgs.currentData && !myOrgs.error && orgList.orgs.length === 0;
   const countExact = !!data && items.length === data.total;
 
   const reset = () => setPage(1);
 
   return (
     <PageWrapper>
-      <TitleRow>
-        <Title>{kind === 'agent' ? t('explore.title_agent') : t('explore.title')}</Title>
-        {/* Every ordering here is a property of a knowledge (sales, rows, price, freshness of the data). None of
-            them is a property of an agent, so the control goes away rather than offering meaningless options. */}
-        {kind === 'knowledge' && <SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} />}
-      </TitleRow>
-      <Intro>{kind === 'agent' ? t('explore.agents.sub') : t('explore.sub')}</Intro>
+      <SectionTitle>{kind === 'agent' ? t('nav.agents') : t('train.knowledge')}</SectionTitle>
+      {kind === 'knowledge' && <TitleRow><SelectBox options={sortOptions} value={sort} onChange={(v) => { setSort(v as Sort); reset(); }} label={t('common.sort_aria')} /></TitleRow>}
+      {q && <Intro>{t('search.query', { q })}</Intro>}
       <Skip href="#explore-results">{t('explore.skip')}</Skip>
 
-      {/* What to browse is the page's subject, not a filter of it: a tab, with counts that do not move when a filter
-          below does (the public agents, every current knowledge). Only offered where there is something to switch to. */}
-      {(allAgents.length > 0 || kind === 'agent') && (
-        <KindTabs data-testid="explore-kind">
-          <Tabs value={kind} onChange={(v) => { setKind(v as Kind); reset(); }} tabs={[
-            { id: 'knowledge', label: `${t('explore.kind.knowledge')}${data ? ` · ${num(data.total)}` : ''}` },
-            { id: 'agent', label: `${t('explore.kind.agent')}${allAgents.length ? ` · ${num(allAgents.length)}` : ''}` },
-          ]} />
-        </KindTabs>
-      )}
-
       {/* SC-17: what is selling, what is being built ON, what is new, and what people asked for here. */}
-      {kind === 'knowledge' && <Shelves />}
+      {kind === 'knowledge' && !q.trim() && <Shelves />}
 
       <Filters>
         {/* Whose agents, in one row and one click: the public list, mine, then each organization by name — the names
@@ -372,25 +344,20 @@ export default function ExplorePage() {
             <Chip $active={showAll} onClick={() => { setShowAll(true); reset(); }}>{t('explore.filter.all_versions')}</Chip>
           </FilterGroup>
         )}
-        <Search placeholder={t('explore.search')} value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label={t('explore.search')} />
       </Filters>
 
       {kind === 'knowledge' && <ResultsHead id="explore-results" tabIndex={-1}>{t('explore.results')}</ResultsHead>}
 
       {kind === 'agent' && (
-        <>
-          <ResultBar>
-            <ResultsHead id="explore-results" tabIndex={-1} data-testid="agents-count">{headline}</ResultsHead>
+        <section id="explore-results" tabIndex={-1} aria-label={t('nav.agents')}>
+          {auth.isSignedIn && <ResultBar>
             {/* The doors to make more, beside the list they land in. Each asks for an owner, so signed-in only. */}
-            {auth.isSignedIn && (
               <MakeRow data-testid="agents-make">
                 {orgView && orgProfile && <StyledLink to={`/org/${encodeURIComponent(orgProfile.id)}`} data-testid="agents-org-page">{t('explore.agents.org_manage')} →</StyledLink>}
                 <StyledLink to={orgView && orgId ? `/agent/new?org=${encodeURIComponent(orgId)}` : '/agent/new'}>{t('explore.agents.make.create')} →</StyledLink>
                 <StyledLink to={orgView && orgId ? `/agent/link?org=${encodeURIComponent(orgId)}` : '/agent/link'}>{t('explore.agents.make.link')} →</StyledLink>
               </MakeRow>
-            )}
-          </ResultBar>
-          {!auth.isSignedIn && <ScopeNote data-testid="agents-signin-note">{t('explore.agents.signin_for_scope')}</ScopeNote>}
+          </ResultBar>}
           {orgView && orgsMissing && <ScopeNote data-testid="agents-org-unsupported">{t('explore.agents.org_unsupported')}</ScopeNote>}
           {listError && <Failure $tone="error" data-testid="agents-error">
             <span>{t('explore.agents.unreachable')}</span>
@@ -416,7 +383,7 @@ export default function ExplorePage() {
               )}
             </>
           )}
-        </>
+        </section>
       )}
 
       {kind === 'knowledge' && error && (
@@ -429,7 +396,7 @@ export default function ExplorePage() {
           </details>
         </Failure>
       )}
-      {kind === 'knowledge' && isLoading && <ListSkeleton />}
+      {kind === 'knowledge' && (isLoading || (isFetching && !data)) && <ListSkeleton />}
       {kind === 'knowledge' && !isLoading && data && (
         <>
           <Count data-testid="explore-count">
@@ -443,13 +410,6 @@ export default function ExplorePage() {
               <button type="button" onClick={() => { setShowAll(true); reset(); }}>{t('explore.hidden_show')}</button>
             </Hidden>
           )}
-          {/* The chip above is the control; this line is the one a reader who skipped the filters still sees. */}
-          {allAgents.length > 0 && (
-            <Hidden data-testid="explore-agents-also">
-              {t('explore.agents.also', { n: num(allAgents.length) }, allAgents.length)}{' · '}
-              <button type="button" onClick={() => { setKind('agent'); reset(); }}>{t('explore.agents.also_link')}</button>
-            </Hidden>
-          )}
           {items.length > 0 && <TermsLegend title={help('liveTest')} />}
           {/* Finding 18: the price rides in each card's facts row on a phone, so its unit is explained once here
               instead of four times down the list. Desktop cards carry the note under their own price. */}
@@ -458,7 +418,7 @@ export default function ExplorePage() {
             {visible.map((e) => <PatchListItem key={e.anchor.id} entry={e} currency={info?.currency} nameOf={nameOf} />)}
           </div>
           {items.length === 0 && <Empty>{t('explore.empty')}</Empty>}
-          {items.length > 0 && <Pagination page={current} pageCount={pageCount} onChange={setPage} />}
+          {data.total > ITEM_LIMIT && <Pagination page={current} pageCount={pageCount} onChange={setPage} />}
         </>
       )}
     </PageWrapper>

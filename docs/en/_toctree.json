@@ -29,6 +29,10 @@
       {
         "page": "how-to/managed-storage",
         "title": "Give a project a database and file storage"
+      },
+      {
+        "page": "how-to/run-scripts-on-a-schedule",
+        "title": "Run scripts on a schedule"
       }
     ]
   },
@@ -56,6 +60,10 @@
   {
     "group": "Concepts",
     "pages": [
+      {
+        "page": "concepts/deployments-and-runs",
+        "title": "Deployments vs Runs"
+      },
       {
         "page": "concepts/knowledge-patch",
         "title": "What a knowledge patch is"
@@ -198,6 +206,15 @@
       {
         "page": "reference/errors",
         "title": "Error codes"
+      }
+    ]
+  },
+  {
+    "group": "Design",
+    "pages": [
+      {
+        "page": "design/ain-data-platform",
+        "title": "Design: AIN Store"
       }
     ]
   }

@@ -33,9 +33,9 @@ export default function OrgCreatePage() {
   const { t } = useT();
   useTitle(t('orgNew.title'));
   const navigate = useNavigate();
-  const { sso } = useAuth();
+  const { sso, cacheIdentity, isSignedIn } = useAuth();
   const domain = useMemo(() => emailDomain(sso?.email), [sso?.email]);
-  const { data: listRaw } = useMyOrgsQuery();
+  const { currentData: listRaw } = useMyOrgsQuery(cacheIdentity, { skip: !isSignedIn });
   const domainTaken = useMemo(() => parseOrgList(listRaw).domain_org, [listRaw]);
   const [create] = useCreateOrgMutation();
   const [draft, setDraft] = useState<OrgFormDraft>(EMPTY);

@@ -25,7 +25,7 @@ const Consequences = styled.ul`
 /**
  * The confirm step in front of Approve (item 8).
  *
- * `POST /api/me/teach/jobs/:id/approve` calls `announceJob` → `market.announce(draft_id)`: an anchor record on the
+ * `POST /api/me/train/jobs/:id/approve` calls `announceJob` → `market.announce(draft_id)`: an anchor record on the
  * ledger, broadcast to peers, permanent, authored by THIS node. The queue used to fire that from the first click on a
  * row whose questions and answers the operator had never seen — a stranger's text on a public record under the
  * operator's own identity, one click away.

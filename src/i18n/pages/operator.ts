@@ -65,6 +65,7 @@ export const operatorCommon: Dict = {
 };
 
 export const operatorSign: Dict = {
+  'op.sign.continue': { ko: '계속하기', en: 'Continue' },
   'op.sign.agree': { ko: '{terms}에 동의합니다 (필수)', en: 'I agree to the {terms} (required)' },
   'op.sign.terms': { ko: '이용약관', en: 'Terms and Policies' },
   // Finding 89: the node answers 401 with the bare string "wrong password". This is what the reader sees instead —
@@ -1074,6 +1075,15 @@ export const operatorTeach: Dict = {
   // `ainize login` — the page a command line's URL opens. The one prompt in the product whose wrong click has a
   // lasting consequence, so nothing here is decorative.
   // The title used before the request has been read — the page does not yet know what is asking.
+  'op.authorize.account.cli.lead': { ko: '이 기기를 AIN 계정으로 로그인합니다. 직접 실행한 터미널 요청인지 확인하세요.', en: 'Sign this device in with your AIN account. Only approve a request you started in your own terminal.' },
+  'op.authorize.account.node.lead': { ko: '이 노드를 AIN 계정에 연결합니다. 직접 실행한 노드인지 확인하세요.', en: 'Connect this node to your AIN account. Only approve a node you started yourself.' },
+  'op.authorize.account.cli.approve': { ko: '이 기기 로그인', en: 'Sign in this device' },
+  'op.authorize.account.node.approve': { ko: '노드 연결', en: 'Connect node' },
+  'op.authorize.account.busy': { ko: '승인 중…', en: 'Approving…' },
+  'op.authorize.account.signin': { ko: 'AIN 로그인으로 이동 중…', en: 'Continuing to AIN sign-in…' },
+  'op.authorize.account.as': { ko: '로그인 계정', en: 'Account' },
+  'op.authorize.account.until': { ko: '현재 AIN 로그인 세션이 만료될 때까지', en: 'Until your current AIN session expires' },
+  'op.authorize.account.done_end': { ko: '터미널로 돌아가세요. 이 창은 닫아도 됩니다.', en: 'Return to your terminal. You can close this window.' },
   'op.authorize.title': { ko: '권한 요청', en: 'Authorisation request' },
   'op.authorize.busy': { ko: '지갑 확인 중…', en: 'Waiting for the wallet…' },
   'op.authorize.reject': { ko: '거절', en: 'Reject' },
@@ -1136,8 +1146,8 @@ export const operatorTeach: Dict = {
   'op.sign.key.no_wallet_cmd': { ko: '노드 자기 키로 서명해 로그인합니다', en: 'signs a challenge with the node’s own key' },
   'op.sign.enroll_invite': { ko: '운영자 초대 링크로 들어왔습니다. 지갑으로 서명하면 이 주소가 이 노드의 운영자로 등록되고, 로그를 포함한 운영 화면을 볼 수 있습니다. 링크는 한 번만 쓸 수 있습니다.', en: 'You followed an operator invitation. Signing with your wallet makes this address an operator of this node, with access to the logs and the rest of the operator screens. The link works once.' },
   'op.mynodes.title': { ko: '내 노드', en: 'My nodes' },
-  'op.mynodes.desc': { ko: '{addr} 지갑에 연결된 노드입니다. 노드가 시작할 때 인증 링크를 찍고, 그 링크를 지갑으로 승인하면 여기에 나타납니다.', en: 'The nodes connected to {addr}. A node prints an authorisation link when it starts; approving that link with your wallet is what puts it here.' },
-  'op.mynodes.empty': { ko: "연결된 노드가 없습니다. 노드의 홈 디렉터리에서 다음 명령을 실행하고 이 지갑으로 승인하세요.", en: "No nodes are connected. Run this command with your node’s home directory selected and approve it with this wallet." },
+  'op.mynodes.desc': { ko: '{addr} 계정에 연결된 노드입니다. 터미널의 로그인 링크에서 노드 연결을 승인하면 여기에 나타납니다.', en: 'The nodes connected to {addr}. Approve the node connection using the login link from your terminal to add it here.' },
+  'op.mynodes.empty': { ko: "연결된 노드가 없습니다. 노드의 홈 디렉터리에서 다음 명령을 실행하고 이 계정으로 승인하세요.", en: "No nodes are connected. Run this command with your node’s home directory selected and approve it with this account." },
   'op.mynodes.unnamed': { ko: '이름 없는 노드', en: 'unnamed node' },
   'op.mynodes.seen': { ko: '응답 중', en: 'answering' },
   'op.mynodes.unseen': { ko: '응답 없음', en: 'not answering' },
@@ -1161,7 +1171,13 @@ export const operatorTeach: Dict = {
   'op.account.operators.removed': { ko: '{addr} 의 소유권을 해제했고, 진행 중이던 세션 {n}개를 끊었습니다.', en: 'Removed {addr}, and ended {n} session(s) it was holding.' },
   'op.account.operators.already': { ko: '{addr} 은(는) 이미 이 노드의 소유자입니다.', en: '{addr} already owns this node.' },
   'op.account.operators.how': { ko: '여기서 추가한 주소만 여기서 해제할 수 있습니다. 노드 자기 키와 설정 파일에 적힌 주소는 노드가 도는 기계에서 다룹니다: `ainize operators add 0x…`. 그 파일이 세션을 모두 잃었을 때 돌아올 수 있는 길이라 화면에서 지우지 않습니다.', en: 'Only what was added here can be removed here. The node’s own key and the addresses in its config file are handled on the machine it runs on (`ainize operators add 0x…`) — that file is the way back when every session is lost, so this page cannot erase it.' },
-  'op.sign.general': { ko: "모든 MetaMask·호환 지갑으로 로그인할 수 있습니다. 로그인 후 내 노드를 연결하고 관리하세요.", en: "Sign in with any MetaMask or compatible wallet. Then connect and manage your nodes." },
+  'op.sign.general': { ko: '로그인하여 앱, 에이전트와 내 작업을 관리하세요.', en: 'Sign in to manage your apps, agents and work.' },
+  'op.sign.wallet.option': { ko: '지갑으로 로그인', en: 'Sign in with a wallet' },
+  'op.sign.redirecting': { ko: '계정 로그인으로 연결하고 있습니다…', en: 'Opening account sign-in…' },
+  'op.sign.returning': { ko: '로그인되었습니다. 원래 페이지로 돌아갑니다…', en: 'Signed in. Returning to your page…' },
+  'op.sign.wallet.connect_option': { ko: '지갑 연결', en: 'Connect a wallet' },
+  'op.sign.options_failed': { ko: 'AIN 계정 로그인 정보를 불러오지 못했습니다.', en: 'Could not load AIN account sign-in options.' },
+  'op.sign.options_retry': { ko: '다시 불러오기', en: 'Try again' },
   'op.mynodes.add': { ko: "노드 추가 연결", en: "Connect another node" },
   'op.mynodes.add_hint': { ko: "노드마다 별도의 홈 디렉터리와 포트를 사용하세요. login이 웹 승인 화면을 엽니다.", en: "Use a separate home directory and port for each node. login opens the website approval page." },
   'op.mynodes.disconnect': { ko: "연결 해제", en: "Disconnect" },

@@ -57,13 +57,15 @@ test('each capability leads where its brief says', () => {
   const deploy = block('cap-deploy');
   assert.match(deploy, /to="\/docs\/how-to\/deploy-with-ainize-json"/, 'Deploy → the how-to');
   assert.match(deploy, /"kind"/, 'shows ainize.json');
-  assert.match(deploy, /EXAMPLE_PROJECT/, 'and links the example project');
-  assert.match(page, /EXAMPLE_PROJECT = 'https:\/\/ainize\.ai\/comcom\/clef-artwork-search'/);
+  assert.match(deploy, /to=\{exampleGuide\}/, 'the example is a public walkthrough');
+  assert.ok(!page.includes("https://ainize.ai/comcom/clef-artwork-search"), 'no inaccessible demo console');
+  assert.match(page, /deploy-with-ainize-json#a-complete-example/);
+  assert.match(page, /deploy-with-ainize-json#완전한-예/);
 });
 
 test('the differentiators follow: teach, and one identity', () => {
   const only = block('landing-only');
-  assert.match(only, /to="\/teach"/, 'Teach → /teach');
+  assert.match(only, /to="\/train"/, 'Train → /train');
   assert.match(only, /to="\/docs\/concepts\/lineage-and-royalties"/);
   assert.match(only, /to="\/docs\/how-to\/run-a-verifier"/);
   assert.match(only, /to="\/signing"/, 'the identity card leads to sign-in');

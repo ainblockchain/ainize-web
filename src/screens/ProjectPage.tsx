@@ -7,9 +7,11 @@
  *   Deployments  the Vercel-shaped rows (status dot, sha + subject, branch, who, when, how long); a row opens the
  *                full log (polled while it runs), exit code, output link, Redeploy — "roll back to this one" for a
  *                service, since a redeploy of an earlier commit re-points the container. Filters, pagination.
- *   Runs         script projects: the Run panel — entry file, the `inputs` form out of ainize.json (GitHub
- *                workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input, timeout, example
- *                presets (`examples` in ainize.json) — and the history of runs, each re-runnable with its inputs.
+ *   Runs         script projects: the Triggers section (what `triggers` in ainize.json installed — a schedule, an
+ *                AIN blockchain write, a webhook — each with its next/last run, an enabled switch, Run now, the fire
+ *                URL and token, the AIN `.function` rule), the Run panel — entry file, the `inputs` form out of
+ *                ainize.json (GitHub workflow_dispatch shape → INPUT_*), extra env, a model picker for a model input,
+ *                timeout, example presets (`examples` in ainize.json) — and the history of runs, each re-runnable.
  *   Logs         a service/nextjs app's RUNTIME log — what the running container prints, on the node or the deployment
  *                peer it was placed on; owner/members only, followed live — and the newest deployment's or run's
  *                build log (`?log=build`), downloadable.
@@ -31,11 +33,12 @@ import styled, { keyframes } from 'styled-components';
 import {
   useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
   useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRunProjectMutation,
+  useDisableTriggerMutation, useEnableTriggerMutation, useInstallTriggerAinRuleMutation, useProjectTriggersQuery, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
 import {
-  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
-  type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
+  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, isModelInput, isRunTrigger, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, sortTriggers, statusToneOf, triggerDetail,
+  type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type ProjectTrigger, type RunInput,
 } from '@/api/projects';
 import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
 import { useAuth } from '@/auth/AuthContext';
@@ -44,6 +47,9 @@ import { Alert, Checkbox, Field, FieldLabel, Input, Select } from '@/components/
 import { CenterProgress, CopyButton, Empty, ExternalLink, KeyValue, Mono, PageWrapper, Pagination, StyledLink, SubTitle, Tabs } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { isReservedFirstSegment, orgPath, projectPath } from '@/lib/reservedRoutes';
+import { activeProjectUrl, isScriptProject } from '@/lib/projectActions';
+import { signInHref } from '@/lib/uiNavigation';
+import { isKnowledgeAuthor } from '@/lib/detailRoutes';
 import { repoProjectLabel, repoProjects, selectRepoProject } from '@/lib/repoProjects';
 import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
@@ -67,6 +73,7 @@ const Chip = styled.span<{ $tone: Tone }>`
   color: ${(p) => (p.$tone === 'ok' ? '#227a3c' : p.$tone === 'warn' ? '#a33030' : '#555')};
 `;
 const Crumbs = styled.nav`font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: ${(p) => p.theme.color.BLACK};
+  a, span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
   a { color: ${(p) => p.theme.color.PRIMARY}; text-decoration: none; &:hover { text-decoration: underline; } }
   span.sep { color: ${(p) => p.theme.color.GREY}; font-weight: 400; }
 `;
@@ -106,9 +113,10 @@ function StatusDot({ status }: { status: DeploymentStatus | ProjectStatus }) {
 /** The log: text, re-read every two seconds while the deployment is queued or building. */
 function LogView({ deployment, onText }: { deployment: Deployment; onText?: (text: string) => void }) {
   const { t } = useT();
-  const { data, isLoading } = useDeploymentLogQuery(deployment.id, { pollingInterval: isLive(deployment.status) ? 2000 : 0 });
-  useEffect(() => { if (data !== undefined) onText?.(data); }, [data, onText]);
-  if (isLoading && !data) return <Log>{t('projects.page.log_empty')}</Log>;
+  const { currentData: data, isLoading, isFetching, error, refetch } = useDeploymentLogQuery(deployment.id, { pollingInterval: isLive(deployment.status) ? 2000 : 0 });
+  useEffect(() => { onText?.(error ? '' : data ?? ''); }, [data, error, onText]);
+  if (error) return <Alert $tone="error">{t('projects.logs.failed')} <Button onClick={() => void refetch()} loading={isFetching}>{t('projects.page.retry')}</Button></Alert>;
+  if (isLoading || (isFetching && data === undefined)) return <Log>{t('projects.logs.loading')}</Log>;
   return <Log aria-live="polite">{data?.length ? data : t('projects.page.log_empty')}</Log>;
 }
 
@@ -139,7 +147,7 @@ function RuntimeLogView({ project }: { project: Project }) {
   const stick = useRef(true);
   useEffect(() => { const el = box.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [q.data]);
   if (!isSignedIn) {
-    return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(`/signing?next=${encodeURIComponent(window.location.pathname + window.location.search)}`); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
+    return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(window.location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
   }
   if (!project.canOperate) return <Panel><Help>{t('projects.logs.not_member', { org: project.org })}</Help></Panel>;
   const data = q.data;
@@ -195,7 +203,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
         {d.subject && <Subject title={d.subject}>{d.subject}</Subject>}
         <Meta><Mono>{d.ref.replace(/^refs\/heads\//, '')}</Mono></Meta>
         {d.kind && <Chip $tone="muted">{t(`projects.kind.${d.kind}`)}</Chip>}
-        {d.trigger !== 'push' && <Chip $tone="muted">{t(`projects.trigger.${d.trigger}`)}</Chip>}
+        {d.trigger !== 'push' && <Chip $tone="muted" data-testid="run-trigger">{t(`projects.trigger.${d.trigger}`)}{d.triggerName ? <> · <Mono>{d.triggerName}</Mono></> : null}</Chip>}
         {who(d) && <Meta>{t('projects.page.by', { who: who(d)! })}</Meta>}
         <Spacer />
         <Meta title={when(d.createdAt)}>{relativeTime(d.createdAt)}</Meta>
@@ -207,7 +215,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
           {d.placement && <Meta>Node: <ExternalLink href={d.placement.endpoint} target="_blank" rel="noreferrer">{d.placement.local ? 'Local' : new URL(d.placement.endpoint).hostname} ↗</ExternalLink> · {d.placement.reason}</Meta>}
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
-          {d.trigger === 'run' && runInputNames(d).length > 0 && (
+          {isRunTrigger(d.trigger) && runInputNames(d).length > 0 && (
             <Meta>{t('projects.runs.with_inputs')}: {runInputNames(d).join(' · ')}{d.entry ? ` · ${t('projects.runs.entry')}: ${d.entry}` : ''}</Meta>
           )}
           <Actions>
@@ -215,7 +223,7 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
             <ExternalLink href={d.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')} ↗</ExternalLink>
             <Spacer />
             {project.canOperate && d.trigger === 'run' && onRunAgain && <Button size="small" onClick={() => onRunAgain(d)}>{t('projects.runs.again')}</Button>}
-            {project.canOperate && d.trigger !== 'run' && d.sha && (
+            {project.canOperate && !isRunTrigger(d.trigger) && d.sha && (
               <Button size="small" loading={redeploying} onClick={again} title={isService ? t('projects.page.rollback_hint') : undefined}>
                 {isService && project.lastDeploymentId !== d.id ? t('projects.page.rollback') : t('projects.page.redeploy')}
               </Button>
@@ -296,7 +304,7 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
     catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
   };
   if (!isSignedIn) {
-    return <Panel><Help>{t('projects.runs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(`/signing?next=${encodeURIComponent(location.pathname + location.search)}`); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
+    return <Panel><Help>{t('projects.runs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
   }
   if (!project.canOperate) return <Panel><Help>{t('projects.runs.not_member', { org: project.org })}</Help></Panel>;
   return (
@@ -343,6 +351,106 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   );
 }
 
+// ------------------------------------------------------------------------------------------------ triggers
+
+const TriggerRows = styled.ul`list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 8px;`;
+const TriggerRow = styled.li<{ $off?: boolean }>`
+  border: 1px solid ${(p) => p.theme.color.LIGHT_GREY}; border-radius: 10px; background: #fff; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+  opacity: ${(p) => (p.$off ? 0.7 : 1)};
+`;
+const TriggerHead = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; min-height: 36px;`;
+const Rule = styled.pre`margin: 0; padding: 10px 12px; border-radius: 8px; background: #f6f7f9; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; font-family: ${(p) => p.theme.font.mono};`;
+
+/** The AIN `.function` rule for an `ain` trigger: shown to copy, and — when the node holds a key that may write there — installed on chain. */
+function AinRule({ project, trigger }: { project: Project; trigger: ProjectTrigger }) {
+  const { t } = useT();
+  const rule = useTriggerAinRuleQuery({ id: project.id, name: trigger.name });
+  const [install, { isLoading: installing }] = useInstallTriggerAinRuleMutation();
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const onInstall = async () => {
+    setErr(null);
+    try { await install({ id: project.id, name: trigger.name }).unwrap(); setDone(true); }
+    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+  };
+  if (rule.isLoading) return <Help>{t('projects.triggers.rule_loading')}</Help>;
+  if (rule.error || !rule.currentData) return <Alert $tone="error">{projectApiErrorOf(rule.error).message ?? t('projects.api.unknown')} <Button size="small" onClick={() => void rule.refetch()}>{t('projects.page.retry')}</Button></Alert>;
+  const json = JSON.stringify(rule.currentData.rule, null, 2);
+  return (
+    <div data-testid="trigger-ain-rule">
+      <Help>{t('projects.triggers.rule_help')} <Mono>{rule.currentData.path}</Mono></Help>
+      <Rule>{json}</Rule>
+      <Actions style={{ marginTop: 6 }}>
+        <CopyButton text={json} label={t('projects.triggers.copy_rule')} />
+        {project.canOperate && <Button size="small" loading={installing} disabled={done} onClick={onInstall}>{done ? t('projects.triggers.installed') : t('projects.triggers.install')}</Button>}
+        <Help>{t('projects.triggers.install_hint')}</Help>
+      </Actions>
+      {err && <Alert $tone="error">{err}</Alert>}
+    </div>
+  );
+}
+
+function TriggerItem({ project, trigger: tr, onOpenRun }: { project: Project; trigger: ProjectTrigger; onOpenRun: (id: string) => void }) {
+  const { t } = useT();
+  const [enable, { isLoading: enabling }] = useEnableTriggerMutation();
+  const [disable, { isLoading: disabling }] = useDisableTriggerMutation();
+  const [rotate, { isLoading: rotating }] = useRotateTriggerTokenMutation();
+  const [fire, { isLoading: firing }] = useRunTriggerMutation();
+  const [token, setToken] = useState<string | null>(null);
+  const [showRule, setShowRule] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const call = async (f: () => Promise<unknown>) => {
+    setErr(null);
+    try { await f(); }
+    catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
+  };
+  const detail = triggerDetail(tr);
+  const can = !!project.canOperate;
+  return (
+    <TriggerRow $off={!tr.enabled} data-testid="trigger-row">
+      <TriggerHead>
+        <Mono><strong>{tr.name}</strong></Mono>
+        <Chip $tone={tr.enabled ? 'ok' : 'muted'}>{t(`projects.triggers.type.${tr.type}`)}</Chip>
+        {detail && <Mono title={tr.type === 'schedule' ? tr.timezone ?? 'Etc/UTC' : undefined}>{detail}</Mono>}
+        {tr.type === 'schedule' && tr.enabled && tr.nextRunAt && <Meta title={when(tr.nextRunAt)}>{t('projects.triggers.next', { when: when(tr.nextRunAt) })}</Meta>}
+        {tr.lastRunAt ? <Meta title={when(tr.lastRunAt)}>{t('projects.triggers.last')}: {tr.lastRunId ? <a href={`?tab=runs&open=${encodeURIComponent(tr.lastRunId)}`} onClick={(e) => { e.preventDefault(); onOpenRun(tr.lastRunId!); }}>{relativeTime(tr.lastRunAt)}</a> : relativeTime(tr.lastRunAt)}</Meta> : <Meta>{t('projects.triggers.never')}</Meta>}
+        <Spacer />
+        {can && <Checkbox label={t(tr.enabled ? 'projects.triggers.enabled' : 'projects.triggers.disabled')} checked={tr.enabled} disabled={enabling || disabling}
+          onChange={(e) => void call(() => (e.target.checked ? enable : disable)({ id: project.id, name: tr.name }).unwrap())} />}
+        {can && <Button size="small" loading={firing} onClick={() => void call(async () => { const r = await fire({ id: project.id, name: tr.name }).unwrap(); if (r.runId) onOpenRun(r.runId); })}>▶ {t('projects.triggers.run_now')}</Button>}
+      </TriggerHead>
+      {tr.type !== 'schedule' && (
+        <Actions>
+          {tr.fireUrl && <><Meta>{t('projects.triggers.fire_url')}:</Meta> <Mono style={{ overflowWrap: 'anywhere' }}>{tr.fireUrl}</Mono> <CopyButton text={tr.fireUrl} /></>}
+          {can && <Button size="small" loading={rotating} onClick={() => void call(async () => { const r = await rotate({ id: project.id, name: tr.name }).unwrap(); setToken(r.token); })}>{t(tr.hasToken ? 'projects.triggers.rotate' : 'projects.triggers.issue')}</Button>}
+          {tr.type === 'ain' && <Button size="small" onClick={() => setShowRule((v) => !v)} aria-expanded={showRule}>{t(showRule ? 'projects.triggers.hide_rule' : 'projects.triggers.show_rule')}</Button>}
+        </Actions>
+      )}
+      {tr.type === 'http' && <Help>{t('projects.triggers.http_help')}</Help>}
+      {token && <Alert $tone="warning" data-testid="trigger-token"><strong>{t('projects.triggers.token_once')}</strong> <Mono>{token}</Mono> <CopyButton text={token} /></Alert>}
+      {showRule && tr.type === 'ain' && <AinRule project={project} trigger={tr} />}
+      {err && <Alert $tone="error">{err}</Alert>}
+    </TriggerRow>
+  );
+}
+
+/** The triggers `ainize.json` installed for this script project (contract §2): one row each, above the Run panel. */
+function TriggersSection({ project, onOpenRun }: { project: Project; onOpenRun: (id: string) => void }) {
+  const { t } = useT();
+  const q = useProjectTriggersQuery(project.id, { pollingInterval: 15_000 });
+  const rows = sortTriggers(q.currentData?.triggers ?? []);
+  return (
+    <section aria-label={t('projects.triggers.title')} data-testid="triggers">
+      <SubTitle>{t('projects.triggers.title')}{rows.length ? ` (${rows.length})` : ''}</SubTitle>
+      {q.isError && !q.currentData ? <Alert $tone="error">{t('projects.triggers.failed')} <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('projects.page.retry')}</Button></Alert>
+        : q.isLoading ? <CenterProgress />
+        : rows.length === 0 ? <Empty data-testid="triggers-empty">{t('projects.triggers.none')} <StyledLink to="/docs/how-to/run-scripts-on-a-schedule">{t('projects.triggers.guide')}</StyledLink></Empty>
+        : <TriggerRows>{rows.map((tr) => <TriggerItem key={tr.name} project={project} trigger={tr} onOpenRun={onOpenRun} />)}</TriggerRows>}
+      {rows.length > 0 && <Help style={{ margin: '0 0 16px' }}>{t('projects.triggers.help')} <StyledLink to="/docs/how-to/run-scripts-on-a-schedule">{t('projects.triggers.guide')}</StyledLink></Help>}
+    </section>
+  );
+}
+
 // ------------------------------------------------------------------------------------------------ the console
 
 type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings';
@@ -359,25 +467,25 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const asked: Tab = (TABS as string[]).includes(sp.get('tab') ?? '') ? (sp.get('tab') as Tab) : 'deployments';
   const setTab = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); if (id === 'deployments') n.delete('tab'); else n.set('tab', id); n.delete('open'); return n; }, { replace: true });
   const open = sp.get('open');
-  const setOpen = (id: string | null) => setSp((prev) => { const n = new URLSearchParams(prev); if (id) n.set('open', id); else n.delete('open'); return n; }, { replace: true });
+  const setOpen = (id: string | null) => setSp((prev) => { const n = new URLSearchParams(prev); if (id) n.set('open', id); else n.delete('open'); return n; });
 
   const live = isLive(initial.status);
   const projectQ = useProjectQuery(initial.id, { pollingInterval: live ? 2000 : 15_000 });
-  const p = projectQ.data ?? initial;
+  const p = projectQ.currentData ?? initial;
   const deployments = useProjectDeploymentsQuery(p.id, { pollingInterval: live ? 2000 : 15_000 });
-  const runs = useProjectRunsQuery(p.id, { pollingInterval: asked === 'runs' ? 2000 : 0 });
+  const kind = p.kind ?? p.manifest?.kind ?? null;
+  const isScript = isScriptProject(p);
+  const runs = useProjectRunsQuery(p.id, { skip: !isScript, pollingInterval: asked === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
   const newest = deployments.data?.deployments[0]?.status;
   useEffect(() => { if (newest && newest !== p.status) void projectQ.refetch(); }, [newest, p.status, projectQ]);
 
-  const rows = deployments.data?.deployments ?? [];
-  const runRows = runs.data?.runs ?? [];
-  const kind = p.kind ?? p.manifest?.kind ?? null;
+  const rows = deployments.currentData?.deployments ?? [];
+  const runRows = runs.currentData?.runs ?? [];
   const hasStorage = kind === 'nextjs' || kind === 'service';
   // `?tab=storage` on a script or agent: there is no such tab to select, so the console opens on Deployments
   const tab: Tab = asked === 'storage' && !hasStorage ? 'deployments' : asked;
-  const isScript = kind === 'script' || kind === null;
-  const lastReady = rows.find((d) => d.status === 'ready' && d.outputUrl);
+  const visitUrl = activeProjectUrl(p, rows);
   const latest = rows[0];
 
   // Deployments: filters + pages
@@ -407,7 +515,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const redeployLatest = async () => {
     if (!latest) return;
     setHeadErr(null);
-    try { const r = await redeploy({ deploymentId: latest.id, projectId: p.id }).unwrap(); setTab('deployments'); setOpen(r.deploymentId); }
+    try { const r = await redeploy({ deploymentId: latest.id, projectId: p.id }).unwrap(); openDeployment(r.deploymentId); }
     catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
   };
 
@@ -417,7 +525,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   // A service or Next.js app has a runtime log beside its build log; `?log=build` deep-links the build one.
   const hasRuntime = kind === 'service' || kind === 'nextjs';
   const logView: 'runtime' | 'build' = sp.get('log') === 'build' ? 'build' : 'runtime';
-  const setLogView = (v: 'runtime' | 'build') => setSp((prev) => { const n = new URLSearchParams(prev); if (v === 'build') n.set('log', 'build'); else n.delete('log'); return n; }, { replace: true });
+  const setLogView = (v: 'runtime' | 'build') => setSp((prev) => { const n = new URLSearchParams(prev); if (v === 'build') n.set('log', 'build'); else n.delete('log'); return n; });
 
   // Settings
   const [remove, { isLoading: removing }] = useDeleteProjectMutation();
@@ -442,11 +550,11 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
     // after the Settings tab has rendered
     setTimeout(() => document.getElementById(ENV_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
-  const openDeployment = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; }, { replace: true });
+  const openDeployment = (id: string) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('tab'); n.set('open', id); return n; });
 
   const tabs = [
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
-    { id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` },
+    ...(isScript ? [{ id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` }] : []),
     { id: 'logs', label: t('projects.tabs.logs') },
     // managed storage is for a container app (service / nextjs) — a script or agent has nothing to connect a store to
     ...(hasStorage ? [{ id: 'storage', label: `${t('projects.tabs.storage')}${p.storage?.attached ? ` (${p.storage.attached})` : ''}` }] : []),
@@ -474,8 +582,8 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         <Spacer />
         <Actions>
           <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
-          <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>
-          {!isScript && lastReady?.outputUrl && <Button variant="contained" size="small" onClick={() => window.open(lastReady.outputUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
+          {isScript && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
+          {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
           {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
@@ -501,18 +609,21 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
             <Spacer />
             <Meta>{t('projects.filters.count', { n: filtered.length })}</Meta>
           </FilterRow>
-          {deployments.isLoading && !deployments.data ? <CenterProgress /> : shown.length === 0
+          {deployments.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void deployments.refetch()} loading={deployments.isFetching}>{t('projects.page.retry')}</Button></Alert> : deployments.isLoading ? <CenterProgress /> : shown.length === 0
             ? <Empty>{rows.length === 0 ? t('projects.page.no_deployments', { branch: p.branch }) : t('projects.filters.none')}</Empty>
             : <Rows>{shown.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} />)}</Rows>}
           {pageCount > 1 && <Pagination page={page} pageCount={pageCount} onChange={setPage} />}
         </TabBody>
       )}
 
-      {tab === 'runs' && (
+      {tab === 'runs' && !isScript && <Alert $tone="info">{t(kind ? 'projects.api.not_a_script' : 'projects.page.kind_pending')} <Button onClick={() => setTab('deployments')}>{t('projects.tabs.deployments')}</Button></Alert>}
+      {tab === 'runs' && isScript && (
         <TabBody>
+          <TriggersSection project={p} onOpenRun={(id) => { setOpen(id); void runs.refetch(); }} />
+          <SubTitle>{t('projects.runs.panel')}</SubTitle>
           <RunPanel project={p} draft={draft} setDraft={setDraft} onStarted={(id) => { setOpen(id); void runs.refetch(); }} />
           <SubTitle>{t('projects.runs.history')}</SubTitle>
-          {runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
+          {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : runs.isLoading ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
             : <Rows>{runRows.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRunAgain={runAgain} />)}</Rows>}
         </TabBody>
       )}
@@ -525,7 +636,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
               <Button size="small" variant={logView === 'build' ? 'contained' : undefined} aria-pressed={logView === 'build'} onClick={() => setLogView('build')}>{t('projects.logs.build')}</Button>
             </FilterRow>
           )}
-          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
+          {hasRuntime && logView === 'runtime' ? <RuntimeLogView project={p} /> : deployments.isError || runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => { void deployments.refetch(); if (isScript) void runs.refetch(); }}>{t('projects.page.retry')}</Button></Alert> : deployments.isLoading || runs.isLoading ? <CenterProgress /> : !latestAny ? <Empty>{t('projects.logs.none')}</Empty> : (
             <>
               <FilterRow>
                 <StatusDot status={latestAny.status} />
@@ -618,22 +729,38 @@ const withSearch = (path: string, search: string) => {
 /** `/:org/:repo` — a project by name; when none is bound here, the knowledge page that used to own this shape. */
 export function ProjectByNamePage() {
   const { org = '', repo = '' } = useParams();
+  const { t } = useT();
+  const { isSignedIn } = useAuth();
+  const location = useLocation();
+  useTitle(`${org}/${repo}`);
   const reserved = isReservedFirstSegment(org);
-  const q = useProjectByNameQuery({ org, repo }, { skip: reserved });
+  const knowledge = isKnowledgeAuthor(org);
+  const q = useProjectByNameQuery({ org, repo }, { skip: reserved || knowledge });
   // A monorepo's folder projects share this address: the organization's list names them (the ones this viewer may see).
-  const orgQ = useOrgProjectsQuery(org, { skip: reserved || !q.data });
+  const orgQ = useOrgProjectsQuery(org, { skip: reserved || knowledge || !q.currentData });
   const [sp, setSp] = useSearchParams();
   if (reserved) return <NotFoundPage />;
-  if (q.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (q.data) {
-    const all = repoProjects(q.data, orgQ.data?.projects ?? []);
+  if (knowledge) return <PatchPage author={org} patchId={repo} />;
+  if (q.isLoading || (q.isFetching && !q.currentData)) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (q.currentData) {
+    const all = repoProjects(q.currentData, orgQ.currentData?.projects ?? []);
     const selected = selectRepoProject(all, sp.get('project'));
     const pick = (id: string) => setSp(() => { const n = new URLSearchParams(); const folder = all.find((p) => p.id === id)?.sourcePath; if (folder) n.set('project', folder); return n; });
     const switcher = all.length > 1 ? <RepoDeployments projects={all} selected={selected.id} onPick={pick} /> : undefined;
     return <ProjectConsole key={selected.id} project={selected} switcher={switcher} />;
   }
-  // Not a project here (404), or the node is unreachable: `/<author>/<patchId>` has its own answer either way.
-  return <PatchPage />;
+  const why = projectApiErrorOf(q.error);
+  const unavailable = why.status === 404 || why.status === 401 || why.status === 403;
+  return <PageWrapper>
+    <Crumbs aria-label={t('projects.page.title')}><Link to={orgPath(org)}>{org}</Link><span className="sep">/</span><span>{repo}</span></Crumbs>
+    <SubTitle>{t(unavailable ? 'projects.page.unavailable' : 'projects.page.load_failed')}</SubTitle>
+    <Empty>{t(unavailable ? (isSignedIn ? 'projects.page.check_access' : 'projects.page.signin_check') : 'projects.page.retry_help')}</Empty>
+    <Actions>
+      {!isSignedIn && unavailable && <StyledLink to={signInHref(location)}>{t('projects.runs.sign_in_button')}</StyledLink>}
+      <Button onClick={() => void q.refetch()} loading={q.isFetching}>{t('projects.page.retry')}</Button>
+      <StyledLink to="/deployments">{t('projects.page.apps')}</StyledLink>
+    </Actions>
+  </PageWrapper>;
 }
 
 /**

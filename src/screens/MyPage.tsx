@@ -20,7 +20,8 @@ import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 import { Button } from '@/components/ui/Button';
 import { Alert, TextField } from '@/components/ui/Form';
 import { CenterProgress, Description, Mono, PageWrapper, StyledLink, SubTitle, Title } from '@/components/ui/Misc';
-import { forgetIssuedKey, recallIssuedKey, rememberIssuedKey } from './models/issuedKeyMemory';
+import { useIssuedKey } from './models/useIssuedKey';
+import { signInHref } from '@/lib/uiNavigation';
 import { Table, TableBody, TableData, TableHead, TableHeader, TableRow, TableWrapper } from '@/components/ui/Table';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -38,11 +39,16 @@ const IssuedBox = styled.div`
 const Links = styled.div`display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;`;
 
 export default function MyPage() {
+  const { cacheIdentity } = useAuth();
+  return <MyAccount key={cacheIdentity} />;
+}
+
+function MyAccount() {
   const { t } = useT();
   useTitle(t('me.title'));
-  const { isOwner, sso, isSignedIn } = useAuth();
-  const organizationQuery = useMyOrgsQuery(undefined, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
-  const memberships = isSignedIn ? parseOrgList(organizationQuery.data).orgs : [];
+  const { isOwner, sso, google, isSignedIn, cacheIdentity, loading } = useAuth();
+  const organizationQuery = useMyOrgsQuery(cacheIdentity, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
+  const memberships = isSignedIn ? parseOrgList(organizationQuery.currentData).orgs : [];
   const { data: me, isLoading } = useMeQuery();
   /**
    * An AIN account makes keys for one of its organizations, or personal ones (ainize-node src/sso.ts). The default
@@ -60,20 +66,23 @@ export default function MyPage() {
   const scope = keyFor !== undefined ? keyFor : keyOrgs.length ? defaultKeyScope(keyOrgs, shareable.activeOrg ?? sso?.activeOrg) : undefined;
   const orgName = (id: string | null | undefined) =>
     (id ? keyOrgs.find((o) => o.org_id === id)?.name ?? sso?.orgs.find((o) => o.id === id)?.name ?? id : t('me.keys.personal'));
-  const { data: keys } = useApiKeysQuery();
-  const { data: myNodes } = useMyNodesQuery(undefined, { skip: !me?.subject });
+  const keysQuery = useApiKeysQuery(cacheIdentity, { skip: !isSignedIn });
+  const keys = keysQuery.currentData;
+  const nodesQuery = useMyNodesQuery(cacheIdentity, { skip: !isSignedIn || !(me?.subject || sso) });
+  const myNodes = nodesQuery.currentData;
   const [createKey, createState] = useCreateApiKeyMutation();
-  const [revokeKey] = useRevokeApiKeyMutation();
+  const [revokeKey, revokeState] = useRevokeApiKeyMutation();
+  const [revoked, setRevoked] = useState<string | null>(null);
   const [keyName, setKeyName] = useState('');
   const label = keyName.trim();
   const duplicateName = !!label && !!keys?.keys.some((key) => key.label?.trim().toLocaleLowerCase() === label.toLocaleLowerCase());
   // Kept for this tab (sessionStorage, screens/models/issuedKeyMemory.ts): a refresh or a remount of this page must not be
   // the moment the only copy of a secret vanishes. 2026-10-16: a person made a key and never saw its value.
-  const [issued, setIssued] = useState<string | null>(() => recallIssuedKey());
+  const { key: issued, remember, forget } = useIssuedKey(cacheIdentity);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (loading || isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   return (
     <PageWrapper>
@@ -84,7 +93,8 @@ export default function MyPage() {
       <Panel>
         {me?.subject
           ? <Mono title={me.subject} data-testid="me-address">{shortAddr(me.subject, 10)}</Mono>
-          : <Description>{t('me.identity.none')}</Description>}
+          : !sso && !google ? <Description>{t('me.identity.none')}</Description> : null}
+        {google && !sso && <Description>{t('me.identity.google')}: {google.email}</Description>}
         {sso && (
           <Description data-testid="me-sso">
             {t('me.identity.sso')}: {sso.email ?? sso.name ?? sso.sub}
@@ -96,7 +106,7 @@ export default function MyPage() {
       <SubTitle>{t('orgs.mine')}</SubTitle>
       <Panel data-testid="me-organizations">
         {organizationQuery.isLoading && <CenterProgress />}
-        {organizationQuery.error && <Alert $tone="error">{t('common.error', { message: errorMessage(organizationQuery.error) })} <Button size="small" onClick={() => void organizationQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
+        {organizationQuery.error && <Alert role="alert" $tone="error">{t('common.error', { message: errorMessage(organizationQuery.error) })} <Button size="small" onClick={() => void organizationQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
         {!organizationQuery.isLoading && !organizationQuery.error && memberships.length === 0 && <Description>{t('orgs.empty')}</Description>}
         {memberships.map((org) => <Row key={org.id}>
           <StyledLink to={`/org/${encodeURIComponent(org.id)}`}>{org.name}</StyledLink>
@@ -114,8 +124,12 @@ export default function MyPage() {
 
       <SubTitle>{t('me.keys.title')}</SubTitle>
       <Description>{t('me.keys.lede')}</Description>
-      <Panel>
-        {(keys?.keys.length ?? 0) === 0 && !issued && <Description>{t('me.keys.none')}</Description>}
+      <Panel data-testid="me-keys">
+        {keysQuery.isLoading && <CenterProgress />}
+        {keysQuery.error && <Alert role="alert" $tone="error" data-testid="me-keys-error">{t('common.error', { message: errorMessage(keysQuery.error) })} <Button size="small" disabled={keysQuery.isFetching} onClick={() => void keysQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
+        {revokeState.error && <Alert role="alert" $tone="error">{t('me.keys.revoke_failed', { why: errorMessage(revokeState.error) })}</Alert>}
+        {revoked && <Description role="status">{t('me.keys.revoked', { label: revoked })}</Description>}
+        {keysQuery.isSuccess && !keysQuery.error && (keys?.keys.length ?? 0) === 0 && !issued && <Description>{t('me.keys.none')}</Description>}
         {(keys?.keys.length ?? 0) > 0 && (
           <TableWrapper style={{ marginTop: 8 }}>
             <Table>
@@ -136,9 +150,17 @@ export default function MyPage() {
                     <TableData>
                       <Button
                         size="small" variant="text" color="secondary" type="button"
-                        onClick={() => { void revokeKey(k.prefix); }}
+                        disabled={revokeState.isLoading}
+                        onClick={() => {
+                          setRevoked(null);
+                          void revokeKey(k.prefix).unwrap().then(() => {
+                            setRevoked(k.label ?? k.prefix);
+                            // Never offer a just-revoked held key for another model call.
+                            if (issued?.startsWith(k.prefix)) forget();
+                          }).catch(() => undefined);
+                        }}
                       >
-                        {t('me.keys.revoke')}
+                        {t(revokeState.isLoading && revokeState.originalArgs === k.prefix ? 'me.keys.revoking' : 'me.keys.revoke')}
                       </Button>
                     </TableData>
                   </TableRow>
@@ -162,7 +184,7 @@ export default function MyPage() {
           if (!label || duplicateName || createState.isLoading) return;
           setError(null);
           void createKey({ label, ...(scope !== undefined ? { org_id: scope } : {}) }).unwrap()
-            .then((r) => { rememberIssuedKey(r.api_key); setIssued(r.api_key); setCopied(false); setKeyName(''); })
+            .then((r) => { if (remember(r.api_key)) { setCopied(false); setKeyName(''); } })
             .catch((e: unknown) => setError(errorMessage(e)));
         }}>
           <TextField label={t('me.keys.name')} placeholder={t('me.keys.name_placeholder')}
@@ -184,10 +206,12 @@ export default function MyPage() {
             <Description>{t('me.keys.once')}</Description>
             <Row>
               <Button size="small" type="button" data-testid="me-issued-copy" onClick={() => {
-                void navigator.clipboard?.writeText(issued).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+                setError(null);
+                if (!navigator.clipboard) { setError(t('me.keys.copy_failed')); return; }
+                void navigator.clipboard.writeText(issued).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => { setCopied(false); setError(t('me.keys.copy_failed')); });
               }}>{t(copied ? 'me.keys.copied' : 'me.keys.copy')}</Button>
               <Button size="small" variant="text" color="secondary" type="button" data-testid="me-issued-forget"
-                onClick={() => { forgetIssuedKey(); setIssued(null); }}>{t('me.keys.forget')}</Button>
+                onClick={forget}>{t('me.keys.forget')}</Button>
             </Row>
           </IssuedBox>
         )}
@@ -196,11 +220,17 @@ export default function MyPage() {
 
       <SubTitle>{t('me.nodes.title')}</SubTitle>
       <Description>{t('me.nodes.lede')}</Description>
-      <Panel>
-        {(myNodes?.nodes?.length ?? 0) === 0
-          ? <Description>{t('me.nodes.none')}</Description>
-          : <Mono>{(myNodes?.nodes ?? []).map((n) => n.name ?? shortAddr(n.address)).join(' · ')}</Mono>}
-        <Links><StyledLink to="/my-nodes">{t('me.nodes.link')}</StyledLink></Links>
+      <Panel data-testid="me-nodes">
+        {!me?.subject && !sso ? <>
+          <Description>{t('me.nodes.wallet_needed')}</Description>
+          <StyledLink to={`${signInHref({ pathname: '/me' })}&wallet=1`}>{t('op.sign.wallet.connect_option')}</StyledLink>
+        </> : <>
+          {nodesQuery.isLoading && <CenterProgress />}
+          {nodesQuery.error && <Alert role="alert" $tone="error" data-testid="me-nodes-error">{t('common.error', { message: errorMessage(nodesQuery.error) })} <Button size="small" disabled={nodesQuery.isFetching} onClick={() => void nodesQuery.refetch()}>{t('orgs.retry')}</Button></Alert>}
+          {nodesQuery.isSuccess && !nodesQuery.error && myNodes?.nodes.length === 0 && <Description>{t('me.nodes.none')}</Description>}
+          {!!myNodes?.nodes.length && <Mono>{myNodes.nodes.map((n) => n.name ?? shortAddr(n.address)).join(' · ')}</Mono>}
+          <Links><StyledLink to="/my-nodes">{t('me.nodes.link')}</StyledLink></Links>
+        </>}
       </Panel>
 
       {/* Where the two entries that left the top menu went. They are still public; this is a way back to them. */}

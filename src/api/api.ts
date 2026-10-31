@@ -1,3 +1,4 @@
+import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
 import type { AppDomain, AppDomainsResponse } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
 import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
@@ -27,8 +28,10 @@ import type { HostedAgentSpecInput } from './hostedAgents';
 import type { AgentListScope, AgentVisibilityInput } from './sharedAgents';
 import type { LinkedAgentInput } from './linkedAgents';
 import type { OrgCreateInput, OrgUpdateInput, OrgRole } from './organizations';
-import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse } from './projects';
-import { currentTeacherKey, teachAuthHeaderFor } from '@/lib/teacherKey';
+import type { Deployment, DeploymentsResponse, OrgProjectsResponse, OrgRepositoriesResponse, ProjectSource, Project, ProjectCreated, ProjectCreateInput, ProjectsResponse, Queued, RotatedSecret, RunInput, RunsResponse, TriggerAinRule, TriggerFired, TriggerToken, TriggersResponse } from './projects';
+import { currentTeacherKey } from '@/lib/teacherKey';
+import { createTeacherFetch, SIGN_MARKER, DATASET_SHA_HEADER } from '@/lib/teacherFetch';
+export { DATASET_SHA_HEADER } from '@/lib/teacherFetch';
 
 /**
  * Endpoints that carry the visitor's signed `x-ainize-auth` when this browser has a teaching key (spec §6.1).
@@ -43,11 +46,6 @@ const SIGNED_ENDPOINTS = new Set(['chat', 'chatPatches', 'teachPreflight', 'merg
   'retrainTeachJob', 'teachJobEvents',
   // item 306 — the person who is owed the money asks the node to try the transfer again, signed with the key that is owed it
   'nudgePayout']);
-/** Header that carries the sha256 of a multipart upload — it is what the v2 signature covers (design §D14). */
-export const DATASET_SHA_HEADER = 'x-ainize-dataset-sha256';
-/** Internal marker set by prepareHeaders and consumed by `signedFetch` (never sent). */
-const SIGN_MARKER = 'x-ainize-sign';
-
 let nodeAddressPromise: Promise<string | null> | null = null;
 /** This node's address (signed into every v2 header), fetched once from /api/info. */
 const nodeAddress = (): Promise<string | null> => {
@@ -59,30 +57,7 @@ const nodeAddress = (): Promise<string | null> => {
   return nodeAddressPromise;
 };
 
-/**
- * fetch with the request-bound v2 `x-ainize-auth` (`teach:<node>:<METHOD>:<path+query>:<ts>[:<sha256 body>]`) on marked
- * requests — single-use on the node and bound to route + body, so a captured header cannot be replayed elsewhere.
- * Stop when the node identity is unavailable; never downgrade to an unbound legacy signature.
- */
-const signedFetch: typeof fetch = async (input, init) => {
-  const req = input instanceof Request ? input : new Request(input, init);
-  if (!req.headers.has(SIGN_MARKER)) return fetch(req);
-  const headers = new Headers(req.headers);
-  headers.delete(SIGN_MARKER);
-  if (currentTeacherKey()) {
-    const node = await nodeAddress();
-    if (!node) throw new Error('Cannot verify the node identity. Retry when the node is available.');
-    const method = req.method.toUpperCase();
-    // A multipart body is never captured as `rawBody` on the node, so the client signs the value of
-    // `x-ainize-dataset-sha256` instead and the node re-hashes the stored file against it (design §D14).
-    const declared = headers.get(DATASET_SHA_HEADER);
-    const body = declared ?? (method === 'GET' || method === 'HEAD' ? null : await req.clone().text());
-    const u = new URL(req.url);
-    const h = teachAuthHeaderFor({ node, method, path: `${u.pathname}${u.search}`, body });
-    if (h) headers.set('x-ainize-auth', h);
-  }
-  return fetch(new Request(req, { headers }));
-};
+const signedFetch = createTeacherFetch(nodeAddress);
 
 /** This node's address, for requests signed outside RTK Query (authenticated downloads). */
 export const nodeAddressOnce = (): Promise<string | null> => nodeAddress();
@@ -103,13 +78,16 @@ const toQuery = (params: Record<string, unknown>) => {
 
 /** The one organization's store list (`orgStores`) — not the bare 'Org' tag, which would refetch every organization query. */
 const orgStoresTags = (orgId: string | null) => (orgId ? [{ type: 'Org' as const, id: `${orgId}/stores` }] : []);
+type TeacherScope = { teacherIdentity: string };
+type TeacherResource = TeacherScope & { id: string };
+const teacherRead = (url: string, teacherIdentity: string) => ({ url, headers: { [SIGN_MARKER]: teacherIdentity } });
 
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
     baseUrl: '/', credentials: 'include', fetchFn: signedFetch,
     prepareHeaders: (headers, { endpoint }) => {
-      if (SIGNED_ENDPOINTS.has(endpoint)) headers.set(SIGN_MARKER, '1');
+      if (SIGNED_ENDPOINTS.has(endpoint) && !headers.has(SIGN_MARKER)) headers.set(SIGN_MARKER, currentTeacherKey()?.address.toLowerCase() ?? '');
       return headers;
     },
   }),
@@ -137,7 +115,9 @@ export const api = createApi({
     // Every model the node can reach, its own and its peers' (ainize-node peer-models.ts). An older node answers 404.
     networkModels: b.query<unknown, void>({ query: () => 'api/network/models' }),
     /** The caller's own API keys. Prefixes and labels only — the node keeps a hash, never the secret. */
-    apiKeys: b.query<{ keys: ApiKeySummary[] }, void>({
+    // These cache arguments distinguish viewers; authorization still comes only from the session cookie.
+    apiKeys: b.query<{ keys: ApiKeySummary[] }, string>({
+      keepUnusedDataFor: 0,
       query: () => 'api/keys', providesTags: ['ApiKeys'],
     }),
     /** Issue one. The secret is in this response and nowhere else, ever again. */
@@ -155,7 +135,7 @@ export const api = createApi({
     patchTree: b.query<TreeResponse, { id: string; depth?: number; dir?: 'up' | 'down' | 'both' }>({ query: ({ id, depth, dir }) => `api/patches/${encodeURIComponent(id)}/tree${toQuery({ depth, dir })}`, providesTags: ['Catalog'] }),
     patchSignals: b.query<SignalsResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/signals`, providesTags: ['Catalog'] }),
     patchIssues: b.query<IssuesResponse, { id: string; kind?: string; status?: string; limit?: number }>({ query: ({ id, ...q }) => `api/patches/${encodeURIComponent(id)}/issues${toQuery(q)}`, providesTags: ['Issues'] }),
-    patchDataset: b.query<PatchDatasetResponse, string>({ query: (id) => `api/patches/${encodeURIComponent(id)}/dataset`, providesTags: ['Catalog'] }),
+    patchDataset: b.query<PatchDatasetResponse, TeacherResource>({ keepUnusedDataFor: 0, query: ({ id, teacherIdentity }) => teacherRead(`api/patches/${encodeURIComponent(id)}/dataset`, teacherIdentity), providesTags: ['Catalog'] }),
     createIssue: b.mutation<{ id: string; count: number; people: number; shared: boolean }, { id: string; text: string; topic?: string; share: boolean }>({
       query: ({ id, ...body }) => ({ url: `api/patches/${encodeURIComponent(id)}/issues`, method: 'POST', body }), invalidatesTags: ['Issues'],
     }),
@@ -187,6 +167,10 @@ export const api = createApi({
      * The log is text once over and SSE while running; `Accept: text/plain` asks for text either way, and the page
      * polls it while a deployment is queued or building.
      */
+    accessibleApps: b.query<AccessibleAppsResponse, { principal: string; orgs: string[] }>({
+      queryFn: ({ orgs }, _api, _extra, baseQuery) => loadAccessibleApps(orgs, async (url) => baseQuery(url)),
+      providesTags: ['Project', 'Me', 'Org'],
+    }),
     myProjects: b.query<ProjectsResponse, void>({ query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
     project: b.query<Project, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
     createProject: b.mutation<ProjectCreated, ProjectCreateInput>({ query: (body) => ({ url: 'api/projects', method: 'POST', body }), invalidatesTags: ['Project'] }),
@@ -203,6 +187,22 @@ export const api = createApi({
     }),
     projectRuns: b.query<RunsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/runs`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/runs` }] }),
     runProject: b.mutation<Queued, { id: string; body: RunInput }>({ query: ({ id, body }) => ({ url: `api/projects/${encodeURIComponent(id)}/runs`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/runs` }] }),
+    /**
+     * Triggers of a Run (script) project — installed from `ainize.json` `triggers` when a deployment reaches `ready`
+     * (ainize-node "Runs" contract §2). Listed as the project is readable; enable/disable/rotate/run for operators.
+     * The list is re-read after each action and whenever the run history changes (`<id>/runs`): a manual fire adds a run.
+     */
+    projectTriggers: b.query<TriggersResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/triggers`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/triggers` }] }),
+    enableTrigger: b.mutation<{ ok?: true } | void, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/enable`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    disableTrigger: b.mutation<{ ok?: true } | void, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/disable`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    /** The new token, once; `hasToken` flips on the list. */
+    rotateTriggerToken: b.mutation<TriggerToken, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/rotate-token`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    /** "Run now": fires the trigger with a synthetic `{ type: "manual" }` event; 202 `{ runId }`. */
+    runTrigger: b.mutation<TriggerFired, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/run`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }, { type: 'Project', id: `${a.id}/runs` }] }),
+    /** ain only: the `.function` rule to set at `path` on chain — the console shows it to copy, or installs it. */
+    triggerAinRule: b.query<TriggerAinRule, { id: string; name: string }>({ query: ({ id, name }) => `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/ain-rule`, providesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
+    /** ain only, when the node holds an AIN key with write permission on the path: sets the rule on chain (ain-js `setFunction`). */
+    installTriggerAinRule: b.mutation<{ ok?: boolean; txHash?: string } | void, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/ain-rule/install`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
     redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
     syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
@@ -345,7 +345,7 @@ export const api = createApi({
      * Organizations (ainize-node organizations design). Typed `unknown` and read through `src/api/organizations.ts`
      * for the same reason as the agents above: a node from before organizations answers 404 for all of these.
      */
-    myOrgs: b.query<unknown, void>({ query: () => 'api/orgs', providesTags: ['Org', 'Me'] }),
+    myOrgs: b.query<unknown, string>({ keepUnusedDataFor: 0, query: () => 'api/orgs', providesTags: ['Org', 'Me'] }),
     org: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
     createOrg: b.mutation<unknown, OrgCreateInput>({ query: (body) => ({ url: 'api/orgs', method: 'POST', body }), invalidatesTags: ['Org'] }),
     updateOrg: b.mutation<unknown, { id: string; patch: OrgUpdateInput }>({
@@ -527,6 +527,10 @@ export const api = createApi({
     // exact string the wallet will sign — rendered rather than recomposed here, so what a person reads on the
     // page and what they read in MetaMask cannot drift apart.
     deviceRequest: b.query<DeviceRequest, string>({ query: (code) => `api/auth/device/${encodeURIComponent(code)}` }),
+    approveAccountDevice: b.mutation<{ ok: boolean }, { code: string }>({
+      query: (body) => ({ url: 'api/auth/sso/device-approve', method: 'POST', body }),
+      invalidatesTags: ['Me'],
+    }),
     approveDevice: b.mutation<{ ok: boolean; delegate: string; owner: string; expires: number }, { code: string; signature: string }>({
       query: ({ code, signature }) => ({ url: `api/auth/device/${encodeURIComponent(code)}/approve`, method: 'POST', body: { signature } }),
     }),
@@ -541,7 +545,7 @@ export const api = createApi({
      * connected to a person when it asks this hub for a code at startup and that person approves it.
      */
     unlinkNode: b.mutation<{ ok: boolean }, string>({ query: (address) => ({ url: `api/my/nodes/${address}`, method: 'DELETE' }), invalidatesTags: ['Me'] }),
-    myNodes: b.query<{ nodes: MyNode[]; hub: string }, void>({ query: () => 'api/my/nodes', providesTags: ['Me'] }),
+    myNodes: b.query<{ nodes: MyNode[]; hub: string }, string>({ keepUnusedDataFor: 0, query: () => 'api/my/nodes', providesTags: ['Me'] }),
     removeBinding: b.mutation<{ ok: boolean; sessions_ended: number; bindings: Binding[] }, string>({
       query: (delegate) => ({ url: `api/auth/bindings/${delegate}`, method: 'DELETE' }), invalidatesTags: ['Me'],
     }),
@@ -622,7 +626,7 @@ export const api = createApi({
     driveAction: b.mutation<unknown, { action: 'up' | 'stop' | 'sync' | 'login'; server?: string }>({ query: (body) => ({ url: 'api/drive', method: 'POST', body }), invalidatesTags: ['Drive'] }),
 
     // ChatMode (live test)
-    chatPatches: b.query<ChatPatchesResponse, void>({ query: () => 'api/chat/patches', providesTags: ['Chat', 'Catalog', 'Runtime'] }),
+    chatPatches: b.query<ChatPatchesResponse, string>({ keepUnusedDataFor: 0, query: (identity) => teacherRead('api/chat/patches', identity), providesTags: ['Chat', 'Catalog', 'Runtime'] }),
     chat: b.mutation<ChatResponse, ChatRequest>({ query: (body) => ({ url: 'api/chat', method: 'POST', body }), invalidatesTags: ['Events'] }),
     // D3 — polled every 1.5 s while a turn is pending: is it still queued behind the shared model, and who holds it?
     chatStatus: b.query<ChatStatusResponse, string>({ query: (id) => `api/chat/status?request_id=${encodeURIComponent(id)}` }),
@@ -649,8 +653,8 @@ export const api = createApi({
     }>({
       query: (body) => ({ url: 'api/teach/jobs', method: 'POST', body }), invalidatesTags: ['Teach', 'TeachDataset'],
     }),
-    teachJob: b.query<{ job: TeachJob | TeachJobPublic }, string>({ query: (id) => `api/teach/jobs/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Teach', id }] }),
-    myTeachJobs: b.query<{ items: TeachJob[] }, void>({ query: () => 'api/teach/jobs?mine=1', providesTags: ['Teach'] }),
+    teachJob: b.query<{ job: TeachJob | TeachJobPublic }, TeacherResource>({ keepUnusedDataFor: 0, query: ({ id, teacherIdentity }) => teacherRead(`api/teach/jobs/${encodeURIComponent(id)}`, teacherIdentity), providesTags: (_r, _e, { id }) => [{ type: 'Teach', id }] }),
+    myTeachJobs: b.query<{ items: TeachJob[] }, string>({ keepUnusedDataFor: 0, query: (identity) => teacherRead('api/teach/jobs?mine=1', identity), providesTags: ['Teach'] }),
     cancelTeachJob: b.mutation<{ ok: boolean; status: 'CANCELLED' }, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, id) => [{ type: 'Teach', id }, 'Teach', 'Chat'] }),
     retryTeachJob: b.mutation<CreateTeachJobResponse, { id: string; facts: TeachFactInput[]; name?: string }>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/retry`, method: 'POST', body }), invalidatesTags: ['Teach'] }),
     recheckTeachJob: b.mutation<{ ok: boolean; status: 'EXPORTED' }, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/recheck`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Teach', id }, 'Teach'] }),
@@ -662,8 +666,9 @@ export const api = createApi({
      * sheet has to show what a sale would pay BEFORE the creator commits to a price (item 186). The mutation above
      * still fetches a fresh one at submit time, so the claim that is signed is never a cached one.
      */
-    publishPreview: b.query<PublishChallenge, { id: string; payout_address?: string | null }>({
-      query: ({ id, payout_address }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish-challenge${toQuery({ payout_address: payout_address === null ? 'none' : payout_address })}`, method: 'GET' }),
+    publishPreview: b.query<PublishChallenge, TeacherResource & { payout_address?: string | null }>({
+      keepUnusedDataFor: 0,
+      query: ({ id, payout_address, teacherIdentity }) => teacherRead(`api/teach/jobs/${encodeURIComponent(id)}/publish-challenge${toQuery({ payout_address: payout_address === null ? 'none' : payout_address })}`, teacherIdentity),
     }),
     publishTeachJob: b.mutation<PublishResponse, { id: string } & PublishRequest>({ query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/publish`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Teach', id: a.id }, 'Teach', 'Chat', 'Catalog', 'Teacher'] }),
     saveTeachJob: b.mutation<TeachSaveResponse, string>({ query: (id) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/save`, method: 'POST' }) }),
@@ -672,10 +677,11 @@ export const api = createApi({
     forkPatch: b.mutation<ForkPatchResponse, { id: string; name?: string }>({
       query: ({ id, ...body }) => ({ url: `api/patches/${encodeURIComponent(id)}/fork`, method: 'POST', body }), invalidatesTags: ['TeachDataset'],
     }),
-    teachDatasets: b.query<{ items: TeachDataset[] }, void>({ query: () => 'api/teach/datasets', providesTags: ['TeachDataset'] }),
-    teachDataset: b.query<{ dataset: TeachDataset }, string>({ query: (id) => `api/teach/datasets/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'TeachDataset', id }] }),
-    teachDatasetRows: b.query<DatasetRowsPage, { id: string; offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected'; origin?: 'all' | 'mine' | 'inherited' | 'changed' | 'conflicts' }>({
-      query: ({ id, ...q }) => `api/teach/datasets/${encodeURIComponent(id)}/rows${toQuery({ ...q })}`,
+    teachDatasets: b.query<{ items: TeachDataset[] }, string>({ keepUnusedDataFor: 0, query: (identity) => teacherRead('api/teach/datasets', identity), providesTags: ['TeachDataset'] }),
+    teachDataset: b.query<{ dataset: TeachDataset }, TeacherResource>({ keepUnusedDataFor: 0, query: ({ id, teacherIdentity }) => teacherRead(`api/teach/datasets/${encodeURIComponent(id)}`, teacherIdentity), providesTags: (_r, _e, { id }) => [{ type: 'TeachDataset', id }] }),
+    teachDatasetRows: b.query<DatasetRowsPage, TeacherResource & { offset?: number; limit?: number; status?: 'all' | 'ok' | 'rejected'; origin?: 'all' | 'mine' | 'inherited' | 'changed' | 'conflicts' }>({
+      keepUnusedDataFor: 0,
+      query: ({ id, teacherIdentity, ...q }) => teacherRead(`api/teach/datasets/${encodeURIComponent(id)}/rows${toQuery(q)}`, teacherIdentity),
       providesTags: (_r, _e, a) => [{ type: 'TeachDataset', id: a.id }],
     }),
     /** The chat door and the paste box: already-canonical questions, no file. */
@@ -713,8 +719,9 @@ export const api = createApi({
     retrainTeachJob: b.mutation<CreateTeachJobResponse, { id: string; dataset_id?: string; selected_indexes?: number[]; training?: Partial<TeachTrainingSpec>; name?: string }>({
       query: ({ id, ...body }) => ({ url: `api/teach/jobs/${encodeURIComponent(id)}/retrain`, method: 'POST', body }), invalidatesTags: ['Teach', 'TeachDataset'],
     }),
-    teachJobEvents: b.query<{ events: TeachEventRow[]; cursor: number }, { id: string; since?: number }>({
-      query: ({ id, since }) => `api/teach/jobs/${encodeURIComponent(id)}/events${toQuery({ since })}`,
+    teachJobEvents: b.query<{ events: TeachEventRow[]; cursor: number }, TeacherResource & { since?: number }>({
+      keepUnusedDataFor: 0,
+      query: ({ id, since, teacherIdentity }) => teacherRead(`api/teach/jobs/${encodeURIComponent(id)}/events${toQuery({ since })}`, teacherIdentity),
     }),
     teacher: b.query<TeacherProfile, string>({ query: (address) => `api/teacher/${encodeURIComponent(address)}`, providesTags: (_r, _e, address) => [{ type: 'Teacher', id: address.toLowerCase() }, 'Teacher'] }),
     /**
@@ -750,8 +757,9 @@ export const {
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
-  useMyProjectsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
+  useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
+  useProjectTriggersQuery, useEnableTriggerMutation, useDisableTriggerMutation, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery, useInstallTriggerAinRuleMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useProjectStorageQuery, useOrgStoresQuery, useCreateStoreMutation, useStoreQuery, useUpdateStoreMutation, useStoreActionMutation, useDeleteStoreMutation, useConnectStoreMutation, useDisconnectStoreMutation,
   useRevealStoreEnvMutation, useRotateStoreMutation, useStoreTablesQuery, useStoreRowsQuery, useStoreQueryMutation, useStoreObjectsQuery, useStoreBackupsQuery, useRunStoreBackupMutation, useDeleteStoreBackupMutation,
@@ -764,7 +772,7 @@ export const {
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
-  useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
+  useApproveAccountDeviceMutation, useDeviceRequestQuery, useApproveDeviceMutation, useBindingsQuery, useMyNodesQuery, useUnlinkNodeMutation, useRemoveBindingMutation,
   useMyPatchesQuery, useMyPurchasesQuery, useWalletQuery, useCreatePatchMutation, useUpdatePatchMutation, useDeletePatchMutation, useAnnounceMutation, useRetireMutation, useSetPriceMutation, useWalletSendMutation,
   useVerifyMutation, useChallengeMutation, useBuyMutation, useCollectMutation, useMyCreditQuery, useApplyMutation, useRemoveMutation, useCreateBranchMutation, useAddToBranchMutation,
   useSubscribeMutation, useTrackQuoteQuery, useSyncBranchMutation, useRequestPatchMutation,

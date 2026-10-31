@@ -6,6 +6,7 @@ import { useMyOrgsQuery, useInfoQuery } from '@/api/api';
 import { useLocale, useT } from '@/i18n';
 import { parseOrgList } from '@/api/organizations';
 import { shortAddr } from '@/utils/format';
+import { navigationSection, signInHref } from '@/lib/uiNavigation';
 import { GlobalSearch } from './GlobalSearch';
 
 /** Ported from ainize-web components/ui/Header.js — white bar, 81px, subtle shadow, purple hover; original Ainize logo. */
@@ -110,13 +111,13 @@ const LocaleButton = styled.button`
 `;
 
 export function Header() {
-  const { isSignedIn, isOwner, subject, google, sso, name, address, signOut } = useAuth();
+  const { isSignedIn, isOwner, subject, google, sso, name, address, signOut, cacheIdentity } = useAuth();
   // A Google-only or AIN-only session has no address to show, so it shows the account instead.
   const whoFull = subject ? subject : sso ? (sso.email ?? sso.name ?? 'AIN') : google?.email ?? '—';
   // An email shows its name part only; the menu under the button repeats the whole address.
   const who = subject ? shortAddr(subject, 6) : whoFull.includes('@') ? whoFull.slice(0, whoFull.indexOf('@')) : whoFull;
   const { data: info } = useInfoQuery(undefined, { pollingInterval: 30_000 });
-  const { data: orgData } = useMyOrgsQuery(undefined, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
+  const { currentData: orgData } = useMyOrgsQuery(cacheIdentity, { skip: !isSignedIn, refetchOnMountOrArgChange: true });
   const myOrgs = isSignedIn ? parseOrgList(orgData).orgs : [];
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -131,7 +132,8 @@ export function Header() {
   const ain = info?.ledger.kind === 'ain';
   /** Finding 72 — /chat?teach=1 IS the teach flow's conversational door, so the Teach item is the one lit there. */
   const location = useLocation();
-  const teaching = location.pathname.startsWith('/teach') || (location.pathname.startsWith('/chat') && new URLSearchParams(location.search).get('teach') === '1');
+  const section = navigationSection(location.pathname, location.search);
+  const teaching = section === 'train';
   return (
     <Wrapper>
       {process.env.NODE_ENV !== "production" && <DevBadge>Development Mode</DevBadge>}
@@ -143,20 +145,22 @@ export function Header() {
         {/* huggingface.co's header: the search box sits right after the logo and searches everything the nav lists. */}
         <GlobalSearch />
         <Nav>
-          <NavItem to="/explore">{t('nav.explore')}</NavItem>
           {/* A node sells two kinds of thing and only one of them had a way in. The agents were behind a chip
               inside a page titled "Explore knowledge", so somebody who came here to host an agent read the
               whole site and concluded it was a knowledge marketplace. */}
-          <NavItem to="/explore?kind=agent" data-testid="nav-agents">{t('nav.agents')}</NavItem>
+          <NavPlain to="/explore?kind=agent" data-testid="nav-agents" $active={section === "agents"} aria-current={section === "agents" ? "page" : undefined}>{t('nav.agents')}</NavPlain>
           {/* What the network's nodes serve over the LLM API, and a place to press it. It was documentation three levels
               down, which is not where somebody arriving to see what this can do will find it. */}
           <NavItem to="/models" data-testid="nav-models">{t('nav.models')}</NavItem>
-          <NavItem to="/apps" data-testid="nav-apps">{t('nav.apps')}</NavItem>
+          {/* Two products out of one project API: Deployments (web apps, API services, agents — a push deploys them) and
+              Runs (scripts that run on demand, on a schedule, on an AIN blockchain write or by webhook). "Apps" was the
+              first and hid the second; /apps forwards to /deployments. */}
+          <NavPlain to="/deployments" data-testid="nav-deployments" $active={section === "deployments"} aria-current={section === "deployments" ? "page" : undefined}>{t('nav.apps')}</NavPlain>
+          <NavPlain to="/runs" data-testid="nav-runs" $active={section === "runs"} aria-current={section === "runs" ? "page" : undefined}>{t('nav.runs')}</NavPlain>
+          <NavPlain to="/train" data-testid="nav-train" $active={teaching} aria-current={teaching ? 'page' : undefined}>{t('nav.train')}</NavPlain>
           {/* Where each AinCode session runs and what it works on — a member once worked for hours in the personal
               workspace on an organization project without noticing. */}
           <NavItem to="/aincode" data-testid="nav-aincode">{t('nav.aincode')}</NavItem>
-          {/* v2: the header leads to the entry choice (both doors); the landing CTA still leads straight to the chat door */}
-          {info?.accepts_contributions && <NavPlain to="/teach" data-testid="nav-teach" $active={teaching} className={teaching ? 'active' : undefined}>{t('nav.teach')}</NavPlain>}
           {isSignedIn && <NavItem to="/org" data-testid="nav-my-orgs">{t('orgs.mine')}</NavItem>}
           <NavItem to="/docs">{t('nav.docs')}</NavItem>
           {/* The dashboard is the node runner's screen and the node refuses it to anyone else, so offering it to
@@ -164,7 +168,7 @@ export function Header() {
           {isOwner && <NavItem to="/dashboard">{t('nav.dashboard')}</NavItem>}
           {/* With the page you are on as `next`: without it every sign-in — Google's above all, whose default is "/" —
               ended on the landing page instead of where the person was. */}
-          {!isSignedIn && <NavItem to={location.pathname === '/signing' ? '/signing' : `/signing?next=${encodeURIComponent(location.pathname + location.search)}`}>{t('nav.signin')}</NavItem>}
+          {!isSignedIn && <NavItem to={location.pathname === '/signing' ? '/signing' : signInHref(location)}>{t('nav.signin')}</NavItem>}
           {isSignedIn && (
             <div ref={ref} style={{ position: 'relative' }}>
               {/* YOUR address, not the node's. The button said the NODE's name and the row under it showed the

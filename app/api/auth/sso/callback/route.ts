@@ -15,7 +15,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   NODE_SESSION_COOKIE, SILENT_SIGN_IN_ERRORS, SSO_FLOW_COOKIE, SSO_PENDING_COOKIE, SSO_PENDING_TTL_S, SSO_SESSION_TTL_S, SsoFlowError, finishSsoFlow,
-  readAinSsoConfig, sealPending, silentReturnOf, ssoRedirectUri, type SilentReturn,
+  readAinSsoConfig, sealPending, silentReturnOf, ssoRedirectUri, verifiedSsoReturnPath, type SilentReturn,
 } from '@/lib/ainSso';
 import { GOOGLE_SESSION_COOKIE, googleCookieOptions, readGoogleOAuthConfig } from '@/lib/googleOAuth';
 import { legacyLoginMode } from '@/lib/legacyLogin';
@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
   const fail = (reason: string) => {
     const back = new URL('/signing', origin);
     back.searchParams.set('sso_error', reason);
+    back.searchParams.set('next', verifiedSsoReturnPath(req, config, flowCookie) ?? '/me');
     const res = NextResponse.redirect(back, 302);
     res.cookies.set(SSO_FLOW_COOKIE, '', googleCookieOptions(req, 0));
     return res;

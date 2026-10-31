@@ -10,21 +10,20 @@
  * Everything here has to survive a node that is unreachable or serves nothing, because that is what production
  * looks like when its node is down, and a page whose failure states were never looked at has not been built.
  */
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { useModelsQuery, useNetworkModelsQuery } from '@/api/api';
 import { networkModelCatalogue, networkProviderLabel, parseNetworkModelsResponse } from '@/api/networkModels';
 import { MODEL_MODALITIES, modelsFetchState, parseModelsResponse } from '@/api/models';
 import { Button } from '@/components/ui/Button';
-import { CardGrid, CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, Title } from '@/components/ui/Misc';
-import { Input } from '@/components/ui/Form';
+import { CardGrid, CenterProgress, Description, Empty, Mono, PageWrapper, SubTitle, SectionTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
+import { docsFromModels, matchingSearchIds } from '@/lib/globalSearch';
 
 /** huggingface.co's card grid (Misc.CardGrid), the same columns every listing steps through. */
 const Cards = styled(CardGrid)`margin: 12px 0 28px;`;
-const Search = styled(Input)`max-width: 360px; margin-top: 16px; border-bottom: 1px solid ${(p) => p.theme.color.LIGHT_GREY};`;
 
 /** A card is a link: the whole model page is behind it, not a selection on this one. */
 const ModelsPageCard = styled(Link)<{ $available: boolean }>`
@@ -47,7 +46,7 @@ export default function ModelsPage() {
   useTitle(t('models.title'));
   /** `?q=` is how the header's search hands over its query ("See all models"); the box here edits the same text. */
   const [params] = useSearchParams();
-  const [q, setQ] = useState(() => params.get('q') ?? '');
+  const q = params.get('q') ?? '';
   const { data, isLoading, isFetching, error, refetch } = useModelsQuery(undefined, { pollingInterval: 15_000, skipPollingIfUnfocused: true, refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
   const fetchState = modelsFetchState(error as { status?: number | string; originalStatus?: number } | undefined);
   const cards = useMemo(() => parseModelsResponse(data), [data]);
@@ -55,17 +54,17 @@ export default function ModelsPage() {
   const network = useNetworkModelsQuery(undefined, { pollingInterval: 60_000, skipPollingIfUnfocused: true, refetchOnFocus: true, refetchOnReconnect: true });
   const catalogue = useMemo(() => networkModelCatalogue(cards, parseNetworkModelsResponse(network.data)), [cards, network.data]);
   const needle = q.trim().toLowerCase();
+  const matchingIds = useMemo(() => matchingSearchIds(docsFromModels(catalogue), q), [catalogue, q]);
   const groups = useMemo(() => MODEL_MODALITIES
-    .map((modality) => ({ modality, models: catalogue.filter((m) => m.modality === modality && (!needle || `${m.id} ${m.modality} ${m.providers.map((p) => p.node.name ?? '').join(' ')}`.toLowerCase().includes(needle))) }))
-    .filter((g) => g.models.length > 0), [catalogue, needle]);
+    .map((modality) => ({ modality, models: catalogue.filter((m) => m.modality === modality && matchingIds.has(m.id)) }))
+    .filter((g) => g.models.length > 0), [catalogue, matchingIds]);
 
   if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   return (
     <PageWrapper>
-      <Title>{t('models.title')}</Title>
-      <Description>{t('models.lede')}</Description>
-      <Search type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('models.search')} aria-label={t('models.search')} data-testid="models-search" />
+      <SectionTitle>{t('nav.models')}</SectionTitle>
+      {q && <Description>{t('search.query', { q })}</Description>}
       {needle && catalogue.length > 0 && !groups.length && <Empty>{t('models.search_none', { q: q.trim() })}</Empty>}
 
       {/* The two states production is in when its node is down. Neither pretends to be a model list. */}
@@ -92,7 +91,7 @@ export default function ModelsPage() {
 
       {groups.map((group) => (
         <div key={group.modality}>
-          <SubTitle>{t(`models.modality.${group.modality}`)}</SubTitle>
+          <SubTitle $mt={0}>{t(`models.modality.${group.modality}`)}</SubTitle>
           <Cards>
             {group.models.map((model) => {
               const available = model.providers.some((p) => p.available);

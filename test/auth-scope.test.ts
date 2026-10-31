@@ -28,7 +28,7 @@ test('the route guards ask who owns the node, not who is signed in', () => {
   // and not the owner must NOT be — /signing would send them straight back and the two would trade the tab for
   // ever — so it renders a panel instead.
   assert.ok(layout.includes('if (!isOwner) return <Layout><NotYourNode /></Layout>;'), 'SigningCheckLayout must answer a non-owner, not redirect one');
-  assert.ok(layout.includes('if (!isSignedIn) return <Navigate to={`/signing'), 'and must still send a signed-out visitor somewhere they can act');
+  assert.ok(layout.includes('if (!isSignedIn) return <Navigate to={signInHref(location)}'), 'and must still send a signed-out visitor somewhere they can act');
   // The landing page sends only the node's runner to the dashboard. Bouncing every connected wallet there is the
   // old assumption in the most visible place there is.
   assert.ok(layout.includes('if (!loading && isOwner) return <Navigate to="/dashboard"'), 'FullScreenLayout');
@@ -120,7 +120,7 @@ test('a visitor who does not run the node is given ways out, never a command the
   assert.ok(!/<code>/.test(layout.split('function NotYourNode')[1] ?? ''), 'and nothing shaped like one');
 
   // What it offers instead. Each of these must be a route with no guard on it, or the way out is another wall.
-  for (const to of ['/chat', '/explore', '/teach']) {
+  for (const to of ['/chat', '/train/knowledge', '/train']) {
     assert.ok(layout.includes(`<Way to="${to}"`), `${to} is offered`);
     const route = app.split('\n').find((l) => l.includes(`path="${to}"`))!;
     assert.ok(route, `${to} is a route`);
@@ -182,6 +182,6 @@ test('account entry shows personal keys to visitors while node settings remain o
   assert.ok(app.includes('<Route path="/account" element={<SignedInLayout><AccountEntry /></SignedInLayout>} />'));
   assert.ok(app.includes('return isOwner ? <AccountPage /> : <MyPage />;'));
   const mine = code('screens/MyPage.tsx').join('\n');
-  assert.ok(mine.includes('useApiKeysQuery()'));
+  assert.ok(mine.includes('useApiKeysQuery(cacheIdentity,'));
   assert.ok(mine.includes('useCreateApiKeyMutation()'));
 });

@@ -246,15 +246,18 @@ const Products = styled.div`
 `;
 
 const LOGO = { src: '/static/images/logo-white.png', srcSet: '/static/images/logo-white@2x.png 2x, /static/images/logo-white@3x.png 3x' };
-/** The example project — a real `script` repo; both URLs are the ones the deploy how-to names. */
-const EXAMPLE_PROJECT = 'https://ainize.ai/comcom/clef-artwork-search';
+/** The organization repository requires access; the walkthrough itself is public. */
 const EXAMPLE_REPO = 'https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search';
 const AINDRIVE = 'https://aindrive.ainetwork.ai';
 
 export default function LandingPage() {
   const { t, audience } = useT();
+
   useTitle(t('landing.hero.title').replace('\n', ' '));
   const { locale, setLocale } = useLocale();
+  const exampleGuide = locale === 'ko'
+    ? '/docs/ko/how-to/deploy-with-ainize-json#완전한-예'
+    : '/docs/en/how-to/deploy-with-ainize-json#a-complete-example';
   const [solid, setSolid] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
   /**
@@ -290,14 +293,14 @@ export default function LandingPage() {
         <NavContent>
           <NavHome to="/" aria-label="Ainize"><NavLogo {...LOGO} alt="Ainize" /></NavHome>
           <NavLinks aria-label={t('landing.nav.aria')}>
-            <NavLink to="/explore">{t('landing.nav.explore')}</NavLink>
             {/* The landing has its own chrome, and adding the entry to the shared header (Header.tsx) left this
                 one without it — which is the nav a first-time visitor actually sees. */}
             <NavLink to="/explore?kind=agent" data-testid="landing-nav-agents">{t('nav.agents')}</NavLink>
             <NavLink to="/models" data-testid="landing-nav-models">{t('nav.models')}</NavLink>
-            <NavLink to="/apps" data-testid="landing-nav-apps">{t('nav.apps')}</NavLink>
+            <NavLink to="/deployments" data-testid="landing-nav-deployments">{t('nav.apps')}</NavLink>
+            <NavLink to="/runs" data-testid="landing-nav-runs">{t('nav.runs')}</NavLink>
+            <NavLink to="/train" data-testid="landing-nav-train">{t('nav.train')}</NavLink>
             <NavLink to="/aincode" data-testid="landing-nav-aincode">{t('nav.aincode')}</NavLink>
-            {info?.accepts_contributions && <NavLink to="/chat?teach=1" data-testid="landing-nav-teach">{t('landing.nav.teach')}</NavLink>}
             {/* The network and the public record were in every page's header and in neither of the landing's
                 chromes — the third time an entry was added to Header.tsx and not to this one. The two are now
                 held to the same list by test/nav-parity.test.ts, so a fourth is a failing test rather than a
@@ -306,7 +309,7 @@ export default function LandingPage() {
             {auth.isSignedIn && <NavLink to="/org" data-testid="landing-nav-my-orgs">{t('orgs.mine')}</NavLink>}
             <NavLink to="/docs" data-testid="landing-nav-docs">{t('nav.docs')}</NavLink>
             {auth.isSignedIn && signedInAs
-              ? <NavMuted to={auth.subject ? '/my-nodes' : '/models'} data-testid="landing-nav-account" title={auth.subject ?? auth.sso?.email ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>
+              ? <NavMuted to="/me" data-testid="landing-nav-account" title={auth.subject ?? auth.sso?.email ?? auth.google?.email ?? ''}>{signedInAs}</NavMuted>
               : <NavMuted to="/signing" title={t('landing.nav.signin_help')}>{t('landing.nav.signin')}</NavMuted>}
           </NavLinks>
           <LocaleButton onClick={() => setLocale(locale === 'ko' ? 'en' : 'ko')} aria-label="language">{t('common.locale')}</LocaleButton>
@@ -451,7 +454,7 @@ export default function LandingPage() {
               </CapCode>
               <CapLinks>
                 <CapCta to="/docs/how-to/deploy-with-ainize-json" data-testid="cap-deploy-cta">{t('landing.cap.deploy.cta')}</CapCta>
-                <CapDocExt href={EXAMPLE_PROJECT} data-testid="cap-deploy-example">{t('landing.cap.deploy.docs')}</CapDocExt>
+                <CapDoc to={exampleGuide} data-testid="cap-deploy-example">{t('landing.cap.deploy.docs')}</CapDoc>
               </CapLinks>
             </CapCard>
           </CapGrid>
@@ -481,7 +484,7 @@ export default function LandingPage() {
             </ExampleStep>
           </ExampleGrid>
           <ExampleLinks>
-            <OutlinePillExt href={EXAMPLE_PROJECT} data-testid="example-project">{t('landing.example.cta')}</OutlinePillExt>
+            <OutlinePillExt href={exampleGuide} data-testid="example-project">{t('landing.example.cta')}</OutlinePillExt>
             <CapDocExt href={EXAMPLE_REPO} target="_blank" rel="noopener noreferrer">{t('landing.example.repo')}</CapDocExt>
           </ExampleLinks>
         </Inner>
@@ -497,7 +500,7 @@ export default function LandingPage() {
               <OnlyTitle>{t('landing.only.teach.title')}</OnlyTitle>
               <OnlyDesc>{t('landing.only.teach.desc')}</OnlyDesc>
               <OnlyLinks>
-                <OnlyCta to="/teach" data-testid="only-teach-cta">{t('landing.only.teach.cta')}</OnlyCta>
+                <OnlyCta to="/train" data-testid="only-teach-cta">{t('landing.only.teach.cta')}</OnlyCta>
                 <OnlyDoc to="/docs/concepts/knowledge-patch">{t('landing.only.teach.l1')}</OnlyDoc>
                 <OnlyDoc to="/docs/concepts/lineage-and-royalties">{t('landing.only.teach.l2')}</OnlyDoc>
                 <OnlyDoc to="/docs/how-to/run-a-verifier">{t('landing.only.teach.l3')}</OnlyDoc>

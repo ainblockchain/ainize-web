@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useState } from 'react';
 import styled from 'styled-components';
 import { usePatchDatasetQuery } from '@/api/api';
@@ -26,11 +27,12 @@ const Buttons = styled.div`
 `;
 
 export function TrainingSetBlock({ d, canBuildOn }: { d: PatchDetail; canBuildOn: boolean }) {
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const a = d.anchor;
   const access = a.dataset?.access ?? 'private';
-  const { data: ds, error } = usePatchDatasetQuery(a.id, { skip: !open || access === 'private' });
+  const { currentData: ds, error } = usePatchDatasetQuery({ id: a.id, teacherIdentity }, { skip: !open || access === 'private' });
   if (!a.dataset) return null;
   const accessText = t(access === 'public' ? 'detail.ds.access_public' : access === 'derivative' ? 'detail.ds.access_derivative' : 'detail.ds.access_private');
   const refused = (error as { data?: { error?: string } } | undefined)?.data?.error ?? '';
@@ -43,7 +45,7 @@ export function TrainingSetBlock({ d, canBuildOn }: { d: PatchDetail; canBuildOn
       {!d.dataset_held && access !== 'private' && <Note data-testid="ds-unavailable">{t('detail.ds.unavailable')}</Note>}
       <Buttons>
         <button type="button" onClick={() => setOpen((x) => !x)} disabled={access === 'private'} data-testid="ds-preview">{t('detail.ds.btn_preview')}</button>
-        <a href={canBuildOn && access !== 'private' ? `/teach/upload?on=${encodeURIComponent(a.id)}&copy=1` : undefined}
+        <a href={canBuildOn && access !== 'private' ? `/train/upload?on=${encodeURIComponent(a.id)}&copy=1` : undefined}
           aria-disabled={!canBuildOn || access === 'private'} data-testid="ds-copy"
           style={!canBuildOn || access === 'private' ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>{t('detail.ds.btn_copy')}</a>
         {access === 'public' && d.dataset_held && (

@@ -38,6 +38,7 @@ shows each commit's deployment next to it.
 | `env` | all | Environment variables for the build and the run. **Not for secrets** — the file is in the repo. The sandbox adds `AINIZE_URL` and `AINIZE_API_KEY` (the pusher's own key) itself, so a script reaches the models with `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])` and no key is ever committed. |
 | `inputs` | all (used by `script` runs) | Parameters a person fills in before a run — the same shape as GitHub Actions `workflow_dispatch` inputs, delivered as `INPUT_<NAME>` environment variables. See [Inputs](#inputs). |
 | `timeoutMs` | `script` | Wall-clock limit for one run. Default 120 000, maximum 300 000. |
+| `triggers` | `script` | Up to 8 named triggers that start a run by themselves — `schedule` (cron + timezone), `ain` (a write at an AIN blockchain path) or `http` (a webhook URL). See [Run scripts on a schedule](./run-scripts-on-a-schedule.md). |
 | `build.dockerfile`, `build.context` | `service` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | The port the container listens on. Default 3000 for Next.js. |
 | `healthcheck` | `nextjs`, `service` | Path polled until it answers 200; the deployment is `ready` when it does. Default `/`. |
@@ -59,6 +60,9 @@ one is healthy, then is swapped out. This is the Vercel-shaped case.
 reached as `AINIZE_URL` with your `AINIZE_API_KEY`). Standard output, standard error and the exit code become the deployment log; exit 0 is
 `ready`, anything else is `error`. Use it for examples, evaluations and anything that should re-run and leave a record
 whenever the code changes. The sandbox image has the standard library, `requests` and the `ainize` SDK; declare nothing else.
+A `script` project is a **Run** on the website ([Runs](/runs)); the other three kinds are **Deployments** —
+[the difference](../concepts/deployments-and-runs.md). With a `triggers` key the script also runs on a schedule, on an
+AIN blockchain write or by webhook, and the event reaches it in `AINIZE_TRIGGER_EVENT`.
 
 **`service`** — builds your `Dockerfile`, runs the image with the same isolation as a hosted agent (internal network,
 egress only through the gateway, dropped capabilities, limits), waits for `healthcheck` on `port`, then exposes it
@@ -149,6 +153,8 @@ Use its deployment history and Run control to resume the exercise. A repeated cr
 not create another project or return its webhook secret again.
 
 ## A complete example
+
+This walkthrough is public. The linked ComCom repository and its deployment console require an AIN account with access to that organization; they are not public demos. You can follow the manifest and input examples above with your own repository. For the model request, see [Calling Clef](./decision-models-clef.md).
 
 [`clef-artwork-search`](https://aindrive.ainetwork.ai/comcom/git/clef-artwork-search) is a `script` project: three
 Python files that rank artworks against a description using the Clef decision model, with the `ainize.json` above and a

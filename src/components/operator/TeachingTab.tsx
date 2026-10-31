@@ -17,7 +17,7 @@ import { ApproveLessonSheet } from '@/components/operator/ApproveLessonSheet';
 import { dateTime, shortAddr, shortHash } from '@/utils/format';
 
 /**
- * Operator Teaching tab on My knowledge (spec §5.13): settings (PATCH /api/me/teach/policy), the lesson queue with
+ * Operator Teaching tab on My knowledge (spec §5.13): settings (PATCH /api/me/train/policy), the lesson queue with
  * Approve / Decline / Cancel, contributors (hide name, block key / IP) and the data-provider payouts with Retry.
  * Plain language for the operator too — no "patch / anchor / npz" here.
  */

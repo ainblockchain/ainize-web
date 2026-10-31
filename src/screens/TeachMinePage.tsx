@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import styled from 'styled-components';
@@ -7,15 +8,14 @@ import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Form';
-import { Description, PageWrapper, StyledLink, Title, TitleRow } from '@/components/ui/Misc';
+import { Description, PageWrapper, StyledLink, SectionTitle } from '@/components/ui/Misc';
 import { mapTeachError, mineStatusKey } from '@/components/chat/teachUtil';
 import { DatasetCard } from '@/components/teach/DatasetCard';
 import { LiveLessons, isActiveTeach } from '@/components/teach/LiveLessons';
 import { signedDownload } from '@/lib/teachDataset';
-import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
- * `/teach/mine` — my datasets and lessons (design §5.8), organised dataset-first: the dataset is the durable object
+ * `/train/mine` — my datasets and lessons (design §5.8), organised dataset-first: the dataset is the durable object
  * and a lesson is one attempt at it. Lessons a v1 chat basket produced (no dataset of their own) keep their own list
  * at the bottom rather than being hidden — G5: no v1 lesson may disappear from the visitor's view.
  */
@@ -30,12 +30,13 @@ const Legacy = styled.ul`
 const Head = styled.div`display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px;`;
 
 export default function TeachMinePage() {
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   useTitle(t('teach.data.title'));
   const navigate = useNavigate();
-  const hasKey = !!currentTeacherKey();
+  const hasKey = !!teacherIdentity;
   const { data: policy } = useTeachPolicyQuery();
-  const { data: dsData, isFetching } = useTeachDatasetsQuery(undefined, { skip: !hasKey });
+  const datasetsQuery = useTeachDatasetsQuery(teacherIdentity, { skip: !hasKey });
   const [anyActive, setAnyActive] = useState(true);   // assume yes until the first answer says otherwise
   /**
    * Poll while something is running. Without an interval this page was a snapshot of the moment it loaded, which on
@@ -45,16 +46,16 @@ export default function TeachMinePage() {
    * 5 s while active and 30 s otherwise mirrors the operator's Teaching tab. `anyActive` is read from the data this
    * very query returns, so the fast poll stops on its own when the last lesson finishes.
    */
-  const { data: jobData } = useMyTeachJobsQuery(undefined, { skip: !hasKey, pollingInterval: hasKey ? (anyActive ? 5000 : 30_000) : 0 });
+  const jobsQuery = useMyTeachJobsQuery(teacherIdentity, { skip: !hasKey, pollingInterval: hasKey ? (anyActive ? 5000 : 30_000) : 0 });
   const [remove, { isLoading: deleting }] = useDeleteTeachDatasetMutation();
   const [patchDataset, { isLoading: patching }] = usePatchTeachDatasetMutation();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  const datasets = dsData?.items ?? [];
+  const datasets = datasetsQuery.currentData?.items ?? [];
   // SC-16 names the knowledge a set was copied from; the catalog is only fetched when one of them has a parent
   const { data: catalog } = useCatalogQuery({ limit: 200 }, { skip: !datasets.some((d) => d.parent_patch) });
-  const jobs = useMemo(() => jobData?.items ?? [], [jobData]);
+  const jobs = useMemo(() => jobsQuery.currentData?.items ?? [], [jobsQuery.currentData]);
   useEffect(() => { setAnyActive(jobs.some(isActiveTeach)); }, [jobs]);
   const byDataset = useMemo(() => {
     const map = new Map<string, TeachJob[]>();
@@ -67,7 +68,11 @@ export default function TeachMinePage() {
     }
     return map;
   }, [jobs]);
-  const legacy = jobs.filter((j) => !j.dataset?.id);
+  // A lesson can outlive its dataset (for example after delete-after-training).
+  // Keep it reachable even when its dataset is no longer returned in the list.
+  const legacy = jobs.filter((j) => !j.dataset?.id || !datasets.some((d) => d.id === j.dataset?.id));
+  const loading = hasKey && ((!datasetsQuery.currentData && datasetsQuery.isFetching) || (!jobsQuery.currentData && jobsQuery.isFetching));
+  const empty = !hasKey || (datasetsQuery.isSuccess && jobsQuery.isSuccess && datasets.length === 0 && jobs.length === 0);
 
   /** Finding 45 — the retention choice, changed after the upload that fixed it. */
   const setRetention = (id: string, retention: 'keep' | 'delete_after_training') => {
@@ -88,11 +93,10 @@ export default function TeachMinePage() {
 
   return (
     <PageWrapper $wide data-testid="teach-mine">
-      <TitleRow><Title>{t('teach.data.title')}</Title></TitleRow>
-      <Description>{t('teach.data.sub')}</Description>
+      <SectionTitle>{t('train.mine')}</SectionTitle>
       <Head>
         <span>{policy?.limits?.dataset_ttl_days ? t('teach.data.expires', { days: policy.limits.dataset_ttl_days }) : ''}</span>
-        <Button variant="contained" onClick={() => navigate('/teach/upload')} data-testid="mine-upload">{t('teach.data.upload_cta')}</Button>
+        <Button variant="contained" onClick={() => navigate('/train/upload')} data-testid="mine-upload">{t('teach.data.upload_cta')}</Button>
       </Head>
 
       <LiveLessons jobs={jobs} />
@@ -100,7 +104,15 @@ export default function TeachMinePage() {
       {error && <Alert $tone="error" role="alert" style={{ marginTop: 12 }}>{error}</Alert>}
       {note && <Alert $tone="success" role="status" style={{ marginTop: 12 }}>{note}</Alert>}
 
-      {!hasKey || (!isFetching && datasets.length === 0 && legacy.length === 0) ? (
+      {hasKey && datasetsQuery.isError && <Alert $tone="error" role="alert" data-testid="mine-datasets-error" style={{ marginTop: 12 }}>
+        {t('teach.data.datasets_failed')} <Button size="small" disabled={datasetsQuery.isFetching} onClick={() => void datasetsQuery.refetch()}>{t('teach.data.retry')}</Button>
+      </Alert>}
+      {hasKey && jobsQuery.isError && <Alert $tone="error" role="alert" data-testid="mine-jobs-error" style={{ marginTop: 12 }}>
+        {t('teach.data.jobs_failed')} <Button size="small" disabled={jobsQuery.isFetching} onClick={() => void jobsQuery.refetch()}>{t('teach.data.retry')}</Button>
+      </Alert>}
+      {loading && <p role="status" data-testid="mine-loading">{t('teach.data.loading')}</p>}
+
+      {empty ? (
         <Alert $tone="info" style={{ marginTop: 16 }} data-testid="mine-empty">{t('teach.data.empty')}</Alert>
       ) : (
         <List>
@@ -109,8 +121,8 @@ export default function TeachMinePage() {
               key={d.id} dataset={d} lessons={byDataset.get(d.id) ?? []} ttlDays={policy?.limits?.dataset_ttl_days} busy={deleting || patching}
               onRetention={(r) => setRetention(d.id, r)}
               baseName={catalog?.items.find((e) => e.anchor.id === d.parent_patch)?.anchor.name}
-              onRetrain={() => navigate(`/teach/dataset/${d.id}/settings`)}
-              onContinue={() => navigate(`/teach/dataset/${d.id}`)}
+              onRetrain={() => navigate(`/train/dataset/${d.id}/settings`)}
+              onContinue={() => navigate(`/train/dataset/${d.id}`)}
               onDownload={() => void signedDownload(`/api/teach/datasets/${d.id}/download`, `${d.name}.jsonl`).catch((e: Error) => setError(e.message))}
               onDelete={() => drop(d.id, d.name)}
             />
@@ -124,7 +136,7 @@ export default function TeachMinePage() {
                     <b>{(j.name ?? '').replace(/^Lesson:\s*/, '') || j.id.slice(0, 8)}</b>
                     <span>{t(mineStatusKey(j))}</span>
                     <span>{t('teach.data.count', { n: j.facts.length })}</span>
-                    <StyledLink to={`/teach/lesson/${j.id}`}>{t('teach.data.open')}</StyledLink>
+                    <StyledLink to={`/train/lesson/${j.id}`}>{t('teach.data.open')}</StyledLink>
                   </li>
                 ))}
               </Legacy>

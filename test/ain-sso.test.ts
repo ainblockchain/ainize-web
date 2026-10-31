@@ -359,3 +359,30 @@ test('the AIN SSO modules are server-only', async () => {
     .filter((f) => /\.tsx$/.test(f) && /from '[^']*lib\/(ainSso|ainSsoConfig|silentSso|nodeCall|legacyLogin|siteSecret)'/.test(readFileSync(f, 'utf8')));
   assert.deepEqual(offenders, [], 'no component imports them');
 });
+
+test('an explicit login failure keeps the complete return URL only for its matching verified flow', async () => {
+  const next = '/team/app?project=apps%2Fweb&tab=logs#output';
+  const { authorizeUrl, flow } = await start(next);
+  const state = new URL(authorizeUrl).searchParams.get('state')!;
+  const cookie = `ainize_sso_flow=${encodeURIComponent(flow)}`;
+  const failed = await callback(`https://ainize.ai/api/auth/sso/callback?error=access_denied&state=${encodeURIComponent(state)}`, cookie);
+  assert.equal(location(failed).searchParams.get('next'), next);
+  assert.ok(location(failed).searchParams.get('sso_error'));
+  const other = await callback('https://ainize.ai/api/auth/sso/callback?error=access_denied&state=another-flow', cookie);
+  assert.equal(location(other).searchParams.get('next'), '/me');
+});
+
+test('a provider discovery failure offers retry with the original destination, not a lost session target', async () => {
+  const next = '/apps?q=hello#results';
+  // Discovery is cached by secret, so this isolated test uses a fresh cache key.
+  process.env.AIN_SSO_CLIENT_SECRET = `${SECRET}-discovery-failure`;
+  I.state.discoveryDown = true;
+  try {
+    const { GET } = await import('../app/api/auth/sso/start/route');
+    const response = await GET(get(`/api/auth/sso/start?next=${encodeURIComponent(next)}`));
+    assert.equal(response.status, 302);
+    assert.equal(location(response).pathname, '/signing');
+    assert.equal(location(response).searchParams.get('next'), next);
+    assert.ok(location(response).searchParams.get('sso_error'));
+  } finally { I.state.discoveryDown = false; }
+});

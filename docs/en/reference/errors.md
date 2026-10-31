@@ -9,7 +9,7 @@ summary: The error envelope, and every machine-readable code a node can answer w
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src` and `ainize-core/src`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-What an error body looks like, how a thrown error becomes an HTTP status, and the 63 codes a client can match on.
+What an error body looks like, how a thrown error becomes an HTTP status, and the 64 codes a client can match on.
 
 ## The error envelope
 
@@ -36,13 +36,14 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Codes
 
-63 codes are raised by name, in 122 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
+64 codes are raised by name, in 123 distinct messages: a code that can come back with more than one status, or with more than one sentence, has a row for each. An ellipsis or a `<name>` in a sentence is a value filled in at the time — the code before the colon is the part to match on.
 
 | Code | HTTP | What it means | Raised in |
 |---|---|---|---|
 | `already_approved` | `409` | that request has already been answered | `src/api.ts` |
 | `already_known` | `409` | … already answers every one of these questions the same way | `src/teach.ts` |
 | `already_used` | `409` | that request was already collected | `src/api.ts` |
+| `approval_expired` | `410` | sign in and run `ainize login` again | `src/api.ts` |
 | `bad_license` | `400` | "\<license>" is not a licence this network knows (CC0-1.0, CC-BY-4.0, CC-BY-SA-4.0, ODC-By-1.0, Proprietary) | `src/teach.ts` |
 | `banned` | `403` | this node is not accepting lessons from this address | `src/teach.ts` |
 | `banned` | `403` | this node is not accepting lessons from this key | `src/teach.ts` |
@@ -165,9 +166,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 202 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 206 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 111 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 116 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -189,12 +190,16 @@ A further 111 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE>: "release" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "storage" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "triggers" is for a script project, not \<kind> — a \<kind> project is deployed by a push, not run | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "websocket" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: a script names its "entry" | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: examples."\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" example "\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" answers an input that does not exist: \<k> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".entry "\<targetEntry>" is not the script's entry or one of "run" | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".inputs.\<k>: a \<trigger.type> event has no "…" — … | `src/project-manifest.ts` |
 | `null` | \<rel> is a binary file | `src/hosted-qa-engine.ts` |
 | `null` | \<rel> is a directory | `src/hosted-qa-engine.ts` |
 | `null` | \<rel> is a directory; use list_dir | `src/hosted-qa-engine.ts` |

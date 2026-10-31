@@ -1,25 +1,49 @@
-/**
- * The key a visitor just created, for as long as the tab is open.
- *
- * The node keeps only a hash, so a key exists exactly once: in the response that made it. To write it into the
- * snippet on the next render — which is the whole point of not making somebody retype it — the browser has to
- * hold it, and the honest options are all forms of "somewhere a script on this origin can read".
- *
- * `sessionStorage` is the narrowest of them that survives a refresh: this tab only, gone when it closes, never
- * sent anywhere. The page says it is there and offers to forget it, because a secret nobody knows is held is a
- * secret held badly. It is never put in `localStorage`: a key still sitting in a shared browser next month is a
- * different risk from one that ends with the tab.
+/** One freshly issued secret, scoped to the current account and this browser tab.
+ * Account changes and logout discard it. Unscoped legacy values cannot be attributed safely.
  */
 const STORAGE_KEY = 'ainize.issuedApiKey';
-
-export function rememberIssuedKey(key: string): void {
-  try { sessionStorage.setItem(STORAGE_KEY, key); } catch { /* private mode: it lives in memory for this render */ }
+type HeldKey = { owner: string; key: string };
+let owner: string | null = null;
+let held: HeldKey | null = null;
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((listener) => listener());
+function read(): HeldKey | null {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? 'null');
+    return parsed && typeof parsed.owner === 'string' && typeof parsed.key === 'string' ? parsed : null;
+  } catch { return null; }
 }
-
-export function recallIssuedKey(): string | null {
-  try { return sessionStorage.getItem(STORAGE_KEY); } catch { return null; }
+function persist(): void {
+  try {
+    if (held) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(held));
+    else sessionStorage.removeItem(STORAGE_KEY);
+  } catch { /* Private mode: retain only the current account's in-memory copy. */ }
 }
-
-export function forgetIssuedKey(): void {
-  try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* nothing to forget */ }
+export function activateIssuedKeyOwner(next: string | null): void {
+  const candidate = held ?? read();
+  owner = next;
+  held = next && candidate?.owner === next ? candidate : null;
+  persist();
+  notify();
+}
+export function rememberIssuedKey(forOwner: string, key: string): boolean {
+  // A creation response can arrive after logout or an account switch.
+  if (!forOwner || forOwner !== owner) return false;
+  held = { owner: forOwner, key };
+  persist();
+  notify();
+  return true;
+}
+export function recallIssuedKey(forOwner: string): string | null {
+  return forOwner && forOwner === owner && held?.owner === forOwner ? held.key : null;
+}
+export function forgetIssuedKey(forOwner: string): void {
+  if (forOwner !== owner) return;
+  held = null;
+  persist();
+  notify();
+}
+export function subscribeIssuedKey(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
 }

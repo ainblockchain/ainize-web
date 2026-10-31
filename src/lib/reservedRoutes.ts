@@ -7,8 +7,8 @@
  */
 export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   // React Router routes (src/App.tsx)
-  'explore', 'apps', 'models', 'billing', 'network', 'agent', 'agents', 'tracks', 'ledger', 'terms', 'signing', 'authorize', 'docs',
-  'chat', 'teach', 'teacher', 'verifier', 'benchmarks', 'patch', 'me', 'projects', 'org', 'dashboard', 'new-patch', 'my-nodes',
+  'explore', 'search', 'apps', 'deployments', 'runs', 'models', 'billing', 'network', 'agent', 'agents', 'tracks', 'ledger', 'terms', 'signing', 'authorize', 'docs',
+  'chat', 'teach', 'train', 'teacher', 'verifier', 'benchmarks', 'patch', 'me', 'projects', 'org', 'dashboard', 'new-patch', 'my-nodes',
   'logs', 'project', 'account', 'drive', 'aincode',
   // Next.js routes (app/*) — served before the SPA ever renders
   'api', 'git', 'p2p', 'v1', 'svc', 'x402', '_next', 'code',
@@ -20,7 +20,9 @@ const set = new Set(RESERVED_FIRST_SEGMENTS.map((s) => s.toLowerCase()));
 
 /** May this first segment be an organization slug (`/<org>`, `/<org>/<repo>`)? */
 export function isReservedFirstSegment(segment: string): boolean {
-  const s = decodeURIComponent(segment).toLowerCase();
+  let s: string;
+  try { s = decodeURIComponent(segment).toLowerCase(); }
+  catch { return true; }
   return !s || s.startsWith('.') || s.startsWith('_') || set.has(s);
 }
 

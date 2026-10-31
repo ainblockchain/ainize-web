@@ -1,3 +1,4 @@
+import { useTeacherIdentity } from '@/hooks/useTeacherIdentity';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import styled from 'styled-components';
@@ -21,7 +22,7 @@ import { rememberJob } from '@/lib/teachStore';
 import { currentTeacherKey } from '@/lib/teacherKey';
 
 /**
- * `/teach/dataset/:dsId/settings` — step 3 (design §5.5). Exactly four things a non-expert can judge: a name, how hard
+ * `/train/dataset/:dsId/settings` — step 3 (design §5.5). Exactly four things a non-expert can judge: a name, how hard
  * to try, whether to measure side effects (locked on where publishing is possible, because it is the publish gate) and
  * whether to hold the "another way to ask" column out of training. Everything with a number in it — the per-lesson
  * question cap, the presets, the queue — comes from the node's policy; nothing here is hard-coded.
@@ -58,6 +59,7 @@ const EFFORTS = ['quick', 'balanced', 'thorough'] as const;
 
 export default function TeachSettingsPage() {
   const { dsId = '' } = useParams<{ dsId: string }>();
+  const teacherIdentity = useTeacherIdentity();
   const { t } = useT();
   useTitle(t('teach.set.title'));
   const navigate = useNavigate();
@@ -67,13 +69,13 @@ export default function TeachSettingsPage() {
   const retrainOf = params.get('retrain') ?? '';
   const asked = params.get('effort');
   const { data: policy } = useTeachPolicyQuery();
-  const { data: dsData, isLoading } = useTeachDatasetQuery(dsId, { skip: !dsId });
+  const { currentData: dsData, isFetching, error: loadError, refetch } = useTeachDatasetQuery({ id: dsId, teacherIdentity }, { skip: !dsId });
   const dataset = dsData?.dataset;
   const cap = rowsPerJob(policy);
   const selection = useMemo(() => loadSelection(dsId), [dsId]);
   // the questions this lesson will actually train: the visitor's pick, else the first `cap` accepted ones
   const trained = Math.min(selection?.length ?? dataset?.rows ?? 0, cap);
-  const { data: page } = useTeachDatasetRowsQuery({ id: dsId, offset: 0, limit: 200, status: 'ok' }, { skip: !dsId });
+  const { currentData: page } = useTeachDatasetRowsQuery({ teacherIdentity, id: dsId, offset: 0, limit: 200, status: 'ok' }, { skip: !dsId });
   const altCount = useMemo(() => {
     const picked = page?.items?.filter((r) => r.index !== null && (!selection || selection.includes(r.index))) ?? [];
     return picked.slice(0, cap).filter((r) => !!r.alt_prompt).length;
@@ -140,7 +142,7 @@ export default function TeachSettingsPage() {
       const mine = (page?.items ?? []).filter((r) => r.index !== null && r.prompt && r.answer && !r.from && !r.replaces)
         .map((r) => ({ prompt: r.prompt as string, answer: r.answer as string, ...(r.alt_prompt ? { alt_prompt: r.alt_prompt } : {}) }));
       if (mine.length) await patchDataset({ id: fork.dataset_id, rows_op: { op: 'append', rows: mine } }).unwrap();
-      navigate(`/teach/dataset/${fork.dataset_id}?on=${encodeURIComponent(chosen.id)}`);
+      navigate(`/train/dataset/${fork.dataset_id}?on=${encodeURIComponent(chosen.id)}`);
     } catch (e) { setError(mapTeachError(e, t)); } finally { setCopying(false); }
   };
 
@@ -167,16 +169,17 @@ export default function TeachSettingsPage() {
         }).unwrap();
       clearKnown(dsId);
       rememberJob({ id: out.job.id, name: out.job.name, created_at: Date.now() });
-      navigate(`/teach/lesson/${out.job.id}`);
+      navigate(`/train/lesson/${out.job.id}`);
     } catch (e) { setError(mapTeachError(e, t)); }
   };
 
-  if (isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (!dataset && isFetching) return <PageWrapper data-testid="dataset-loading"><CenterProgress /></PageWrapper>;
   if (!dataset) {
     return (
       <PageWrapper data-testid="teach-settings">
         <Stepper current={3} />
-        <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{t('teach.err.dataset_not_found')}</Alert>
+        <Alert $tone="error" role="alert" style={{ marginTop: 16 }}>{loadError ? mapTeachError(loadError, t) : t('teach.err.dataset_not_found')}</Alert>
+        <Button size="small" variant="text" onClick={() => void refetch()}>{t('teach.data.retry')}</Button>
       </PageWrapper>
     );
   }

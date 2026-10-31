@@ -6,6 +6,7 @@ import type { Dict } from '../index';
  * The §5.3 picker keys (chat.picker.multi_title / multi_help / overlap / contaminated / mine) live in chat.ts (PR-3).
  */
 export const teach: Dict = {
+  'teach.err.key_changed': { ko: '학습 키가 변경됐습니다. 현재 키로 다시 시도해 주세요.', en: 'Your teaching key changed. Try again with the current key.' },
   // §5.3 live test additions
   'chat.banner.teach': { ko: '답이 틀렸나요? 답변 아래 "정답 가르치기"를 누르면 모델이 배웁니다. 계정이 필요 없습니다.', en: 'Wrong answer? Click "Teach the right answer" under any reply and the model learns it. No account needed.' },
   'chat.banner.dismiss': { ko: '닫기', en: 'Dismiss' },
@@ -466,7 +467,7 @@ export const teach: Dict = {
   'teach.err.generic': { ko: '수업에 문제가 생겼습니다: {message}', en: 'Something went wrong with the lesson: {message}' },
 
   // ---------------------------------------------------------------- teach mode v2 (dataset design §5) — entry choice
-  'teach.entry.title': { ko: '모델에게 새로운 것을 가르치기', en: 'Teach the model something new' },
+  'teach.entry.title': { ko: 'Train', en: 'Train' },
   // ux-critique-owner O-7: one line of intro, one sentence + one benefit per card; the longer story sits behind "How it works"
   'teach.entry.sub': { ko: '계정도 코드도 필요 없습니다. 질문과 정답이 지식이 되어 써보고, 나만 쓰고, 공개할 수 있습니다.', en: 'No account, no code: your questions and answers become knowledge you can test, keep private or publish.' },
   'teach.entry.chat.title': { ko: '대화하며 가르치기', en: 'Teach it in a conversation' },
@@ -511,9 +512,9 @@ export const teach: Dict = {
   'teach.entry.next_same': { ko: '어느 쪽으로 들어와도 같은 다섯 단계입니다', en: 'the same five steps, whichever door you pick' },
   'teach.entry.mine': { ko: '내 데이터셋과 수업', en: 'My datasets and lessons' },
   // the slim chrome of /teach/* (ux-critique-owner O-3): logo · exit · language, nothing else
-  'teach.chrome.nav': { ko: '가르치기', en: 'Teaching' },
-  'teach.chrome.exit': { ko: '나가기', en: 'Exit' },
-  'teach.chrome.exit_help': { ko: '가르치기를 나가 지식 둘러보기로 갑니다', en: 'Leave teaching and go to Explore knowledge' },
+  'teach.chrome.nav': { ko: 'Train', en: 'Train' },
+  'teach.chrome.exit': { ko: 'Train으로', en: 'Back to Train' },
+  'teach.chrome.exit_help': { ko: 'Train으로 돌아갑니다', en: 'Return to Train' },
 
   // §5.1 stepper
   'teach.step.data': { ko: '데이터셋', en: 'Dataset' },
@@ -809,6 +810,10 @@ export const teach: Dict = {
   'teach.data.title': { ko: '내 데이터셋과 수업', en: 'My datasets and lessons' },
   'teach.data.sub': { ko: '이 브라우저에서 가르친 모든 것입니다. 데이터셋은 파일이고, 수업은 모델이 그것으로 배운 결과입니다.', en: 'Everything you have taught from this browser. The dataset is the file; a lesson is what the model learned from it.' },
   'teach.data.empty': { ko: '아직 아무것도 없습니다. 대화로 가르치거나 데이터셋 파일을 올려 시작하세요.', en: 'Nothing here yet. Teach in a conversation, or upload a dataset file to start.' },
+  'teach.data.loading': { ko: '데이터셋과 학습 기록을 불러오는 중입니다.', en: 'Loading datasets and training history.' },
+  'teach.data.datasets_failed': { ko: '데이터셋 목록을 불러오지 못했습니다. 이전에 불러온 목록이 있으면 표시합니다.', en: 'Could not load datasets. Previously loaded items are shown when available.' },
+  'teach.data.jobs_failed': { ko: '학습 기록을 불러오지 못했습니다. 이전에 불러온 기록이 있으면 표시합니다.', en: 'Could not load training history. Previously loaded records are shown when available.' },
+  'teach.data.retry': { ko: '다시 불러오기', en: 'Try again' },
   'teach.data.h.name': { ko: '데이터셋', en: 'Dataset' },
   'teach.data.h.count': { ko: '질문 수', en: 'Questions' },
   'teach.data.h.source': { ko: '출처', en: 'Where it came from' },

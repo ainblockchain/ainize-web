@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useGoogleLogoutMutation, useGoogleSessionQuery, useLogoutMutation, useMeQuery, useSsoStatusQuery } from '@/api/api';
+import { activateIssuedKeyOwner } from '@/screens/models/issuedKeyMemory';
 import type { GoogleIdentityView, SsoSessionView } from '@/api/types';
 
 /**
@@ -24,6 +25,8 @@ import type { GoogleIdentityView, SsoSessionView } from '@/api/types';
  */
 export interface AuthState {
   loading: boolean;
+  /** Browser cache identity only; never sent as authorization to the server. */
+  cacheIdentity: string;
   /** somebody is signed in — a name, not a permission */
   isSignedIn: boolean;
   /** the address signed in, or null — also null for a Google-only session, which has no address */
@@ -63,7 +66,7 @@ export interface AuthState {
 }
 
 const EMPTY: AuthState = {
-  loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, sitePrincipal: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
+  cacheIdentity: '', loading: true, isSignedIn: false, subject: null, scheme: null, sso: null, sitePrincipal: null, principal: null, ssoConfigured: false, google: null, googleConfigured: false, isOwner: false, scope: [], signingOut: false,
   canEnroll: false, address: null, name: null, roles: [], refresh: async () => undefined, signOut: async () => undefined,
 };
 const AuthContext = createContext<AuthState>(EMPTY);
@@ -83,7 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const google = !signingOut ? googleData?.identity ?? null : null;
   const sso = !signingOut ? data?.sso ?? null : null;
   const sitePrincipal = !signingOut ? data?.site?.principal ?? null : null;
+  // Include every accepted identity: connecting a wallet must not reuse an SSO-only key list.
+  const cacheIdentity = live || sso || google
+    ? JSON.stringify([live ? data?.subject ?? null : null, sso?.principal ?? null, sitePrincipal, google?.sub ?? null]) : '';
+  useEffect(() => {
+    if (!isLoading && !googleLoading) activateIssuedKeyOwner(cacheIdentity || null);
+  }, [cacheIdentity, isLoading, googleLoading]);
   const value: AuthState = {
+    cacheIdentity,
     loading: isLoading || googleLoading,
     isSignedIn: live || !!google || !!sso,
     subject: live ? data?.subject ?? null : null,
@@ -107,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh,
     signOut: async () => {
       const wasSso = !!sso;
+      activateIssuedKeyOwner(null);
       setSigningOut(true);   // optimistic: the very next render is already signed-out
       await Promise.all([logout().unwrap(), googleLogout().unwrap()].map((p) => p.catch(() => undefined)));   // either cookie may already be gone
       // An AIN session continues to AIN SSO's sign-out (RP-initiated logout), which asks whether to sign out of AIN in

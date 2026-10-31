@@ -373,7 +373,7 @@ function LoadFailed({ id, error, busy, onRetry }: { id: string; error: unknown; 
             <Note style={{ margin: '8px 0 0' }}><Mono>{errorMessage(error)}</Mono></Note>
             <div style={{ marginTop: 16, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
               <Button variant="contained" loading={busy} loadingText={t('detail.patch.error_retrying')} onClick={onRetry}>{t('detail.patch.error_retry')}</Button>
-              <StyledLink to="/explore">{t('detail.patch.error_explore')} →</StyledLink>
+              <StyledLink to="/train/knowledge">{t('detail.patch.error_explore')} →</StyledLink>
             </div>
             <Note style={{ margin: '12px 0 0' }}>{t('detail.patch.error_auto')}</Note>
           </Section>
@@ -383,16 +383,18 @@ function LoadFailed({ id, error, busy, onRetry }: { id: string; error: unknown; 
   );
 }
 
-export default function PatchPage() {
-  const { author = '', patchId = '' } = useParams();
+export default function PatchPage({ author: givenAuthor, patchId: givenId }: { author?: string; patchId?: string } = {}) {
+  const params = useParams();
+  const author = givenAuthor ?? params.author ?? '';
+  const patchId = givenId ?? params.patchId ?? '';
   const { isOwner } = useAuth();
   const { t, term, help, tech } = useT();
   const f = useDetailFormat();
-  const { data, isLoading, error, isFetching, refetch } = usePatchQuery(patchId, { pollingInterval: 10_000 });
+  const { currentData: data, isLoading, error, isFetching, refetch } = usePatchQuery(patchId, { skip: !patchId, pollingInterval: 10_000 });
   // `teach.lineage` gates the CREATOR affordances only (§18): the tree, the strip and the open questions are read-only
   // and ship on every node, including the demo cluster where the flag is off.
   const { data: policy } = useTeachPolicyQuery();
-  const { data: issues } = usePatchIssuesQuery({ id: patchId, limit: 1 });
+  const { currentData: issues } = usePatchIssuesQuery({ id: patchId, limit: 1 }, { skip: !patchId });
   /**
    * Item 73: the open tab used to live in `useState`, so "look at the verification results" could not be sent to
    * anyone, a reload came back to Overview, and Back from the third tab ejected the reader to /explore instead of
@@ -411,7 +413,7 @@ export default function PatchPage() {
   // item 249 — the END of the supersede chain, not the next link in it
   const newest = useNewestVersion(data);
 
-  if (isLoading) return <Wrapper><CenterProgress /></Wrapper>;
+  if (isLoading || (isFetching && !data)) return <Wrapper><CenterProgress /></Wrapper>;
   if (!data) {
     if (error && httpStatus(error) !== 404) return <LoadFailed id={patchId} error={error} busy={isFetching} onRetry={() => { void refetch(); }} />;
     return <NotFoundPage message={t('detail.patch.not_found', { id: patchId })} />;
@@ -502,7 +504,7 @@ export default function PatchPage() {
             {/* SC-9 *Build on this* — the flag holds it back, and a private training set says why nobody can. */}
             <BuildOn type="button" data-testid="build-on" disabled={!canBuildOn || noBase}
               title={datasetPrivate ? t('detail.build_on_private') : datasetNone ? t('detail.build_on_none') : undefined}
-              onClick={() => { window.location.href = `/teach/upload?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
+              onClick={() => { window.location.href = `/train/upload?on=${encodeURIComponent(a.id)}`; }}>{t('detail.build_on')}</BuildOn>
             <ViewAll to={`/benchmarks/${encodeURIComponent(a.benchmark.schema)}`}>{t('detail.patch.view_same_subject')}</ViewAll>
           </HeadRight>
         </BandContent>

@@ -65,7 +65,7 @@ export function BuiltOnLines({ j }: { j: TeachJob }) {
 export function BuiltOn({ j }: { j: TeachJob }) {
   const { t } = useT();
   if (!j.bases?.length) return null;
-  // SC-14 `merge.result` — a merge built from /teach/merge lands on THIS screen, and the per-source score is the one
+  // SC-14 `merge.result` — a merge built from /train/merge lands on THIS screen, and the per-source score is the one
   // thing that says the combined knowledge kept both sides rather than one. Rendered only where both were scored.
   const mc = j.checks?.merge_check;
   const both = !!j.merge && !!mc?.some((x) => x.source === j.merge!.a) && !!mc.some((x) => x.source === j.merge!.b);

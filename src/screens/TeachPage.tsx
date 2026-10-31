@@ -4,13 +4,13 @@ import { useTeachPolicyQuery } from '@/api/api';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
 import { Alert } from '@/components/ui/Form';
-import { Description, PageWrapper, Title, TitleRow } from '@/components/ui/Misc';
+import { PageWrapper, SectionTitle } from '@/components/ui/Misc';
 import { policyLine } from '@/components/chat/teachUtil';
 import { STEP_KEYS } from '@/components/teach/Stepper';
 import { readiness, rowsPerJob } from '@/components/teach/util';
 
 /**
- * `/teach` — the entry choice (design §5.2, ux-critique-owner O-1). Two doors, one pipeline — and one of them leads.
+ * `/train` — the entry choice (design §5.2, ux-critique-owner O-1). Two doors, one pipeline — and one of them leads.
  * The conversation door is primary: a newcomer needs no file, no preparation, and sees the value in one question
  * (ask, correct, the model learns it). The file door is for people who already have their questions and answers in
  * a file; it is one click away, styled as the clearly secondary alternative (smaller card, outlined button, an
@@ -18,8 +18,8 @@ import { readiness, rowsPerJob } from '@/components/teach/util';
  * sentence says why.
  */
 const Doors = styled.div`
-  display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 24px;
-  @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { grid-template-columns: 3fr 2fr; align-items: stretch; }
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 24px;
+  @media (min-width: ${(p) => p.theme.breakpoint.sm}px) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: stretch; }
 `;
 /**
  * A door is ONE click target (ux-critique-owner O-9): the whole card is the link — both doors are navigations, so a
@@ -29,7 +29,7 @@ const Doors = styled.div`
  * `aria-disabled` and the card goes flat.
  */
 const Door = styled(Link)<{ $primary?: boolean }>`
-  display: flex; flex-direction: column; gap: 10px; border-radius: 10px; text-decoration: none; color: inherit; cursor: pointer;
+  display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; gap: 10px; border-radius: 10px; text-decoration: none; color: inherit; cursor: pointer;
   padding: ${(p) => (p.$primary ? '28px 28px 24px' : '20px')};
   background: ${(p) => (p.$primary ? p.theme.color.PALE_GREY : '#fff')};
   border: ${(p) => (p.$primary ? `2px solid ${p.theme.color.PRIMARY}` : `1px solid ${p.theme.color.LIGHT_GREY}`)};
@@ -59,8 +59,8 @@ const Cta = styled.span<{ $primary?: boolean }>`
  */
 const Limits = styled.ul`
   display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
-  li { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
-    color: ${(p) => p.theme.color.HOVER}; background: ${(p) => p.theme.color.PALE_GREY}; white-space: nowrap; }
+  li { display: inline-flex; align-items: center; max-width: 100%; box-sizing: border-box; padding: 3px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    color: ${(p) => p.theme.color.HOVER}; background: ${(p) => p.theme.color.PALE_GREY}; white-space: normal; }
 `;
 /** The secondary door's eyebrow: says who it is for before the visitor reads the card. */
 const Eyebrow = styled.span`
@@ -116,8 +116,6 @@ const Lock = () => (
     <path d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Z" />
   </svg>
 );
-/** One line under the title (O-7): wider than `Description`'s 72ch so the English sentence stays on one line at 944 px. */
-const Intro = styled(Description)`max-width: none; font-size: 15px;`;
 /** The longer story, behind a disclosure (O-7): a native <details> — keyboard-operable, announced as expandable, no script. */
 const How = styled.details`
   margin-top: 20px; font-size: 14px; color: ${(p) => p.theme.color.DARK_GREY};
@@ -150,8 +148,7 @@ export default function TeachPage() {
 
   return (
     <PageWrapper data-testid="teach-entry">
-      <TitleRow><Title>{t('teach.entry.title')}</Title></TitleRow>
-      <Intro>{t('teach.entry.sub')}</Intro>
+      <SectionTitle>{t('train.start')}</SectionTitle>
 
       {!isLoading && ready.text && (
         <Ready $tone={ready.ok ? 'info' : 'warning'} role="status" data-testid="teach-policy">
@@ -175,7 +172,7 @@ export default function TeachPage() {
           <Cta $primary className="cta" id="door-chat-cta" data-testid="door-chat-cta">{t('teach.entry.chat.cta')}</Cta>
         </Door>
         <Door
-          to="/teach/upload" data-testid="door-file" aria-labelledby="door-file-title door-file-cta" aria-describedby="door-file-body"
+          to="/train/upload" data-testid="door-file" aria-labelledby="door-file-title door-file-cta" aria-describedby="door-file-body"
           aria-disabled={open ? undefined : true} tabIndex={open ? undefined : -1} onClick={(e) => { if (!open) e.preventDefault(); }}
         >
           <Eyebrow>{t('teach.entry.file.eyebrow')}</Eyebrow>

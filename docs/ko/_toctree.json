@@ -29,6 +29,10 @@
       {
         "page": "how-to/managed-storage",
         "title": "프로젝트에 데이터베이스와 파일 저장소 연결하기"
+      },
+      {
+        "page": "how-to/run-scripts-on-a-schedule",
+        "title": "스크립트를 스케줄로 실행하기"
       }
     ]
   },
@@ -56,6 +60,10 @@
   {
     "group": "개념",
     "pages": [
+      {
+        "page": "concepts/deployments-and-runs",
+        "title": "배포와 실행의 차이"
+      },
       {
         "page": "concepts/knowledge-patch",
         "title": "지식이란 무엇인가"
@@ -195,6 +203,15 @@
         "page": "reference/errors",
         "title": "오류 코드",
         "untranslated": true
+      }
+    ]
+  },
+  {
+    "group": "설계",
+    "pages": [
+      {
+        "page": "design/ain-data-platform",
+        "title": "설계: AIN Store"
       }
     ]
   }

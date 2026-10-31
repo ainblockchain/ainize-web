@@ -21,7 +21,7 @@ export default function NotFoundPage({ message }: { message?: string }) {
     <PageWrapper>
       <Title>{t('notfound.title')}</Title>
       <Desc>{message ?? t('notfound.desc')}</Desc>
-      <Back><StyledLink to="/explore">{t('notfound.home')} →</StyledLink></Back>
+      <Back><StyledLink to="/">{t('notfound.home')} →</StyledLink></Back>
       <Image src="/static/images/img-404-error.png" alt="" />
     </PageWrapper>
   );
