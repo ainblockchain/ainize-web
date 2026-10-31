@@ -166,7 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 240 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 242 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 118 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -182,6 +182,8 @@ A further 118 throw sites build their message at the time (a validator's own wor
 | `null` | \<AGENT_GIT_SPEC_FILE> sets …, which the node owns — remove … | `src/project-agents.ts` |
 | `null` | \<d> already belongs to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<e.message> — an admin of the project's organization must create its service account for (ainize, \<project.id>) with chainApps for the paths it writes: POST /api/chain/orgs/\<orgId>/service-accounts { app: "ainize", projectId: "\<project.id>", role, chainApps } at AIN SSO, or `cli chain:service-account --org <slug> --app ainize --project <project.id> --role member --chain-apps <app>` | `src/projects.ts` |
+| `null` | \<e.message> — the project's organization is not entitled to that chain app at AIN SSO; an admin of the organization must add the app to its ainize service account's chainApps (POST/PATCH /api/chain/orgs/\<orgId>/service-accounts) | `src/projects.ts` |
+| `null` | \<e.message> — the triggering transaction was signed by a run session key (another run's write), not a person's session; an as: "caller" trigger only runs for transactions people sign. Use as: "app" for chains of runs | `src/projects.ts` |
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
