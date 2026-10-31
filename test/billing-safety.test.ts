@@ -55,7 +55,7 @@ test('corrupt storage and failed persistence never authorize a transfer', () => 
   assert.throws(() => claimBillingOperation({ ...db, getItem: () => null, setItem: () => {} }, op), /storage/);
 });
 test('fresh preflight refuses a changed account/node/config but permits a changed speed estimate', async () => {
-  const deps = { current: () => true, access: async () => ({ signedIn: true, subject: billingSubject, address: billingNode }), quote: async () => billingQuote() };
+  const deps = { current: () => true, access: async () => ({ signedIn: true, subject: billingSubject, address: billingNode }), quote: async () => billingQuote(), models: async () => ({ data: [{ id: 'M', modality: 'chat', available: true }] }) };
   await confirmBillingSelection(selection(), deps);
   await assert.rejects(confirmBillingSelection(selection(), { ...deps, access: async () => ({ signedIn: true, subject: billingReceiver, address: billingNode }) }), /access/);
   await assert.rejects(confirmBillingSelection(selection(), { ...deps, quote: async () => ({ ...billingQuote(), deposits: { ...billingQuote().deposits, address: billingNode } }) }), /configuration/);
@@ -118,4 +118,15 @@ test('wallet account/chain events during preflight cancel submission and release
 test('zero transaction hash means an unconfirmed result, not a pollable transfer', async () => {
   const w = wallet({ eth_sendTransaction: () => '0x' + '0'.repeat(64) });
   await assert.rejects(billingSendDeposit(sendArgs(w.provider)), /send_unconfirmed/);
+});
+
+
+test('deposit preflight refuses removed, non-chat, failed or malformed model registration before the financial quote', async () => {
+  for (const models of [async () => ({}), async () => ({ data: [] }), async () => ({ data: [{ id: 'M', modality: 'image', available: true }] }), async () => { throw Error('offline'); }]) {
+    let quotes = 0;
+    await assert.rejects(confirmBillingSelection(selection(), { current: () => true,
+      access: async () => ({ signedIn: true, subject: billingSubject, address: billingNode }), models,
+      quote: async () => { quotes++; return billingQuote(); } }), /models/);
+    assert.equal(quotes, 0);
+  }
 });

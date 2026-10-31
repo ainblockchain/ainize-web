@@ -192,28 +192,59 @@ export function mergeOrgRepos(projects: Project[], repos: OrgRepository[]): OrgR
 export function inputAnswers(inputs: Record<string, ManifestInput>, answers: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, spec] of Object.entries(inputs)) {
-    const v = answers[name];
-    if (v !== undefined && v !== '') out[name] = v;
-    else if (spec.default !== undefined) out[name] = String(spec.default);
+    const v = Object.hasOwn(answers, name) ? answers[name] : undefined;
+    const value = v !== undefined ? v : spec.default !== undefined ? String(spec.default) : undefined;
+    if (value !== undefined) Object.defineProperty(out, name, { value, enumerable: true, writable: true, configurable: true });
   }
   return out;
 }
 /** Which required inputs are still blank. */
 export function missingInputs(inputs: Record<string, ManifestInput>, answers: Record<string, string>): string[] {
   const filled = inputAnswers(inputs, answers);
-  return Object.entries(inputs).filter(([name, spec]) => spec.required && !(name in filled)).map(([name]) => name);
+  return Object.entries(inputs).filter(([name, spec]) => spec.required && (!Object.hasOwn(filled, name) || !filled[name].trim())).map(([name]) => name);
 }
-/** The input a model picker should drive: a `choice` or a `string` whose name says "model", without its own options. */
-export const isModelInput = (name: string, spec: ManifestInput): boolean => /model/i.test(name) && !spec.options?.length && (spec.type ?? 'string') !== 'boolean' && (spec.type ?? 'string') !== 'number';
+/** The input that may offer model suggestions: a `choice` or a `string` whose name says "model", without its own options. */
+export const isModelInput = (name: string, spec: ManifestInput): boolean => /^(?:[a-z0-9]+_)*model(?:_id|_name)?$/i.test(name) && !spec.options?.length && (spec.type ?? 'string') !== 'boolean' && (spec.type ?? 'string') !== 'number';
+
+/** Defaults are actual displayed values; explicitly cleared values never silently restore them. */
+export const projectInputValue = (spec: ManifestInput, answer: string | undefined): string => answer ?? (spec.default === undefined ? '' : String(spec.default));
+const projectNumber = (value: string): boolean => /^-?(?:\d+|\d*\.\d+)(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(Number(value));
+export function invalidInputs(inputs: Record<string, ManifestInput>, answers: Record<string, string>): string[] {
+  return Object.entries(inputs).filter(([name, spec]) => {
+    const value = projectInputValue(spec, Object.hasOwn(answers, name) ? answers[name] : undefined);
+    if (!value) return false; // Required blanks are reported separately.
+    if (spec.options?.length && !spec.options.includes(value)) return true;
+    if (spec.type === 'boolean') return value !== 'true' && value !== 'false';
+    if (spec.type === 'number') return !projectNumber(value);
+    return false;
+  }).map(([name]) => name);
+}
 
 /** The Run panel's extra env: `KEY=value` lines → env; a line without `=` or with a bad name is skipped. */
 export function parseEnvLines(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of text.split('\n')) {
     const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
-    if (m) out[m[1]!] = m[2]!.trim();
+    if (m) Object.defineProperty(out, m[1]!, { value: m[2]!.trim(), enumerable: true, writable: true, configurable: true });
   }
   return out;
+}
+
+/** Line numbers that would otherwise be silently ignored or overwrite an earlier assignment. */
+export function projectRunEnvIssues(text: string): number[] {
+  const seen = new Set<string>(), invalid: number[] = [];
+  text.split('\n').forEach((line, i) => {
+    if (!line.trim() || line.trimStart().startsWith('#')) return;
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+    if (!match || seen.has(match[1])) invalid.push(i + 1);
+    if (match) seen.add(match[1]);
+  });
+  return invalid;
+}
+export function projectRunTimeout(seconds: string): number | null | undefined {
+  if (!seconds.trim()) return undefined;
+  const n = Number(seconds);
+  return projectNumber(seconds) && n >= 1 && n <= 300 && Number.isSafeInteger(n * 1000) ? n * 1000 : null;
 }
 
 /** "3 minutes ago" — the console's relative times; the exact time stays in the title. */

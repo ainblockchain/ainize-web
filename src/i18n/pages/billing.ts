@@ -34,6 +34,9 @@ export const billing: Dict = {
     ko: '지금 이 모델에서 기대할 수 있는 속도와, sAIN이나 AIN을 예치하면 얼마가 되는지를 보여줍니다. 예치는 보낸 주소로 적립되고 그 주소의 가중치가 됩니다.',
     en: 'What speed you can expect from this model now, and what depositing sAIN or AIN would raise it to. A deposit is credited to the address that sends it and becomes that address’s weight.',
   },
+  'billing.model_pick': { ko: '모델 선택', en: 'Choose a model' },
+  'billing.model_unconfirmed': { ko: '확인되지 않음', en: 'not confirmed' },
+  'billing.model_missing': { ko: '선택한 대화 모델을 이 노드에서 확인하지 못했습니다. 목록에서 모델을 선택해 주세요.', en: 'The selected chat model could not be confirmed on this node. Choose a model from the list.' },
   'billing.model': { ko: '모델', en: 'Model' },
   'billing.no_models': { ko: '이 노드가 서빙하는 대화 모델이 없습니다.', en: 'This node serves no chat model.' },
 

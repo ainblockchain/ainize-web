@@ -28,7 +28,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import styled from 'styled-components';
 import { api, errorMessage, useModelsQuery, useThroughputDepositStatusQuery, useThroughputQuoteQuery } from '@/api/api';
-import { parseModelsResponse } from '@/api/models';
+import { readModelsResponse } from '@/api/models';
 import {
   BILLING_AMOUNT_PRESETS, billingAmountToUnits, billingChainLabel, billingConfirmationSeconds, billingExplorerTxUrl,
   billingFormatTokS, billingFormatWaitSeconds, billingPickDepositChain, billingThroughputFetchState,
@@ -112,10 +112,12 @@ function AccountBillingPage() {
   const location = useLocation(), active = useActiveView();
   const [readAccess] = api.useLazyMeQuery(), [readQuote] = api.useLazyThroughputQuoteQuery();
 
-  // ── which model: `?model=`, else the first chat model the node serves
-  const modelsQuery = useModelsQuery();
-  const chatModels = useMemo(() => parseModelsResponse(modelsQuery.currentData).filter((m) => m.modality === 'chat'), [modelsQuery.currentData]);
-  const model = params.get('model') || chatModels[0]?.id || '';
+  // A deposit quote names an explicit local chat model. Catalogue order is not a user choice.
+  const modelsQuery = useModelsQuery(undefined, { refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true });
+  const modelRead = useMemo(() => modelsQuery.isError ? null : readModelsResponse(modelsQuery.currentData), [modelsQuery.currentData, modelsQuery.isError]);
+  const chatModels = modelRead?.models.filter(m => m.modality === 'chat') ?? [];
+  const model = params.get('model') ?? '';
+  const modelRegistered = !!model && chatModels.some(m => m.id === model);
   const chooseModel = (id: string) => setParams((p) => { const next = new URLSearchParams(p); next.set('model', id); return next; }, { replace: true });
 
   // ── the amount, and the quote asked for 300 ms after the typing stops
@@ -137,9 +139,9 @@ function AccountBillingPage() {
 
   const throughputQuery = useThroughputQuoteQuery(
     { model, token, identity: auth.cacheIdentity, amount: quotedUnits !== null && quotedUnits > 0n ? quotedAmount : undefined },
-    { skip: auth.loading || !model || !validToken, pollingInterval: 30_000 },
+    { skip: auth.loading || !modelRegistered || !validToken, pollingInterval: 30_000 },
   );
-  const view = !auth.loading && !throughputQuery.isError && validToken ? billingView(throughputQuery.currentData, model, auth.subject) : null;
+  const view = !auth.loading && modelRegistered && !throughputQuery.isError && validToken ? billingView(throughputQuery.currentData, model, auth.subject) : null;
   const fetchState = billingThroughputFetchState(throughputQuery.error as never);
 
   // ── wallets, found the same way sign-in finds them
@@ -153,7 +155,7 @@ function AccountBillingPage() {
   const [storageReady, setStorageReady] = useState(false), [storageError, setStorageError] = useState(false);
   const [hashInput, setHashInput] = useState('');
   const identity = JSON.stringify([auth.address, auth.cacheIdentity]);
-  const selectionKey = JSON.stringify([model, token, amount, validToken]);
+  const selectionKey = JSON.stringify([model, token, amount, validToken, modelRegistered]);
   const latest = useRef(selectionKey); latest.current = selectionKey;
   const current = () => active() && !auth.loading && auth.isCurrentAccount() && latest.current === selectionKey;
   const reloadOperation = () => {
@@ -175,11 +177,11 @@ function AccountBillingPage() {
     { txHash: sentHash, subject: operation.selection.subject, chain: operation.selection.chain.chain }) : null;
   const credited = status?.credited === true;
   const { refetch: refetchThroughput } = throughputQuery;
-  useEffect(() => { if (credited && model) void refetchThroughput(); }, [credited, model, refetchThroughput]);
+  useEffect(() => { if (credited && modelRegistered && validToken) void refetchThroughput(); }, [credited, model, modelRegistered, validToken, refetchThroughput]);
   const deposits = view?.deposits;
   const chain = deposits?.enabled ? billingPickDepositChain(deposits.chains, token) : null;
   const signInHref = `/signing?wallet=1&next=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
-  const selection = auth.address && auth.subject && validToken && !throughputQuery.isError
+  const selection = auth.address && auth.subject && modelRegistered && validToken && !throughputQuery.isError
     ? billingDepositSelection(throughputQuery.currentData, { node: auth.address, subject: auth.subject, model, token, amount }) : null;
   const withLock = async (run: () => Promise<void>) => {
     if (!auth.address || !auth.subject || !navigator.locks) throw new BillingDepositError('storage');
@@ -195,7 +197,7 @@ function AccountBillingPage() {
     try {
       await withLock(async () => {
         if (readBillingOperation(localStorage, selection.node, selection.subject)) throw new BillingDepositError('pending');
-        const confirm = () => confirmBillingSelection(selection, { current, access: () => readAccess(undefined, false).unwrap(),
+        const confirm = () => confirmBillingSelection(selection, { current, access: () => readAccess(undefined, false).unwrap(), models: () => modelsQuery.refetch().unwrap(),
           quote: () => readQuote({ model: selection.model, token: selection.token, amount: selection.amount, identity: auth.cacheIdentity }, false).unwrap() });
         await confirm();
         let claimed = false;
@@ -272,11 +274,12 @@ function AccountBillingPage() {
       {progress}
       <TitleRow><Title>{t('billing.title')}</Title></TitleRow>
       <Description style={{ marginTop: -12, marginBottom: 20 }}>{t('billing.lede')}</Description>
-      {chatModels.length > 0 && (
+      {(chatModels.length > 0 || model) && (
         <BillingModelRow>
           <label htmlFor="billing-model">{t('billing.model')}</label>
           <Select id="billing-model" data-testid="billing-model" value={model} disabled={send.kind === 'sending'} onChange={(e) => chooseModel(e.target.value)}>
-            {!chatModels.some((m) => m.id === model) && model && <option value={model}>{model}</option>}
+            <option value="">{t('billing.model_pick')}</option>
+            {!modelRegistered && model && <option value={model} disabled>{model} · {t('billing.model_unconfirmed')}</option>}
             {chatModels.map((m) => <option key={m.id} value={m.id}>{m.id}</option>)}
           </Select>
         </BillingModelRow>
@@ -286,9 +289,12 @@ function AccountBillingPage() {
 
   if (auth.loading) return <PageWrapper><CenterProgress /></PageWrapper>;
   if (!validToken) return <PageWrapper>{header}<Alert $tone="error">{t('billing.err.token')} <Button onClick={() => setToken('sAIN')}>sAIN</Button><Button onClick={() => setToken('AIN')}>AIN</Button></Alert></PageWrapper>;
-  if (!model && (modelsQuery.isError || modelsQuery.currentData !== undefined && (!Array.isArray((modelsQuery.currentData as any)?.data) || (modelsQuery.currentData as any).data.some((row: any) => !row || typeof row.id !== 'string' || !row.id || typeof row.modality !== 'string')))) return <PageWrapper>{header}<Alert $tone="error">{t('billing.err.models')} <Button onClick={() => void modelsQuery.refetch()}>{t('billing.check')}</Button></Alert></PageWrapper>;
-  if (modelsQuery.isLoading && !model) return <PageWrapper>{header}<CenterProgress /></PageWrapper>;
-  if (!model) return <PageWrapper>{header}<Empty data-testid="billing-no-models">{t('billing.no_models')}</Empty></PageWrapper>;
+  if (!modelRead) return <PageWrapper>{header}{modelsQuery.isFetching && !modelsQuery.isError
+    ? <CenterProgress /> : <Alert $tone="error">{t('billing.err.models')} <Button onClick={() => void modelsQuery.refetch()}>{t('billing.check')}</Button></Alert>}</PageWrapper>;
+  if (modelRead.unsupported && !chatModels.length) return <PageWrapper>{header}<Alert $tone="error">{t('models.list.unsupported')} <Button onClick={() => void modelsQuery.refetch()}>{t('billing.check')}</Button></Alert></PageWrapper>;
+  if (model && !modelRegistered) return <PageWrapper>{header}<Alert $tone="error">{t('billing.model_missing')} <Button onClick={() => void modelsQuery.refetch()}>{t('billing.check')}</Button></Alert></PageWrapper>;
+  if (!chatModels.length) return <PageWrapper>{header}<Empty data-testid="billing-no-models">{t('billing.no_models')}</Empty></PageWrapper>;
+  if (!model) return <PageWrapper>{header}</PageWrapper>;
   if (!view) {
     if (throughputQuery.isFetching && !throughputQuery.currentData) return <PageWrapper>{header}<CenterProgress /></PageWrapper>;
     return (

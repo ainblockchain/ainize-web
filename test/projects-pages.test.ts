@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
+import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, invalidInputs, projectInputValue, projectRunEnvIssues, projectRunTimeout, isModelInput, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
 import { projectPath } from '../src/lib/reservedRoutes.ts';
 import { repoProjectLabel, repoProjects, selectRepoProject } from '../src/lib/repoProjects.ts';
@@ -142,4 +142,40 @@ test('the Run panel: answers fall back to defaults, required blanks are named, e
   assert.equal(relativeTime(now - 3 * 3_600_000, now), '3h ago');
   assert.equal(relativeTime(now - 2 * 86_400_000, now), '2d ago');
   assert.equal(relativeTime(null), '');
+});
+
+
+test('project inputs preserve explicit clears and reject incompatible presets without substituting defaults', () => {
+  const inputs = { model: { default: 'repo/model', required: true }, count: { type: 'number' as const, default: 5 },
+    enabled: { type: 'boolean' as const, default: true }, mode: { type: 'choice' as const, options: ['first', 'second'] } };
+  const cleared = { model: '', count: '0', enabled: 'false', mode: 'removed' };
+  assert.deepEqual(inputAnswers(inputs, cleared), cleared);
+  assert.equal(projectInputValue(inputs.model, ''), '');
+  assert.equal(projectInputValue(inputs.model, undefined), 'repo/model');
+  assert.deepEqual(missingInputs(inputs, cleared), ['model']);
+  assert.deepEqual(missingInputs(inputs, { model: '   ' }), ['model']);
+  assert.deepEqual(invalidInputs(inputs, cleared), ['mode']);
+  assert.deepEqual(invalidInputs(inputs, { count: 'NaN', enabled: 'yes' }), ['count', 'enabled']);
+  assert.deepEqual(invalidInputs(inputs, { count: '1.25', enabled: 'false', mode: 'second' }), []);
+  for (const count of ['0xff', '+2', ' 5 ']) assert.deepEqual(invalidInputs(inputs, { count }), ['count']);
+});
+
+
+test('model hints only apply to identifier fields and prototype-like input names remain literal', () => {
+  for (const name of ['model', 'MODEL_ID', 'llm_model', 'embedding_model_name']) assert.equal(isModelInput(name, {}), true);
+  for (const name of ['model_path', 'model_temperature', 'modelProvider', 'remodel']) assert.equal(isModelInput(name, {}), false);
+  const inputs = JSON.parse('{"__proto__":{"default":"literal"},"constructor":{"required":true}}');
+  assert.deepEqual(inputAnswers(inputs, {}), JSON.parse('{"__proto__":"literal"}'));
+  assert.deepEqual(missingInputs(inputs, {}), ['constructor']);
+  assert.deepEqual(invalidInputs(inputs, {}), []);
+});
+
+
+test('run environment typos and duplicate names cannot silently drop or overwrite settings', () => {
+  assert.deepEqual(projectRunEnvIssues('A=one\nmissing value\nA=two\n9BAD=no\n# comment\n B=three'), [2, 3, 4]);
+  assert.deepEqual(projectRunEnvIssues('A=one\nB=\n# comment'), []);
+  assert.deepEqual(parseEnvLines('__proto__=literal'), JSON.parse('{"__proto__":"literal"}'));
+  assert.equal(projectRunTimeout(''), undefined);
+  assert.equal(projectRunTimeout('1.5'), 1500);
+  for (const value of ['0', '-1', '301', 'NaN', 'Infinity', '0x10', '+2']) assert.equal(projectRunTimeout(value), null);
 });

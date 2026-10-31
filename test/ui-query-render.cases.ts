@@ -74,7 +74,7 @@ import OrgJoinPage from '../src/screens/org/OrgJoinPage';
 import OrgCreatePage from '../src/screens/org/OrgCreatePage';
 import ExplorePage from '../src/screens/ExplorePage';
 import MyProjectsPage from '../src/screens/MyProjectsPage';
-import { ProjectByNamePage, ProjectConsole } from '../src/screens/ProjectPage';
+import { ProjectByNamePage, ProjectConsole, ProjectRunInput } from '../src/screens/ProjectPage';
 import OrgRepositoriesPage from '../src/screens/OrgRepositoriesPage';
 import ProjectEnvVars from '../src/components/ProjectEnvVars';
 import ProjectDomains from '../src/components/ProjectDomains';
@@ -2825,4 +2825,64 @@ test('a model page explains unknown local identity and exposes reload instead of
   assert.match(html, /serving node address could not be confirmed/);
   assert.match(html, /Retry now/);
   for (const id of ['models-run', 'models-copy', 'model-create-agent']) assert.match(html, new RegExp(`<button(?=[^>]*data-testid="${id}")(?=[^>]*disabled)[^>]*>`));
+});
+
+
+test('billing never selects the first model or keeps a quote after the selected registration becomes unknown', () => {
+  const quote: Fixture = { name: 'throughputQuote', arg: billingArg, value: billingQuote() };
+  const unselected = render(BillingPage, [...billingAuth, billingModels, quote], '/billing?amount=1');
+  assert.match(unselected, /<option value="" selected="">Choose a model<\/option>/);
+  assert.doesNotMatch(unselected, /data-testid="billing-now"|data-testid="billing-deposit"/);
+  for (const fixture of [{ value: {} }, { value: billingModels.value, status: 'rejected' as const }, { value: { data: [{ id: 'Different', modality: 'chat', available: true }] } }, { value: { data: [{ id: 'M', modality: 'image', available: true }] } }]) {
+    const html = render(BillingPage, [...billingAuth, { name: 'models', ...fixture }, quote], '/billing?model=M&amount=1');
+    assert.doesNotMatch(html, /data-testid="billing-now"|data-testid="billing-deposit"|data-testid="billing-no-models"/);
+    assert.match(html, /not confirmed/); assert.match(html, /Check again/);
+    assert.match(html, /<option value="M" disabled="" selected="">/);
+  }
+});
+
+test('project model suggestions do not replace repository-defined defaults or restrict custom identifiers', () => {
+  for (const value of [undefined, 'external/custom-model', '']) {
+    const Page = () => createElement(ProjectRunInput, { name: 'model', spec: { default: 'repository/default' }, value, models: ['unrelated', 'unrelated'], onChange() {} });
+    const html = render(Page, signedOut);
+    assert.match(html, /<input[^>]*list="in-model-models"/);
+    assert.ok(html.includes(`value="${value ?? 'repository/default'}"`));
+    assert.doesNotMatch(html, /<select/);
+    assert.equal((html.match(/<option value="unrelated"/g) ?? []).length, 1);
+  }
+  const Page = () => createElement(ProjectRunInput, { name: 'model', spec: { default: 'repository/default' }, models: [], onChange() {} });
+  assert.match(render(Page, signedOut), /value="repository\/default"/);
+});
+
+test('project enum inputs show a real blank selection and retain invalid preset values instead of the first option', () => {
+  for (const value of [undefined, 'removed']) {
+    const Page = () => createElement(ProjectRunInput, { name: 'model', spec: { type: 'choice', required: true, options: ['first', 'second'] }, value, models: ['unrelated'], onChange() {} });
+    const html = render(Page, signedOut);
+    assert.doesNotMatch(html, /unrelated|<option value="first" selected/);
+    if (value === undefined) assert.match(html, /<option value="" selected="">Choose a value/);
+    else assert.match(html, /<option value="removed" disabled="" selected="">removed · not an available choice/);
+  }
+});
+
+test('project boolean and numeric defaults are visible actual values including false and zero', () => {
+  const Bool = () => createElement(ProjectRunInput, { name: 'enabled', spec: { type: 'boolean', default: false }, models: [], onChange() {} });
+  assert.match(render(Bool, signedOut), /<option value="false" selected="">No/);
+  const Number = () => createElement(ProjectRunInput, { name: 'count', spec: { type: 'number', default: 0 }, models: [], onChange() {} });
+  assert.match(render(Number, signedOut), /<input[^>]*value="0"/);
+});
+
+
+test('a failed project source refresh cannot leave its cached run form enabled', () => {
+  const manifest = { kind: 'script', entry: 'main.py', inputs: { model: { default: 'source-model' } }, examples: [], detected: 'ainize.json' };
+  const project = { ...rootProject, kind: 'script', manifest } as Project;
+  const Page = () => createElement(ProjectConsole, { project });
+  const fixtures: Fixture[] = [...appAccount,
+    { name: 'project', arg: projectArg, value: project },
+    { name: 'projectDeployments', arg: projectArg, value: { deployments: [] } },
+    { name: 'projectRuns', arg: projectArg, value: { runs: [] } },
+    { name: 'projectSource', arg: { ...projectArg, target: 'head' }, value: { repoId: 'repo', target: 'head', sha: 'a'.repeat(40), sourcePath: '', manifest }, status: 'rejected' },
+  ];
+  const html = render(Page, fixtures, '/studio/mono?tab=runs');
+  assert.doesNotMatch(html, /value="source-model"|value="main.py"/);
+  assert.match(html, /<button[^>]*disabled[^>]*>▶ /);
 });

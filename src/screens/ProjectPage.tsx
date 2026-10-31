@@ -28,9 +28,9 @@ import {
   useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
   useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRunProjectMutation,
 } from '@/api/api';
-import { parseModelsResponse } from '@/api/models';
+import { readModelsResponse } from '@/api/models';
 import {
-  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
+  aindriveLinksOf, codeWorkspaceUrlOf, durationLabel, inputAnswers, invalidInputs, projectInputValue, projectRunEnvIssues, projectRunTimeout, isModelInput, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, shortSha, statusToneOf,
   type Deployment, type DeploymentStatus, type ManifestInput, type Project, type ProjectStatus, type RunInput,
 } from '@/api/projects';
 import { logTime, runtimeLogProblemOf, runtimeLogsText, RUNTIME_LOG_DEFAULT_TAIL, RUNTIME_LOG_POLL_MS, RUNTIME_LOG_TAILS } from '@/api/runtimeLogs';
@@ -235,25 +235,26 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
 interface RunDraft { target: 'head' | 'commit' | 'deployed'; sha: string; entry: string; answers: Record<string, string>; env: string; timeoutMs: string }
 const emptyDraft = (p: Project): RunDraft => ({ target: 'head', sha: '', entry: '', answers: {}, env: '', timeoutMs: '' });
 
-function InputField({ name, spec, value, onChange, models }: { name: string; spec: ManifestInput; value: string; onChange: (v: string) => void; models: string[] }) {
+export function ProjectRunInput({ name, spec, value, onChange, models }: { name: string; spec: ManifestInput; value?: string; onChange: (v: string) => void; models: string[] }) {
+  const { t } = useT();
   const type = spec.type ?? 'string';
-  const id = `in-${name}`;
+  const id = `in-${name}`, shown = projectInputValue(spec, value);
   const label = <>{name}{spec.required && ' *'}{spec.description && <Help>{spec.description}</Help>}</>;
-  if (type === 'boolean') return <Field><Checkbox id={id} label={label} checked={value === 'true' || (value === '' && spec.default === true)} onChange={(e) => onChange(e.target.checked ? 'true' : 'false')} /></Field>;
-  if (type === 'choice' || (isModelInput(name, spec) && models.length)) {
-    const options = spec.options?.length ? spec.options : models;
-    return (
-      <Field><FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <Select id={id} value={value || String(spec.default ?? '')} onChange={(e) => onChange(e.target.value)}>
-          {!spec.required && <option value="">—</option>}
-          {options.map((o) => <option key={o} value={o}>{o}</option>)}
-        </Select>
-      </Field>
-    );
-  }
+  const options = type === 'boolean' ? ['true', 'false'] : spec.options ?? [];
+  if (options.length) return (
+    <Field><FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Select id={id} value={shown} onChange={e => onChange(e.target.value)}>
+        <option value="">{spec.required ? t('projects.runs.choose') : '—'}</option>
+        {shown && !options.includes(shown) && <option value={shown} disabled>{shown} · {t('projects.runs.invalid_choice')}</option>}
+        {[...new Set(options)].map(o => <option key={o} value={o}>{type === 'boolean' ? t(`projects.runs.boolean_${o}`) : o}</option>)}
+      </Select>
+    </Field>
+  );
+  const suggestions = isModelInput(name, spec) ? [...new Set(models)] : [];
   return (
     <Field><FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input id={id} type={type === 'number' ? 'number' : 'text'} value={value} placeholder={spec.default !== undefined ? String(spec.default) : ''} onChange={(e) => onChange(e.target.value)} />
+      <Input id={id} type={type === 'number' ? 'number' : 'text'} value={shown} list={suggestions.length ? `${id}-models` : undefined} onChange={e => onChange(e.target.value)} />
+      {suggestions.length > 0 && <datalist id={`${id}-models`}>{suggestions.map(model => <option key={model} value={model} />)}</datalist>}
     </Field>
   );
 }
@@ -265,34 +266,36 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
   const active = useActiveView();
   const [run, { isLoading }] = useRunProjectMutation();
   const [err, setErr] = useState<string | null>(null);
-  const modelsQuery = useModelsQuery();
-  const models = useMemo(() => parseModelsResponse(modelsQuery.data).filter((m) => m.available !== false).map((m) => m.id), [modelsQuery.data]);
+  const modelsQuery = useModelsQuery(undefined, { refetchOnMountOrArgChange: true });
+  const modelRead = useMemo(() => modelsQuery.isError ? null : readModelsResponse(modelsQuery.currentData), [modelsQuery.currentData, modelsQuery.isError]);
+  const models = modelRead?.models.map(m => m.id) ?? [];
   const sourceQuery = useProjectSourceQuery({ id: project.id, identity: cacheIdentity, target: draft.target, ...(draft.target === 'commit' ? { sha: draft.sha } : {}) }, {
     skip: !isSignedIn || !project.canOperate || (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)),
     refetchOnMountOrArgChange: true,
   });
-  const source = sourceQuery.currentData;
+  const source = sourceQuery.isError ? undefined : sourceQuery.currentData;
   const manifest = source?.manifest;
   const entry = draft.entry || manifest?.entry || '';
   const inputs = manifest?.inputs ?? {};
   const runnable = manifest?.entry ? [manifest.entry] : [];
   const missing = missingInputs(inputs, draft.answers);
+  const invalid = invalidInputs(inputs, draft.answers);
+  const invalidEnv = projectRunEnvIssues(draft.env), timeoutMs = projectRunTimeout(draft.timeoutMs);
   const setAnswer = (name: string, v: string) => setDraft({ ...draft, answers: { ...draft.answers, [name]: v } });
   const preset = (ex: { inputs: Record<string, string | number | boolean> }) => {
-    const answers: Record<string, string> = {};
-    for (const [k, v] of Object.entries(ex.inputs)) answers[k] = String(v);
+    const answers = Object.fromEntries(Object.entries(ex.inputs).map(([k, v]) => [k, String(v)]));
     setDraft({ ...draft, answers });
   };
   const start = async () => {
     setErr(null);
     if (draft.target === 'commit' && !/^[a-f0-9]{40,64}$/.test(draft.sha)) { setErr(t('projects.runs.sha_required')); return; }
-    if (!source || sourceQuery.isFetching || manifest?.kind !== 'script') return;
+    if (!source || sourceQuery.isFetching || manifest?.kind !== 'script' || missing.length || invalid.length || invalidEnv.length || timeoutMs === null) return;
     const body: RunInput = {
       target: 'commit', sha: source.sha,
       ...(entry && entry !== manifest?.entry ? { entry } : {}),
       inputs: inputAnswers(inputs, draft.answers),
       env: parseEnvLines(draft.env),
-      ...(draft.timeoutMs ? { timeoutMs: Number(draft.timeoutMs) * 1000 } : {}),
+      ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     };
     try { const r = await run({ id: project.id, body }).unwrap(); if (active()) onStarted(r.runId ?? r.deploymentId); }
     catch (e) { const x = projectApiErrorOf(e); setErr(x.message ?? t(`projects.api.${x.code}`)); }
@@ -323,22 +326,26 @@ function RunPanel({ project, draft, setDraft, onStarted }: { project: Project; d
             ? <Select id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })}>{runnable.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
             : <Input id="run-entry" value={entry} onChange={(e) => setDraft({ ...draft, entry: e.target.value })} placeholder="main.py" />}
         </Field>
-        {Object.entries(inputs).map(([name, spec]) => <InputField key={name} name={name} spec={spec} value={draft.answers[name] ?? ''} onChange={(v) => setAnswer(name, v)} models={models} />)}
+        {Object.entries(inputs).map(([name, spec]) => <ProjectRunInput key={name} name={name} spec={spec} value={Object.hasOwn(draft.answers, name) ? draft.answers[name] : undefined} onChange={(v) => setAnswer(name, v)} models={models} />)}
         <Field><FieldLabel htmlFor="run-timeout">{t('projects.runs.timeout')}</FieldLabel>
-          <Input id="run-timeout" type="number" min={1} max={300} value={draft.timeoutMs} placeholder={String((manifest?.timeoutMs ?? 120_000) / 1000)} onChange={(e) => setDraft({ ...draft, timeoutMs: e.target.value })} />
+          <Input id="run-timeout" type="number" min={1} max={300} step="any" value={draft.timeoutMs} placeholder={String((manifest?.timeoutMs ?? 120_000) / 1000)} onChange={(e) => setDraft({ ...draft, timeoutMs: e.target.value })} />
         </Field>
       </Grid>
       <Field><FieldLabel htmlFor="run-env">{t('projects.runs.env')}</FieldLabel>
         <Input as="textarea" id="run-env" rows={2} value={draft.env} placeholder={'NAME=value\nOTHER=value'} onChange={(e) => setDraft({ ...draft, env: e.target.value })} style={{ fontFamily: 'monospace', minHeight: 56 }} />
         <Help>{t('projects.runs.env_help')}</Help>
       </Field>
+      {Object.entries(inputs).some(([name, spec]) => isModelInput(name, spec)) && !modelRead && !modelsQuery.isFetching && <Help role="status">{t('projects.runs.models_unavailable')} <Button size="small" onClick={() => void modelsQuery.refetch()}>{t('projects.page.retry')}</Button></Help>}
+      {invalidEnv.length > 0 && <Alert role="alert">{t('projects.runs.invalid_env', { lines: invalidEnv.join(', ') })}</Alert>}
+      {timeoutMs === null && <Alert role="alert">{t('projects.runs.invalid_timeout')}</Alert>}
+      {invalid.length > 0 && <Alert role="alert">{t('projects.runs.invalid_inputs', { names: invalid.join(', ') })}</Alert>}
       {missing.length > 0 && <Help>{t('projects.runs.missing', { names: missing.join(', ') })}</Help>}
       {source && <Meta><Mono>{shortSha(source.sha)}</Mono></Meta>}
       {source && manifest?.kind !== 'script' && <Help>{t('projects.runs.script_commit_required')}</Help>}
-      {sourceQuery.error && <Alert $tone="error">{projectApiErrorOf(sourceQuery.error).message ?? t('projects.api.unknown')}</Alert>}
+      {sourceQuery.error && <Alert $tone="error">{projectApiErrorOf(sourceQuery.error).message ?? t('projects.api.unknown')} <Button size="small" disabled={sourceQuery.isFetching} onClick={() => void sourceQuery.refetch()}>{t('projects.page.retry')}</Button></Alert>}
       {err && <Alert $tone="error">{err}</Alert>}
       <Actions>
-        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || !entry || !source || manifest?.kind !== 'script' || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
+        <Button variant="contained" loading={isLoading} disabled={missing.length > 0 || invalid.length > 0 || invalidEnv.length > 0 || timeoutMs === null || !entry || !source || manifest?.kind !== 'script' || sourceQuery.isFetching} onClick={start}>▶ {t('projects.runs.run')}</Button>
         <Help>{t('projects.runs.key_hint')}</Help>
       </Actions>
     </Panel>

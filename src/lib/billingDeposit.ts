@@ -1,16 +1,21 @@
 import { billingAmountToUnits, billingErc20TransferCalldata, billingSameAddress } from '../api/billingThroughput';
 import { billingDepositSelection, sameBillingDeposit, type BillingDepositSelection } from './billingView';
 import { BillingDepositError } from './billingWalletDeposit';
+import { readModelsResponse } from '../api/models';
 import type { Eip1193Provider } from './ethWallet';
 
-/** Refresh both the session and the financial target. Displayed speed estimates may change; payment details may not. */
+/** Refresh the session, selected model registration and financial target. Displayed speed estimates may change; payment details may not. */
 export async function confirmBillingSelection(selection: BillingDepositSelection, deps: {
-  current: () => boolean; access: () => Promise<unknown>; quote: () => Promise<unknown>;
+  current: () => boolean; access: () => Promise<unknown>; quote: () => Promise<unknown>; models: () => Promise<unknown>;
 }) {
   const current = () => { if (!deps.current()) throw new BillingDepositError('departed'); };
   current(); const access = await deps.access() as any; current();
   if (!access || access.signedIn !== true || !billingSameAddress(access.subject, selection.subject)
     || !billingSameAddress(access.address, selection.node)) throw new BillingDepositError('access');
+  let models: ReturnType<typeof readModelsResponse>;
+  try { models = readModelsResponse(await deps.models()); } catch { throw new BillingDepositError('models'); }
+  current();
+  if (!models || !models.models.some(m => m.id === selection.model && m.modality === 'chat')) throw new BillingDepositError('models');
   const raw = await deps.quote(); current();
   const fresh = billingDepositSelection(raw, selection);
   if (!fresh || !sameBillingDeposit(selection, fresh)) throw new BillingDepositError('configuration');
