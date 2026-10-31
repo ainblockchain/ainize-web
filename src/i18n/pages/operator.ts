@@ -572,6 +572,13 @@ export const operatorLogs: Dict = {
 };
 
 export const operatorNew: Dict = {
+  'op.new.err.fields': { ko: '이름은 2자 이상, ID는 영문 소문자·숫자로 시작하는 2~64자로 입력하고 대상 모델을 지정해 주세요.', en: 'Enter a name of at least 2 characters, a valid 2–64 character ID starting with a lowercase letter or number, and a target model.' },
+  'op.new.result.cancelled': { ko: '요청 확인을 중지했습니다. 서버에서 이미 저장됐을 수 있으니 목록을 먼저 확인해 주세요. 입력은 유지됩니다.', en: 'Stopped waiting for the request. It may already have been saved on the server; check the list before retrying. Your input is preserved.' },
+  'op.new.result.network': { ko: '연결이 끊겨 저장 여부를 확인하지 못했습니다. 목록을 먼저 확인해 주세요. 입력은 유지됩니다.', en: 'The connection ended before the save could be confirmed. Check the list before retrying. Your input is preserved.' },
+  'op.new.result.unconfirmed': { ko: '응답에서 요청한 초안의 저장을 확인하지 못했습니다. 목록을 먼저 확인해 주세요. 입력은 유지됩니다.', en: 'The response did not confirm the draft you requested. Check the list before retrying. Your input is preserved.' },
+  'op.new.result.check': { ko: '내 지식 목록 확인', en: 'Check my knowledge' },
+  'op.new.draft.saving': { ko: '입력 내용 저장 중…', en: 'Keeping your input…' },
+  'op.new.draft.failed': { ko: '이 탭에 입력 내용을 저장하지 못했습니다. 화면을 떠나기 전에 내용을 복사해 주세요.', en: 'Could not keep your input in this tab. Copy it before leaving this screen.' },
   'op.new.from.failed': { ko: '{id} 원본을 불러오지 못했습니다.', en: 'Could not load source {id}.' },
   'op.new.from.missing': { ko: '{id} 원본을 찾을 수 없습니다.', en: 'Source {id} was not found.' },
   'op.benchmark.inline_count_json': { ko: '원본 queries 목록의 길이입니다. 이 목록과 예시(samples)는 별도로 유지되며 JSON에서 편집할 수 있습니다.', en: 'Count of the original queries list. This list and samples stay separate and can be edited in JSON.' },
@@ -684,7 +691,6 @@ export const operatorNew: Dict = {
   'op.new.err.schema': { ko: '주제 이름을 적어 주세요 (예: krx-ticker-codes).', en: 'Subject is required (e.g. "krx-ticker-codes").' },
   'op.new.err.file': { ko: '올릴 .npz 파일을 골라 주세요.', en: 'Choose a .npz file to upload.' },
   'op.new.err.path': { ko: '노드에 있는 .npz 파일 경로를 적어 주세요.', en: 'Give the path of the .npz on the node.' },
-  'op.new.err.network': { ko: '노드에 연결하지 못했습니다. 노드가 아직 돌고 있는지 확인하고 다시 시도해 주세요.', en: 'Could not reach the node. Check that it is still running, then try again.' },
   // Item 95 — a multi-hundred-megabyte upload used to show one static alert: no bytes, no percent, no cancel, and a
   // refresh threw the whole form away. Progress comes from XHR upload events, so every number here is measured.
   'op.new.uploading': { ko: '{name} 올리는 중', en: 'Uploading {name}' },
@@ -693,8 +699,7 @@ export const operatorNew: Dict = {
   'op.new.upload.eta.sec': { ko: '{n}초', en: '{n} s' },
   'op.new.upload.eta.min': { ko: '{n}분', en: '{n} min' },
   'op.new.upload.hashing': { ko: '전송 끝 — 노드가 파일 지문과 기억 항목을 계산하는 중입니다. 파일이 크면 몇 분 걸립니다.', en: 'Upload complete — the node is computing the fingerprint and reading the memory entries. On a large file this takes minutes.' },
-  'op.new.upload.cancel': { ko: '올리기 취소', en: 'Cancel upload' },
-  'op.new.upload.cancelled': { ko: '올리기를 취소했습니다. 적어 둔 내용은 그대로 있습니다.', en: 'Upload cancelled — everything you typed is still here.' },
+  'op.new.upload.cancel': { ko: '요청 확인 중지', en: 'Stop waiting' },
   'op.new.draft.kept': { ko: '적은 내용은 이 탭에 저장되어 새로 고쳐도 사라지지 않습니다.', en: 'What you type is kept in this tab, so a refresh will not lose it.' },
   // Item 157: the form opened from a rejected knowledge says what it was filled from.
   'op.new.from.notice': { ko: '{id}의 내용을 채웠습니다. 제안된 새 ID와 설정을 확인하고 수정한 파일을 선택하세요.', en: 'Filled in from {id}. Review the suggested new ID and settings, then choose the corrected file.' },

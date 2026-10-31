@@ -1,11 +1,13 @@
+import { createDraftJournal } from '@/lib/draftJournal';
+import { createNewPatchTask, patchIdForDraft, requestNewPatch } from '@/lib/newPatchSubmission';
+import { useActiveView } from '@/hooks/useActiveView';
 import { DEFAULT_BENCHMARK_TEXT, emptyNewPatchDraft, hasNewPatchEdits, newPatchDraftKey, newPatchFromSource, readNewPatchDraft, type NewPatchDraft } from '@/lib/newPatchDraft';
 import { benchmarkEditorSamples, editBenchmarkDraft, readBenchmarkDraft, type BenchmarkDraft as Bench, type BenchmarkSampleDraft as Sample } from '@/lib/benchmarkEditor';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router';
 import styled from 'styled-components';
-import { api, errorMessage, useBranchesQuery, useCatalogQuery, useCreatePatchMutation, useInfoQuery, usePatchQuery } from '@/api/api';
-import type { PatchAnchor } from '@/api/types';
+import { api, errorMessage, useBranchesQuery, useCatalogQuery, useInfoQuery, usePatchQuery } from '@/api/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/i18n';
 import { useTitle } from '@/utils/useTitle';
@@ -109,13 +111,16 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
   const money = useMoney();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { address } = useAuth();
+  const auth = useAuth();
+  const active = useActiveView();
+  const isCurrent = () => active() && auth.isCurrentAccount();
+  const [saveTask] = useState(createNewPatchTask);
+  useEffect(() => () => saveTask.abandon(), [saveTask]);
   const { data: info } = useInfoQuery();
   const catalog = useCatalogQuery({ limit: 200 });
   /** Item 169(c): the tracks that actually exist, so a typed name is checked against them before publishing. */
   const tracks = useBranchesQuery();
   const currency = info?.currency ?? 'CREDIT';
-  const [create, state] = useCreatePatchMutation();
 
   // Item 95: everything typed here survives a refresh (sessionStorage, this tab only) — a 300 MB upload is minutes
   // long and the form used to be thrown away by a stray navigation.
@@ -150,7 +155,7 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
   const [sent, setSent] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
   const [phase, setPhase] = useState<'idle' | 'sending' | 'server'>('idle');
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   const startedAt = useRef(0);
 
   const license = licenseChoice === 'other' ? licenseOther : licenseChoice;
@@ -158,13 +163,18 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
   // Only a form somebody has actually started is kept: an untouched visit must not greet the next one with a
   // "we brought back what you typed" notice over an empty page.
   const started = hasNewPatchEdits({ name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path }, baseline);
+  const [draftJournal] = useState(() => createDraftJournal(() => sessionStorage, draftKey));
+  const [draftSaved, setDraftSaved] = useState<boolean | null>(null);
+  const draft: NewPatchDraft = { name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path };
+  const draftText = started ? JSON.stringify(draft) : null;
+  const latestDraft = useRef(draftText); latestDraft.current = draftText;
+  useEffect(() => { setDraftSaved(draftJournal.save(draftText)); }, [draftJournal, draftText]);
   useEffect(() => {
-    const draft: NewPatchDraft = { name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path };
-    const timer = setTimeout(() => {
-      try { if (started) sessionStorage.setItem(draftKey, JSON.stringify(draft)); else sessionStorage.removeItem(draftKey); } catch { /* private mode — the form still works */ }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [draftKey, started, name, id, description, modelId, priceV, license, parents, branch, topic, asOf, benchText, source, path]);
+    const flush = () => { draftJournal.save(latestDraft.current); };
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, [draftJournal]);
+  const completeDraft = () => { draftJournal.complete(); };
 
   const updateBench = (patch: Partial<Bench>) => {
     if (!benchRead.value) return;
@@ -175,7 +185,7 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
   const setSamples = (next: Sample[]) => updateBench({ samples: next });
 
   const nf = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 6 });
-  const slugPreview = (id || name).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  const slugPreview = patchIdForDraft(id, name);
   const mb = (bytes: number) => (bytes / 1e6).toFixed(1);
 
   const items = useMemo(() => catalog.data?.items ?? [], [catalog.data]);
@@ -224,8 +234,9 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
 
   const pickFile = (f: File | null) => setFile(f);
 
-  const clearDraft = () => { try { sessionStorage.removeItem(draftKey); } catch { /* nothing to clear */ } };
+  const clearDraft = () => { setDraftSaved(draftJournal.save(null)); };
   const startOver = () => {
+    if (saveTask.pending()) return;
     clearDraft();
     const reset = initial ?? baseline;
     setName(reset.name); setId(reset.id); setDescription(reset.description); setPriceV(reset.priceV);
@@ -237,27 +248,11 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
     setNotice(initial ? t('op.new.from.notice', { id: from! }) : null); setError(null);
   };
 
-  /** POST /api/patches with the bytes, reporting real progress and abortable — RTK Query cannot do either (item 95). */
-  const uploadWithProgress = (fd: FormData) => new Promise<{ anchor: PatchAnchor }>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr;
-    xhr.open('POST', '/api/patches');
-    xhr.withCredentials = true;
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable) { setSent(e.loaded); setTotalBytes(e.total); if (e.loaded >= e.total) setPhase('server'); } };
-    xhr.onload = () => {
-      let body: unknown = null;
-      try { body = JSON.parse(xhr.responseText) as unknown; } catch { /* an error page, not JSON */ }
-      if (xhr.status >= 200 && xhr.status < 300) resolve(body as { anchor: PatchAnchor });
-      else reject({ status: xhr.status, data: body ?? { error: `request failed (${xhr.status})` } });
-    };
-    xhr.onerror = () => reject({ status: 0, data: { error: t('op.new.err.network') } });
-    xhr.onabort = () => reject({ aborted: true });
-    xhr.send(fd);
-  });
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null); setNotice(null);
+    if (saveTask.pending() || !isCurrent()) return;
+    setError(null); setNotice(null); setUncertain(false);
+    if (name.trim().length < 2 || !modelId.trim() || !/^[a-z0-9][a-z0-9._-]{1,63}$/.test(slugPreview)) { setError(t('op.new.err.fields')); return; }
     const benchmark = readBenchmarkDraft(benchText, true);
     if (!benchmark.value) { setBenchError(t(`op.benchmark.issue.${benchmark.issue}`)); setError(t(`op.benchmark.issue.${benchmark.issue}`)); return; }
     const parsed = benchmark.value;
@@ -276,20 +271,27 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
     if (asOf.trim()) fd.set('as_of', asOf.trim());
     fd.set('benchmark', JSON.stringify(parsed));
     if (source === 'upload' && file) fd.set('file', file); else fd.set('path', path.trim());
-    setSubmitting(true);
-    setSent(0); setTotalBytes(file?.size ?? 0); startedAt.current = Date.now();
-    setPhase(source === 'upload' ? 'sending' : 'server');
-    try {
-      const res = source === 'upload' ? await uploadWithProgress(fd) : await create(fd).unwrap();
-      if (source === 'upload') dispatch(api.util.invalidateTags(['Catalog', 'Me']));
-      clearDraft();
-      navigate(`/project/${address ?? res.anchor.author}/${res.anchor.id}`);
-    } catch (err) {
-      if ((err as { aborted?: boolean }).aborted) setNotice(t('op.new.upload.cancelled'));
-      else setError(errorMessage(err));
-    } finally {
-      setSubmitting(false); setPhase('idle'); xhrRef.current = null;
-    }
+    await saveTask.run({ id: slugPreview, name: name.trim(), modelId: modelId.trim(), author: auth.address }, {
+      active: isCurrent,
+      send: progress => requestNewPatch(fd, progress),
+      progress: ({ sent, total }) => { setSent(sent); setTotalBytes(total); if (sent >= total) setPhase('server'); },
+      emit: result => {
+        if (result.phase === 'saving') {
+          setSubmitting(true); setSent(0); setTotalBytes(file?.size ?? 0); startedAt.current = Date.now();
+          setPhase(source === 'upload' ? 'sending' : 'server'); return;
+        }
+        setSubmitting(false); setPhase('idle');
+        if (result.phase === 'saved') {
+          dispatch(api.util.invalidateTags(['Catalog', 'Me']));
+          completeDraft(); navigate(result.destination);
+        } else if (result.phase === 'uncertain') {
+          setUncertain(true); setError(t(`op.new.result.${result.reason}`));
+          dispatch(api.util.invalidateTags(['Catalog', 'Me']));
+        } else {
+          setError(errorMessage(result.error));
+        }
+      },
+    });
   };
 
   const pct = totalBytes ? Math.floor((sent / totalBytes) * 100) : 0;
@@ -300,7 +302,8 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
       <TitleRow><Title>{t('op.new.title')}</Title></TitleRow>
       <Description title={tech('patch')}>{t('op.new.desc')}</Description>
 
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={onSubmit} aria-busy={submitting}>
+        <fieldset disabled={submitting} style={{ display: 'contents' }}>
         {notice && (
           <Alert $tone="info" data-testid="new-notice">
             {notice}{' '}
@@ -429,12 +432,12 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
         </Choice>
         <DevBox style={{ marginTop: 0 }}><Muted>{t('op.new.dev.npz')}</Muted></DevBox>
 
-        {error && <Alert $tone="error">{error}</Alert>}
+        </fieldset>
+        {error && <Alert $tone="error" role="alert">{error}{uncertain && <>{' '}<StyledLink to="/dashboard">{t('op.new.result.check')}</StyledLink></>}</Alert>}
         {submitting && source === 'upload' && file && (
           <Stack $gap={8} data-testid="upload-progress">
             <Row $gap={12} $justify="space-between">
               <strong style={{ fontSize: 14 }}>{t('op.new.uploading', { name: file.name })}</strong>
-              <Button type="button" size="small" variant="text" color="default" onClick={() => xhrRef.current?.abort()}>{t('op.new.upload.cancel')}</Button>
             </Row>
             <Bar role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t('op.new.uploading', { name: file.name })}><BarFill $pct={pct} /></Bar>
             <Muted data-testid="upload-numbers">
@@ -445,9 +448,9 @@ function NewPatchForm({ initial, draftKey, from }: { initial: NewPatchDraft | nu
           </Stack>
         )}
         <Row $gap={16}>
-          <Button type="submit" variant="contained" size="large" loading={submitting || state.isLoading} loadingText={t('op.new.submitting')}>{t('op.new.submit')}</Button>
-          <Button type="button" variant="text" color="default" onClick={() => navigate('/dashboard')}>{t('common.cancel')}</Button>
-          <Muted>{t('op.new.draft.kept')}</Muted>
+          <Button type="submit" variant="contained" size="large" loading={submitting} loadingText={t('op.new.submitting')}>{t('op.new.submit')}</Button>
+          <Button type="button" variant="text" color="default" onClick={() => submitting ? saveTask.cancel() : navigate('/dashboard')}>{t(submitting ? 'op.new.upload.cancel' : 'common.cancel')}</Button>
+          <Muted role="status" data-testid="new-draft-storage">{t(draftSaved === null ? 'op.new.draft.saving' : draftSaved ? 'op.new.draft.kept' : 'op.new.draft.failed')}</Muted>
         </Row>
       </Form>
     </PageWrapper>
