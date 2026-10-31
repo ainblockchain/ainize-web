@@ -166,9 +166,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 197 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 201 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 111 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 112 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -181,6 +181,7 @@ A further 111 throw sites build their message at the time (a validator's own wor
 | `null` | \<AGENT_GIT_SPEC_FILE> is not valid JSON: … | `src/agent-git.ts`, `src/project-agents.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> sets …, which the node owns — remove … | `src/project-agents.ts` |
 | `null` | \<d> already belongs to the organization "\<holder.id>" | `src/organization-store.ts` |
+| `null` | \<e.message> — an admin of organization … must create the service account for (ainize, \<project.id>) with chainApps for the paths it writes: POST /api/chain/orgs/…/service-accounts { app: "ainize", projectId: "\<project.id>", role, chainApps } at AIN SSO, or `cli chain:service-account --org <slug> --app ainize --project <project.id> --role member --chain-apps <app>` | `src/projects.ts` |
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
@@ -196,6 +197,7 @@ A further 111 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" answers an input that does not exist: \<k> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" runs as "caller", so it may write only under /apps/… (the app its path is in), not \<bad> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".entry "\<targetEntry>" is not the script's entry or one of "run" | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".inputs.\<k>: a \<trigger.type> event has no "…" — … | `src/project-manifest.ts` |
 | `null` | \<rel> is a binary file | `src/hosted-qa-engine.ts` |
@@ -212,20 +214,20 @@ A further 111 throw sites build their message at the time (a validator's own wor
 | `null` | AIN JSON-RPC error: … | `src/ain-chain.ts` |
 | `null` | AIN JSON-RPC refused: … | `src/ain-chain.ts` |
 | `null` | AIN JSON-RPC unreachable: … | `src/ain-chain.ts` |
-| `null` | AIN SSO answered the delegation request with a malformed addr | `src/run-session.ts` |
+| `null` | AIN SSO answered the delegation request with a malformed reused flag | `src/run-session.ts` |
 | `null` | AIN SSO answered the delegation request without { jti, token } | `src/run-session.ts` |
+| `null` | AIN SSO answered the delegation request without the account address it acts for | `src/run-session.ts` |
 | `null` | AIN SSO bound the delegation to another key | `src/run-session.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: bad token_endpoint | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: issuer mismatch | `src/sso-service-token.ts` |
 | `null` | AIN SSO issued a \<json.token_type> token; only Bearer is usable | `src/sso-service-token.ts` |
-| `null` | AIN SSO refused \<path> (\<res.status> \<what>) | `src/run-session.ts` |
+| `null` | AIN SSO issued an as: app grant for another organization than the project's | `src/run-session.ts` |
+| `null` | AIN SSO refused \<path> (\<res.status> ……) | `src/run-session.ts` |
 | `null` | AIN SSO refused a machine token for \<resource> (\<what>) | `src/sso-service-token.ts` |
 | `null` | AIN SSO registered a different session address | `src/run-session.ts` |
 | `null` | AIN SSO registered a session that is not a run session | `src/run-session.ts` |
-| `null` | AIN SSO registered an as: caller session for someone other than the transaction's signer | `src/run-session.ts` |
 | `null` | AIN SSO registered the session for another account than the delegation's | `src/run-session.ts` |
-| `null` | AIN SSO registered the session without the account address it acts for | `src/run-session.ts` |
 | `null` | AIN SSO token endpoint unreachable: … | `src/sso-service-token.ts` |
 | `null` | AIN SSO unreachable at \<path>: … | `src/run-session.ts` |
 | `null` | AIN SSO's delegation id does not match its answer | `src/run-session.ts` |
@@ -239,7 +241,9 @@ A further 111 throw sites build their message at the time (a validator's own wor
 | `null` | an organization may have \<perOrg> projects on this node | `src/projects.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
+| `null` | as: app needs the project's AIN SSO organization (its service account acts for the run) — this project belongs to none | `src/run-session.ts` |
 | `null` | as: caller needs the verified signer of the triggering transaction | `src/run-session.ts` |
+| `null` | as: caller needs the verified triggering transaction hash | `src/run-session.ts` |
 | `null` | at most 64 write paths per run | `src/run-session.ts` |
 | `null` | Audio response is too large | `src/peer-models.ts` |
 | `null` | binary content is not supported | `src/hosted-qa-engine.ts` |
