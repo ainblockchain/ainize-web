@@ -372,7 +372,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/me/payouts`](#get-apimepayouts) | operator | Royalty payouts this node owes creators and data providers (AIN ledger) |
 | `POST` | [`/api/me/payouts/{id}/retry`](#post-apimepayoutsidretry) | operator | Retry one failed / pending payout now (also after the 20 automatic attempts) |
 | `GET` | [`/api/me/patches`](#get-apimepatches) | operator | Knowledge I registered |
-| `GET` | [`/api/me/purchases`](#get-apimepurchases) | operator | Knowledge I bought |
+| `GET` | [`/api/me/purchases`](#get-apimepurchases) | operator | Latest stored purchase or download per knowledge item |
 | `GET` | [`/api/me/settings`](#get-apimesettings) | operator | Read settings |
 | `PATCH` | [`/api/me/settings`](#patch-apimesettings) | operator | Change settings |
 | `GET` | [`/api/chain`](#get-apichain) | none | Ledger / chain state and balance |
@@ -7398,7 +7398,9 @@ Knowledge I registered
 
 ### `GET /api/me/purchases`
 
-Knowledge I bought
+Latest stored purchase or download per knowledge item
+
+Each row includes payment evidence from a matching settlement or a coherent stored receipt; free downloads are explicit. payment=null means the historical amount/currency could not be confirmed and must not be inferred from the current listing. Seller-reported allocations are not proof of downstream transfers. Existing applied is an ID-based compatibility field; compare runtime file hashes for load-record standing.
 
 **Auth** — operator
 

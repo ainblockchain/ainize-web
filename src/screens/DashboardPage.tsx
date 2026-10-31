@@ -6,6 +6,8 @@ import {
   useMyPurchasesQuery, useRuntimeQuery,
 } from '@/api/api';
 import type { CatalogEntry } from '@/api/types';
+import { purchaseRows, purchaseStanding } from '@/lib/purchaseView';
+import { accountRuntime } from '@/lib/accountNodeActions';
 import { dashboardInventory, inventoryRows, paidSales, statusRank } from '@/lib/dashboardView';
 import { knowledgePath } from '@/lib/detailRoutes';
 import { trackBranches } from '@/lib/trackView';
@@ -120,14 +122,16 @@ export function DashboardContent() {
   const anyInFlight = items.some((e) => isInFlight(e.status));
   if (anyInFlight !== inFlight) setInFlight(anyInFlight);
 
-  const purchases = useMyPurchasesQuery();
-  const runtime = useRuntimeQuery();
+  const purchases = useMyPurchasesQuery({ identity: cacheIdentity }, { skip: authLoading });
+  const purchased = !authLoading && !purchases.isError ? purchaseRows(purchases.currentData) : null;
+  const runtime = useRuntimeQuery({ identity: cacheIdentity }, { skip: authLoading });
+  const model = !authLoading && !runtime.isError ? accountRuntime(runtime.currentData) : null;
   /**
    * SC-15 — this is the table where a bought add-on is loaded, so it is where the base has to be offered: a bare
    * apply answered `needs_base` with a code, on the one screen whose whole job is turning a purchase into a model
    * that knows something.
    */
-  const chain = useLoadChain((id) => purchases.data?.items.find((x) => x.patch_id === id)?.entry?.anchor.name || id);
+  const chain = useLoadChain((id) => purchased?.find((x) => x.patch_id === id)?.entry?.anchor.name || id);
   const branches = useBranchesQuery({ identity: cacheIdentity }, { skip: authLoading });
   const branchData = !branches.isError ? trackBranches(branches.currentData) : null;
   const [createBranch, createState] = useCreateBranchMutation();
@@ -354,8 +358,9 @@ export function DashboardContent() {
       {/* ---------------------------------------------------------------- purchases */}
       <SubTitle $mt={56}>{t('op.dash.purchases.title')}</SubTitle>
       <Description title={tech('autoPay')}>{t('op.dash.purchases.desc')}</Description>
-      {purchases.isError && <QueryError error={purchases.error} what={t('op.error.what.purchases')} retrying={purchases.isFetching} onRetry={() => void purchases.refetch()} />}
-      {!purchases.isError && (
+      {(purchases.isError || purchases.currentData && !purchased) && <QueryError error={purchases.error} what={t('op.error.what.purchases')} retrying={purchases.isFetching} onRetry={() => void purchases.refetch()} />}
+      {!purchases.isError && !purchases.currentData && <CenterProgress />}
+      {purchased && (
       <TableWrapper style={{ marginTop: 16 }}>
         <Table>
           <TableHeader>
@@ -370,62 +375,67 @@ export function DashboardContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(purchases.data?.items ?? []).map((p) => {
+            {purchased.map((p) => {
               const author = p.entry?.anchor.author;
-              const cur = p.entry?.anchor.currency ?? currency;
+              const payment = p.payment;
+              const cur = payment?.currency ?? '';
+              const standing = purchaseStanding(p, model);
+              const canChange = auth.isOwner && model?.available && p.currentFile && !chain.busy;
               const busy = chain.busy && chain.busyId === p.patch_id;
               return (
                 <TableRow key={p.patch_id}>
                   <TableData $align="left" $padding="8px 0 8px 32px" $maxWidth="320px">
                     {author ? <NameLink to={knowledgePath(author, p.patch_id)}>{p.entry?.anchor.name ?? p.patch_id}</NameLink> : <strong>{p.patch_id}</strong>}
                     <SubText>{p.entry ? p.patch_id : shortHash(p.sha256, 16)}</SubText>
+                    {p.entry && !p.currentFile && <SubText>{t('op.dash.purchases.changedFile')}</SubText>}
                   </TableData>
-                  <TableData title={money.note(cur)} data-testid="purchase-paid">
-                    {money.fmt(p.amount, cur)}
-                    {schemeText(p.scheme, cur) && <SubText style={{ display: 'inline' }}> ({schemeText(p.scheme, cur)})</SubText>}
+                  <TableData title={payment?.currency ? money.note(cur) : undefined} data-testid="purchase-paid">
+                    {!payment ? t('op.dash.purchases.paymentUnknown') : payment.evidence === 'free' ? t('op.dash.purchases.scheme.free') : `${payment.amount} ${money.unit(cur)}`}
+                    {payment && payment.evidence !== 'free' && schemeText(payment.scheme, cur) && <SubText style={{ display: 'inline' }}> ({schemeText(payment.scheme, cur)})</SubText>}
                     {originText(p.origin) && <SubText style={{ display: 'block' }}>{originText(p.origin)}</SubText>}
                     {/* Item 280: the settle record has carried the split all along, and the buyer was shown a tx hash. */}
                     {(p.payees?.length ?? 0) > 0 && (
                       <SubText style={{ display: 'block' }} data-testid="purchase-payees">{t('op.dash.purchases.paid_to', {
-                        who: p.payees!.map((x) => t('op.dash.purchases.paid_to.line', { name: x.name ?? shortAddr(x.address, 6), amount: money.revenue(x.amount, cur) })).join(' · '),
+                        who: p.payees!.map((x) => t('op.dash.purchases.paid_to.line', { name: x.name ?? shortAddr(x.address, 6), amount: `${x.amount} ${money.unit(cur)}` })).join(' · '),
                       })}</SubText>
                     )}
                   </TableData>
                   <TableData $mono title={p.tx_hash}>{shortHash(p.tx_hash, 12)}</TableData>
                   <TableData $mono title={p.path ?? ''}>{p.path ? `…/${p.path.split('/').slice(-1)[0].slice(0, 18)}` : '—'}</TableData>
-                  <TableData>{p.applied ? <span style={{ color: '#44a45f', fontWeight: 600 }}>{t('op.yes')}</span> : t('op.no')}</TableData>
+                  <TableData>{t(`op.dash.purchases.record.${standing?.state ?? 'unknown'}`, { id: standing?.id ?? '' })}</TableData>
                   <TableData>
                     <Row $gap={6} $justify="center">
-                      <Button size="small" title={help('apply')} disabled={!runtime.data?.available || chain.busy || !p.entry || p.applied} loading={busy && !p.applied} onClick={() => { setActionError(null); if (p.entry) void chain.load(p.entry.anchor); }}>{term('apply')}</Button>
-                      <Button size="small" color="secondary" title={help('remove')} disabled={!runtime.data?.available || chain.busy || !p.entry || !p.applied} loading={busy && p.applied} onClick={() => { setActionError(null); if (p.entry) void chain.unload(p.entry.anchor); }}>{term('remove')}</Button>
+                      <Button size="small" title={help('apply')} disabled={!canChange || standing?.state !== 'absent'} loading={busy && standing?.state === 'absent'} onClick={() => { setActionError(null); if (p.entry) void chain.load(p.entry.anchor); }}>{term('apply')}</Button>
+                      <Button size="small" color="secondary" title={help('remove')} disabled={!canChange || standing?.state !== 'recorded'} loading={busy && standing?.state === 'recorded'} onClick={() => { setActionError(null); if (p.entry) void chain.unload(p.entry.anchor); }}>{term('remove')}</Button>
                     </Row>
                   </TableData>
                   <TableData>
-                    <IconLink to={`/chat/${encodeURIComponent(p.patch_id)}`} aria-label={t('op.livetest')} title={`${t('op.livetest')} — ${t('op.livetest.hint')}`}><LiveTestIcon /></IconLink>
+                    {p.currentFile && <IconLink to={`/chat/${encodeURIComponent(p.patch_id)}`} aria-label={t('op.livetest')} title={`${t('op.livetest')} — ${t('op.livetest.hint')}`}><LiveTestIcon /></IconLink>}
                   </TableData>
                 </TableRow>
               );
             })}
-            {(purchases.data?.items ?? []).length === 0 && <TableRowEmpty $height={120}><td colSpan={7}>{purchases.isLoading ? <SmallSpinner /> : t('op.dash.purchases.empty')}</td></TableRowEmpty>}
+            {purchased.length === 0 && <TableRowEmpty $height={120}><td colSpan={7}>{purchases.isLoading ? <SmallSpinner /> : t('op.dash.purchases.empty')}</td></TableRowEmpty>}
           </TableBody>
         </Table>
       </TableWrapper>
       )}
+      {(runtime.isError || runtime.currentData && !model) && <QueryError error={runtime.error} what={t('op.dash.purchases.runtimeRead')} retrying={runtime.isFetching} onRetry={() => void runtime.refetch()} />}
       {/* SC-18 — the loaded stack, in the order the model holds it. A set of ids cannot answer the operator's
           question ("what is under what?"), and after L2 the order is a record the node keeps, not a guess. */}
-      {!!runtime.data?.stack?.length && (
+      {!!model?.stack?.length && (
         <StatusText style={{ marginTop: 8 }} data-testid="ops-stack">
           {/* Item 214: WHY each layer is there — by hand, or by a track — was in the answer and on no screen. */}
-          {t('ops.stack', { list: runtime.data.stack.map((l, i) => `${i + 1}. ${l.name ?? l.patch_id} (${
+          {t('ops.stack', { list: model.stack.map((l, i) => `${i + 1}. ${typeof l.name === 'string' ? l.name : l.patch_id} (${
             l.reason === 'base' ? t('ops.stack.base')
               : l.reason === 'manual' ? t('op.dash.branches.loadedby.manual')
                 : l.reason?.startsWith('subscription:') ? t('op.dash.branches.loadedby.track', { track: l.reason.slice('subscription:'.length) })
                   : l.reason?.startsWith('chat:') ? t('ops.stack.livetest') : l.reason
           })`).join('  ·  ') })}
-          {runtime.data.stack.some((l) => !l.journal) && <div>{t('ops.stack.nojournal', { n: runtime.data.stack.filter((l) => !l.journal).length })}</div>}
+          {model.stack.some((l) => l.journal === false) && <div>{t('ops.stack.nojournal', { n: model.stack.filter((l) => l.journal === false).length })}</div>}
         </StatusText>
       )}
-      {runtime.data && !runtime.data.available && <StatusText style={{ marginTop: 8 }}>{t('op.runtime.unavailable', { error: runtime.data.error ?? t('op.runtime.noapi') })}</StatusText>}
+      {model && !model.available && <StatusText style={{ marginTop: 8 }}>{t('op.runtime.unavailable', { error: model.error ?? t('op.runtime.noapi') })}</StatusText>}
 
       {/* ---------------------------------------------------------------- knowledge tracks (branches) */}
       <SubTitle $mt={56}><Tip tech={tech('branch')}>{t('op.dash.branches.title')}</Tip></SubTitle>

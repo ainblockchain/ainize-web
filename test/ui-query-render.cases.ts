@@ -1,3 +1,4 @@
+import { purchaseFixture } from './fixtures/purchase';
 import { TrackAdditionSheet } from '../src/components/operator/TrackAdditionForm';
 import { additionFixture } from './track-addition-fixture';
 import { runtimeReviewFixture } from './fixtures/runtimeReview';
@@ -2258,4 +2259,31 @@ test('track addition cannot confirm missing, failed, already-present or complete
     const html = render(() => createElement(TrackAdditionSheet, { ...props, busy: false, error: null, onClose() {}, onConfirm() {}, onRefresh() {} }), signedOut);
     assert.doesNotMatch(html, /data-testid="track-add-confirm"/);
   }
+});
+
+
+test('purchase table shows exact receipt units, current file records and encoded destinations', () => {
+  const row = purchaseFixture(); row.patch_id = row.entry.anchor.id = 'selected/a?#'; row.entry.anchor.currency = 'CREDIT';
+  const data: Fixture[] = [{ name: 'myPurchases', arg: { identity: accessIdentity }, value: { items: [row] } },
+    { name: 'runtime', arg: { identity: accessIdentity }, value: { available: true, hook: true, applied: ['alias'], stack: [{ patch_id: 'alias', sha256: 'file', reason: 'manual', applied_at: 1, position: 0 }] } }];
+  const html = render(DashboardContent, [...accessAuth, ...data], '/dashboard');
+  assert.match(html, /0.00000001 AIN/); assert.doesNotMatch(html, /999 CREDIT/); assert.match(html, /Recorded as alias/);
+  assert.match(html, /href="[^"]*selected%2Fa%3F%23/);
+});
+test('purchase failures, old account caches and missing receipt evidence are not empty or paid claims', () => {
+  const row = purchaseFixture(); delete row.payment;
+  const own: Fixture = { name: 'myPurchases', arg: { identity: accessIdentity }, value: { items: [row] } };
+  const missing = render(DashboardContent, [...accessAuth, own], '/dashboard');
+  assert.match(missing, /Payment amount and currency are unconfirmed/); assert.doesNotMatch(missing, /999 (?:AIN|CREDIT)/);
+  for (const fixture of [{ ...own, arg: { identity: 'previous-account' } }, { ...own, status: 'rejected' as const },
+    { ...own, value: { items: [{}] } }]) {
+    const html = render(DashboardContent, [...accessAuth, fixture], '/dashboard');
+    assert.doesNotMatch(html, /data-testid="purchase-paid"/);
+    assert.doesNotMatch(html, /No purchases yet/);
+  }
+});
+test('changed purchased files retain inspection but do not offer a live test of different bytes', () => {
+  const row = purchaseFixture(); row.entry.anchor.patch_sha256 = 'different';
+  const html = render(DashboardContent, [...accessAuth, { name: 'myPurchases', arg: { identity: accessIdentity }, value: { items: [row] } }], '/dashboard');
+  assert.match(html, /current item differs from the purchased file/); assert.doesNotMatch(html, /href="\/chat\/selected"/);
 });

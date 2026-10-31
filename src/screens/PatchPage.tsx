@@ -1,3 +1,4 @@
+import { purchaseRows } from '@/lib/purchaseView';
 import { BenchmarkCoverage } from '@/components/detail/BenchmarkCoverage';
 import { AttestationCount } from '@/components/detail/AttestationCount';
 import { VerificationAction } from '@/components/detail/VerificationAction';
@@ -1269,20 +1270,23 @@ function PaidFor({ d, priceText, runtimeReady, onBuyAgain, buying }: {
   const f = useDetailFormat();
   const [again, setAgain] = useState(false);
   const [collect, collectState] = useCollectMutation();
-  const { data: purchases } = useMyPurchasesQuery();
+  const auth = useAuth();
+  const purchases = useMyPurchasesQuery({ identity: auth.cacheIdentity }, { skip: auth.loading || !auth.isOwner });
+  const rows = !purchases.isError && auth.isOwner ? purchaseRows(purchases.currentData) : null;
   const { data: info } = useInfoQuery();
-  const row = purchases?.items.find((x) => x.patch_id === d.anchor.id);
+  const row = rows?.find((x) => x.patch_id === d.anchor.id);
+  const payment = row?.payment;
   // SC-15 — the knowledge just bought may be an add-on: loading it means loading what it was trained on top of.
   const chain = useLoadChain((id) => d.quote?.requires.find((r) => r.id === id)?.name || (id === d.anchor.id ? d.anchor.name : id) || id);
   return (
     <div data-testid="buy-paid">
       <Alert $tone="success">{t('detail.buy.purchased', { applied: d.applied ? t('detail.buy.purchased_applied') : '', stored: d.has_body ? t('detail.buy.stored_yes') : t('detail.buy.stored_no') })}</Alert>
-      {row && (
-        <Note style={{ margin: '8px 0 0' }} title={dateTime(row.created_at)}>
-          {t('detail.buy.paid_when', { amount: f.priceLabel(row.amount, d.anchor.currency), when: f.ago(row.created_at), tx: shortHash(row.tx_hash, 16) })}
-          {txLookup(info, row.tx_hash) && <> <ExternalLink href={txLookup(info, row.tx_hash)!} target="_blank" rel="noopener noreferrer">{t('detail.buy.tx_link')} →</ExternalLink></>}
+      {payment ? (
+        <Note style={{ margin: '8px 0 0' }} title={dateTime(payment.created_at)}>
+          {payment.evidence === 'free' ? t('op.dash.purchases.scheme.free') : t(payment.evidence === 'purchase' ? 'op.dash.purchases.recordedPayment' : 'detail.buy.paid_when', { amount: `${payment.amount} ${payment.currency}`, when: f.ago(payment.created_at), tx: shortHash(payment.tx_hash, 16) })}
+          {payment.scheme === 'ain-transfer' && txLookup(info, payment.tx_hash) && <> <ExternalLink href={txLookup(info, payment.tx_hash)!} target="_blank" rel="noopener noreferrer">{t('detail.buy.tx_link')} →</ExternalLink></>}
         </Note>
-      )}
+      ) : <Note>{t('op.dash.purchases.paymentUnknown')}</Note>}
       {/* Item 273: the body is gone but the payment is not. The seller re-issues the manifest against the
           settlement it already recorded, so getting it back is free — it used to say the opposite. */}
       {!d.has_body && (
@@ -1394,8 +1398,9 @@ function Buy({ d, authorSlug, isOperator }: { d: PatchDetail; authorSlug: string
    * ALREADY holds — a purchase of this node's own, or something it published — and how much of this knowledge is
    * the same rows. It is not a refusal: the newer rows win when both are loaded, which is what the note says.
    */
-  const { data: purchased } = useMyPurchasesQuery(undefined, { skip: !isOperator });
-  const held = new Set((purchased?.items ?? []).map((x) => x.patch_id));
+  const auth = useAuth();
+  const purchased = useMyPurchasesQuery({ identity: auth.cacheIdentity }, { skip: auth.loading || !isOperator });
+  const held = new Set((!purchased.isError && isOperator ? purchaseRows(purchased.currentData) ?? [] : []).filter(x => x.currentFile).map(x => x.patch_id));
   const ownedOverlap = d.conflicts
     .filter((c) => held.has(c.patch_id) && c.overlap_rows > 0)
     .sort((x, y) => y.overlap_rows - x.overlap_rows);

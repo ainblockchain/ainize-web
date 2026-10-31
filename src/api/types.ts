@@ -435,6 +435,8 @@ export interface NodeOwner {
   note: string | null;
 }
 export interface PurchaseRow { patch_id: string; sha256: string; tx_hash: string; scheme: string; amount: string; manifest: PatchManifest | null; path: string | null; created_at: number; entry: CatalogEntry | null; applied: boolean;
+  currency?: string | null;
+  payment?: import('../lib/purchaseView').PurchasePayment | null;
   /** Why this node paid: a deliberate purchase, or `subscription:<track>` (item 362). */
   origin?: string;
   /** Who the money went to, from the seller's own split (item 280). */
