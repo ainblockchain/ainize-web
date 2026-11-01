@@ -181,8 +181,8 @@ A further 118 throw sites build their message at the time (a validator's own wor
 | `null` | \<AGENT_GIT_SPEC_FILE> is not valid JSON: … | `src/agent-git.ts`, `src/project-agents.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> sets …, which the node owns — remove … | `src/project-agents.ts` |
 | `null` | \<d> already belongs to the organization "\<holder.id>" | `src/organization-store.ts` |
+| `null` | \<e.message> — AIN SSO decides this from the chain alone: an admin of the app (/manage_app/\<app>/config/admin) or an owner of /apps/\<app> must be the address of an active member or service account of the project's organization (a service account's chainApps do not count) | `src/projects.ts` |
 | `null` | \<e.message> — an admin of the project's organization must create its service account for (ainize, \<project.id>) with chainApps for the paths it writes: POST /api/chain/orgs/\<orgId>/service-accounts { app: "ainize", projectId: "\<project.id>", role, chainApps } at AIN SSO, or `cli chain:service-account --org <slug> --app ainize --project <project.id> --role member --chain-apps <app>` | `src/projects.ts` |
-| `null` | \<e.message> — the project's organization is not entitled to that chain app at AIN SSO; an admin of the organization must add the app to its ainize service account's chainApps (POST/PATCH /api/chain/orgs/\<orgId>/service-accounts) | `src/projects.ts` |
 | `null` | \<e.message> — the triggering transaction was signed by a run session key (another run's write), not a person's session; an as: "caller" trigger only runs for transactions people sign. Use as: "app" for chains of runs | `src/projects.ts` |
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
