@@ -304,7 +304,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/projects/{id}/triggers/{name}/rotate-token`](#post-apiprojectsidtriggersnamerotate-token) | operator | A new fire token for an http or ain trigger, shown once — owner or organization member |
 | `POST` | [`/api/projects/{id}/triggers/{name}/run`](#post-apiprojectsidtriggersnamerun) | operator | Fire a trigger by hand with a synthetic event — owner or organization member |
 | `GET` | [`/api/projects/{id}/triggers/{name}/ain-rule`](#get-apiprojectsidtriggersnameain-rule) | operator | The AIN DB `.function` rule that makes the chain call an ain trigger — owner or organization member |
-| `POST` | [`/api/projects/{id}/triggers/{name}/ain-rule/install`](#post-apiprojectsidtriggersnameain-ruleinstall) | operator | Set the ain rule on chain with the node's AIN key — owner or organization member |
+| `POST` | [`/api/projects/{id}/triggers/{name}/ain-rule/install`](#post-apiprojectsidtriggersnameain-ruleinstall) | operator | Set the ain rule on chain with the organization's AIN service key — an admin of the owning organization |
 | `POST` | [`/api/projects/{id}/triggers/{name}/fire`](#post-apiprojectsidtriggersnamefire) | operator | Fire an http or ain trigger — the webhook URL, and what the AIN blockchain's `_function` calls |
 | `POST` | [`/api/deployments/{id}/redeploy`](#post-apideploymentsidredeploy) | operator | Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member |
 | `POST` | [`/api/projects/{id}/hook`](#post-apiprojectsidhook) | operator | The push webhook aindrive calls after a successful git-receive-pack |
@@ -5744,7 +5744,7 @@ Body `{ entry?, inputs?: { <name>: value }, env?: { <NAME>: value }, timeoutMs? 
 
 The installed triggers of a script project (readable as the project is)
 
-What the last `ready` deployment's ainize.json `triggers` installed (docs/PROJECTS.md "Triggers"): `{ triggers: [{ name, type: schedule|ain|http, cron?, timezone?, path?, entry?, inputKeys, enabled, nextRunAt?, lastRunAt?, lastRunId?, fireUrl?, hasToken }] }`. `fireUrl` (http and ain) is shown only to the owner or an active member; the token itself is never read back. 404 for an org-private project the viewer may not see.
+What the last `ready` deployment's ainize.json `triggers` installed (docs/PROJECTS.md "Triggers"): `{ triggers: [{ name, type: schedule|ain|http, cron?, timezone?, path?, entry?, as: app|caller, writes?, inputKeys, enabled, nextRunAt?, lastRunAt?, lastRunId?, fireUrl?, hasToken }] }` (`as` / `writes`: who a run acts as on the AIN blockchain and the paths its AIN SSO run session may write). `fireUrl` (http and ain) is shown only to the owner or an active member; the token itself is never read back. 404 for an org-private project the viewer may not see.
 
 **Auth** — operator
 
@@ -5858,7 +5858,7 @@ The console's "Run now": a run of the deployed commit with the trigger's entry a
 
 The AIN DB `.function` rule that makes the chain call an ain trigger — owner or organization member
 
-`{ path, rule, canInstall }` — `rule` is the exact value to set as `.function` at `path`: `{ "ainize-<projectId>-<name>": { function_type: "REST", function_url: "<fireUrl>?token=…", function_id: "ainize-<projectId>-<name>" } }`. The chain's REST `_function` call cannot set a header, so the URL carries the fire token (minted here when the trigger has none yet) — hence operators only. `canInstall` says whether `POST …/ain-rule/install` can set it with the node's own key. 409 `not_an_ain_trigger`.
+`{ path, rule, canInstall }` — `rule` is the exact value to set as `.function` at `path`: `{ "ainize-<projectId>-<name>": { function_type: "REST", function_url: "<fireUrl>?token=…", function_id: "ainize-<projectId>-<name>" } }`, plus `"_storeAppend": { function_type: "NATIVE", function_id: "_storeAppend" }` when `path` is an AIN Store write slot (`/apps/<app>/writes/<collection>/$key`). The chain's REST `_function` call cannot set a header, so the URL carries the fire token (minted here when the trigger has none yet) — hence operators only. The fire URL must be on the chain's REST function URL whitelist (`/developers/rest_functions/url_whitelist`) for the chain to call it. `canInstall` says whether `POST …/ain-rule/install` can set it with a service key the node holds for the project's organization. 409 `not_an_ain_trigger`.
 
 **Auth** — operator
 
@@ -5880,9 +5880,9 @@ The AIN DB `.function` rule that makes the chain call an ain trigger — owner o
 
 ### `POST /api/projects/{id}/triggers/{name}/ain-rule/install`
 
-Set the ain rule on chain with the node's AIN key — owner or organization member
+Set the ain rule on chain with the organization's AIN service key — an admin of the owning organization
 
-Only on a node that holds an AIN key with write permission on the path (otherwise 503 `ain_install_off`: set the rule from `GET …/ain-rule` with your own key). `{ installed: true, path, txHash }`; 502 `ain_install_failed` when the chain refuses.
+Only an `admin` of the organization that owns the project (403 `not_org_admin`), at most 10 an hour per project (429). Sends one `SET_FUNCTION` transaction (ain-js) with the AIN service key the node's operator configured for that organization — refused before any transaction when the key may not set functions at the path (an app the organization does not own) — merging the rule of `GET …/ain-rule` into the path's `.function` (functions others set there are kept). Without a key for the organization: 503 `ain_install_off` — set the rule from `GET …/ain-rule` with your own key. `{ installed: true, path, txHash, signer }`; 502 `ain_install_failed` when the chain refuses (the key needs `write_function` owner permission on the path).
 
 **Auth** — operator
 
@@ -5897,10 +5897,11 @@ Only on a node that holds an AIN key with write permission on the path (otherwis
 
 | Code | Description | Body |
 |---|---|---|
-| `200` | { installed, path, txHash } | `object` |
-| `403` | `not_member` |   |
+| `200` | { installed, path, txHash, signer } | `object` |
+| `403` | `not_member` / `not_org_admin` |   |
 | `404` | `not_found` / `no_trigger` |   |
 | `409` | `not_an_ain_trigger` |   |
+| `429` | `rate_limited` |   |
 | `502` | `ain_install_failed` |   |
 | `503` | `ain_install_off` |   |
 
@@ -5908,7 +5909,7 @@ Only on a node that holds an AIN key with write permission on the path (otherwis
 
 Fire an http or ain trigger — the webhook URL, and what the AIN blockchain's `_function` calls
 
-No session: the trigger's own token, as `Authorization: Bearer <token>` or `?token=<token>` (the chain cannot set a header). The body is the event, at most 64 KiB, JSON or text. The run executes the deployed commit with the trigger's entry and inputs (`$event.<field>` references filled in) and gets `AINIZE_TRIGGER_EVENT` (http: `{ type, name, method, query, headers: { content-type }, body }`; ain: `{ type, name, path, params, value, prevValue?, timestamp, auth: { addr }, txHash?, raw }`), `AINIZE_TRIGGER` and `AINIZE_TRIGGER_TYPE`. 202 `{ runId, deploymentId, status }`. At most 60 firings a minute per trigger.
+No session: the trigger's own token, as `Authorization: Bearer <token>` or `?token=<token>` (the chain cannot set a header) — it identifies and rate-limits the caller. The body is the event, at most 64 KiB, JSON or text. An ain firing is VERIFIED before anything runs: the transaction it names (`transaction.hash`) is read from the node's AIN JSON-RPC and must be FINALIZED (not REVERTED, receipt not failed), finalized within the last hour (by the chain's clock), with a successful operation that wrote a path matching the trigger; the trigger must be INSTALLED ON CHAIN there (finalized function `ainize-<projectId>-<name>` pointing at this node's fire URL for this project and trigger); and a trigger with `writes` needs its organization ENTITLED to the app. The event is rebuilt from the transaction, never from the body. A transaction not yet final answers 202 `{ status: "verifying", txHash }` (also on a repeat) and runs once it is — the wait survives a restart — or is dropped with an audit log line. A transaction starts each trigger once (200 `{ duplicate: true, runId }`), with every matching path in the event. The run executes the deployed commit with the trigger's entry and inputs (`$event.<field>` references filled in) and gets `AINIZE_TRIGGER_EVENT` (http: `{ type, name, method, query, headers: { content-type }, body }`; ain: `{ type, name, path, params, op, value | delta, writes: [{ path, params, op, value? | delta? }], timestamp, auth: { addr: <the signer> }, txHash, verified: true }`), `AINIZE_TRIGGER` and `AINIZE_TRIGGER_TYPE`, and — when the trigger declares `writes` and the node has AIN run sessions on — an ephemeral AIN session key and its AIN SSO delegation (`AIN_SESSION_PRIVATE_KEY`, `AIN_DELEGATION`, `AIN_SESSION_ADDRESS`, `AIN_ACCOUNT_ADDRESS`, `AIN_RUN_AS`, `AIN_SESSION_EXPIRES_AT`). 202 `{ runId, deploymentId, status }`. At most 60 firings a minute per trigger and caller address, 600 overall.
 
 **Auth** — operator
 
@@ -5934,12 +5935,16 @@ the event (any JSON; an ain call's `transaction.tx_body.operation.ref` / `.value
 
 | Code | Description |
 |---|---|
-| `202` | { runId, deploymentId, status } |
+| `200` | { duplicate: true, runId } — this transaction already started this trigger |
+| `202` | { runId, deploymentId, status } — or, for an ain transaction not yet final, { status: "verifying", txHash } |
+| `400` | `unverified_event` — an ain event that names no transaction |
 | `401` | `bad_token` |
+| `403` | `unverified_event` — the transaction failed, is too old or did not write a matching path; or the trigger is not installed on chain there for this project; or the organization is not entitled to the app |
 | `404` | `not_found` — no such project, or no http/ain trigger of that name |
-| `409` | `trigger_disabled` / `no_deployment` |
+| `409` | `trigger_disabled` / `no_deployment` / `trigger_changed` |
 | `413` | `event_too_large` |
 | `429` | `rate_limited` |
+| `503` | `ain_verify_off` — this node reads no AIN chain or has no configured public URL; `ain_verify_busy` — too many events waiting for finality (node, project or trigger) |
 
 ### `POST /api/deployments/{id}/redeploy`
 

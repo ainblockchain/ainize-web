@@ -166,9 +166,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 206 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 242 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 116 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 118 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -181,6 +181,9 @@ A further 116 throw sites build their message at the time (a validator's own wor
 | `null` | \<AGENT_GIT_SPEC_FILE> is not valid JSON: … | `src/agent-git.ts`, `src/project-agents.ts` |
 | `null` | \<AGENT_GIT_SPEC_FILE> sets …, which the node owns — remove … | `src/project-agents.ts` |
 | `null` | \<d> already belongs to the organization "\<holder.id>" | `src/organization-store.ts` |
+| `null` | \<e.message> — AIN SSO decides this from the chain alone: an admin of the app (/manage_app/\<app>/config/admin) or an owner of /apps/\<app> must be the address of an active member or service account of the project's organization (a service account's chainApps do not count) | `src/projects.ts` |
+| `null` | \<e.message> — an admin of the project's organization must create its service account for (ainize, \<project.id>) with chainApps for the paths it writes: POST /api/chain/orgs/\<orgId>/service-accounts { app: "ainize", projectId: "\<project.id>", role, chainApps } at AIN SSO, or `cli chain:service-account --org <slug> --app ainize --project <project.id> --role member --chain-apps <app>` | `src/projects.ts` |
+| `null` | \<e.message> — the triggering transaction was signed by a run session key (another run's write), not a person's session; an as: "caller" trigger only runs for transactions people sign. Use as: "app" for chains of runs | `src/projects.ts` |
 | `null` | \<id> is already linked to the organization "\<holder.id>" | `src/organization-store.ts` |
 | `null` | \<input.repo.url> (\<input.branch>) is already a project on this node | `src/projects.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
@@ -198,6 +201,7 @@ A further 116 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" answers an input that does not exist: \<k> | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" runs as "caller", so it may write only under /apps/… (the app its path is in), not \<bad> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".entry "\<targetEntry>" is not the script's entry or one of "run" | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".inputs.\<k>: a \<trigger.type> event has no "…" — … | `src/project-manifest.ts` |
 | `null` | \<rel> is a binary file | `src/hosted-qa-engine.ts` |
@@ -207,14 +211,36 @@ A further 116 throw sites build their message at the time (a validator's own wor
 | `null` | \<rel> is not a directory | `src/hosted-qa-engine.ts` |
 | `null` | \<rel> is not a regular file | `src/hosted-qa-engine.ts` |
 | `null` | a file path is required | `src/hosted-qa-engine.ts` |
+| `null` | a run session needs at least one declared write path | `src/run-session.ts` |
+| `null` | a run session needs the project's AIN SSO organization — this project belongs to none | `src/run-session.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
 | `null` | agent "\<id>" belongs to another account on this node | `src/project-agents.ts` |
+| `null` | AIN JSON-RPC answered \<res.status> | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC error: … | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC refused \<type> \<ref>: … | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC refused: … | `src/ain-chain.ts` |
+| `null` | AIN JSON-RPC unreachable: … | `src/ain-chain.ts` |
+| `null` | AIN SSO answered the delegation request with a malformed reused flag | `src/run-session.ts` |
+| `null` | AIN SSO answered the delegation request without { jti, token } | `src/run-session.ts` |
+| `null` | AIN SSO answered the delegation request without the account address it acts for | `src/run-session.ts` |
+| `null` | AIN SSO bound the delegation to another key | `src/run-session.ts` |
 | `null` | AIN SSO discovery answered \<res.status> | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: bad token_endpoint | `src/sso-service-token.ts` |
 | `null` | AIN SSO discovery: issuer mismatch | `src/sso-service-token.ts` |
 | `null` | AIN SSO issued a \<json.token_type> token; only Bearer is usable | `src/sso-service-token.ts` |
+| `null` | AIN SSO issued an as: app grant for another organization than the project's | `src/run-session.ts` |
+| `null` | AIN SSO refused \<path> (\<res.status> ……) | `src/run-session.ts` |
 | `null` | AIN SSO refused a machine token for \<resource> (\<what>) | `src/sso-service-token.ts` |
+| `null` | AIN SSO registered a different session address | `src/run-session.ts` |
+| `null` | AIN SSO registered a session that is not a run session | `src/run-session.ts` |
+| `null` | AIN SSO registered the session for another account than the delegation's | `src/run-session.ts` |
 | `null` | AIN SSO token endpoint unreachable: … | `src/sso-service-token.ts` |
+| `null` | AIN SSO unreachable at \<path>: … | `src/run-session.ts` |
+| `null` | AIN SSO's delegation id does not match its answer | `src/run-session.ts` |
+| `null` | AIN SSO's delegation is unreadable: … | `src/run-session.ts` |
+| `null` | AIN SSO's delegation names no account (sub) | `src/run-session.ts` |
+| `null` | AIN SSO's delegation names resources the trigger did not declare | `src/run-session.ts` |
+| `null` | AIN SSO's delegation outlives the run | `src/run-session.ts` |
 | `null` | aindrive_error | `src/project-storage-aindrive.ts`, `src/project-storage-backups.ts` |
 | `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
@@ -223,12 +249,16 @@ A further 116 throw sites build their message at the time (a validator's own wor
 | `null` | an organization may have \<perOrg> projects on this node | `src/projects.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
+| `null` | as: caller needs the verified signer of the triggering transaction | `src/run-session.ts` |
+| `null` | as: caller needs the verified triggering transaction hash | `src/run-session.ts` |
+| `null` | at most 64 write paths per run | `src/run-session.ts` |
 | `null` | Audio response is too large | `src/peer-models.ts` |
 | `null` | binary content is not supported | `src/hosted-qa-engine.ts` |
 | `null` | cannot access \<rel> | `src/hosted-qa-engine.ts` |
 | `null` | content is larger than 1 MiB | `src/hosted-qa-engine.ts` |
 | `null` | content must be a string | `src/hosted-qa-engine.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
+| `null` | functions are installed only under /apps/\<app>/ | `src/ain-chain.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
 | `null` | http_\<res.status> | `src/project-storage-s3.ts` |
 | `null` | invalid agent source path | `src/agent-git.ts` |
@@ -236,8 +266,11 @@ A further 116 throw sites build their message at the time (a validator's own wor
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
 | `null` | Model backend failed | `src/peer-models.ts` |
+| `null` | no AIN service key is configured for this project's organization | `src/ain-chain.ts` |
 | `null` | no such file or directory: \<rel> | `src/hosted-qa-engine.ts` |
 | `null` | not a directory: … | `src/hosted-qa-engine.ts` |
+| `null` | not a transaction hash | `src/ain-chain.ts` |
+| `null` | not an uncompressed secp256k1 public key | `src/run-session.ts` |
 | `null` | old_string and new_string are identical | `src/hosted-qa-engine.ts` |
 | `null` | old_string and new_string must be strings | `src/hosted-qa-engine.ts` |
 | `null` | old_string must not be empty; use write_file to create a file | `src/hosted-qa-engine.ts` |
@@ -260,12 +293,15 @@ A further 116 throw sites build their message at the time (a validator's own wor
 | `null` | runtime unavailable (…) — waiting up to … min before hash-only fallback | `src/verifier.ts` |
 | `null` | shared workspace agents must stay in their organization | `src/agent-git-http.ts` |
 | `null` | the alias is the agent's own id | `src/agent-aliases.ts` |
+| `null` | the chain refused the function (code ……) — the key \<signer> needs write_function owner permission on \<path> | `src/ain-chain.ts` |
 | `null` | the decision backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the id "\<id>" is taken | `src/organization-store.ts` |
 | `null` | the id "\<input.id>" is taken | `src/hosted-agent-store.ts`, `src/linked-agent-store.ts`, `src/organization-store.ts` |
 | `null` | the image backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | the organization already has a store named "\<name>" | `src/project-storage.ts` |
+| `null` | the organization's key \<address> may not set functions at \<path> — it is not an app this organization owns | `src/ain-chain.ts` |
 | `null` | the store's directory is held by another node (…, … min ago) — a second node on one NFS export would corrupt it | `src/project-storage-docker.ts` |
+| `null` | the transaction was not accepted: … | `src/ain-chain.ts` |
 | `null` | the transcription backend answered \<up.status> | `src/peer-models.ts` |
 | `null` | this node holds its maximum of \<this.limits.total> organizations | `src/organization-store.ts` |
 | `null` | this node holds its maximum of \<this.limits.total> projects | `src/projects.ts` |
