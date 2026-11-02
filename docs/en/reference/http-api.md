@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-354 operations on 294 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+355 operations on 295 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -295,6 +295,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/secrets`](#get-apiprojectsidsecrets) | operator | A project's secrets — names and when each was set, never values (owner or org writer) |
 | `PUT` | [`/api/projects/{id}/secrets/{name}`](#put-apiprojectsidsecretsname) | operator | Set or replace one project secret (owner or org writer) |
 | `DELETE` | [`/api/projects/{id}/secrets/{name}`](#delete-apiprojectsidsecretsname) | operator | Remove one project secret (owner or org writer) |
+| `PATCH` | [`/api/projects/{id}/presentation`](#patch-apiprojectsidpresentation) | operator | Rename the project or change how it is shown (owner only) |
 | `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
 | `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
 | `POST` | [`/api/projects/{id}/runs`](#post-apiprojectsidruns) | operator | Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization |
@@ -5668,6 +5669,26 @@ Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, 
 | `200` | removed | `object` |
 | `403` | `not_writer` |   |
 | `404` | `not_found` |   |
+
+### `PATCH /api/projects/{id}/presentation`
+
+Rename the project or change how it is shown (owner only)
+
+Body (all optional, no other keys): `{ name, upstreamRepo, publicPreview }`. `name` is the display name — one line, 1–100 characters after trimming; it is a label only, so the repository binding, URLs and domains stay. `upstreamRepo` is an https://github.com/\<owner>/\<repo> URL. Answers the project.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the project | `object` |
 
 ### `PATCH /api/projects/{id}/rotate-secret`
 
