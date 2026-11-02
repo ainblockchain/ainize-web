@@ -40,6 +40,10 @@
     "group": "Tutorials",
     "pages": [
       {
+        "page": "tutorials/ain-store",
+        "title": "AIN Store: what it is and how to run it"
+      },
+      {
         "page": "tutorials/create-ainft",
         "title": "Create an AINFT agent"
       },
