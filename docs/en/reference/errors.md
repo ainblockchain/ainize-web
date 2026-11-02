@@ -166,7 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 242 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 244 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 118 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -211,6 +211,7 @@ A further 118 throw sites build their message at the time (a validator's own wor
 | `null` | \<rel> is not a directory | `src/hosted-qa-engine.ts` |
 | `null` | \<rel> is not a regular file | `src/hosted-qa-engine.ts` |
 | `null` | a file path is required | `src/hosted-qa-engine.ts` |
+| `null` | a project may be granted at most \<max> projects to read | `src/organization-store.ts` |
 | `null` | a run session needs at least one declared write path | `src/run-session.ts` |
 | `null` | a run session needs the project's AIN SSO organization — this project belongs to none | `src/run-session.ts` |
 | `null` | a self-contained archive cannot depend on an external object store | `src/agent-git.ts` |
@@ -246,6 +247,7 @@ A further 118 throw sites build their message at the time (a validator's own wor
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | an alias is 1–40 lower-case letters, digits and hyphens, starting with a letter or digit | `src/agent-aliases.ts` |
 | `null` | an organization keeps at least one admin | `src/organization-store.ts` |
+| `null` | an organization may have … project grants | `src/organization-store.ts` |
 | `null` | an organization may have \<perOrg> projects on this node | `src/projects.ts` |
 | `null` | an organization may have \<this.limits.groups> resource groups | `src/organization-store.ts` |
 | `null` | an organization may have \<this.limits.members> members on this node | `src/organization-store.ts` |
