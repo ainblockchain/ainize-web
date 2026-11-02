@@ -206,6 +206,8 @@ export const api = createApi({
     redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
     syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
+    /** Owner only: the display name (a label — repo binding, URLs and domains stay). ainize-node PATCH /api/projects/:id/presentation. */
+    renameProject: b.mutation<Project, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/presentation`, method: 'PATCH', body: { name } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.id }, 'Project'] }),
     rotateProjectSecret: b.mutation<RotatedSecret, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/rotate-secret`, method: 'PATCH' }) }),
     projectDomains: b.query<AppDomainsResponse, string>({ query: id => `api/projects/${encodeURIComponent(id)}/domains`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/domains` }] }),
     addProjectDomain: b.mutation<AppDomain, { id: string; hostname: string }>({ query: ({ id, hostname }) => ({ url: `api/projects/${encodeURIComponent(id)}/domains`, method: 'POST', body: { hostname } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/domains` }] }),
@@ -770,7 +772,7 @@ export const {
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
-  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation,
+  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRenameProjectMutation,
   useProjectTriggersQuery, useEnableTriggerMutation, useDisableTriggerMutation, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery, useInstallTriggerAinRuleMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useProjectStorageQuery, useOrgStoresQuery, useCreateStoreMutation, useStoreQuery, useUpdateStoreMutation, useStoreActionMutation, useDeleteStoreMutation, useConnectStoreMutation, useDisconnectStoreMutation,

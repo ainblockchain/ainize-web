@@ -32,7 +32,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } 
 import styled, { keyframes } from 'styled-components';
 import {
   useDeleteProjectMutation, useDeploymentLogQuery, useModelsQuery, useOrgProjectsQuery, useProjectByNameQuery, useProjectDeploymentsQuery, useProjectQuery, useProjectRunsQuery, useProjectRuntimeLogsQuery, useProjectSourceQuery,
-  useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRunProjectMutation,
+  useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRenameProjectMutation, useRunProjectMutation,
   useDisableTriggerMutation, useEnableTriggerMutation, useInstallTriggerAinRuleMutation, useProjectTriggersQuery, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery,
 } from '@/api/api';
 import { parseModelsResponse } from '@/api/models';
@@ -531,6 +531,14 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const [remove, { isLoading: removing }] = useDeleteProjectMutation();
   const [rotate, { isLoading: rotating }] = useRotateProjectSecretMutation();
   const [rotated, setRotated] = useState<string | null>(null);
+  const [rename, { isLoading: renaming }] = useRenameProjectMutation();
+  const [nameDraft, setNameDraft] = useState(p.name);
+  useEffect(() => setNameDraft(p.name), [p.name]);
+  const doRename = async () => {
+    setError(null);
+    try { await rename({ id: p.id, name: nameDraft.trim() }).unwrap(); }
+    catch (err) { const e = projectApiErrorOf(err); setError(e.message ?? t(`projects.api.${e.code}`)); }
+  };
   const [error, setError] = useState<string | null>(null);
   const del = async () => {
     if (!window.confirm(t('projects.page.delete_confirm', { name: p.name }))) return;
@@ -662,6 +670,13 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
           <ProjectEnvVars project={p} onOpenDeployment={openDeployment} onOpenStorage={hasStorage ? () => setTab('storage') : undefined} />
           {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
           <KeyValue>
+            {p.canManage && (
+              <><dt>{t('projects.settings.name')}</dt><dd>
+                <Input value={nameDraft} maxLength={100} aria-label={t('projects.settings.name')} style={{ maxWidth: 360 }} onChange={(e) => setNameDraft(e.target.value)} />{' '}
+                <Button size="small" loading={renaming} disabled={!nameDraft.trim() || nameDraft.trim() === p.name} onClick={doRename}>{t('projects.settings.rename')}</Button>
+                <Help>{t('projects.settings.rename_help')}</Help>
+              </dd></>
+            )}
             {p.upstreamRepo && <><dt>GitHub</dt><dd><ExternalLink href={p.upstreamRepo} target="_blank" rel="noreferrer">{p.upstreamRepo}</ExternalLink></dd></>}
             <dt>{t('projects.page.repo')}</dt><dd><ExternalLink href={p.repo} target="_blank" rel="noreferrer">{p.repo}</ExternalLink></dd>
             <dt>{t('projects.page.branch')}</dt><dd><Mono>{p.branch}</Mono></dd>
