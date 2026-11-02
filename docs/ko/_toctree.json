@@ -40,6 +40,10 @@
     "group": "튜토리얼",
     "pages": [
       {
+        "page": "tutorials/ain-store",
+        "title": "AIN Store: 무엇이고 어떻게 운영하나"
+      },
+      {
         "page": "tutorials/create-ainft",
         "title": "AINFT 에이전트 만들기"
       },
