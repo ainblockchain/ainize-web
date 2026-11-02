@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Checkbox, Field, FieldLabel, HelperText, Input, Select, SelectField, Textarea } from '@/components/ui/Form';
 import { CenterProgress, CopyButton, Description, Empty, KeyValue, Mono, PageWrapper, StyledLink, SubTitle, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
+import ProjectGrantsTab from '@/screens/org/ProjectGrantsTab';
 import StorageTab from '@/screens/org/storage/StorageTab';
 import { useTitle } from '@/utils/useTitle';
 
@@ -51,8 +52,8 @@ const Chip = styled.span<{ $tone?: 'warn' | 'ok' }>`
 `;
 const Danger = styled(Panel)`border-color: #e8b4b4;`;
 
-type Tab = 'general' | 'members' | 'groups' | 'billing' | 'security' | 'storage';
-const TABS: Tab[] = ['general', 'members', 'groups', 'billing', 'security', 'storage'];
+type Tab = 'general' | 'members' | 'groups' | 'projects' | 'billing' | 'security' | 'storage';
+const TABS: Tab[] = ['general', 'members', 'groups', 'projects', 'billing', 'security', 'storage'];
 const when = (ts: number | null | undefined) => (ts ? new Date(ts).toLocaleString() : '—');
 
 export default function OrgSettingsPage() {
@@ -85,6 +86,7 @@ export default function OrgSettingsPage() {
       {current === 'general' && <GeneralTab org={org} />}
       {current === 'members' && <MembersTab org={org} />}
       {current === 'groups' && <GroupsTab org={org} />}
+      {current === 'projects' && <ProjectGrantsTab org={org} />}
       {current === 'billing' && <BillingTab org={org} />}
       {current === 'security' && <SecurityTab org={org} />}
       {current === 'storage' && <StorageTab org={org} />}

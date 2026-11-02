@@ -392,6 +392,12 @@ export const api = createApi({
     deleteOrgGroup: b.mutation<unknown, { id: string; groupId: string }>({
       query: ({ id, groupId }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupId)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
+    /** What the organization's script projects may read while they run (ainize-node run-grant-token.ts) — admins only. */
+    orgProjectGrants: b.query<OrgProjectGrants, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/project-grants`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/project-grants` }] }),
+    setOrgProjectGrant: b.mutation<unknown, { id: string; project: string; reads: string[] }>({
+      query: ({ id, project, reads }) => ({ url: `api/orgs/${encodeURIComponent(id)}/project-grants/${encodeURIComponent(project)}`, method: 'PUT', body: { reads } }),
+      invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.id}/project-grants` }, { type: 'Org', id: a.id }],
+    }),
     orgAudit: b.query<unknown, { id: string; limit?: number }>({ query: ({ id, limit }) => `api/orgs/${encodeURIComponent(id)}/audit?limit=${limit ?? 200}`, providesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }] }),
     orgBilling: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/billing`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
     orgSecurity: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/security`, providesTags: (_r, _e, id) => [{ type: 'Org', id }] }),
@@ -752,6 +758,12 @@ export const api = createApi({
   }),
 });
 
+/** `GET /api/orgs/:id/project-grants` (ainize-node organization-routes.ts). */
+export interface OrgProjectGrants {
+  projects: { id: string; name: string; kind: string; source_path: string }[];
+  grants: { project: string; reads: string[]; updated_at: number; updated_by: string }[];
+}
+
 export const {
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
@@ -768,7 +780,7 @@ export const {
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,
   useRequestJoinOrgMutation, useOrgRequestsQuery, useApproveOrgRequestMutation, useRejectOrgRequestMutation, useOrgInvitesQuery, useCreateOrgInviteMutation, useRevokeOrgInviteMutation,
-  usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
+  usePeekOrgInviteQuery, useAcceptOrgInviteMutation, useCreateOrgGroupMutation, useUpdateOrgGroupMutation, useDeleteOrgGroupMutation, useOrgAuditQuery, useOrgProjectGrantsQuery, useSetOrgProjectGrantMutation, useOrgBillingQuery, useOrgSecurityQuery, useEventsQuery, useChainQuery, useRuntimeQuery, useDriveQuery, useDriveChangesQuery,
   usePatchTreeQuery, usePatchSignalsQuery, usePatchIssuesQuery, usePatchDatasetQuery, useCreateIssueMutation, useChatFeedbackMutation, useExploreShelvesQuery,
   useMeQuery, useLoginChallengeMutation, useLoginWalletMutation, useEnrollMutation, useLogoutMutation, useGoogleSessionQuery, useGoogleLogoutMutation, useSsoStatusQuery, useSsoConnectMutation,
   useOwnersQuery, useAddOwnerMutation, useRemoveOwnerMutation,
