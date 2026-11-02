@@ -183,6 +183,9 @@ export const projects: Dict = {
   'projects.aindrive.state': { ko: '세션 상태', en: 'Session state' },
   'projects.aindrive.open_logs': { ko: 'AinDrive 로그', en: 'AinDrive logs' },
   'projects.settings.rotate': { ko: '웹훅 비밀값 교체', en: 'Rotate webhook secret' },
+  'projects.settings.name': { ko: '이름', en: 'Name' },
+  'projects.settings.rename': { ko: '이름 바꾸기', en: 'Rename' },
+  'projects.settings.rename_help': { ko: '표시 이름만 바뀝니다. 저장소 연결 · 주소 · 도메인은 그대로입니다.', en: 'Only the display name changes; the repository, URLs and domains stay.' },
   'projects.settings.rotate_confirm': { ko: '새 비밀값을 만들까요? 이전 값은 즉시 무효가 되고, 새 값을 드라이브의 리포 설정에 넣어야 push가 다시 배포됩니다.', en: 'Make a new secret? The old one stops working at once; paste the new one into the repo\'s settings in the drive or pushes stop deploying.' },
   'projects.settings.rotated': { ko: '새 웹훅 비밀값 — 지금 한 번만 보여 줍니다:', en: 'New webhook secret — shown only now:' },
 
