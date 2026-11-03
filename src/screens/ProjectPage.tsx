@@ -1,3 +1,4 @@
+import ProjectOperations from '@/components/ProjectOperations';
 /**
  * `/<org>/<repo>` — the project console: the deployment and run page of a repository, modelled on Vercel's project
  * dashboard. aindrive's ▶ Run is the short form; this is the full one ("aindrive의 Run은 약식이고 ainize의 run/deploy가
@@ -453,8 +454,8 @@ function TriggersSection({ project, onOpenRun }: { project: Project; onOpenRun: 
 
 // ------------------------------------------------------------------------------------------------ the console
 
-type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings';
-const TABS: Tab[] = ['deployments', 'runs', 'logs', 'storage', 'settings'];
+type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings' | 'operations';
+const TABS: Tab[] = ['deployments', 'runs', 'logs', 'storage', 'settings', 'operations'];
 
 /**
  * One project's console. `switcher`: on a repository's page with several deployments (the root and its monorepo
@@ -566,6 +567,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
     { id: 'logs', label: t('projects.tabs.logs') },
     // managed storage is for a container app (service / nextjs) — a script or agent has nothing to connect a store to
     ...(hasStorage ? [{ id: 'storage', label: `${t('projects.tabs.storage')}${p.storage?.attached ? ` (${p.storage.attached})` : ''}` }] : []),
+    ...(p.canOperate ? [{id:'operations',label:t('projects.tabs.operations')}] : []),
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
 
@@ -665,6 +667,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         </TabBody>
       )}
 
+      {tab === 'operations' && p.canOperate && <ProjectOperations key={p.id} project={p} />}
       {tab === 'settings' && (
         <TabBody>
           <ProjectEnvVars project={p} onOpenDeployment={openDeployment} onOpenStorage={hasStorage ? () => setTab('storage') : undefined} />

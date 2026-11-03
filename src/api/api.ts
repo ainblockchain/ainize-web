@@ -1,3 +1,4 @@
+import type {OperationsRecord, OperationsView} from './projectOperations';
 import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
 import type { AppDomain, AppDomainsResponse } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
@@ -207,6 +208,9 @@ export const api = createApi({
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
     syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
     /** Owner only: the display name (a label — repo binding, URLs and domains stay). ainize-node PATCH /api/projects/:id/presentation. */
+    operationsSearch: b.query<{projects:OperationsView[]},string>({query:q=>`api/operations/projects?q=${encodeURIComponent(q)}`,providesTags:['Project']}),
+    projectOperations: b.query<OperationsView,string>({query:id=>`api/projects/${encodeURIComponent(id)}/operations`,providesTags:(_r,_e,id)=>[{type:'Project',id}]}),
+    saveProjectOperations: b.mutation<OperationsView,{id:string;expectedRevision:number;record:OperationsRecord}>({query:({id,...body})=>({url:`api/projects/${encodeURIComponent(id)}/operations`,method:'PUT',body}),invalidatesTags:(_r,_e,a)=>[{type:'Project',id:a.id}]}),
     renameProject: b.mutation<Project, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/presentation`, method: 'PATCH', body: { name } }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.id }, 'Project'] }),
     rotateProjectSecret: b.mutation<RotatedSecret, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/rotate-secret`, method: 'PATCH' }) }),
     projectDomains: b.query<AppDomainsResponse, string>({ query: id => `api/projects/${encodeURIComponent(id)}/domains`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/domains` }] }),
@@ -772,6 +776,7 @@ export const {
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
+  useOperationsSearchQuery, useProjectOperationsQuery, useSaveProjectOperationsMutation,
   useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRenameProjectMutation,
   useProjectTriggersQuery, useEnableTriggerMutation, useDisableTriggerMutation, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery, useInstallTriggerAinRuleMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
