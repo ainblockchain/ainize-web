@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-355 operations on 295 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+359 operations on 298 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -21,6 +21,7 @@ A node serves this same description as OpenAPI 3.1 at `GET /api/openapi.json`, s
 
 The **Auth** column of each index below says what a request must carry.
 
+- **`modelBearer`** — http `bearer`
 - **`operatorCookie`** — cookie `ainize_session`
 - **`operatorBearer`** — http `bearer`
 - **teaching key** — the `x-ainize-auth` header. There is no account: the key is the identity. Endpoints that accept it describe its exact form in their parameter table.
@@ -72,7 +73,8 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/transcribe`](#post-apitranscribe) | operator | Free transcription trial on a configured audio backend |
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
 | `POST` | [`/api/run`](#post-apirun) | operator | Run one script in the hosted-agent sandbox and stream its output |
-| `POST` | [`/api/decide`](#post-apidecide) | operator | Free decision trial on a configured decision backend (Jev/SystemOne) |
+| `POST` | [`/api/decide`](#post-apidecide) | operator | Free SystemOne decision trial |
+| `POST` | [`/v1/systemone`](#post-v1systemone) | operator | SystemOne decision with a caller API key |
 
 **Teach** — one pipeline, two doors: a dataset file (uploaded here, or with `ainize teach dataset`) and corrections collected in Live test are both frozen into the same canonical dataset → validated → trained → checked on the live model → a lesson its teacher can keep private or publish as a credited data provider (no sign-in — every request is signed with a teaching key held by the browser or the CLI)
 
@@ -295,6 +297,9 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/secrets`](#get-apiprojectsidsecrets) | operator | A project's secrets — names and when each was set, never values (owner or org writer) |
 | `PUT` | [`/api/projects/{id}/secrets/{name}`](#put-apiprojectsidsecretsname) | operator | Set or replace one project secret (owner or org writer) |
 | `DELETE` | [`/api/projects/{id}/secrets/{name}`](#delete-apiprojectsidsecretsname) | operator | Remove one project secret (owner or org writer) |
+| `GET` | [`/api/operations/projects`](#get-apioperationsprojects) | none | Find operational records by original cloud project or repository |
+| `GET` | [`/api/projects/{id}/operations`](#get-apiprojectsidoperations) | none | Read private operational provenance and dated verification evidence |
+| `PUT` | [`/api/projects/{id}/operations`](#put-apiprojectsidoperations) | none | Replace operational provenance with optimistic concurrency (owner only) |
 | `PATCH` | [`/api/projects/{id}/presentation`](#patch-apiprojectsidpresentation) | operator | Rename the project or change how it is shown (owner only) |
 | `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
 | `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
@@ -475,6 +480,7 @@ Node, ledger and runtime summary
 
 | Field | Type | Description |
 |---|---|---|
+| `commit` | `string` \| `null` | Running build Git commit, captured at process startup; null when unavailable. Not the remote repository HEAD. |
 | `node` | `object` |   |
 | `ledger` | `object` |   |
 | `runtime` | `object` |   |
@@ -1054,29 +1060,44 @@ For a ▶ button beside a .py or .js file (deploy/run-runtime/README.md). The fi
 
 ### `POST /api/decide`
 
-Free decision trial on a configured decision backend (Jev/SystemOne)
+Free SystemOne decision trial
 
-No request count applies; unpaid work is queued behind paying callers on the same backend. The body is passed to the sidecar's /v1/systemone unchanged except for the model id; requires a configured decision backend.
+Unpaid work is queued behind paying callers on the same backend. choice criteria is an object; score criteria is an array. Invalid question shapes return 400 before inference.
 
 **Auth** — operator
 
 **Request body** — `application/json`, required
 
-| Field | Type | Required |
-|---|---|---|
-| `model` | `string` | yes |
-| `state` | `object` | yes |
-| `questions` | `object` | yes |
-| `images` | `object` |   |
-| `videos` | `object` |   |
+[`DecisionRequest`](./schemas.md#decisionrequest)
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | decision | `object` |
-| `400` | invalid request |   |
+| `400` | invalid request, including question criteria shape |   |
 | `404` | model not configured |   |
+| `422` | model-specific validation error |   |
+| `503` | backend unavailable |   |
+
+### `POST /v1/systemone`
+
+SystemOne decision with a caller API key
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+[`DecisionRequest`](./schemas.md#decisionrequest)
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | decision | `object` |
+| `400` | invalid request, including question criteria shape |   |
+| `401` | missing or invalid API key |   |
+| `422` | model-specific validation error |   |
 | `503` | backend unavailable |   |
 
 ## Teach
@@ -5669,6 +5690,75 @@ Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, 
 | `200` | removed | `object` |
 | `403` | `not_writer` |   |
 | `404` | `not_found` |   |
+
+### `GET /api/operations/projects`
+
+Find operational records by original cloud project or repository
+
+Authenticated owners and active organization members only. Filters access before returning results. Includes source and active commits; never claims a live health check.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type |
+|---|---|---|
+| `q` | `query` | `string` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Operational records | `object` |
+
+### `GET /api/projects/{id}/operations`
+
+Read private operational provenance and dated verification evidence
+
+Owner or active organization member. Even public projects keep these records private. Passed evidence older than 24 hours is marked stale.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Operational record and current source/deployment metadata | `object` |
+
+### `PUT /api/projects/{id}/operations`
+
+Replace operational provenance with optimistic concurrency (owner only)
+
+Reference URLs must use HTTPS without credentials or query strings. Store secret names and locations, never values. Checks require unique IDs and passed/failed checks need evidence and verification time.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expectedRevision` | `integer` | yes | (at least 0) |
+| `record` | [`ProjectOperationsInput`](./schemas.md#projectoperationsinput) | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Saved operational record | `object` |
+| `400` | Invalid operational record |   |
+| `409` | Revision conflict; reload before saving |   |
 
 ### `PATCH /api/projects/{id}/presentation`
 

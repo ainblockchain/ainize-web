@@ -9,7 +9,7 @@ summary: The reusable request and response shapes of the node HTTP API
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-The 36 named shapes the [HTTP API](./http-api.md) refers to.
+The 38 named shapes the [HTTP API](./http-api.md) refers to.
 
 ## How to read this page
 
@@ -18,6 +18,8 @@ Fields are listed with their full path, so a nested field appears as its own row
 
 | Schema | What it is |
 |---|---|
+| [`DecisionRequest`](#decisionrequest) | SystemOne request. choice criteria is a non-empty object mapping option IDs to descriptions; score criteria is a non-empty ordered array; noul criteria is an optional object. Descriptions and instructions may be JSON. state and at least one question are required. |
+| [`ProjectOperationsInput`](#projectoperationsinput) |   |
 | [`OwnerRef`](#ownerref) | Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in. |
 | [`AgentRef`](#agentref) | One agent in the cross-product registry shape (ain-integration contract 1.0). Identity is `registryIssuer + agentId`; a change to the definition is a new `releaseId`. |
 | [`AgentListResponse`](#agentlistresponse) |   |
@@ -54,6 +56,50 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`TeachDatasetRow`](#teachdatasetrow) | One SOURCE row, accepted or not. `line` is the 1-based logical row in the uploaded file (a quoted CSV newline is one row, not two); `index` is the position in the dataset, null when the row was not accepted. |
 | [`TeachDatasetRef`](#teachdatasetref) | What a lesson was trained from. A lesson taught before datasets existed renders `{id: null, source: "derived"}` and still publishes and pays out. |
 | [`TeachPolicy`](#teachpolicy) |   |
+
+## `DecisionRequest`
+
+SystemOne request. choice criteria is a non-empty object mapping option IDs to descriptions; score criteria is a non-empty ordered array; noul criteria is an optional object. Descriptions and instructions may be JSON. state and at least one question are required.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `model` | `string` | yes | (at least 1 characters) |
+| `state` | `object` | yes |   |
+| `questions` | `object` | yes |   |
+| `<any key>` | `object` |   | any key |
+
+## `ProjectOperationsInput`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `origins` | `object`[] | yes | (at most 100 items) |
+| `origins[].provider` | `"gcp"` \| `"firebase"` \| `"aws"` \| `"azure"` \| `"onprem"` \| `"other"` | yes |   |
+| `origins[].projectId` | `string` | yes | (1–200 characters) |
+| `origins[].resource` | `string` |   | (1–200 characters) |
+| `maintainers` | `string`[] | yes | (at most 30 items) |
+| `dependencies` | `object`[] | yes | (at most 100 items) |
+| `dependencies[].name` | `string` | yes | (1–200 characters) |
+| `dependencies[].reference` | `string (uri)` |   | (at most 2048 characters) |
+| `dependencies[].disposition` | `"retained"` \| `"migrated"` \| `"retired"` \| `"unknown"` | yes |   |
+| `runbooks` | `object` | yes |   |
+| `runbooks.deploy` | `string (uri)` |   | (at most 2048 characters) |
+| `runbooks.rollback` | `string (uri)` |   | (at most 2048 characters) |
+| `runbooks.backup` | `string (uri)` |   | (at most 2048 characters) |
+| `runbooks.restore` | `string (uri)` |   | (at most 2048 characters) |
+| `runbooks.logs` | `string (uri)` |   | (at most 2048 characters) |
+| `runbooks.access` | `string (uri)` |   | (at most 2048 characters) |
+| `runbooks.knowledgeRefresh` | `string (uri)` |   | (at most 2048 characters) |
+| `secretReferences` | `object`[] | yes | (at most 100 items) |
+| `secretReferences[].name` | `string` | yes |   |
+| `secretReferences[].location` | `string` | yes | (1–200 characters) |
+| `checks` | `object`[] | yes | (at most 100 items) |
+| `checks[].id` | `string` | yes |   |
+| `checks[].label` | `string` | yes | (1–200 characters) |
+| `checks[].kind` | `"http"` \| `"auth"` \| `"data"` \| `"restore"` \| `"manual"` | yes |   |
+| `checks[].required` | `boolean` | yes |   |
+| `checks[].status` | `"pending"` \| `"passed"` \| `"failed"` | yes |   |
+| `checks[].evidence` | `string (uri)` |   | (at most 2048 characters) |
+| `checks[].verifiedAt` | `string (date-time)` |   |   |
 
 ## `OwnerRef`
 

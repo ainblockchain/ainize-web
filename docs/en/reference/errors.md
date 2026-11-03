@@ -168,7 +168,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 Not every error carries a code. 244 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 121 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 122 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -410,7 +410,7 @@ A further 121 throw sites build their message at the time (a validator's own wor
 | `502` | aindrive_error | `src/project-storage-backups.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |
 | `502` | restore_cleanup_failed | `src/agent-archive-restore.ts` |
-| `503` | model unavailable, try again in a few minutes | `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
+| `503` | model unavailable, try again in a few minutes | `src/decision-contract.ts`, `src/free-tier-routes.ts`, `src/openai-surface.ts`, `src/runtime.ts` |
 | `503` | runtime unavailable: … | `src/teach.ts` |
 | `503` | seller file unavailable; no payment accepted | `src/api.ts` |
 | `503` | Stored inference journal is invalid; preserve it for operator reconciliation | `src/api.ts` |
