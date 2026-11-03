@@ -10,7 +10,7 @@
  * not asked for here. Everything that decides — the id rule, the URL rule, the body, the refusal codes — is in
  * `src/api/linkedAgents.ts`, pure and tested; this file is the form around it.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import styled from 'styled-components';
 import { useCreateLinkedAgentMutation, useLinkedAgentQuery, useUpdateLinkedAgentMutation } from '@/api/api';
@@ -40,6 +40,12 @@ const AgentLinkActions = styled.div`display: flex; gap: 12px; align-items: cente
 const EMPTY: LinkedAgentFormDraft = { id: '', name: '', description: '', upstream: '', visibility: 'public', orgId: null };
 
 export default function AgentLinkPage() {
+  const { id } = useParams<{ id: string }>();
+  const { cacheIdentity } = useAuth();
+  return <AgentLinkEditor key={JSON.stringify([cacheIdentity, id ?? null])} />;
+}
+
+function AgentLinkEditor() {
   const { t } = useT();
   const auth = useAuth();
   const shareable = useShareableOrgs();
@@ -50,7 +56,10 @@ export default function AgentLinkPage() {
   useTitle(t(editing ? 'agentLink.title_edit' : 'agentLink.title'));
 
   const stored = useLinkedAgentQuery(editId ?? '', { skip: !editing || !auth.isSignedIn });
-  const storedView = useMemo(() => parseLinkedAgentResponse(stored.data), [stored.data]);
+  const storedView = useMemo(() => {
+    const view = parseLinkedAgentResponse(stored.currentData);
+    return view?.id === editId ? view : null;
+  }, [stored.currentData, editId]);
 
   // `?org=<id>` (the organization page's "share an agent" door): start shared with that organization.
   const presetOrg = new URLSearchParams(location.search).get('org');
@@ -59,10 +68,23 @@ export default function AgentLinkPage() {
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [create] = useCreateLinkedAgentMutation();
   const [update] = useUpdateLinkedAgentMutation();
 
-  useEffect(() => { if (storedView) setDraft(linkedAgentDraftFromView(storedView)); }, [storedView]);
+  // Seed once per editor. Refetches must not replace unsaved user input.
+  // The keyed wrapper and currentData keep late responses bound to their agent.
+  useEffect(() => {
+    if (!initialized && storedView) {
+      setDraft(linkedAgentDraftFromView(storedView));
+      setInitialized(true);
+    }
+  }, [initialized, storedView]);
 
   const set = <K extends keyof LinkedAgentFormDraft>(k: K, v: LinkedAgentFormDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
   // The id follows the name until the person types an id of their own — the same courtesy the hosted form does.
@@ -79,14 +101,15 @@ export default function AgentLinkPage() {
     try {
       let body = linkedAgentInputFromDraft(draft);
       let answer: unknown;
-      if (editing) answer = await update(body).unwrap();
+      if (editing) answer = await update({ ...body, id: editId }).unwrap();
       else if (idTouched) answer = await create(body).unwrap();
       else {
         // A suggested id that is taken becomes `-2`, `-3`… — never a hash. A typed one goes back to the person.
         body = await createWithFreeAgentId(body, async (b) => { answer = await create(b).unwrap(); }, (e) => linkedAgentApiErrorOf(e).code === 'id_taken');
         const accepted = body.id;
-        setDraft((d) => ({ ...d, id: accepted }));
+        if (mounted.current) setDraft((d) => ({ ...d, id: accepted }));
       }
+      if (!mounted.current) return;
       const view = parseLinkedAgentResponse(answer);
       const name = view?.name ?? body.name ?? body.id;
       const note = view?.reachable === false
@@ -94,10 +117,11 @@ export default function AgentLinkPage() {
         : t('agentLink.done.reachable', { name });
       navigate(`/agent/${encodeURIComponent(body.id)}`, { state: { linkedNote: note } });
     } catch (err) {
+      if (!mounted.current) return;
       const e = linkedAgentApiErrorOf(err);
       setServerError(e.message ? `${t(`agentLink.api.${e.code}`)} — ${e.message}` : t(`agentLink.api.${e.code}`));
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -117,7 +141,7 @@ export default function AgentLinkPage() {
   }
 
   if (editing && stored.isLoading) return <PageWrapper><CenterProgress /></PageWrapper>;
-  if (editing && (stored.error || !storedView)) {
+  if (editing && !initialized && (stored.error || !storedView)) {
     const e = stored.error ? linkedAgentApiErrorOf(stored.error) : null;
     return (
       <PageWrapper>
@@ -129,6 +153,8 @@ export default function AgentLinkPage() {
       </PageWrapper>
     );
   }
+
+  if (editing && !initialized) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   return (
     <PageWrapper>
