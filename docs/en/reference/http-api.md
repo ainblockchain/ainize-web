@@ -478,6 +478,7 @@ Node, ledger and runtime summary
 
 | Field | Type | Description |
 |---|---|---|
+| `commit` | `string` \| `null` | Running build Git commit, captured at process startup; null when unavailable. Not the remote repository HEAD. |
 | `node` | `object` |   |
 | `ledger` | `object` |   |
 | `runtime` | `object` |   |
