@@ -1,3 +1,4 @@
+import OperationsSearch from '@/components/OperationsSearch';
 /**
  * `/me/projects` — the person's projects (`GET /api/projects` answers with the caller's own), each a line to its page.
  * `?kind=script` shows the Runs (script projects) only, `?kind=deployment` the Deployments (everything else); the Runs
@@ -48,6 +49,7 @@ export default function MyProjectsPage() {
           ))}
         </Filter>
       </Actions>
+      <OperationsSearch />
       {isLoading && !data ? <CenterProgress /> : rows.length === 0 ? <Empty>{all.length === 0 ? t('projects.mine.empty') : t(filter === 'script' ? 'projects.mine.no_runs' : 'projects.mine.no_deployments')}</Empty> : (
         <List>
           {rows.map((p) => (
