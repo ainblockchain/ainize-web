@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-355 operations on 295 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+358 operations on 297 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -295,6 +295,9 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/projects/{id}/secrets`](#get-apiprojectsidsecrets) | operator | A project's secrets — names and when each was set, never values (owner or org writer) |
 | `PUT` | [`/api/projects/{id}/secrets/{name}`](#put-apiprojectsidsecretsname) | operator | Set or replace one project secret (owner or org writer) |
 | `DELETE` | [`/api/projects/{id}/secrets/{name}`](#delete-apiprojectsidsecretsname) | operator | Remove one project secret (owner or org writer) |
+| `GET` | [`/api/operations/projects`](#get-apioperationsprojects) | none | Find operational records by original cloud project or repository |
+| `GET` | [`/api/projects/{id}/operations`](#get-apiprojectsidoperations) | none | Read private operational provenance and dated verification evidence |
+| `PUT` | [`/api/projects/{id}/operations`](#put-apiprojectsidoperations) | none | Replace operational provenance with optimistic concurrency (owner only) |
 | `PATCH` | [`/api/projects/{id}/presentation`](#patch-apiprojectsidpresentation) | operator | Rename the project or change how it is shown (owner only) |
 | `PATCH` | [`/api/projects/{id}/rotate-secret`](#patch-apiprojectsidrotate-secret) | operator | A new webhook secret, shown once (owner only) |
 | `GET` | [`/api/projects/{id}/runs`](#get-apiprojectsidruns) | operator | Ad-hoc runs of a script project, newest first (readable as the project is) |
@@ -475,6 +478,7 @@ Node, ledger and runtime summary
 
 | Field | Type | Description |
 |---|---|---|
+| `commit` | `string` \| `null` | Running build Git commit, captured at process startup; null when unavailable. Not the remote repository HEAD. |
 | `node` | `object` |   |
 | `ledger` | `object` |   |
 | `runtime` | `object` |   |
@@ -5669,6 +5673,75 @@ Takes effect on the next deployment; `?redeploy=1` queues one now. `{ ok, name, 
 | `200` | removed | `object` |
 | `403` | `not_writer` |   |
 | `404` | `not_found` |   |
+
+### `GET /api/operations/projects`
+
+Find operational records by original cloud project or repository
+
+Authenticated owners and active organization members only. Filters access before returning results. Includes source and active commits; never claims a live health check.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type |
+|---|---|---|
+| `q` | `query` | `string` |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Operational records | `object` |
+
+### `GET /api/projects/{id}/operations`
+
+Read private operational provenance and dated verification evidence
+
+Owner or active organization member. Even public projects keep these records private. Passed evidence older than 24 hours is marked stale.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Operational record and current source/deployment metadata | `object` |
+
+### `PUT /api/projects/{id}/operations`
+
+Replace operational provenance with optimistic concurrency (owner only)
+
+Reference URLs must use HTTPS without credentials or query strings. Store secret names and locations, never values. Checks require unique IDs and passed/failed checks need evidence and verification time.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `expectedRevision` | `integer` | yes | (at least 0) |
+| `record` | [`ProjectOperationsInput`](./schemas.md#projectoperationsinput) | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | Saved operational record | `object` |
+| `400` | Invalid operational record |   |
+| `409` | Revision conflict; reload before saving |   |
 
 ### `PATCH /api/projects/{id}/presentation`
 
