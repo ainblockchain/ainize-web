@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-358 operations on 297 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+359 operations on 298 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -21,6 +21,7 @@ A node serves this same description as OpenAPI 3.1 at `GET /api/openapi.json`, s
 
 The **Auth** column of each index below says what a request must carry.
 
+- **`modelBearer`** — http `bearer`
 - **`operatorCookie`** — cookie `ainize_session`
 - **`operatorBearer`** — http `bearer`
 - **teaching key** — the `x-ainize-auth` header. There is no account: the key is the identity. Endpoints that accept it describe its exact form in their parameter table.
@@ -72,7 +73,8 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/transcribe`](#post-apitranscribe) | operator | Free transcription trial on a configured audio backend |
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
 | `POST` | [`/api/run`](#post-apirun) | operator | Run one script in the hosted-agent sandbox and stream its output |
-| `POST` | [`/api/decide`](#post-apidecide) | operator | Free decision trial on a configured decision backend (Jev/SystemOne) |
+| `POST` | [`/api/decide`](#post-apidecide) | operator | Free SystemOne decision trial |
+| `POST` | [`/v1/systemone`](#post-v1systemone) | operator | SystemOne decision with a caller API key |
 
 **Teach** — one pipeline, two doors: a dataset file (uploaded here, or with `ainize teach dataset`) and corrections collected in Live test are both frozen into the same canonical dataset → validated → trained → checked on the live model → a lesson its teacher can keep private or publish as a credited data provider (no sign-in — every request is signed with a teaching key held by the browser or the CLI)
 
@@ -1058,29 +1060,44 @@ For a ▶ button beside a .py or .js file (deploy/run-runtime/README.md). The fi
 
 ### `POST /api/decide`
 
-Free decision trial on a configured decision backend (Jev/SystemOne)
+Free SystemOne decision trial
 
-No request count applies; unpaid work is queued behind paying callers on the same backend. The body is passed to the sidecar's /v1/systemone unchanged except for the model id; requires a configured decision backend.
+Unpaid work is queued behind paying callers on the same backend. choice criteria is an object; score criteria is an array. Invalid question shapes return 400 before inference.
 
 **Auth** — operator
 
 **Request body** — `application/json`, required
 
-| Field | Type | Required |
-|---|---|---|
-| `model` | `string` | yes |
-| `state` | `object` | yes |
-| `questions` | `object` | yes |
-| `images` | `object` |   |
-| `videos` | `object` |   |
+[`DecisionRequest`](./schemas.md#decisionrequest)
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | decision | `object` |
-| `400` | invalid request |   |
+| `400` | invalid request, including question criteria shape |   |
 | `404` | model not configured |   |
+| `422` | model-specific validation error |   |
+| `503` | backend unavailable |   |
+
+### `POST /v1/systemone`
+
+SystemOne decision with a caller API key
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+[`DecisionRequest`](./schemas.md#decisionrequest)
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | decision | `object` |
+| `400` | invalid request, including question criteria shape |   |
+| `401` | missing or invalid API key |   |
+| `422` | model-specific validation error |   |
 | `503` | backend unavailable |   |
 
 ## Teach
