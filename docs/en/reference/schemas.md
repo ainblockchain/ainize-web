@@ -9,7 +9,7 @@ summary: The reusable request and response shapes of the node HTTP API
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-The 37 named shapes the [HTTP API](./http-api.md) refers to.
+The 38 named shapes the [HTTP API](./http-api.md) refers to.
 
 ## How to read this page
 
@@ -18,6 +18,7 @@ Fields are listed with their full path, so a nested field appears as its own row
 
 | Schema | What it is |
 |---|---|
+| [`DecisionRequest`](#decisionrequest) | SystemOne request. choice criteria is a non-empty object mapping option IDs to descriptions; score criteria is a non-empty ordered array; noul criteria is an optional object. Descriptions and instructions may be JSON. state and at least one question are required. |
 | [`ProjectOperationsInput`](#projectoperationsinput) |   |
 | [`OwnerRef`](#ownerref) | Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in. |
 | [`AgentRef`](#agentref) | One agent in the cross-product registry shape (ain-integration contract 1.0). Identity is `registryIssuer + agentId`; a change to the definition is a new `releaseId`. |
@@ -55,6 +56,17 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`TeachDatasetRow`](#teachdatasetrow) | One SOURCE row, accepted or not. `line` is the 1-based logical row in the uploaded file (a quoted CSV newline is one row, not two); `index` is the position in the dataset, null when the row was not accepted. |
 | [`TeachDatasetRef`](#teachdatasetref) | What a lesson was trained from. A lesson taught before datasets existed renders `{id: null, source: "derived"}` and still publishes and pays out. |
 | [`TeachPolicy`](#teachpolicy) |   |
+
+## `DecisionRequest`
+
+SystemOne request. choice criteria is a non-empty object mapping option IDs to descriptions; score criteria is a non-empty ordered array; noul criteria is an optional object. Descriptions and instructions may be JSON. state and at least one question are required.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `model` | `string` | yes | (at least 1 characters) |
+| `state` | `object` | yes |   |
+| `questions` | `object` | yes |   |
+| `<any key>` | `object` |   | any key |
 
 ## `ProjectOperationsInput`
 
