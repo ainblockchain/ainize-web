@@ -24,6 +24,7 @@ try{
     if(failSave)return route.fulfill({status:500,json:{error:{code:'internal',message:'fixture save failed'}}});
     repo=req.postDataJSON().repo;
    }
+   if(path.includes('/managed/')) return route.fulfill({json:{configured:null,status:{state:'ok',message:'up to date',checkedAt:null,syncedAt:null,nextCheckAt:null,commit:null,githubCommit:null,mode:'mirror'},requested:null}});
    const second=path.includes('/two/');
    if(second)await new Promise(r=>{release=r;});
    return route.fulfill({json:{configured:{repo:second?'team/second':repo,branch:'main',visibility:'private',enabled:true,configuredAt:'2026-11-04T00:00:00Z'},status:null,requested:null}});
@@ -40,5 +41,8 @@ try{
  await page.evaluate(()=>window.switchProject('two'));assert.equal(await input.inputValue(),'','another project never inherits the draft');
  const deadline=Date.now()+10000;while(!release&&Date.now()<deadline)await new Promise(r=>setTimeout(r,10));assert.ok(release);release();release=undefined;
  await page.waitForFunction(()=>document.querySelector('input[placeholder="owner/repo"]').value==='team/second');
+ await page.evaluate(()=>window.switchProject('managed'));
+ await page.getByText(/운영 동기화 작업에서 관리|Managed by the sync job/).waitFor();
+ assert.equal(await page.getByRole('link',{name:'https://github.com/team/managed'}).getAttribute('href'),'https://github.com/team/managed');
  assert.deepEqual(errors,[]);console.log('PASS: sync draft survives refetch and failed save; retry and project switch use the correct project');
 }finally{release?.();await browser?.close();server?.close();await rm(temp,{recursive:true,force:true});}
