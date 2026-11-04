@@ -56,6 +56,7 @@ import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
 import ProjectDomains from '@/components/ProjectDomains';
+import ProjectGithubSync, { GithubSyncBadge } from '@/components/ProjectGithubSync';
 import ProjectEnvVars, { ENV_SECTION_ID, MissingEnvBanner } from '@/components/ProjectEnvVars';
 import ProjectStorage, { MissingStorageBanner } from '@/components/storage/ProjectStorage';
 
@@ -589,6 +590,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         {p.aindrive?.logStore && <ExternalLink href={p.aindrive.logStore.urls.logs} target="_blank" rel="noreferrer">{t('projects.aindrive.open_logs')} ↗</ExternalLink>}
         <Chip $tone={statusToneOf(p.status)}>{t(`projects.status.${p.status}`)}</Chip>
         {p.name !== p.repoName && <Meta>{p.name}</Meta>}
+        {p.githubSync?.status && <GithubSyncBadge status={p.githubSync.status} />}
         <Spacer />
         <Actions>
           <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
@@ -672,6 +674,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         <TabBody>
           <ProjectEnvVars project={p} onOpenDeployment={openDeployment} onOpenStorage={hasStorage ? () => setTab('storage') : undefined} />
           {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
+          {p.githubSync && <ProjectGithubSync project={p} />}
           <KeyValue>
             {p.canManage && (
               <><dt>{t('projects.settings.name')}</dt><dd>

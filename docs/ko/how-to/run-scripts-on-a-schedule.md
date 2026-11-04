@@ -2,7 +2,7 @@
 title: 스크립트를 스케줄로, 블록체인 쓰기로, 웹훅으로 실행하기
 summary: 스크립트 프로젝트의 ainize.json에 triggers 키를 더하면 노드가 알아서 돌립니다 — cron 스케줄로, AIN 블록체인의 경로가 쓰일 때, 웹훅 URL이 호출될 때. 이벤트는 AINIZE_TRIGGER_EVENT로 들어옵니다.
 source: en/how-to/run-scripts-on-a-schedule.md
-source_sha256: 110de9b1032999b947ceb256fc2f75c429297792c274fedda21fd0b397dc3a6a
+source_sha256: ac099690c98ea868b8bb1a0ce30091aa9cc42070735f979a3c259a95299b6133
 ---
 
 # 스크립트를 스케줄로, 블록체인 쓰기로, 웹훅으로 실행하기
@@ -132,6 +132,37 @@ URL이 호출됩니다. 규칙은 노드가 만들어 줍니다 — 콘솔에서
 **체인에 설치**가 대신 설정해 주고(`setFunction`), 아니면 **규칙 복사**로 경로를 소유한 키로 직접 설정하세요. 그 뒤
 쓰기마다 위의 `ain` 이벤트가 옵니다. 경로의 `$post_id`는 `params`에, 써진 `value`, 쓴 사람의 주소, 트랜잭션 해시와
 함께.
+
+## 자체 이미지에서 작업 실행하기
+
+기본 실행 샌드박스에는 작은 스크립트만 들어갑니다. 파일 32개, 기본 Python·Node 이미지, 메모리 512 MiB, 5분이
+한도입니다. 백엔드의 예약 작업에는 보통 더 많은 것이 필요합니다. `node_modules`, 헤드리스 브라우저, 수십 개의
+시크릿, 몇 분의 실행 시간이 그렇습니다. `"image": true`와 `build`를 선언하면 모든 실행(push, **실행**, 각
+트리거)이 Dockerfile로 만든 이미지에서 새 컨테이너로 시작해 entry를 한 번 돌리고 끝납니다.
+
+```json
+{
+  "kind": "script",
+  "image": true,
+  "build": { "dockerfile": "Dockerfile" },
+  "entry": "jobs/run.js",
+  "inputs": { "JOB": { "description": "which job", "default": "list" } },
+  "timeoutMs": 900000,
+  "resources": { "memory": "2g", "cpus": 2, "pids": 512 },
+  "secrets": ["DATABASE_URL", "API_KEY"],
+  "allowedHosts": ["api.example.com"],
+  "triggers": {
+    "scraping": { "type": "schedule", "cron": "0 * * * *", "timezone": "Asia/Seoul", "inputs": { "JOB": "scraping" }, "enabled": false }
+  }
+}
+```
+
+- entry는 이미지의 `WORKDIR`에서 `node <entry>`(또는 `python3 <entry>`)로 실행됩니다. 작업마다 입력을 주고 그 값으로 분기하세요.
+- 이미지는 커밋마다 한 번 빌드되고, 같은 커밋의 실행은 그 이미지를 다시 씁니다.
+- 프로젝트 시크릿은 모두 설정됩니다(32개 제한 없음). 나가는 연결은 게이트웨이를 거쳐 `allowedHosts`로만 갑니다.
+  `resources.pids`로 브라우저에 필요한 프로세스 한도를 올릴 수 있습니다.
+- `"enabled": false`로 선언한 트리거는 꺼진 채로 설치됩니다. 배포하고 **실행**으로 시험한 뒤, 기존 스케줄러를
+  끄고 나서 켜면 됩니다. 한 번 정한 스위치는 이후 배포에서도 유지됩니다.
 
 ## 콘솔에서
 

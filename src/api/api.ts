@@ -1,6 +1,6 @@
 import type {OperationsRecord, OperationsView} from './projectOperations';
 import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
-import type { AppDomain, AppDomainsResponse } from './projects';
+import type { AppDomain, AppDomainsResponse, GithubSyncView } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
 import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
 import {
@@ -206,7 +206,13 @@ export const api = createApi({
     installTriggerAinRule: b.mutation<{ ok?: boolean; txHash?: string } | void, { id: string; name: string }>({ query: ({ id, name }) => ({ url: `api/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(name)}/ain-rule/install`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/triggers` }] }),
     redeploy: b.mutation<Queued, { deploymentId: string; projectId: string }>({ query: ({ deploymentId }) => ({ url: `api/deployments/${encodeURIComponent(deploymentId)}/redeploy`, method: 'POST' }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: a.projectId }] }),
     /** Ask the GitHub → AIN Drive sync to run for this project's repository now (ainize-node project-github-sync.ts). */
-    syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }) }),
+    syncFromGithub: b.mutation<{ requested: boolean; requestedAt: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'POST' }), invalidatesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/github-sync` }] }),
+    /** The project's GitHub upstream and the sync's last status (owner or org member). */
+    projectGithubSync: b.query<GithubSyncView, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/github-sync`, providesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/github-sync` }] }),
+    /** Keep the project in sync with `repo` (`owner/repo`) at `branch`; the node checks GitHub, the sync job checks the merge. */
+    setProjectGithubSync: b.mutation<GithubSyncView, { id: string; repo: string; branch: string }>({ query: ({ id, ...body }) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'PUT', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Project', id: `${a.id}/github-sync` }, { type: 'Project', id: a.id }] }),
+    /** Pause the sync for the project's repository. */
+    pauseProjectGithubSync: b.mutation<GithubSyncView, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}/github-sync`, method: 'DELETE' }), invalidatesTags: (_r, _e, id) => [{ type: 'Project', id: `${id}/github-sync` }, { type: 'Project', id }] }),
     /** Owner only: the display name (a label — repo binding, URLs and domains stay). ainize-node PATCH /api/projects/:id/presentation. */
     operationsSearch: b.query<{projects:OperationsView[]},string>({query:q=>`api/operations/projects?q=${encodeURIComponent(q)}`,providesTags:['Project']}),
     projectOperations: b.query<OperationsView,string>({query:id=>`api/projects/${encodeURIComponent(id)}/operations`,providesTags:(_r,_e,id)=>[{type:'Project',id}]}),
@@ -777,7 +783,7 @@ export const {
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
   useOperationsSearchQuery, useProjectOperationsQuery, useSaveProjectOperationsMutation,
-  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useRotateProjectSecretMutation, useRenameProjectMutation,
+  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useProjectGithubSyncQuery, useSetProjectGithubSyncMutation, usePauseProjectGithubSyncMutation, useRotateProjectSecretMutation, useRenameProjectMutation,
   useProjectTriggersQuery, useEnableTriggerMutation, useDisableTriggerMutation, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery, useInstallTriggerAinRuleMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useProjectStorageQuery, useOrgStoresQuery, useCreateStoreMutation, useStoreQuery, useUpdateStoreMutation, useStoreActionMutation, useDeleteStoreMutation, useConnectStoreMutation, useDisconnectStoreMutation,

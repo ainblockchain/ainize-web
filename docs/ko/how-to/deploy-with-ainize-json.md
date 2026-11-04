@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 42093f83c36fc71bb54154379d0b3284a6241b202c57cc4fb1f6e6b71905dbba
+source_sha256: 5913e87bfbd7b0313e40bf6a6db5ec524e36838e397079f360be7675eaf0e944
 ---
 
 # ainize.json으로 리포 배포하기
@@ -38,9 +38,10 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `entry` | `script` | 실행할 파일, 리포 루트 기준. |
 | `env` | 전체 | 빌드와 실행에 들어가는 환경변수. **비밀값 금지** — 파일이 리포에 있습니다. 샌드박스가 `AINIZE_URL`과 `AINIZE_API_KEY`(push한 사람 본인의 키)를 스스로 넣어 주므로, 스크립트는 `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])`로 모델에 닿고 키는 절대 커밋되지 않습니다. |
 | `inputs` | 전체(`script` 실행에서 사용) | 실행 전에 사람이 정하는 매개변수. GitHub Actions `workflow_dispatch` inputs와 같은 모양이며, `INPUT_<NAME>` 환경변수로 전달됩니다. [Inputs](#inputs) 참고. |
-| `timeoutMs` | `script` | 실행 1회의 제한 시간. 기본 120 000, 최대 300 000. |
+| `timeoutMs` | `script` | 실행 1회의 제한 시간. 기본 120 000, 최대 300 000(`image`이면 3 600 000). |
+| `image` | `script` | `true`이면 기본 샌드박스 대신 직접 만든 `build.dockerfile` 이미지에서 entry를 실행합니다. 의존성, 헤드리스 브라우저, 많은 시크릿, 5분이 넘는 작업이 필요할 때 씁니다. [스크립트를 스케줄로 실행하기](./run-scripts-on-a-schedule.md#자체-이미지에서-작업-실행하기)를 보세요. |
 | `triggers` | `script` | 스스로 실행을 시작시키는 트리거 최대 8개 — `schedule`(cron + 시간대), `ain`(AIN 블록체인 경로 쓰기), `http`(웹훅 URL). [스크립트를 스케줄로 실행하기](./run-scripts-on-a-schedule.md) 참고. |
-| `build.dockerfile`, `build.context` | `service` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
+| `build.dockerfile`, `build.context` | `service`, `image`인 `script` | 이미지를 만들 Dockerfile. 기본 `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | 컨테이너가 듣는 포트. Next.js 기본 3000. |
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — 공개될 에이전트 카드의 항목. |

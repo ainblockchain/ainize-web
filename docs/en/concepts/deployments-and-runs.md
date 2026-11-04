@@ -51,7 +51,7 @@ Things that tilt the decision:
 
 | | Deployment | Run |
 |---|---|---|
-| Process lifetime | as long as the deployment is active | one execution, up to `timeoutMs` (default 2 min, max 5) |
+| Process lifetime | as long as the deployment is active | one execution, up to `timeoutMs` (default 2 min, max 5; up to 60 with `image`) |
 | Network | its port is public; egress through the gateway | no inbound; egress only to Ainize (`AINIZE_URL`) |
 | Parameters | environment variables set in Settings | the same, plus `inputs` per run and the trigger event in `AINIZE_TRIGGER_EVENT` |
 | What a push does | builds and swaps the live version | runs the script once (with the input defaults) and installs its triggers |
