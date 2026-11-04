@@ -38,6 +38,7 @@ beforeEach(() => {
   delete process.env.LEGACY_LOGIN;
   N.calls.length = 0;
   I.appProofs.length = 0;
+  I.state.tokenFailure = null;
   I.state.spoil = null;
   I.state.signWithForeign = false;
   N.replies.set('/api/auth/sso/session', (body) => ({ status: 200, body: { status: 'ok', token: `node-token-for-${String(body.sub)}`, principal: `sso:${String(body.sub)}`, expiresAt: Date.now() + 1000, created: true, linked: (body.link as { principal?: string } | null)?.principal ?? null } }));
@@ -385,4 +386,31 @@ test('a provider discovery failure offers retry with the original destination, n
     assert.equal(location(response).searchParams.get('next'), next);
     assert.ok(location(response).searchParams.get('sso_error'));
   } finally { I.state.discoveryDown = false; }
+});
+
+
+test('bad deployed SSO credentials are diagnosed and a fresh flow works after correcting the secret', async () => {
+  process.env.AIN_SSO_CLIENT_SECRET = 'wrong-deployed-secret';
+  const denied = await fullSignIn();
+  assert.match(location(denied).searchParams.get('sso_error')!, /server configuration problem/);
+  assert.equal(cookieOf(denied, 'ainize_session'), undefined);
+  assert.equal(N.calls.filter(c => c.path === '/api/auth/sso/session').length, 0);
+  process.env.AIN_SSO_CLIENT_SECRET = SECRET;
+  const fixed = await fullSignIn();
+  assert.equal(cookieOf(fixed, 'ainize_session')?.value, `node-token-for-${SUB}`);
+});
+
+test('grant expiry and provider outage are distinct, without leaking provider response text', async () => {
+  const lines:string[]=[];const previous=console.error;console.error=(...args)=>{lines.push(args.map(String).join(' '));};
+  try {
+    for(const [status,error,message,challenge] of [[400,'invalid_grant','expired or was already used',false],[503,'server_error','temporarily unavailable',false],[401,'invalid_client','server configuration problem',false],[401,'invalid_client','server configuration problem',true]] as const) {
+      I.state.tokenFailure={status,error,challenge,error_description:'PRIVATE-TOKEN-DO-NOT-LOG'};
+      const result=await fullSignIn();
+      assert.ok(location(result).searchParams.get('sso_error')!.includes(message), error+': '+location(result).searchParams.get('sso_error'));
+      assert.equal(cookieOf(result,'ainize_session'),undefined);
+      assert.ok(!location(result).href.includes('PRIVATE-TOKEN'));
+    }
+    assert.ok(!lines.join(' ').includes('PRIVATE-TOKEN'));
+    assert.equal(N.calls.filter(c=>c.path==='/api/auth/sso/session').length,0);
+  } finally {console.error=previous;I.state.tokenFailure=null;}
 });
