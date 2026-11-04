@@ -1,6 +1,8 @@
 ---
 title: CI/CD — push 하나가 서버가 되기까지
 summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git push 가 레포를 빌드하고, ainize.json 의 checks 게이트(테스트·린트)와 헬스체크를 돌려 무중단으로 교체하며, 무엇이든 실패하면 이전 버전이 계속 서비스합니다. checks 게이트가 GitHub Actions 워크플로를 대신합니다 — GitHub Actions 미사용 — 롤백은 이전 배포를 다시 배포해서 합니다. 스케줄·웹훅 작업은 Run 입니다.
+source: en/how-to/ci-cd.md
+source_sha256: b8230eb7e3ccd76ba75e4859180cf33fd3ee224b9255183ec12f2fa9548e1357
 ---
 
 # CI/CD — push 하나가 서버가 되기까지
