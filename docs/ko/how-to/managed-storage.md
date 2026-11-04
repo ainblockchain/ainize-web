@@ -2,7 +2,7 @@
 title: 프로젝트에 데이터베이스와 파일 저장소 연결하기
 summary: 조직의 Postgres 또는 S3 호환 Blob 스토어를 만들어 프로젝트에 연결하면, 다음 배포부터 앱이 DATABASE_URL과 S3_*를 받습니다 — 마이그레이션, 데이터 브라우저, AinDrive로의 매일 백업까지.
 source: en/how-to/managed-storage.md
-source_sha256: 37bd23af5d145916126c8087dcbefc489081afae60bd416f45dfdff9f5f0a2c8
+source_sha256: 6db691ad0aab7e8c426aadf7f84b44a6c6000adc552a8da5b91e3960dfb7f5a8
 aincode: false
 ---
 
@@ -176,11 +176,28 @@ const minio = new Client({ endPoint: host, port: Number(port), useSSL: false, ac
 ## 백업, 복원, 되돌리기
 
 모든 스토어는 매일 정한 시각에(또는 매시간, 또는 안 함 — **백업** 탭의 일정) 덤프되고, 확인을 거쳐, 노드의 NAS에
-보관됩니다. 조직의 **AinDrive 백업 대상**을 한 번 설정하면(**설정 → 스토리지**, 관리자: 드라이브 ID와 `drives:write`
-권한의 AinDrive 계정 토큰 `aind_aat_…`; 노드가 시험 업로드로 확인하고 다시 보여 주지 않음) 백업마다 그 드라이브의
-`ainize-storage/<store>-<id>/backups/<date>/` 아래에도 복사되고, 백업을 설명하는 작은 JSON 파일이 함께 놓입니다 — 다른
-노드에서도 드라이브만으로 복원할 수 있을 만큼입니다. 2 GiB를 넘는 덤프는 NAS에만 남습니다. 보관은 기본으로 30일, 자동
-백업 최대 60개이며, 가장 최근 백업은 언제나 남고, 복원·교체·삭제 전에 남기는 안전 백업은 30일 보관됩니다.
+보관됩니다. 조직의 **AinDrive 백업 대상**을 한 번 연결하면(**설정 → 스토리지**, 관리자: 드라이브 ID를 입력하고
+**AinDrive 연결**을 누른 뒤 AinDrive에서 승인) 백업마다 그 드라이브의 `ainize-storage/<store>-<id>/backups/<date>/`
+아래에도 복사되고, 백업을 설명하는 작은 JSON 파일이 함께 놓입니다 — 다른 노드에서도 드라이브만으로 복원할 수 있을
+만큼입니다. 2 GiB를 넘는 덤프는 NAS에만 남습니다. 보관은 기본으로 30일, 자동 백업 최대 60개이며, 가장 최근 백업은
+언제나 남고, 복원·교체·삭제 전에 남기는 안전 백업은 30일 보관됩니다.
+
+이 연결은 붙여 넣는 토큰이 아니라 AinDrive OAuth 권한 위임(`drives:read drives:write`)입니다. AinDrive의 액세스 토큰은
+1시간만 유효하므로 노드가 위임의 갱신 토큰을 보관하고 직접 갱신합니다. 1시간이 거의 끝나 가면 업로드 전에 갱신하고,
+백업할 것이 없어도 일주일에 한 번은 갱신해 30일이 지나도 위임이 끊기지 않게 합니다. 갱신할 때마다 갱신 토큰이 새것으로
+바뀌며, 노드는 새 토큰을 먼저 저장한 다음에 사용합니다. 위임을 저장하기 전에 작은 파일을 올렸다가 지워서 실제로 쓸 수
+있는지 확인하며, 위임은 다시 보여 주지 않습니다.
+
+위임이 더는 동작하지 않으면 스토리지 탭에 **AinDrive 다시 연결**이 표시됩니다. AinDrive → 연결된 앱에서 누군가 연결을
+끊었을 때, 연결한 사람이 드라이브의 쓰기 권한을 잃었을 때, 또는 갱신 도중에 노드가 멈춰서 저장된 갱신 토큰이 아직
+유효한지 알 수 없을 때 그렇습니다. 그동안에도 백업은 NAS에 계속 쌓입니다. 다시 연결하면 스토어마다 드라이브가 거부했던
+가장 최근 백업을 다시 올립니다.
+
+API로는 `POST /api/orgs/<org>/storage/backup-target/connect` `{ driveId }`로 같은 흐름을 시작합니다. 응답으로 받는
+AinDrive 승인 URL은 24시간 안에 한 번 쓸 수 있습니다. 이미 가진 위임을 넘겨줄 수도 있습니다.
+`PUT /api/orgs/<org>/storage/backup-target`에 `{ driveId, refreshToken, clientId }`를 보내거나, 인가 코드라면
+`{ driveId, code, codeVerifier, redirectUri, clientId }`를 보냅니다. 액세스 토큰(`aind_aat_…`)만 보내면 1시간 안에
+동작하지 않게 되므로 거부됩니다.
 
 **지금 백업**은 언제든 하나를 만듭니다. 백업의 **복원…**(관리자, 확인을 위해 스토어 이름 입력)은 두 가지를 제공합니다:
 

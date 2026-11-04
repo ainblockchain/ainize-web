@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-366 operations on 302 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+368 operations on 304 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -359,8 +359,10 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/stores/{sid}/restore`](#post-apistoressidrestore) | operator | Restore a backup into a new store (default) or in place with a 7-day undo (admin) |
 | `POST` | [`/api/stores/{sid}/restore/undo`](#post-apistoressidrestoreundo) | operator | Undo the newest in-place restore (admin): the kept database comes back, the restored one is set aside |
 | `GET` | [`/api/stores/{sid}/logs`](#get-apistoressidlogs) | operator | The store container's own log (org write) |
-| `PUT` | [`/api/orgs/{id}/storage/backup-target`](#put-apiorgsidstoragebackup-target) | operator | Set the organization's AinDrive backup target (admin): a drive id and an account token |
+| `PUT` | [`/api/orgs/{id}/storage/backup-target`](#put-apiorgsidstoragebackup-target) | operator | Set the organization's AinDrive backup target (admin): a drive id and an AinDrive grant |
 | `DELETE` | [`/api/orgs/{id}/storage/backup-target`](#delete-apiorgsidstoragebackup-target) | operator | Clear the backup target (admin) — backups stay on the NAS only |
+| `POST` | [`/api/orgs/{id}/storage/backup-target/connect`](#post-apiorgsidstoragebackup-targetconnect) | operator | Connect AinDrive as the backup target (admin): the AinDrive consent URL to open |
+| `POST` | [`/api/storage/aindrive/callback`](#post-apistorageaindrivecallback) | operator | Finish connecting AinDrive (admin of the organization that started it) |
 | `GET` | [`/api/projects/{id}/storage`](#get-apiprojectsidstorage) | operator | The project's Storage tab: connected stores, what ainize.json declares, what is missing (owner or member) |
 
 **Operator** — wallet, settings, purchases, branches, peers, chain, drive
@@ -7105,9 +7107,9 @@ The store container's own log (org write)
 
 ### `PUT /api/orgs/{id}/storage/backup-target`
 
-Set the organization's AinDrive backup target (admin): a drive id and an account token
+Set the organization's AinDrive backup target (admin): a drive id and an AinDrive grant
 
-`{ driveId, token }` — a drive on the operator's AinDrive (`AINDRIVE_URL`; a caller never chooses where the node sends backups) and an AinDrive account token (`aind_aat_…`) with `drives:write`. A probe file is uploaded and removed before the token is sealed; `{ driveId, verifiedAt }` — the token is never echoed. 400 `drive_unauthorized`, 502 `aindrive_error`.
+A drive on the operator's AinDrive (`AINDRIVE_URL`; a caller never chooses where the node sends backups) and an AinDrive OAuth grant with `drives:read drives:write`: `{ driveId, refreshToken, clientId? }` (an `aind_art_…` refresh token and the OAuth client it was issued to — default the node's own) or `{ driveId, code, codeVerifier, redirectUri, clientId? }` (an authorization code with its PKCE verifier). The usual way is `POST …/backup-target/connect`. The node refreshes the one-hour access token itself, saves every rotated refresh token before using it, and never presents one twice. A probe file is uploaded and removed with the new grant before it replaces the old one (which is revoked); a grant whose probe fails is revoked. An access token alone (`{ token: "aind_aat_…" }`) is refused with 400 `refresh_token_required`: it lives one hour. `{ driveId, verifiedAt, refreshExpiresAt }` — no token is ever echoed. 400 `drive_unauthorized` | `refresh_token_required`, 502 `aindrive_error`.
 
 **Auth** — operator
 
@@ -7119,17 +7121,14 @@ Set the organization's AinDrive backup target (admin): a drive id and an account
 
 **Request body** — `application/json`, required
 
-| Field | Type | Required |
-|---|---|---|
-| `driveId` | `string` | yes |
-| `token` | `string` | yes |
+`{"oneOf":[{"type":"object","required":["driveId","refreshToken"],"properties":{"driveId":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,100}$"},"refreshToken":{"type":"string"},"clientId":{"type":"string"}}},{"type":"object","required":["driveId","code","codeVerifier","redirectUri"],"properties":{"driveId":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,100}$"},"code":{"type":"string"},"codeVerifier":{"type":"string"},"redirectUri":{"type":"string","format":"uri"},"clientId":{"type":"string"}}}]}`
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | verified | `object` |
-| `400` | `invalid_request` \| `drive_unauthorized` |   |
+| `400` | `invalid_request` \| `drive_unauthorized` \| `refresh_token_required` |   |
 | `502` | `aindrive_error` |   |
 
 **`200` response body**
@@ -7138,6 +7137,7 @@ Set the organization's AinDrive backup target (admin): a drive id and an account
 |---|---|
 | `driveId` | `string` |
 | `verifiedAt` | `integer` |
+| `refreshExpiresAt` | `integer` |
 
 ### `DELETE /api/orgs/{id}/storage/backup-target`
 
@@ -7156,6 +7156,56 @@ Clear the backup target (admin) — backups stay on the NAS only
 | Code | Description | Body |
 |---|---|---|
 | `200` | cleared | `object` |
+
+### `POST /api/orgs/{id}/storage/backup-target/connect`
+
+Connect AinDrive as the backup target (admin): the AinDrive consent URL to open
+
+`{ driveId }` → `{ authorizeUrl, expiresAt }`. OAuth 2 authorization code with PKCE (S256), scopes `drives:read drives:write`, the node's own public AinDrive client (`AINIZE_STORAGE_AINDRIVE_CLIENT_ID`, else one the node registers with AinDrive). The person approves on AinDrive, which sends the browser to `<node>/org/storage/aindrive?code&state`; that page posts both to `POST /api/storage/aindrive/callback`. The link works for 24 hours, once. 502 `aindrive_error`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `driveId` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ authorizeUrl, expiresAt }` | `object` |
+| `502` | `aindrive_error` |   |
+
+### `POST /api/storage/aindrive/callback`
+
+Finish connecting AinDrive (admin of the organization that started it)
+
+`{ state, code }` from AinDrive's redirect. The code is exchanged with the connect's PKCE verifier, the grant probed (a file uploaded and removed) and made the organization's backup target. `{ orgId, driveId, verifiedAt, refreshExpiresAt }`. 400 `connect_expired` (unknown, used or older than 24 hours) | `drive_unauthorized`, 502 `aindrive_error`.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `state` | `string` | yes |
+| `code` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, driveId, verifiedAt, refreshExpiresAt }` | `object` |
+| `400` | `connect_expired` \| `drive_unauthorized` |   |
+| `502` | `aindrive_error` |   |
 
 ### `GET /api/projects/{id}/storage`
 
