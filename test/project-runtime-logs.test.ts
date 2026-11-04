@@ -29,9 +29,9 @@ test('download text and times', () => {
 });
 
 test('the request is bounded and the project id is encoded', () => {
-  assert.equal(runtimeLogsUrl('prj_1', 200), 'api/projects/prj_1/runtime-logs?tail=200');
-  assert.equal(runtimeLogsUrl('a/b', 99999), 'api/projects/a%2Fb/runtime-logs?tail=1000');
-  assert.equal(runtimeLogsUrl('p', 0), 'api/projects/p/runtime-logs?tail=1');
+  assert.equal(runtimeLogsUrl('prj_1', 200), 'api/projects/prj_1/runtime-logs?tail=200&allowCached=1');
+  assert.equal(runtimeLogsUrl('a/b', 99999), 'api/projects/a%2Fb/runtime-logs?tail=1000&allowCached=1');
+  assert.equal(runtimeLogsUrl('p', 0), 'api/projects/p/runtime-logs?tail=1&allowCached=1');
 });
 
 test('refusals become the right message, each in both languages', () => {
@@ -44,4 +44,13 @@ test('refusals become the right message, each in both languages', () => {
     const e = projects[`projects.logs.${p}`];
     assert.ok(e && e.en.trim() && /[가-힣]/.test(e.ko), p);
   }
+});
+
+
+test('cached logs preserve observation times and require an explicit stale flag',()=>{
+ const stale=parseRuntimeLogs({cached:true,fetchedAt:123,failureObservedAt:456,liveStatus:'logs_unavailable',lines:[]});
+ assert.equal(stale.cached,true);assert.equal(stale.fetchedAt,123);assert.equal(stale.failureObservedAt,456);assert.equal(stale.liveStatus,'logs_unavailable');
+ const live=parseRuntimeLogs({cached:false,failureObservedAt:456});assert.equal(live.cached,undefined);assert.equal(live.failureObservedAt,undefined);
+ const malformed=parseRuntimeLogs({cached:true,failureObservedAt:'now',liveStatus:'unknown'});assert.equal(malformed.failureObservedAt,undefined);assert.equal(malformed.liveStatus,undefined);
+ assert.ok(projects['projects.logs.cached'].ko);assert.ok(projects['projects.logs.cached'].en);
 });

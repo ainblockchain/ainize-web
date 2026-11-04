@@ -22,6 +22,9 @@ export interface RuntimeLogs {
   placement: 'local' | 'peer';
   tail: number;
   fetchedAt: number;
+  cached?: boolean;
+  failureObservedAt?: number;
+  liveStatus?: 'not_running' | 'logs_unavailable';
   lines: RuntimeLogLine[];
   truncated: boolean;
 }
@@ -32,7 +35,7 @@ export const RUNTIME_LOG_DEFAULT_TAIL = 200;
 /** How often the tab asks again while "Follow" is on. */
 export const RUNTIME_LOG_POLL_MS = 3000;
 
-export const runtimeLogsUrl = (id: string, tail: number) => `api/projects/${encodeURIComponent(id)}/runtime-logs?tail=${Math.max(1, Math.min(1000, Math.floor(tail)))}`;
+export const runtimeLogsUrl = (id: string, tail: number) => `api/projects/${encodeURIComponent(id)}/runtime-logs?tail=${Math.max(1, Math.min(1000, Math.floor(tail)))}&allowCached=1`;
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
@@ -47,6 +50,7 @@ export function parseRuntimeLogs(raw: unknown): RuntimeLogs {
     placement: r.placement === 'peer' ? 'peer' : 'local',
     tail: typeof r.tail === 'number' ? r.tail : RUNTIME_LOG_DEFAULT_TAIL,
     fetchedAt: typeof r.fetchedAt === 'number' ? r.fetchedAt : Date.now(),
+    ...(r.cached === true ? {cached: true, ...(typeof r.failureObservedAt === 'number' && Number.isFinite(r.failureObservedAt) ? {failureObservedAt:r.failureObservedAt}:{}), ...(r.liveStatus === 'not_running' || r.liveStatus === 'logs_unavailable' ? {liveStatus:r.liveStatus}: {})} : {}),
     truncated: r.truncated === true,
     lines: lines.flatMap((l): RuntimeLogLine[] => {
       const x = (l ?? {}) as Record<string, unknown>;

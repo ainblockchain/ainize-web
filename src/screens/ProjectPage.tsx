@@ -138,7 +138,7 @@ const RunLine = styled.div<{ $err: boolean }>`
  * Owner and organization members only; "Follow" asks again every few seconds and keeps the view at the bottom unless
  * the reader scrolled up.
  */
-function RuntimeLogView({ project }: { project: Project }) {
+export function RuntimeLogView({ project }: { project: Project }) {
   const { t } = useT();
   const { isSignedIn } = useAuth();
   const [tail, setTail] = useState<number>(RUNTIME_LOG_DEFAULT_TAIL);
@@ -152,7 +152,7 @@ function RuntimeLogView({ project }: { project: Project }) {
     return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(window.location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
   }
   if (!project.canOperate) return <Panel><Help>{t('projects.logs.not_member', { org: project.org })}</Help></Panel>;
-  const data = q.data;
+  const data = q.currentData;
   const problem = q.error ? runtimeLogProblemOf(q.error) : null;
   return (
     <>
@@ -167,6 +167,7 @@ function RuntimeLogView({ project }: { project: Project }) {
         <Button size="small" onClick={() => download(`${project.org}-${project.repoName}-runtime.log`, runtimeLogsText(data?.lines ?? []))} disabled={!data?.lines.length}>{t('projects.logs.download')}</Button>
       </FilterRow>
       <Help>{t('projects.logs.runtime_hint')}</Help>
+      {data?.cached && <Alert $tone="warning">{t('projects.logs.cached', {time: new Date(data.fetchedAt).toLocaleString(), failure: data.failureObservedAt ? new Date(data.failureObservedAt).toLocaleString() : '—'})}</Alert>}
       {problem && <Alert $tone={problem === 'not_running' ? 'info' : 'error'}>{t(`projects.logs.${problem}`, { org: project.org })}</Alert>}
       {q.isLoading && !data ? <CenterProgress /> : data && (
         <Log ref={box} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}>
