@@ -166,9 +166,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 247 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 248 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 123 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 122 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -189,6 +189,7 @@ A further 123 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "checks" is for a service or nextjs project, not \<kind> — a \<kind> project's own run is its check | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "image" is for a script project, not \<kind> — a \<kind> project already runs its own image | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "media" is for a service project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "release" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
