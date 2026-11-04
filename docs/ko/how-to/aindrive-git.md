@@ -2,7 +2,7 @@
 title: 어느 머신에서나 AinDrive를 git 리모트로 쓰기
 summary: AinDrive는 GitHub와 같은 git 호스트입니다. 노트북이나 CI에서 토큰으로 HTTPS clone·push 하고, GitHub는 사람들이 push 하는 곳으로 두고 동기화로 머지를 가져오며, 배포를 위해 서버에 로그인하지 않습니다.
 source: en/how-to/aindrive-git.md
-source_sha256: 58196d36e9a96b0aaa82f709c73e426095a321a51f1caab185c8ec3a52159882
+source_sha256: 988672d57c0cfc865f7045412e5369b2670b2c5d696975e018f95e11e7ddb0a6
 ---
 
 # 어느 머신에서나 AinDrive를 git 리모트로 쓰기
@@ -70,12 +70,43 @@ SSH 는 운영자가 git SSH 포트를 열어 둔 곳에서 AIN SSO 계정에 �
 그 일을 합니다. GitHub `main` 은 AinDrive `main` 으로(`ainize.json` 같은 AinDrive 전용 커밋 위에 머지되어), `develop` 은
 `develop` 으로 미러되고, 배포는 다른 AinDrive push 뒤와 똑같이 이어집니다.
 
-- GitHub 의 머지는 몇 분 안에 AinDrive 에 닿습니다(바뀐 게 없으면 저장소별로 간격을 늘립니다).
-- 프로젝트 페이지의 **GitHub에서 지금 동기화**를 누르면 바로 실행을 요청하고 1분 안에 시작합니다
+### 프로젝트에서 켜기
+
+프로젝트 소유자나 조직 멤버라면 누구나 직접 켭니다. 운영자 요청이나 서버 로그인은 필요 없습니다.
+
+1. ainize 에서 프로젝트를 열고 **설정** → **GitHub에서 동기화** 로 갑니다.
+2. GitHub 리포(`owner/repo` 또는 `https://github.com/...` 주소)와 따라갈 브랜치(기본 `main`)를 넣고 **동기화 켜기**를 누릅니다.
+
+API 로는 세션이나 API 키로 이렇게 합니다.
+
+```bash
+curl -X PUT https://ainize.ai/api/projects/<project-id>/github-sync \
+  -H 'content-type: application/json' \
+  -d '{"repo": "my-org/my-app", "branch": "main"}'
+```
+
+확인하는 것:
+
+- **저장할 때:** GitHub 에 익명으로 리포를 묻습니다. 공개 리포라면 그 브랜치가 있어야 합니다. 비공개 리포는 그 GitHub 소유자가
+  조직에 허용된 경우에만 받습니다(동기화는 비공개 리포를 자체 GitHub 권한으로 읽으므로 아무 리포나 받지 않습니다). 아니면
+  `github_repo_not_found` 입니다. 한 AinDrive 리포의 프로젝트들(모노레포 폴더들)은 업스트림 하나를 함께 씁니다.
+- **그 뒤 1분 안에:** 동기화가 직접 리포를 읽을 수 있는지, 브랜치가 있는지, 그 브랜치가 AinDrive `main` 에 깨끗하게
+  머지되는지 확인합니다. AinDrive 가 그대로 미러이거나, AinDrive 전용 커밋이 충돌 없이 위에 얹혀 있어야 합니다. 결과는 페이지에
+  나옵니다.
+
+### 보이는 것
+
+**GitHub에서 동기화** 카드(와 프로젝트 머리글의 한 줄)에 상태가 나옵니다. *동기화됨* 또는 *동기화 실패*와 그 이유(예: 충돌난
+파일), 마지막 확인, 마지막으로 무언가 push 한 시각, AinDrive `main` 커밋과 그것이 온 GitHub 커밋, 다음 확인 시각입니다.
+`GET /api/projects/{id}/github-sync` 는 같은 내용을 JSON 으로 돌려줍니다.
+
+- GitHub 의 머지는 몇 분 안에 AinDrive 에 닿습니다(바뀐 게 없으면 저장소별로 간격을 늘립니다. 5분에서 두 배씩 2시간까지,
+  바뀌면 처음으로).
+- **GitHub에서 지금 동기화**를 누르면 바로 실행을 요청하고 1분 안에 시작합니다
   (`POST /api/projects/{id}/github-sync`, 소유자 또는 조직 멤버).
-- **GitHub 머지만으로는 배포되지 않습니다.** 배포는 동기화가 하는 AinDrive push 입니다. 동기화가 멈춰 있거나 저장소가 목록에
-  없으면 위의 자격증명으로 AinDrive `main` 에 직접 push 하세요.
-- 어떤 저장소를 동기화하는지는 운영자의 목록입니다(동기화 작업은 운영자 토큰으로 돕니다). 저장소를 추가해 달라고 요청하세요.
+- **동기화 멈추기**(`DELETE /api/projects/{id}/github-sync`)는 다시 켤 때까지 그 리포의 동기화를 멈춥니다.
+- **GitHub 머지만으로는 배포되지 않습니다.** 배포는 동기화가 하는 AinDrive push 입니다. 동기화가 멈췄거나 실패했다면 위의
+  자격증명으로 AinDrive `main` 에 직접 push 하세요.
 
 AinDrive 에서만 의미 있는 파일 — `ainize.json`, `Dockerfile.ainize`, 실제 서비스에 닿지 못하는 피어용 mock — 은 동기화가
 GitHub 이력 위에 유지하는 AinDrive 전용 커밋에 있습니다. 바꿀 때는 AinDrive 리모트에 직접 커밋하세요(2절). GitHub 에 추가하면

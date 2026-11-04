@@ -33,6 +33,24 @@ export interface ProjectManifest {
 
 export interface ProjectSource { repoId: string; target: 'head' | 'commit' | 'deployed'; sha: string; sourcePath: string; manifest: ProjectManifest }
 
+/** What the sync job last reported for the project's AIN Drive repository (ainize-node project-github-sync.ts). */
+export interface GithubSyncStatus {
+  state: 'pending' | 'ok' | 'error';
+  message: string;
+  checkedAt: string | null;
+  syncedAt: string | null;
+  nextCheckAt: string | null;
+  commit: string | null;
+  githubCommit: string | null;
+  mode: 'mirror' | 'merge' | null;
+}
+/** `GET /api/projects/:id/github-sync`: the upstream set on ainize, and the last status. */
+export interface GithubSyncView {
+  configured: { repo: string | null; branch: string | null; visibility: 'public' | 'private'; enabled: boolean; configuredAt: string } | null;
+  status: GithubSyncStatus | null;
+  requested: string | null;
+}
+
 /**
  * A project as the node answers it (ainize-node docs/PROJECTS.md "Who sees what"): a public project reads to anyone; an
  * org-private one (`visibility: 'org'` — its repository's org slug is an organization's) only to that organization's
@@ -73,6 +91,8 @@ export interface Project {
   aindrive?: ProjectAindrive | null;
   /** Managed storage (src/api/projectStorage.ts): how many stores are connected and how many declared bindings are not — owner and members, on a node with storage; null or absent otherwise. */
   storage?: { attached: number; missing: number } | null;
+  /** GitHub → AIN Drive sync (owner and members of an AIN Drive project; null otherwise or on an older node). */
+  githubSync?: GithubSyncView | null;
   createdAt: number;
   updatedAt: number;
 }
