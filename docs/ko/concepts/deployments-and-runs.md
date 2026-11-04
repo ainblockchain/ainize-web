@@ -2,7 +2,7 @@
 title: 배포와 실행의 차이
 summary: Ainize의 프로젝트는 두 종류입니다. 배포(Deployment)는 계속 떠 있는 것 — 웹앱, API 서비스, 에이전트. 실행(Run)은 돌고 끝나는 스크립트 — 필요할 때, 스케줄로, AIN 블록체인이 바뀔 때, 웹훅으로. 내 리포가 어느 쪽인지, 무엇을 골라야 하는지.
 source: en/concepts/deployments-and-runs.md
-source_sha256: 07719a9644bb3871a34fe623c79f2d0f819a05dfd894fc4abd2df0f887e96301
+source_sha256: 59659e09a65606f9e76fcbfb66db3384cd33b5f45d6f810756f0ac4fcde54afc
 ---
 
 # 배포와 실행의 차이
@@ -53,7 +53,7 @@ Ainize의 프로젝트는 모두 루트에 `ainize.json`이 있는 git 리포이
 
 | | 배포 | 실행 |
 |---|---|---|
-| 프로세스 수명 | 배포가 활성인 동안 계속 | 한 번의 실행, `timeoutMs`까지 (기본 2분, 최대 5분) |
+| 프로세스 수명 | 배포가 활성인 동안 계속 | 한 번의 실행, `timeoutMs`까지 (기본 2분, 최대 5분, `image`이면 최대 60분) |
 | 네트워크 | 포트가 공개됨, egress는 게이트웨이를 통해 | 인바운드 없음, egress는 Ainize(`AINIZE_URL`)에만 |
 | 매개변수 | 설정에서 넣는 환경변수 | 같음 + 실행마다의 `inputs` + `AINIZE_TRIGGER_EVENT`의 트리거 이벤트 |
 | push가 하는 일 | 빌드하고 서비스 버전을 교체 | 스크립트를 한 번 돌리고(입력 기본값으로) 트리거를 설치 |
