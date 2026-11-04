@@ -508,11 +508,10 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
   const [syncFromGithub, { isLoading: syncing }] = useSyncFromGithubMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
-  const [synced, setSynced] = useState(false);
   // GitHub → AIN Drive runs on a backoff; this asks for it now. The push to AIN Drive then deploys as usual.
   const syncNow = async () => {
     setHeadErr(null);
-    try { await syncFromGithub(p.id).unwrap(); setSynced(true); }
+    try { await syncFromGithub(p.id).unwrap(); }
     catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
   };
   const redeployLatest = async () => {
@@ -598,7 +597,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
           {isScript && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
           {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
-          {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
+          {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{p.githubSync?.requested ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}

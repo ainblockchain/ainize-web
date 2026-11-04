@@ -15,3 +15,8 @@ PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node test/browser/runtime-log-ca
 
 This renders the real log view and verifies the stale-data warning, recovery to
 live data, explicit cache opt-in and isolation when switching projects.
+
+`github-sync-draft.mjs` renders the real GitHub sync settings with mocked HTTP.
+It checks draft preservation during refetch, failed-save retry, and switching
+projects without leaking the previous project's fields. Run with
+`PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node test/browser/github-sync-draft.mjs`.
