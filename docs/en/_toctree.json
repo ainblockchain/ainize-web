@@ -1,225 +1,229 @@
 [
-  {
-    "group": "Code → deploy",
-    "pages": [
-      {
-        "page": "index",
-        "title": "Ainize"
-      },
-      {
-        "page": "get-started/install",
-        "title": "Open AinCode"
-      },
-      {
-        "page": "get-started/quickstart",
-        "title": "Quickstart: code to deployment"
-      },
-      {
-        "page": "how-to/aindrive-git",
-        "title": "Use AinDrive as your git remote"
-      },
-      {
-        "page": "how-to/deploy-nextjs",
-        "title": "Deploy a Next.js app"
-      },
-      {
-        "page": "how-to/deploy-with-ainize-json",
-        "title": "ainize.json reference"
-      },
-      {
-        "page": "how-to/managed-storage",
-        "title": "Give a project a database and file storage"
-      },
-      {
-        "page": "how-to/run-scripts-on-a-schedule",
-        "title": "Run scripts on a schedule"
-      }
-    ]
-  },
-  {
-    "group": "Tutorials",
-    "pages": [
-      {
-        "page": "tutorials/ain-store",
-        "title": "AIN Store: what it is and how to run it"
-      },
-      {
-        "page": "tutorials/create-ainft",
-        "title": "Create an AINFT agent"
-      },
-      {
-        "page": "tutorials/teach-from-a-file",
-        "title": "Teach from a file of questions"
-      },
-      {
-        "page": "tutorials/teach-in-chat",
-        "title": "Teach by correcting the model"
-      },
-      {
-        "page": "tutorials/buy-and-apply",
-        "title": "Use knowledge someone else published"
-      }
-    ]
-  },
-  {
-    "group": "Concepts",
-    "pages": [
-      {
-        "page": "concepts/deployments-and-runs",
-        "title": "Deployments vs Runs"
-      },
-      {
-        "page": "concepts/knowledge-patch",
-        "title": "What a knowledge patch is"
-      },
-      {
-        "page": "concepts/verification",
-        "title": "What \"verified\" proves"
-      },
-      {
-        "page": "concepts/lineage-and-royalties",
-        "title": "Lineage and royalties"
-      },
-      {
-        "page": "concepts/payment",
-        "title": "Paying without an account"
-      },
-      {
-        "page": "concepts/ainft-agents",
-        "title": "AINFT-compatible agents"
-      }
-    ]
-  },
-  {
-    "group": "How-to",
-    "pages": [
-      {
-        "page": "how-to/call-the-model",
-        "title": "Call the model from your own code"
-      },
-      {
-        "page": "how-to/decision-models-clef",
-        "title": "Use a decision model (Cloudflare Clef)"
-      },
-      {
-        "page": "how-to/price-knowledge",
-        "title": "Set a price and get paid"
-      },
-      {
-        "page": "how-to/build-on-knowledge",
-        "title": "Build on someone else's knowledge"
-      },
-      {
-        "page": "how-to/load-several",
-        "title": "Load several knowledges at once"
-      },
-      {
-        "page": "how-to/publish-every-day",
-        "title": "Publish every day"
-      },
-      {
-        "page": "how-to/failed-verification",
-        "title": "When it will not list"
-      },
-      {
-        "page": "how-to/agent-memory",
-        "title": "An agent that buys knowledge and remembers it"
-      },
-      {
-        "page": "how-to/create-an-agent-from-a-model",
-        "title": "Create an agent from a model"
-      },
-      {
-        "page": "how-to/build-for-ainteams",
-        "title": "Build an agent for AIN Teams"
-      },
-      {
-        "page": "how-to/organizations",
-        "title": "Run your team's agents as an organization"
-      }
-    ]
-  },
-  {
-    "group": "Run a node",
-    "pages": [
-      {
-        "page": "node/install",
-        "title": "Install the CLI on your machine"
-      },
-      {
-        "page": "node/quickstart",
-        "title": "Start a local node"
-      },
-      {
-        "page": "how-to/connect-nodes",
-        "title": "Connect nodes to your wallet"
-      },
-      {
-        "page": "how-to/join-from-your-own-node",
-        "title": "Join the network from your own node"
-      },
-      {
-        "page": "how-to/reachable-node",
-        "title": "Run a node others can reach"
-      },
-      {
-        "page": "how-to/run-a-verifier",
-        "title": "What verifying costs"
-      },
-      {
-        "page": "how-to/host-an-agent",
-        "title": "Put an agent on a node"
-      },
-      {
-        "page": "how-to/google-ax",
-        "title": "Run agents with Google AX"
-      }
-    ]
-  },
-  {
-    "group": "Reference",
-    "pages": [
-      {
-        "page": "reference/cli",
-        "title": "CLI reference"
-      },
-      {
-        "page": "reference/http-api",
-        "title": "HTTP API reference"
-      },
-      {
-        "page": "reference/api-index",
-        "title": "API index (a running node)"
-      },
-      {
-        "page": "reference/x402",
-        "title": "Paying from your own client"
-      },
-      {
-        "page": "reference/schemas",
-        "title": "Schemas"
-      },
-      {
-        "page": "reference/schema-index",
-        "title": "Schema index (a running node)"
-      },
-      {
-        "page": "reference/config",
-        "title": "Configuration reference"
-      },
-      {
-        "page": "reference/errors",
-        "title": "Error codes"
-      }
-    ]
-  },
-  {
-    "group": "Design",
-    "pages": [
-      {
-        "page": "design/ain-data-platform",
-        "title": "Design: AIN Store"
-      }
-    ]
-  }
+ {
+  "group": "Code → deploy",
+  "pages": [
+   {
+    "page": "index",
+    "title": "Ainize"
+   },
+   {
+    "page": "get-started/install",
+    "title": "Open AinCode"
+   },
+   {
+    "page": "get-started/quickstart",
+    "title": "Quickstart: code to deployment"
+   },
+   {
+    "page": "how-to/aindrive-git",
+    "title": "Use AinDrive as your git remote"
+   },
+   {
+    "page": "how-to/deploy-nextjs",
+    "title": "Deploy a Next.js app"
+   },
+   {
+    "page": "how-to/deploy-with-ainize-json",
+    "title": "ainize.json reference"
+   },
+   {
+    "page": "how-to/ci-cd",
+    "title": "CI/CD: how a push ships"
+   },
+   {
+    "page": "how-to/managed-storage",
+    "title": "Give a project a database and file storage"
+   },
+   {
+    "page": "how-to/run-scripts-on-a-schedule",
+    "title": "Run scripts on a schedule"
+   }
+  ]
+ },
+ {
+  "group": "Tutorials",
+  "pages": [
+   {
+    "page": "tutorials/ain-store",
+    "title": "AIN Store: what it is and how to run it"
+   },
+   {
+    "page": "tutorials/create-ainft",
+    "title": "Create an AINFT agent"
+   },
+   {
+    "page": "tutorials/teach-from-a-file",
+    "title": "Teach from a file of questions"
+   },
+   {
+    "page": "tutorials/teach-in-chat",
+    "title": "Teach by correcting the model"
+   },
+   {
+    "page": "tutorials/buy-and-apply",
+    "title": "Use knowledge someone else published"
+   }
+  ]
+ },
+ {
+  "group": "Concepts",
+  "pages": [
+   {
+    "page": "concepts/deployments-and-runs",
+    "title": "Deployments vs Runs"
+   },
+   {
+    "page": "concepts/knowledge-patch",
+    "title": "What a knowledge patch is"
+   },
+   {
+    "page": "concepts/verification",
+    "title": "What \"verified\" proves"
+   },
+   {
+    "page": "concepts/lineage-and-royalties",
+    "title": "Lineage and royalties"
+   },
+   {
+    "page": "concepts/payment",
+    "title": "Paying without an account"
+   },
+   {
+    "page": "concepts/ainft-agents",
+    "title": "AINFT-compatible agents"
+   }
+  ]
+ },
+ {
+  "group": "How-to",
+  "pages": [
+   {
+    "page": "how-to/call-the-model",
+    "title": "Call the model from your own code"
+   },
+   {
+    "page": "how-to/decision-models-clef",
+    "title": "Use a decision model (Cloudflare Clef)"
+   },
+   {
+    "page": "how-to/price-knowledge",
+    "title": "Set a price and get paid"
+   },
+   {
+    "page": "how-to/build-on-knowledge",
+    "title": "Build on someone else's knowledge"
+   },
+   {
+    "page": "how-to/load-several",
+    "title": "Load several knowledges at once"
+   },
+   {
+    "page": "how-to/publish-every-day",
+    "title": "Publish every day"
+   },
+   {
+    "page": "how-to/failed-verification",
+    "title": "When it will not list"
+   },
+   {
+    "page": "how-to/agent-memory",
+    "title": "An agent that buys knowledge and remembers it"
+   },
+   {
+    "page": "how-to/create-an-agent-from-a-model",
+    "title": "Create an agent from a model"
+   },
+   {
+    "page": "how-to/build-for-ainteams",
+    "title": "Build an agent for AIN Teams"
+   },
+   {
+    "page": "how-to/organizations",
+    "title": "Run your team's agents as an organization"
+   }
+  ]
+ },
+ {
+  "group": "Run a node",
+  "pages": [
+   {
+    "page": "node/install",
+    "title": "Install the CLI on your machine"
+   },
+   {
+    "page": "node/quickstart",
+    "title": "Start a local node"
+   },
+   {
+    "page": "how-to/connect-nodes",
+    "title": "Connect nodes to your wallet"
+   },
+   {
+    "page": "how-to/join-from-your-own-node",
+    "title": "Join the network from your own node"
+   },
+   {
+    "page": "how-to/reachable-node",
+    "title": "Run a node others can reach"
+   },
+   {
+    "page": "how-to/run-a-verifier",
+    "title": "What verifying costs"
+   },
+   {
+    "page": "how-to/host-an-agent",
+    "title": "Put an agent on a node"
+   },
+   {
+    "page": "how-to/google-ax",
+    "title": "Run agents with Google AX"
+   }
+  ]
+ },
+ {
+  "group": "Reference",
+  "pages": [
+   {
+    "page": "reference/cli",
+    "title": "CLI reference"
+   },
+   {
+    "page": "reference/http-api",
+    "title": "HTTP API reference"
+   },
+   {
+    "page": "reference/api-index",
+    "title": "API index (a running node)"
+   },
+   {
+    "page": "reference/x402",
+    "title": "Paying from your own client"
+   },
+   {
+    "page": "reference/schemas",
+    "title": "Schemas"
+   },
+   {
+    "page": "reference/schema-index",
+    "title": "Schema index (a running node)"
+   },
+   {
+    "page": "reference/config",
+    "title": "Configuration reference"
+   },
+   {
+    "page": "reference/errors",
+    "title": "Error codes"
+   }
+  ]
+ },
+ {
+  "group": "Design",
+  "pages": [
+   {
+    "page": "design/ain-data-platform",
+    "title": "Design: AIN Store"
+   }
+  ]
+ }
 ]
