@@ -24,7 +24,7 @@ try{
     if(failSave)return route.fulfill({status:500,json:{error:{code:'internal',message:'fixture save failed'}}});
     repo=req.postDataJSON().repo;
    }
-   if(path.includes('/managed/')) return route.fulfill({json:{configured:null,status:{state:'ok',message:'up to date',checkedAt:null,syncedAt:null,nextCheckAt:null,commit:null,githubCommit:null,mode:'mirror'},requested:null}});
+   if(path.includes('/managed/')) return route.fulfill({json:{configured:null,status:{state:'ok',message:'up to date',checkedAt:null,syncedAt:null,nextCheckAt:null,commit:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',githubCommit:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',mode:'mirror'},requested:null}});
    const second=path.includes('/two/');
    if(second)await new Promise(r=>{release=r;});
    return route.fulfill({json:{configured:{repo:second?'team/second':repo,branch:'main',visibility:'private',enabled:true,configuredAt:'2026-11-04T00:00:00Z'},status:null,requested:null}});
@@ -44,5 +44,10 @@ try{
  await page.evaluate(()=>window.switchProject('managed'));
  await page.getByText(/운영 동기화 작업에서 관리|Managed by the sync job/).waitFor();
  assert.equal(await page.getByRole('link',{name:'https://github.com/team/managed'}).getAttribute('href'),'https://github.com/team/managed');
+ for(const [label,value] of [[/배포 대상 브랜치|Deployment branch/,'release'],[/GitHub 원본 커밋|GitHub source commit/,'aaaaaaa'],[/프로젝트 소스 커밋|Project source commit/,'bbbbbbb'],[/최근 빌드 커밋|Latest build commit/,'ccccccc'],[/운영 중인 커밋|Serving commit/,'ddddddd']]) {
+  const row=page.locator('dt').filter({hasText:label}).locator('xpath=following-sibling::dd[1]');
+  assert.ok((await row.innerText()).includes(value));
+ }
+ assert.equal(await page.getByRole('link',{name:/^원본$|^Raw$/}).getAttribute('href'),'/fixture-build-log');
  assert.deepEqual(errors,[]);console.log('PASS: sync draft survives refetch and failed save; retry and project switch use the correct project');
 }finally{release?.();await browser?.close();server?.close();await rm(temp,{recursive:true,force:true});}
