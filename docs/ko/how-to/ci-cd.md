@@ -1,6 +1,6 @@
 ---
 title: CI/CD — push 하나가 서버가 되기까지
-summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git push 가 레포를 빌드하고, 필수 설정과 헬스체크로 게이트를 걸고, 무중단으로 새 버전으로 교체하며, 무엇이든 실패하면 이전 버전이 계속 서비스합니다. 테스트는 GitHub Actions(또는 빌드 명령)에 두고, GitHub→AinDrive 동기화가 깨끗한 main 만 배포하게 하며, 롤백은 이전 배포를 다시 배포해서 합니다. 스케줄·웹훅 작업은 Run 입니다.
+summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git push 가 레포를 빌드하고, 필수 설정과 헬스체크로 게이트를 걸고, 무중단으로 새 버전으로 교체하며, 무엇이든 실패하면 이전 버전이 계속 서비스합니다. 테스트는 GitHub Actions 가 아니라 빌드 명령 안의 체크나 Ainize Run 으로 돌리고, 롤백은 이전 배포를 다시 배포해서 합니다. 스케줄·웹훅 작업은 Run 입니다.
 ---
 
 # CI/CD — push 하나가 서버가 되기까지
@@ -8,14 +8,18 @@ summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git 
 **Ainize 로 젠킨스처럼 서버 CI/CD 가 되나요?** 됩니다. 다만 역할 분담이 다릅니다. 파이프라인 단계를 직접 짜지 않습니다.
 **git push 자체가 파이프라인**입니다: Ainize 가 레포를 빌드하고, 게이트를 걸고, 무중단으로 새 버전으로 바꾸며, 무엇이든
 실패하면 이전 버전이 계속 서비스합니다. 이것이 관리형 **CD** 절반입니다. **CI** 절반 — 테스트·린트를 게이트로 돌리는 것 —
-은 팀이 이미 코드를 리뷰하는 곳(GitHub Actions, 또는 빌드 명령 안)에 그대로 두고, 배포는 깨끗한 main 만 따라갑니다. 결과는
-젠킨스가 주는 것 — *테스트하고, 배포하고, 되돌릴 수 있다* — 을 직접 호스팅·스크립팅하는 서버 없이 조립한 것입니다.
+도 Ainize 에서 돕니다: 빌드 명령 안의 체크, 또는 테스트 스위트를 돌리는 **Ainize Run**. 결과는 젠킨스가 주는 것 —
+*테스트하고, 배포하고, 되돌릴 수 있다* — 을 직접 호스팅·스크립팅하는 서버 없이 Ainize 조각으로 조립한 것입니다.
+
+> **GitHub Actions 는 쓰지 않습니다.** 여기의 CI/CD 는 전부 Ainize 에서 돕니다 — 빌드, 테스트 게이트(빌드 체크 또는
+> Ainize Run), 배포와 그 트리거까지. GitHub 는 코드를 두고 리뷰하는 곳일 뿐, 파이프라인을 돌리지 않습니다. 예전에 GitHub
+> Actions 워크플로에 있던 일은 [Ainize Run](./run-scripts-on-a-schedule.md) 으로 옮깁니다.
 
 | 젠킨스 | Ainize |
 |---|---|
 | 설치·업데이트·보안을 직접 하는 서버 | 호스팅할 것 없음; push 가 트리거 |
 | `stages` 를 적은 `Jenkinsfile` | `ainize.json` 이 빌드를 선언; 단계(빌드 → 게이트 → 헬스 → 교체)는 고정·관리형 |
-| 빌드 에이전트가 테스트 실행 | GitHub Actions 가 테스트(CI); 또는 빌드 명령이 실행 |
+| 빌드 에이전트가 테스트 실행 | 빌드 명령 안의 체크, 또는 스위트를 돌리는 Ainize Run(`kind: script`) — GitHub Actions **아님** |
 | 직접 스크립트한 배포·롤백 | 헬스 게이트 무중단 교체; 실패 시 이전 버전 유지; **롤백 = 지난 배포 다시 배포** |
 | 작업에 건 `cron`·웹훅 트리거 | [Run](../concepts/deployments-and-runs.md) 의 `schedule`·`ain`·`http` 트리거 |
 
@@ -40,18 +44,23 @@ summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git 
 바뀌지 않습니다. `GET /api/projects/{id}/deployments` 가 목록을, `GET /api/deployments/{id}/log` 가 로그를 줍니다.
 AinDrive 에서는 커밋마다 배포 점(building / ready / error)과 *Inspect*·*Visit* 이 보입니다.
 
-## CI 절반: 배포 전에 테스트하기
+## CI 절반: GitHub Actions 없이 배포 전에 테스트하기
 
-Ainize 가 별도 테스트 단계를 대신 돌려 주지는 않습니다 — 게이트를 둘 중 한 곳에 두세요:
+Ainize 가 별도 테스트 단계를 대신 돌려 주지는 않고, 파이프라인은 GitHub Actions 를 쓰지 않습니다 — 게이트를 Ainize 안
+둘 중 한 곳에 두세요:
 
-- **GitHub Actions(팀에 권장).** 레포는 GitHub 에 두고(리뷰·Actions·히스토리) 프로젝트의 **Settings → Sync from
-  GitHub** 를 켜세요([방법](./aindrive-git.md#keep-github-as-the-place-people-push)). 동기화가 `main` 을 AinDrive
-  `main` 으로 미러링하고 배포가 따라갑니다. **GitHub 머지만으로는 배포되지 않습니다** — 동기화가 만드는 AinDrive push 가
-  배포이고, 브랜치가 깨끗이 머지될 때만 시도됩니다. 그러니 필수 Actions 체크(테스트·린트·타입체크)로 머지를 게이트하면
-  초록 main 만 빌드됩니다.
-- **빌드 명령.** 혼자 쓰는 레포나 간단한 프로젝트라면 체크를 빌드에 넣으세요: `npm run build` 가 먼저 `npm test` 를 돌리는
-  `nextjs`, 또는 빌드 스테이지에서 테스트를 돌리는 `service` `Dockerfile`. 체크 실패는 빌드 실패 = 배포 실패이고, 이전
-  버전이 계속 서비스합니다.
+- **빌드 명령 안(가장 간단한 게이트).** 체크를 빌드에 넣어 테스트 실패가 빌드 실패 = 배포 실패가 되게 하세요: `npm run
+  build` 가 먼저 `npm test` 를 돌리는 `nextjs`(또는 `npm run lint && npm run typecheck && npm test && next build`),
+  또는 빌드 스테이지에서 스위트를 돌려 통과할 때만 런타임 이미지를 만드는 `service` `Dockerfile`. 어떤 실패든 이전 버전이
+  계속 서비스하므로 빨간 테스트가 사용자에게 닿지 않습니다.
+- **Ainize Run 으로(배포를 게이트하는 테스트 스위트).** 테스트를 `kind: script` 프로젝트(또는 같은 레포 안 두 번째
+  `ainize.json` 폴더)로 만들어 [트리거](./run-scripts-on-a-schedule.md) 로 돌리세요 — push, 스케줄, 또는 배포 단계가
+  먼저 호출하는 웹훅. Run 이 통과/실패를 로그와 함께 기록하니, 초록 Run 일 때만 배포가 따라가게 묶습니다. GitHub Actions
+  워크플로의 잡이 바로 여기로 옮겨옵니다 — 같은 명령을 Ainize 가 돌립니다.
+
+AinDrive 가 배포 remote 이고 **AinDrive push 가 곧 배포**이므로, 게이트는 그 push 앞에 놓입니다: 빌드 체크는 빌드의
+일부로 돌고, 별도 테스트 Run 은 먼저 초록이어야 하는 단계입니다. 소스를 리뷰용으로 GitHub 에 두는 것은 괜찮습니다 —
+GitHub 은 파이프라인을 돌리지 않을 뿐입니다.
 
 ## 롤백
 
@@ -81,6 +90,6 @@ Ainize 가 별도 테스트 단계를 대신 돌려 주지는 않습니다 — �
 
 - **CD 는 네이티브·관리형**: push → 게이트 → 빌드 → 릴리스 → 헬스체크 → 무중단 교체. 새 버전이 입증될 때까지 이전 버전이
   서비스하고, push 마다 전체 히스토리가 남습니다.
-- **CI 는 당신 몫**: GitHub Actions(Sync from GitHub) 또는 빌드 명령 안의 체크 — 깨끗한 main 만 배포됩니다.
+- **CI 는 GitHub Actions 가 아니라 Ainize 에서**: 빌드 명령 안의 체크, 또는 스위트를 돌리는 Ainize Run — 초록 게이트만 배포됩니다.
 - **롤백**은 지난 배포를 다시 배포.
 - **스케줄·웹훅 작업**은 `schedule`·`ain`·`http` 트리거를 단 Run.
