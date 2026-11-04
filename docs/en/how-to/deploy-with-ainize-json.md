@@ -170,3 +170,33 @@ leaves the ranking in the deployment log.
   an Ainize agent instead.
 - `env` is committed with the repo. Keys and tokens belong in the node's secret store (see
   [hosted agents](./host-an-agent.md)), never in `ainize.json`.
+
+
+## Fail deployment when required configuration is missing
+
+`secrets` remains a list of expected names for display; some applications use optional
+secrets. Use `requiredSecrets` for values that must exist in the project's secret
+store, `requiredEnv` for runtime values from `env` or project secrets, and
+`build.requiredArgs` for values that must exist in `build.args`. Missing or blank
+values fail before image building or script execution, with names only in the error.
+Build arguments do not satisfy runtime requirements, and secrets are never copied
+into build arguments. A nonempty setting is not proof of working authentication;
+validate the deployed login path as well.
+
+```json
+{
+  "kind": "nextjs",
+  "build": {
+    "requiredArgs": ["NEXT_PUBLIC_REQUIRE_LOGIN", "NEXT_PUBLIC_AUTH_PROVIDER"],
+    "args": {"NEXT_PUBLIC_REQUIRE_LOGIN": "true", "NEXT_PUBLIC_AUTH_PROVIDER": "google"}
+  },
+  "requiredSecrets": ["GOOGLE_CLIENT_SECRET", "NEXTAUTH_SECRET"],
+  "requiredEnv": ["NEXTAUTH_URL"],
+  "env": {"NEXTAUTH_URL": "https://admin.example.com"}
+}
+```
+
+These declarations apply to that project only. Set the missing values in its
+configuration/Secrets and redeploy; the previous running deployment stays active
+when the new configuration check fails. `requiredEnv` checks explicitly supplied
+configuration, not environment injected later by storage bindings or the runtime.
