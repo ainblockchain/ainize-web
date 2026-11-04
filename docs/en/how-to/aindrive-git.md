@@ -68,13 +68,46 @@ Many teams keep their repository on GitHub — reviews, Actions, history — and
 The **GitHub → AinDrive sync** does that: `main` is mirrored to AinDrive `main` (merged on top of the AinDrive-only
 commits such as `ainize.json`), `develop` to `develop`, and the deployment follows as it would after any AinDrive push.
 
-- A merge on GitHub reaches AinDrive within minutes (the sync backs off per repository when nothing changes).
-- On the project page, **Sync from GitHub now** asks for an immediate run; it starts within a minute
+### Turn it on for your project
+
+The project's owner or any member of its organization sets it up — no operator, no server login:
+
+1. Open the project on ainize → **Settings** → **Sync from GitHub**.
+2. Enter the GitHub repository (`owner/repo` or its `https://github.com/...` URL) and the branch to follow
+   (default `main`), then **Turn on sync**.
+
+Or over the API, with your session or an API key:
+
+```bash
+curl -X PUT https://ainize.ai/api/projects/<project-id>/github-sync \
+  -H 'content-type: application/json' \
+  -d '{"repo": "my-org/my-app", "branch": "main"}'
+```
+
+What is checked:
+
+- **When you save:** the repository is asked about on GitHub anonymously. A public repository must have the branch.
+  A private one is accepted only if its GitHub owner is allowed for your organization (the sync reads private
+  repositories with its own GitHub access, so it is not offered for arbitrary ones); otherwise you get
+  `github_repo_not_found`. All projects of one AinDrive repository (folders of a monorepo) share one upstream.
+- **Within a minute after:** the sync itself checks that it can read the repository, that the branch exists, and that
+  the branch merges cleanly into AinDrive `main` — either AinDrive is a plain mirror, or its AinDrive-only commits sit
+  on top without conflicts. The result shows on the page.
+
+### What you see
+
+The **Sync from GitHub** card (and a line in the project header) shows the status: *In sync* or *Sync failed* with the
+reason (for example the conflicting files), the last check, the last time something was pushed, the AinDrive `main`
+commit next to the GitHub commit it came from, and the next check. `GET /api/projects/{id}/github-sync` returns the
+same as JSON.
+
+- A merge on GitHub reaches AinDrive within minutes (the sync backs off per repository when nothing changes: 5
+  minutes, doubling up to 2 hours, reset by any change).
+- **Sync from GitHub now** asks for an immediate run; it starts within a minute
   (`POST /api/projects/{id}/github-sync`, owner or org member).
+- **Pause sync** (`DELETE /api/projects/{id}/github-sync`) stops it for the repository until you turn it on again.
 - **A GitHub merge alone never deploys.** Deployment is the AinDrive push the sync makes — so if the sync is paused or
-  the repository is not in it, push AinDrive `main` yourself with the credential above.
-- Which repositories are synced is the operator's list (the sync job runs with an operator token); ask them to add a
-  repository.
+  failed, push AinDrive `main` yourself with the credential above.
 
 Files that only make sense on AinDrive — `ainize.json`, `Dockerfile.ainize`, mocks for a peer that cannot reach the
 real service — live in AinDrive-only commits that the sync keeps on top of the GitHub history. To change one, commit
