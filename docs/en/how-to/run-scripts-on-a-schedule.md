@@ -131,6 +131,37 @@ permission on the path, **Install on chain** sets the rule for you (`setFunction
 with the key that owns the path. Each write then arrives as the `ain` event above, with the path's `$post_id` in
 `params`, the written `value`, the writer's address and the transaction hash.
 
+## Jobs in your own image
+
+The default run sandbox holds a small script: at most 32 files, a stock Python or Node image, 512 MiB, 5 minutes.
+A backend's scheduled jobs usually need more — their `node_modules`, a headless browser, dozens of secrets, a few
+minutes of work. Declare `"image": true` and a `build`, and every run (the push's, **Run now**, each trigger) starts a
+fresh container from the image your Dockerfile builds, runs the entry once and exits:
+
+```json
+{
+  "kind": "script",
+  "image": true,
+  "build": { "dockerfile": "Dockerfile" },
+  "entry": "jobs/run.js",
+  "inputs": { "JOB": { "description": "which job", "default": "list" } },
+  "timeoutMs": 900000,
+  "resources": { "memory": "2g", "cpus": 2, "pids": 512 },
+  "secrets": ["DATABASE_URL", "API_KEY"],
+  "allowedHosts": ["api.example.com"],
+  "triggers": {
+    "scraping": { "type": "schedule", "cron": "0 * * * *", "timezone": "Asia/Seoul", "inputs": { "JOB": "scraping" }, "enabled": false }
+  }
+}
+```
+
+- The entry runs as `node <entry>` (or `python3 <entry>`) in the image's `WORKDIR`; give each job an input and switch on it.
+- The image is built once per commit; runs of that commit reuse it.
+- Every project secret is set (no 32-entry limit), egress goes through the gateway to `allowedHosts`, and
+  `resources.pids` raises the process limit a browser needs.
+- `"enabled": false` installs a trigger switched off, so you can deploy, press **Run now** and switch it on when the
+  old scheduler is gone. A trigger keeps the switch you set across later deployments.
+
 ## On the console
 
 The project's **Runs** tab lists every installed trigger: name, type, cron or path, the next and the last run (a
