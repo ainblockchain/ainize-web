@@ -61,6 +61,7 @@ function ProjectGithubSyncEditor({ project }: { project: Project }) {
     </form>}
     {query.error && <Alert $tone="error">{projectApiErrorOf(query.error).message ?? t('projects.github.failed')}</Alert>}
     {error && <Alert $tone="error">{error}</Alert>}
+    {query.currentData?.requested && <Help role="status" data-testid="github-sync-pending"><Tone $tone="pending">{t('projects.github.requested')}</Tone> · {at(query.currentData.requested)}</Help>}
     <Facts>
       <dt>{t('projects.github.deploy_branch')}</dt><dd><Mono>{project.branch || '—'}</Mono></dd>
       <dt>{t('projects.github.github_sha')}</dt><dd><Mono title={status?.githubCommit ?? undefined}>{status?.githubCommit ? shortSha(status.githubCommit) : '—'}</Mono></dd>
