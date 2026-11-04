@@ -62,6 +62,11 @@ function ProjectGithubSyncEditor({ project }: { project: Project }) {
     {query.error && <Alert $tone="error">{projectApiErrorOf(query.error).message ?? t('projects.github.failed')}</Alert>}
     {error && <Alert $tone="error">{error}</Alert>}
     <Facts>
+      <dt>{t('projects.github.deploy_branch')}</dt><dd><Mono>{project.branch || '—'}</Mono></dd>
+      <dt>{t('projects.github.github_sha')}</dt><dd><Mono title={status?.githubCommit ?? undefined}>{status?.githubCommit ? shortSha(status.githubCommit) : '—'}</Mono></dd>
+      <dt>{t('projects.github.source_sha')}</dt><dd><Mono title={project.sourceCommit ?? undefined}>{project.sourceCommit ? shortSha(project.sourceCommit) : '—'}</Mono></dd>
+      <dt>{t('projects.github.build_sha')}</dt><dd><Mono title={project.lastDeployment?.sha}>{project.lastDeployment?.sha ? shortSha(project.lastDeployment.sha) : '—'}</Mono>{project.lastDeployment && <> · {t(`projects.status.${project.lastDeployment.status}`)}{project.lastDeployment.logUrl && <> · <ExternalLink href={project.lastDeployment.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')}</ExternalLink></>}</>}</dd>
+      <dt>{t('projects.github.active_sha')}</dt><dd><Mono title={project.activeCommit ?? undefined}>{project.activeCommit ? shortSha(project.activeCommit) : '—'}</Mono></dd>
       <dt>{t('projects.github.upstream')}</dt>
       <dd>{enabled && configured?.repo
         ? <><ExternalLink href={`https://github.com/${configured.repo}`} target="_blank" rel="noreferrer">{configured.repo}</ExternalLink> · <Mono>{configured.branch}</Mono> · {t(`projects.github.visibility.${configured.visibility}`)}</>
