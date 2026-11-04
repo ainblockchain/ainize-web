@@ -80,6 +80,7 @@ export const projects: Dict = {
   'projects.github.pause_confirm': { ko: '이 리포의 GitHub 동기화를 멈출까요? 다시 켜기 전까지 GitHub 머지가 배포되지 않습니다.', en: 'Pause the GitHub sync for this repository? GitHub merges will not deploy until you turn it on again.' },
   'projects.github.failed': { ko: '동기화 설정을 읽지 못했습니다.', en: 'Could not read the sync settings.' },
   'projects.github.upstream': { ko: 'GitHub 업스트림', en: 'GitHub upstream' },
+  'projects.github.managed': { ko: '운영 동기화 작업에서 관리', en: 'Managed by the sync job' },
   'projects.github.none': { ko: '설정되지 않음', en: 'Not set' },
   'projects.github.paused': { ko: '멈춤', en: 'Paused' },
   'projects.github.visibility.public': { ko: '공개 리포', en: 'public repository' },

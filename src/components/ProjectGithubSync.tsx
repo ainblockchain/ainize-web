@@ -46,6 +46,7 @@ function ProjectGithubSyncEditor({ project }: { project: Project }) {
   useEffect(() => { if (!editRevision.current && configured?.repo) { setRepo(configured.repo); setBranch(configured.branch ?? 'main'); } }, [configured?.repo, configured?.branch]);
   const run = async (action: () => Promise<unknown>) => { setError(null); try { await action(); } catch (e) { const x = projectApiErrorOf(e); setError(x.message ?? t(`projects.api.${x.code}`)); } };
   const enabled = !!configured?.enabled;
+  const managedUpstream = !configured && status && /^https:\/\/github\.com\/[^/]+\/[^/]+\/?$/.test(project.upstreamRepo ?? '') ? project.upstreamRepo : null;
   const unchanged = enabled && configured?.repo === repo.trim() && (configured?.branch ?? 'main') === (branch.trim() || 'main');
 
   return <Card aria-label={t('projects.github.title')}>
@@ -64,6 +65,7 @@ function ProjectGithubSyncEditor({ project }: { project: Project }) {
       <dt>{t('projects.github.upstream')}</dt>
       <dd>{enabled && configured?.repo
         ? <><ExternalLink href={`https://github.com/${configured.repo}`} target="_blank" rel="noreferrer">{configured.repo}</ExternalLink> · <Mono>{configured.branch}</Mono> · {t(`projects.github.visibility.${configured.visibility}`)}</>
+        : managedUpstream ? <><ExternalLink href={managedUpstream} target="_blank" rel="noreferrer">{managedUpstream}</ExternalLink> · {t('projects.github.managed')}</>
         : configured && !configured.enabled ? t('projects.github.paused') : t('projects.github.none')}</dd>
       {status && <>
         <dt>{t('projects.github.status')}</dt><dd><Tone $tone={status.state}>{t(`projects.github.state.${status.state}`)}</Tone>{status.message && <> — {status.message}</>}</dd>
