@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-366 operations on 302 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+367 operations on 303 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -74,6 +74,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
 | `POST` | [`/api/run`](#post-apirun) | operator | Run one script in the hosted-agent sandbox and stream its output |
 | `POST` | [`/api/decide`](#post-apidecide) | operator | Free SystemOne decision trial |
+| `POST` | [`/v1/audio/transcription-sessions`](#post-v1audiotranscription-sessions) | operator | Create a one-use native streaming ASR WebSocket session |
 | `POST` | [`/v1/systemone`](#post-v1systemone) | operator | SystemOne decision with a caller API key |
 
 **Teach** — one pipeline, two doors: a dataset file (uploaded here, or with `ainize teach dataset`) and corrections collected in Live test are both frozen into the same canonical dataset → validated → trained → checked on the live model → a lesson its teacher can keep private or publish as a credited data provider (no sign-in — every request is signed with a teaching key held by the browser or the CLI)
@@ -1086,6 +1087,58 @@ Unpaid work is queued behind paying callers on the same backend. choice criteria
 | `404` | model not configured |   |
 | `422` | model-specific validation error |   |
 | `503` | backend unavailable |   |
+
+### `POST /v1/audio/transcription-sessions`
+
+Create a one-use native streaming ASR WebSocket session
+
+Continuous 16 kHz mono PCM16 into confucius4-r2t2 native streaming inference, not repeated offline uploads. Origin-bound credential expires after 15 seconds and opens one WebSocket. Two active model connections, maximum two hours. Keep the API key on the application server. See the stream-speech guide for binary frames, ready/transcript/done/error events, finish and cancellation.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `model` | `string` | yes |   |
+| `language` | `object` |   |   |
+| `context` | `string` |   | (at most 1000 characters) |
+| `origin` | `string (uri)` | yes | (at most 2048 characters) |
+| `authority` | `object` |   |   |
+| `authority.profile` | `string` | yes |   |
+| `authority.source` | `object` | yes |   |
+| `authority.source.sessionId` | `string (uuid)` | yes |   |
+| `authority.source.userId` | `string (uuid)` | yes |   |
+| `authority.source.epoch` | `string (uuid)` | yes |   |
+| `authority.source.revision` | `integer` | yes | (at most 9007199254740991) |
+| `authority.source.nonce` | `string` | yes |   |
+| `authority.source.expiresAt` | `integer` | yes | (at most 9007199254740991) |
+| `authority.proof` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | Session id, websocket_url, one-use token, expires_at, PCM format and max_duration_sec | `object` |
+| `400` | invalid_stream_request or invalid_origin |   |
+| `401` | invalid_api_key |   |
+| `403` | invalid_source_proof |   |
+| `429` | stream_capacity |   |
+
+**`201` response body**
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | `string (uuid)` | yes |
+| `websocket_url` | `string (uri)` | yes |
+| `token` | `string` | yes |
+| `expires_at` | `integer` | yes |
+| `format` | `object` | yes |
+| `format.encoding` | `object` |   |
+| `format.sample_rate` | `object` |   |
+| `format.channels` | `object` |   |
+| `format.frame_ms` | `object` |   |
+| `max_duration_sec` | `object` | yes |
 
 ### `POST /v1/systemone`
 

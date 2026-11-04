@@ -98,6 +98,10 @@
         "title": "내 코드에서 모델 호출하기"
       },
       {
+        "page": "how-to/stream-speech",
+        "title": "네이티브 음성 인식 스트리밍"
+      },
+      {
         "page": "how-to/decision-models-clef",
         "title": "결정 모델 쓰기 (Cloudflare Clef)"
       },
