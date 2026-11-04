@@ -6419,17 +6419,18 @@ Owner or active member only, like runtime-logs. The last requests relayed to the
 
 The running service's own stdout/stderr, wherever it was placed (owner or member)
 
-Owner or active member of the project's organization only (a session, or a trusted application's machine token + `X-AIN-Actor`); never anonymous. Read from the container on this node, or from the deployment peer over the signed `project.logs` control command. Bounded: `tail` 1–1000 lines (default 200), 4 KiB per line, 256 KiB total. `{ projectId, deploymentId, sha, placement, tail, since?, fetchedAt, lines: [{ ts, stream, text }], truncated }`.
+Owner or active member of the project's organization only (a session, or a trusted application's machine token + `X-AIN-Actor`); never anonymous. Read from the container on this node, or from the deployment peer over the signed `project.logs` control command. Bounded: `tail` 1–1000 lines (default 200), 4 KiB per line, 256 KiB total. `{ projectId, deploymentId, sha, placement, tail, since?, fetchedAt, lines: [{ ts, stream, text }], truncated }`. With `allowCached=1`, an unavailable runtime may return the last successful unfiltered tail, with `cached: true`, `liveStatus`, and `failureObservedAt`; `fetchedAt` stays the original read time. Only the same active deployment and commit are eligible. Private snapshots expire after seven days and are capped at 128 projects. Without opt-in, failures remain 404/502.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required |
-|---|---|---|---|
-| `id` | `path` | `string` | yes |
-| `tail` | `query` | `integer` |   |
-| `since` | `query` | `string (date-time)` |   |
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `allowCached` | `query` | `"1"` |   | Opt in to explicitly marked saved logs during runtime failure |
+| `id` | `path` | `string` | yes |   |
+| `tail` | `query` | `integer` |   |   |
+| `since` | `query` | `string (date-time)` |   |   |
 
 **Responses**
 

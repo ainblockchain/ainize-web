@@ -188,6 +188,7 @@ export const projects: Dict = {
   'projects.logs.raw': { ko: '원본', en: 'Raw' },
   'projects.logs.runtime': { ko: '실행 로그', en: 'Runtime' },
   'projects.logs.build': { ko: '빌드 로그', en: 'Build' },
+  'projects.logs.cached': {ko: '실시간 로그를 읽지 못했습니다. {time}에 저장한 이전 로그입니다. 최근 조회 실패: {failure}', en: 'Live logs are unavailable. Showing saved logs from {time}. Last failed read: {failure}'},
   'projects.logs.runtime_hint': { ko: '실행 중인 서비스가 stdout/stderr에 쓴 내용입니다. 소유자와 조직 구성원만 볼 수 있습니다.', en: 'What the running service writes to stdout/stderr. Only the owner and organization members can see it.' },
   'projects.logs.follow': { ko: '실시간', en: 'Follow' },
   'projects.logs.tail': { ko: '줄 수', en: 'Lines' },
