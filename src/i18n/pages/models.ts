@@ -72,6 +72,8 @@ export const models: Dict = {
   'models.try.decisionConfidence': { ko: '확신도 {pct}%', en: 'confidence {pct}%' },
   'models.try.decisionNoul': { ko: '참 p={p}', en: 'true p={p}' },
 
+  'models.key.scope_help': { ko: 'AIN 계정으로 로그인해 키를 발급하세요. 조직이나 개인 소유를 직접 선택하려면 내 키에서 설정할 수 있습니다.', en: 'Sign in with your AIN account to create a key. Choose an organization or personal ownership explicitly in My keys.' },
+  'models.key.scope_link': { ko: '키 소유자 선택·관리 →', en: 'Choose key ownership and manage keys →' },
   'models.key.title': { ko: 'API 키', en: 'API key' },
   'models.key.none': {
     ko: '로그인 후 API 키를 발급받으세요. 이 탭에서 새로 발급한 키는 아래 코드에 자동으로 채워집니다.',
