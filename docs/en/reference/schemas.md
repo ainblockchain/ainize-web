@@ -77,6 +77,14 @@ SystemOne request. choice criteria is a non-empty object mapping option IDs to d
 | `origins[].projectId` | `string` | yes | (1–200 characters) |
 | `origins[].resource` | `string` |   | (1–200 characters) |
 | `maintainers` | `string`[] | yes | (at most 30 items) |
+| `inventory` | `object`[] |   | (at most 100 items) |
+| `inventory[].name` | `string` | yes | (1–200 characters) |
+| `inventory[].location` | `string` | yes | (1–200 characters) |
+| `inventory[].process` | `string` |   | (1–200 characters) |
+| `inventory[].runtime` | `string` |   | (1–200 characters) |
+| `inventory[].resources` | `string` |   | (1–200 characters) |
+| `inventory[].configLocation` | `string` |   | (1–200 characters) |
+| `inventory[].adminUrl` | `string (uri)` |   | (at most 2048 characters) |
 | `dependencies` | `object`[] | yes | (at most 100 items) |
 | `dependencies[].name` | `string` | yes | (1–200 characters) |
 | `dependencies[].reference` | `string (uri)` |   | (at most 2048 characters) |
@@ -92,6 +100,9 @@ SystemOne request. choice criteria is a non-empty object mapping option IDs to d
 | `secretReferences` | `object`[] | yes | (at most 100 items) |
 | `secretReferences[].name` | `string` | yes |   |
 | `secretReferences[].location` | `string` | yes | (1–200 characters) |
+| `secretReferences[].expiresAt` | `string (date-time)` |   |   |
+| `secretReferences[].rotation` | `string (uri)` |   | (at most 2048 characters) |
+| `secretReferences[].purpose` | `"authentication"` \| `"encryption"` \| `"restore"` |   |   |
 | `checks` | `object`[] | yes | (at most 100 items) |
 | `checks[].id` | `string` | yes |   |
 | `checks[].label` | `string` | yes | (1–200 characters) |

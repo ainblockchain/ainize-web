@@ -166,7 +166,7 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 244 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 246 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
 A further 122 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
@@ -189,6 +189,7 @@ A further 122 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "image" is for a script project, not \<kind> — a \<kind> project already runs its own image | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "media" is for a service project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "release" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "runtime" is needed for an entry that is not .py/.js/.mjs | `src/project-manifest.ts` |
@@ -200,6 +201,7 @@ A further 122 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" example "\<ex.name>" answers an input that does not exist: \<unknown> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run "\<target.entry>" needs a "runtime" (not .py/.js/.mjs) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: run lists "\<target.entry>" twice | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: timeoutMs is at most … in the run sandbox — set "image": true to run the entry in the repository's own image (up to …) | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" answers an input that does not exist: \<k> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>" runs as "caller", so it may write only under /apps/… (the app its path is in), not \<bad> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: triggers."\<name>".entry "\<targetEntry>" is not the script's entry or one of "run" | `src/project-manifest.ts` |

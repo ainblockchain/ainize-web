@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-359 operations on 298 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+366 operations on 302 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -318,6 +318,13 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/deployments/{id}`](#get-apideploymentsid) | operator | One deployment or run (readable as its project is) |
 | `POST` | [`/api/projects/{id}/run`](#post-apiprojectsidrun) | operator | Stream a selected repository version for the viewer |
 | `POST` | [`/api/projects/{id}/redeploy`](#post-apiprojectsidredeploy) | operator | Deploy the project's newest commit again (owner only) |
+| `GET` | [`/api/projects/{id}/github-sync`](#get-apiprojectsidgithub-sync) | operator | The project's GitHub upstream and the sync's last status (owner or organization member) |
+| `PUT` | [`/api/projects/{id}/github-sync`](#put-apiprojectsidgithub-sync) | operator | Keep the project in sync with a GitHub repository (owner or organization member) |
+| `DELETE` | [`/api/projects/{id}/github-sync`](#delete-apiprojectsidgithub-sync) | operator | Pause the GitHub sync of the project's repository (owner or organization member) |
+| `POST` | [`/api/projects/{id}/github-sync`](#post-apiprojectsidgithub-sync) | operator | Sync from GitHub now (owner or organization member) |
+| `GET` | [`/api/github-sync/roster`](#get-apigithub-syncroster) | operator | The repositories projects asked to keep in sync (sync job, operator token) |
+| `POST` | [`/api/github-sync/status`](#post-apigithub-syncstatus) | operator | Report sync results per repository (sync job, operator token) |
+| `GET` | [`/api/github-sync/requests`](#get-apigithub-syncrequests) | operator | Take the pending "Sync from GitHub now" requests (sync job, operator token) |
 | `GET` | [`/api/ainui/snippet`](#get-apiainuisnippet) | operator | The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted) |
 | `GET` | [`/api/deployments/{id}/log`](#get-apideploymentsidlog) | operator | The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building |
 | `GET` | [`/api/deployments/{id}/output`](#get-apideploymentsidoutput) | operator | The script's stdout alone, for a ready deployment |
@@ -6203,6 +6210,128 @@ The owner — a session, or a trusted application naming the owner in `X-AIN-Act
 | Code | Description |
 |---|---|
 | `202` | {deploymentId, status} |
+
+### `GET /api/projects/{id}/github-sync`
+
+The project's GitHub upstream and the sync's last status (owner or organization member)
+
+For a project bound to an AIN Drive repository. `{ configured: { repo, branch, visibility: public|private, enabled, configuredAt } | null, status: { state: pending|ok|error, message, checkedAt, syncedAt, nextCheckAt, commit, githubCommit, mode: mirror|merge } | null, requested }` — `status` is what the sync job last reported for the repository. 409 `not_aindrive` for another repository host, 503 `github_sync_off` on a node without the sync.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the upstream and its status | `object` |
+
+### `PUT /api/projects/{id}/github-sync`
+
+Keep the project in sync with a GitHub repository (owner or organization member)
+
+Body `{ repo, branch? }` — `repo` is `owner/repo` or `https://github.com/owner/repo`, `branch` defaults to `main`. GitHub is asked anonymously: a public repository must have the branch (422 `github_branch_not_found`); a private or missing one is accepted only when its owner is allowed for the AIN Drive organization by the operator (422 `github_repo_not_found` otherwise). The sync job then checks within a minute that its GitHub key reads the repository, that the branch exists and that it merges cleanly into AIN Drive `main` (a pure mirror or AIN Drive-only commits on top), and reports the result to `status`. Every later merge on the branch is merged into AIN Drive `main` and deploys. One upstream per AIN Drive repository: 409 `upstream_conflict` when another project of the repository syncs from elsewhere; 409 `deploy_branch_not_main` for a project that does not deploy `main`; 502 `github_unreachable`. Answers as `GET`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the upstream and its status | `object` |
+
+### `DELETE /api/projects/{id}/github-sync`
+
+Pause the GitHub sync of the project's repository (owner or organization member)
+
+The sync job skips the repository — also when the operator's static list names it — until the upstream is set again with `PUT`. Answers as `GET`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the upstream and its status | `object` |
+
+### `POST /api/projects/{id}/github-sync`
+
+Sync from GitHub now (owner or organization member)
+
+Asks the sync job to check the repository at its next minute instead of at its backoff time. 202 `{ requested, requestedAt }`; 409 `not_aindrive`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | requested |
+
+### `GET /api/github-sync/roster`
+
+The repositories projects asked to keep in sync (sync job, operator token)
+
+`Authorization: Bearer <operator token>`. `{ generatedAt, repos: [{ aindrive: { org, repo, url }, github, githubUrl, branch, visibility, projects }], paused: [{ org, repo }] }` — one entry per AIN Drive repository.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the roster | `object` |
+
+### `POST /api/github-sync/status`
+
+Report sync results per repository (sync job, operator token)
+
+Body `{ results: [{ org, repo, state: ok|error, message?, commit?, githubCommit?, mode?: mirror|merge, changed?, checkedAt?, nextCheckAt? }] }` (at most 500; times in ms). Results for a repository no project is bound to are ignored. `{ stored, ignored }`.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | stored | `object` |
+
+### `GET /api/github-sync/requests`
+
+Take the pending "Sync from GitHub now" requests (sync job, operator token)
+
+`{ requests: [{ org, repo, requestedAt, by }] }`; taking them empties the queue.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the requests | `object` |
 
 ### `GET /api/ainui/snippet`
 

@@ -37,9 +37,10 @@ shows each commit's deployment next to it.
 | `entry` | `script` | The file to run, relative to the repo root. |
 | `env` | all | Environment variables for the build and the run. **Not for secrets** — the file is in the repo. The sandbox adds `AINIZE_URL` and `AINIZE_API_KEY` (the pusher's own key) itself, so a script reaches the models with `ainize.connect(os.environ["AINIZE_URL"], api_key=os.environ["AINIZE_API_KEY"])` and no key is ever committed. |
 | `inputs` | all (used by `script` runs) | Parameters a person fills in before a run — the same shape as GitHub Actions `workflow_dispatch` inputs, delivered as `INPUT_<NAME>` environment variables. See [Inputs](#inputs). |
-| `timeoutMs` | `script` | Wall-clock limit for one run. Default 120 000, maximum 300 000. |
+| `timeoutMs` | `script` | Wall-clock limit for one run. Default 120 000, maximum 300 000 (3 600 000 with `image`). |
+| `image` | `script` | `true` runs the entry in the image built from your own `build.dockerfile` instead of the stock sandbox — for jobs that need their dependencies, a headless browser, many secrets or more than 5 minutes. See [Run scripts on a schedule](./run-scripts-on-a-schedule.md#jobs-in-your-own-image). |
 | `triggers` | `script` | Up to 8 named triggers that start a run by themselves — `schedule` (cron + timezone), `ain` (a write at an AIN blockchain path) or `http` (a webhook URL). See [Run scripts on a schedule](./run-scripts-on-a-schedule.md). |
-| `build.dockerfile`, `build.context` | `service` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
+| `build.dockerfile`, `build.context` | `service`, `script` with `image` | Dockerfile to build the image from. Defaults `Dockerfile`, `.`. |
 | `port` | `nextjs`, `service` | The port the container listens on. Default 3000 for Next.js. |
 | `healthcheck` | `nextjs`, `service` | Path polled until it answers 200; the deployment is `ready` when it does. Default `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — fields of the published agent card. |

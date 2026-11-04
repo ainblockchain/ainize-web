@@ -1,3 +1,4 @@
+import ProjectOperations from '@/components/ProjectOperations';
 /**
  * `/<org>/<repo>` — the project console: the deployment and run page of a repository, modelled on Vercel's project
  * dashboard. aindrive's ▶ Run is the short form; this is the full one ("aindrive의 Run은 약식이고 ainize의 run/deploy가
@@ -55,6 +56,7 @@ import { useTitle } from '@/utils/useTitle';
 import NotFoundPage from './NotFoundPage';
 import PatchPage from './PatchPage';
 import ProjectDomains from '@/components/ProjectDomains';
+import ProjectGithubSync, { GithubSyncBadge } from '@/components/ProjectGithubSync';
 import ProjectEnvVars, { ENV_SECTION_ID, MissingEnvBanner } from '@/components/ProjectEnvVars';
 import ProjectStorage, { MissingStorageBanner } from '@/components/storage/ProjectStorage';
 
@@ -453,8 +455,8 @@ function TriggersSection({ project, onOpenRun }: { project: Project; onOpenRun: 
 
 // ------------------------------------------------------------------------------------------------ the console
 
-type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings';
-const TABS: Tab[] = ['deployments', 'runs', 'logs', 'storage', 'settings'];
+type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings' | 'operations';
+const TABS: Tab[] = ['deployments', 'runs', 'logs', 'storage', 'settings', 'operations'];
 
 /**
  * One project's console. `switcher`: on a repository's page with several deployments (the root and its monorepo
@@ -566,6 +568,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
     { id: 'logs', label: t('projects.tabs.logs') },
     // managed storage is for a container app (service / nextjs) — a script or agent has nothing to connect a store to
     ...(hasStorage ? [{ id: 'storage', label: `${t('projects.tabs.storage')}${p.storage?.attached ? ` (${p.storage.attached})` : ''}` }] : []),
+    ...(p.canOperate ? [{id:'operations',label:t('projects.tabs.operations')}] : []),
     { id: 'settings', label: t('projects.tabs.settings') },
   ];
 
@@ -587,6 +590,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         {p.aindrive?.logStore && <ExternalLink href={p.aindrive.logStore.urls.logs} target="_blank" rel="noreferrer">{t('projects.aindrive.open_logs')} ↗</ExternalLink>}
         <Chip $tone={statusToneOf(p.status)}>{t(`projects.status.${p.status}`)}</Chip>
         {p.name !== p.repoName && <Meta>{p.name}</Meta>}
+        {p.githubSync?.status && <GithubSyncBadge status={p.githubSync.status} />}
         <Spacer />
         <Actions>
           <Button size="small" title={t('projects.page.code_hint')} onClick={() => window.open(codeWorkspaceUrlOf(p), '_blank', 'noreferrer')}><Mono>{'</>'}</Mono> {t('projects.page.code')}</Button>
@@ -665,10 +669,12 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
         </TabBody>
       )}
 
+      {tab === 'operations' && p.canOperate && <ProjectOperations key={p.id} project={p} />}
       {tab === 'settings' && (
         <TabBody>
           <ProjectEnvVars project={p} onOpenDeployment={openDeployment} onOpenStorage={hasStorage ? () => setTab('storage') : undefined} />
           {p.canManage && (kind === 'nextjs' || kind === 'service') && <ProjectDomains projectId={p.id} />}
+          {p.githubSync && <ProjectGithubSync project={p} />}
           <KeyValue>
             {p.canManage && (
               <><dt>{t('projects.settings.name')}</dt><dd>
