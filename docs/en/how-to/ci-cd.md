@@ -1,6 +1,6 @@
 ---
 title: CI/CD — how a push becomes a running server
-summary: Ainize is the CD half of a pipeline, managed for you: a git push builds the repo, gates it on required config and a health check, swaps it in without downtime, and keeps the old version serving if anything fails. Run your tests as a check in the build command or as an Ainize Run — not GitHub Actions — and roll back by redeploying a previous deployment. Scheduled and webhook jobs are Runs.
+summary: Ainize is the CD half of a pipeline, managed for you: a git push builds the repo, runs the ainize.json checks gate (tests/lint) and a health check, swaps it in without downtime, and keeps the old version serving if anything fails. The checks gate replaces a GitHub Actions workflow — no GitHub Actions — and you roll back by redeploying a previous deployment. Scheduled and webhook jobs are Runs.
 ---
 
 # CI/CD — how a push becomes a running server
@@ -14,13 +14,13 @@ parts instead of a server you host and script.
 
 > **No GitHub Actions.** The CI/CD here runs entirely on Ainize — the build, the test gate (build check or an Ainize
 > Run), the deploy and its triggers. GitHub stays as a place to host and review code; it does not run the pipeline.
-> Work that used to live in a GitHub Actions workflow moves to an [Ainize Run](./run-scripts-on-a-schedule.md).
+> Work that used to live in a GitHub Actions workflow becomes the [`checks`](#the-ci-half-a-checks-gate-that-runs-on-every-push-without-github-actions) gate, or an [Ainize Run](./run-scripts-on-a-schedule.md) for out-of-band jobs.
 
 | Jenkins | On Ainize |
 |---|---|
 | A server you install, update and secure | Nothing to host; a push is the trigger |
 | A `Jenkinsfile` with explicit `stages` | `ainize.json` declares the build; the stages (build → gate → health → swap) are fixed and managed |
-| A build agent runs your tests | A check in the build command, or an Ainize Run (`kind: script`) that runs the suite — **not** GitHub Actions |
+| A build agent runs your tests | `checks` in `ainize.json` — tests/lint/typecheck the node runs from the built image on every push — **not** GitHub Actions |
 | A deploy step you script, with your own rollback | Health-gated zero-downtime swap; failed deploy keeps the previous version; **roll back = redeploy a past deployment** |
 | `cron` / webhook triggers on jobs | [Runs](../concepts/deployments-and-runs.md) with `schedule`, `ain` and `http` triggers |
 
@@ -48,31 +48,42 @@ with a streamed log and a URL:
 and nothing a user can reach has changed. `GET /api/projects/{id}/deployments` lists them; `GET /api/deployments/{id}/log`
 is the log. In AinDrive, each commit shows its deployment dot (building / ready / error) with *Inspect* and *Visit*.
 
-## The CI half: test before you ship, without GitHub Actions
+## The CI half: a `checks` gate that runs on every push, without GitHub Actions
 
-Ainize does not run a separate test stage for you, and the pipeline does not use GitHub Actions — put your gate in one
-of two places, both on Ainize:
+Ainize runs your test gate as part of the deploy, on every push — this is what replaces a GitHub Actions workflow. Use
+`checks` in `ainize.json`:
 
-- **In the build command (the simplest gate).** Fold the checks into the build so a failing test is a failed build,
-  which is a failed deployment: a `nextjs` build whose `npm run build` first runs `npm test` (or `npm run lint &&
-  npm run typecheck && npm test && next build`), or a `service` whose `Dockerfile` runs the suite in a build stage and
-  only a passing stage produces the runtime image. The previous version keeps serving on any failure, so a red test
-  never reaches users.
-- **In the `release` step** (a pre-traffic gate the deploy runs for you). `release.command` runs from the built image
-  **before** the new version takes traffic, and a non-zero exit fails the deployment with the previous version still
-  serving — so it gates the deploy too, on every push. Use it for database migrations and integration/smoke checks
-  that need the runtime environment.
+```json
+{
+  "kind": "nextjs",
+  "checks": [
+    { "name": "lint", "command": ["npm", "run", "lint"] },
+    { "name": "typecheck", "command": ["npm", "run", "typecheck"] },
+    { "name": "test", "command": ["npm", "test"], "timeoutSeconds": 900 }
+  ]
+}
+```
 
-**A direct AinDrive push is gated.** A push to the deploy repo on AinDrive runs, in order, **build → release →
-health check → swap**, and the new version takes traffic only after all of them pass; a failure at any step leaves the
-previous version serving. So the deploy is gated on every push by what you put in those steps — tests and lint in the
-build, migrations and smoke checks in `release`. That is the gate, and it runs on a direct push; you do not need a
-separate job to hold the push back.
+Each step runs the job a GitHub Actions job ran — the same commands — from the **built image**, in order, **after the
+build and before the new version takes traffic**. A non-zero exit or a timeout **fails the deployment and the previous
+version keeps serving**, so a red test never reaches users. The steps get the app's env and secrets but **not** the
+connected stores' networks — a gate must not read or change store data. The node's Next.js image keeps
+devDependencies and the source, so `["npm", "test"]` works out of the box; a `service` whose runtime stage is slim
+runs a step against a build stage with `"target"`.
 
-A `kind: script` **Ainize Run** is for suites you run *out of band* — a nightly full run, a job another system
-triggers — not as the deploy gate. (If you do want tests to run somewhere other than the deploy path and still gate
-it, run them first and push to AinDrive only when they pass, so the deploy push is itself the "passed" step.) Keeping
-the source on GitHub for review is fine — GitHub just never runs the pipeline.
+So a push to the deploy repo on AinDrive runs **build → checks → release → health check → swap**, and the new version
+takes traffic only after every step passes. The gate runs on a direct push; you do not need a separate job or a second
+system to hold the push back.
+
+Two related primitives, for jobs that are not the gate:
+
+- **`release`** runs a command from the built image before traffic too (and also fails the deploy on non-zero) — it is
+  for database migrations and smoke checks that need the runtime environment, not the test gate.
+- A **`kind: script` Ainize Run** is for suites you run *out of band* — a nightly full run, a job another system
+  triggers by webhook or schedule — not the deploy gate.
+
+Keeping the source on GitHub for review is fine — GitHub just never runs the pipeline; `checks` is what a workflow
+becomes.
 
 ## Rolling back
 
@@ -105,7 +116,7 @@ A connected managed store hands the app its `DATABASE_URL`, `S3_ENDPOINT`, … a
 
 - **CD is native and managed**: push → gate → build → release → health check → zero-downtime swap, with the previous
   version serving until the new one is proven, and a full per-push history.
-- **CI runs on Ainize, not GitHub Actions**: checks in the build command and the `release` step gate every direct
-  push (a failure keeps the previous version); an Ainize Run is for out-of-band suites. Only a green gate ships.
+- **CI runs on Ainize, not GitHub Actions**: the `ainize.json` `checks` gate runs tests/lint on every push, before the
+  swap, and a failure keeps the previous version serving; a `kind: script` Run is for out-of-band suites. Only a green gate ships.
 - **Rollback** is redeploying a previous deployment.
 - **Scheduled / webhook jobs** are Runs with `schedule`, `ain` or `http` triggers.

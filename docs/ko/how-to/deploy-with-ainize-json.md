@@ -46,6 +46,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — 공개될 에이전트 카드의 항목. |
 | `storage` | `nextjs`, `service` | 코드가 기대하는 조직의 관리형 스토어 — `["db"]` 또는 `[{ "name": "db", "kind": "postgres", "env": "MAIN", "required": true }]`, 최대 4개. 프로젝트의 Storage 탭에서 각각을 스토어에 연결하면, 배포 때 앱이 `DATABASE_URL`, `S3_ENDPOINT` … 를 받습니다. 연결되지 않은 `required` 항목이 있으면 빌드 전에 배포가 실패합니다. [프로젝트에 데이터베이스와 파일 저장소 연결하기](./managed-storage.md) 참고. |
+| `checks` | `nextjs`, `service` | CI 게이트 — 매 push 마다 도는 테스트·린트·타입체크: `[{ "name": "test", "command": ["npm","test"], "timeoutSeconds"?, "target"?, "entrypoint"? }, …]` (≤ 20, 이름 중복 불가). 각 단계는 **빌드 후, `release`·트래픽 전에** 빌드된 이미지에서 실행되고, 0이 아닌 종료면 배포가 실패하며 이전 버전이 계속 서비스합니다. 앱 env·시크릿은 주어지고, 연결된 스토어 네트워크는 **주어지지 않습니다**. [CI/CD](./ci-cd.md) 참고. |
 | `release` | `nextjs`, `service` | 새 컨테이너가 트래픽을 받기 전에 빌드된 이미지에서 실행하는 명령 — 마이그레이션: `{ "command": ["pnpm", "db:migrate"], "target"?, "entrypoint"?, "timeoutSeconds"?, "when"? }`. 0이 아닌 종료 코드면 배포가 실패하고 이전 배포가 계속 서비스합니다. |
 
 **`ainize.json`이 없는** 리포는 Next.js 앱(`package.json`의 `next` 의존성)일 때만 배포되고, 그 외는 `error: no

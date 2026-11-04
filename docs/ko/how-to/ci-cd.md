@@ -1,6 +1,6 @@
 ---
 title: CI/CD — push 하나가 서버가 되기까지
-summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git push 가 레포를 빌드하고, 필수 설정과 헬스체크로 게이트를 걸고, 무중단으로 새 버전으로 교체하며, 무엇이든 실패하면 이전 버전이 계속 서비스합니다. 테스트는 GitHub Actions 가 아니라 빌드 명령 안의 체크나 Ainize Run 으로 돌리고, 롤백은 이전 배포를 다시 배포해서 합니다. 스케줄·웹훅 작업은 Run 입니다.
+summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git push 가 레포를 빌드하고, ainize.json 의 checks 게이트(테스트·린트)와 헬스체크를 돌려 무중단으로 교체하며, 무엇이든 실패하면 이전 버전이 계속 서비스합니다. checks 게이트가 GitHub Actions 워크플로를 대신합니다 — GitHub Actions 미사용 — 롤백은 이전 배포를 다시 배포해서 합니다. 스케줄·웹훅 작업은 Run 입니다.
 ---
 
 # CI/CD — push 하나가 서버가 되기까지
@@ -19,7 +19,7 @@ summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git 
 |---|---|
 | 설치·업데이트·보안을 직접 하는 서버 | 호스팅할 것 없음; push 가 트리거 |
 | `stages` 를 적은 `Jenkinsfile` | `ainize.json` 이 빌드를 선언; 단계(빌드 → 게이트 → 헬스 → 교체)는 고정·관리형 |
-| 빌드 에이전트가 테스트 실행 | 빌드 명령 안의 체크, 또는 스위트를 돌리는 Ainize Run(`kind: script`) — GitHub Actions **아님** |
+| 빌드 에이전트가 테스트 실행 | `ainize.json` 의 `checks` — 노드가 빌드된 이미지에서 매 push 마다 돌리는 테스트·린트·타입체크 — GitHub Actions **아님** |
 | 직접 스크립트한 배포·롤백 | 헬스 게이트 무중단 교체; 실패 시 이전 버전 유지; **롤백 = 지난 배포 다시 배포** |
 | 작업에 건 `cron`·웹훅 트리거 | [Run](../concepts/deployments-and-runs.md) 의 `schedule`·`ain`·`http` 트리거 |
 
@@ -44,28 +44,40 @@ summary: Ainize 는 파이프라인의 CD 절반을 대신 관리합니다. git 
 바뀌지 않습니다. `GET /api/projects/{id}/deployments` 가 목록을, `GET /api/deployments/{id}/log` 가 로그를 줍니다.
 AinDrive 에서는 커밋마다 배포 점(building / ready / error)과 *Inspect*·*Visit* 이 보입니다.
 
-## CI 절반: GitHub Actions 없이 배포 전에 테스트하기
+## CI 절반: 매 push 마다 도는 `checks` 게이트 (GitHub Actions 없이)
 
-Ainize 가 별도 테스트 단계를 대신 돌려 주지는 않고, 파이프라인은 GitHub Actions 를 쓰지 않습니다 — 게이트를 Ainize 안
-둘 중 한 곳에 두세요:
+Ainize 는 테스트 게이트를 배포의 일부로, 매 push 마다 돌립니다 — 이것이 GitHub Actions 워크플로를 대신합니다.
+`ainize.json` 의 `checks` 를 쓰세요:
 
-- **빌드 명령 안(가장 간단한 게이트).** 체크를 빌드에 넣어 테스트 실패가 빌드 실패 = 배포 실패가 되게 하세요: `npm run
-  build` 가 먼저 `npm test` 를 돌리는 `nextjs`(또는 `npm run lint && npm run typecheck && npm test && next build`),
-  또는 빌드 스테이지에서 스위트를 돌려 통과할 때만 런타임 이미지를 만드는 `service` `Dockerfile`. 어떤 실패든 이전 버전이
-  계속 서비스하므로 빨간 테스트가 사용자에게 닿지 않습니다.
-- **`release` 단계에서**(배포가 대신 돌려 주는 트래픽-전 게이트). `release.command` 는 빌드된 이미지에서 **새 버전이
-  트래픽을 받기 전에** 실행되고, 0 이 아닌 종료는 배포를 실패시키며 이전 버전이 계속 서비스합니다 — 그래서 이것도 매 push
-  마다 배포를 게이트합니다. DB 마이그레이션, 런타임 환경이 필요한 통합·스모크 체크에 쓰세요.
+```json
+{
+  "kind": "nextjs",
+  "checks": [
+    { "name": "lint", "command": ["npm", "run", "lint"] },
+    { "name": "typecheck", "command": ["npm", "run", "typecheck"] },
+    { "name": "test", "command": ["npm", "test"], "timeoutSeconds": 900 }
+  ]
+}
+```
 
-**AinDrive 바로-push 는 게이트됩니다.** 배포 레포로 AinDrive push 하면 노드가 순서대로 **빌드 → release → 헬스체크 →
-교체** 를 돌리고, 모두 통과한 뒤에야 새 버전이 트래픽을 받습니다. 어느 단계든 실패하면 이전 버전이 계속 서비스합니다. 즉
-배포는 매 push 마다 이 단계들에 넣은 것으로 게이트됩니다 — 빌드의 테스트·린트, `release` 의 마이그레이션·스모크 체크.
-이것이 게이트이고, 바로-push 에서도 돕니다. push 를 막기 위한 별도 잡이 필요하지 않습니다.
+각 단계는 GitHub Actions 잡이 돌리던 그 명령 그대로를 **빌드된 이미지에서**, 순서대로, **빌드 후·새 버전이 트래픽을 받기
+전에** 돌립니다. 0 이 아닌 종료나 타임아웃은 **배포를 실패시키고 이전 버전이 계속 서비스**하므로 빨간 테스트가 사용자에게
+닿지 않습니다. 단계는 앱 env·시크릿은 받지만 연결된 스토어 네트워크는 **받지 않습니다** — 게이트가 스토어 데이터를 읽거나
+바꾸면 안 되니까요. 노드의 Next.js 이미지는 devDependencies 와 소스를 그대로 담으므로 `["npm", "test"]` 가 바로
+동작합니다. 런타임 스테이지가 가벼운 `service` 는 `"target"` 으로 빌드 스테이지에서 단계를 돌립니다.
 
-`kind: script` **Ainize Run** 은 배포 경로 밖에서 돌리는 스위트용입니다 — 야간 전체 실행, 다른 시스템이 띄우는 잡 — 배포
-게이트가 아닙니다. (굳이 배포 경로 밖에서 테스트를 돌리고도 배포를 게이트하고 싶다면, 먼저 돌려 통과할 때만 AinDrive 로
-push 해서 그 배포 push 가 "통과" 단계가 되게 하세요.) 소스를 리뷰용으로 GitHub 에 두는 것은 괜찮습니다 — GitHub 은
-파이프라인을 돌리지 않을 뿐입니다.
+그래서 배포 레포로 AinDrive push 하면 노드가 **빌드 → checks → release → 헬스체크 → 교체** 를 돌리고, 모든 단계가 통과한
+뒤에야 새 버전이 트래픽을 받습니다. 게이트는 바로-push 에서 돌고, push 를 막기 위한 별도 잡이나 다른 시스템이 필요하지
+않습니다.
+
+게이트가 아닌 작업용 관련 기능 둘:
+
+- **`release`** 도 트래픽 전에 빌드된 이미지에서 명령을 돌리고(역시 0 아닌 종료면 배포 실패) — 런타임 환경이 필요한 DB
+  마이그레이션·스모크 체크용이지 테스트 게이트는 아닙니다.
+- **`kind: script` Ainize Run** 은 배포 경로 밖에서 돌리는 스위트용 — 야간 전체 실행, 다른 시스템이 웹훅·스케줄로 띄우는
+  잡 — 배포 게이트가 아닙니다.
+
+소스를 리뷰용으로 GitHub 에 두는 것은 괜찮습니다 — GitHub 은 파이프라인을 돌리지 않고, `checks` 가 워크플로를 대신합니다.
 
 ## 롤백
 
@@ -95,6 +107,6 @@ push 해서 그 배포 push 가 "통과" 단계가 되게 하세요.) 소스를 
 
 - **CD 는 네이티브·관리형**: push → 게이트 → 빌드 → 릴리스 → 헬스체크 → 무중단 교체. 새 버전이 입증될 때까지 이전 버전이
   서비스하고, push 마다 전체 히스토리가 남습니다.
-- **CI 는 GitHub Actions 가 아니라 Ainize 에서**: 빌드 명령과 `release` 단계의 체크가 매 바로-push 를 게이트하고(실패 시 이전 버전 유지), Ainize Run 은 배포 경로 밖 스위트용입니다. 초록 게이트만 배포됩니다.
+- **CI 는 GitHub Actions 가 아니라 Ainize 에서**: `ainize.json` 의 `checks` 게이트가 매 push 마다 교체 전에 테스트·린트를 돌리고 실패 시 이전 버전이 계속 서비스합니다. `kind: script` Run 은 배포 경로 밖 스위트용. 초록 게이트만 배포됩니다.
 - **롤백**은 지난 배포를 다시 배포.
 - **스케줄·웹훅 작업**은 `schedule`·`ain`·`http` 트리거를 단 Run.
