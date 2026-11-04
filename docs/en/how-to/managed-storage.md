@@ -177,10 +177,28 @@ its objects by prefix, with a download for each.
 ## Backups, restore and undo
 
 Every store is dumped daily at its hour (or hourly, or never — the **Backups** tab's schedule), verified, and kept on the
-node's NAS. Set the organization's **AinDrive backup target** once (**Settings → Storage**, admin: the drive id and an
-AinDrive account token `aind_aat_…` with `drives:write`; the node tests it with an upload and never shows it again), and
-each backup is also copied to that drive under `ainize-storage/<store>-<id>/backups/<date>/`, with a small JSON file
-describing it — enough to restore on another node from the drive alone. A dump over 2 GiB stays on the NAS only.
+node's NAS. Connect the organization's **AinDrive backup target** once (**Settings → Storage**, admin: enter the drive
+id, press **Connect AinDrive**, and approve on AinDrive), and each backup is also copied to that drive under
+`ainize-storage/<store>-<id>/backups/<date>/`, with a small JSON file describing it — enough to restore on another node
+from the drive alone. A dump over 2 GiB stays on the NAS only.
+
+The connection is an AinDrive OAuth grant (`drives:read drives:write`), not a token you paste. AinDrive's access tokens
+live one hour, so the node keeps the grant's refresh token and refreshes it itself: before each upload when the hour is
+nearly over, and at least once a week even when nothing is backed up, so the grant does not lapse after 30 days. Each
+refresh replaces the refresh token, and the node saves the new one before it uses it. Before the grant is saved, the node
+tests it by uploading and deleting a small file, and it never shows the grant again.
+
+The Storage tab shows **Reconnect AinDrive** when the grant stops working. That happens when someone disconnects the app
+under AinDrive → Connected apps, when the person who connected it loses write access to the drive, or when the node
+stopped in the middle of a refresh and cannot tell whether its saved refresh token is still the current one. Backups keep
+landing on the NAS in the meantime. After you reconnect, each store's newest backup that the drive refused is uploaded
+again.
+
+From the API, start the same flow with `POST /api/orgs/<org>/storage/backup-target/connect` `{ driveId }`. It returns
+the AinDrive consent URL, which works once within 24 hours. You can also hand the node a grant you already hold:
+`PUT /api/orgs/<org>/storage/backup-target` with `{ driveId, refreshToken, clientId }`, or with an authorization code
+`{ driveId, code, codeVerifier, redirectUri, clientId }`. An access token (`aind_aat_…`) on its own is refused, because
+it would stop working within the hour.
 Retention keeps 30 days and at most 60 scheduled backups by default; the newest one is always kept, and the safety
 backups taken before a restore, a rotation or a delete are kept 30 days.
 

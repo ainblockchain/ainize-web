@@ -6,8 +6,9 @@
  *   Create store         (write) Vercel's "Create Database": the name checked as it is typed (the node's rule), the
  *                        kind, the engine (Postgres 16 · Postgres 16 + pgvector · Blob), memory / CPUs within the
  *                        node's limits, Postgres extensions, the daily backup hour; on success the store's page opens.
- *   Backups to AinDrive  (admin) the organization's drive id (pre-filled when the node names a default) and an
- *                        AinDrive account token with drives:write — probed by the node, never shown again; Clear.
+ *   Backups to AinDrive  (admin) the organization's drive id (pre-filled when the node names a default) and Connect
+ *                        AinDrive: OAuth on AinDrive, back through AindriveCallbackPage; the node keeps and refreshes the
+ *                        grant. Or a refresh token pasted (never shown again). Reconnect when the grant died; Clear.
  *   Deleted stores       stores that are gone, with the backups they left and where those are on the drive.
  *
  * Any member reads; the node refuses the rest and its refusals are shown as they come back. A node without managed
@@ -15,11 +16,11 @@
  * each get one sentence instead of the page.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { useClearOrgBackupTargetMutation, useCreateStoreMutation, useOrgStoresQuery, useSetOrgBackupTargetMutation } from '@/api/api';
+import { useNavigate, useSearchParams } from 'react-router';
+import { useClearOrgBackupTargetMutation, useConnectOrgBackupTargetMutation, useCreateStoreMutation, useOrgStoresQuery, useSetOrgBackupTargetMutation } from '@/api/api';
 import { roleAtLeast, type OrgProfile } from '@/api/organizations';
 import {
-  BACKUP_TZ, bytesLabel, defaultEngineOf, driveBackupUrl, engineKindOf, storageApiErrorOf, STORE_ENGINES, STORE_KINDS, storeIsBusy, storeNameProblem, unwrapUncached,
+  AINDRIVE_CONNECT_ORG_KEY, BACKUP_TZ, bytesLabel, defaultEngineOf, driveBackupUrl, engineKindOf, storageApiErrorOf, STORE_ENGINES, STORE_KINDS, storeIsBusy, storeNameProblem, unwrapUncached,
   type OrgStoresResponse, type Store, type StoreEngine, type StoreKind,
 } from '@/api/projectStorage';
 import { Button } from '@/components/ui/Button';
@@ -159,19 +160,36 @@ function CreateStoreDialog({ orgId, data, onClose }: { orgId: string; data: OrgS
 function BackupTargetPanel({ orgId, data, admin }: { orgId: string; data: OrgStoresResponse; admin: boolean }) {
   const { t } = useT();
   const target = data.backupDrive;
+  const [search, setSearch] = useSearchParams();
   const [setTarget, setting] = useSetOrgBackupTargetMutation();
   useForgetMutationArgs(setting);
+  const [connect, connecting] = useConnectOrgBackupTargetMutation();
   const [clearTarget, clearing] = useClearOrgBackupTargetMutation();
   const [driveId, setDriveId] = useState(target.driveId ?? target.defaultDriveId ?? '');
-  const [token, setToken] = useState('');
+  const [refreshToken, setRefreshToken] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [manual, setManual] = useState(false);
   const [editing, setEditing] = useState(!target.configured);
   const [err, setErr] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(search.get('aindrive') === 'connected' ? t('storage.org.target_connected', { drive: target.driveId ?? '' }) : null);
   useEffect(() => { setEditing(!target.configured); setDriveId(target.driveId ?? target.defaultDriveId ?? ''); }, [target.configured, target.driveId, target.defaultDriveId]);
+  useEffect(() => {
+    // the callback page sent us back here: say so once, then drop the marker from the address
+    if (search.get('aindrive') !== 'connected') return;
+    const next = new URLSearchParams(search); next.delete('aindrive'); setSearch(next, { replace: true });
+  }, [search, setSearch]);
+  const startConnect = async () => {
+    setErr(null); setNote(null);
+    try {
+      const r = await connect({ orgId, driveId: driveId.trim() }).unwrap();
+      try { sessionStorage.setItem(AINDRIVE_CONNECT_ORG_KEY, orgId); } catch { /* the callback falls back to the node's answer */ }
+      window.location.assign(r.authorizeUrl);
+    } catch (e) { setErr(storageErrorText(t, e)); }
+  };
   const save = async () => {
     setErr(null); setNote(null);
-    // the AinDrive token: out of the Redux store as soon as the node answers, and out of the hook (useForgetMutationArgs)
-    try { const r = await unwrapUncached(setTarget({ orgId, driveId: driveId.trim(), token: token.trim() })); setToken(''); setNote(t('storage.org.target_saved', { drive: r.driveId })); }
+    // the refresh token: out of the Redux store as soon as the node answers, and out of the hook (useForgetMutationArgs)
+    try { const r = await unwrapUncached(setTarget({ orgId, driveId: driveId.trim(), refreshToken: refreshToken.trim(), clientId: clientId.trim() || undefined })); setRefreshToken(''); setManual(false); setNote(t('storage.org.target_saved', { drive: r.driveId })); }
     catch (e) { setErr(storageErrorText(t, e)); }
   };
   const clear = async () => {
@@ -179,41 +197,57 @@ function BackupTargetPanel({ orgId, data, admin }: { orgId: string; data: OrgSto
     setErr(null); setNote(null);
     try { await clearTarget({ orgId }).unwrap(); } catch (e) { setErr(storageErrorText(t, e)); }
   };
+  const chip = !target.configured ? <Chip $tone="muted">{t('storage.org.target_none')}</Chip>
+    : target.needsReconnect ? <Chip $tone="warn">{t('storage.org.target_reconnect_needed')}</Chip>
+    : target.lastError ? <Chip $tone="warn">{t('storage.org.target_failing')}</Chip>
+    : <Chip $tone="ok">{t('storage.org.target_ok')}</Chip>;
   return (
     <Panel data-testid="org-backup-target">
-      <Row><h3>{t('storage.org.target')}</h3><Spacer />{target.configured ? <Chip $tone={target.lastError ? 'warn' : 'ok'}>{target.lastError ? t('storage.org.target_failing') : t('storage.org.target_ok')}</Chip> : <Chip $tone="muted">{t('storage.org.target_none')}</Chip>}</Row>
+      <Row><h3>{t('storage.org.target')}</h3><Spacer />{chip}</Row>
       <Help>{t('storage.org.target_help')}</Help>
       {target.configured && (
         <Row>
           <Meta>{t('storage.org.drive')}: <Mono>{target.driveId}</Mono></Meta>
           {target.driveId && <ExternalLink href={driveBackupUrl(target.driveId, 'ainize-storage/x', target.origin ?? undefined)} target="_blank" rel="noreferrer">ainize-storage/ ↗</ExternalLink>}
           {target.lastOkAt && <Meta>· {t('storage.org.target_last_ok', { when: when(target.lastOkAt) })}</Meta>}
+          {target.auth === 'grant' && !target.needsReconnect && target.refreshExpiresAt && <Meta>· {t('storage.org.target_grant_until', { when: when(target.refreshExpiresAt) })}</Meta>}
         </Row>
       )}
       {target.lastError && <Alert $tone="error">{t('storage.backups.drive_error', { error: target.lastError })}</Alert>}
+      {target.configured && target.auth === 'token' && <Alert $tone="warning">{t('storage.org.target_token_legacy')}</Alert>}
       {!target.configured && !admin && <Alert $tone="warning">{t('storage.backups.drive_missing')}</Alert>}
-      {admin && editing && (
+      {admin && (editing || target.needsReconnect) && (
         <Grid>
           <Field>
             <FieldLabel htmlFor="target-drive">{t('storage.org.drive')}</FieldLabel>
             <Input id="target-drive" value={driveId} autoCapitalize="none" spellCheck={false} onChange={(e) => setDriveId(e.target.value)} />
             {target.defaultDriveId && <HelperText>{t('storage.org.drive_default', { drive: target.defaultDriveId })}</HelperText>}
           </Field>
-          <Field>
-            <FieldLabel htmlFor="target-token">{t('storage.org.token')}</FieldLabel>
-            <Input id="target-token" type="password" value={token} placeholder="aind_aat_…" autoComplete="new-password" spellCheck={false} onChange={(e) => setToken(e.target.value)} />
-            <HelperText>{t('storage.org.token_help')}</HelperText>
-          </Field>
+          {manual && (
+            <>
+              <Field>
+                <FieldLabel htmlFor="target-refresh">{t('storage.org.refresh_token')}</FieldLabel>
+                <Input id="target-refresh" type="password" value={refreshToken} placeholder="aind_art_…" autoComplete="new-password" spellCheck={false} onChange={(e) => setRefreshToken(e.target.value)} />
+                <HelperText>{t('storage.org.refresh_token_help')}</HelperText>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="target-client">{t('storage.org.client_id')}</FieldLabel>
+                <Input id="target-client" value={clientId} placeholder="aind_client_…" autoCapitalize="none" spellCheck={false} onChange={(e) => setClientId(e.target.value)} />
+                <HelperText>{t('storage.org.client_id_help')}</HelperText>
+              </Field>
+            </>
+          )}
         </Grid>
       )}
       {err && <Alert $tone="error">{err}</Alert>}
       {note && <Alert $tone="success">{note}</Alert>}
       {admin && (
         <Actions>
-          {editing
-            ? <Button size="small" variant="contained" loading={setting.isLoading} disabled={!driveId.trim() || token.trim().length < 8} onClick={() => void save()}>{t('storage.org.target_save')}</Button>
-            : <Button size="small" onClick={() => setEditing(true)}>{t('storage.org.target_change')}</Button>}
-          {editing && target.configured && <Button size="small" variant="text" onClick={() => { setEditing(false); setToken(''); }}>{t('storage.cancel')}</Button>}
+          {(editing || target.needsReconnect) && !manual && <Button size="small" variant="contained" loading={connecting.isLoading} disabled={!driveId.trim()} onClick={() => void startConnect()}>{target.configured ? t('storage.org.target_reconnect') : t('storage.org.target_connect')}</Button>}
+          {(editing || target.needsReconnect) && manual && <Button size="small" variant="contained" loading={setting.isLoading} disabled={!driveId.trim() || refreshToken.trim().length < 8} onClick={() => void save()}>{t('storage.org.target_save')}</Button>}
+          {(editing || target.needsReconnect) && <Button size="small" variant="text" onClick={() => { setManual(!manual); setRefreshToken(''); }}>{manual ? t('storage.org.target_use_connect') : t('storage.org.target_use_refresh')}</Button>}
+          {!editing && !target.needsReconnect && <Button size="small" onClick={() => setEditing(true)}>{t('storage.org.target_change')}</Button>}
+          {editing && target.configured && <Button size="small" variant="text" onClick={() => { setEditing(false); setManual(false); setRefreshToken(''); }}>{t('storage.cancel')}</Button>}
           {target.configured && <Button size="small" variant="text" color="secondary" loading={clearing.isLoading} onClick={() => void clear()}>{t('storage.org.target_clear')}</Button>}
         </Actions>
       )}

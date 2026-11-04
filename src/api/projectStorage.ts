@@ -23,7 +23,9 @@
  *   DELETE /api/stores/:sid/backups/:bk                  → { ok }
  *   POST   /api/stores/:sid/restore | /restore/undo      → 202 { store, newStore? }
  *   GET    /api/stores/:sid/logs?tail=                   → { lines }
- *   PUT    /api/orgs/:id/storage/backup-target           { driveId, token } → { driveId, verifiedAt }
+ *   PUT    /api/orgs/:id/storage/backup-target           { driveId, refreshToken, clientId? } → { driveId, verifiedAt, refreshExpiresAt }
+ *   POST   /api/orgs/:id/storage/backup-target/connect   { driveId } → { authorizeUrl, expiresAt }   (Connect AinDrive, OAuth + PKCE)
+ *   POST   /api/storage/aindrive/callback                { state, code } → { orgId, driveId, verifiedAt, refreshExpiresAt }
  *   DELETE /api/orgs/:id/storage/backup-target           → { ok }
  *   GET    /api/projects/:id/storage                     → { attached, declared, missing, optionalMissing, orgStores, canManage }
  *
@@ -154,7 +156,14 @@ export interface StoreBackup {
 }
 
 /** The organization's AinDrive backup target, as the node describes it (never the token). */
-export interface BackupTarget { configured: boolean; driveId: string | null; origin: string | null; setAt: number | null; lastOkAt: number | null; lastError: string | null; defaultDriveId: string | null }
+/**
+ * `auth`: `grant` — an AinDrive OAuth grant the node refreshes itself; `token` — one token from before grants (it dies).
+ * `needsReconnect`: the grant is dead (revoked, or a refresh was interrupted) or it is a bare token — connect AinDrive again.
+ */
+export interface BackupTarget {
+  configured: boolean; driveId: string | null; origin: string | null; setAt: number | null; lastOkAt: number | null; lastError: string | null; defaultDriveId: string | null;
+  auth: 'grant' | 'token' | null; needsReconnect: boolean; grantState: 'ok' | 'revoked' | 'interrupted' | null; refreshExpiresAt: number | null;
+}
 export interface StoreLimits { perOrg: number | null; memoryMax: string | null; cpusMax: number | null; attachmentsPerStore: number | null; extensions: string[] }
 export interface DeletedStore { storeId: string; name: string | null; kind: StoreKind; engine: StoreEngine; backups: StoreBackup[] }
 export interface OrgStoresResponse { stores: Store[]; backupDrive: BackupTarget; limits: StoreLimits; deletedStores: DeletedStore[] }
@@ -265,7 +274,16 @@ export function parseStoreDetail(raw: unknown): StoreDetail | null {
 
 export function parseBackupTarget(raw: unknown): BackupTarget {
   const r = obj(raw) ?? {};
-  return { configured: r.configured === true, driveId: strOrNull(r.driveId), origin: strOrNull(r.origin), setAt: numOrNull(r.setAt), lastOkAt: numOrNull(r.lastOkAt), lastError: strOrNull(r.lastError), defaultDriveId: strOrNull(r.defaultDriveId) };
+  const grant = obj(r.grant);
+  const configured = r.configured === true;
+  return {
+    configured, driveId: strOrNull(r.driveId), origin: strOrNull(r.origin), setAt: numOrNull(r.setAt), lastOkAt: numOrNull(r.lastOkAt), lastError: strOrNull(r.lastError), defaultDriveId: strOrNull(r.defaultDriveId),
+    auth: r.auth === 'grant' || r.auth === 'token' ? r.auth : null,
+    // an older node says nothing: a configured target then is a token, which is exactly what needs reconnecting
+    needsReconnect: configured && (typeof r.needsReconnect === 'boolean' ? r.needsReconnect : r.auth !== 'grant'),
+    grantState: grant ? oneOf(grant.state, ['ok', 'revoked', 'interrupted'] as const, 'ok') : null,
+    refreshExpiresAt: grant ? numOrNull(grant.refreshExpiresAt) : null,
+  };
 }
 
 export function parseBackup(raw: unknown): StoreBackup | null {
@@ -637,6 +655,10 @@ export function restoreCopyNameOf(name: string, now = Date.now()): string {
 
 export const orgStoresUrl = (orgId: string) => `api/orgs/${encodeURIComponent(orgId)}/stores`;
 export const backupTargetUrl = (orgId: string) => `api/orgs/${encodeURIComponent(orgId)}/storage/backup-target`;
+/** Where AinDrive sends the browser back after **Connect AinDrive** (the node's redirect URI; src/screens/org/storage/AindriveCallbackPage.tsx). */
+export const AINDRIVE_CALLBACK_PATH = '/org/storage/aindrive';
+/** The connect's organization, kept in this tab while the person is on AinDrive (the callback returns to its Storage tab). */
+export const AINDRIVE_CONNECT_ORG_KEY = 'ainize.storage.aindriveConnectOrg';
 export const storeUrl = (sid: string, sub?: string) => `api/stores/${encodeURIComponent(sid)}${sub ? `/${sub}` : ''}`;
 export const projectStorageUrl = (projectId: string) => `api/projects/${encodeURIComponent(projectId)}/storage`;
 export const storeRowsUrl = (sid: string, schema: string, table: string, q: { database?: string; limit?: number; offset?: number; order?: string; dir?: 'asc' | 'desc' }) => {
