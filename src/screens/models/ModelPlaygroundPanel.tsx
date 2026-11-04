@@ -253,6 +253,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
 
       <SubTitle>{t('models.key.title')}</SubTitle>
       <Panel>
+        <Description>{t('models.key.scope_help')} <StyledLink to="/me">{t('models.key.scope_link')}</StyledLink></Description>
         {!canHoldKeys && (
           <>
             <Description>{t('models.key.none')}</Description>

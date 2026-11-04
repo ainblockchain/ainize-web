@@ -1,6 +1,6 @@
 ---
 source: en/how-to/call-the-model.md
-source_sha256: 83a0d013f88b9d96202e3fa5cddfb63da430720280d7308b60cd926a59c99eee
+source_sha256: f4b00f5dfd5f8628e620c94de04360ceca6be2d33946fb716af506d53e8fdad8
 ---
 
 # 내 코드에서 모델 호출하기
@@ -34,6 +34,19 @@ client = ainize.connect(os.environ.get("AINIZE_URL", "https://ainize.ai"), api_k
 models = client.models.list().data
 print([model.id for model in models])
 ```
+
+## 로그인하고 키의 소유자 선택하기
+
+1. 모델 페이지에서 **로그인하고 키 발급받기**를 누르세요. AIN SSO 계정은 **Continue with AIN**으로 로그인합니다. 지갑과 Google 로그인도 지원합니다.
+2. 모델 페이지에서 발급한 AIN SSO 키는 로그인 때 선택한 조직에 연결됩니다. 조직 또는 개인 키를 직접 선택하려면 [내 키](/me)에서 소유자를 선택하고 이름을 입력해 발급하세요. 현재 소속된 조직만 선택할 수 있습니다.
+3. 발급 직후 한 번 표시되는 키를 복사해 서버의 `AINIZE_API_KEY` 비밀값으로 저장하세요. 목록에서는 접두사만 확인할 수 있고 원래 값을 복구할 수 없습니다. 분실하면 새 키를 발급하고 기존 키를 폐기하세요.
+4. 위 Python 예제를 서버나 개발용 컴퓨터에서 실행하세요. 키를 브라우저 번들, `NEXT_PUBLIC_*` 환경변수, 소스 저장소, 스크린샷 또는 채팅에 넣지 마세요.
+
+### 예제 저장소가 보이지 않을 때
+
+모델 API 키와 저장소 접근 권한은 별개입니다. `comcom/git/clef-artwork-search` 같은 AinDrive 예제가 403을 반환하거나 보이지 않으면, 의도한 AIN 계정과 조직으로 AinDrive에 로그인했는지 확인하세요. `comcom` 조직 또는 저장소 관리자에게 저장소 URL과 계정 식별자를 알려주고 **해당 저장소의 읽기 권한**을 요청하세요. 요청에 API 키를 포함하지 마세요. 404는 경로가 변경된 경우에도 발생하므로 소유자에게 현재 주소를 확인하세요.
+
+저장소 권한을 확인하는 동안에도 이 페이지의 API 예제를 사용할 수 있습니다. 예제 저장소를 내려받을 필요는 없습니다.
 
 ## 채팅
 
