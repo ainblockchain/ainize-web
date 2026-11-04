@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { usePauseProjectGithubSyncMutation, useProjectGithubSyncQuery, useSetProjectGithubSyncMutation, useSyncFromGithubMutation } from '@/api/api';
 import { projectApiErrorOf, shortSha, type GithubSyncStatus, type Project } from '@/api/projects';
@@ -28,17 +28,22 @@ export function GithubSyncBadge({ status }: { status: GithubSyncStatus | null | 
  * checks its own access and the merge within a minute and reports here.
  */
 export default function ProjectGithubSync({ project }: { project: Project }) {
+  return <ProjectGithubSyncEditor key={project.id} project={project} />;
+}
+
+function ProjectGithubSyncEditor({ project }: { project: Project }) {
   const { t } = useT();
   const query = useProjectGithubSyncQuery(project.id, { pollingInterval: 15000 });
   const [save, saving] = useSetProjectGithubSyncMutation();
   const [pause, pausing] = usePauseProjectGithubSyncMutation();
   const [syncNow, syncing] = useSyncFromGithubMutation();
-  const configured = query.data?.configured ?? null;
-  const status = query.data?.status ?? null;
+  const configured = query.currentData?.configured ?? null;
+  const status = query.currentData?.status ?? null;
   const [repo, setRepo] = useState('');
   const [branch, setBranch] = useState('main');
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { if (configured?.repo) { setRepo(configured.repo); setBranch(configured.branch ?? 'main'); } }, [configured?.repo, configured?.branch]);
+  const editRevision = useRef(0);
+  useEffect(() => { if (!editRevision.current && configured?.repo) { setRepo(configured.repo); setBranch(configured.branch ?? 'main'); } }, [configured?.repo, configured?.branch]);
   const run = async (action: () => Promise<unknown>) => { setError(null); try { await action(); } catch (e) { const x = projectApiErrorOf(e); setError(x.message ?? t(`projects.api.${x.code}`)); } };
   const enabled = !!configured?.enabled;
   const unchanged = enabled && configured?.repo === repo.trim() && (configured?.branch ?? 'main') === (branch.trim() || 'main');
@@ -46,10 +51,10 @@ export default function ProjectGithubSync({ project }: { project: Project }) {
   return <Card aria-label={t('projects.github.title')}>
     <h2>{t('projects.github.title')}</h2>
     <Help>{t('projects.github.help')}</Help>
-    {project.canOperate && <form onSubmit={(e) => { e.preventDefault(); void run(() => save({ id: project.id, repo: repo.trim(), branch: branch.trim() || 'main' }).unwrap()); }}>
+    {project.canOperate && <form onSubmit={(e) => { e.preventDefault(); const revision = editRevision.current; void run(async () => { await save({ id: project.id, repo: repo.trim(), branch: branch.trim() || 'main' }).unwrap(); if (editRevision.current === revision) editRevision.current = 0; }); }}>
       <Row>
-        <Input aria-label={t('projects.github.repo')} placeholder="owner/repo" value={repo} onChange={(e) => setRepo(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 2 }} />
-        <Input aria-label={t('projects.github.branch')} placeholder="main" value={branch} onChange={(e) => setBranch(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 1, maxWidth: 200 }} />
+        <Input aria-label={t('projects.github.repo')} placeholder="owner/repo" value={repo} onChange={(e) => { editRevision.current++; setRepo(e.target.value); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 2 }} />
+        <Input aria-label={t('projects.github.branch')} placeholder="main" value={branch} onChange={(e) => { editRevision.current++; setBranch(e.target.value); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 1, maxWidth: 200 }} />
         <Button type="submit" variant="contained" size="small" loading={saving.isLoading} disabled={!repo.trim() || unchanged}>{enabled ? t('projects.github.update') : t('projects.github.save')}</Button>
       </Row>
     </form>}
@@ -65,7 +70,7 @@ export default function ProjectGithubSync({ project }: { project: Project }) {
         <dt>{t('projects.github.last_check')}</dt><dd>{at(status.checkedAt)}</dd>
         <dt>{t('projects.github.last_sync')}</dt><dd>{at(status.syncedAt)}</dd>
         {status.commit && <><dt>{t('projects.github.commit')}</dt><dd><Mono title={status.commit}>{shortSha(status.commit)}</Mono>{status.githubCommit && <> ← GitHub <Mono title={status.githubCommit}>{shortSha(status.githubCommit)}</Mono></>}{status.mode && <> · {t(`projects.github.mode.${status.mode}`)}</>}</dd></>}
-        <dt>{t('projects.github.next_check')}</dt><dd>{query.data?.requested ? t('projects.github.requested') : at(status.nextCheckAt)}</dd>
+        <dt>{t('projects.github.next_check')}</dt><dd>{query.currentData?.requested ? t('projects.github.requested') : at(status.nextCheckAt)}</dd>
       </>}
     </Facts>
     {project.canOperate && <Row>
