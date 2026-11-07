@@ -118,7 +118,8 @@ export default function OrgPage() {
         <Title style={{ margin: 0 }}>{org.name}</Title>
         {org.my_role && <OrgChip data-testid="org-my-role">{t('org.my_role', { role: t(`org.role.${org.my_role}`) })}</OrgChip>}
         {admin && org.pending_requests > 0 && <StyledLink to={`/org/${encodeURIComponent(org.id)}/settings?tab=members`} data-testid="org-pending">{t('org.pending_badge', { n: org.pending_requests })}</StyledLink>}
-        {(admin || write) && <StyledLink to={`/org/${encodeURIComponent(org.id)}/settings`} data-testid="org-settings-link" style={{ marginLeft: 'auto' }}>{t('org.settings')} →</StyledLink>}
+        <StyledLink to={`/org/${encodeURIComponent(org.id)}/issues`} data-testid="org-issues-link" style={{ marginLeft: admin || write ? undefined : 'auto' }}>{t('org.tab.issues')} →</StyledLink>
+        {(admin || write) && <StyledLink to={`/org/${encodeURIComponent(org.id)}/settings`} data-testid="org-settings-link">{t('org.settings')} →</StyledLink>}
       </OrgHeader>
       {org.description && <Description style={{ marginTop: 4 }}>{org.description}</Description>}
       {/* The counts are on the tabs below; this line keeps only what the tabs do not say. */}
