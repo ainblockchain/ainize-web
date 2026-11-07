@@ -119,6 +119,7 @@ export const projects: Dict = {
   'projects.tabs.deployments': { ko: '배포', en: 'Deployments' },
   'projects.tabs.runs': { ko: '실행', en: 'Runs' },
   'projects.tabs.logs': { ko: '로그', en: 'Logs' },
+  'projects.tabs.issues': { ko: '이슈', en: 'Issues' },
   'projects.tabs.storage': { ko: '스토리지', en: 'Storage' },
   'projects.tabs.operations': {ko:'운영 인수인계',en:'Operations'},
   'projects.tabs.settings': { ko: '설정', en: 'Settings' },

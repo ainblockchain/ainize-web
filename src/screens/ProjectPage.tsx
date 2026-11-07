@@ -59,6 +59,9 @@ import ProjectDomains from '@/components/ProjectDomains';
 import ProjectGithubSync, { GithubSyncBadge } from '@/components/ProjectGithubSync';
 import ProjectEnvVars, { ENV_SECTION_ID, MissingEnvBanner } from '@/components/ProjectEnvVars';
 import ProjectStorage, { MissingStorageBanner } from '@/components/storage/ProjectStorage';
+import { ProjectIssuesTab } from '@/components/issues/ProjectIssuesTab';
+import { useProjectIssuesQuery } from '@/api/api';
+import { parseIssueList } from '@/api/issues';
 
 // ------------------------------------------------------------------------------------------------ pieces
 
@@ -456,8 +459,8 @@ function TriggersSection({ project, onOpenRun }: { project: Project; onOpenRun: 
 
 // ------------------------------------------------------------------------------------------------ the console
 
-type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings' | 'operations';
-const TABS: Tab[] = ['deployments', 'runs', 'logs', 'storage', 'settings', 'operations'];
+type Tab = 'deployments' | 'runs' | 'logs' | 'issues' | 'storage' | 'settings' | 'operations';
+const TABS: Tab[] = ['deployments', 'runs', 'logs', 'issues', 'storage', 'settings', 'operations'];
 
 /**
  * One project's console. `switcher`: on a repository's page with several deployments (the root and its monorepo
@@ -478,6 +481,9 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const deployments = useProjectDeploymentsQuery(p.id, { pollingInterval: live ? 2000 : 15_000 });
   const kind = p.kind ?? p.manifest?.kind ?? null;
   const isScript = isScriptProject(p);
+  // the Issues tab's badge: how many causes are open right now
+  const openIssuesQ = useProjectIssuesQuery({ id: p.id, status: 'unresolved' }, { pollingInterval: 30_000 });
+  const openIssues = useMemo(() => parseIssueList(openIssuesQ.data).issues.length, [openIssuesQ.data]);
   const runs = useProjectRunsQuery(p.id, { skip: !isScript, pollingInterval: asked === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
   const newest = deployments.data?.deployments[0]?.status;
@@ -566,6 +572,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
     ...(isScript ? [{ id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` }] : []),
     { id: 'logs', label: t('projects.tabs.logs') },
+    { id: 'issues', label: `${t('projects.tabs.issues')}${openIssues ? ` (${openIssues})` : ''}` },
     // managed storage is for a container app (service / nextjs) — a script or agent has nothing to connect a store to
     ...(hasStorage ? [{ id: 'storage', label: `${t('projects.tabs.storage')}${p.storage?.attached ? ` (${p.storage.attached})` : ''}` }] : []),
     ...(p.canOperate ? [{id:'operations',label:t('projects.tabs.operations')}] : []),
@@ -637,6 +644,12 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
           <SubTitle>{t('projects.runs.history')}</SubTitle>
           {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : runs.isLoading ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
             : <Rows>{runRows.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRunAgain={runAgain} />)}</Rows>}
+        </TabBody>
+      )}
+
+      {tab === 'issues' && (
+        <TabBody>
+          <ProjectIssuesTab projectId={p.id} canWrite={!!p.canOperate} />
         </TabBody>
       )}
 
