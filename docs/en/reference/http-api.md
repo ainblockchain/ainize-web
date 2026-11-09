@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-367 operations on 303 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+368 operations on 304 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -74,7 +74,6 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
 | `POST` | [`/api/run`](#post-apirun) | operator | Run one script in the hosted-agent sandbox and stream its output |
 | `POST` | [`/api/decide`](#post-apidecide) | operator | Free SystemOne decision trial |
-| `POST` | [`/v1/audio/transcription-sessions`](#post-v1audiotranscription-sessions) | operator | Create a one-use native streaming ASR WebSocket session |
 | `POST` | [`/v1/systemone`](#post-v1systemone) | operator | SystemOne decision with a caller API key |
 
 **Teach** — one pipeline, two doors: a dataset file (uploaded here, or with `ainize teach dataset`) and corrections collected in Live test are both frozen into the same canonical dataset → validated → trained → checked on the live model → a lesson its teacher can keep private or publish as a credited data provider (no sign-in — every request is signed with a teaching key held by the browser or the CLI)
@@ -360,8 +359,10 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/stores/{sid}/restore`](#post-apistoressidrestore) | operator | Restore a backup into a new store (default) or in place with a 7-day undo (admin) |
 | `POST` | [`/api/stores/{sid}/restore/undo`](#post-apistoressidrestoreundo) | operator | Undo the newest in-place restore (admin): the kept database comes back, the restored one is set aside |
 | `GET` | [`/api/stores/{sid}/logs`](#get-apistoressidlogs) | operator | The store container's own log (org write) |
-| `PUT` | [`/api/orgs/{id}/storage/backup-target`](#put-apiorgsidstoragebackup-target) | operator | Set the organization's AinDrive backup target (admin): a drive id and an account token |
+| `PUT` | [`/api/orgs/{id}/storage/backup-target`](#put-apiorgsidstoragebackup-target) | operator | Set the organization's AinDrive backup target (admin): a drive id and an AinDrive grant |
 | `DELETE` | [`/api/orgs/{id}/storage/backup-target`](#delete-apiorgsidstoragebackup-target) | operator | Clear the backup target (admin) — backups stay on the NAS only |
+| `POST` | [`/api/orgs/{id}/storage/backup-target/connect`](#post-apiorgsidstoragebackup-targetconnect) | operator | Connect AinDrive as the backup target (admin): the AinDrive consent URL to open |
+| `POST` | [`/api/storage/aindrive/callback`](#post-apistorageaindrivecallback) | operator | Finish connecting AinDrive (admin of the organization that started it) |
 | `GET` | [`/api/projects/{id}/storage`](#get-apiprojectsidstorage) | operator | The project's Storage tab: connected stores, what ainize.json declares, what is missing (owner or member) |
 
 **Operator** — wallet, settings, purchases, branches, peers, chain, drive
@@ -1087,58 +1088,6 @@ Unpaid work is queued behind paying callers on the same backend. choice criteria
 | `404` | model not configured |   |
 | `422` | model-specific validation error |   |
 | `503` | backend unavailable |   |
-
-### `POST /v1/audio/transcription-sessions`
-
-Create a one-use native streaming ASR WebSocket session
-
-Continuous 16 kHz mono PCM16 into confucius4-r2t2 native streaming inference, not repeated offline uploads. Origin-bound credential expires after 15 seconds and opens one WebSocket. Two active model connections, maximum two hours. Keep the API key on the application server. See the stream-speech guide for binary frames, ready/transcript/done/error events, finish and cancellation.
-
-**Auth** — operator
-
-**Request body** — `application/json`, required
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `model` | `string` | yes |   |
-| `language` | `object` |   |   |
-| `context` | `string` |   | (at most 1000 characters) |
-| `origin` | `string (uri)` | yes | (at most 2048 characters) |
-| `authority` | `object` |   |   |
-| `authority.profile` | `string` | yes |   |
-| `authority.source` | `object` | yes |   |
-| `authority.source.sessionId` | `string (uuid)` | yes |   |
-| `authority.source.userId` | `string (uuid)` | yes |   |
-| `authority.source.epoch` | `string (uuid)` | yes |   |
-| `authority.source.revision` | `integer` | yes | (at most 9007199254740991) |
-| `authority.source.nonce` | `string` | yes |   |
-| `authority.source.expiresAt` | `integer` | yes | (at most 9007199254740991) |
-| `authority.proof` | `string` | yes |   |
-
-**Responses**
-
-| Code | Description | Body |
-|---|---|---|
-| `201` | Session id, websocket_url, one-use token, expires_at, PCM format and max_duration_sec | `object` |
-| `400` | invalid_stream_request or invalid_origin |   |
-| `401` | invalid_api_key |   |
-| `403` | invalid_source_proof |   |
-| `429` | stream_capacity |   |
-
-**`201` response body**
-
-| Field | Type | Required |
-|---|---|---|
-| `id` | `string (uuid)` | yes |
-| `websocket_url` | `string (uri)` | yes |
-| `token` | `string` | yes |
-| `expires_at` | `integer` | yes |
-| `format` | `object` | yes |
-| `format.encoding` | `object` |   |
-| `format.sample_rate` | `object` |   |
-| `format.channels` | `object` |   |
-| `format.frame_ms` | `object` |   |
-| `max_duration_sec` | `object` | yes |
 
 ### `POST /v1/systemone`
 
@@ -6472,17 +6421,18 @@ Owner or active member only, like runtime-logs. The last requests relayed to the
 
 The running service's own stdout/stderr, wherever it was placed (owner or member)
 
-Owner or active member of the project's organization only (a session, or a trusted application's machine token + `X-AIN-Actor`); never anonymous. Read from the container on this node, or from the deployment peer over the signed `project.logs` control command. Bounded: `tail` 1–1000 lines (default 200), 4 KiB per line, 256 KiB total. `{ projectId, deploymentId, sha, placement, tail, since?, fetchedAt, lines: [{ ts, stream, text }], truncated }`.
+Owner or active member of the project's organization only (a session, or a trusted application's machine token + `X-AIN-Actor`); never anonymous. Read from the container on this node, or from the deployment peer over the signed `project.logs` control command. Bounded: `tail` 1–1000 lines (default 200), 4 KiB per line, 256 KiB total. `{ projectId, deploymentId, sha, placement, tail, since?, fetchedAt, lines: [{ ts, stream, text }], truncated }`. With `allowCached=1`, an unavailable runtime may return the last successful unfiltered tail, with `cached: true`, `liveStatus`, and `failureObservedAt`; `fetchedAt` stays the original read time. Only the same active deployment and commit are eligible. Private snapshots expire after seven days and are capped at 128 projects. Without opt-in, failures remain 404/502.
 
 **Auth** — operator
 
 **Parameters**
 
-| Name | In | Type | Required |
-|---|---|---|---|
-| `id` | `path` | `string` | yes |
-| `tail` | `query` | `integer` |   |
-| `since` | `query` | `string (date-time)` |   |
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `allowCached` | `query` | `"1"` |   | Opt in to explicitly marked saved logs during runtime failure |
+| `id` | `path` | `string` | yes |   |
+| `tail` | `query` | `integer` |   |   |
+| `since` | `query` | `string (date-time)` |   |   |
 
 **Responses**
 
@@ -7157,9 +7107,9 @@ The store container's own log (org write)
 
 ### `PUT /api/orgs/{id}/storage/backup-target`
 
-Set the organization's AinDrive backup target (admin): a drive id and an account token
+Set the organization's AinDrive backup target (admin): a drive id and an AinDrive grant
 
-`{ driveId, token }` — a drive on the operator's AinDrive (`AINDRIVE_URL`; a caller never chooses where the node sends backups) and an AinDrive account token (`aind_aat_…`) with `drives:write`. A probe file is uploaded and removed before the token is sealed; `{ driveId, verifiedAt }` — the token is never echoed. 400 `drive_unauthorized`, 502 `aindrive_error`.
+A drive on the operator's AinDrive (`AINDRIVE_URL`; a caller never chooses where the node sends backups) and an AinDrive OAuth grant with `drives:read drives:write`: `{ driveId, refreshToken, clientId? }` (an `aind_art_…` refresh token and the OAuth client it was issued to — default the node's own) or `{ driveId, code, codeVerifier, redirectUri, clientId? }` (an authorization code with its PKCE verifier). The usual way is `POST …/backup-target/connect`. The node refreshes the one-hour access token itself, saves every rotated refresh token before using it, and never presents one twice. A probe file is uploaded and removed with the new grant before it replaces the old one (which is revoked); a grant whose probe fails is revoked. An access token alone (`{ token: "aind_aat_…" }`) is refused with 400 `refresh_token_required`: it lives one hour. `{ driveId, verifiedAt, refreshExpiresAt }` — no token is ever echoed. 400 `drive_unauthorized` | `refresh_token_required`, 502 `aindrive_error`.
 
 **Auth** — operator
 
@@ -7171,17 +7121,14 @@ Set the organization's AinDrive backup target (admin): a drive id and an account
 
 **Request body** — `application/json`, required
 
-| Field | Type | Required |
-|---|---|---|
-| `driveId` | `string` | yes |
-| `token` | `string` | yes |
+`{"oneOf":[{"type":"object","required":["driveId","refreshToken"],"properties":{"driveId":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,100}$"},"refreshToken":{"type":"string"},"clientId":{"type":"string"}}},{"type":"object","required":["driveId","code","codeVerifier","redirectUri"],"properties":{"driveId":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,100}$"},"code":{"type":"string"},"codeVerifier":{"type":"string"},"redirectUri":{"type":"string","format":"uri"},"clientId":{"type":"string"}}}]}`
 
 **Responses**
 
 | Code | Description | Body |
 |---|---|---|
 | `200` | verified | `object` |
-| `400` | `invalid_request` \| `drive_unauthorized` |   |
+| `400` | `invalid_request` \| `drive_unauthorized` \| `refresh_token_required` |   |
 | `502` | `aindrive_error` |   |
 
 **`200` response body**
@@ -7190,6 +7137,7 @@ Set the organization's AinDrive backup target (admin): a drive id and an account
 |---|---|
 | `driveId` | `string` |
 | `verifiedAt` | `integer` |
+| `refreshExpiresAt` | `integer` |
 
 ### `DELETE /api/orgs/{id}/storage/backup-target`
 
@@ -7208,6 +7156,56 @@ Clear the backup target (admin) — backups stay on the NAS only
 | Code | Description | Body |
 |---|---|---|
 | `200` | cleared | `object` |
+
+### `POST /api/orgs/{id}/storage/backup-target/connect`
+
+Connect AinDrive as the backup target (admin): the AinDrive consent URL to open
+
+`{ driveId }` → `{ authorizeUrl, expiresAt }`. OAuth 2 authorization code with PKCE (S256), scopes `drives:read drives:write`, the node's own public AinDrive client (`AINIZE_STORAGE_AINDRIVE_CLIENT_ID`, else one the node registers with AinDrive). The person approves on AinDrive, which sends the browser to `<node>/org/storage/aindrive?code&state`; that page posts both to `POST /api/storage/aindrive/callback`. The link works for 24 hours, once. 502 `aindrive_error`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `driveId` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ authorizeUrl, expiresAt }` | `object` |
+| `502` | `aindrive_error` |   |
+
+### `POST /api/storage/aindrive/callback`
+
+Finish connecting AinDrive (admin of the organization that started it)
+
+`{ state, code }` from AinDrive's redirect. The code is exchanged with the connect's PKCE verifier, the grant probed (a file uploaded and removed) and made the organization's backup target. `{ orgId, driveId, verifiedAt, refreshExpiresAt }`. 400 `connect_expired` (unknown, used or older than 24 hours) | `drive_unauthorized`, 502 `aindrive_error`.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `state` | `string` | yes |
+| `code` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, driveId, verifiedAt, refreshExpiresAt }` | `object` |
+| `400` | `connect_expired` \| `drive_unauthorized` |   |
+| `502` | `aindrive_error` |   |
 
 ### `GET /api/projects/{id}/storage`
 

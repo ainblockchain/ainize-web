@@ -166,9 +166,9 @@ Anything else is a fault in the node and comes back as `500` with the raw messag
 
 ## Messages without a code
 
-Not every error carries a code. 246 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
+Not every error carries a code. 252 raise a plain sentence and are told apart by their status — these are written for a person reading them, so match on the status, never on the words.
 
-A further 119 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
+A further 123 throw sites build their message at the time (a validator's own wording, a peer's answer); they answer with the statuses above.
 
 | HTTP | Message | Raised in |
 |---|---|---|
@@ -189,6 +189,7 @@ A further 119 throw sites build their message at the time (a validator's own wor
 | `null` | \<PROJECT_MANIFEST_FILE> has no "kind" and package.json does not depend on next — set kind to nextjs, service, script or agent | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE> is not valid JSON: … | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: …: … | `src/project-manifest.ts` |
+| `null` | \<PROJECT_MANIFEST_FILE>: "checks" is for a service or nextjs project, not \<kind> — a \<kind> project's own run is its check | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "image" is for a script project, not \<kind> — a \<kind> project already runs its own image | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "media" is for a service project, not \<kind> | `src/project-manifest.ts` |
 | `null` | \<PROJECT_MANIFEST_FILE>: "release" is for a service or nextjs project, not \<kind> | `src/project-manifest.ts` |
@@ -244,7 +245,7 @@ A further 119 throw sites build their message at the time (a validator's own wor
 | `null` | AIN SSO's delegation names no account (sub) | `src/run-session.ts` |
 | `null` | AIN SSO's delegation names resources the trigger did not declare | `src/run-session.ts` |
 | `null` | AIN SSO's delegation outlives the run | `src/run-session.ts` |
-| `null` | aindrive_error | `src/project-storage-aindrive.ts`, `src/project-storage-backups.ts` |
+| `null` | aindrive_error | `src/project-storage-aindrive-grant.ts`, `src/project-storage-aindrive.ts`, `src/project-storage-backups.ts` |
 | `null` | an account may have \<this.limits.perOwner> projects on this node | `src/projects.ts` |
 | `null` | an address may run \<this.limits.perOwner> agents on this node | `src/hosted-agent-store.ts` |
 | `null` | an alias is 1–40 lower-case letters, digits and hyphens, starting with a letter or digit | `src/agent-aliases.ts` |
@@ -262,6 +263,7 @@ A further 119 throw sites build their message at the time (a validator's own wor
 | `null` | content is larger than 1 MiB | `src/hosted-qa-engine.ts` |
 | `null` | content must be a string | `src/hosted-qa-engine.ts` |
 | `null` | could not fetch \<mirror.url>: … | `src/agent-mirror.ts` |
+| `null` | drive_unauthorized | `src/project-storage-aindrive-grant.ts` |
 | `null` | functions are installed only under /apps/\<app>/ | `src/ain-chain.ts` |
 | `null` | hosted agent quota reached | `src/hosted-agent-store.ts` |
 | `null` | http_\<res.status> | `src/project-storage-s3.ts` |
@@ -269,6 +271,7 @@ A further 119 throw sites build their message at the time (a validator's own wor
 | `null` | invalid regular expression: … | `src/hosted-qa-engine.ts` |
 | `null` | invalid repository storage limit | `src/agent-git.ts` |
 | `null` | mirror permission changed while waiting | `src/agent-mirror-sync.ts` |
+| `null` | Missing required project configuration: … | `src/project-manifest.ts` |
 | `null` | Model backend failed | `src/peer-models.ts` |
 | `null` | no AIN service key is configured for this project's organization | `src/ain-chain.ts` |
 | `null` | no such file or directory: \<rel> | `src/hosted-qa-engine.ts` |
@@ -325,6 +328,7 @@ A further 119 throw sites build their message at the time (a validator's own wor
 | `400` | at most \<MAX_CHAT_PATCHES> knowledges can be loaded together | `src/market.ts` |
 | `400` | at most \<MAX_CONTRIBUTORS> contributors per patch | `../ainize-core/src/catalog.ts` |
 | `400` | confirm_mismatch | `src/project-storage-backups.ts`, `src/project-storage-manager.ts` |
+| `400` | connect_expired | `src/project-storage-backups.ts` |
 | `400` | contributor must be an object | `../ainize-core/src/catalog.ts` |
 | `400` | contributor shares add up to more than 1 | `../ainize-core/src/catalog.ts` |
 | `400` | contributor.address must be an AIN address (0x + 40 hex) | `../ainize-core/src/catalog.ts` |
@@ -343,6 +347,7 @@ A further 119 throw sites build their message at the time (a validator's own wor
 | `400` | node address required | `src/api.ts` |
 | `400` | not_blob | `src/project-storage-manager.ts` |
 | `400` | origin must be "operator" or "teach" | `src/market.ts` |
+| `400` | refresh_token_required | `src/project-storage-backups.ts` |
 | `400` | this is the node's own key: it owns what this node published, and revoking it would only stop the node acting for itself | `src/api.ts` |
 | `400` | unsupported contributor proof: … | `../ainize-core/src/catalog.ts` |
 | `400` | unsupported contributor role: … | `../ainize-core/src/catalog.ts` |
@@ -408,6 +413,7 @@ A further 119 throw sites build their message at the time (a validator's own wor
 | `429` | Live source capacity reached; retry in one minute | `src/api.ts` |
 | `499` | live test cancelled while it was still queued — the model was never called, so no free try was used | `src/market.ts` |
 | `500` | credentials_missing | `src/project-storage-manager.ts` |
+| `500` | storage_error | `src/project-storage-backups.ts` |
 | `501` | docker_unavailable | `src/server.ts` |
 | `502` | aindrive_error | `src/project-storage-backups.ts` |
 | `502` | Live provider lookup failed. No cached or invented result was substituted. Check the name/symbol and server provider configuration. | `src/api.ts` |

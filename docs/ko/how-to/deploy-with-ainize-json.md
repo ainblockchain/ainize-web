@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 5913e87bfbd7b0313e40bf6a6db5ec524e36838e397079f360be7675eaf0e944
+source_sha256: 60aae8e1163faac23cb23ea1177a2d9cc30b3e586f20cbfba06308527e22b7c9
 ---
 
 # ainize.json으로 리포 배포하기
@@ -46,6 +46,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — 공개될 에이전트 카드의 항목. |
 | `storage` | `nextjs`, `service` | 코드가 기대하는 조직의 관리형 스토어 — `["db"]` 또는 `[{ "name": "db", "kind": "postgres", "env": "MAIN", "required": true }]`, 최대 4개. 프로젝트의 Storage 탭에서 각각을 스토어에 연결하면, 배포 때 앱이 `DATABASE_URL`, `S3_ENDPOINT` … 를 받습니다. 연결되지 않은 `required` 항목이 있으면 빌드 전에 배포가 실패합니다. [프로젝트에 데이터베이스와 파일 저장소 연결하기](./managed-storage.md) 참고. |
+| `checks` | `nextjs`, `service` | CI 게이트 — 매 push 마다 도는 테스트·린트·타입체크: `[{ "name": "test", "command": ["npm","test"], "timeoutSeconds"?, "target"?, "entrypoint"? }, …]` (≤ 20, 이름 중복 불가). 각 단계는 **빌드 후, `release`·트래픽 전에** 빌드된 이미지에서 실행되고, 0이 아닌 종료면 배포가 실패하며 이전 버전이 계속 서비스합니다. 앱 env·시크릿은 주어지고, 연결된 스토어 네트워크는 **주어지지 않습니다**. [CI/CD](./ci-cd.md) 참고. |
 | `release` | `nextjs`, `service` | 새 컨테이너가 트래픽을 받기 전에 빌드된 이미지에서 실행하는 명령 — 마이그레이션: `{ "command": ["pnpm", "db:migrate"], "target"?, "entrypoint"?, "timeoutSeconds"?, "when"? }`. 0이 아닌 종료 코드면 배포가 실패하고 이전 배포가 계속 서비스합니다. |
 
 **`ainize.json`이 없는** 리포는 Next.js 앱(`package.json`의 `next` 의존성)일 때만 배포되고, 그 외는 `error: no
@@ -165,3 +166,31 @@ Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 �
   Ainize 에이전트 뒤에 두세요.
 - `env`는 리포와 함께 커밋됩니다. 키와 토큰은 노드의 비밀 저장소([hosted agents](./host-an-agent.md) 참고)에, 절대
   `ainize.json`에 넣지 마세요.
+
+
+## 필수 설정이 없으면 배포 중단하기
+
+`secrets`는 화면에 표시할 예상 비밀값 이름 목록입니다. 선택적으로 사용하는 비밀값도 있으므로,
+반드시 프로젝트 비밀값 저장소에 있어야 하는 값은 `requiredSecrets`에 선언합니다.
+`env` 또는 프로젝트 비밀값에서 제공해야 하는 실행 환경변수는 `requiredEnv`에,
+`build.args`에 있어야 하는 빌드 인자는 `build.requiredArgs`에 선언합니다.
+값이 없거나 공백뿐이면 이미지 빌드나 스크립트 실행 전에 실패하며, 오류에는 설정 이름만 표시됩니다.
+빌드 인자는 실행 환경변수 요구사항을 대신하지 않으며 비밀값을 빌드 인자로 복사하지 않습니다.
+값이 있다는 사실만으로 인증이 동작한다고 볼 수는 없으므로 배포 후 로그인 경로도 검증하세요.
+
+```json
+{
+  "kind": "nextjs",
+  "build": {
+    "requiredArgs": ["NEXT_PUBLIC_REQUIRE_LOGIN", "NEXT_PUBLIC_AUTH_PROVIDER"],
+    "args": {"NEXT_PUBLIC_REQUIRE_LOGIN": "true", "NEXT_PUBLIC_AUTH_PROVIDER": "google"}
+  },
+  "requiredSecrets": ["GOOGLE_CLIENT_SECRET", "NEXTAUTH_SECRET"],
+  "requiredEnv": ["NEXTAUTH_URL"],
+  "env": {"NEXTAUTH_URL": "https://admin.example.com"}
+}
+```
+
+이 선언은 해당 프로젝트에만 적용됩니다. 프로젝트 설정과 Secrets에 누락된 값을 넣고 다시 배포하세요.
+새 배포가 설정 검사에 실패해도 이전에 실행 중이던 배포는 유지됩니다. `requiredEnv`는 명시적으로
+제공한 설정을 검사하며, 이후 저장소 바인딩이나 런타임이 주입하는 환경변수는 검사하지 않습니다.

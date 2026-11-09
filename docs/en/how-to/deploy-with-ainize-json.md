@@ -45,6 +45,7 @@ shows each commit's deployment next to it.
 | `healthcheck` | `nextjs`, `service` | Path polled until it answers 200; the deployment is `ready` when it does. Default `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — fields of the published agent card. |
 | `storage` | `nextjs`, `service` | The organization's managed stores the code expects — `["db"]` or `[{ "name": "db", "kind": "postgres", "env": "MAIN", "required": true }]`, at most 4. Each is connected to a store on the project's Storage tab; the app then gets `DATABASE_URL`, `S3_ENDPOINT`, … at deploy. An unconnected `required` entry fails the deploy before the build. See [Give a project a database and file storage](./managed-storage.md). |
+| `checks` | `nextjs`, `service` | The CI gate — tests/lint/typecheck run on every push: `[{ "name": "test", "command": ["npm","test"], "timeoutSeconds"?, "target"?, "entrypoint"? }, …]` (≤ 20, distinct names). Each runs from the built image **after the build and before `release`/traffic**; a non-zero exit fails the deployment and the previous version keeps serving. The app's env and secrets are present, the connected stores' networks are **not**. See [CI/CD](./ci-cd.md). |
 | `release` | `nextjs`, `service` | A command run from the built image before the new container takes traffic — migrations: `{ "command": ["pnpm", "db:migrate"], "target"?, "entrypoint"?, "timeoutSeconds"?, "when"? }`. A non-zero exit fails the deployment and the previous one keeps serving. |
 
 A repo with **no `ainize.json`** deploys only if it is a Next.js app (a `next` dependency in `package.json`);
@@ -170,3 +171,33 @@ leaves the ranking in the deployment log.
   an Ainize agent instead.
 - `env` is committed with the repo. Keys and tokens belong in the node's secret store (see
   [hosted agents](./host-an-agent.md)), never in `ainize.json`.
+
+
+## Fail deployment when required configuration is missing
+
+`secrets` remains a list of expected names for display; some applications use optional
+secrets. Use `requiredSecrets` for values that must exist in the project's secret
+store, `requiredEnv` for runtime values from `env` or project secrets, and
+`build.requiredArgs` for values that must exist in `build.args`. Missing or blank
+values fail before image building or script execution, with names only in the error.
+Build arguments do not satisfy runtime requirements, and secrets are never copied
+into build arguments. A nonempty setting is not proof of working authentication;
+validate the deployed login path as well.
+
+```json
+{
+  "kind": "nextjs",
+  "build": {
+    "requiredArgs": ["NEXT_PUBLIC_REQUIRE_LOGIN", "NEXT_PUBLIC_AUTH_PROVIDER"],
+    "args": {"NEXT_PUBLIC_REQUIRE_LOGIN": "true", "NEXT_PUBLIC_AUTH_PROVIDER": "google"}
+  },
+  "requiredSecrets": ["GOOGLE_CLIENT_SECRET", "NEXTAUTH_SECRET"],
+  "requiredEnv": ["NEXTAUTH_URL"],
+  "env": {"NEXTAUTH_URL": "https://admin.example.com"}
+}
+```
+
+These declarations apply to that project only. Set the missing values in its
+configuration/Secrets and redeploy; the previous running deployment stays active
+when the new configuration check fails. `requiredEnv` checks explicitly supplied
+configuration, not environment injected later by storage bindings or the runtime.

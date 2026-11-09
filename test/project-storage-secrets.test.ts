@@ -63,16 +63,16 @@ test('unwrapUncached: a refusal still rejects, and still leaves nothing behind',
   assert.equal(mutationsOf(store), '{}');
 });
 
-test('the backup target\'s AinDrive token: not in the store after the call, saved or refused', async () => {
+test('the backup target\'s AinDrive refresh token: not in the store after the call, saved or refused', async () => {
   // (RTK's mutation slice keeps no originalArgs; the hook does, in React state — useForgetMutationArgs drops that)
   answer = { status: 200, body: { driveId: 'DRV1', verifiedAt: 1 } };
   const store = freshStore();
-  const r = await unwrapUncached(store.dispatch(api.endpoints.setOrgBackupTarget.initiate({ orgId: 'org_1', driveId: 'DRV1', token: TOKEN })));
+  const r = await unwrapUncached(store.dispatch(api.endpoints.setOrgBackupTarget.initiate({ orgId: 'org_1', driveId: 'DRV1', refreshToken: TOKEN })));
   assert.equal(r.driveId, 'DRV1');
   assert.equal(asked.at(-1)?.method, 'PUT'); assert.equal(asked.at(-1)?.url, '/api/orgs/org_1/storage/backup-target');
   assert.ok(!JSON.stringify(store.getState()).includes(TOKEN));
   answer = { status: 400, body: { error: { code: 'drive_unreachable' } } };
-  await assert.rejects(unwrapUncached(store.dispatch(api.endpoints.setOrgBackupTarget.initiate({ orgId: 'org_1', driveId: 'DRV1', token: TOKEN }))));
+  await assert.rejects(unwrapUncached(store.dispatch(api.endpoints.setOrgBackupTarget.initiate({ orgId: 'org_1', driveId: 'DRV1', refreshToken: TOKEN }))));
   assert.ok(!JSON.stringify(store.getState()).includes(TOKEN), 'nor when the node refuses it');
 });
 
@@ -90,7 +90,7 @@ test('the views go through it: reveal on the card and the store page, the backup
   assert.match(page, /onHide=\{hide\}/);
   assert.doesNotMatch(page, /useRevealStoreEnvMutation/, 'the store page reveals only through the hook');
   const tab = src('screens/org/storage/StorageTab.tsx');
-  assert.match(tab, /await unwrapUncached\(setTarget\(\{ orgId, driveId: driveId\.trim\(\), token: token\.trim\(\) \}\)\)/);
+  assert.match(tab, /await unwrapUncached\(setTarget\(\{ orgId, driveId: driveId\.trim\(\), refreshToken: refreshToken\.trim\(\), clientId: clientId\.trim\(\) \|\| undefined \}\)\)/);
   assert.match(tab, /const \[setTarget, setting\] = useSetOrgBackupTargetMutation\(\);\n  useForgetMutationArgs\(setting\);/, 'the hook\'s own copy of the token is dropped once the call settles');
   assert.match(src('components/storage/common.tsx'), /if \(!isLoading && originalArgs !== undefined\) reset\(\);/);
   assert.match(src('store.ts'), /devTools: process\.env\.NODE_ENV !== 'production'/, 'no DevTools action history in production');

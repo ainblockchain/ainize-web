@@ -1,0 +1,122 @@
+---
+title: CI/CD — how a push becomes a running server
+summary: Ainize is the CD half of a pipeline, managed for you: a git push builds the repo, runs the ainize.json checks gate (tests/lint) and a health check, swaps it in without downtime, and keeps the old version serving if anything fails. The checks gate replaces a GitHub Actions workflow — no GitHub Actions — and you roll back by redeploying a previous deployment. Scheduled and webhook jobs are Runs.
+---
+
+# CI/CD — how a push becomes a running server
+
+**Can Ainize do server CI/CD, like Jenkins?** Yes, with a different division of labour. You do not write pipeline
+stages. A git push *is* the pipeline: Ainize builds the repo, gates it, and swaps the new version in without downtime,
+keeping the old one serving if anything fails. That is the **CD** half, managed. The **CI** half — running your tests
+and lint as a gate — also runs on Ainize: a check inside the build command, or an **Ainize Run** that executes the
+test suite. The result is the Jenkins outcome — *test, then ship, and be able to go back* — assembled from Ainize
+parts instead of a server you host and script.
+
+> **No GitHub Actions.** The CI/CD here runs entirely on Ainize — the build, the test gate (build check or an Ainize
+> Run), the deploy and its triggers. GitHub stays as a place to host and review code; it does not run the pipeline.
+> Work that used to live in a GitHub Actions workflow becomes the [`checks`](#the-ci-half-a-checks-gate-that-runs-on-every-push-without-github-actions) gate, or an [Ainize Run](./run-scripts-on-a-schedule.md) for out-of-band jobs.
+
+| Jenkins | On Ainize |
+|---|---|
+| A server you install, update and secure | Nothing to host; a push is the trigger |
+| A `Jenkinsfile` with explicit `stages` | `ainize.json` declares the build; the stages (build → gate → health → swap) are fixed and managed |
+| A build agent runs your tests | `checks` in `ainize.json` — tests/lint/typecheck the node runs from the built image on every push — **not** GitHub Actions |
+| A deploy step you script, with your own rollback | Health-gated zero-downtime swap; failed deploy keeps the previous version; **roll back = redeploy a past deployment** |
+| `cron` / webhook triggers on jobs | [Runs](../concepts/deployments-and-runs.md) with `schedule`, `ain` and `http` triggers |
+
+## What one push does (the managed pipeline)
+
+A project is a git repo with [`ainize.json`](./deploy-with-ainize-json.md) at its root. Push to its branch (default
+`main`) and the node runs these steps in order, recording one **deployment** (`queued → building → ready` or `error`)
+with a streamed log and a URL:
+
+1. **Clone that commit** and read `ainize.json` — the contract. Nothing about the build is set on the server; changing
+   how a repo ships is a commit, not a settings change.
+2. **Config gate (before any build).** `requiredSecrets`, `requiredEnv` and `build.requiredArgs` must be present and
+   non-blank; a `storage` entry marked `required` must be connected to a store. A miss fails here, by name, and the
+   build never starts.
+3. **Build**, by `kind`: `nextjs` → `npm ci && npm run build`; `service` → your `Dockerfile`; `agent` → the hosted-agent
+   image; `script` → nothing to build (it runs). This is where your tests run if your build command runs them — a
+   failing build is a failed deployment.
+4. **Release step**, if you declared one: `release.command` runs from the built image **before** the new version takes
+   traffic — database migrations belong here. A non-zero exit fails the deployment.
+5. **Health gate.** The node starts the container and polls `healthcheck` (default `/`) on `port` until it answers 200.
+6. **Zero-downtime swap.** Only now does the new version take traffic; the previous one served every request until this
+   moment.
+
+**If any step fails, the previous deployment keeps serving.** You get a red deployment with the log that explains why,
+and nothing a user can reach has changed. `GET /api/projects/{id}/deployments` lists them; `GET /api/deployments/{id}/log`
+is the log. In AinDrive, each commit shows its deployment dot (building / ready / error) with *Inspect* and *Visit*.
+
+## The CI half: a `checks` gate that runs on every push, without GitHub Actions
+
+Ainize runs your test gate as part of the deploy, on every push — this is what replaces a GitHub Actions workflow. Use
+`checks` in `ainize.json`:
+
+```json
+{
+  "kind": "nextjs",
+  "checks": [
+    { "name": "lint", "command": ["npm", "run", "lint"] },
+    { "name": "typecheck", "command": ["npm", "run", "typecheck"] },
+    { "name": "test", "command": ["npm", "test"], "timeoutSeconds": 900 }
+  ]
+}
+```
+
+Each step runs the job a GitHub Actions job ran — the same commands — from the **built image**, in order, **after the
+build and before the new version takes traffic**. A non-zero exit or a timeout **fails the deployment and the previous
+version keeps serving**, so a red test never reaches users. The steps get the app's env and secrets but **not** the
+connected stores' networks — a gate must not read or change store data. The node's Next.js image keeps
+devDependencies and the source, so `["npm", "test"]` works out of the box; a `service` whose runtime stage is slim
+runs a step against a build stage with `"target"`.
+
+So a push to the deploy repo on AinDrive runs **build → checks → release → health check → swap**, and the new version
+takes traffic only after every step passes. The gate runs on a direct push; you do not need a separate job or a second
+system to hold the push back.
+
+Two related primitives, for jobs that are not the gate:
+
+- **`release`** runs a command from the built image before traffic too (and also fails the deploy on non-zero) — it is
+  for database migrations and smoke checks that need the runtime environment, not the test gate.
+- A **`kind: script` Ainize Run** is for suites you run *out of band* — a nightly full run, a job another system
+  triggers by webhook or schedule — not the deploy gate.
+
+Keeping the source on GitHub for review is fine — GitHub just never runs the pipeline; `checks` is what a workflow
+becomes.
+
+## Rolling back
+
+Every push is kept as a deployment, so going back is redeploying an earlier one:
+
+- **Roll back to a known-good version** — redeploy that past deployment, same commit:
+  `POST /api/deployments/{deploymentId}/redeploy` (owner or org member; "roll back to this one" on the console).
+- **Rebuild the newest commit** (after changing a secret or a connected store): `POST /api/projects/{id}/redeploy`.
+
+A redeploy is an ordinary deployment: it goes through the same gates and the same health-checked swap, so a rollback
+that cannot come up healthy never takes traffic either.
+
+## Jobs, not servers: scheduled and triggered runs
+
+A pipeline often has pieces that are not a server — a nightly check, a job another system kicks off. Those are a
+**Run** (`kind: script`): one `ainize.json` with a `triggers` key runs the script on a `schedule` (cron + timezone),
+on an `ain` write (an AIN-blockchain path, the Firestore-trigger equivalent), or by `http` (a webhook URL with a
+token). The trigger event arrives in `AINIZE_TRIGGER_EVENT`. See
+[Run scripts on a schedule](./run-scripts-on-a-schedule.md). This is the Cloud Scheduler / webhook-function side of a
+CI/CD setup — post-deploy smoke checks, cache warmers, periodic data jobs — without a second system.
+
+## Secrets and config
+
+`env` in `ainize.json` is committed with the repo, so it is for non-secret build/runtime values only. Real secrets
+live in the project's secret store (Settings), are injected at build and run, and are never written into `ainize.json`.
+A connected managed store hands the app its `DATABASE_URL`, `S3_ENDPOINT`, … at deploy
+([managed storage](./managed-storage.md)).
+
+## In short
+
+- **CD is native and managed**: push → gate → build → release → health check → zero-downtime swap, with the previous
+  version serving until the new one is proven, and a full per-push history.
+- **CI runs on Ainize, not GitHub Actions**: the `ainize.json` `checks` gate runs tests/lint on every push, before the
+  swap, and a failure keeps the previous version serving; a `kind: script` Run is for out-of-band suites. Only a green gate ships.
+- **Rollback** is redeploying a previous deployment.
+- **Scheduled / webhook jobs** are Runs with `schedule`, `ain` or `http` triggers.

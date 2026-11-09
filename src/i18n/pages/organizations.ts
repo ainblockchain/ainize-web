@@ -69,6 +69,7 @@ export const organizations: Dict = {
   // ── /org/:id
   'org.tab.agents': { ko: '에이전트', en: 'Agents' },
   'org.tab.members': { ko: '멤버', en: 'Members' },
+  'org.tab.issues': { ko: '이슈', en: 'Issues' },
   'org.settings': { ko: '설정', en: 'Settings' },
   'org.register_agent': { ko: '이 조직에 에이전트 등록', en: 'Register an agent here' },
   'org.create_agent': { ko: '새 에이전트 만들기', en: 'Create a new agent' },

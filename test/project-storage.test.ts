@@ -93,7 +93,13 @@ test('the organization\'s list: sorted by name, limits and the backup target rea
     deletedStores: [{ storeId: 'st_gone', name: 'old', kind: 'postgres', engine: 'postgres16', backups: [{ id: 'bk_a', startedAt: 1 }, { id: 'bk_b', startedAt: 9 }] }, { name: 'no id' }],
   });
   assert.deepEqual(r.stores.map((s) => s.name), ['alpha', 'zed']);
-  assert.deepEqual(r.backupDrive, { configured: true, driveId: 'drv', origin: 'https://aindrive.ainetwork.ai', setAt: null, lastOkAt: 5, lastError: null, defaultDriveId: '-nLGGiI3VXYR' });
+  // an older node says nothing about the grant: a configured target is then a token, and needs reconnecting
+  assert.deepEqual(r.backupDrive, { configured: true, driveId: 'drv', origin: 'https://aindrive.ainetwork.ai', setAt: null, lastOkAt: 5, lastError: null, defaultDriveId: '-nLGGiI3VXYR', auth: null, needsReconnect: true, grantState: null, refreshExpiresAt: null });
+  const granted = parseStores({ backupDrive: { configured: true, driveId: 'drv', auth: 'grant', needsReconnect: false, grant: { state: 'ok', rotatedAt: 1, refreshExpiresAt: 99 } } }).backupDrive;
+  assert.equal(granted.auth, 'grant'); assert.equal(granted.needsReconnect, false); assert.equal(granted.grantState, 'ok'); assert.equal(granted.refreshExpiresAt, 99);
+  const dead = parseStores({ backupDrive: { configured: true, driveId: 'drv', auth: 'grant', needsReconnect: true, grant: { state: 'interrupted' }, lastError: 'connect AinDrive again' } }).backupDrive;
+  assert.equal(dead.needsReconnect, true); assert.equal(dead.grantState, 'interrupted'); assert.equal(dead.lastError, 'connect AinDrive again');
+  assert.equal(parseStores({ backupDrive: { configured: false } }).backupDrive.needsReconnect, false);
   assert.deepEqual(r.limits, { perOrg: 8, memoryMax: '4g', cpusMax: 2, attachmentsPerStore: 16, extensions: ['vector', 'pg_trgm'] });
   assert.equal(r.deletedStores.length, 1); assert.deepEqual(r.deletedStores[0]!.backups.map((b) => b.id), ['bk_b', 'bk_a'], 'newest first');
   const empty = parseStores(null);

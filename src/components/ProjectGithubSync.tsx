@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { usePauseProjectGithubSyncMutation, useProjectGithubSyncQuery, useSetProjectGithubSyncMutation, useSyncFromGithubMutation } from '@/api/api';
 import { projectApiErrorOf, shortSha, type GithubSyncStatus, type Project } from '@/api/projects';
@@ -28,44 +28,57 @@ export function GithubSyncBadge({ status }: { status: GithubSyncStatus | null | 
  * checks its own access and the merge within a minute and reports here.
  */
 export default function ProjectGithubSync({ project }: { project: Project }) {
+  return <ProjectGithubSyncEditor key={project.id} project={project} />;
+}
+
+function ProjectGithubSyncEditor({ project }: { project: Project }) {
   const { t } = useT();
   const query = useProjectGithubSyncQuery(project.id, { pollingInterval: 15000 });
   const [save, saving] = useSetProjectGithubSyncMutation();
   const [pause, pausing] = usePauseProjectGithubSyncMutation();
   const [syncNow, syncing] = useSyncFromGithubMutation();
-  const configured = query.data?.configured ?? null;
-  const status = query.data?.status ?? null;
+  const configured = query.currentData?.configured ?? null;
+  const status = query.currentData?.status ?? null;
   const [repo, setRepo] = useState('');
   const [branch, setBranch] = useState('main');
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { if (configured?.repo) { setRepo(configured.repo); setBranch(configured.branch ?? 'main'); } }, [configured?.repo, configured?.branch]);
+  const editRevision = useRef(0);
+  useEffect(() => { if (!editRevision.current && configured?.repo) { setRepo(configured.repo); setBranch(configured.branch ?? 'main'); } }, [configured?.repo, configured?.branch]);
   const run = async (action: () => Promise<unknown>) => { setError(null); try { await action(); } catch (e) { const x = projectApiErrorOf(e); setError(x.message ?? t(`projects.api.${x.code}`)); } };
   const enabled = !!configured?.enabled;
+  const managedUpstream = !configured && status && /^https:\/\/github\.com\/[^/]+\/[^/]+\/?$/.test(project.upstreamRepo ?? '') ? project.upstreamRepo : null;
   const unchanged = enabled && configured?.repo === repo.trim() && (configured?.branch ?? 'main') === (branch.trim() || 'main');
 
   return <Card aria-label={t('projects.github.title')}>
     <h2>{t('projects.github.title')}</h2>
     <Help>{t('projects.github.help')}</Help>
-    {project.canOperate && <form onSubmit={(e) => { e.preventDefault(); void run(() => save({ id: project.id, repo: repo.trim(), branch: branch.trim() || 'main' }).unwrap()); }}>
+    {project.canOperate && <form onSubmit={(e) => { e.preventDefault(); const revision = editRevision.current; void run(async () => { await save({ id: project.id, repo: repo.trim(), branch: branch.trim() || 'main' }).unwrap(); if (editRevision.current === revision) editRevision.current = 0; }); }}>
       <Row>
-        <Input aria-label={t('projects.github.repo')} placeholder="owner/repo" value={repo} onChange={(e) => setRepo(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 2 }} />
-        <Input aria-label={t('projects.github.branch')} placeholder="main" value={branch} onChange={(e) => setBranch(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 1, maxWidth: 200 }} />
+        <Input aria-label={t('projects.github.repo')} placeholder="owner/repo" value={repo} onChange={(e) => { editRevision.current++; setRepo(e.target.value); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 2 }} />
+        <Input aria-label={t('projects.github.branch')} placeholder="main" value={branch} onChange={(e) => { editRevision.current++; setBranch(e.target.value); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ flex: 1, maxWidth: 200 }} />
         <Button type="submit" variant="contained" size="small" loading={saving.isLoading} disabled={!repo.trim() || unchanged}>{enabled ? t('projects.github.update') : t('projects.github.save')}</Button>
       </Row>
     </form>}
     {query.error && <Alert $tone="error">{projectApiErrorOf(query.error).message ?? t('projects.github.failed')}</Alert>}
     {error && <Alert $tone="error">{error}</Alert>}
+    {query.currentData?.requested && <Help role="status" data-testid="github-sync-pending"><Tone $tone="pending">{t('projects.github.requested')}</Tone> · {at(query.currentData.requested)}</Help>}
     <Facts>
+      <dt>{t('projects.github.deploy_branch')}</dt><dd><Mono>{project.branch || '—'}</Mono></dd>
+      <dt>{t('projects.github.github_sha')}</dt><dd><Mono title={status?.githubCommit ?? undefined}>{status?.githubCommit ? shortSha(status.githubCommit) : '—'}</Mono></dd>
+      <dt>{t('projects.github.source_sha')}</dt><dd><Mono title={project.sourceCommit ?? undefined}>{project.sourceCommit ? shortSha(project.sourceCommit) : '—'}</Mono></dd>
+      <dt>{t('projects.github.build_sha')}</dt><dd><Mono title={project.lastDeployment?.sha}>{project.lastDeployment?.sha ? shortSha(project.lastDeployment.sha) : '—'}</Mono>{project.lastDeployment && <> · {t(`projects.status.${project.lastDeployment.status}`)}{project.lastDeployment.logUrl && <> · <ExternalLink href={project.lastDeployment.logUrl} target="_blank" rel="noreferrer">{t('projects.logs.raw')}</ExternalLink></>}</>}</dd>
+      <dt>{t('projects.github.active_sha')}</dt><dd><Mono title={project.activeCommit ?? undefined}>{project.activeCommit ? shortSha(project.activeCommit) : '—'}</Mono></dd>
       <dt>{t('projects.github.upstream')}</dt>
       <dd>{enabled && configured?.repo
         ? <><ExternalLink href={`https://github.com/${configured.repo}`} target="_blank" rel="noreferrer">{configured.repo}</ExternalLink> · <Mono>{configured.branch}</Mono> · {t(`projects.github.visibility.${configured.visibility}`)}</>
+        : managedUpstream ? <><ExternalLink href={managedUpstream} target="_blank" rel="noreferrer">{managedUpstream}</ExternalLink> · {t('projects.github.managed')}</>
         : configured && !configured.enabled ? t('projects.github.paused') : t('projects.github.none')}</dd>
       {status && <>
         <dt>{t('projects.github.status')}</dt><dd><Tone $tone={status.state}>{t(`projects.github.state.${status.state}`)}</Tone>{status.message && <> — {status.message}</>}</dd>
         <dt>{t('projects.github.last_check')}</dt><dd>{at(status.checkedAt)}</dd>
         <dt>{t('projects.github.last_sync')}</dt><dd>{at(status.syncedAt)}</dd>
         {status.commit && <><dt>{t('projects.github.commit')}</dt><dd><Mono title={status.commit}>{shortSha(status.commit)}</Mono>{status.githubCommit && <> ← GitHub <Mono title={status.githubCommit}>{shortSha(status.githubCommit)}</Mono></>}{status.mode && <> · {t(`projects.github.mode.${status.mode}`)}</>}</dd></>}
-        <dt>{t('projects.github.next_check')}</dt><dd>{query.data?.requested ? t('projects.github.requested') : at(status.nextCheckAt)}</dd>
+        <dt>{t('projects.github.next_check')}</dt><dd>{query.currentData?.requested ? t('projects.github.requested') : at(status.nextCheckAt)}</dd>
       </>}
     </Facts>
     {project.canOperate && <Row>

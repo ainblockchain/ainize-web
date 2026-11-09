@@ -230,7 +230,28 @@ export async function finishSsoFlow(req: Request, cfg: AinSsoConfig, flowCookie:
     });
   } catch (e) {
     if (e instanceof oidc.AuthorizationResponseError) throw new SsoFlowError(`AIN SSO refused: ${e.error}`);
-    console.error('[ain-sso] code exchange or ID token validation failed', e);
+    // OAuth errors can carry response bodies and tokens. Log only the category,
+    // never the exception, request, error_description or response body.
+    if ((e instanceof oidc.ResponseBodyError && ['invalid_client', 'unauthorized_client'].includes(e.error)) ||
+        (e instanceof oidc.WWWAuthenticateChallengeError && e.status === 401)) {
+      console.error('[ain-sso] application authentication rejected; check the registered client and deployed SSO secret');
+      throw new SsoFlowError('AIN sign-in has a server configuration problem — ask the service administrator to check the SSO application credentials');
+    }
+    if (e instanceof oidc.ClientError && e.cause instanceof Response && e.cause.status >= 500) {
+      console.error('[ain-sso] identity provider temporarily unavailable');
+      throw new SsoFlowError('AIN sign-in is temporarily unavailable — try again later');
+    }
+    if (e instanceof oidc.ResponseBodyError) {
+      if (e.error === 'invalid_grant') {
+        console.error('[ain-sso] authorization grant rejected');
+        throw new SsoFlowError('this sign-in request expired or was already used — start sign-in again');
+      }
+      if (e.status >= 500 || e.error === 'temporarily_unavailable' || e.error === 'server_error') {
+        console.error('[ain-sso] identity provider temporarily unavailable');
+        throw new SsoFlowError('AIN sign-in is temporarily unavailable — try again later');
+      }
+    }
+    console.error('[ain-sso] code exchange or ID token validation failed');
     throw new SsoFlowError('the sign-in could not be verified — try again');
   }
   const claims = tokens.claims();

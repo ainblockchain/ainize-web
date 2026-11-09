@@ -29,6 +29,7 @@ export default function ProjectOperations({project}:{project:Project}) {
     <p>{text('검증 결과는 담당자가 등록한 기록입니다. 배포 상태와 별도로 확인하세요. 24시간이 지난 성공 기록은 재확인 대상으로 표시됩니다.','Results are recorded by maintainers, independently of deployment status. Successful results older than 24 hours are marked for rechecking.')}</p>
     {!!q.currentData?.verification.stale.length&&<Alert $tone="warning">{text('재확인 필요: ','Recheck: ')}{q.currentData.verification.stale.join(', ')}</Alert>}
     {!!q.currentData?.verification.pending.length&&<Alert $tone="warning">{text('미완료 필수 검사: ','Required checks outstanding: ')}{q.currentData.verification.pending.join(', ')}</Alert>}
+    {!!q.currentData?.verification.expiredSecrets?.length&&<Alert $tone="warning">{text('만료된 비밀값 참조: ','Expired secret references: ')}{q.currentData.verification.expiredSecrets.join(', ')}</Alert>}
     <fieldset disabled={!editable} style={{border:0,padding:0}}>
       <Section><h3>{text('이전 원본','Migration origins')}</h3>{draft.origins.map((o,i)=><Row key={i}>
         <Select aria-label={text('원본 서비스','Source provider')} value={o.provider} onChange={e=>change({...draft,origins:draft.origins.map((v,n)=>n===i?{...v,provider:e.target.value as typeof o.provider}:v)})}>{['gcp','firebase','aws','azure','onprem','other'].map(v=><option key={v}>{v}</option>)}</Select>
@@ -37,6 +38,17 @@ export default function ProjectOperations({project}:{project:Project}) {
         <Button onClick={()=>change({...draft,origins:draft.origins.filter((_,n)=>n!==i)})}>{text('삭제','Remove')}</Button>
       </Row>)}<Button onClick={()=>change({...draft,origins:[...draft.origins,{provider:'gcp',projectId:''}]})}>{text('원본 추가','Add origin')}</Button></Section>
       <Section><h3>{text('운영 담당자','Maintainers')}</h3><label>{text('한 줄에 한 명씩 입력','One maintainer per line')}<Text value={draft.maintainers.join('\n')} onChange={e=>change({...draft,maintainers:e.target.value.split('\n')})}/></label></Section>
+      <Section><h3>{text('실행 구성과 자원','Processes and resources')}</h3>
+        <p>{text('담당자가 확인한 구성을 기록하세요. 실시간 자원 측정값은 아닙니다.','Record the configuration verified by maintainers. These are not live resource measurements.')}</p>
+        {(draft.inventory??[]).map((item,i)=><Section key={i}>{([
+          ['name','서비스 / 자원 이름','Service / resource name'],['location','실행 위치','Execution location'],
+          ['process','프로세스 구성','Process configuration'],['runtime','런타임 / 버전','Runtime / version'],
+          ['resources','자원 구성','Resource configuration'],['configLocation','설정 보관 위치','Configuration location'],
+          ['adminUrl','관리 링크','Administration link'],
+        ] as const).map(([key,ko,en])=><label key={key}>{text(ko,en)}<Input type={key==='adminUrl'?'url':'text'} value={item[key]??''} onChange={e=>change({...draft,inventory:draft.inventory!.map((v,n)=>n===i?{...v,[key]:e.target.value||(['name','location'].includes(key)?'':undefined)}:v)})}/></label>)}
+          <Button onClick={()=>change({...draft,inventory:draft.inventory!.filter((_,n)=>n!==i)})}>{text('구성 삭제','Remove configuration')}</Button>
+        </Section>)}<Button onClick={()=>change({...draft,inventory:[...(draft.inventory??[]),{name:'',location:''}]})}>{text('실행 구성 추가','Add process configuration')}</Button>
+      </Section>
       <Section><h3>{text('운영 문서','Runbooks')}</h3>{(['deploy','rollback','backup','restore','logs','access','knowledgeRefresh'] as const).map(key=><label key={key}>{({deploy:text('배포','Deployment'),rollback:text('롤백','Rollback'),backup:text('백업','Backup'),restore:text('복구','Restore'),logs:text('로그','Logs'),access:text('접근 권한','Access'),knowledgeRefresh:text('지식 갱신','Knowledge refresh')})[key]}<Input type="url" placeholder="https://…" value={draft.runbooks[key]??''} onChange={e=>change({...draft,runbooks:{...draft.runbooks,[key]:e.target.value||undefined}})}/></label>)}</Section>
       <Section><h3>{text('의존 서비스','Dependencies')}</h3>{draft.dependencies.map((d,i)=><Row key={i}>
         <Input aria-label={text('의존 서비스 이름','Dependency name')} value={d.name} onChange={e=>change({...draft,dependencies:draft.dependencies.map((v,n)=>n===i?{...v,name:e.target.value}:v)})}/>
@@ -44,8 +56,13 @@ export default function ProjectOperations({project}:{project:Project}) {
         <Button onClick={()=>change({...draft,dependencies:draft.dependencies.filter((_,n)=>n!==i)})}>{text('삭제','Remove')}</Button>
       </Row>)}<Button onClick={()=>change({...draft,dependencies:[...draft.dependencies,{name:'',disposition:'unknown'}]})}>{text('의존 서비스 추가','Add dependency')}</Button></Section>
       <Section><h3>{text('비밀값 보관 위치','Secret locations')}</h3><p>{text('값 대신 환경변수 이름과 보관 위치만 입력하세요.','Enter environment variable names and storage locations, not secret values.')}</p>{draft.secretReferences.map((r,i)=><Row key={i}>
-        <Input aria-label={text('환경변수 이름','Environment variable name')} value={r.name} onChange={e=>change({...draft,secretReferences:draft.secretReferences.map((v,n)=>n===i?{...v,name:e.target.value}:v)})}/>
-        <Input aria-label={text('보관 위치','Storage location')} value={r.location} onChange={e=>change({...draft,secretReferences:draft.secretReferences.map((v,n)=>n===i?{...v,location:e.target.value}:v)})}/>
+        <label style={{flex:1,minWidth:180}}>{text('환경변수 이름','Environment variable name')}<Input aria-label={text('환경변수 이름','Environment variable name')} value={r.name} onChange={e=>change({...draft,secretReferences:draft.secretReferences.map((v,n)=>n===i?{...v,name:e.target.value}:v)})}/></label>
+        <label style={{flex:1,minWidth:180}}>{text('보관 위치','Storage location')}<Input aria-label={text('보관 위치','Storage location')} value={r.location} onChange={e=>change({...draft,secretReferences:draft.secretReferences.map((v,n)=>n===i?{...v,location:e.target.value}:v)})}/></label>
+        <label style={{flex:1,minWidth:180}}>{text('만료 시각 (UTC, ISO 8601)','Expiration (UTC, ISO 8601)')}<Input aria-label={text('만료 시각 (UTC, ISO 8601)','Expiration (UTC, ISO 8601)')} placeholder="2027-01-01T00:00:00Z" value={r.expiresAt??''} onChange={e=>change({...draft,secretReferences:draft.secretReferences.map((v,n)=>n===i?{...v,expiresAt:e.target.value||undefined}:v)})}/></label>
+        <label style={{flex:1,minWidth:180}}>{text('교체 절차 링크','Rotation procedure link')}<Input type="url" aria-label={text('교체 절차 링크','Rotation procedure link')} placeholder="https://…" value={r.rotation??''} onChange={e=>change({...draft,secretReferences:draft.secretReferences.map((v,n)=>n===i?{...v,rotation:e.target.value||undefined}:v)})}/></label>
+        <Select aria-label={text('비밀값 용도','Secret purpose')} value={r.purpose??''} onChange={e=>change({...draft,secretReferences:draft.secretReferences.map((v,n)=>n===i?{...v,purpose:(e.target.value||undefined) as typeof r.purpose}:v)})}>
+          <option value="">{text('용도 미지정','Unspecified purpose')}</option><option value="authentication">{text('인증','Authentication')}</option><option value="encryption">{text('암호화','Encryption')}</option><option value="restore">{text('복구 키','Restore key')}</option>
+        </Select>
         <Button onClick={()=>change({...draft,secretReferences:draft.secretReferences.filter((_,n)=>n!==i)})}>{text('삭제','Remove')}</Button>
       </Row>)}<Button onClick={()=>change({...draft,secretReferences:[...draft.secretReferences,{name:'',location:''}]})}>{text('참조 추가','Add reference')}</Button></Section>
       <Section><h3>{text('검증 기록','Verification evidence')}</h3>{draft.checks.map((c,i)=>{

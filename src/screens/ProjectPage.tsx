@@ -59,6 +59,9 @@ import ProjectDomains from '@/components/ProjectDomains';
 import ProjectGithubSync, { GithubSyncBadge } from '@/components/ProjectGithubSync';
 import ProjectEnvVars, { ENV_SECTION_ID, MissingEnvBanner } from '@/components/ProjectEnvVars';
 import ProjectStorage, { MissingStorageBanner } from '@/components/storage/ProjectStorage';
+import { ProjectIssuesTab } from '@/components/issues/ProjectIssuesTab';
+import { useProjectIssuesQuery } from '@/api/api';
+import { parseIssueList } from '@/api/issues';
 
 // ------------------------------------------------------------------------------------------------ pieces
 
@@ -138,7 +141,7 @@ const RunLine = styled.div<{ $err: boolean }>`
  * Owner and organization members only; "Follow" asks again every few seconds and keeps the view at the bottom unless
  * the reader scrolled up.
  */
-function RuntimeLogView({ project }: { project: Project }) {
+export function RuntimeLogView({ project }: { project: Project }) {
   const { t } = useT();
   const { isSignedIn } = useAuth();
   const [tail, setTail] = useState<number>(RUNTIME_LOG_DEFAULT_TAIL);
@@ -152,7 +155,7 @@ function RuntimeLogView({ project }: { project: Project }) {
     return <Panel><Help>{t('projects.logs.sign_in')}</Help><Actions><Button variant="contained" onClick={() => { window.location.assign(signInHref(window.location)); }}>{t('projects.runs.sign_in_button')}</Button></Actions></Panel>;
   }
   if (!project.canOperate) return <Panel><Help>{t('projects.logs.not_member', { org: project.org })}</Help></Panel>;
-  const data = q.data;
+  const data = q.currentData;
   const problem = q.error ? runtimeLogProblemOf(q.error) : null;
   return (
     <>
@@ -167,6 +170,7 @@ function RuntimeLogView({ project }: { project: Project }) {
         <Button size="small" onClick={() => download(`${project.org}-${project.repoName}-runtime.log`, runtimeLogsText(data?.lines ?? []))} disabled={!data?.lines.length}>{t('projects.logs.download')}</Button>
       </FilterRow>
       <Help>{t('projects.logs.runtime_hint')}</Help>
+      {data?.cached && <Alert $tone="warning">{t('projects.logs.cached', {time: new Date(data.fetchedAt).toLocaleString(), failure: data.failureObservedAt ? new Date(data.failureObservedAt).toLocaleString() : '—'})}</Alert>}
       {problem && <Alert $tone={problem === 'not_running' ? 'info' : 'error'}>{t(`projects.logs.${problem}`, { org: project.org })}</Alert>}
       {q.isLoading && !data ? <CenterProgress /> : data && (
         <Log ref={box} aria-live="polite" onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}>
@@ -455,8 +459,8 @@ function TriggersSection({ project, onOpenRun }: { project: Project; onOpenRun: 
 
 // ------------------------------------------------------------------------------------------------ the console
 
-type Tab = 'deployments' | 'runs' | 'logs' | 'storage' | 'settings' | 'operations';
-const TABS: Tab[] = ['deployments', 'runs', 'logs', 'storage', 'settings', 'operations'];
+type Tab = 'deployments' | 'runs' | 'logs' | 'issues' | 'storage' | 'settings' | 'operations';
+const TABS: Tab[] = ['deployments', 'runs', 'logs', 'issues', 'storage', 'settings', 'operations'];
 
 /**
  * One project's console. `switcher`: on a repository's page with several deployments (the root and its monorepo
@@ -477,6 +481,9 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const deployments = useProjectDeploymentsQuery(p.id, { pollingInterval: live ? 2000 : 15_000 });
   const kind = p.kind ?? p.manifest?.kind ?? null;
   const isScript = isScriptProject(p);
+  // the Issues tab's badge: how many causes are open right now
+  const openIssuesQ = useProjectIssuesQuery({ id: p.id, status: 'unresolved' }, { pollingInterval: 30_000 });
+  const openIssues = useMemo(() => parseIssueList(openIssuesQ.data).issues.length, [openIssuesQ.data]);
   const runs = useProjectRunsQuery(p.id, { skip: !isScript, pollingInterval: asked === 'runs' ? 2000 : 0 });
   useTitle(`${p.org}/${p.repoName}`);
   const newest = deployments.data?.deployments[0]?.status;
@@ -507,11 +514,10 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
   const [redeploy, { isLoading: redeploying }] = useRedeployMutation();
   const [syncFromGithub, { isLoading: syncing }] = useSyncFromGithubMutation();
   const [headErr, setHeadErr] = useState<string | null>(null);
-  const [synced, setSynced] = useState(false);
   // GitHub → AIN Drive runs on a backoff; this asks for it now. The push to AIN Drive then deploys as usual.
   const syncNow = async () => {
     setHeadErr(null);
-    try { await syncFromGithub(p.id).unwrap(); setSynced(true); }
+    try { await syncFromGithub(p.id).unwrap(); }
     catch (e) { const x = projectApiErrorOf(e); setHeadErr(x.message ?? t(`projects.api.${x.code}`)); }
   };
   const redeployLatest = async () => {
@@ -566,6 +572,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
     { id: 'deployments', label: `${t('projects.tabs.deployments')}${rows.length ? ` (${rows.length})` : ''}` },
     ...(isScript ? [{ id: 'runs', label: `${t('projects.tabs.runs')}${runRows.length ? ` (${runRows.length})` : ''}` }] : []),
     { id: 'logs', label: t('projects.tabs.logs') },
+    { id: 'issues', label: `${t('projects.tabs.issues')}${openIssues ? ` (${openIssues})` : ''}` },
     // managed storage is for a container app (service / nextjs) — a script or agent has nothing to connect a store to
     ...(hasStorage ? [{ id: 'storage', label: `${t('projects.tabs.storage')}${p.storage?.attached ? ` (${p.storage.attached})` : ''}` }] : []),
     ...(p.canOperate ? [{id:'operations',label:t('projects.tabs.operations')}] : []),
@@ -597,7 +604,7 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
           {isScript && <Button variant="contained" size="small" onClick={() => setTab('runs')}>▶ {t('projects.runs.run')}</Button>}
           {visitUrl && <Button variant="contained" size="small" onClick={() => window.open(visitUrl, '_blank', 'noreferrer')}>{t('projects.page.visit')} ↗</Button>}
           {p.canOperate && latest?.sha && <Button size="small" loading={redeploying} onClick={redeployLatest}>{t('projects.page.redeploy')}</Button>}
-          {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} disabled={synced} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{synced ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
+          {p.canOperate && p.repo.startsWith('https://aindrive.ainetwork.ai/') && <Button size="small" loading={syncing} title={t('projects.page.github_sync_hint')} onClick={syncNow}>{p.githubSync?.requested ? t('projects.page.github_sync_requested') : t('projects.page.github_sync')}</Button>}
         </Actions>
       </HeaderRow>
       {headErr && <Alert $tone="error">{headErr}</Alert>}
@@ -637,6 +644,12 @@ export function ProjectConsole({ project: initial, switcher }: { project: Projec
           <SubTitle>{t('projects.runs.history')}</SubTitle>
           {runs.isError ? <Alert $tone="error">{t('projects.page.history_failed')} <Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t('projects.page.retry')}</Button></Alert> : runs.isLoading ? <CenterProgress /> : runRows.length === 0 ? <Empty>{t('projects.runs.none')}</Empty>
             : <Rows>{runRows.map((d) => <DeploymentRow key={d.id} d={d} project={p} open={open === d.id} onToggle={() => setOpen(open === d.id ? null : d.id)} onRunAgain={runAgain} />)}</Rows>}
+        </TabBody>
+      )}
+
+      {tab === 'issues' && (
+        <TabBody>
+          <ProjectIssuesTab projectId={p.id} canWrite={!!p.canOperate} />
         </TabBody>
       )}
 

@@ -25,10 +25,18 @@ models = client.models.list().data
 print([model.id for model in models])
 ```
 
-**You get the key from the site.** Sign in there with your wallet and create one on the
-[Models page](/models), which also writes it into the snippet it shows you. Your private key never leaves the
-browser: a key that can sign a transfer has no business in a source file, a CI variable or a screenshot, and no
-other model API asks you to put one in any of them.
+## Sign in and choose the key's owner
+
+1. Open the model page and choose **Sign in and create a key**. Use **Continue with AIN** for your AIN SSO account; wallet and Google sign-in are also supported.
+2. On the model page, an AIN SSO key uses the organization selected at sign-in. To explicitly choose an organization or a personal key, open [My keys](/me), select the owner, enter a name and create the key. Only organizations you currently belong to are offered.
+3. Copy the newly issued key once and store it in your server's `AINIZE_API_KEY` secret. The list shows key prefixes, not recoverable secret values. If you lose a key, create a replacement and revoke the old one.
+4. Run the Python example above on your server or development machine. Keep keys out of browser bundles, `NEXT_PUBLIC_*` variables, source control, screenshots and chat messages.
+
+### When the example repository is not visible
+
+Model API keys and repository access are separate permissions. If an AinDrive example such as `comcom/git/clef-artwork-search` returns 403 or is not visible, sign in to AinDrive with the intended AIN account and organization. Ask the `comcom` organization or repository administrator for **read access to that repository**, giving the repository URL and your account identifier. Never send an API key with the request. A 404 may also mean the path moved; ask the owner to confirm the current URL rather than assuming access exists.
+
+You can use the inline API examples on this page while repository access is resolved; no example repository checkout is required.
 
 A program that already holds a wallet — an agent that also sends transactions — can pass `private_key=` instead
 and be issued a key automatically. That is the exception, not the quickstart.

@@ -31,7 +31,7 @@ export async function startIssuer(clientId: string, clientSecret: string) {
   /** what app-attest answers; a test may change it */
   const attestReply = { status: 201, body: { status: 'pending', mappingId: 'lgm_1', expiresAt: '2026-10-27T00:00:00.000Z' } as unknown };
   const tokenRequests: URLSearchParams[] = [];
-  const state = { spoil: null as null | ((claims: Record<string, unknown>) => Record<string, unknown>), signWithForeign: false, discoveryDown: false, discoveryHits: 0, promptCreate: true };
+  const state = { tokenFailure: null as null | {status:number;error:string;error_description?:string;challenge?:boolean}, spoil: null as null | ((claims: Record<string, unknown>) => Record<string, unknown>), signWithForeign: false, discoveryDown: false, discoveryHits: 0, promptCreate: true };
   let issuer = '';
 
   const server = createServer(async (req, res) => {
@@ -51,6 +51,7 @@ export async function startIssuer(clientId: string, clientSecret: string) {
     if (req.url === '/oidc/jwks') return json(200, { keys: [jwk] });
     if (req.url === '/oidc/token' && req.method === 'POST') {
       const form = new URLSearchParams(await readBody(req));
+      if (state.tokenFailure) { const {status,challenge,...body}=state.tokenFailure; if(challenge)res.setHeader('www-authenticate','Basic realm="ain-sso"'); return json(status,body); }
       tokenRequests.push(form);
       const basic = Buffer.from((req.headers.authorization ?? '').replace(/^Basic /, ''), 'base64').toString('utf8');
       const [id, secret] = basic.split(':').map((s) => decodeURIComponent(s));

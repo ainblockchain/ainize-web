@@ -307,8 +307,17 @@ export const api = createApi({
       query: ({ sid }) => ({ url: storeUrl(sid, 'restore/undo'), method: 'POST' }), transformResponse: parseRestoreResult, invalidatesTags: (_r, _e, a) => [{ type: 'Store', id: a.sid }],
     }),
     storeLogs: b.query<StoreLogs, { sid: string; tail: number }>({ query: ({ sid, tail }) => `${storeUrl(sid, 'logs')}?tail=${Math.max(1, Math.min(1000, Math.floor(tail)))}`, transformResponse: parseStoreLogs, keepUnusedDataFor: 0 }),
-    setOrgBackupTarget: b.mutation<{ driveId: string; verifiedAt: number }, { orgId: string; driveId: string; token: string }>({
-      query: ({ orgId, driveId, token }) => ({ url: backupTargetUrl(orgId), method: 'PUT', body: { driveId, token } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.orgId}/stores` }],
+    /** A grant the admin already holds: an AinDrive refresh token (and the OAuth client it was issued to). */
+    setOrgBackupTarget: b.mutation<{ driveId: string; verifiedAt: number }, { orgId: string; driveId: string; refreshToken: string; clientId?: string }>({
+      query: ({ orgId, driveId, refreshToken, clientId }) => ({ url: backupTargetUrl(orgId), method: 'PUT', body: { driveId, refreshToken, ...(clientId ? { clientId } : {}) } }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.orgId}/stores` }],
+    }),
+    /** Connect AinDrive: the consent URL to send the browser to (OAuth code + PKCE; the verifier stays on the node). */
+    connectOrgBackupTarget: b.mutation<{ authorizeUrl: string; expiresAt: number }, { orgId: string; driveId: string }>({
+      query: ({ orgId, driveId }) => ({ url: `${backupTargetUrl(orgId)}/connect`, method: 'POST', body: { driveId } }),
+    }),
+    /** AinDrive's redirect, handed to the node: the code is exchanged, the grant probed and adopted. */
+    finishAindriveConnect: b.mutation<{ orgId: string; driveId: string; verifiedAt: number }, { state: string; code: string }>({
+      query: (body) => ({ url: 'api/storage/aindrive/callback', method: 'POST', body }), invalidatesTags: (r) => (r ? [{ type: 'Org', id: `${r.orgId}/stores` }] : []),
     }),
     clearOrgBackupTarget: b.mutation<{ ok: boolean }, { orgId: string }>({
       query: ({ orgId }) => ({ url: backupTargetUrl(orgId), method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: `${a.orgId}/stores` }],
@@ -405,6 +414,11 @@ export const api = createApi({
       query: ({ id, groupId }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupId)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
     /** What the organization's script projects may read while they run (ainize-node run-grant-token.ts) — admins only. */
+    // Issues (src/api/issues.ts): the organization's and a project's, one issue, a person's verdict on it.
+    orgIssues: b.query<unknown, { id: string; status: string }>({ query: ({ id, status }) => `api/orgs/${encodeURIComponent(id)}/issues?status=${encodeURIComponent(status)}`, providesTags: (_r, _e, a) => [{ type: 'Issues', id: `org/${a.id}` }] }),
+    projectIssues: b.query<unknown, { id: string; status: string }>({ query: ({ id, status }) => `api/projects/${encodeURIComponent(id)}/issues?status=${encodeURIComponent(status)}`, providesTags: (_r, _e, a) => [{ type: 'Issues', id: `project/${a.id}` }] }),
+    issue: b.query<unknown, string>({ query: (id) => `api/issues/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Issues', id }] }),
+    setIssueStatus: b.mutation<unknown, { id: string; status: string }>({ query: ({ id, status }) => ({ url: `api/issues/${encodeURIComponent(id)}/status`, method: 'POST', body: { status } }), invalidatesTags: ['Issues'] }),
     orgProjectGrants: b.query<OrgProjectGrants, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/project-grants`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/project-grants` }] }),
     setOrgProjectGrant: b.mutation<unknown, { id: string; project: string; reads: string[] }>({
       query: ({ id, project, reads }) => ({ url: `api/orgs/${encodeURIComponent(id)}/project-grants/${encodeURIComponent(project)}`, method: 'PUT', body: { reads } }),
@@ -777,6 +791,7 @@ export interface OrgProjectGrants {
 }
 
 export const {
+  useOrgIssuesQuery, useProjectIssuesQuery, useIssueQuery, useSetIssueStatusMutation,
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
@@ -788,7 +803,7 @@ export const {
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useProjectStorageQuery, useOrgStoresQuery, useCreateStoreMutation, useStoreQuery, useUpdateStoreMutation, useStoreActionMutation, useDeleteStoreMutation, useConnectStoreMutation, useDisconnectStoreMutation,
   useRevealStoreEnvMutation, useRotateStoreMutation, useStoreTablesQuery, useStoreRowsQuery, useStoreQueryMutation, useStoreObjectsQuery, useStoreBackupsQuery, useRunStoreBackupMutation, useDeleteStoreBackupMutation,
-  useRestoreStoreMutation, useUndoRestoreMutation, useStoreLogsQuery, useSetOrgBackupTargetMutation, useClearOrgBackupTargetMutation,
+  useRestoreStoreMutation, useUndoRestoreMutation, useStoreLogsQuery, useSetOrgBackupTargetMutation, useClearOrgBackupTargetMutation, useConnectOrgBackupTargetMutation, useFinishAindriveConnectMutation,
   useAgentPreviewRunsQuery, useExportAgentPreviewRunMutation, useDeleteAgentPreviewRunMutation, useAgentExecutionsQuery, useAgentCommitsQuery, useAgentRefsQuery, useAgentDiffQuery, useAgentPullsQuery, useCreateAgentPreviewMutation, useAgentPreviewQuery, useDeleteAgentPreviewMutation, useChatAgentPreviewMutation, useMyAgentForksQuery, useCreateAgentForkMutation, useDeleteAgentForkMutation, useOpenAgentPullMutation, useAddAgentReviewCommentMutation, useEditAgentReviewCommentMutation, useDeleteAgentReviewCommentMutation, useMergeAgentPullMutation, useSyncAgentMirrorMutation,
   useMyLinkedAgentsQuery, useLinkedAgentQuery, useCreateLinkedAgentMutation, useUpdateLinkedAgentMutation, useDeleteLinkedAgentMutation, useSharedAgentsQuery, useSetAgentVisibilityMutation, useLinkedAgentsQuery, useAgentAliasQuery, useSetAgentAliasMutation, useClearAgentAliasMutation,
   useMyOrgsQuery, useOrgQuery, useCreateOrgMutation, useUpdateOrgMutation, useDeleteOrgMutation, useAddOrgMemberMutation, useSetOrgMemberRoleMutation, useRemoveOrgMemberMutation,

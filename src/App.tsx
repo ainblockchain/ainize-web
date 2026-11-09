@@ -44,7 +44,9 @@ const OrgCreatePage = lazy(() => import('./screens/org/OrgCreatePage'));
 const OrgPage = lazy(() => import('./screens/org/OrgPage'));
 const OrgJoinPage = lazy(() => import('./screens/org/OrgJoinPage'));
 const OrgSettingsPage = lazy(() => import('./screens/org/OrgSettingsPage'));
+const OrgIssuesPage = lazy(() => import('./screens/org/OrgIssuesPage'));
 const StorePage = lazy(() => import('./screens/org/StorePage'));
+const AindriveCallbackPage = lazy(() => import('./screens/org/storage/AindriveCallbackPage'));
 // Throughput billing (ainize-node throughput-billing design): now N tok/s → deposit X → M tok/s, and the deposit.
 const BillingPage = lazy(() => import('./screens/BillingPage'));
 const TrackPage = lazy(() => import('./screens/TrackPage'));
@@ -197,7 +199,11 @@ export default function App() {
                 <Route path="/org/join/:token" element={<Layout><OrgJoinPage /></Layout>} />
                 {/* a managed store's page (src/screens/org/StorePage.tsx) — the org settings Storage tab links here */}
                 <Route path="/org/:id/storage/:storeId" element={<SignedInLayout><StorePage /></SignedInLayout>} />
+                {/* AinDrive sends the browser back here after "Connect AinDrive" (the node's OAuth redirect URI) */}
+                <Route path="/org/storage/aindrive" element={<SignedInLayout><AindriveCallbackPage /></SignedInLayout>} />
                 <Route path="/org/:id/settings" element={<SignedInLayout><OrgSettingsPage /></SignedInLayout>} />
+                {/* what went wrong in the organization, grouped by cause (src/screens/org/OrgIssuesPage.tsx) */}
+                <Route path="/org/:id/issues" element={<SignedInLayout><OrgIssuesPage /></SignedInLayout>} />
                 <Route path="/org/:id" element={<Layout><OrgPage /></Layout>} />
                 {/* Operator pages (SigningCheckLayout) */}
                 <Route path="/dashboard" element={<SigningCheckLayout><DashboardPage /></SigningCheckLayout>} />
