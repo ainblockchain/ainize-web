@@ -414,6 +414,11 @@ export const api = createApi({
       query: ({ id, groupId }) => ({ url: `api/orgs/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupId)}`, method: 'DELETE' }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }],
     }),
     /** What the organization's script projects may read while they run (ainize-node run-grant-token.ts) — admins only. */
+    // Issues (src/api/issues.ts): the organization's and a project's, one issue, a person's verdict on it.
+    orgIssues: b.query<unknown, { id: string; status: string }>({ query: ({ id, status }) => `api/orgs/${encodeURIComponent(id)}/issues?status=${encodeURIComponent(status)}`, providesTags: (_r, _e, a) => [{ type: 'Issues', id: `org/${a.id}` }] }),
+    projectIssues: b.query<unknown, { id: string; status: string }>({ query: ({ id, status }) => `api/projects/${encodeURIComponent(id)}/issues?status=${encodeURIComponent(status)}`, providesTags: (_r, _e, a) => [{ type: 'Issues', id: `project/${a.id}` }] }),
+    issue: b.query<unknown, string>({ query: (id) => `api/issues/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Issues', id }] }),
+    setIssueStatus: b.mutation<unknown, { id: string; status: string }>({ query: ({ id, status }) => ({ url: `api/issues/${encodeURIComponent(id)}/status`, method: 'POST', body: { status } }), invalidatesTags: ['Issues'] }),
     orgProjectGrants: b.query<OrgProjectGrants, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/project-grants`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/project-grants` }] }),
     setOrgProjectGrant: b.mutation<unknown, { id: string; project: string; reads: string[] }>({
       query: ({ id, project, reads }) => ({ url: `api/orgs/${encodeURIComponent(id)}/project-grants/${encodeURIComponent(project)}`, method: 'PUT', body: { reads } }),
@@ -786,6 +791,7 @@ export interface OrgProjectGrants {
 }
 
 export const {
+  useOrgIssuesQuery, useProjectIssuesQuery, useIssueQuery, useSetIssueStatusMutation,
   useInfoQuery, useModelsQuery, useNetworkModelsQuery, useThroughputQuoteQuery, useThroughputDepositStatusQuery, useApiKeysQuery, useCreateApiKeyMutation, useRevokeApiKeyMutation, useCatalogQuery, usePatchQuery, usePatchRecordsQuery, usePatchEventsQuery, useBenchmarkQuery, useLedgerQuery, useLedgerVerifyQuery,
   useGraphQuery, useBranchesQuery, useRouteQuery, useLazyRouteQuery, useNodesQuery, useAgentsQuery, useModelDetailQuery, useAgentsByModelQuery, useMyHostedAgentsQuery, useManageableHostedAgentsQuery, useHostedAgentQuery,
   useCreateHostedAgentMutation, useUpdateHostedAgentMutation, useDeleteHostedAgentMutation, useSetHostedAgentSecretMutation, useHostedAgentLogsQuery,
