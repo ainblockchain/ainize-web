@@ -18,7 +18,7 @@ git remote set-url origin https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDR
 git push -u origin main
 ```
 
-The push creates the repository in your organization's AinDrive, and because the repository has `ainize.json`, Ainize builds and deploys it. Keep `package-lock.json` committed and keep `node_modules`, `.next` and secrets out of the repository.
+The push creates the repository in your organization's AinDrive, and because the repository has `ainize.json`, Ainize builds and deploys it. Keep `package-lock.json` committed and keep `node_modules`, `.next` and secrets out of the repository. From your own machine, outside AinCode, run `ainize login` and then `ainize deploy` in the repository instead — see [the short way](./aindrive-git.md).
 
 ## Describe the app
 
