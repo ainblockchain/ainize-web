@@ -2,7 +2,7 @@
 title: Next.js 앱 배포하고 Teams에서 공유하기
 summary: Next.js 저장소를 AIN Drive에 push하고 Ainize 배포를 확인한 뒤 AIN Teams에서 AIN-UI 카드로 공유합니다.
 source: en/how-to/deploy-nextjs.md
-source_sha256: 0aadaba2694eab8d19f5c30a6e1af755eb67835f8b42f50f95c2dd7555629281
+source_sha256: b9df490d10c2be138daaded346d08e5bc3f6645bcb0240b6ab568349ca105358
 ---
 
 # Next.js 앱 배포하고 Teams에서 공유하기
@@ -20,7 +20,7 @@ git remote set-url origin https://aindrive.ainetwork.ai/$AINDRIVE_ORG/git/$AINDR
 git push -u origin main
 ```
 
-push가 우리 조직 AinDrive에 저장소를 만들고, 저장소에 `ainize.json`이 있으므로 Ainize가 빌드해 배포합니다. `package-lock.json`은 커밋하고, `node_modules`, `.next`, 비밀 값은 저장소에 넣지 마세요.
+push가 우리 조직 AinDrive에 저장소를 만들고, 저장소에 `ainize.json`이 있으므로 Ainize가 빌드해 배포합니다. `package-lock.json`은 커밋하고, `node_modules`, `.next`, 비밀 값은 저장소에 넣지 마세요. AinCode 밖의 내 컴퓨터에서는 저장소에서 `ainize login` 다음 `ainize deploy`를 실행하면 됩니다. [짧은 길](./aindrive-git.md)을 보세요.
 
 ## 앱 설정하기
 

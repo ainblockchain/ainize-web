@@ -20,6 +20,21 @@ server to work with it — just as you never log in to GitHub's servers to push 
 Inside [AinCode](/code) all of this is already set up: Git reaches the organization's AinDrive as you. This page is
 for everywhere else — your own machine, a CI runner, an agent you run yourself.
 
+## The short way: `ainize login`, then `ainize deploy`
+
+To deploy an app from your own machine you need neither the aindrive CLI nor a git credential helper. `ainize login` signs you in to Ainize and connects AinDrive in the same step; `ainize deploy` pushes what is committed in the current repository and follows the build:
+
+```bash
+npm install -g ainize
+ainize login
+cd my-app                 # a git repository with ainize.json at its root and at least one commit
+ainize deploy --org <org> --repo <name>
+```
+
+`ainize deploy` remembers the repository as the git remote `ainize`, so later deploys are `ainize deploy` with no flags, and `origin` is left untouched. `--org` can be omitted when you belong to one organization, and `--repo` defaults to the directory name. The command prints the project page and, once the deployment is `ready`, the app address. The sign-in is passed to git for that one push only: nothing is written to the remote URL or to a git config. Use `ainize deploy --no-wait --json` in CI.
+
+The rest of this page is for using AinDrive as a plain git remote — cloning, pushing other branches, CI without the `ainize` CLI.
+
 ## 1. Get a credential
 
 **Sign in once with the CLI.** It opens a page where you approve the sign-in, then stores a session token for this

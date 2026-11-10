@@ -2,7 +2,7 @@
 title: 어느 머신에서나 AinDrive를 git 리모트로 쓰기
 summary: AinDrive는 GitHub와 같은 git 호스트입니다. 노트북이나 CI에서 토큰으로 HTTPS clone·push 하고, GitHub는 사람들이 push 하는 곳으로 두고 동기화로 머지를 가져오며, 배포를 위해 서버에 로그인하지 않습니다.
 source: en/how-to/aindrive-git.md
-source_sha256: 988672d57c0cfc865f7045412e5369b2670b2c5d696975e018f95e11e7ddb0a6
+source_sha256: f771b551a36699de64e7527eb6fcacf7f60f2d6f38f21f624314ea078bb4a92d
 ---
 
 # 어느 머신에서나 AinDrive를 git 리모트로 쓰기
@@ -21,6 +21,21 @@ source_sha256: 988672d57c0cfc865f7045412e5369b2670b2c5d696975e018f95e11e7ddb0a6
 
 [AinCode](/code) 안에서는 이 모든 것이 이미 준비되어 있습니다 — Git 이 내 권한으로 조직의 AinDrive 에 닿습니다. 이 문서는
 그 밖의 모든 곳, 즉 내 머신·CI 러너·내가 직접 돌리는 에이전트를 위한 것입니다.
+
+## 짧은 길: `ainize login` 다음 `ainize deploy`
+
+내 컴퓨터에서 앱을 배포할 때는 aindrive CLI도, git credential helper도 필요 없습니다. `ainize login`이 Ainize 로그인과 AinDrive 연결을 한 번에 처리하고, `ainize deploy`가 현재 저장소에 커밋된 내용을 push한 뒤 빌드를 끝까지 따라갑니다.
+
+```bash
+npm install -g ainize
+ainize login
+cd my-app                 # 루트에 ainize.json이 있고 커밋이 하나 이상 있는 git 저장소
+ainize deploy --org <org> --repo <name>
+```
+
+`ainize deploy`는 저장소를 git 리모트 `ainize`로 기억하므로 다음부터는 옵션 없이 `ainize deploy`만 실행하면 되고, `origin`은 건드리지 않습니다. 조직이 하나뿐이면 `--org`를 생략할 수 있고 `--repo`의 기본값은 디렉터리 이름입니다. 명령은 프로젝트 페이지를 출력하고, 배포가 `ready`가 되면 앱 주소도 출력합니다. 로그인 정보는 그 한 번의 push에만 git에 전달되며, 리모트 URL이나 git 설정에는 아무것도 기록되지 않습니다. CI에서는 `ainize deploy --no-wait --json`을 쓰세요.
+
+이 페이지의 나머지는 AinDrive를 일반 git 리모트로 쓰는 방법입니다. clone, 다른 브랜치 push, `ainize` CLI 없는 CI가 여기에 해당합니다.
 
 ## 1. 자격증명 얻기
 
