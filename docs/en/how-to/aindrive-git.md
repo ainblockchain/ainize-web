@@ -22,7 +22,7 @@ for everywhere else — your own machine, a CI runner, an agent you run yourself
 
 ## The short way: `ainize login`, then `ainize deploy`
 
-To deploy an app from your own machine you need neither the aindrive CLI nor a git credential helper. `ainize login` signs you in to Ainize and connects AinDrive in the same step; `ainize deploy` pushes what is committed in the current repository and follows the build:
+To deploy an app from your own machine you need neither the aindrive CLI nor a git credential helper. `ainize login` is the only approval: you sign in to Ainize once in the browser, and the node hands the CLI a 15-minute AinDrive git credential for your account whenever you deploy; `ainize deploy` pushes what is committed in the current repository and follows the build:
 
 ```bash
 npm install -g ainize

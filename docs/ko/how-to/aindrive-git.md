@@ -2,7 +2,7 @@
 title: 어느 머신에서나 AinDrive를 git 리모트로 쓰기
 summary: AinDrive는 GitHub와 같은 git 호스트입니다. 노트북이나 CI에서 토큰으로 HTTPS clone·push 하고, GitHub는 사람들이 push 하는 곳으로 두고 동기화로 머지를 가져오며, 배포를 위해 서버에 로그인하지 않습니다.
 source: en/how-to/aindrive-git.md
-source_sha256: f771b551a36699de64e7527eb6fcacf7f60f2d6f38f21f624314ea078bb4a92d
+source_sha256: 3cda926fc40e487cd3af4fd8251f0e0aa5abe27f259686287195e782e5944034
 ---
 
 # 어느 머신에서나 AinDrive를 git 리모트로 쓰기
@@ -24,7 +24,7 @@ source_sha256: f771b551a36699de64e7527eb6fcacf7f60f2d6f38f21f624314ea078bb4a92d
 
 ## 짧은 길: `ainize login` 다음 `ainize deploy`
 
-내 컴퓨터에서 앱을 배포할 때는 aindrive CLI도, git credential helper도 필요 없습니다. `ainize login`이 Ainize 로그인과 AinDrive 연결을 한 번에 처리하고, `ainize deploy`가 현재 저장소에 커밋된 내용을 push한 뒤 빌드를 끝까지 따라갑니다.
+내 컴퓨터에서 앱을 배포할 때는 aindrive CLI도, git credential helper도 필요 없습니다. 승인은 `ainize login` 한 번뿐입니다. 브라우저에서 Ainize에 한 번 로그인하면, 배포할 때마다 노드가 내 계정의 15분짜리 AinDrive git 자격증명을 CLI에 건네줍니다. 그리고 `ainize deploy`가 현재 저장소에 커밋된 내용을 push한 뒤 빌드를 끝까지 따라갑니다.
 
 ```bash
 npm install -g ainize
