@@ -56,6 +56,7 @@ export async function relayToNode(req: Request, path: string, opts: { service?: 
     if (subject) headers.set(SITE_SUBJECT_HEADER, subject);
   }
   let upstream: Response;
+  const idle = idleAbort(RELAY_IDLE_MS);
   try {
     upstream = await fetch(target, {
       method: req.method,
@@ -63,9 +64,10 @@ export async function relayToNode(req: Request, path: string, opts: { service?: 
       body: WITH_BODY.has(req.method) ? await req.arrayBuffer() : undefined,
       redirect: 'manual',
       // a scoring turn or a live test runs for minutes; the platform default would cut it off
-      signal: AbortSignal.timeout(10 * 60_000),
+      signal: idle.signal,
     });
   } catch (e) {
+    idle.clear();
     // The node being down is this app's most likely failure, and it must not look like the app crashing.
     return Response.json(
       { error: 'the node is not answering', detail: (e as Error).message },
@@ -77,7 +79,45 @@ export async function relayToNode(req: Request, path: string, opts: { service?: 
   out.delete('content-encoding');
   out.delete('content-length');
   if (opts.service) out.delete('set-cookie');
-  return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
+  return new Response(touching(upstream.body, idle), { status: upstream.status, statusText: upstream.statusText, headers: out });
+}
+
+/**
+ * How long a relayed request may go without a byte from the node before it is given up on. An IDLE limit, not a
+ * total one: a model that reasons for twenty minutes streams the whole time and must not be cut at a fixed mark
+ * (a total limit of ten minutes ended every long chat completion mid-answer, with no finish reason).
+ */
+export const RELAY_IDLE_MS = 10 * 60_000;
+
+/** An abort signal that fires `ms` after the last `touch()`; `clear()` disarms it. */
+export function idleAbort(ms: number) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const touch = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(new DOMException(`no data from the node for ${Math.round(ms / 1000)} s`, 'TimeoutError')), ms);
+    (timer as { unref?: () => void }).unref?.();
+  };
+  touch();
+  return { signal: controller.signal, touch, clear: () => clearTimeout(timer) };
+}
+
+/** The body passed through unchanged, each chunk pushing the idle deadline back; the timer ends with the stream. */
+export function touching(body: ReadableStream<Uint8Array> | null, idle: { touch(): void; clear(): void }): ReadableStream<Uint8Array> | null {
+  if (!body) { idle.clear(); return null; }
+  idle.touch();
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) { idle.clear(); controller.close(); return; }
+        idle.touch();
+        controller.enqueue(value);
+      } catch (e) { idle.clear(); controller.error(e); }
+    },
+    cancel(reason) { idle.clear(); return reader.cancel(reason); },
+  });
 }
 
 /**
