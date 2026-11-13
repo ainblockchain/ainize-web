@@ -2,7 +2,7 @@
 title: 어느 머신에서나 AinDrive를 git 리모트로 쓰기
 summary: AinDrive는 GitHub와 같은 git 호스트입니다. 노트북이나 CI에서 토큰으로 HTTPS clone·push 하고, GitHub는 사람들이 push 하는 곳으로 두고 동기화로 머지를 가져오며, 배포를 위해 서버에 로그인하지 않습니다.
 source: en/how-to/aindrive-git.md
-source_sha256: 3cda926fc40e487cd3af4fd8251f0e0aa5abe27f259686287195e782e5944034
+source_sha256: 1fefe6248e9aa9971c79399bfbe0903b08572823c268fecd25968c8ccef2df00
 ---
 
 # 어느 머신에서나 AinDrive를 git 리모트로 쓰기
@@ -84,6 +84,9 @@ SSH 는 운영자가 git SSH 포트를 열어 둔 곳에서 AIN SSO 계정에 �
 많은 팀이 저장소를 GitHub 에 두고(리뷰·Actions·이력) AinDrive 를 배포되는 사본으로 씁니다. **GitHub → AinDrive 동기화**가
 그 일을 합니다. GitHub `main` 은 AinDrive `main` 으로(`ainize.json` 같은 AinDrive 전용 커밋 위에 머지되어), `develop` 은
 `develop` 으로 미러되고, 배포는 다른 AinDrive push 뒤와 똑같이 이어집니다.
+
+리포가 아직 GitHub 에만 있나요? [GitHub 리포 배포하기](./deploy-from-github.md)는 폼 하나로 AinDrive 저장소와 프로젝트를 만들고
+이 동기화까지 켭니다. 아래는 이미 있는 프로젝트에 대한 내용입니다.
 
 ### 프로젝트에서 켜기
 

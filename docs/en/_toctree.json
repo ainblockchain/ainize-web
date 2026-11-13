@@ -15,6 +15,10 @@
     "title": "Quickstart: code to deployment"
    },
    {
+    "page": "how-to/deploy-from-github",
+    "title": "Deploy a GitHub repository"
+   },
+   {
     "page": "how-to/aindrive-git",
     "title": "Use AinDrive as your git remote"
    },

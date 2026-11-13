@@ -2,6 +2,30 @@
 
 Reusable shapes as a **running** node declares them, from its [OpenAPI document](/api/openapi.json). For the full definitions, with nested constraints and unions, see [Schemas](./schemas.md).
 
+## `DecisionRequest`
+
+SystemOne request.
+
+| Field | Type | Required |
+|---|---|---|
+| `model` | string | yes |
+| `state` | object | yes |
+| `questions` | object | yes |
+
+## `ProjectOperationsInput`
+
+
+
+| Field | Type | Required |
+|---|---|---|
+| `origins` | array of object | yes |
+| `maintainers` | array of string | yes |
+| `inventory` | array of object | no |
+| `dependencies` | array of object | yes |
+| `runbooks` | object | yes |
+| `secretReferences` | array of object | yes |
+| `checks` | array of object | yes |
+
 ## `OwnerRef`
 
 Who owns or acts (ain-integration contract 1.0): `kind` says which namespace `subject` lives in.
@@ -331,6 +355,106 @@ Where one live test is in the queue behind the shared serving model.
 | Field | Type | Required |
 |---|---|---|
 | `error` | string | no |
+
+## `Issue`
+
+
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | string | no |
+| `org_id` | string | no |
+| `project_id` | string | no |
+| `kind` | deploy_failed, run_failed, container_down, agent_unreachable, site_down, model_down, custom | no |
+| `fingerprint` | string | no |
+| `title` | string | no |
+| `culprit` | string | no |
+| `status` | unresolved, resolved, ignored | no |
+| `first_seen` | integer | no |
+| `last_seen` | integer | no |
+| `count` | integer | no |
+| `status_changed_at` | integer | no |
+| `status_changed_by` | string | no |
+| `hourly` | array of integer | no |
+| `events` | array of object | no |
+
+## `Store`
+
+A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or S3-compatible Blob (RustFS) container the node runs for an organization on an NFS volume, reached by connected projects as `&lt;name&gt;.store.internal`.
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | string | yes |
+| `orgId` | string | yes |
+| `name` | string | yes |
+| `kind` | postgres, blob | yes |
+| `engine` | postgres16, postgres16-pgvector, minio | yes |
+| `image` | string | no |
+| `generation` | integer | no |
+| `status` | provisioning, ready, stopped, error, restoring, deleting | yes |
+| `error` | string | no |
+| `warning` | over_quota, drive_unauthorized, null | no |
+| `host` | string | yes |
+| `port` | integer | yes |
+| `alias` | string | no |
+| `network` | string | no |
+| `volume` | string | no |
+| `nfsPath` | string | no |
+| `containerName` | string | no |
+| `resources` | object | yes |
+| `postgres` | object | no |
+| `blob` | object | no |
+| `backups` | object | yes |
+| `restores` | array of object | no |
+| `credentialsVersion` | integer | yes |
+| `usage` | object | no |
+| `operation` | object | no |
+| `connectionNames` | array of string | no |
+| `attachedProjects` | array of object | no |
+| `lastBackup` | object | no |
+| `health` | object | no |
+| `createdAt` | integer | yes |
+| `createdBy` | string | no |
+| `updatedAt` | integer | no |
+
+## `StoreAttachment`
+
+A project connected to a store: the ainize.json `storage` binding it answers, the env prefix its variables carry, and (Postgres) the database it uses — `app` or one of its own.
+
+| Field | Type | Required |
+|---|---|---|
+| `storeId` | string | yes |
+| `projectId` | string | yes |
+| `binding` | string | yes |
+| `envPrefix` | string | yes |
+| `database` | string | yes |
+| `createdAt` | integer | no |
+| `createdBy` | string | no |
+
+## `StoreBackup`
+
+One backup of a store: a verified `pg_dump -Fc` per database (or a `tar.gz` of the mirrored bucket) on the NAS under `backups/&lt;YYYY-MM-DD&gt;/`, and its copy on the organization's AinDrive when a backup target is set.
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | string | yes |
+| `storeId` | string | yes |
+| `orgId` | string | no |
+| `storeName` | string | no |
+| `kind` | postgres, blob | yes |
+| `engine` | string | yes |
+| `trigger` | schedule, manual, pre-restore, pre-delete, pre-rotate | yes |
+| `status` | running, ok, error | yes |
+| `error` | string | no |
+| `startedAt` | integer | yes |
+| `finishedAt` | integer | no |
+| `bytes` | integer | no |
+| `sha256` | string | no |
+| `pgVersion` | string | no |
+| `local` | string | no |
+| `files` | array of object | no |
+| `drive` | object | no |
+| `keepUntil` | integer | no |
 
 ## `Payout`
 

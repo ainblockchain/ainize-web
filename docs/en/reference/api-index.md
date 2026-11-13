@@ -6,6 +6,716 @@ Refreshed with `node scripts/sync-api-docs.mjs <OpenAPI URL or file>`.
 
 Use JSON unless an endpoint specifies multipart upload or streaming. Operator sessions and teaching keys are separate credentials. For model SDK authentication and `/v1`, see [Call the model](../how-to/call-the-model.md).
 
+## `GET /git/{id}.git/info/refs`
+
+Discover Git refs (smart HTTP)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `service` | query | yes | git-upload-pack, git-receive-pack |
+
+## `POST /git/{id}.git/git-upload-pack`
+
+Clone or fetch an agent repository
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/x-git-upload-pack-request (required). See OpenAPI for fields.
+
+## `POST /git/{id}.git/git-receive-pack`
+
+Push an agent repository and apply main
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/x-git-receive-pack-request (required). See OpenAPI for fields.
+
+## `GET /api/hosted-agents/{id}/executions`
+
+Read persisted runtime execution history
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `limit` | query | no | integer |
+| `offset` | query | no | integer |
+
+## `GET /api/hosted-agents/{id}/commits`
+
+Read commit history
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `ref` | query | no | string |
+| `limit` | query | no | integer |
+
+## `GET /api/hosted-agents/{id}/refs`
+
+Read branches and clone URL
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/hosted-agents/{id}/tree`
+
+Read a file or paths at a ref
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `ref` | query | no | string |
+| `path` | query | no | string |
+
+## `GET /api/hosted-agents/{id}/diff`
+
+Review a proposal diff
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `base` | query | no | string |
+| `head` | query | no | string |
+
+## `POST /api/hosted-agents/{id}/forks`
+
+Create a private source fork
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/agent-forks`
+
+List your private repository forks
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+## `DELETE /api/agent-forks/{id}`
+
+Delete your private source fork
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/hosted-agents/{id}/pulls`
+
+List repository proposals
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `state` | query | no | open, merged, closed |
+
+## `POST /api/hosted-agents/{id}/pulls`
+
+Open a branch or cross-repository proposal
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `403`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/hosted-agents/{id}/pulls/{number}`
+
+Read a proposal
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `number` | path | yes | integer |
+
+## `POST /api/hosted-agents/{id}/pulls/{number}/merge`
+
+Validate and merge a proposal
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `number` | path | yes | integer |
+
+## `POST /api/hosted-agents/{id}/pulls/{number}/close`
+
+Close a proposal
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `number` | path | yes | integer |
+
+## `GET /api/hosted-agents/{id}/pulls/{number}/comments`
+
+Read proposal review comments
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `number` | path | yes | integer |
+
+## `POST /api/hosted-agents/{id}/pulls/{number}/comments`
+
+Add a general or source-anchored review comment
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `number` | path | yes | integer |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `PATCH /api/hosted-agents/{id}/pulls/{number}/comments/{comment}`
+
+Edit your review comment
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `number` | path | yes | integer |
+| `comment` | path | yes | integer |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/hosted-agents/{id}/pulls/{number}/comments/{comment}`
+
+Remove a review comment
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `number` | path | yes | integer |
+| `comment` | path | yes | integer |
+
+## `GET /api/hosted-agents/{id}/mirror`
+
+Read GitHub mirror state
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/hosted-agents/{id}/mirror`
+
+Attach an agent to a GitHub source
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/hosted-agents/{id}/mirror`
+
+Detach a GitHub mirror
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/hosted-agents/{id}/mirror/sync`
+
+Reconcile a GitHub mirror now
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/agent-mirrors/webhook`
+
+Reconcile mirrors after a signed GitHub push
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `X-Hub-Signature-256` | header | yes | string |
+
+## `POST /api/hosted-agents/{id}/preview-runs/{run}/export`
+
+Export your proposal conversation
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `run` | path | yes | string |
+
+## `DELETE /api/hosted-agents/{id}/preview-runs/{run}`
+
+Delete your exported proposal conversation
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `run` | path | yes | string |
+
+## `GET /api/hosted-agents/{id}/preview-runs`
+
+Read your persisted proposal conversations
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/hosted-agents/{id}/previews`
+
+Start an isolated proposal runtime at a fixed SHA
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `401`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/agent-previews/{preview}`
+
+Read your temporary proposal runtime
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `preview` | path | yes | string |
+
+## `DELETE /api/agent-previews/{preview}`
+
+Stop your temporary proposal runtime
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `preview` | path | yes | string |
+
+## `POST /api/agent-previews/{preview}/rpc`
+
+Talk to your proposal before merging
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `preview` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/projects/{id}/source`
+
+Read the manifest from an immutable execution source
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `target` | query | no | head, commit, deployed |
+| `sha` | query | no | string |
+
+## `GET /api/ax`
+
+Check Google AX connectivity and configured atespace
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+## `GET /api/ax/tasks`
+
+List AX tasks
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `limit` | query | no | integer |
+| `offset` | query | no | integer |
+
+## `POST /api/ax/tasks`
+
+Create an AX Task
+
+Auth: operatorCookie or operatorBearer Responses: `201`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/ax/tasks/{name}`
+
+Read an AX Task
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `DELETE /api/ax/tasks/{name}`
+
+Delete an AX Task
+
+Auth: operatorCookie or operatorBearer Responses: `204`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `GET /api/ax/workspaces`
+
+List AX workspaces
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+## `POST /api/ax/workspaces`
+
+Upsert an AX Workspace
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/ax/workspaces/{name}`
+
+Read an AX Workspace
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `DELETE /api/ax/workspaces/{name}`
+
+Delete an AX Workspace
+
+Auth: operatorCookie or operatorBearer Responses: `204`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `GET /api/ax/models`
+
+List AX models
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+## `POST /api/ax/models`
+
+Upsert an AX Model
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/ax/models/{name}`
+
+Read an AX Model
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `DELETE /api/ax/models/{name}`
+
+Delete an AX Model
+
+Auth: operatorCookie or operatorBearer Responses: `204`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `POST /api/ax/tasks/{name}/suspend`
+
+suspend an AX task
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `POST /api/ax/tasks/{name}/resume`
+
+resume an AX task
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `GET /api/ax/tasks/{name}/egress`
+
+Read the AX task actor egress policy
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `PUT /api/ax/tasks/{name}/egress`
+
+Create or conditionally replace the AX task actor egress policy
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `201`, `400`, `403`, `404`, `409`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/ax/tasks/{name}/runs/{runId}`
+
+Inspect an AX command result
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `413`, `502`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+| `runId` | path | yes | string |
+
+## `GET /api/ax/tasks/{name}/runs/{runId}/output/{stream}`
+
+Read bounded AX command output
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `413`, `502`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+| `runId` | path | yes | string |
+| `stream` | path | yes | stdout, stderr |
+
+## `GET /api/ax/tenants`
+
+List registered AX tenant bindings
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `500`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `limit` | query | no | integer |
+| `offset` | query | no | integer |
+
+## `POST /api/ax/tenants`
+
+Register an immutable SSO organization runtime binding
+
+Auth: operatorCookie or operatorBearer Responses: `201`, `400`, `403`, `404`, `409`, `500`, `503`, `504`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/ax/tenants/audit`
+
+Read AX tenant registry audit events
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `500`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `limit` | query | no | integer |
+| `offset` | query | no | integer |
+
+## `GET /api/ax/tenants/{id}`
+
+Read an AX tenant binding
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `500`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PATCH /api/ax/tenants/{id}`
+
+Activate or disable an AX tenant binding
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `400`, `403`, `404`, `409`, `500`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/ax/tenants/{id}/projects`
+
+Bind a provider project to an AX tenant
+
+Auth: operatorCookie or operatorBearer Responses: `201`, `400`, `403`, `404`, `409`, `500`, `503`, `504`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/projects/{id}/ax-runs`
+
+Create an AX run awaiting signed approval
+
+Auth: operatorCookie or operatorBearer Responses: `202`, `400`, `401`, `403`, `404`, `409`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/projects/{id}/deployments/{deploymentId}/ax-approval`
+
+Verify a run-scoped SSO delegation and enqueue the AX run
+
+Auth: operatorCookie or operatorBearer Responses: `202`, `400`, `401`, `403`, `404`, `409`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `deploymentId` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/key`
+
+AX data key
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `201`, `202`, `204`, `400`, `401`, `403`, `404`, `409`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `deploymentId` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/grants`
+
+AX data grants
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `201`, `202`, `204`, `400`, `401`, `403`, `404`, `409`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `deploymentId` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/revoke`
+
+AX data revoke
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `201`, `202`, `204`, `400`, `401`, `403`, `404`, `409`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `deploymentId` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/projects/{id}/deployments/{deploymentId}/ax-data/ready`
+
+AX data ready
+
+Auth: operatorCookie or operatorBearer Responses: `200`, `201`, `202`, `204`, `400`, `401`, `403`, `404`, `409`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `deploymentId` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/ax/runs/{deploymentId}/data/{grantId}/files/{referenceId}`
+
+Read an admitted AinDrive file from an AX workload
+
+Auth: operatorBearer Responses: `200`, `400`, `401`, `403`, `413`, `429`, `502`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `deploymentId` | path | yes | string |
+| `grantId` | path | yes | string |
+| `referenceId` | path | yes | string |
+
+## `POST /api/ax/runs/{deploymentId}/v1/chat/completions`
+
+Invoke a delegated model from an authenticated AX workload
+
+Auth: operatorBearer Responses: `200`, `400`, `401`, `403`, `429`, `502`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `deploymentId` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
 ## `GET /api/shared-agents`
 
 Agents this node runs or proxies, in the cross-product registry shape (contract 1.0)
@@ -32,6 +742,38 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 Body: application/json (required). See OpenAPI for fields.
 
+## `GET /api/agent-aliases/{name}`
+
+Resolve an agent alias (or id) to the agent's canonical id
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `name` | path | yes | string |
+
+## `PUT /api/agents/{id}/alias`
+
+Give an agent a readable alias (replaces its current one)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/agents/{id}/alias`
+
+Remove an agent's alias
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
 ## `GET /api/shared-agents/events`
 
 Changes to the shared agent registry since a cursor (contract 1.0)
@@ -44,7 +786,7 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 ## `GET /api/models`
 
-Configured models and current backend availability
+Models this node or a fresh peer serves, and whether a call would be answered
 
 Auth: No security scheme declared; check required headers below. Responses: `200`.
 
@@ -64,11 +806,35 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 Body: application/json (required). See OpenAPI for fields.
 
+## `POST /api/run`
+
+Run one script in the hosted-agent sandbox and stream its output
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `413`, `429`, `503`.
+
+Body: application/json (required). See OpenAPI for fields.
+
 ## `POST /api/decide`
 
-Free decision trial on a configured decision backend (Jev/SystemOne)
+Free SystemOne decision trial
 
-Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `503`.
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `422`, `503`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /v1/audio/transcription-sessions`
+
+Create a one-use native streaming ASR WebSocket session
+
+Auth: modelBearer Responses: `201`, `400`, `401`, `403`, `429`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /v1/systemone`
+
+SystemOne decision with a caller API key
+
+Auth: modelBearer Responses: `200`, `400`, `401`, `422`, `503`.
 
 Body: application/json (required). See OpenAPI for fields.
 
@@ -1117,6 +1883,1036 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 |---|---|---|---|
 | `id` | path | yes | string |
 
+## `GET /api/projects`
+
+The caller's projects
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+## `POST /api/projects`
+
+Bind an aindrive git repository as a project
+
+Auth: No security scheme declared; check required headers below. Responses: `201`.
+
+Body: application/json. See OpenAPI for fields.
+
+## `GET /api/projects/{id}/domains`
+
+List app domains and required DNS records (project owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/projects/{id}/domains`
+
+Claim a custom domain for a web app (project owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/projects/{id}/app-login`
+
+Sign in to an org-private app on its own domain (the member gate)
+
+Auth: No security scheme declared; check required headers below. Responses: `302`, `400`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `return` | query | yes | string |
+
+## `PATCH /api/projects/{id}/domains/default`
+
+Change the automatically assigned app address (project owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/projects/{id}/domains/{hostname}/check`
+
+Recheck app domain DNS (project owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `hostname` | path | yes | string |
+
+## `DELETE /api/projects/{id}/domains/{hostname}`
+
+Remove a custom domain (project owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `204`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `hostname` | path | yes | string |
+
+## `GET /api/projects/by-repo`
+
+The project bound to a repository (what aindrive's UI shows next to a repo)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `repo` | query | yes | string |
+
+## `GET /api/projects/by-name`
+
+The project at `/&lt;org&gt;/&lt;repo&gt;` — the page's own lookup
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `org` | query | yes | string |
+| `repo` | query | yes | string |
+
+## `GET /api/orgs/{org}/projects`
+
+Every project of an organization slug — the `/&lt;org&gt;` page
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `org` | path | yes | string |
+
+## `GET /api/orgs/{org}/repositories`
+
+The organization's drive `repositories/` folder as aindrive lists it (so `/&lt;org&gt;` shows a repo before its first push)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `502`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `org` | path | yes | string |
+
+## `GET /api/projects/{id}`
+
+One project — the view for whoever may see it, `owner` and `hookUrl` for its owner
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `DELETE /api/projects/{id}`
+
+Remove a project with its deployments, logs and secrets (owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/projects/{id}/secrets`
+
+A project's secrets — names and when each was set, never values (owner or org writer)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/projects/{id}/secrets/{name}`
+
+Set or replace one project secret (owner or org writer)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `201`, `400`, `403`, `404`, `409`, `413`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+| `redeploy` | query | no | 1, true |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/projects/{id}/secrets/{name}`
+
+Remove one project secret (owner or org writer)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+| `redeploy` | query | no | 1, true |
+
+## `GET /api/operations/projects`
+
+Find operational records by original cloud project or repository
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `q` | query | no | string |
+
+## `GET /api/projects/{id}/operations`
+
+Read private operational provenance and dated verification evidence
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/projects/{id}/operations`
+
+Replace operational provenance with optimistic concurrency (owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `PATCH /api/projects/{id}/presentation`
+
+Rename the project or change how it is shown (owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PATCH /api/projects/{id}/rotate-secret`
+
+A new webhook secret, shown once (owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/projects/{id}/runs`
+
+Ad-hoc runs of a script project, newest first (readable as the project is)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/projects/{id}/runs`
+
+Run the branch's HEAD now, with your entry, inputs and env — owner or a member of the repository's organization
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `403`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json. See OpenAPI for fields.
+
+## `GET /api/projects/{id}/triggers`
+
+The installed triggers of a script project (readable as the project is)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/projects/{id}/triggers/{name}/enable`
+
+Enable a trigger — owner or organization member
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+
+## `POST /api/projects/{id}/triggers/{name}/disable`
+
+Disable a trigger — owner or organization member
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+
+## `POST /api/projects/{id}/triggers/{name}/rotate-token`
+
+A new fire token for an http or ain trigger, shown once — owner or organization member
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+
+## `POST /api/projects/{id}/triggers/{name}/run`
+
+Fire a trigger by hand with a synthetic event — owner or organization member
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+
+## `GET /api/projects/{id}/triggers/{name}/ain-rule`
+
+The AIN DB `.function` rule that makes the chain call an ain trigger — owner or organization member
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+
+## `POST /api/projects/{id}/triggers/{name}/ain-rule/install`
+
+Set the ain rule on chain with the organization's AIN service key — an admin of the owning organization
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`, `409`, `429`, `502`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+
+## `POST /api/projects/{id}/triggers/{name}/fire`
+
+Fire an http or ain trigger — the webhook URL, and what the AIN blockchain's `_function` calls
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `202`, `400`, `401`, `403`, `404`, `409`, `413`, `429`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `name` | path | yes | string |
+| `token` | query | no | string |
+
+Body: application/json, text/plain. See OpenAPI for fields.
+
+## `POST /api/deployments/{id}/redeploy`
+
+Deploy this commit again (Redeploy; a service's roll-back to this one) — owner or organization member
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `403`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/projects/{id}/hook`
+
+The push webhook aindrive calls after a successful git-receive-pack
+
+Auth: No security scheme declared; check required headers below. Responses: `202`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json. See OpenAPI for fields.
+
+## `GET /api/projects/{id}/deployments`
+
+A project's deployments (pushes and redeploys), newest first — readable as the project is
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/deployments/{id}`
+
+One deployment or run (readable as its project is)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/projects/{id}/run`
+
+Stream a selected repository version for the viewer
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `404`, `409`, `502`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json. See OpenAPI for fields.
+
+## `POST /api/projects/{id}/redeploy`
+
+Deploy the project's newest commit again (owner only)
+
+Auth: No security scheme declared; check required headers below. Responses: `202`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/projects/{id}/github-sync`
+
+The project's GitHub upstream and the sync's last status (owner or organization member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/projects/{id}/github-sync`
+
+Keep the project in sync with a GitHub repository (owner or organization member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `DELETE /api/projects/{id}/github-sync`
+
+Pause the GitHub sync of the project's repository (owner or organization member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/projects/{id}/github-sync`
+
+Sync from GitHub now (owner or organization member)
+
+Auth: No security scheme declared; check required headers below. Responses: `202`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/github-imports`
+
+Import a GitHub repository: create its AIN Drive repository, deploy it and keep it in sync (organization member)
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `400`, `401`, `403`, `409`, `422`, `429`, `502`, `503`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/github-imports/{org}/{repo}`
+
+How an import is going: the request, the sync job's last status, the project once bound (organization member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`, `404`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `org` | path | yes | string |
+| `repo` | path | yes | string |
+
+## `DELETE /api/github-imports/{org}/{repo}`
+
+Withdraw an import that has not become a project (organization member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`, `404`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `org` | path | yes | string |
+| `repo` | path | yes | string |
+
+## `GET /api/github-sync/roster`
+
+The repositories projects asked to keep in sync (sync job, operator token)
+
+Auth: operatorBearer Responses: `200`.
+
+## `POST /api/github-sync/status`
+
+Report sync results per repository (sync job, operator token)
+
+Auth: operatorBearer Responses: `200`.
+
+## `GET /api/github-sync/requests`
+
+Take the pending "Sync from GitHub now" requests (sync job, operator token)
+
+Auth: operatorBearer Responses: `200`.
+
+## `GET /api/ainui/snippet`
+
+The AIN-UI link snippet of a project page URL (what a chat shows when the URL is pasted)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `url` | query | no | string |
+| `path` | query | no | string |
+
+## `GET /api/deployments/{id}/log`
+
+The captured log: text once over, SSE (`log` chunks, then `done`) while queued or building
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/deployments/{id}/output`
+
+The script's stdout alone, for a ready deployment
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/projects/{id}/requests`
+
+What visitors asked the running app through this node (owner or member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `tail` | query | no | integer |
+| `since` | query | no | integer |
+
+## `GET /api/projects/{id}/runtime-logs`
+
+The running service's own stdout/stderr, wherever it was placed (owner or member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`, `404`, `502`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `allowCached` | query | no | 1 |
+| `id` | path | yes | string |
+| `tail` | query | no | integer |
+| `since` | query | no | string |
+
+## `GET /api/orgs/{id}/issues`
+
+The organization's issues: failed deployments and runs, agents not answering, what monitors reported (org read)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `status` | query | no | unresolved, resolved, ignored, all |
+| `kind` | query | no | string |
+| `limit` | query | no | integer |
+
+## `POST /api/orgs/{id}/issues/ingest`
+
+Record an event from an external monitor — a site down, the model not answering (org write)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `201`, `400`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/issues/{iid}`
+
+One issue with its events (org read)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `iid` | path | yes | string |
+
+## `POST /api/issues/{iid}/status`
+
+Resolve, ignore or re-open an issue (org write)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `403`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `iid` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/projects/{id}/issues`
+
+The project's issues: its failed deployments and runs grouped by cause
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+| `status` | query | no | unresolved, resolved, ignored, all |
+
+## `GET /api/orgs/{id}/stores`
+
+The organization's stores, its backup target and this node's limits (org read)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/orgs/{id}/stores`
+
+Create a store (org write) — provisioned in the background, poll its status
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `403`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/stores/{sid}`
+
+One store with its attachments, health and usage (org read)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `PATCH /api/stores/{sid}`
+
+Change a store's backup settings or name (org write), or its resources (admin)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `202`, `400`, `403`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/stores/{sid}`
+
+Delete a store (admin): refused while connected; name confirm; final backup; data to the trash for 30 days
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `400`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/stores/{sid}/start`
+
+Start a stopped store (admin)
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `POST /api/stores/{sid}/stop`
+
+Stop a store (admin) — connected projects fail to deploy until it is started
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `POST /api/stores/{sid}/retry`
+
+Provision again a store whose first provisioning failed (admin, or the node operator)
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `POST /api/stores/{sid}/recreate`
+
+Recreate the container (admin): the next generation on the same volume and alias
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `POST /api/stores/{sid}/attachments`
+
+Connect a project to the store (org write and project writer); `?redeploy=1` queues the redeploy that delivers the env
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `201`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `redeploy` | query | no | 1, true |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/stores/{sid}/attachments/{projectId}`
+
+Disconnect a project (org write and project writer); `?redeploy=1` queues the redeploy that removes the env
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `projectId` | path | yes | string |
+| `redeploy` | query | no | 1, true |
+
+## `POST /api/stores/{sid}/reveal`
+
+The connection env, once (org write) — logged
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+Body: application/json. See OpenAPI for fields.
+
+## `POST /api/stores/{sid}/rotate`
+
+New credentials (admin): a pre-rotate backup, new passwords/keys, every connected project redeployed
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `all` | query | no | 1, true |
+
+## `GET /api/stores/{sid}/tables`
+
+Data browser: the tables of a Postgres database (org write)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `database` | query | no | string |
+
+## `GET /api/stores/{sid}/tables/{schema}/{table}/rows`
+
+Data browser: a page of rows (org write)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `schema` | path | yes | string |
+| `table` | path | yes | string |
+| `database` | query | no | string |
+| `limit` | query | no | integer |
+| `offset` | query | no | integer |
+| `order` | query | no | string |
+| `dir` | query | no | asc, desc |
+
+## `POST /api/stores/{sid}/query`
+
+Data browser: one read-only statement (org write) — 10 s, 200 rows
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `408`, `413`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/stores/{sid}/objects`
+
+Data browser: the objects of a Blob store under a prefix (org write)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `prefix` | query | no | string |
+| `after` | query | no | string |
+| `limit` | query | no | integer |
+
+## `GET /api/stores/{sid}/objects/download`
+
+Data browser: download one object (org write), at most 256 MiB through the node
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`, `413`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `key` | query | yes | string |
+
+## `GET /api/stores/{sid}/backups`
+
+The store's backups, newest first, with its schedule and the organization's drive target (org read)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `POST /api/stores/{sid}/backups`
+
+Back up now (org write) — 202, idempotent while one runs
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `DELETE /api/stores/{sid}/backups/{bk}`
+
+Delete a backup on the NAS and the drive (admin)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `bk` | path | yes | string |
+
+## `POST /api/stores/{sid}/restore`
+
+Restore a backup into a new store (default) or in place with a 7-day undo (admin)
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `400`, `404`, `409`, `422`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/stores/{sid}/restore/undo`
+
+Undo the newest in-place restore (admin): the kept database comes back, the restored one is set aside
+
+Auth: No security scheme declared; check required headers below. Responses: `202`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+
+## `GET /api/stores/{sid}/logs`
+
+The store container's own log (org write)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `sid` | path | yes | string |
+| `tail` | query | no | integer |
+
+## `GET /api/storage/orgs`
+
+Which organizations may use storage on this node (operator)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `503`.
+
+## `GET /api/orgs/{id}/storage/access`
+
+Whether the organization may use storage, and why (operator)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/orgs/{id}/storage/access`
+
+Admit the organization to storage at run time (operator) — no unit edit, no restart
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `DELETE /api/orgs/{id}/storage/access`
+
+Take a run-time grant away (operator)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `PUT /api/orgs/{id}/storage/backup-target`
+
+Set the organization's AinDrive backup target (admin): a drive id and an AinDrive grant
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `502`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `DELETE /api/orgs/{id}/storage/backup-target`
+
+Clear the backup target (admin) — backups stay on the NAS only
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/orgs/{id}/storage/backup-target/connect`
+
+Connect AinDrive as the backup target (admin): the AinDrive consent URL to open
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `502`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `POST /api/storage/aindrive/callback`
+
+Finish connecting AinDrive (admin of the organization that started it)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `502`.
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/projects/{id}/storage`
+
+The project's Storage tab: connected stores, what ainize.json declares, what is missing (owner or member)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /svc/{projectId}/{path}`
+
+A project's running service or Next.js container (any method)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `projectId` | path | yes | string |
+| `path` | path | yes | string |
+
+## `GET /api/agent-archives`
+
+List your privately retained deleted agents
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `limit` | query | no | integer |
+| `offset` | query | no | integer |
+
+## `GET /api/agent-archives/{id}`
+
+Read your archived spec, reviews and execution evidence
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `DELETE /api/agent-archives/{id}`
+
+Permanently remove an exported archive
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/agent-archives/{id}/restore`
+
+Restore your deleted agent at the same address
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `403`, `404`, `409`, `429`, `501`, `502`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/agent-archives/{id}/export`
+
+Download your complete deleted-agent archive
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `404`, `502`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
 ## `GET /api/hosted-agents`
 
 Hosted agents — agents this node runs
@@ -1132,7 +2928,7 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 Create a hosted agent
 
-Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `409`, `429`, `501`.
+Auth: No security scheme declared; check required headers below. Responses: `201`, `400`, `401`, `409`, `413`, `429`, `501`.
 
 Body: application/json (required). See OpenAPI for fields.
 
@@ -1150,7 +2946,7 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change
 
-Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `403`, `404`.
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `403`, `404`, `413`.
 
 | Parameter | In | Required | Type |
 |---|---|---|---|
@@ -1178,6 +2974,152 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 |---|---|---|---|
 | `id` | path | yes | string |
 | `name` | path | yes | string |
+
+## `GET /agents/{id}/.well-known/agent-card.json`
+
+Read the A2A card; bound AINFT agents advertise current-holder authentication
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+## `POST /agents/{id}`
+
+Call an A2A agent; a bound AINFT executes in the current holder’s private workspace
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`, `409`.
+
+## `GET /api/hosted-agents/{id}/ainft-binding`
+
+Read the verified AINFT registration snapshot for a visible agent
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `POST /api/hosted-agents/{id}/ainft-binding`
+
+Verify Factory wallet indexing and persist a token binding — agent creator only
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `401`, `403`, `409`, `503`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+Body: application/json (required). See OpenAPI for fields.
+
+## `GET /api/hosted-agents/{id}/holder-access`
+
+Check the signed-in native wallet against current on-chain AINFT ownership
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`.
+
+## `GET /api/hosted-agents/{id}/companion`
+
+Read the current holder’s private persisted tasks, memories and activity experience
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `401`, `403`.
+
+## `POST /api/hosted-agents/{id}/companion/tasks`
+
+Queue idempotent private chat or work; body: key, kind (chat/task), input
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `202`, `403`, `409`.
+
+## `POST /api/hosted-agents/{id}/companion/tasks/{taskId}/cancel`
+
+Cancel queued work; already running work cannot claim safe cancellation
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `409`.
+
+## `POST /api/hosted-agents/{id}/companion/memories`
+
+Propose private memory from a completed task; body: sourceTask, text
+
+Auth: No security scheme declared; check required headers below. Responses: `201`, `403`, `409`.
+
+## `POST /api/hosted-agents/{id}/ainft-community`
+
+Creator configures the existing Factory community and credit symbol for the current bound release.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `403`, `409`.
+
+## `GET /api/hosted-agents/{id}/companion/credits`
+
+Current holder reads the configured Factory credit community, binding chain and configuration version; no-store.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `409`.
+
+## `POST /api/hosted-agents/{id}/companion/learning/examples`
+
+Save a holder-reviewed private question and answer sourced from approved memory; body: key, memoryId, prompt (up to 400 characters), answer (up to 200), optional altPrompt (a different reviewed evaluation question, up to 400), consent:true.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `201`, `400`, `403`, `409`.
+
+## `GET /api/hosted-agents/{id}/companion/learning`
+
+Read exact-model local training capability and this holder’s persisted training jobs; no-store.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`.
+
+## `GET /api/hosted-agents/{id}/companion/learning/runs/{runId}/publication-challenge`
+
+Get the existing Teach signed publication claim for this holder’s READY lesson.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `409`.
+
+## `POST /api/hosted-agents/{id}/companion/learning/runs/{runId}/publish`
+
+Submit a private lesson for shared publication using TeachWorker’s signature verification and operator review policy.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `202`, `400`, `403`, `409`, `503`.
+
+## `POST /api/hosted-agents/{id}/companion/learning/select`
+
+Choose a READY private lesson for subsequent holder conversations, or runId:null to restore base behavior; body: key, runId, model, consent:true.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `400`, `403`, `409`.
+
+## `POST /api/hosted-agents/{id}/companion/learning/train`
+
+Submit reviewed examples to real compatible TeachWorker; body: key, exampleIds[], model, consent:true.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `202`, `400`, `403`, `409`, `503`.
+
+## `POST /api/hosted-agents/{id}/companion/learning/examples/{exampleId}/withdraw`
+
+Withdraw a private learning example.
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+## `POST /api/hosted-agents/{id}/companion/memories/{memoryId}/revoke`
+
+Withdraw approved private memory from future memory context; existing conversation records remain
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+## `POST /api/hosted-agents/{id}/companion/memories/{memoryId}/decision`
+
+Approve or reject private memory; body: approve boolean
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`.
+
+## `GET /api/hosted-agents/{id}/ainft-metadata`
+
+Export wallet-compatible native AINFT metadata; does not mint or register a token
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `404`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
+
+## `GET /api/ainft/avatar.svg`
+
+Public default avatar for Ainize AINFT metadata
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
 
 ## `GET /api/hosted-agents/{id}/logs`
 
@@ -1280,6 +3222,16 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 |---|---|---|---|
 | `id` | path | yes | string |
 | `principal` | path | yes | string |
+
+## `PUT /api/orgs/{id}/sso-link`
+
+Operator: join the organization to the AIN SSO organization of the same slug
+
+Auth: No security scheme declared; check required headers below. Responses: `200`, `403`, `404`, `409`.
+
+| Parameter | In | Required | Type |
+|---|---|---|---|
+| `id` | path | yes | string |
 
 ## `POST /api/orgs/{id}/join`
 
@@ -1540,6 +3492,12 @@ Auth: operatorCookie or operatorBearer Responses: `200`.
 
 Body: application/json. See OpenAPI for fields.
 
+## `POST /api/auth/aindrive/git-token`
+
+A 15-minute AinDrive git credential for the signed-in AIN account (what `ainize deploy` pushes with)
+
+Auth: No security scheme declared; check required headers below. Responses: `200`.
+
 ## `GET /api/auth/me`
 
 Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits; `sso` is an AIN SSO session, `site` a Google account the site vouches for (x-ainize-site-subject)
@@ -1682,7 +3640,7 @@ Auth: No security scheme declared; check required headers below. Responses: `200
 
 ## `GET /api/docs`
 
-OpenAPI + CLI reference bundle for the web /docs page
+Where the reference is: the GitHub address of docs/reference/ and of this document
 
 Auth: No security scheme declared; check required headers below. Responses: `200`.
 

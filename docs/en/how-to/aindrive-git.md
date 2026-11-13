@@ -83,6 +83,9 @@ Many teams keep their repository on GitHub — reviews, Actions, history — and
 The **GitHub → AinDrive sync** does that: `main` is mirrored to AinDrive `main` (merged on top of the AinDrive-only
 commits such as `ainize.json`), `develop` to `develop`, and the deployment follows as it would after any AinDrive push.
 
+Is the repository only on GitHub so far? [Deploy a GitHub repository](./deploy-from-github.md) creates the AinDrive
+repository and the project and turns this sync on, from one form. What follows is for a project that already exists.
+
 ### Turn it on for your project
 
 The project's owner or any member of its organization sets it up — no operator, no server login:

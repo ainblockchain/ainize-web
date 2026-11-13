@@ -340,6 +340,36 @@ export function connectParamsOf(search: string, aindriveOrigin = AINDRIVE_URL): 
   return { repo, driveId, returnTo };
 }
 
+/**
+ * `owner/repo` when the text names a GitHub repository — `https://github.com/owner/repo(.git)`, `git@github.com:owner/repo.git`
+ * or a bare `owner/repo` — else null. The same reading as the node's (ainize-node project-github-sync.ts `parseGithubRepo`).
+ */
+export function githubRepoOf(input: string): string | null {
+  const m = /^(?:https:\/\/(?:www\.)?github\.com\/|git@github\.com:)?([^/\s:]+)\/([^/\s]+?)(?:\.git)?\/?$/.exec(input.trim());
+  const part = /^[A-Za-z0-9_.-]{1,100}$/;
+  if (!m || !part.test(m[1]) || !part.test(m[2]) || /^\.{1,2}$/.test(m[1]) || /^\.{1,2}$/.test(m[2])) return null;
+  return `${m[1]}/${m[2]}`;
+}
+/** A name AIN Drive may create a repository under (ainize-node `validImportName`). */
+export function importNameLooksRight(name: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(name) && !name.endsWith('.git') && !name.endsWith('.') && !name.includes('..');
+}
+/** `POST /api/github-imports` — a GitHub repository that has no AIN Drive copy yet (ainize-node docs/PROJECTS.md "Import from GitHub"). */
+export interface GithubImportInput { repo: string; branch?: string; org: string; name?: string; manifest?: string }
+export interface GithubImport { org: string; repo: string; aindriveUrl: string; github: string; githubUrl: string; branch: string; visibility: 'public' | 'private'; manifest: boolean; requestedAt: string; pageUrl: string }
+/** `GET /api/github-imports/:org/:repo`: the request while it waits, what the sync job last said, the project once bound. */
+export interface GithubImportView { import: GithubImport | null; status: GithubSyncStatus | null; project: { id: string; pageUrl: string } | null }
+/** `{ org, repo }` of `?import=<org>/<repo>` — the address an import's progress keeps while the page is reloaded. */
+export function importParamOf(search: string): { org: string; repo: string } | null {
+  const m = /^([A-Za-z0-9][A-Za-z0-9._-]{0,99})\/([^/]+)$/.exec(new URLSearchParams(search).get('import') ?? '');
+  return m && importNameLooksRight(m[2]) ? { org: m[1], repo: m[2] } : null;
+}
+/** The node's error code as sent, also one this app has no message for. */
+export function apiErrorCodeOf(err: unknown): string | null {
+  const code = ((err as { data?: { error?: { code?: unknown } } } | null)?.data?.error as { code?: unknown } | undefined)?.code;
+  return typeof code === 'string' && /^[a-z0-9_]{1,60}$/.test(code) ? code : null;
+}
+
 /** Is this an aindrive git URL the node will accept? (`/<org>/git/<repo>` or `/api/drives/<id>/git/<path>`, https.) */
 export function repoUrlLooksRight(repo: string): boolean {
   try {

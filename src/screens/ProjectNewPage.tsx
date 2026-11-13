@@ -7,14 +7,20 @@
  * with the person's aindrive session, so a push there calls the hook here) and returns to the drive. If aindrive
  * does not take the secret, it is shown — once — with the hook URL, because the node never shows it again.
  *
+ * A third: the person types a GITHUB repository. There is no AIN Drive repository to bind yet, so the form asks which
+ * organization's drive gets it and the node's import does the rest (components/ProjectGithubImport.tsx): the sync job
+ * creates the AIN Drive repository, aindrive binds the project, and the page — at `?import=<org>/<repo>` meanwhile —
+ * moves on to the project when it exists.
+ *
  * Sign-in is checked here so the hand-off form keeps its own loading state. The shared signInHref helper
  * preserves the repository query string and anchor through authentication.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
-import { useCreateProjectMutation } from '@/api/api';
-import { connectParamsOf, connectRepoOnAindrive, projectApiErrorOf, repoLabelOf, repoUrlLooksRight, type ProjectCreated } from '@/api/projects';
+import { useCreateProjectMutation, useImportFromGithubMutation } from '@/api/api';
+import { apiErrorCodeOf, connectParamsOf, connectRepoOnAindrive, githubRepoOf, importNameLooksRight, importParamOf, projectApiErrorOf, repoLabelOf, repoUrlLooksRight, type ProjectCreated } from '@/api/projects';
+import { GithubImportFields, GithubImportProgress, importErrorText, type ImportDraft } from '@/components/ProjectGithubImport';
 import { signInHref } from '@/lib/uiNavigation';
 import { projectPath } from '@/lib/reservedRoutes';
 import { useAuth } from '@/auth/AuthContext';
@@ -41,8 +47,14 @@ export default function ProjectNewPage() {
   const { search } = location;
   const navigate = useNavigate();
   const params = useMemo(() => connectParamsOf(search), [search]);
-  const [repo, setRepo] = useState(params.repo ?? '');
-  const [branch, setBranch] = useState('main');
+  const importing = useMemo(() => importParamOf(search), [search]);
+  // A failed import comes back here with what was asked, to be sent again with an ainize.json.
+  const again = (location.state as { importDraft?: { repo: string; branch: string; org: string; name: string } } | null)?.importDraft ?? null;
+  const [repo, setRepo] = useState(params.repo ?? again?.repo ?? '');
+  const [branch, setBranch] = useState(again?.branch ?? 'main');
+  const [draft, setDraft] = useState<ImportDraft>({ org: again?.org ?? '', name: again?.name ?? '', manifest: '' });
+  const [askManifest, setAskManifest] = useState(!!again);
+  const [importRepo, { isLoading: importingNow }] = useImportFromGithubMutation();
   const [token, setToken] = useState('');
   const [create, { isLoading: creating }] = useCreateProjectMutation();
   const [error, setError] = useState<string | null>(null);
@@ -61,12 +73,36 @@ export default function ProjectNewPage() {
   if (loading) return <PageWrapper><CenterProgress /></PageWrapper>;
   if (!isSignedIn) return <Navigate to={signInHref(location)} replace />;
 
+  if (importing) return (
+    <PageWrapper>
+      <TitleRow><Title>{t('projects.import.title')}</Title></TitleRow>
+      <GithubImportProgress org={importing.org} repo={importing.repo} />
+    </PageWrapper>
+  );
+
   const repoOk = repoUrlLooksRight(repo.trim());
+  // A GitHub repository (never when aindrive opened this page for one of its own).
+  const github = !fromAindrive && !repoOk ? githubRepoOf(repo) : null;
+  const importName = draft.name || github?.split('/')[1] || '';
+  const importReady = !!github && !!draft.org && importNameLooksRight(importName);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setTaken(false);
+    if (github) {
+      if (!importReady) return;
+      try {
+        await importRepo({ repo: github, branch: branch.trim() || 'main', org: draft.org, name: importName, ...(draft.manifest.trim() ? { manifest: draft.manifest } : {}) }).unwrap();
+      } catch (err) {
+        const code = apiErrorCodeOf(err);
+        if (code === 'manifest_required' || code === 'invalid_manifest') setAskManifest(true);
+        setError(importErrorText(t, err));
+        return;
+      }
+      navigate(`/projects/new?import=${encodeURIComponent(draft.org)}/${encodeURIComponent(importName)}`, { replace: true });
+      return;
+    }
     if (!repoOk) { setError(t('projects.new.repo_bad')); return; }
     let project: ProjectCreated;
     try {
@@ -112,15 +148,17 @@ export default function ProjectNewPage() {
 
   return (
     <PageWrapper>
-      <TitleRow><Title>{t('projects.new.title')}</Title></TitleRow>
+      <TitleRow><Title>{t(github ? 'projects.import.title' : 'projects.new.title')}</Title></TitleRow>
       <Description>{t('projects.new.lede')}</Description>
       {fromAindrive && <Alert $tone="info">{t('projects.new.from_aindrive')}</Alert>}
       <Form onSubmit={submit}>
-        <TextField label={t('projects.new.repo')} value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="https://aindrive.ainetwork.ai/<org>/git/<repo>" helper={repo && !repoOk ? t('projects.new.repo_bad') : repo ? repoLabelOf(repo) : t('projects.new.repo_help')} error={!!repo && !repoOk} readOnly={fromAindrive && !!params.repo} spellCheck={false} />
+        <TextField label={t('projects.new.repo')} value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="https://github.com/<owner>/<repo>" helper={github ? `github.com/${github}` : repo && !repoOk ? t('projects.new.repo_bad') : repo ? repoLabelOf(repo) : t('projects.new.repo_help')} error={!!repo && !repoOk && !github} readOnly={fromAindrive && !!params.repo} spellCheck={false} />
         <FormRow>
           <TextField label={t('projects.new.branch')} value={branch} onChange={(e) => setBranch(e.target.value)} spellCheck={false} />
         </FormRow>
-        <TextField label={t('projects.new.token')} type="password" value={token} onChange={(e) => setToken(e.target.value)} helper={t('projects.new.token_help')} autoComplete="off" />
+        {github
+          ? <GithubImportFields draft={draft} onChange={setDraft} nameDefault={github.split('/')[1]} askManifest={askManifest} />
+          : <TextField label={t('projects.new.token')} type="password" value={token} onChange={(e) => setToken(e.target.value)} helper={t('projects.new.token_help')} autoComplete="off" />}
         {error && <Alert $tone="error">{error}</Alert>}
         {taken && (
           <Alert $tone="warning">
@@ -129,7 +167,9 @@ export default function ProjectNewPage() {
           </Alert>
         )}
         <Actions>
-          <Button type="submit" variant="contained" loading={creating} loadingText={t('projects.new.creating')} disabled={!repo.trim()}>{t('projects.new.create')}</Button>
+          {github
+            ? <Button type="submit" variant="contained" loading={importingNow} loadingText={t('projects.import.submitting')} disabled={!importReady}>{t('projects.import.submit')}</Button>
+            : <Button type="submit" variant="contained" loading={creating} loadingText={t('projects.new.creating')} disabled={!repo.trim()}>{t('projects.new.create')}</Button>}
         </Actions>
       </Form>
     </PageWrapper>
