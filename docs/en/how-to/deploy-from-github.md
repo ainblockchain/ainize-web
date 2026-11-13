@@ -1,6 +1,7 @@
 ---
 title: Deploy a GitHub repository
 summary: Paste a GitHub repository's address on ainize and it is deployed — an AinDrive repository is created in your organization's drive, the project appears, and every later merge on GitHub deploys again. No terminal.
+aincode: false
 ---
 
 # Deploy a GitHub repository

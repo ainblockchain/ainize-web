@@ -2,7 +2,8 @@
 title: GitHub 리포 배포하기
 summary: ainize에 GitHub 리포 주소를 넣으면 배포됩니다. 조직 드라이브에 AinDrive 저장소가 만들어지고, 프로젝트가 생기고, 이후 GitHub의 머지마다 다시 배포됩니다. 터미널은 필요 없습니다.
 source: en/how-to/deploy-from-github.md
-source_sha256: a18c376ff2cf50d0a4a145864f139e042c969d1a4bd47ae93891d5b9028fd223
+source_sha256: 89b9c718ad1aa7dc0709a29cc659a438a0347e1a3586d076423227d2cc03e973
+aincode: false
 ---
 
 # GitHub 리포 배포하기
