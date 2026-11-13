@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-368 operations on 304 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+384 operations on 317 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -74,6 +74,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/image`](#post-apiimage) | operator | Free image-generation trial on a configured image backend |
 | `POST` | [`/api/run`](#post-apirun) | operator | Run one script in the hosted-agent sandbox and stream its output |
 | `POST` | [`/api/decide`](#post-apidecide) | operator | Free SystemOne decision trial |
+| `POST` | [`/v1/audio/transcription-sessions`](#post-v1audiotranscription-sessions) | operator | Create a one-use native streaming ASR WebSocket session |
 | `POST` | [`/v1/systemone`](#post-v1systemone) | operator | SystemOne decision with a caller API key |
 
 **Teach** — one pipeline, two doors: a dataset file (uploaded here, or with `ainize teach dataset`) and corrections collected in Live test are both frozen into the same canonical dataset → validated → trained → checked on the live model → a lesson its teacher can keep private or publish as a credited data provider (no sign-in — every request is signed with a teaching key held by the browser or the CLI)
@@ -148,7 +149,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/route`](#get-apiroute) | none | Find the branch and serving nodes for a context (e.g. jurisdiction=KR) |
 | `GET` | [`/api/nodes`](#get-apinodes) | none | Known nodes and peers |
 | `GET` | [`/api/events`](#get-apievents) | none | Node event log |
-| `GET` | [`/api/docs`](#get-apidocs) | none | OpenAPI + CLI reference bundle for the web /docs page |
+| `GET` | [`/api/docs`](#get-apidocs) | none | Where the reference is: the GitHub address of docs/reference/ and of this document |
 | `GET` | [`/api/patches/{id}/events`](#get-apipatchesidevents) | none | Node events about this knowledge (verification logs, sales, live tests) |
 | `GET` | [`/api/openapi.json`](#get-apiopenapijson) | none | This document |
 | `GET` | [`/healthz`](#get-healthz) | none | Liveness: 200 while the process is up |
@@ -158,6 +159,10 @@ See [Error codes](./errors.md) for the full list.
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
+| `GET` | [`/api/orgs/{id}/issues`](#get-apiorgsidissues) | operator | The organization's issues: failed deployments and runs, agents not answering, what monitors reported (org read) |
+| `POST` | [`/api/orgs/{id}/issues/ingest`](#post-apiorgsidissuesingest) | operator | Record an event from an external monitor — a site down, the model not answering (org write) |
+| `GET` | [`/api/issues/{iid}`](#get-apiissuesiid) | operator | One issue with its events (org read) |
+| `POST` | [`/api/issues/{iid}/status`](#post-apiissuesiidstatus) | operator | Resolve, ignore or re-open an issue (org write) |
 | `GET` | [`/api/orgs`](#get-apiorgs) | operator | The organizations the caller is in |
 | `POST` | [`/api/orgs`](#post-apiorgs) | none | Create an organization |
 | `GET` | [`/api/orgs/{id}`](#get-apiorgsid) | none | The organization page — members only |
@@ -167,6 +172,7 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/orgs/{id}/members`](#post-apiorgsidmembers) | none | Add a member by principal — admin |
 | `PUT` | [`/api/orgs/{id}/members/{principal}`](#put-apiorgsidmembersprincipal) | none | Change a member's role — admin; the last admin stays (`last_admin`) |
 | `DELETE` | [`/api/orgs/{id}/members/{principal}`](#delete-apiorgsidmembersprincipal) | none | Remove a member (admin) or leave (anyone) |
+| `PUT` | [`/api/orgs/{id}/sso-link`](#put-apiorgsidsso-link) | operator | Operator: join the organization to the AIN SSO organization of the same slug |
 | `POST` | [`/api/orgs/{id}/join`](#post-apiorgsidjoin) | none | Ask to join |
 | `GET` | [`/api/orgs/{id}/requests`](#get-apiorgsidrequests) | none | Pending join requests — admin |
 | `POST` | [`/api/orgs/{id}/requests/{principal}/approve`](#post-apiorgsidrequestsprincipalapprove) | none | Approve a request — admin |
@@ -322,6 +328,9 @@ See [Error codes](./errors.md) for the full list.
 | `PUT` | [`/api/projects/{id}/github-sync`](#put-apiprojectsidgithub-sync) | operator | Keep the project in sync with a GitHub repository (owner or organization member) |
 | `DELETE` | [`/api/projects/{id}/github-sync`](#delete-apiprojectsidgithub-sync) | operator | Pause the GitHub sync of the project's repository (owner or organization member) |
 | `POST` | [`/api/projects/{id}/github-sync`](#post-apiprojectsidgithub-sync) | operator | Sync from GitHub now (owner or organization member) |
+| `POST` | [`/api/github-imports`](#post-apigithub-imports) | operator | Import a GitHub repository: create its AIN Drive repository, deploy it and keep it in sync (organization member) |
+| `GET` | [`/api/github-imports/{org}/{repo}`](#get-apigithub-importsorgrepo) | operator | How an import is going: the request, the sync job's last status, the project once bound (organization member) |
+| `DELETE` | [`/api/github-imports/{org}/{repo}`](#delete-apigithub-importsorgrepo) | operator | Withdraw an import that has not become a project (organization member) |
 | `GET` | [`/api/github-sync/roster`](#get-apigithub-syncroster) | operator | The repositories projects asked to keep in sync (sync job, operator token) |
 | `POST` | [`/api/github-sync/status`](#post-apigithub-syncstatus) | operator | Report sync results per repository (sync job, operator token) |
 | `GET` | [`/api/github-sync/requests`](#get-apigithub-syncrequests) | operator | Take the pending "Sync from GitHub now" requests (sync job, operator token) |
@@ -330,6 +339,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/deployments/{id}/output`](#get-apideploymentsidoutput) | operator | The script's stdout alone, for a ready deployment |
 | `GET` | [`/api/projects/{id}/requests`](#get-apiprojectsidrequests) | operator | What visitors asked the running app through this node (owner or member) |
 | `GET` | [`/api/projects/{id}/runtime-logs`](#get-apiprojectsidruntime-logs) | operator | The running service's own stdout/stderr, wherever it was placed (owner or member) |
+| `GET` | [`/api/projects/{id}/issues`](#get-apiprojectsidissues) | operator | The project's issues: its failed deployments and runs grouped by cause |
 | `GET` | [`/svc/{projectId}/{path}`](#get-svcprojectidpath) | operator | A project's running service or Next.js container (any method) |
 
 **Storage** — managed Postgres and S3-compatible Blob (RustFS) stores an organization's projects connect to — provisioned by the node as containers on NFS, credentials injected as env, scheduled backups to the organization's AinDrive (docs/PROJECTS.md "Managed storage")
@@ -343,6 +353,7 @@ See [Error codes](./errors.md) for the full list.
 | `DELETE` | [`/api/stores/{sid}`](#delete-apistoressid) | operator | Delete a store (admin): refused while connected; name confirm; final backup; data to the trash for 30 days |
 | `POST` | [`/api/stores/{sid}/start`](#post-apistoressidstart) | operator | Start a stopped store (admin) |
 | `POST` | [`/api/stores/{sid}/stop`](#post-apistoressidstop) | operator | Stop a store (admin) — connected projects fail to deploy until it is started |
+| `POST` | [`/api/stores/{sid}/retry`](#post-apistoressidretry) | operator | Provision again a store whose first provisioning failed (admin, or the node operator) |
 | `POST` | [`/api/stores/{sid}/recreate`](#post-apistoressidrecreate) | operator | Recreate the container (admin): the next generation on the same volume and alias |
 | `POST` | [`/api/stores/{sid}/attachments`](#post-apistoressidattachments) | operator | Connect a project to the store (org write and project writer); `?redeploy=1` queues the redeploy that delivers the env |
 | `DELETE` | [`/api/stores/{sid}/attachments/{projectId}`](#delete-apistoressidattachmentsprojectid) | operator | Disconnect a project (org write and project writer); `?redeploy=1` queues the redeploy that removes the env |
@@ -359,6 +370,10 @@ See [Error codes](./errors.md) for the full list.
 | `POST` | [`/api/stores/{sid}/restore`](#post-apistoressidrestore) | operator | Restore a backup into a new store (default) or in place with a 7-day undo (admin) |
 | `POST` | [`/api/stores/{sid}/restore/undo`](#post-apistoressidrestoreundo) | operator | Undo the newest in-place restore (admin): the kept database comes back, the restored one is set aside |
 | `GET` | [`/api/stores/{sid}/logs`](#get-apistoressidlogs) | operator | The store container's own log (org write) |
+| `GET` | [`/api/storage/orgs`](#get-apistorageorgs) | operator | Which organizations may use storage on this node (operator) |
+| `GET` | [`/api/orgs/{id}/storage/access`](#get-apiorgsidstorageaccess) | operator | Whether the organization may use storage, and why (operator) |
+| `PUT` | [`/api/orgs/{id}/storage/access`](#put-apiorgsidstorageaccess) | operator | Admit the organization to storage at run time (operator) — no unit edit, no restart |
+| `DELETE` | [`/api/orgs/{id}/storage/access`](#delete-apiorgsidstorageaccess) | operator | Take a run-time grant away (operator) |
 | `PUT` | [`/api/orgs/{id}/storage/backup-target`](#put-apiorgsidstoragebackup-target) | operator | Set the organization's AinDrive backup target (admin): a drive id and an AinDrive grant |
 | `DELETE` | [`/api/orgs/{id}/storage/backup-target`](#delete-apiorgsidstoragebackup-target) | operator | Clear the backup target (admin) — backups stay on the NAS only |
 | `POST` | [`/api/orgs/{id}/storage/backup-target/connect`](#post-apiorgsidstoragebackup-targetconnect) | operator | Connect AinDrive as the backup target (admin): the AinDrive consent URL to open |
@@ -429,6 +444,7 @@ See [Error codes](./errors.md) for the full list.
 | `GET` | [`/api/chain`](#get-apichain) | none | Ledger / chain state and balance |
 | `GET` | [`/api/drive`](#get-apidrive) | none | aindrive state and file list |
 | `POST` | [`/api/drive`](#post-apidrive) | operator | aindrive start / stop / sync |
+| `POST` | [`/api/auth/aindrive/git-token`](#post-apiauthaindrivegit-token) | none | A 15-minute AinDrive git credential for the signed-in AIN account (what `ainize deploy` pushes with) |
 | `GET` | [`/api/auth/me`](#get-apiauthme) | none | Who am I — `signedIn` + `subject` is a name, `isOwner` + `scope` is what it permits; `sso` is an AIN SSO session, `site` a Google account the site vouches for (x-ainize-site-subject) |
 | `POST` | [`/api/auth/challenge`](#post-apiauthchallenge) | none | A single-use nonce to sign for sign-in — `scheme` picks the signing rules and is fixed from here on |
 | `POST` | [`/api/auth/wallet`](#post-apiauthwallet) | none | Sign in by signature, under the scheme the challenge was issued for — open to any address; owning the node is a separate question |
@@ -1088,6 +1104,58 @@ Unpaid work is queued behind paying callers on the same backend. choice criteria
 | `404` | model not configured |   |
 | `422` | model-specific validation error |   |
 | `503` | backend unavailable |   |
+
+### `POST /v1/audio/transcription-sessions`
+
+Create a one-use native streaming ASR WebSocket session
+
+Continuous 16 kHz mono PCM16 into confucius4-r2t2 native streaming inference, not repeated offline uploads. Origin-bound credential expires after 15 seconds and opens one WebSocket. Two active model connections, maximum two hours. Keep the API key on the application server. See the stream-speech guide for binary frames, ready/transcript/done/error events, finish and cancellation.
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `model` | `string` | yes |   |
+| `language` | `object` |   |   |
+| `context` | `string` |   | (at most 1000 characters) |
+| `origin` | `string (uri)` | yes | (at most 2048 characters) |
+| `authority` | `object` |   |   |
+| `authority.profile` | `string` | yes |   |
+| `authority.source` | `object` | yes |   |
+| `authority.source.sessionId` | `string (uuid)` | yes |   |
+| `authority.source.userId` | `string (uuid)` | yes |   |
+| `authority.source.epoch` | `string (uuid)` | yes |   |
+| `authority.source.revision` | `integer` | yes | (at most 9007199254740991) |
+| `authority.source.nonce` | `string` | yes |   |
+| `authority.source.expiresAt` | `integer` | yes | (at most 9007199254740991) |
+| `authority.proof` | `string` | yes |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `201` | Session id, websocket_url, one-use token, expires_at, PCM format and max_duration_sec | `object` |
+| `400` | invalid_stream_request or invalid_origin |   |
+| `401` | invalid_api_key |   |
+| `403` | invalid_source_proof |   |
+| `429` | stream_capacity |   |
+
+**`201` response body**
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | `string (uuid)` | yes |
+| `websocket_url` | `string (uri)` | yes |
+| `token` | `string` | yes |
+| `expires_at` | `integer` | yes |
+| `format` | `object` | yes |
+| `format.encoding` | `object` |   |
+| `format.sample_rate` | `object` |   |
+| `format.channels` | `object` |   |
+| `format.frame_ms` | `object` |   |
+| `max_duration_sec` | `object` | yes |
 
 ### `POST /v1/systemone`
 
@@ -2556,7 +2624,7 @@ Node event log
 
 ### `GET /api/docs`
 
-OpenAPI + CLI reference bundle for the web /docs page
+Where the reference is: the GitHub address of docs/reference/ and of this document
 
 **Auth** — none
 
@@ -2637,6 +2705,147 @@ Readiness: 200 when the ledger is reachable and, for a serving/verifier node, th
 ## Organizations
 
 a team's page on this node — README, members and roles (read \< contributor \< write \< admin), invites and join requests, resource groups, audit log. Membership by explicit row, the sign-in's email domain, or a linked AIN SSO organization; the role decides what a member may do with the agents shared with it (`visibility: org`, `orgId`)
+
+### `GET /api/orgs/{id}/issues`
+
+The organization's issues: failed deployments and runs, agents not answering, what monitors reported (org read)
+
+Any role in the organization. One issue per cause (`fingerprint`), with `first_seen`, `last_seen`, `count` and the last 24 hours as `hourly`. `status` filters (default `unresolved`; `all` for every one), `kind` too. `counts` is the badge: `{ unresolved, resolved, ignored }`. A non-member is told 403 `not_member`; 404 on a node without issues.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+| `status` | `query` | `"unresolved"` \| `"resolved"` \| `"ignored"` \| `"all"` |   |   |
+| `kind` | `query` | `string` |   |   |
+| `limit` | `query` | `integer` |   |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the issues | `object` |
+| `401` | `not_signed_in` |   |
+| `403` | `not_member` |   |
+| `404` | `not_found` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `issues` | [`Issue`](./schemas.md#issue)[] |
+| `counts` | `object` |
+
+### `POST /api/orgs/{id}/issues/ingest`
+
+Record an event from an external monitor — a site down, the model not answering (org write)
+
+The same `fingerprint` again is the same issue, counted once more: a monitor posts every failed check and the store groups. A `resolved` issue the event names re-opens; an `ignored` one stays ignored. `projectId`, when given, must be a project of this organization. 201 when the event created the issue, 200 when it added to one.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `kind` | `"deploy_failed"` \| `"run_failed"` \| `"container_down"` \| `"agent_unreachable"` \| `"site_down"` \| `"model_down"` \| `"custom"` |   | (default `"custom"`) |
+| `fingerprint` | `string` | yes | (at most 200 characters) |
+| `title` | `string` | yes | (at most 200 characters) |
+| `culprit` | `string` |   | (at most 300 characters) |
+| `message` | `string` |   | (at most 2000 characters) |
+| `projectId` | `string` \| `null` |   |   |
+| `meta` | `object` |   |   |
+| `at` | `integer` |   | when it happened (ms); default now |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ issue, created, reopened }` | `object` |
+| `201` | the event created the issue |   |
+| `400` | `invalid_request` |   |
+| `403` | `insufficient_role` |   |
+| `404` | `not_found` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `issue` | [`Issue`](./schemas.md#issue) |
+| `created` | `boolean` |
+| `reopened` | `boolean` |
+
+### `GET /api/issues/{iid}`
+
+One issue with its events (org read)
+
+The issue and its last 200 events, newest first. Access is the organization's: an issue that belongs to no organization is reachable only through `GET /api/projects/{id}/issues`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `iid` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the issue | `object` |
+| `403` | `not_member` |   |
+| `404` | `not_found` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `issue` | [`Issue`](./schemas.md#issue) |
+
+### `POST /api/issues/{iid}/status`
+
+Resolve, ignore or re-open an issue (org write)
+
+`{ status: "resolved" | "ignored" | "unresolved" }`. Resolving says it is handled — the next event with the same cause re-opens it (a regression). Ignoring says stop counting it as open — events keep adding to `count`, the status stays.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `iid` | `path` | `string` | yes |
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required |
+|---|---|---|
+| `status` | `"unresolved"` \| `"resolved"` \| `"ignored"` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the issue | `object` |
+| `400` | `invalid_request` |   |
+| `403` | `insufficient_role` |   |
+| `404` | `not_found` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `issue` | [`Issue`](./schemas.md#issue) |
 
 ### `GET /api/orgs`
 
@@ -2841,6 +3050,29 @@ Remove a member (admin) or leave (anyone)
 | Code | Description | Body |
 |---|---|---|
 | `200` | removed | `object` |
+
+### `PUT /api/orgs/{id}/sso-link`
+
+Operator: join the organization to the AIN SSO organization of the same slug
+
+For an organization made here before its AIN SSO organization existed: links the AIN SSO organization provisioned under the same slug, so its members get this organization's roles and its AIN Drive repositories are this organization's projects. Storage records kept under the organization's own id (the run time grant, its stores) follow it to the AIN SSO id. An admin who is a member of the AIN SSO organization links it in the organization settings instead.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | `{ id, sso_org_ids }` |
+| `403` | `not_operator` |
+| `404` | no such organization, or no AIN SSO organization under its slug |
+| `409` | `sso_org_taken` |
 
 ### `POST /api/orgs/{id}/join`
 
@@ -5433,7 +5665,7 @@ Browser navigation on ainize's origin, reached by a 302 from the app domain. `re
 
 Change the automatically assigned app address (project owner only)
 
-The managed platform domain needs no user DNS setup. Names are unique and reserved service names cannot be claimed.
+The managed platform domain needs no user DNS setup. Names are unique and reserved service names cannot be claimed. With `keepPrevious: true` the address the app had keeps answering with a temporary redirect (path and query kept) to the new one, so links already shared still arrive; a project keeps up to three former addresses, each listed with `redirectTo` and removable like any other domain.
 
 **Auth** — none
 
@@ -5448,6 +5680,7 @@ The managed platform domain needs no user DNS setup. Names are unique and reserv
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `label` | `string` | yes | (at most 63 characters) |
+| `keepPrevious` | `boolean` |   | Keep the previous automatic address as a redirect to the new one. |
 
 **Responses**
 
@@ -6293,6 +6526,88 @@ Asks the sync job to check the repository at its next minute instead of at its b
 |---|---|
 | `202` | requested |
 
+### `POST /api/github-imports`
+
+Import a GitHub repository: create its AIN Drive repository, deploy it and keep it in sync (organization member)
+
+For a repository that lives on GitHub and has no AIN Drive copy yet. Body `{ repo, branch?, org, name?, manifest? }` — `repo` is `owner/repo` or `https://github.com/owner/repo`, `branch` (default `main`) becomes AIN Drive `main`, `org` is the organization whose drive gets the repository (the caller must be an active member), `name` the AIN Drive repository to create (default: the GitHub repository's name). GitHub is checked as for a sync upstream. A project needs `ainize.json`: when the GitHub branch has none, `manifest` (the file's text, or the object) is committed on AIN Drive only; a public Next.js repository gets `{ "kind": "nextjs" }` without being asked, and when GitHub carries the file `manifest` is ignored. 202 `{ import, status, project: null }` — within a minute the sync job creates the AIN Drive repository with its first push, AIN Drive binds the project and that push deploys; poll `GET /api/github-imports/{org}/{repo}`. From then on the project follows the GitHub branch (`/api/projects/{id}/github-sync`).
+
+**Auth** — operator
+
+**Request body** — `application/json`, required
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `repo` | `string` | yes | (at most 300 characters) |
+| `branch` | `string` |   | (default `"main"`; at most 200 characters) |
+| `org` | `string` | yes | (at most 100 characters) |
+| `name` | `string` |   | (at most 100 characters) |
+| `manifest` | `string` | `object` |   | ainize.json, when the GitHub branch has none. |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `202` | `{ import: { org, repo, aindriveUrl, github, githubUrl, branch, visibility, manifest, requestedAt, pageUrl }, status, project: null }` |
+| `400` | `invalid_request` \| `invalid_manifest` |
+| `401` | `not_signed_in` |
+| `403` | `not_member` \| `org_unknown` |
+| `409` | `repo_taken` — that AIN Drive repository already is a project; set its upstream in the project's Settings |
+| `422` | `github_repo_not_found` \| `github_branch_not_found` \| `manifest_required` |
+| `429` | `limit` — too many imports waiting for the organization |
+| `502` | `github_unreachable` |
+| `503` | `github_sync_off` |
+
+### `GET /api/github-imports/{org}/{repo}`
+
+How an import is going: the request, the sync job's last status, the project once bound (organization member)
+
+`{ import, status: { state: pending|ok|error, message, checkedAt, syncedAt, nextCheckAt, commit, githubCommit, mode } | null, project: { id, pageUrl } | null }`. `import` is null once the project exists; `status.state: error` carries the reason (the branch has no `ainize.json`, the push was refused, …) — post the import again to retry.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `org` | `path` | `string` | yes |
+| `repo` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | the import |
+| `401` | `not_signed_in` |
+| `403` | `not_member` \| `org_unknown` |
+| `404` | `not_found` |
+| `503` | `github_sync_off` |
+
+### `DELETE /api/github-imports/{org}/{repo}`
+
+Withdraw an import that has not become a project (organization member)
+
+`{ withdrawn: true }`. What the sync job already pushed stays on AIN Drive.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `org` | `path` | `string` | yes |
+| `repo` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `200` | withdrawn |
+| `401` | `not_signed_in` |
+| `403` | `not_member` \| `org_unknown` |
+| `404` | `not_found` |
+| `503` | `github_sync_off` |
+
 ### `GET /api/github-sync/roster`
 
 The repositories projects asked to keep in sync (sync job, operator token)
@@ -6443,6 +6758,34 @@ Owner or active member of the project's organization only (a session, or a trust
 | `403` | not_member |
 | `404` | not_found \| not_running |
 | `502` | logs_unavailable |
+
+### `GET /api/projects/{id}/issues`
+
+The project's issues: its failed deployments and runs grouped by cause
+
+Whoever may see the project (or holds a project read grant). `status` as on the organization route (default `unresolved`).
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `status` | `query` | `"unresolved"` \| `"resolved"` \| `"ignored"` \| `"all"` |   |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | the issues | `object` |
+| `404` | `not_found` |   |
+
+**`200` response body**
+
+| Field | Type |
+|---|---|
+| `issues` | [`Issue`](./schemas.md#issue)[] |
 
 ### `GET /svc/{projectId}/{path}`
 
@@ -6668,6 +7011,27 @@ Stop a store (admin) — connected projects fail to deploy until it is started
 |---|---|---|
 | `202` | the store | [`Store`](./schemas.md#store) |
 | `409` | `store_busy` \| `store_stopped` |   |
+
+### `POST /api/stores/{sid}/retry`
+
+Provision again a store whose first provisioning failed (admin, or the node operator)
+
+For a store in `error` that never reached `ready`: the same container on the same volume, and the bootstrap runs again. 202 with the store (`provisioning`, then `ready` or `error`). A store that was ready before its error is refused — 409 `store_was_ready`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `sid` | `path` | `string` | yes | store id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `202` | the store | [`Store`](./schemas.md#store) |
+| `409` | `store_not_failed` \| `store_was_ready` |   |
 
 ### `POST /api/stores/{sid}/recreate`
 
@@ -7104,6 +7468,88 @@ The store container's own log (org write)
 | Code | Description | Body |
 |---|---|---|
 | `200` | `{ storeId, tail, fetchedAt, lines: [{ ts, stream, text }], truncated }` | `object` |
+
+### `GET /api/storage/orgs`
+
+Which organizations may use storage on this node (operator)
+
+`{ configured, granted: [{ orgId, grantedAt, grantedBy }] }`: `configured` is `AINIZE_STORAGE_ORGS` (ids or slugs), `granted` the organizations the operator admitted at run time with `PUT /api/orgs/{id}/storage/access`. 403 `not_operator`; 503 `storage_off`.
+
+**Auth** — operator
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ configured, granted }` | `object` |
+| `403` | `not_operator` |   |
+| `503` | `storage_off` |   |
+
+### `GET /api/orgs/{id}/storage/access`
+
+Whether the organization may use storage, and why (operator)
+
+`{ orgId, allowed, configured, grant }` — `configured` when `AINIZE_STORAGE_ORGS` names it, `grant` (`{ grantedAt, grantedBy }` or null) when the operator admitted it at run time. 403 `not_operator`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, allowed, configured, grant }` | `object` |
+| `403` | `not_operator` |   |
+
+### `PUT /api/orgs/{id}/storage/access`
+
+Admit the organization to storage at run time (operator) — no unit edit, no restart
+
+Persisted with the storage records, so it survives restarts. Idempotent: the first grant is kept. Answers `{ orgId, allowed, configured, grant }`. 403 `not_operator`; 404 for an organization this node does not have; 503 `storage_off`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, allowed: true, configured, grant }` | `object` |
+| `403` | `not_operator` |   |
+| `404` | `not_found` |   |
+| `503` | `storage_off` |   |
+
+### `DELETE /api/orgs/{id}/storage/access`
+
+Take a run-time grant away (operator)
+
+An organization `AINIZE_STORAGE_ORGS` names stays allowed. Refused with 409 `has_stores` while a granted-only organization still has stores. Answers `{ orgId, allowed, configured, grant: null }`.
+
+**Auth** — operator
+
+**Parameters**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | `path` | `string` | yes | organization id |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, allowed, configured, grant }` | `object` |
+| `403` | `not_operator` |   |
+| `409` | `has_stores` |   |
 
 ### `PUT /api/orgs/{id}/storage/backup-target`
 
@@ -8594,6 +9040,20 @@ aindrive start / stop / sync
 | Code | Description | Body |
 |---|---|---|
 | `200` | result | `object` |
+
+### `POST /api/auth/aindrive/git-token`
+
+A 15-minute AinDrive git credential for the signed-in AIN account (what `ainize deploy` pushes with)
+
+The node asks AinDrive with its machine token and names the session's own AIN SSO subject; AinDrive answers with an access-only `drives:read drives:write` token that acts as that person. `{ server, access_token, expires_in, scope, user: { email } }`, `cache-control: no-store`. 401 `not_signed_in`; 403 `no_sso_account` for a wallet session; 409 `aindrive_account_missing`; 501 `not_supported` / `aindrive_off` when this node may not ask.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | git token | `object` |
 
 ### `GET /api/auth/me`
 

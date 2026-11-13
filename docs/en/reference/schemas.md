@@ -9,7 +9,7 @@ summary: The reusable request and response shapes of the node HTTP API
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-The 38 named shapes the [HTTP API](./http-api.md) refers to.
+The 39 named shapes the [HTTP API](./http-api.md) refers to.
 
 ## How to read this page
 
@@ -42,6 +42,7 @@ Fields are listed with their full path, so a nested field appears as its own row
 | [`ChatApplied`](#chatapplied) |   |
 | [`ChatPatches`](#chatpatches) |   |
 | [`Error`](#error) |   |
+| [`Issue`](#issue) |   |
 | [`Store`](#store) | A managed store (docs/PROJECTS.md "Managed storage"): one Postgres 16 (optionally pgvector) or S3-compatible Blob (RustFS) container the node runs for an organization on an NFS volume, reached by connected projects as `<name>.store.internal`. Never carries a credential — `POST /api/stores/{sid}/reveal` does, once. |
 | [`StoreAttachment`](#storeattachment) | A project connected to a store: the ainize.json `storage` binding it answers, the env prefix its variables carry, and (Postgres) the database it uses — `app` or one of its own. |
 | [`StoreBackup`](#storebackup) | One backup of a store: a verified `pg_dump -Fc` per database (or a `tar.gz` of the mirrored bucket) on the NAS under `backups/<YYYY-MM-DD>/`, and its copy on the organization's AinDrive when a backup target is set. |
@@ -512,6 +513,29 @@ Where one live test is in the queue behind the shared serving model.
 | Field | Type |
 |---|---|
 | `error` | `string` |
+
+## `Issue`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | (e.g. `"iss_0123456789abcdef"`) |
+| `org_id` | `string` \| `null` |   |
+| `project_id` | `string` \| `null` |   |
+| `kind` | `"deploy_failed"` \| `"run_failed"` \| `"container_down"` \| `"agent_unreachable"` \| `"site_down"` \| `"model_down"` \| `"custom"` |   |
+| `fingerprint` | `string` |   |
+| `title` | `string` |   |
+| `culprit` | `string` |   |
+| `status` | `"unresolved"` \| `"resolved"` \| `"ignored"` |   |
+| `first_seen` | `integer` |   |
+| `last_seen` | `integer` |   |
+| `count` | `integer` |   |
+| `status_changed_at` | `integer` \| `null` |   |
+| `status_changed_by` | `string` \| `null` |   |
+| `hourly` | `integer`[] | events per hour over the last 24 hours, newest last |
+| `events` | `object`[] | detail view only, newest first, at most 200 |
+| `events[].at` | `integer` |   |
+| `events[].message` | `string` |   |
+| `events[].meta` | `object` |   |
 
 ## `Store`
 

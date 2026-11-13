@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
+import { apiErrorCodeOf, githubRepoOf, importNameLooksRight, importParamOf, connectParamsOf, connectRepoOnAindrive, durationLabel, inputAnswers, mergeOrgRepos, missingInputs, parseEnvLines, projectApiErrorOf, relativeTime, repoLabelOf, repoUrlLooksRight, statusToneOf, type Project } from '../src/api/projects.ts';
 import { projects } from '../src/i18n/pages/projects.ts';
 import { storage } from '../src/i18n/pages/storage.ts';
 import { projectPath } from '../src/lib/reservedRoutes.ts';
@@ -144,4 +144,22 @@ test('the Run panel: answers fall back to defaults, required blanks are named, e
   assert.equal(relativeTime(now - 3 * 3_600_000, now), '3h ago');
   assert.equal(relativeTime(now - 2 * 86_400_000, now), '2d ago');
   assert.equal(relativeTime(null), '');
+});
+
+test('a GitHub address on the new-project form is an import; an AIN Drive one never is', () => {
+  for (const [text, want] of [['https://github.com/ainetwork-ai/soulfiction', 'ainetwork-ai/soulfiction'], ['https://github.com/a/b.git', 'a/b'], ['https://www.github.com/a/b/', 'a/b'], ['git@github.com:a/b.git', 'a/b'], ['a/b', 'a/b']] as const) assert.equal(githubRepoOf(text), want, text);
+  for (const bad of ['', 'x', 'https://gitlab.com/a/b', 'https://github.com/a', 'https://github.com/a/b/tree/main', 'a/..', 'a b/c', 'https://aindrive.ainetwork.ai/comcom/git/art']) assert.equal(githubRepoOf(bad), null, bad);
+  // The page asks repoUrlLooksRight first, so an AIN Drive URL is bound, not imported.
+  assert.equal(repoUrlLooksRight('https://github.com/a/b'), false);
+  for (const ok of ['hello', 'my-app_2', 'a.b']) assert.ok(importNameLooksRight(ok), ok);
+  for (const bad of ['', '.x', '-x', 'x.git', 'a/b', 'a..b', 'x.']) assert.equal(importNameLooksRight(bad), false, bad);
+  assert.deepEqual(importParamOf('?import=comcom/hello'), { org: 'comcom', repo: 'hello' });
+  for (const bad of ['', '?import=comcom', '?import=comcom/a/b', '?import=/x', '?import=comcom/x.git']) assert.equal(importParamOf(bad), null, bad);
+  assert.equal(apiErrorCodeOf({ status: 422, data: { error: { code: 'manifest_required', message: 'x' } } }), 'manifest_required');
+  assert.equal(apiErrorCodeOf({ status: 500, data: 'boom' }), null);
+});
+
+test('the import form has its own words for every refusal the node can give, in both languages', () => {
+  const node = ['manifest_required', 'invalid_manifest', 'repo_taken', 'org_unknown', 'not_member', 'limit', 'github_repo_not_found', 'github_branch_not_found', 'github_unreachable', 'github_sync_off'];
+  for (const code of node) { const e = projects[`projects.import.err.${code}`]; assert.ok(e?.ko && e?.en, code); }
 });

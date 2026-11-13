@@ -15,6 +15,10 @@
     "title": "빠른 시작: 코드에서 배포까지"
    },
    {
+    "page": "how-to/deploy-from-github",
+    "title": "GitHub 리포 배포하기"
+   },
+   {
     "page": "how-to/aindrive-git",
     "title": "AinDrive를 git 리모트로 쓰기"
    },

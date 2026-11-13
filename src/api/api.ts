@@ -1,6 +1,6 @@
 import type {OperationsRecord, OperationsView} from './projectOperations';
 import { loadAccessibleApps, type AccessibleAppsResponse } from '@/lib/accessibleApps';
-import type { AppDomain, AppDomainsResponse, GithubSyncView } from './projects';
+import type { AppDomain, AppDomainsResponse, GithubImportInput, GithubImportView, GithubSyncView } from './projects';
 import { parseRuntimeLogs, runtimeLogsUrl, type RuntimeLogs } from './runtimeLogs';
 import { parseProjectSecretsResponse, parseSecretRemoved, parseSecretSaved, secretDeleteRequest, secretPutRequest, secretsListUrl, type ProjectSecretsResponse, type SecretRemoved, type SecretSaved } from './projectSecrets';
 import {
@@ -175,6 +175,10 @@ export const api = createApi({
     myProjects: b.query<ProjectsResponse, void>({ query: () => 'api/projects', providesTags: ['Project', 'Me'] }),
     project: b.query<Project, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
     createProject: b.mutation<ProjectCreated, ProjectCreateInput>({ query: (body) => ({ url: 'api/projects', method: 'POST', body }), invalidatesTags: ['Project'] }),
+    /** Import a GitHub repository that has no AIN Drive copy: the sync job creates it, aindrive binds the project (ainize-node `/api/github-imports`). */
+    importFromGithub: b.mutation<GithubImportView, GithubImportInput>({ query: (body) => ({ url: 'api/github-imports', method: 'POST', body }) }),
+    githubImport: b.query<GithubImportView, { org: string; repo: string }>({ keepUnusedDataFor: 0, query: ({ org, repo }) => `api/github-imports/${encodeURIComponent(org)}/${encodeURIComponent(repo)}` }),
+    withdrawGithubImport: b.mutation<{ withdrawn: boolean }, { org: string; repo: string }>({ query: ({ org, repo }) => ({ url: `api/github-imports/${encodeURIComponent(org)}/${encodeURIComponent(repo)}`, method: 'DELETE' }) }),
     deleteProject: b.mutation<{ ok: true; id: string }, string>({ query: (id) => ({ url: `api/projects/${encodeURIComponent(id)}`, method: 'DELETE' }), invalidatesTags: ['Project'] }),
     projectDeployments: b.query<DeploymentsResponse, string>({ query: (id) => `api/projects/${encodeURIComponent(id)}/deployments`, providesTags: (_r, _e, id) => [{ type: 'Project', id }] }),
     /** `/<org>/<repo>` → the project (public). */
@@ -798,7 +802,7 @@ export const {
   useRenameAppDomainMutation, useProjectDomainsQuery, useAddProjectDomainMutation, useCheckProjectDomainMutation, useRemoveProjectDomainMutation,
   useMyProjectsQuery, useAccessibleAppsQuery, useProjectQuery, useCreateProjectMutation, useDeleteProjectMutation, useProjectDeploymentsQuery, useDeploymentQuery, useDeploymentLogQuery, useProjectRuntimeLogsQuery,
   useOperationsSearchQuery, useProjectOperationsQuery, useSaveProjectOperationsMutation,
-  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useProjectGithubSyncQuery, useSetProjectGithubSyncMutation, usePauseProjectGithubSyncMutation, useRotateProjectSecretMutation, useRenameProjectMutation,
+  useProjectByNameQuery, useOrgProjectsQuery, useOrgRepositoriesQuery, useProjectRunsQuery, useProjectSourceQuery, useRunProjectMutation, useRedeployMutation, useSyncFromGithubMutation, useImportFromGithubMutation, useGithubImportQuery, useWithdrawGithubImportMutation, useProjectGithubSyncQuery, useSetProjectGithubSyncMutation, usePauseProjectGithubSyncMutation, useRotateProjectSecretMutation, useRenameProjectMutation,
   useProjectTriggersQuery, useEnableTriggerMutation, useDisableTriggerMutation, useRotateTriggerTokenMutation, useRunTriggerMutation, useTriggerAinRuleQuery, useInstallTriggerAinRuleMutation,
   useProjectSecretsQuery, useSetProjectSecretMutation, useDeleteProjectSecretMutation,
   useProjectStorageQuery, useOrgStoresQuery, useCreateStoreMutation, useStoreQuery, useUpdateStoreMutation, useStoreActionMutation, useDeleteStoreMutation, useConnectStoreMutation, useDisconnectStoreMutation,
