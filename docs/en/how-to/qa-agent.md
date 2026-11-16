@@ -1,0 +1,114 @@
+---
+title: A QA agent for your repository
+summary: Register an agent that sits in an AIN Teams channel, turns a posted request into a fix for one GitHub repository, runs the repository's checks and opens a pull request an approver approves — with an API key, without touching the node.
+aincode: false
+---
+
+# A QA agent for your repository
+
+People who use your product post what is wrong in a channel. A **QA agent** reads the post, changes the code,
+runs your checks on the change, opens a pull request, and waits for the person you named to approve it. It is an
+ordinary Ainize hosted agent — it has a page at `/agents/<id>` and is a member of your AIN Teams workspace — plus a
+pipeline the node runs for it.
+
+The quickest way to set one up is to ask Claude Code ([Use Ainize from Claude Code](./claude-code-skill.md)). This
+page is what happens, so you can do it by hand or check what was done.
+
+## What you need
+
+- An organization the node's operator **admitted to QA**. The agent runs your repository's code on the node and
+  opens pull requests with the node's GitHub account, so the operator decides whose repositories it takes.
+  `GET /api/orgs/<org>/qa/access` answers `allowed`.
+- A GitHub repository the node's QA account can write to.
+- An organization API key, and a member of the organization who can sign in to AIN Teams and Ainmem.
+
+## 1. The repository names its agent
+
+Add to the repository's `ainize.json` on the branch the agent works from:
+
+```json
+{
+  "qa": { "agent": "myapp-qa" },
+  "checks": [
+    { "name": "type-check", "command": ["npm", "run", "type-check"] },
+    { "name": "test", "command": ["npm", "test"] }
+  ]
+}
+```
+
+`qa.agent` is consent: an agent can only be registered for a repository that names it. `checks` are the gates a fix
+must pass. They are the same [`checks`](./deploy-with-ainize-json.md) a deployment runs, so you write them once.
+Each runs in a container with your dependencies installed and no network. A check that already fails on the branch
+is not counted against a fix.
+
+## 2. A channel and a board
+
+- In AIN Teams, a channel for requests (`qa-myapp`).
+- In Ainmem, a board where each request becomes a card: a title, a status with the options queued, coding,
+  validating, blocked and completed, and a link back to the request.
+
+## 3. Register
+
+```bash
+curl -s -X POST https://ainize.ai/api/qa-agents -H "Authorization: Bearer $(cat .ainize_key)" \
+  -H 'content-type: application/json' -d @register.json
+```
+
+The body names the agent (`id` ending in `-qa`), the organization, the repository and branch, the Teams channel,
+the Ainmem board, and the approvers — each an AIN SSO account with its AIN Teams user id. The node reads the
+repository, checks that it names this agent, takes the gates from `checks`, and creates the hosted agent as you.
+The fields are in the [HTTP API reference](../reference/http-api.md) under `/api/qa-agents`.
+
+| Field | What it decides |
+|---|---|
+| `approvers` | Who may approve a fix. An approval is a reply in the thread, a comment on the card, or the approval button. |
+| `autoMerge` (default `true`) | Whether an approved pull request is merged into the branch. Turn it off when a push to the branch does something you want a person to trigger — publishing to a store, a migration. |
+| `limits` | Memory, time and CPUs for one check, when the defaults (4 GB, 5 minutes, 2 CPUs) are not enough. |
+| `runEvidence` (default `false`) | Start the app before and after the fix and attach what it answers. Only for an app that starts with no network, no database and no secrets. |
+| `deployment` | Where the running revision can be read, so a request is closed only when the fix is serving. |
+
+## 4. The agent's two identities
+
+Import the agent into the workspace (**Agents → Invite agent**) and add it to the channel; create its credential
+for the board. Each gives a token once. Hand both to the node:
+
+```bash
+curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/teams  -H "Authorization: Bearer $(cat .ainize_key)" \
+  -H 'content-type: application/json' -d '{"value":"…"}'
+curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/ainmem -H "Authorization: Bearer $(cat .ainize_key)" \
+  -H 'content-type: application/json' -d '{"value":"…"}'
+```
+
+They are write-only. The agent uses them to answer in the thread and update the card; the node keeps its own copy
+to re-read the request, the membership and the approval itself, so nothing rests on what the agent says.
+
+## 5. When it starts working
+
+| `state` | Meaning |
+|---|---|
+| `needs_tokens` | Registered; a token is missing. |
+| `pending_restart` | Complete. The node reads QA settings when it starts, so the agent serves the channel from the next release. |
+| `active` | Serving the channel. |
+
+Then post a small request in the channel as a top-level message. The agent answers in the thread, the card moves
+across the board, and it ends with a pull request on your repository. Merging it is what deploys: if the repository
+is an Ainize project that [follows GitHub](./deploy-from-github.md), the merge ships by itself.
+
+## If something is off
+
+| What you see | Why | What to do |
+|---|---|---|
+| 403 `qa_not_enabled` | The organization is not admitted to QA. | Ask the operator. |
+| 422 `repository_unreadable` | The node's QA GitHub account cannot read the repository. | Add it with write access. |
+| 422 `repository_not_declared` | `ainize.json` on the branch does not name this agent. | Merge step 1 first. |
+| 422 `no_gates` | No `checks` in the repository and no `gates` in the request. | Add checks. |
+| The dependency install fails with "Missing … from lock file" | The repository carries two lockfiles and the stale one was used. | Name the manager in `package.json` `packageManager`, or remove the stale lockfile. |
+| A fix keeps going back to coding with "실행 증거를 확인하지 못했습니다" | `runEvidence` is on and the app cannot start in the sandbox. | Register with `runEvidence: false`. |
+
+Remove an agent with `DELETE /api/qa-agents/<id>` (its owner, or an organization admin).
+
+## See also
+
+- [Use Ainize from Claude Code](./claude-code-skill.md)
+- [Build an agent for AIN Teams](./build-for-ainteams.md)
+- [ainize.json reference](./deploy-with-ainize-json.md)
