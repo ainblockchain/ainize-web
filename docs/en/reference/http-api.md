@@ -9,7 +9,7 @@ summary: Every endpoint an Ainize node serves, with parameters, bodies and respo
 > **This page is generated — do not edit it by hand.** It is written by `scripts/docs-gen.mjs` from `ainize-node/src/openapi.ts`.
 > Regenerate with `npm run docs:gen`; `npm run docs:check` fails when this page and the source disagree.
 
-384 operations on 317 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
+392 operations on 321 paths, grouped into the 13 areas a node serves. Body shapes shared between endpoints are on the [Schemas](./schemas.md) page; the codes an error can carry are on [Error codes](./errors.md).
 
 ## How to read this page
 
@@ -249,6 +249,14 @@ See [Error codes](./errors.md) for the full list.
 | `PUT` | [`/api/hosted-agents/{id}`](#put-apihosted-agentsid) | none | Change a hosted agent — its owner, or a `write` member of the organization it is shared with; only the owner or an organization `admin` may change `visibility`/`orgId` (sharing into an organization takes `contributor` there); the id cannot change |
 | `DELETE` | [`/api/hosted-agents/{id}`](#delete-apihosted-agentsid) | none | Remove a hosted agent — its owner, or an `admin` of the organization it is shared with |
 | `PUT` | [`/api/hosted-agents/{id}/secrets/{name}`](#put-apihosted-agentsidsecretsname) | none | Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` member of its organization; write-only |
+| `GET` | [`/api/qa-agents`](#get-apiqa-agents) | none | QA agents of the organizations the caller belongs to |
+| `POST` | [`/api/qa-agents`](#post-apiqa-agents) | none | Register a QA agent for a repository |
+| `GET` | [`/api/qa-agents/{id}`](#get-apiqa-agentsid) | none | One QA agent — members with write access to its organization |
+| `DELETE` | [`/api/qa-agents/{id}`](#delete-apiqa-agentsid) | none | Remove a QA agent and its hosted agent — the agent's owner or an organization admin |
+| `PUT` | [`/api/qa-agents/{id}/tokens/{kind}`](#put-apiqa-agentsidtokenskind) | none | Set the agent's Teams or Ainmem token (`{ value }`) — write-only; stored as the agent's secret and as the host's own read credential |
+| `GET` | [`/api/orgs/{id}/qa/access`](#get-apiorgsidqaaccess) | none | Is this organization admitted to QA on this node — its members and the operator |
+| `PUT` | [`/api/orgs/{id}/qa/access`](#put-apiorgsidqaaccess) | none | Admit an organization to QA — operator only |
+| `DELETE` | [`/api/orgs/{id}/qa/access`](#delete-apiorgsidqaaccess) | none | Withdraw an organization's admission — operator only; refused while it has QA agents |
 | `GET` | [`/agents/{id}/.well-known/agent-card.json`](#get-agentsidwell-knownagent-cardjson) | operator | Read the A2A card; bound AINFT agents advertise current-holder authentication |
 | `POST` | [`/agents/{id}`](#post-agentsid) | none | Call an A2A agent; a bound AINFT executes in the current holder’s private workspace |
 | `GET` | [`/api/hosted-agents/{id}/ainft-binding`](#get-apihosted-agentsidainft-binding) | operator | Read the verified AINFT registration snapshot for a visible agent |
@@ -4873,6 +4881,162 @@ Set (`{ value }`) or clear (`{ value: null }`) a secret — owner or `write` mem
 | `200` | name, set | `object` |
 | `403` | `not_owner` |   |
 | `404` | `not_found` |   |
+
+### `GET /api/qa-agents`
+
+QA agents of the organizations the caller belongs to
+
+A QA agent watches one AIN Teams channel, turns a request into a fix for one repository, runs the repository's gates and opens a pull request that a named approver approves. Each row carries `state`: `needs_tokens` (Teams or Ainmem token missing), `pending_restart` (complete; served from the next node start) or `active`.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ agents }` | `object` |
+| `401` | `sign_in_required` |   |
+
+### `POST /api/qa-agents`
+
+Register a QA agent for a repository
+
+An Ainize API key of the organization (or a signed-in member with write access). The organization must be admitted to QA by the operator, the node's GitHub account must be able to read and push to the repository, and the repository's `ainize.json` on the branch must name the agent: `"qa": { "agent": "<id>" }`. Body: `id` (ends in `-qa`), `orgId`, `name`, `repository` (`owner/name`), `branch`, `cwd`, optional `gates` (`[{ name, argv }]`; omitted, the repository's `checks` are used), `limits`, `teams` (`origin`, `workspaceId`, `channelId`), `ainmem` (board ids and status options), `sso` (`issuer`, `orgId`), `approvers` (`[{ subject, teamsUserId, name? }]`), `autoMerge`, optional `deployment`. Creates the hosted agent as the caller; tokens follow with `PUT /api/qa-agents/{id}/tokens/{kind}`.
+
+**Auth** — none
+
+**Responses**
+
+| Code | Description |
+|---|---|
+| `201` | `{ agent, next }` |
+| `400` | `invalid_request` |
+| `401` | `sign_in_required` |
+| `403` | `not_a_member` \| `qa_not_enabled` |
+| `409` | `id_taken` \| `channel_taken` |
+| `422` | `repository_unreadable` \| `repository_not_declared` \| `no_gates` |
+| `503` | `qa_off` — the node has no QA validation image or GitHub credential |
+
+### `GET /api/qa-agents/{id}`
+
+One QA agent — members with write access to its organization
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ agent }` | `object` |
+| `404` | `not_found` |   |
+
+### `DELETE /api/qa-agents/{id}`
+
+Remove a QA agent and its hosted agent — the agent's owner or an organization admin
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | deleted | `object` |
+| `403` | `delete_failed` |   |
+| `404` | `not_found` |   |
+
+### `PUT /api/qa-agents/{id}/tokens/{kind}`
+
+Set the agent's Teams or Ainmem token (`{ value }`) — write-only; stored as the agent's secret and as the host's own read credential
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+| `kind` | `path` | `"teams"` \| `"ainmem"` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ agent }` | `object` |
+| `400` | `invalid_request` |   |
+| `404` | `not_found` |   |
+
+### `GET /api/orgs/{id}/qa/access`
+
+Is this organization admitted to QA on this node — its members and the operator
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, allowed, grant, available }` | `object` |
+| `404` | `not_found` |   |
+
+### `PUT /api/orgs/{id}/qa/access`
+
+Admit an organization to QA — operator only
+
+QA runs a repository's own code on this host and opens pull requests with the node's GitHub account, so the operator names the organizations whose repositories it takes.
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, allowed, grant }` | `object` |
+| `403` | `not_operator` |   |
+| `404` | `not_found` |   |
+
+### `DELETE /api/orgs/{id}/qa/access`
+
+Withdraw an organization's admission — operator only; refused while it has QA agents
+
+**Auth** — none
+
+**Parameters**
+
+| Name | In | Type | Required |
+|---|---|---|---|
+| `id` | `path` | `string` | yes |
+
+**Responses**
+
+| Code | Description | Body |
+|---|---|---|
+| `200` | `{ orgId, allowed }` | `object` |
+| `403` | `not_operator` |   |
+| `409` | `in_use` |   |
 
 ### `GET /agents/{id}/.well-known/agent-card.json`
 

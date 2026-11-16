@@ -35,6 +35,10 @@
     "title": "CI/CD: how a push ships"
    },
    {
+    "page": "how-to/claude-code-skill",
+    "title": "Use Ainize from Claude Code"
+   },
+   {
     "page": "how-to/managed-storage",
     "title": "Give a project a database and file storage"
    },
@@ -144,6 +148,10 @@
    {
     "page": "how-to/build-for-ainteams",
     "title": "Build an agent for AIN Teams"
+   },
+   {
+    "page": "how-to/qa-agent",
+    "title": "A QA agent for your repository"
    },
    {
     "page": "how-to/organizations",
