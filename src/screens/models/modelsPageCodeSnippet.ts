@@ -110,6 +110,9 @@ const promptOf = (o: SnippetOptions): string =>
 /** What the playground and the snippet ask a music model for besides the prompt: a short instrumental. */
 export const MUSIC_TRY = { instrumental: true, duration: 30, response_format: 'mp3' } as const;
 
+/** What the playground and the snippet ask a classification model for besides the picture. */
+export const CLASSIFICATION_TRY = { top_k: 5 } as const;
+
 /** A literal that is valid in all three languages. */
 const lit = (value: string): string => JSON.stringify(value);
 
@@ -130,6 +133,17 @@ function python(o: SnippetOptions): string {
   if (o.modality === 'speech') return `${head}with client.audio.speech.with_streaming_response.create(model=${model}, input=${prompt}, voice="default") as audio:\n    audio.stream_to_file("out.mp3")\n`;
   // OpenAI's client has no music call; its generic post() reaches the node's /v1/audio/music with the same key.
   if (o.modality === 'music') return `${head}import httpx\n\nsong = client.post("/audio/music", cast_to=httpx.Response, body={\n    "model": ${model},\n    "prompt": ${prompt},\n    "instrumental": True,\n    "duration": ${MUSIC_TRY.duration},\n    "response_format": "mp3",\n}, options={"timeout": 300})\nopen("out.mp3", "wb").write(song.content)\n`;
+  // No OpenAI call for this either: the picture goes as base64 JSON to the node's /v1/images/classifications.
+  if (o.modality === 'classification') return `${head}import base64
+
+out = client.post("/images/classifications", cast_to=dict, body={
+    "model": ${model},
+    "image": base64.b64encode(open("photo.jpg", "rb").read()).decode(),
+    "top_k": ${CLASSIFICATION_TRY.top_k},
+})
+for item in out["labels"]:
+    print(item["label"], item["score"])
+`;
   if (o.modality === 'transcription') {
     return `${head}with open("audio.flac", "rb") as f:\n    print(client.audio.transcriptions.create(model=${model}, file=f).text)\n`;
   }
@@ -152,6 +166,12 @@ function typescript(o: SnippetOptions): string {
   if (o.modality === 'embedding') return `${head}const out = await client.embeddings.create({ model: ${model}, input: ${prompt} });\nconsole.log(out.data[0].embedding);\n`;
   if (o.modality === 'speech') return `${head}import { writeFile } from 'node:fs/promises';\nconst audio = await client.audio.speech.create({ model: ${model}, input: ${prompt}, voice: 'default' });\nawait writeFile('out.mp3', Buffer.from(await audio.arrayBuffer()));\n`;
   if (o.modality === 'music') return `${head}import { writeFile } from 'node:fs/promises';\nconst song = await client.post<Response>('/audio/music', {\n  body: { model: ${model}, prompt: ${prompt}, instrumental: true, duration: ${MUSIC_TRY.duration}, response_format: 'mp3' },\n  __binaryResponse: true,\n  timeout: 300_000,\n});\nawait writeFile('out.mp3', Buffer.from(await song.arrayBuffer()));\n`;
+  if (o.modality === 'classification') return `${head}import { readFile } from 'node:fs/promises';
+const out = await client.post<{ labels: { label: string; score: number }[] }>('/images/classifications', {
+  body: { model: ${model}, image: (await readFile('photo.jpg')).toString('base64'), top_k: ${CLASSIFICATION_TRY.top_k} },
+});
+for (const item of out.labels) console.log(item.label, item.score);
+`;
   if (o.modality === 'transcription') {
     return `${head}const text = await client.audio.transcriptions.create({\n  model: ${model},\n  file: await fetch('audio.flac').then((r) => r.blob()),\n});\nconsole.log(text.text);\n`;
   }
@@ -177,6 +197,12 @@ function curl(o: SnippetOptions): string {
       : { model: o.model, input: promptOf(o), ...(o.modality === 'speech' ? { voice: 'default' } : {}) });
     const quoted = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
     return `curl ${quoted(v1(o.nodeUrl, path))} -H ${quoted(`Authorization: Bearer ${bearer}`)} -H 'Content-Type: application/json' -d ${quoted(body)}${o.modality === 'embedding' ? '' : ' --output out.mp3'}\n`;
+  }
+  if (o.modality === 'classification') {
+    // The picture is base64 inside the JSON. It is piped in, not passed as an argument: a photo is longer than the
+    // shell allows one argument to be.
+    const open = JSON.stringify({ model: o.model, top_k: CLASSIFICATION_TRY.top_k }).replace(/'/g, "'\\''").slice(0, -1);
+    return `(printf '%s' '${open}, "image": "'; base64 < photo.jpg | tr -d '\\n'; printf '"}') | \\\n  curl ${v1(o.nodeUrl, 'images/classifications')} \\\n  -H "Authorization: Bearer ${bearer}" \\\n  -H "Content-Type: application/json" \\\n  -d @-\n`;
   }
   if (o.modality === 'transcription') {
     // Multipart, not JSON: an audio upload has a file in it, and a JSON content type would be rejected.

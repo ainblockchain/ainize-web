@@ -16,7 +16,8 @@ import { Button } from '@/components/ui/Button';
 import { Alert, Input, Textarea, TextField } from '@/components/ui/Form';
 import { Description, Mono, StyledLink, SubTitle } from '@/components/ui/Misc';
 import { useT } from '@/i18n';
-import { DECISION_EXAMPLE, MUSIC_TRY, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
+import { CLASSIFICATION_TRY, DECISION_EXAMPLE, MUSIC_TRY, modelsPageCodeSnippet, SNIPPET_LANGUAGES, type SnippetLanguage } from './modelsPageCodeSnippet';
+import { PICTURE_UNREADABLE, parseLabels, pictureBase64, type ClassifiedLabel } from './pictureBase64';
 import { readChatStream } from './playgroundStream';
 import { useIssuedKey } from './useIssuedKey';
 import { MODEL_SPEED_QUOTE_SAIN, modelSpeedBillingHref, modelSpeedFactOf, modelSpeedPriorityOfferOf } from './modelSpeedHints';
@@ -41,6 +42,8 @@ const DecisionQid = styled.div`font: inherit; font-size: 12px; font-weight: 600;
 const DecisionPick = styled.div`font-size: 14px; margin-top: 4px;`;
 const DecisionConf = styled.div`font-size: 12px; color: #6b7280; margin-top: 2px;`;
 const Bar = styled.div`display: grid; grid-template-columns: minmax(80px, 140px) 1fr 40px; gap: 8px; align-items: center; font-size: 12px; margin-top: 4px;`;
+/** Labels of a classifier are names, some with a second name beside them: they get the room a question id does not need. */
+const LabelBar = styled(Bar)`grid-template-columns: minmax(120px, 300px) 1fr 40px; font-size: 13px;`;
 const BarLabel = styled.span`overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const BarTrack = styled.div`height: 8px; border-radius: 4px; background: #e2e4ea; overflow: hidden;`;
 const BarFill = styled.div<{ $pct: number }>`height: 100%; width: ${(p) => Math.max(0, Math.min(100, p.$pct))}%; background: #5b3df5;`;
@@ -78,6 +81,7 @@ type RunState =
   | { kind: 'image'; dataUrl: string; remaining: number | null }
   | { kind: 'decision'; answers: Record<string, unknown>; remaining: number | null }
   | { kind: 'audio'; url: string }
+  | { kind: 'labels'; labels: ClassifiedLabel[] }
   | { kind: 'failed'; why: string };
 
 /**
@@ -99,6 +103,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   // Decision's box holds JSON, not a sentence, so it starts from a worked example rather than empty.
   const [prompt, setPrompt] = useState(() => (model.modality === 'decision' ? DECISION_EXAMPLE : ''));
   const [audio, setAudio] = useState<File | null>(null);
+  const [picture, setPicture] = useState<File | null>(null);
   const [run, setRun] = useState<RunState>({ kind: 'idle' });
   useEffect(() => {
     if (run.kind === 'audio') return () => URL.revokeObjectURL(run.url);
@@ -141,7 +146,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
   async function press() {
     setRun({ kind: 'running' });
     try {
-      const res = await callFreeTier(model, modelRef, peer, prompt, audio, issuedKey);
+      const res = await callFreeTier(model, modelRef, peer, prompt, audio, picture, issuedKey);
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
         setRun({ kind: 'failed', why: body?.error?.code === 'backend_unavailable' ? t('models.try.unavailable') : (body?.error?.message ?? String(res.status)) });
@@ -158,6 +163,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
         return;
       }
       const body = await res.json() as Record<string, unknown>;
+      if (model.modality === 'classification') { setRun({ kind: 'labels', labels: parseLabels(body) }); return; }
       const remaining = typeof body.remaining_free_tries === 'number' ? body.remaining_free_tries : null;
       if (model.modality === 'image') {
         const b64 = (body.data as { b64_json?: string }[] | undefined)?.[0]?.b64_json;
@@ -174,6 +180,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
       // A JSON the visitor mistyped is the one error with a plain-language cause worth naming; the rest keep their text.
       const why = error instanceof Error && error.message === DECISION_BAD_JSON
         ? t('models.try.decisionInvalid')
+        : error instanceof Error && error.message === PICTURE_UNREADABLE ? t('models.try.pictureUnreadable')
         : (error instanceof Error ? error.message : String(error));
       setRun({ kind: 'failed', why });
     }
@@ -187,6 +194,8 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
           <Panel>
             {model.modality === 'transcription' ? (
               <input type="file" accept="audio/*" data-testid="models-audio" onChange={(e) => setAudio(e.target.files?.[0] ?? null)} />
+            ) : model.modality === 'classification' ? (
+              <input type="file" accept="image/*" data-testid="models-picture" aria-label={t('models.try.picture')} onChange={(e) => setPicture(e.target.files?.[0] ?? null)} />
             ) : model.modality === 'decision' ? (
               <Textarea
                 value={prompt}
@@ -209,7 +218,7 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
               <Button
                 type="button"
                 data-testid="models-run"
-                disabled={busy || (model.modality === 'transcription' ? !audio : !prompt.trim())}
+                disabled={busy || (model.modality === 'transcription' ? !audio : model.modality === 'classification' ? !picture : !prompt.trim())}
                 onClick={() => { void press(); }}
               >
                 {busy ? t('models.try.running') : t('models.try.run')}
@@ -243,6 +252,21 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
               </Decisions>
             )}
             {run.kind === 'audio' && <audio controls src={run.url} aria-label={model.modality === 'music' ? 'Generated music' : 'Generated speech'} />}
+            {run.kind === 'labels' && (
+              <Decisions data-testid="models-answer-labels" aria-label={t('models.try.labels')}>
+                {run.labels.length === 0 && <Description>{t('models.try.noLabels')}</Description>}
+                {run.labels.map((item) => {
+                  const pct = Math.round(item.score * 100);
+                  return (
+                    <LabelBar key={item.label}>
+                      <BarLabel title={item.detail ? `${item.label} · ${item.detail}` : item.label}>{item.detail ? `${item.label} · ${item.detail}` : item.label}</BarLabel>
+                      <BarTrack><BarFill $pct={pct} /></BarTrack>
+                      <BarPct>{pct}%</BarPct>
+                    </LabelBar>
+                  );
+                })}
+              </Decisions>
+            )}
             {run.kind === 'failed' && <Alert>{t('models.try.failed', { why: run.why })}</Alert>}
             {(run.kind === 'text' || run.kind === 'image' || run.kind === 'decision') && run.remaining !== null && (
               <Description>{t('models.try.free', { n: String(run.remaining) })}</Description>
@@ -360,7 +384,13 @@ function AccountModelPlayground({ model, signInNext, callModel, peer = false }: 
 }
 
 /** The free-tier route for this modality. Not `/v1`: that needs a key, and this page has no visitor to sign in. */
-function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, prompt: string, audio: File | null, apiKey: string | null): Promise<Response> {
+async function callFreeTier(model: PublicModelCard, modelRef: string, peer: boolean, prompt: string, audio: File | null, picture: File | null, apiKey: string | null): Promise<Response> {
+  if (model.modality === 'classification') {
+    // No free tier: like music, a picture is classified with the visitor's own key.
+    if (!apiKey) throw new Error('Create an API key below to try this model.');
+    if (!picture) throw new Error(PICTURE_UNREADABLE);
+    return fetch('/v1/images/classifications', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: modelRef, image: await pictureBase64(picture), ...CLASSIFICATION_TRY }) });
+  }
   if (model.modality === 'embedding' || model.modality === 'speech') {
     if (!apiKey) throw new Error('Create an API key below to try this model.');
     const path = model.modality === 'embedding' ? 'embeddings' : 'audio/speech';

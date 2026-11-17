@@ -113,3 +113,11 @@ test('any other error is a node that is not answering', () => {
 test('no error at all is a node that answered', () => {
   assert.equal(modelsFetchState(undefined), 'ok');
 });
+
+test('classification models are kept and grouped last', () => {
+  const cards = parseModelsResponse({ data: [
+    { id: 'sf-species', modality: 'classification', available: true },
+    { id: 'ace-step-1.5', modality: 'music', available: true },
+  ] });
+  assert.deepEqual(modelsByModality(cards).map(group => group.modality), ['music', 'classification']);
+});
