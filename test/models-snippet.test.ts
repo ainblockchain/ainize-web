@@ -224,3 +224,17 @@ test('pythonLiteral renders JSON as Python', () => {
   assert.equal(pythonLiteral({}), '{}');
   assert.equal(pythonLiteral({ a: [] }), '{\n    "a": [],\n}');
 });
+
+test('classification snippets post a base64 picture to /v1/images/classifications', () => {
+  const python = modelsPageCodeSnippet({ ...base, language: 'python', modality: 'classification', model: 'sf-species' });
+  assert.match(python, /client\.post\("\/images\/classifications", cast_to=dict/);
+  assert.match(python, /"model": "sf-species"/);
+  assert.match(python, /base64\.b64encode\(open\("photo\.jpg", "rb"\)\.read\(\)\)\.decode\(\)/);
+  const ts = modelsPageCodeSnippet({ ...base, language: 'typescript', modality: 'classification', model: 'sf-species' });
+  assert.match(ts, /client\.post<\{ labels: .*\}>\('\/images\/classifications'/);
+  assert.match(ts, /toString\('base64'\)/);
+  const curl = modelsPageCodeSnippet({ ...base, language: 'curl', modality: 'classification', model: 'sf-species' });
+  assert.match(curl, /\/v1\/images\/classifications/);
+  assert.match(curl, /-d @-/, 'the picture is piped in: it is too long for one argument');
+  assert.ok(curl.includes(`printf '%s' '{"model":"sf-species","top_k":5, "image": "'; base64 < photo.jpg | tr -d '\\n'; printf '"}'`), curl);
+});
