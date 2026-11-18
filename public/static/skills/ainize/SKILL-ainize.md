@@ -70,6 +70,10 @@ curl -s -X POST https://ainize.ai/api/projects/$PROJECT/github-sync -H "Authoriz
 
 From then on every merge on the GitHub branch deploys. There is nothing else to set up, and no GitHub Actions.
 
+## Inspect a specific deployment or script run
+
+For a status or log request, use GET requests only. Look up the project by organization and repository name. For a service, read `GET /api/projects/{projectId}/deployments`; for script run history, read `GET /api/projects/{projectId}/runs`. Select the requested SHA or ID. Read its build or run log with `GET /api/deployments/{id}/log`, using the organization key and `Accept: text/plain`. Report the SHA, ID, status, and the relevant sanitized error lines. Runtime logs describe the running service and are a separate endpoint. A ready record alone does not verify the commit at the production domain.
+
 ## Operate
 
 ```bash

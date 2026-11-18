@@ -229,3 +229,7 @@ These screenshots show the production Ainize UI with example project data and lo
 4. For a web or service project, open [Deployments](/deployments), select the project and its **Deployments** tab, filter by **Error**, and expand the row for your SHA. For a **Ready** deployment, also verify the health and revision at the production domain.
 
 ![Error filter and expanded failure in the Deployments tab](/static/docs/cicd/deployments-error.png)
+
+### Check status from Claude Code
+
+Install the [Ainize skill for Claude Code](./claude-code-skill.md) and configure your organization key to query the same project from your working directory. For example: “For the example-web project in my organization, show the deployment for this commit SHA, its deployment ID, and the error lines from the build log. Only read status and logs.” For script CI, ask for the run ID instead. Compare the result with the matching SHA in Runs or Deployments.
