@@ -212,6 +212,7 @@ export function Blocks({ blocks, ctx, stepIds }: { blocks: Block[]; ctx: LinkCtx
                 <Inlines nodes={b.c} ctx={ctx} />
               </H>
             );
+          case 'image': return <figure key={i} style={{ margin: '16px 0' }}><a href={b.src} target="_blank" rel="noreferrer"><img src={b.src} alt={b.alt} loading="lazy" style={{ maxWidth: '100%', height: 'auto' }} /></a></figure>;
           case 'para': return <p key={i}><Inlines nodes={b.c} ctx={ctx} /></p>;
           case 'code': return <CodeBlock key={i} code={b.code} lang={b.lang} ctx={ctx} stepId={ids.get(b)} runnable={codeRunsInAinCode(b, ctx.front)} />;
           case 'hr': return <hr key={i} />;

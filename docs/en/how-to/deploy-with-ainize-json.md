@@ -204,6 +204,26 @@ configuration, not environment injected later by storage bindings or the runtime
 
 ## Production CI/CD standard
 
-Start each production release through Ainize Run and record the target commit. Keep tests, build, backup when required, migration, rollout, and serving revision verification traceable to that run. A host-side executor must return its stage results to the run. Mark a release successful only after the service health check passes and the serving revision matches the target.
+Start script CI from Runs. Start a web or service deployment by pushing to its bound branch. Record the target commit in both cases. Keep tests, build, backup when required, migration, rollout, and serving revision verification traceable to that run. A host-side executor must return its stage results to the run. Mark a release successful only after the service health check passes and the serving revision matches the target.
 
 Give the deployer access to each stage's start and end times, exit status, and sanitized output, including the context immediately before a failure. Preserve safe structured errors when log redaction fails. Record rollback outcomes and the revision still serving traffic. After correcting a failure, start a new run linked to the failed attempt.
+
+## Start a run and inspect a failure
+
+These screenshots show the production Ainize UI with example project data and logs. Select an image to enlarge it.
+
+1. Sign in with your organization account, open [Runs](/runs), and select **Open runs** on the script project card.
+
+![Open runs on the example-ci project card](/static/docs/cicd/runs.png)
+
+2. In **Runs → Run panel**, choose a version. To verify a particular change, choose **Selected commit** and enter the full SHA. Check the entry file and inputs, then select **▶ Run**.
+
+![Run version, entry file, and Run button](/static/docs/cicd/run-panel.png)
+
+3. Under **Run history**, select the row for your SHA. The expanded row shows the status, exit code, error summary, and log. Here the database test expected three rows and received two. Select **Raw** for the full log. After fixing the issue, start a run for the new SHA.
+
+![Expanded failed run with exit code, message, and log](/static/docs/cicd/runs-error.png)
+
+4. For a web or service project, open [Deployments](/deployments), select the project and its **Deployments** tab, filter by **Error**, and expand the row for your SHA. For a **Ready** deployment, also verify the health and revision at the production domain.
+
+![Error filter and expanded failure in the Deployments tab](/static/docs/cicd/deployments-error.png)

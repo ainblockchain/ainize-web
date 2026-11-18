@@ -36,6 +36,7 @@ export type Align = 'left' | 'center' | 'right';
 export type Block =
   | { t: 'heading'; depth: number; id: string; text: string; c: Inline[] }
   | { t: 'para'; c: Inline[] }
+  | { t: 'image'; alt: string; src: string }
   | { t: 'code'; lang: string; code: string; output?: true }
   | { t: 'list'; ordered: boolean; items: ListItem[] }
   | { t: 'table'; align: Align[]; head: Inline[][]; rows: Inline[][][] }
@@ -223,6 +224,8 @@ function parseBlocks(lines: string[], ctx: Ctx): Block[] {
       continue;
     }
 
+    const image = /^!\[([^\]]+)\]\((\/static\/docs\/(?:[\w-]+\/)*[\w-]+\.png)\)$/.exec(line.trim());
+    if (image) { out.push({ t: 'image', alt: image[1], src: image[2] }); i++; continue; }
     if (isHr(line)) { out.push({ t: 'hr' }); i++; continue; }
 
     // table
@@ -353,7 +356,8 @@ function parseTabs(lines: string[], ctx: Ctx, offset: number): Block {
 export function blocksText(blocks: Block[]): string {
   const parts: string[] = [];
   for (const b of blocks) {
-    if (b.t === 'heading' || b.t === 'para') parts.push(inlineText(b.c));
+    if (b.t === 'image') parts.push(b.alt);
+    else if (b.t === 'heading' || b.t === 'para') parts.push(inlineText(b.c));
     else if (b.t === 'code') parts.push(b.code);
     else if (b.t === 'list') for (const it of b.items) { parts.push(inlineText(it.c)); if (it.sub) for (const s of it.sub.items) parts.push(inlineText(s.c)); }
     else if (b.t === 'table') { parts.push(b.head.map(inlineText).join(' ')); for (const r of b.rows) parts.push(r.map(inlineText).join(' ')); }
