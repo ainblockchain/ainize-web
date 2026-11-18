@@ -204,9 +204,11 @@ configuration, not environment injected later by storage bindings or the runtime
 
 ## Production CI/CD standard
 
-Start script CI from Runs. Start a web or service deployment by pushing to its bound branch. Record the target commit in both cases. Keep tests, build, backup when required, migration, rollout, and serving revision verification traceable to that run. A host-side executor must return its stage results to the run. Mark a release successful only after the service health check passes and the serving revision matches the target.
+**Script CI.** Open [Runs](/runs), choose the project, and use **Run panel → Selected commit** to run the target SHA. Under **Run history**, expand the row for that SHA to inspect its status, exit code and output. Select **Raw** for the full log.
 
-Give the deployer access to each stage's start and end times, exit status, and sanitized output, including the context immediately before a failure. Preserve safe structured errors when log redaction fails. Record rollback outcomes and the revision still serving traffic. After correcting a failure, start a new run linked to the failed attempt.
+**Web and service deployments.** Push the reviewed commit to the project's bound branch. Open [Deployments](/deployments), select the project, and expand the row for that SHA in its **Deployments** tab. A release must record the build, required tests, applicable backup and migration, rollout, and production verification under its deployment ID. If a separate CI run or host job performs a step, link its ID and sanitized result to that deployment.
+
+**Failure and recovery.** Each stage must record its start and end times, exit code, and sanitized output leading up to failure. Preserve the stage and exit code even if log redaction fails. Record the rollback outcome and the revision serving traffic. After a fix, link the new run or deployment to the failed attempt. Mark a production release complete only when the production health check passes and the serving commit matches the target SHA.
 
 ## Start a run and inspect a failure
 
