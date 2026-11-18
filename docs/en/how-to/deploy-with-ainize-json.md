@@ -201,3 +201,9 @@ These declarations apply to that project only. Set the missing values in its
 configuration/Secrets and redeploy; the previous running deployment stays active
 when the new configuration check fails. `requiredEnv` checks explicitly supplied
 configuration, not environment injected later by storage bindings or the runtime.
+
+## Production CI/CD standard
+
+Start each production release through Ainize Run and record the target commit. Keep tests, build, backup when required, migration, rollout, and serving revision verification traceable to that run. A host-side executor must return its stage results to the run. Mark a release successful only after the service health check passes and the serving revision matches the target.
+
+Give the deployer access to each stage's start and end times, exit status, and sanitized output, including the context immediately before a failure. Preserve safe structured errors when log redaction fails. Record rollback outcomes and the revision still serving traffic. After correcting a failure, start a new run linked to the failed attempt.
