@@ -145,3 +145,10 @@ export function hostedAgentCodeTemplateFor(mode: HostedAgentMode): string {
 /** Is this code still one of the untouched templates? Then switching mode may replace it without losing work. */
 export const isUntouchedHostedAgentTemplate = (code: string): boolean =>
   !code.trim() || code === HOSTED_AGENT_TOOLS_TEMPLATE || code === HOSTED_AGENT_HANDLER_TEMPLATE;
+
+/**
+ * Does "reset to the example" destroy something a person wrote: yes unless the editor is empty or still holds an
+ * untouched example. (An agent a team was handed lost its whole entry file to one unconfirmed click.)
+ */
+export const hostedAgentResetNeedsConfirm = (code: string, _mode?: HostedAgentMode): boolean =>
+  code.trim() !== '' && !isUntouchedHostedAgentTemplate(code);

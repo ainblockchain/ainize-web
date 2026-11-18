@@ -271,3 +271,10 @@ test('a new file needs a name the node accepts and nobody has taken', () => {
   for (const taken of ['config.mjs', 'index.mjs', 'package.json']) assert.equal(hostedAgentFileNameProblem(d, taken), 'agentCreate.files.err_taken');
   assert.equal(hostedAgentFileNameProblem(d, 'src/prompt.mjs'), null);
 });
+
+test('resetting to the example asks first only when it would destroy written code', async () => {
+  const { hostedAgentResetNeedsConfirm, hostedAgentCodeTemplateFor } = await import('../src/screens/agentCreate/hostedAgentCodeTemplates');
+  assert.equal(hostedAgentResetNeedsConfirm(''), false);
+  assert.equal(hostedAgentResetNeedsConfirm(hostedAgentCodeTemplateFor('handler')), false);
+  assert.equal(hostedAgentResetNeedsConfirm('export async function execute() { return "mine"; }'), true);
+});
