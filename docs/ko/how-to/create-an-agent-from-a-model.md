@@ -2,7 +2,7 @@
 title: 모델로 에이전트 만들기
 summary: 이 노드가 서빙하는 대화 모델을 공개 주소가 있는 A2A 에이전트로 만듭니다 — 지시문만으로, 또는 격리된 컨테이너에서 도는 코드로.
 source: en/how-to/create-an-agent-from-a-model.md
-source_sha256: 5080913a92904e48e6fd519adc7685142b2403e2d3a32d17310bbb723a77fe47
+source_sha256: 3d897e82d82c7521897818078a2b34467abc5fa9b0138c28bc17ac70286924ca
 ---
 
 # 모델로 에이전트 만들기
@@ -45,6 +45,16 @@ A2UI 화면(`ctx.ui.surface(id, components, data)`)입니다. 에이전트 카�
 코드는 자기 네트워크가 없는 컨테이너에서 돌기 때문에, Docker가 없는 노드는 두 코드 방식을 거절합니다. 그때는 양식이
 그렇다고 알려 주며, 프롬프트 에이전트는 그 노드에서도 그대로 됩니다.
 
+## 파일이 여러 개일 때
+
+에이전트는 `index.mjs`에서 시작하고, 다른 파일 — 설정 파일, 프롬프트 모듈, `src/` 아래의 도우미 — 을 함께 가질 수
+있습니다. `index.mjs`가 상대 경로로 import 합니다. 코드 편집기는 모든 파일을 탭으로 보여 줍니다: 탭을 골라 고치고,
+**파일 추가**로 새 파일을 만들고(`config.mjs`, `src/prompt.mjs`; 폴더는 세 단계까지), **이 파일 삭제**로 지웁니다.
+저장하면 모든 파일이 하나의 새 버전으로 함께 반영되며, 전체 파일 크기 한도는 1MB입니다.
+
+팀이 자주 바꾸는 것은 작은 파일 하나에 따로 두세요(지침 문장과 기준값을 내보내는 `config.mjs`). `index.mjs`가 그것을
+import 하면, 에이전트를 조정하는 사람은 코드가 아니라 짧은 파일 하나만 엽니다.
+
 ## 허용 호스트와 비밀값
 
 **허용 호스트**는 나갈 수 있는 곳의 목록입니다: `api.example.com`, `*.example.com`, 또는 공개 호스트 전부를 뜻하는 `*`.
@@ -55,6 +65,26 @@ A2UI 화면(`ctx.ui.surface(id, components, data)`)입니다. 에이전트 카�
 
 에이전트 페이지는 모델을 링크로, 도는 방식을, 그리고 코드 에이전트라면 빌드가 아직 진행 중인지를 보여줍니다.
 주인에게는 **수정**, **삭제**, **로그 보기**(빌드 출력과 최근 실행 로그)도 보입니다.
+
+다른 사람도 함께 관리할 수 있습니다. 에이전트를 [조직](./organizations.md)에 공유하면(**공개 범위** → *조직*) 그
+조직의 `write` 멤버 모두에게 같은 **수정**과 **로그 보기**가 보입니다 — 코드, 모델, 비밀값, 로그까지. 삭제와 공개 범위
+변경은 만든 사람과 조직 관리자에게 남습니다. 파일을 보내서 넘겨줄 것이 없습니다: 로그인해서 에이전트 페이지를 열면 됩니다.
+
+## 내 프로그램에서 호출하기
+
+에이전트 주소는 HTTPS 위의 평범한 [A2A](https://a2a-protocol.org/)라서, CMS나 스크립트가 POST 한 번으로 부릅니다:
+
+```bash
+curl -s https://ainize.ai/agents/<id> -H 'content-type: application/json' -H 'A2A-Version: 1.0' -d '{
+  "jsonrpc": "2.0", "id": "1", "method": "SendMessage",
+  "params": { "message": { "role": "ROLE_USER", "messageId": "<메시지마다 새 id>", "parts": [{ "text": "hello" }] } }
+}'
+```
+
+답은 `result.message.parts`에 있습니다: 사람이 읽는 `text` 파트와, 에이전트가 구조화된 파트를 돌려줄 때는 프로그램이
+읽는 `data` 파트. 메시지마다 새 `messageId`를 보내세요 — 같은 id를 다시 보내면 앞의 답이 그대로 돌아옵니다. 코드
+에이전트는 답 하나에 2분을 씁니다. 이 주소는 인증을 받지 않으므로(A2A는 인증을 보내지 않습니다) 주소를 아는 사람은
+누구나 부를 수 있습니다: 낯선 사람이 일으켜서는 안 되는 일을 에이전트가 비밀값으로 하게 두지 마세요.
 
 같은 경로가 곧 API입니다: `POST /api/hosted-agents`, `PUT`/`DELETE /api/hosted-agents/<id>`,
 `PUT /api/hosted-agents/<id>/secrets/<name>`, `GET /api/hosted-agents/<id>/logs` — 모두 로그인한 세션으로 호출합니다.

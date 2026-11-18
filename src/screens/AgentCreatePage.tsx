@@ -28,6 +28,7 @@ import {
 import {
   chatModelsForHostedAgent, hostedAgentMediaServed, HOSTED_AGENT_ENTRY_FILE, HOSTED_AGENT_LIMITS, HOSTED_AGENT_MODES, hostedAgentApiErrorOf, hostedAgentDraftFromSpec,
   hostedAgentFormProblems, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
+  hostedAgentFileContent, hostedAgentFileNameProblem, hostedAgentFileNames, withHostedAgentFile, withoutHostedAgentFile,
   isHostedAgentCodeMode, parseHostedAgentSpecResponse,
   type HostedAgentApiError, type HostedAgentFormDraft, type HostedAgentFormProblem, type HostedAgentMode,
 } from '@/api/hostedAgents';
@@ -69,6 +70,14 @@ const AgentCreateCode = styled.textarea`
   &:focus { outline: 2px solid ${(p) => p.theme.color.PRIMARY}; }
 `;
 const AgentCreateFileLabel = styled.div`display: flex; justify-content: space-between; align-items: center; gap: 12px;`;
+const AgentCreateFileTabs = styled.div`display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px;`;
+const AgentCreateFileTab = styled.button<{ $on: boolean }>`
+  border: 0; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; min-height: 32px;
+  background: ${(p) => (p.$on ? '#e8edff' : '#eef1f4')}; color: ${(p) => (p.$on ? '#1f3fbf' : '#4a5560')}; font-weight: ${(p) => (p.$on ? 700 : 500)};
+`;
+const AgentCreateFileAdd = styled.form`display: inline-flex; align-items: center; gap: 6px;
+  input { height: 32px; min-width: 220px; padding: 0 10px; border: 1px solid #cfd6dd; border-radius: 8px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+`;
 const AgentCreateSecretRow = styled.div`display: grid; grid-template-columns: minmax(140px, 1fr) minmax(160px, 1.4fr) auto auto; gap: 12px; align-items: end;
   @media (max-width: 640px) { grid-template-columns: 1fr; }
 `;
@@ -153,6 +162,21 @@ export default function AgentCreatePage() {
   const problems = useMemo(() => hostedAgentFormProblems(draft, shareable.orgs), [draft, shareable.orgs]);
   const problemFor = (field: HostedAgentFormProblem['field']) => (showProblems ? problems.find((p) => p.field === field) : undefined);
   const set = <K extends keyof HostedAgentFormDraft>(key: K, value: HostedAgentFormDraft[K]) => setDraft((d) => ({ ...d, [key]: value }));
+
+  // Which file the code editor shows. A file that is gone (deleted, or another agent loaded) falls back to the entry file.
+  const [file, setFile] = useState<string>(HOSTED_AGENT_ENTRY_FILE);
+  const [addingFile, setAddingFile] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
+  const fileNames = hostedAgentFileNames(draft);
+  const openFile = fileNames.includes(file) ? file : HOSTED_AGENT_ENTRY_FILE;
+  const addFile = () => {
+    const name = newFileName.trim();
+    if (hostedAgentFileNameProblem(draft, name)) return;
+    setDraft((d) => withHostedAgentFile(d, name, ''));
+    setFile(name);
+    setAddingFile(false);
+    setNewFileName('');
+  };
 
   const setName = (name: string) => setDraft((d) => ({ ...d, name, id: editing || idTouched ? d.id : hostedAgentIdFromName(name) }));
 
@@ -374,26 +398,53 @@ export default function AgentCreatePage() {
           {code && (
             <>
               <Field>
+                {/* Every file of the agent can be opened here, not only the entry file: a settings file or a prompt
+                    module that came with a pushed agent is what its team actually needs to change. */}
+                <AgentCreateFileTabs role="tablist" aria-label={t('agentCreate.files.label')} data-testid="agent-create-files">
+                  {fileNames.map((name) => (
+                    <AgentCreateFileTab key={name} type="button" role="tab" aria-selected={name === openFile} $on={name === openFile} onClick={() => setFile(name)} data-testid={`agent-create-file-${name}`}>
+                      <Mono>{name}</Mono>
+                    </AgentCreateFileTab>
+                  ))}
+                  {addingFile ? (
+                    <AgentCreateFileAdd onSubmit={(e) => { e.preventDefault(); addFile(); }}>
+                      <input value={newFileName} autoFocus aria-label={t('agentCreate.files.add')} placeholder={t('agentCreate.files.add_placeholder')} onChange={(e) => setNewFileName(e.target.value)} data-testid="agent-create-file-name"
+                        onKeyDown={(e) => { if (e.key === 'Escape') { setAddingFile(false); setNewFileName(''); } }} />
+                      <Button type="submit" size="small" variant="text">{t('agentCreate.files.add_confirm')}</Button>
+                    </AgentCreateFileAdd>
+                  ) : (
+                    <Button type="button" size="small" variant="text" onClick={() => setAddingFile(true)} data-testid="agent-create-file-add">+ {t('agentCreate.files.add')}</Button>
+                  )}
+                </AgentCreateFileTabs>
+                {addingFile && newFileName && hostedAgentFileNameProblem(draft, newFileName) && <HelperText $error>{t(hostedAgentFileNameProblem(draft, newFileName)!)}</HelperText>}
                 <AgentCreateFileLabel>
-                  <FieldLabel htmlFor="agent-create-code"><Mono>{HOSTED_AGENT_ENTRY_FILE}</Mono></FieldLabel>
-                  <Button type="button" size="small" variant="text" onClick={() => set('code', hostedAgentCodeTemplateFor(draft.mode))}>
-                    {t('agentCreate.code.reset')}
-                  </Button>
+                  <FieldLabel htmlFor="agent-create-code"><Mono>{openFile}</Mono></FieldLabel>
+                  {openFile === HOSTED_AGENT_ENTRY_FILE ? (
+                    <Button type="button" size="small" variant="text" onClick={() => set('code', hostedAgentCodeTemplateFor(draft.mode))}>
+                      {t('agentCreate.code.reset')}
+                    </Button>
+                  ) : (
+                    <Button type="button" size="small" variant="text" data-testid="agent-create-file-remove"
+                      onClick={() => { if (window.confirm(t('agentCreate.files.remove_confirm', { name: openFile }))) { setDraft((d) => withoutHostedAgentFile(d, openFile)); setFile(HOSTED_AGENT_ENTRY_FILE); } }}>
+                      {t('agentCreate.files.remove')}
+                    </Button>
+                  )}
                 </AgentCreateFileLabel>
                 <AgentCreateCode
-                  id="agent-create-code" value={draft.code} spellCheck={false} autoCapitalize="off" autoCorrect="off" data-testid="agent-create-code"
-                  onChange={(e) => set('code', e.target.value)}
+                  id="agent-create-code" value={hostedAgentFileContent(draft, openFile)} spellCheck={false} autoCapitalize="off" autoCorrect="off" data-testid="agent-create-code"
+                  onChange={(e) => { const v = e.target.value; setDraft((d) => withHostedAgentFile(d, openFile, v)); }}
                   onKeyDown={(e) => {
                     // Tab indents inside the editor instead of leaving it — the one editor key a textarea lacks.
                     if (e.key !== 'Tab' || e.shiftKey) return;
                     e.preventDefault();
                     const el = e.currentTarget;
                     const { selectionStart: s, selectionEnd: end } = el;
-                    const next = `${draft.code.slice(0, s)}  ${draft.code.slice(end)}`;
-                    set('code', next);
+                    const now = el.value;
+                    setDraft((d) => withHostedAgentFile(d, openFile, `${now.slice(0, s)}  ${now.slice(end)}`));
                     requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = s + 2; });
                   }}
                 />
+                <HelperText>{t('agentCreate.files.help')}</HelperText>
                 {problemFor('code') && <HelperText $error>{t(problemFor('code')!.key)}</HelperText>}
                 {problemFor('files') && <HelperText $error>{t(problemFor('files')!.key)}</HelperText>}
               </Field>

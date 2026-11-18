@@ -12,6 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   agentSummaryHostedFieldsOf, agentsBuiltOnModel, chatModelsForHostedAgent, hostedAgentAllowedHostsFromText, hostedAgentApiErrorOf,
+  hostedAgentFileContent, hostedAgentFileNameProblem, hostedAgentFileNames, withHostedAgentFile, withoutHostedAgentFile,
   hostedAgentDraftFromSpec, hostedAgentFormProblems, hostedAgentMediaServed, hostedAgentIdFromName, hostedAgentSecretsToSend, hostedAgentSpecInputFromDraft,
   isHostedAgentIdValid, isHostedAgentOwnedBy, parseHostedAgentLogsResponse, parseHostedAgentSpecResponse, type HostedAgentFormDraft,
 } from '../src/api/hostedAgents';
@@ -242,4 +243,31 @@ test('capabilities and examples survive creation while invalid card fields are r
     [{ ...skills[0], examples: ['x'.repeat(301)] }],
     Array.from({ length: 9 }, (_, i) => ({ ...skills[0], id: String(i) })),
   ]) assert.ok(hostedAgentFormProblems(draft({ skills: bad })).some(problem => problem.field === 'skills'));
+});
+
+test('every file of a code agent can be opened, changed, added and removed in the edit form', () => {
+  const d = draft({ mode: 'handler', code: 'export const execute = () => "hi";', additionalFiles: { 'src/prompt.mjs': 'export const P = 1;', 'config.mjs': 'export const C = 1;' } });
+  assert.deepEqual(hostedAgentFileNames(d), ['index.mjs', 'config.mjs', 'src/prompt.mjs'], 'the entry file first, then by name');
+  assert.equal(hostedAgentFileContent(d, 'config.mjs'), 'export const C = 1;');
+  assert.equal(hostedAgentFileContent(d, 'index.mjs'), d.code);
+
+  const edited = withHostedAgentFile(d, 'config.mjs', 'export const C = 2;');
+  assert.equal(hostedAgentSpecInputFromDraft(edited).files['config.mjs'], 'export const C = 2;');
+  assert.equal(hostedAgentSpecInputFromDraft(edited).files['src/prompt.mjs'], 'export const P = 1;', 'the files not being edited are sent unchanged');
+  assert.equal(withHostedAgentFile(d, 'index.mjs', 'x').code, 'x');
+
+  const added = withHostedAgentFile(d, 'src/new.mjs', '');
+  assert.ok(hostedAgentFileNames(added).includes('src/new.mjs'));
+  const removed = withoutHostedAgentFile(added, 'config.mjs');
+  assert.equal(Object.hasOwn(hostedAgentSpecInputFromDraft(removed).files, 'config.mjs'), false);
+  assert.equal(withoutHostedAgentFile(d, 'index.mjs'), d, 'the entry file cannot be removed');
+});
+
+test('a new file needs a name the node accepts and nobody has taken', () => {
+  const d = draft({ mode: 'handler', code: 'x', additionalFiles: { 'config.mjs': '' } });
+  assert.equal(hostedAgentFileNameProblem(d, ' '), 'agentCreate.files.err_empty');
+  assert.equal(hostedAgentFileNameProblem(d, '../secret'), 'agentCreate.files.err_name');
+  assert.equal(hostedAgentFileNameProblem(d, 'a/b/c/d/e.mjs'), 'agentCreate.files.err_name');
+  for (const taken of ['config.mjs', 'index.mjs', 'package.json']) assert.equal(hostedAgentFileNameProblem(d, taken), 'agentCreate.files.err_taken');
+  assert.equal(hostedAgentFileNameProblem(d, 'src/prompt.mjs'), null);
 });
