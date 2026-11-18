@@ -114,6 +114,7 @@ export const hostedAgents: Dict = {
   'agentCreate.mode.tools.prompt_help': { ko: '모델에게 도구를 언제 쓸지 알려 주세요. 131072자까지.', en: 'Tell the model when to use the tools. Up to 131072 characters.' },
   'agentCreate.mode.handler.prompt_help': { ko: '선택. 코드에서 ctx.llm.chat을 부를 때 쓰려면 여기에 두세요.', en: 'Optional. Keep it here if your code calls ctx.llm.chat.' },
   'agentCreate.code.reset': { ko: '예제로 되돌리기', en: 'Reset to the example' },
+  'agentCreate.code.reset_confirm': { ko: 'index.mjs 의 내용을 예제 코드로 바꿉니다. 지금 적혀 있는 코드는 사라집니다(저장하기 전까지는 반영되지 않습니다). 계속할까요?', en: 'This replaces index.mjs with the example. The code written here is lost (nothing changes until you save). Continue?' },
   'agentCreate.files.label': { ko: '파일', en: 'Files' },
   'agentCreate.files.add': { ko: '파일 추가', en: 'Add a file' },
   'agentCreate.files.add_placeholder': { ko: '예: config.mjs 또는 src/prompt.mjs', en: 'e.g. config.mjs or src/prompt.mjs' },

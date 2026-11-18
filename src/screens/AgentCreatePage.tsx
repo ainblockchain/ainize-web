@@ -46,7 +46,7 @@ import { useTitle } from '@/utils/useTitle';
 import { useShareableOrgs } from '@/hooks/useShareableOrgs';
 import {
   HOSTED_AGENT_PACKAGE_JSON_TEMPLATE, hostedAgentCodeTemplateFor, isUntouchedHostedAgentTemplate,
-} from './agentCreate/hostedAgentCodeTemplates';
+ hostedAgentResetNeedsConfirm } from './agentCreate/hostedAgentCodeTemplates';
 
 const AgentCreateForm = styled.form`display: flex; flex-direction: column; gap: 24px; margin-top: 8px; max-width: 880px;`;
 const AgentCreateSection = styled.section`
@@ -420,7 +420,12 @@ export default function AgentCreatePage() {
                 <AgentCreateFileLabel>
                   <FieldLabel htmlFor="agent-create-code"><Mono>{openFile}</Mono></FieldLabel>
                   {openFile === HOSTED_AGENT_ENTRY_FILE ? (
-                    <Button type="button" size="small" variant="text" onClick={() => set('code', hostedAgentCodeTemplateFor(draft.mode))}>
+                    <Button type="button" size="small" variant="text" data-testid="agent-create-code-reset"
+                      onClick={() => {
+                        // Replacing written code with the example is asked first; an untouched or empty editor is not worth a question.
+                        if (hostedAgentResetNeedsConfirm(draft.code, draft.mode) && !window.confirm(t('agentCreate.code.reset_confirm'))) return;
+                        set('code', hostedAgentCodeTemplateFor(draft.mode));
+                      }}>
                       {t('agentCreate.code.reset')}
                     </Button>
                   ) : (
