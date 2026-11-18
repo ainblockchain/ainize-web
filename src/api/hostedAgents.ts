@@ -246,6 +246,46 @@ export function hostedAgentFormProblems(draft: HostedAgentFormDraft, orgs?: read
 }
 
 /**
+ * The files of a code agent as the edit form lists them: the entry file first, then the rest by name.
+ * `package.json` has its own editor and is not listed. An agent that was pushed with several files (a settings
+ * file, modules under `src/`) used to show only `index.mjs` here — the others were kept on save but nobody could
+ * open them, so a newsroom's "change the review guidance" meant asking whoever could push.
+ */
+export function hostedAgentFileNames(draft: Pick<HostedAgentFormDraft, 'additionalFiles'>): string[] {
+  return [HOSTED_AGENT_ENTRY_FILE, ...Object.keys(draft.additionalFiles ?? {}).filter((n) => n !== HOSTED_AGENT_ENTRY_FILE && n !== 'package.json').sort()];
+}
+
+/** What the editor shows for `name`. */
+export function hostedAgentFileContent(draft: Pick<HostedAgentFormDraft, 'code' | 'additionalFiles'>, name: string): string {
+  return name === HOSTED_AGENT_ENTRY_FILE ? draft.code : (draft.additionalFiles?.[name] ?? '');
+}
+
+/** The draft with `name` set to `content` (the entry file is `code`; any other file is created or replaced). */
+export function withHostedAgentFile<D extends Pick<HostedAgentFormDraft, 'code' | 'additionalFiles'>>(draft: D, name: string, content: string): D {
+  return name === HOSTED_AGENT_ENTRY_FILE ? { ...draft, code: content } : { ...draft, additionalFiles: { ...(draft.additionalFiles ?? {}), [name]: content } };
+}
+
+/** The draft without `name`. The entry file cannot be removed. */
+export function withoutHostedAgentFile<D extends Pick<HostedAgentFormDraft, 'additionalFiles'>>(draft: D, name: string): D {
+  if (name === HOSTED_AGENT_ENTRY_FILE) return draft;
+  const rest = { ...(draft.additionalFiles ?? {}) };
+  delete rest[name];
+  return { ...draft, additionalFiles: rest };
+}
+
+/** The node's rule for a file name (hosted-agent-types.ts `fileName`): a relative path of plain segments, four deep at most. */
+const HOSTED_AGENT_FILE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}(\/[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}){0,3}$/;
+
+/** Why a new file cannot have this name, as a message key, or null when it can. */
+export function hostedAgentFileNameProblem(draft: Pick<HostedAgentFormDraft, 'additionalFiles'>, name: string): string | null {
+  const n = name.trim();
+  if (!n) return 'agentCreate.files.err_empty';
+  if (!HOSTED_AGENT_FILE_NAME.test(n)) return 'agentCreate.files.err_name';
+  if (n === HOSTED_AGENT_ENTRY_FILE || n === 'package.json' || Object.hasOwn(draft.additionalFiles ?? {}, n)) return 'agentCreate.files.err_taken';
+  return null;
+}
+
+/**
  * The request body, from the form.
  *
  * `files` is empty for a prompt agent — sending the template a person never meant to ship would make the node
