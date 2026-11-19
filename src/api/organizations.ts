@@ -166,11 +166,13 @@ export function parseOrgList(raw: unknown): OrgListView {
   };
 }
 
-export interface OrgInviteView { token: string | null; token_prefix: string; role: OrgRole; email: string | null; created_by: string; created_at: number | null; expires_at: number | null; used_by: string | null; url: string | null }
+export interface OrgInviteView { id: string; max_uses: number | null; use_count: number; token: string | null; token_prefix: string; role: OrgRole; email: string | null; created_by: string; created_at: number | null; expires_at: number | null; used_by: string | null; url: string | null }
 export function parseOrgInvite(raw: unknown): OrgInviteView | null {
   const r = obj((raw as { invite?: unknown } | null | undefined)?.invite ?? raw);
   if (!r || !str(r.token_prefix)) return null;
   return {
+    id: str(r.id) ?? String(r.token_prefix), max_uses: r.max_uses === null ? null : num(r.max_uses) ?? 1,
+    use_count: num(r.use_count) ?? (str(r.used_by) ? 1 : 0),
     token: str(r.token), token_prefix: str(r.token_prefix) as string, role: isOrgRole(r.role) ? r.role : 'read', email: str(r.email), created_by: str(r.created_by) ?? '',
     created_at: num(r.created_at), expires_at: num(r.expires_at), used_by: str(r.used_by), url: str(r.url),
   };

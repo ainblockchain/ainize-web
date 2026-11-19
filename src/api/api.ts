@@ -399,7 +399,7 @@ export const api = createApi({
       invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/requests` }],
     }),
     orgInvites: b.query<unknown, string>({ query: (id) => `api/orgs/${encodeURIComponent(id)}/invites`, providesTags: (_r, _e, id) => [{ type: 'Org', id: `${id}/invites` }] }),
-    createOrgInvite: b.mutation<unknown, { id: string; role: OrgRole; email: string | null; ttlHours: number }>({
+    createOrgInvite: b.mutation<unknown, { id: string; role: OrgRole; email: string | null; ttlHours: number; maxUses?: number | null }>({
       query: ({ id, ...body }) => ({ url: `api/orgs/${encodeURIComponent(id)}/invites`, method: 'POST', body }), invalidatesTags: (_r, _e, a) => [{ type: 'Org', id: a.id }, { type: 'Org', id: `${a.id}/invites` }],
     }),
     revokeOrgInvite: b.mutation<unknown, { id: string; token: string }>({

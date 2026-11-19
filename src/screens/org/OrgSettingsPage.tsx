@@ -202,6 +202,10 @@ function MembersTab({ org }: { org: OrgProfile }) {
   const [newRole, setNewRole] = useState<OrgRole>('read');
   const [inviteRole, setInviteRole] = useState<OrgRole>('read');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [useLimit, setUseLimit] = useState('1');
+  const [unlimited, setUnlimited] = useState(false);
+  const maxUses = unlimited ? null : Number(useLimit);
+  const validUseLimit = unlimited || (/^[1-9][0-9]*$/.test(useLimit) && Number.isSafeInteger(maxUses));
   const [inviteDays, setInviteDays] = useState(7);
   const [freshInvite, setFreshInvite] = useState<string | null>(null);
   const [approveRole, setApproveRole] = useState<Record<string, OrgRole>>({});
@@ -259,8 +263,10 @@ function MembersTab({ org }: { org: OrgProfile }) {
           <Select value={String(inviteDays)} onChange={(e) => setInviteDays(Number(e.target.value))} style={{ width: 'auto', padding: '4px 8px' }}>
             {[1, 7, 30].map((d) => <option key={d} value={d}>{t('orgSettings.invites.ttl_days', { n: d })}</option>)}
           </Select>
-          <Button size="small" variant="contained" loading={inviteState.isLoading} data-testid="org-invite-make" onClick={() => void run(async () => {
-            const made = parseOrgInvite(await makeInvite({ id: org.id, role: inviteRole, email: inviteEmail.trim() || null, ttlHours: inviteDays * 24 }).unwrap());
+          <label>{t('orgSettings.invites.max_uses')} <Input type="number" min={1} step={1} value={useLimit} disabled={unlimited} onChange={e => setUseLimit(e.target.value)} style={{ width: 88 }} /></label>
+          <label><input type="checkbox" checked={unlimited} onChange={e => setUnlimited(e.target.checked)} /> {t('orgSettings.invites.unlimited')}</label>
+          <Button size="small" variant="contained" disabled={!validUseLimit} loading={inviteState.isLoading} data-testid="org-invite-make" onClick={() => void run(async () => {
+            const made = parseOrgInvite(await makeInvite({ id: org.id, role: inviteRole, email: inviteEmail.trim() || null, ttlHours: inviteDays * 24, maxUses }).unwrap());
             setFreshInvite(made?.url ?? null);
           })}>{t('orgSettings.invites.make')}</Button>
         </Row>
@@ -272,10 +278,11 @@ function MembersTab({ org }: { org: OrgProfile }) {
         <SubTitle $mt={4} style={{ fontSize: 14 }}>{t('orgSettings.invites.open')}</SubTitle>
         {invites.length === 0 && <Description style={{ margin: 0 }}>{t('orgSettings.invites.empty')}</Description>}
         {invites.map((i) => (
-          <Row key={i.token_prefix}>
+          <Row key={i.id}>
             <Mono>{i.token_prefix}…</Mono><Chip>{t(`org.role.${i.role}`)}</Chip>{i.email && <span>{i.email}</span>}
-            <span style={{ color: '#777', fontSize: 12 }}>{i.used_by ? t('orgSettings.invites.used') : t('orgSettings.invites.expires', { date: when(i.expires_at) })}</span>
-            {!i.used_by && <Button size="small" variant="text" color="secondary" onClick={() => void run(() => revoke({ id: org.id, token: i.token_prefix }).unwrap())}>{t('orgSettings.invites.revoke')}</Button>}
+            <span>{t('orgSettings.invites.usage', { used: i.use_count, limit: i.max_uses ?? t('orgSettings.invites.unlimited') })}</span>
+            <span style={{ color: '#777', fontSize: 12 }}>{t('orgSettings.invites.expires', { date: when(i.expires_at) })}</span>
+            {(i.max_uses === null || i.use_count < i.max_uses) && (i.expires_at ?? 0) > Date.now() && <Button size="small" variant="text" color="secondary" onClick={() => void run(() => revoke({ id: org.id, token: i.id }).unwrap())}>{t('orgSettings.invites.revoke')}</Button>}
           </Row>
         ))}
       </Panel>
