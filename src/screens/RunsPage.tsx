@@ -109,7 +109,7 @@ export default function RunsPage() {
   </PageWrapper>;
 }
 
-function RunCard({ project: p }: { project: Project }) {
+export function RunCard({ project: p }: { project: Project }) {
   const { t } = useT();
   const entry = p.entry ?? p.manifest?.entry ?? null;
   const release = p.productionRelease;

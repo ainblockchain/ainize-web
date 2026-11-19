@@ -76,7 +76,7 @@ export default function AppsPage() {
 }
 
 /** Resolve a previous active deployment when the newest build failed or was rolled back. */
-function AppCard({ project: p }: { project: Project }) {
+export function AppCard({ project: p }: { project: Project }) {
   const { t } = useT();
   const knownUrl = activeProjectUrl(p);
   const needsHistory = !knownUrl && !!(p.activeDeploymentId || p.activeCommit);
