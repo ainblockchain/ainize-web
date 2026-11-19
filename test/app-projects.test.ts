@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appProjects } from '../src/lib/appProjects.ts';
+import { appProjects, runProjects } from '../src/lib/appProjects.ts';
 import type { Project } from '../src/api/projects.ts';
 const p = (id: string, kind: Project['kind'], updatedAt: number, extra: Partial<Project> = {}) => ({ id, kind, updatedAt, name: id, org: 'comcom', repoName: id, ...extra } as Project);
 test('app listing combines own and organization results once and excludes agents and scripts', () => {
@@ -14,4 +14,11 @@ test('global search filters names, organization paths and monorepo app folders w
  assert.deepEqual(appProjects(rows, 'packages/store').map(p => p.id), ['web']);
  assert.equal(appProjects(rows, 'comcom/').length, 2);
  assert.equal(appProjects(rows, 'missing').length, 0);
+});
+
+test('a service with production release access appears in both Runs and Deployments', () => {
+ const web = p('web','nextjs',1,{productionRelease:{canDeploy:false,latest:null}});
+ const api = p('api','service',2);
+ assert.deepEqual(runProjects([web,api,web]).map(p=>p.id), ['web']);
+ assert.deepEqual(appProjects([web,api]).map(p=>p.id), ['api','web']);
 });

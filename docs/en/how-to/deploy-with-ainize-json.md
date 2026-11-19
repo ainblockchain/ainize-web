@@ -204,11 +204,21 @@ configuration, not environment injected later by storage bindings or the runtime
 
 ## Production CI/CD standard
 
-**Script CI.** Open [Runs](/runs), choose the project, and use **Run panel → Selected commit** to run the target SHA. Under **Run history**, expand the row for that SHA to inspect its status, exit code and output. Select **Raw** for the full log.
+Start each production deployment with an Ainize Run for a specific commit. Sign in with organization write access and the deployer assignment for the project. The Run must track tests, build, applicable backups and migrations, deployment, and production verification. Host-executed stages return their results to the same Run.
 
-**Web and service deployments.** Push the reviewed commit to the project's bound branch. Open [Deployments](/deployments), select the project, and expand the row for that SHA in its **Deployments** tab. A release must record the build, required tests, applicable backup and migration, rollout, and production verification under its deployment ID. If a separate CI run or host job performs a step, link its ID and sanitized result to that deployment.
+### Start a production release and diagnose a failure
 
-**Failure and recovery.** Each stage must record its start and end times, exit code, and sanitized output leading up to failure. Preserve the stage and exit code even if log redaction fails. Record the rollback outcome and the revision serving traffic. After a fix, link the new run or deployment to the failed attempt. Mark a production release complete only when the production health check passes and the serving commit matches the target SHA.
+1. Open [Runs](/runs), find the service project and select **Open runs**, or open its **Runs** tab directly.
+2. Enter the reviewed 40-character SHA in **Main commit SHA to deploy** and select **Start production deployment**. The control appears for assigned deployers on projects configured for host releases. The initial rollout covers the Ainize node and web projects.
+3. Expand the new Run ID in **Run history**. Match the target SHA and inspect the `[host CI]` lines for the failing stage, timestamps, exit code and available diagnostic codes. For example, `MAIN_REVISION_CHANGED` at checkout means main advanced after the commit was selected. Check the current branch head before submitting another release.
+
+![Expanded production Run showing a failed stage and exit code using example data](/static/docs/cicd/host-release-error-example.png)
+
+4. Fix the cause and submit the reviewed SHA in a new Run. Follow its previous-failure link to compare attempts. Success requires a passing health check on the production domain and a serving commit equal to the target SHA. After rollback, inspect the rollback outcome and the commit serving traffic.
+
+![Retry Run linked to the previous failure using example data](/static/docs/cicd/host-release-retry-example.png)
+
+Sanitized output must retain the context leading up to a failure. If masking fails, preserve safe stage information and the exit code. The **Deployments** tab also shows build records for connected service deployments. If the project has no production deployment button, check its migration status with its operator.
 
 ## Start a run and inspect a failure
 
@@ -233,3 +243,5 @@ These screenshots show the production Ainize UI with example project data and lo
 ### Check status from Claude Code
 
 Install the [Ainize skill for Claude Code](./claude-code-skill.md) and configure your organization key to query the same project from your working directory. For example: “For the example-web project in my organization, show the deployment for this commit SHA, its deployment ID, and the error lines from the build log. Only read status and logs.” For script CI, ask for the run ID instead. Compare the result with the matching SHA in Runs or Deployments.
+
+For a production Run, ask “Find the release Run for this SHA on comcom/ainize-node. Show its ID, previous failed Run, first failed stage, exit code, recorded diagnostics, and serving commit. Mark any missing field as unverified.”
