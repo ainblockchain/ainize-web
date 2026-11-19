@@ -67,6 +67,8 @@ export const organizations: Dict = {
   'org.problem.readme': { ko: 'README 는 20,000자까지입니다.', en: 'A README is at most 20,000 characters.' },
 
   // ── /org/:id
+  'org.runs.empty': { ko: '이 조직에는 실행 프로젝트가 없습니다.', en: 'No run projects in this organization.' },
+  'org.deployments.empty': { ko: '이 조직에는 배포된 앱이 없습니다.', en: 'No deployed apps in this organization.' },
   'org.tab.agents': { ko: '에이전트', en: 'Agents' },
   'org.tab.members': { ko: '멤버', en: 'Members' },
   'org.tab.issues': { ko: '이슈', en: 'Issues' },

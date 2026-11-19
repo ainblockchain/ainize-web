@@ -9,7 +9,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 import styled from 'styled-components';
-import { useOrgQuery, useRequestJoinOrgMutation } from '@/api/api';
+import { useOrgProjectsQuery, useOrgQuery, useRequestJoinOrgMutation } from '@/api/api';
 import { agentSummaryFromOrgAgent, orgApiErrorOf, parseOrgProfile, roleAtLeast } from '@/api/organizations';
 import { useAuth } from '@/auth/AuthContext';
 import { Blocks, Prose } from '@/components/docs/Markdown';
@@ -17,9 +17,13 @@ import { AgentListItem } from '@/components/public/AgentListItem';
 import { parseDoc } from '@/components/docs/markdown-parser';
 import { Button } from '@/components/ui/Button';
 import { Alert, Input } from '@/components/ui/Form';
-import { CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
+import { CardGrid, CenterProgress, Description, Empty, Mono, PageWrapper, StyledLink, Tabs, Title, TitleRow } from '@/components/ui/Misc';
 import { viewerPrincipals } from '@/api/linkedAgents';
 import { useLocale, useT } from '@/i18n';
+import { appProjects, runProjects } from '@/lib/appProjects';
+import { orgProjectSlugs } from '@/lib/orgProjectSlugs';
+import { AppCard } from '../AppsPage';
+import { RunCard } from '../RunsPage';
 import { useTitle } from '@/utils/useTitle';
 
 const OrgHeader = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;`;
@@ -47,17 +51,17 @@ export default function OrgPage() {
   const { locale } = useLocale();
   const location = useLocation();
   const auth = useAuth();
-  const { data, isLoading, error } = useOrgQuery(id, { skip: !auth.isSignedIn, pollingInterval: 60_000 });
+  const { currentData: data, isFetching, error } = useOrgQuery(id, { skip: !auth.isSignedIn, pollingInterval: 60_000 });
   const org = useMemo(() => parseOrgProfile(data), [data]);
   const err = error ? orgApiErrorOf(error) : null;
   useTitle(org?.name ?? err?.org?.name ?? t('orgs.title'));
-  const [tab, setTab] = useState<'agents' | 'members'>('agents');
+  const [tab, setTab] = useState<'agents' | 'deployments' | 'runs' | 'members'>('agents');
   const [message, setMessage] = useState('');
   const [requestJoin, requestState] = useRequestJoinOrgMutation();
   const [requestError, setRequestError] = useState<string | null>(null);
   const readme = useMemo(() => (org?.readme ? parseDoc(org.readme).blocks : []), [org?.readme]);
 
-  if (auth.loading || (auth.isSignedIn && isLoading)) return <PageWrapper><CenterProgress /></PageWrapper>;
+  if (auth.loading || (auth.isSignedIn && isFetching && !data)) return <PageWrapper><CenterProgress /></PageWrapper>;
 
   if (!auth.isSignedIn) {
     return (
@@ -134,6 +138,8 @@ export default function OrgPage() {
 
       <Tabs value={tab} onChange={(v) => setTab(v as typeof tab)} tabs={[
         { id: 'agents', label: `${t('org.tab.agents')} · ${org.agent_count}` },
+        { id: 'deployments', label: t('apps.title') },
+        { id: 'runs', label: t('runs.title') },
         { id: 'members', label: `${t('org.tab.members')} · ${org.member_count}` },
       ]} />
 
@@ -164,6 +170,9 @@ export default function OrgPage() {
         </>
       )}
 
+      {(tab === 'deployments' || tab === 'runs') && orgProjectSlugs(org, auth.sso?.orgs ?? []).map(slug =>
+        <OrgActivity key={slug} slug={slug} tab={tab} />)}
+
       {tab === 'members' && (
         <>
           {org.domains.length > 0 && <Description style={{ marginTop: 16 }}>{t('org.members.domain_note', { domains: org.domains.join(', @'), role: t(`org.role.${org.domain_role}`) })}</Description>}
@@ -184,4 +193,16 @@ export default function OrgPage() {
 
     </PageWrapper>
   );
+}
+
+function OrgActivity({ slug, tab }: { slug: string; tab: 'deployments' | 'runs' }) {
+  const { t } = useT();
+  const query = useOrgProjectsQuery(slug, { pollingInterval: 15000, refetchOnMountOrArgChange: true });
+  if (query.isFetching && !query.currentData) return <CenterProgress />;
+  if (query.isError) return <Alert role="alert" $tone="warning">{slug} · {t(tab === 'runs' ? 'runs.error.title' : 'apps.error.title')} <Button onClick={() => void query.refetch()}>{t('apps.retry')}</Button></Alert>;
+  const projects = (query.currentData?.projects ?? []).filter(p => p.org === slug);
+  const rows = tab === 'runs' ? runProjects(projects) : appProjects(projects);
+  if (!rows.length) return <Empty>{slug} · {t(tab === 'runs' ? 'org.runs.empty' : 'org.deployments.empty')}</Empty>;
+  return <CardGrid aria-label={slug}>{rows.map(p => tab === 'runs'
+    ? <RunCard key={p.id} project={p} /> : <AppCard key={p.id} project={p} />)}</CardGrid>;
 }
