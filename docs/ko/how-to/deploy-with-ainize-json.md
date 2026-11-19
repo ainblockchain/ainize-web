@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: ee535906b029a8d49dc982cee1254ad381b3dee0f5781caa73b801be9997d523
+source_sha256: efa1dd8e352f795e82ef5fa20f0dd9ff700b882b29cfb41d9542fbd3eb8044ac
 ---
 
 # ainize.json으로 리포 배포하기
@@ -46,7 +46,7 @@ ready` 또는 `error`, 로그와 URL 포함). 서버 쪽에 따로 설정하는 
 | `healthcheck` | `nextjs`, `service` | 200이 올 때까지 폴링하는 경로. 응답하면 배포가 `ready`. 기본 `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — 공개될 에이전트 카드의 항목. |
 | `storage` | `nextjs`, `service` | 코드가 기대하는 조직의 관리형 스토어 — `["db"]` 또는 `[{ "name": "db", "kind": "postgres", "env": "MAIN", "required": true }]`, 최대 4개. 프로젝트의 Storage 탭에서 각각을 스토어에 연결하면, 배포 때 앱이 `DATABASE_URL`, `S3_ENDPOINT` … 를 받습니다. 연결되지 않은 `required` 항목이 있으면 빌드 전에 배포가 실패합니다. [프로젝트에 데이터베이스와 파일 저장소 연결하기](./managed-storage.md) 참고. |
-| `checks` | `nextjs`, `service` | CI 게이트 — 매 push 마다 도는 테스트·린트·타입체크: `[{ "name": "test", "command": ["npm","test"], "timeoutSeconds"?, "target"?, "entrypoint"? }, …]` (≤ 20, 이름 중복 불가). 각 단계는 **빌드 후, `release`·트래픽 전에** 빌드된 이미지에서 실행되고, 0이 아닌 종료면 배포가 실패하며 이전 버전이 계속 서비스합니다. 앱 env·시크릿은 주어지고, 연결된 스토어 네트워크는 **주어지지 않습니다**. [CI/CD](./ci-cd.md) 참고. |
+| `checks` | `nextjs`, `service` | CI 게이트 — 배포 후보의 테스트·린트·타입체크: `[{ "name": "test", "command": ["npm","test"], "timeoutSeconds"?, "target"?, "entrypoint"? }, …]` (≤ 20, 이름 중복 불가). 각 단계는 **빌드 후, `release`·트래픽 전에** 빌드된 이미지에서 실행되고, 0이 아닌 종료면 배포가 실패하며 이전 버전이 계속 서비스합니다. 관리형 운영 Run의 검사는 네트워크를 격리하고 운영 자격 증명을 제외합니다. DB 통합 검사는 일회용 DB를 준비하세요. 일반 push 배포의 검사는 앱 환경변수와 시크릿을 받으며 연결된 스토어 네트워크는 사용할 수 없습니다. [CI/CD](./ci-cd.md) 참고. |
 | `release` | `nextjs`, `service` | 새 컨테이너가 트래픽을 받기 전에 빌드된 이미지에서 실행하는 명령 — 마이그레이션: `{ "command": ["pnpm", "db:migrate"], "target"?, "entrypoint"?, "timeoutSeconds"?, "when"? }`. 0이 아닌 종료 코드면 배포가 실패하고 이전 배포가 계속 서비스합니다. |
 
 **`ainize.json`이 없는** 리포는 Next.js 앱(`package.json`의 `next` 의존성)일 때만 배포되고, 그 외는 `error: no
@@ -63,7 +63,7 @@ ainize.json`으로 끝납니다. 파일이 계약입니다 — 그 기본값 하
 `AINIZE_URL`로 내 `AINIZE_API_KEY`와 함께 닿음). 표준 출력·표준 에러·종료 코드가 배포 로그가 되고, 종료 코드 0이면 `ready`, 그 외는 `error`입니다.
 예시, 평가, 코드가 바뀔 때마다 다시 돌아 기록을 남겨야 하는 것에 쓰세요. 샌드박스 이미지에는 표준 라이브러리, `requests`,
 `ainize` SDK가 있고, 그 밖의 의존성은 선언할 수 없습니다.
-`script` 프로젝트는 웹사이트에서 **실행(Run)** 입니다([실행](/runs)). 나머지 세 kind는 **배포(Deployment)** 입니다 —
+`script` 프로젝트는 웹사이트에서 **실행(Run)** 입니다([실행](/runs)). 일반 push로 실행한 웹·서비스·에이전트는 **Deployments**에 표시됩니다. 운영 배포가 연결된 프로젝트는 **Runs**에서 시작하고 같은 Run에서 운영 상태를 확인합니다.
 [둘의 차이](../concepts/deployments-and-runs.md). `triggers` 키를 더하면 스크립트가 스케줄로, AIN 블록체인 쓰기로,
 웹훅으로도 돌고, 이벤트는 `AINIZE_TRIGGER_EVENT`로 들어옵니다.
 
@@ -202,8 +202,10 @@ Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 �
 ### 운영 배포를 시작하고 실패를 확인하는 방법
 
 1. [실행 목록(Runs)](/runs)에서 서비스 프로젝트를 찾아 **실행 보기**를 누릅니다. 프로젝트의 **Runs** 탭을 열어도 됩니다.
-2. **배포할 main 커밋 SHA**에 검토한 커밋의 40자리 SHA를 입력하고 **운영 배포 시작**을 누릅니다. 버튼은 호스트 배포가 연결된 프로젝트의 지정 배포 담당자에게 표시됩니다. 이 기능의 첫 적용 대상은 Ainize 노드와 웹입니다.
+2. **배포할 main 커밋 SHA**에 검토한 커밋의 40자리 SHA를 입력하고 **운영 배포 시작**을 누릅니다. 버튼은 호스트 배포가 연결된 프로젝트의 지정 배포 담당자에게 표시됩니다. 프로젝트에서 버튼이 보이지 않으면 운영 Run 연결과 본인의 배포 담당자 지정을 확인하세요.
 3. **실행 기록(Run history)**에서 방금 생성된 Run ID를 펼칩니다. 목표 SHA를 확인하고 로그의 `[host CI]` 행에서 실패 단계, 시작·종료 시각, 종료 코드와 제공된 진단 코드를 확인합니다. 예를 들어 체크아웃의 `MAIN_REVISION_CHANGED`는 실제 main이 요청한 SHA에서 이동했다는 뜻입니다. 현재 main을 다시 확인한 뒤 배포할 커밋을 선택합니다.
+
+호스트 로그가 `drain / running`이면 기존 작업을 마칠 때까지 활성화를 기다리는 중입니다. `DOCS_DRIFT_SCHEMAS` 또는 `DOCS_DRIFT_ERRORS`로 테스트가 실패하면 로그에 표시된 저장소에서 참조 문서를 다시 생성하고 변경 사항을 함께 커밋하세요. 외부 호스트의 백업에서 `archive_read_denied`가 나오면 백업 프로세스가 해당 파일을 읽을 수 있는지 확인하고 복원 검사를 거친 뒤 다시 배포하세요.
 
 ![운영 Run의 실패 행을 펼쳐 단계와 종료 코드를 확인하는 화면. 예시 데이터.](/static/docs/cicd/host-release-error-example.png)
 

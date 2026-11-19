@@ -45,7 +45,7 @@ shows each commit's deployment next to it.
 | `healthcheck` | `nextjs`, `service` | Path polled until it answers 200; the deployment is `ready` when it does. Default `/`. |
 | `agent` | `agent` | `{ name, description, model, a2ui }` — fields of the published agent card. |
 | `storage` | `nextjs`, `service` | The organization's managed stores the code expects — `["db"]` or `[{ "name": "db", "kind": "postgres", "env": "MAIN", "required": true }]`, at most 4. Each is connected to a store on the project's Storage tab; the app then gets `DATABASE_URL`, `S3_ENDPOINT`, … at deploy. An unconnected `required` entry fails the deploy before the build. See [Give a project a database and file storage](./managed-storage.md). |
-| `checks` | `nextjs`, `service` | The CI gate — tests/lint/typecheck run on every push: `[{ "name": "test", "command": ["npm","test"], "timeoutSeconds"?, "target"?, "entrypoint"? }, …]` (≤ 20, distinct names). Each runs from the built image **after the build and before `release`/traffic**; a non-zero exit fails the deployment and the previous version keeps serving. The app's env and secrets are present, the connected stores' networks are **not**. See [CI/CD](./ci-cd.md). |
+| `checks` | `nextjs`, `service` | The CI gate — tests, lint and type checks for a deployment candidate: `[{ "name": "test", "command": ["npm","test"], "timeoutSeconds"?, "target"?, "entrypoint"? }, …]` (≤ 20, distinct names). Each runs from the built image **after the build and before `release`/traffic**; a non-zero exit fails the deployment and the previous version keeps serving. Managed production Run checks use an isolated network and exclude production credentials. Use a disposable database for integration tests. Ordinary push-deployment checks receive app environment variables and secrets and cannot access connected store networks. See [CI/CD](./ci-cd.md). |
 | `release` | `nextjs`, `service` | A command run from the built image before the new container takes traffic — migrations: `{ "command": ["pnpm", "db:migrate"], "target"?, "entrypoint"?, "timeoutSeconds"?, "when"? }`. A non-zero exit fails the deployment and the previous one keeps serving. |
 
 A repo with **no `ainize.json`** deploys only if it is a Next.js app (a `next` dependency in `package.json`);
@@ -62,7 +62,7 @@ one is healthy, then is swapped out. This is the Vercel-shaped case.
 reached as `AINIZE_URL` with your `AINIZE_API_KEY`). Standard output, standard error and the exit code become the deployment log; exit 0 is
 `ready`, anything else is `error`. Use it for examples, evaluations and anything that should re-run and leave a record
 whenever the code changes. The sandbox image has the standard library, `requests` and the `ainize` SDK; declare nothing else.
-A `script` project is a **Run** on the website ([Runs](/runs)); the other three kinds are **Deployments** —
+A `script` project is a **Run** on the website ([Runs](/runs)); ordinary web, service and agent pushes appear in **Deployments**. Projects configured for production releases start in **Runs**, which also shows their release status. See
 [the difference](../concepts/deployments-and-runs.md). With a `triggers` key the script also runs on a schedule, on an
 AIN blockchain write or by webhook, and the event reaches it in `AINIZE_TRIGGER_EVENT`.
 
@@ -209,8 +209,10 @@ Start each production deployment with an Ainize Run for a specific commit. Sign 
 ### Start a production release and diagnose a failure
 
 1. Open [Runs](/runs), find the service project and select **Open runs**, or open its **Runs** tab directly.
-2. Enter the reviewed 40-character SHA in **Main commit SHA to deploy** and select **Start production deployment**. The control appears for assigned deployers on projects configured for host releases. The initial rollout covers the Ainize node and web projects.
+2. Enter the reviewed 40-character SHA in **Main commit SHA to deploy** and select **Start production deployment**. The control appears for assigned deployers on projects configured for host releases. If the control is missing, check the project’s production release configuration and your deployer assignment.
 3. Expand the new Run ID in **Run history**. Match the target SHA and inspect the `[host CI]` lines for the failing stage, timestamps, exit code and available diagnostic codes. For example, `MAIN_REVISION_CHANGED` at checkout means main advanced after the commit was selected. Check the current branch head before submitting another release.
+
+A host stage showing `drain / running` means activation is waiting for existing work to finish. If tests report `DOCS_DRIFT_SCHEMAS` or `DOCS_DRIFT_ERRORS`, regenerate the reference documents in the repository named in the log and commit the changes. If an external host reports `archive_read_denied` during backup, check the backup process’s read access, verify a restore, and retry.
 
 ![Expanded production Run showing a failed stage and exit code using example data](/static/docs/cicd/host-release-error-example.png)
 
