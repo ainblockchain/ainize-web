@@ -36,7 +36,14 @@ finish() {
   exit "$code"
 }
 trap finish EXIT
-stage() { STAGE=$1; begin_release_stage "$STAGE"; report running 0; printf '\n=== %s ===\n' "$STAGE"; }
+stage() {
+  STAGE=$1
+  begin_release_stage "$STAGE"
+  export AINIZE_CI_STAGE_LOG_START
+  AINIZE_CI_STAGE_LOG_START=$(stat -c %s "$LOG")
+  report running 0
+  printf '\n=== %s ===\n' "$STAGE"
+}
 cd "$WORK"
 stage install
 npm ci --include=dev --ignore-scripts --no-audit --no-fund
