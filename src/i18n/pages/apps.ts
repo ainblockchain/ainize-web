@@ -41,7 +41,7 @@ export const apps: Dict = {
 
   // ── Runs: script projects that run on demand or by a trigger (schedule · AIN blockchain write · webhook)
   'runs.title': { en: 'Runs', ko: '실행' },
-  'runs.lede': { en: 'Scripts that run on demand, on a cron schedule, when a path on the AIN blockchain is written, or when a webhook URL is called — Cloud Run Jobs, Cloud Scheduler and Cloud Functions triggers in one ainize.json.', ko: '필요할 때 바로, cron 스케줄로, AIN 블록체인의 경로가 쓰일 때, 또는 웹훅 URL이 호출될 때 실행되는 스크립트입니다. Cloud Run Jobs·Cloud Scheduler·Cloud Functions 트리거가 ainize.json 하나에 들어갑니다.' },
+  'runs.lede': { en: 'Open a project to run a script or start a configured production deployment. Select a Run to inspect its commit, status and logs.', ko: '프로젝트를 열어 스크립트를 실행하거나 설정된 운영 배포를 시작하세요. 실행 기록을 선택하면 대상 커밋, 상태, 로그를 확인할 수 있습니다.' },
   'runs.vs_deployments': { en: 'A web app, API service or agent that should stay up is a', ko: '계속 떠 있어야 하는 웹앱·API 서비스·에이전트는' },
   'runs.vs_deployments_link': { en: 'Deployment', ko: '배포' },
   'runs.vs_doc': { en: 'Deployments vs Runs', ko: '배포와 실행의 차이' },

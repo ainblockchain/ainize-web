@@ -12,7 +12,7 @@ export function filterProjects<T extends Pick<Project, 'kind' | 'manifest'>>(row
 
 /** The Runs landing: every script project the person can see, newest first, filtered by the search box. */
 export function runProjects(projects: Project[], query = ''): Project[] {
-  const unique = [...new Map(projects.map((p) => [p.id, p])).values()].filter(isRunProject);
+  const unique = [...new Map(projects.map((p) => [p.id, p])).values()].filter(p => isRunProject(p) || !!p.productionRelease);
   const q = query.trim().toLowerCase();
   return unique
     .filter((p) => !q || [p.name, p.org, p.repoName, `${p.org}/${p.repoName}`, p.sourcePath ?? '', p.entry ?? ''].some((s) => (s ?? '').toLowerCase().includes(q)))

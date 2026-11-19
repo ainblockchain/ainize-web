@@ -112,10 +112,12 @@ export default function RunsPage() {
 function RunCard({ project: p }: { project: Project }) {
   const { t } = useT();
   const entry = p.entry ?? p.manifest?.entry ?? null;
-  const last = p.lastDeployment?.createdAt ?? null;
+  const release = p.productionRelease;
+  const last = release ? release.latest?.createdAt : p.lastDeployment?.createdAt;
+  const status = release ? release.latest?.status : p.status;
   return (
     <Card data-testid="run-card">
-      <Meta><span>{t('projects.kind.script')}{entry ? <> · <Mono>{entry}</Mono></> : null}</span><Status $status={p.status}>{t(`projects.status.${p.status}`)}</Status></Meta>
+      <Meta><span>{t(release ? 'projects.runs.production' : 'projects.kind.script')}{entry && !release ? <> · <Mono>{entry}</Mono></> : null}</span>{status && <Status $status={status}>{t(`projects.status.${status}`)}</Status>}</Meta>
       <h2><StyledLink to={projectPath(p)}>{p.name || p.repoName}</StyledLink></h2>
       <p>{p.org}/{p.repoName}{p.sourcePath ? ` · ${p.sourcePath}` : ''}</p>
       <p>{p.branch} · {t('runs.last_run')}: {last ? relativeTime(last) : t('runs.never')}</p>

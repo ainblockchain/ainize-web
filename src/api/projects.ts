@@ -87,6 +87,7 @@ export interface Project {
   runnable?: string[];
   canManage?: boolean;
   canOperate?: boolean;
+  productionRelease?: {canDeploy: boolean; latest: {id: string; status: DeploymentStatus; createdAt: number} | null};
   /** Where the project lives on aindrive (ainize-node docs/PROJECTS.md "Where the data lives"); an older node omits it. */
   aindrive?: ProjectAindrive | null;
   /** Managed storage (src/api/projectStorage.ts): how many stores are connected and how many declared bindings are not — owner and members, on a node with storage; null or absent otherwise. */
@@ -187,6 +188,7 @@ export function sortTriggers(rows: readonly ProjectTrigger[]): ProjectTrigger[] 
 }
 
 export interface Deployment {
+  previousFailedRunId?: string;
   placement?: { address: string; endpoint: string; local: boolean; score: number; gpuUuids: string[]; reason: string } | null;
   id: string;
   projectId: string;
