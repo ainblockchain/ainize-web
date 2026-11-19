@@ -55,6 +55,8 @@ Claude Code로 작업하면서 화면을 눌러 가는 대신 "배포해줘", "�
 python3 .claude/skills/ainize/production_run.py comcom ainize-node run_827d79a36a0ba7a3
 ```
 
+한 저장소에서 여러 서비스를 배포할 때 Run ID로 조회하면 해당 Run을 실행한 프로젝트를 자동으로 찾습니다. 커밋 SHA로 하위 프로젝트를 조회할 때는 명령 끝에 `--project-id <프로젝트 ID>`를 붙이세요.
+
 같은 SHA의 재시도가 여럿이면 각 Run이 별도로 표시됩니다. 화면에서 같은 결과를 확인하는 방법과 스크린샷은 [운영 CI/CD 표준](./deploy-with-ainize-json.md#운영-cicd-표준)에 있습니다.
 
 ## 하지 않는 일

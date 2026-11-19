@@ -54,6 +54,8 @@ Ask Claude Code to find the first failed stage, exit code, previous failed Run a
 python3 .claude/skills/ainize/production_run.py comcom ainize-node run_827d79a36a0ba7a3
 ```
 
+A Run ID selects the project that executed it, including a folder project in a shared repository. To look up a commit SHA in a folder project, append `--project-id <project ID>`.
+
 A SHA with multiple attempts returns each Run separately. The [production CI/CD guide](./deploy-with-ainize-json.md) shows where to find the same records in the UI.
 
 ## What it will not do
