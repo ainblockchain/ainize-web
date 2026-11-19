@@ -30,6 +30,7 @@ test('a user\'s app on ainize.ai gets none of the visitor\'s credentials and can
     const headers = new Headers({ 'content-type': 'text/html' });
     headers.append('set-cookie', 'ainize_session=planted; Path=/');
     headers.append('set-cookie', 'app=1; Path=/');
+    headers.set('x-middleware-rewrite', '/default');
     return new Response('<p>app</p>', { headers });
   });
   const res = await GET(new Request('https://ainize.ai/svc/prj_test/', {
@@ -45,6 +46,7 @@ test('a user\'s app on ainize.ai gets none of the visitor\'s credentials and can
   assert.equal(sent.get('x-app'), 'kept');
   assert.doesNotMatch(JSON.stringify([...sent]), /GOOGLE-SECRET|STATE-SECRET|ainize-sk-SECRET/);
   assert.equal(res.headers.get('set-cookie'), null, 'the app cannot plant or shadow a cookie of ainize.ai');
+  assert.equal(res.headers.get('x-middleware-rewrite'), null);
   assert.equal(await res.text(), '<p>app</p>');
   // An anonymous visitor carries no cookie at all.
   await GET(new Request('https://ainize.ai/svc/prj_test/', { headers: { cookie: 'theme=dark' } }), { params: Promise.resolve({ path: ['prj_test', ''] }) });

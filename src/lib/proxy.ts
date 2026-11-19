@@ -78,7 +78,11 @@ export async function relayToNode(req: Request, path: string, opts: { service?: 
   // set-cookie is the node's to set: an operator signs in there, and the cookie is scoped to this origin
   out.delete('content-encoding');
   out.delete('content-length');
-  if (opts.service) out.delete('set-cookie');
+  if (opts.service) {
+    out.delete('set-cookie');
+    // The upstream app has already applied its middleware rewrite.
+    out.delete('x-middleware-rewrite');
+  }
   return new Response(touching(upstream.body, idle), { status: upstream.status, statusText: upstream.statusText, headers: out });
 }
 
