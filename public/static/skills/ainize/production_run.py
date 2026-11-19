@@ -20,6 +20,7 @@ def main():
     parser.add_argument('organization')
     parser.add_argument('project')
     parser.add_argument('revision', help='Run ID or full commit SHA')
+    parser.add_argument('--project-id', help='Select a folder project when looking up a commit SHA')
     args = parser.parse_args()
     if not re.fullmatch(r'run_[0-9a-f]{16}|[0-9a-f]{40}', args.revision):
         parser.error('expected a Run ID or a full commit SHA')
@@ -35,11 +36,22 @@ def main():
                 raise ValueError('Response too large. Inspect the Run in the dashboard.')
             return content.decode() if plain else json.loads(content)
 
-    project = get('projects/by-name?' + urlencode({'org': args.organization, 'repo': args.project}))
-    pid = project['id']
-    if not re.fullmatch(r'prj_[0-9a-f]{16}', pid):
-        raise ValueError('Invalid project ID')
-    runs = get(f'projects/{pid}/runs')['runs']
+    run = get('deployments/' + args.revision) if args.revision.startswith('run_') else None
+    pid = args.project_id or (run['projectId'] if run else None)
+    if pid is not None:
+        if not re.fullmatch(r'prj_[0-9a-f]{16}', pid):
+            raise ValueError('Invalid project ID')
+        project = get('projects/' + pid)
+        if (project.get('org'), project.get('repoName')) != (args.organization, args.project):
+            raise ValueError('The selected project belongs to a different organization or repository.')
+        if run and run['projectId'] != pid:
+            raise ValueError('The Run belongs to a different project.')
+    else:
+        project = get('projects/by-name?' + urlencode({'org': args.organization, 'repo': args.project}))
+        pid = project['id']
+        if not re.fullmatch(r'prj_[0-9a-f]{16}', pid):
+            raise ValueError('Invalid project ID')
+    runs = [run] if run else get(f'projects/{pid}/runs')['runs']
     matches = [r for r in runs if r.get('executionBackend') == 'host-release'
                and args.revision in (r['id'], r['sha'])]
     if not matches:
