@@ -7,7 +7,7 @@ aincode: false
 # Use Ainize from Claude Code
 
 You work in Claude Code and want to say "deploy this" or "make a QA agent for this repository" instead of clicking
-through pages. The **ainize skill** is two instruction files and one helper script. With them and an API key, Claude
+through pages. The **ainize skill** is two instruction files and two helper scripts. With them and an API key, Claude
 Code calls the same HTTP API the pages use.
 
 ## Set it up
@@ -27,6 +27,7 @@ Code calls the same HTTP API the pages use.
    curl -fsSLO https://ainize.ai/static/skills/ainize/SKILL-ainize.md
    curl -fsSLO https://ainize.ai/static/skills/ainize/SKILL-ainize-qa-agent.md
    curl -fsSLO https://ainize.ai/static/skills/ainize/ain_session.py
+   curl -fsSLO https://ainize.ai/static/skills/ainize/production_run.py
    mv SKILL-ainize.md SKILL.md
    ```
 
@@ -40,10 +41,20 @@ at auth.comcom.ai by an SSO owner; a key cannot create one. See [organizations](
 
 | You say | What happens | What it needs from you |
 |---|---|---|
-| "배포해줘" / "deploy this repository" | The GitHub repository is imported: an AinDrive repository, a project and its first deployment are created, and every later merge deploys. Claude Code reports the project page, the deployment's status and the address. | The repository on GitHub. For anything but a Next.js app, an [`ainize.json`](./deploy-with-ainize-json.md) — Claude Code writes one if it is missing. |
+| "배포해줘" / "deploy this repository" | The GitHub repository is imported: an AinDrive repository, a project and its first deployment are created, and subsequent synchronized merges deploy ordinary projects. A project configured for production Runs starts a Run for the reviewed SHA. Claude Code reports the project page, the deployment's status and the address. | The repository on GitHub. For anything but a Next.js app, an [`ainize.json`](./deploy-with-ainize-json.md) — Claude Code writes one if it is missing. |
 | "배포 상태 알려줘", "로그 보여줘" | Reads the newest deployment and the running service's log. | — |
 | "DATABASE_URL 시크릿 설정해줘" | Sets a project secret (write-only). | The value. It is never invented or echoed. |
 | "이 repo에 대한 qa agent를 만들어줘" | Creates a [QA agent](./qa-agent.md): channel, board, agent, credentials. | One device-login approval in your browser, and an organization the operator admitted to QA. |
+
+## Inspect a production Run
+
+Ask Claude Code to find the first failed stage, exit code, previous failed Run and serving commit for a specific project and Run ID. Use an organization key with read access to that project. From the project root you can also run the read-only helper:
+
+```bash
+python3 .claude/skills/ainize/production_run.py comcom ainize-node run_827d79a36a0ba7a3
+```
+
+A SHA with multiple attempts returns each Run separately. The [production CI/CD guide](./deploy-with-ainize-json.md) shows where to find the same records in the UI.
 
 ## What it will not do
 

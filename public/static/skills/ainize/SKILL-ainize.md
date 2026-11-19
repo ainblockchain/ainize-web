@@ -25,6 +25,8 @@ Use the organization's slug (`comcom`) wherever a call asks for `org`.
 
 ## "배포해줘" — deploy a GitHub repository
 
+For an existing project, resolve it by organization and repository name first and read `GET /api/projects/{id}`. If it has `productionRelease`, follow **Production Runs** below. For a new import, confirm the organization and intended project.
+
 What the repository needs:
 
 - It is on GitHub: public, or private under a GitHub owner the operator allowed for the organization.
@@ -38,7 +40,7 @@ What the repository needs:
   If the file is missing, write it (and the Dockerfile) in the repository and push before importing. The full
   reference is https://ainize.ai/docs/how-to/deploy-with-ainize-json.
 - The image's Node.js is current. A deployment is **refused** when the built image runs a Node.js with known CVEs
-  (the error names the minimum version). Use `FROM node:24-bookworm-slim`, not a floating `-alpine` tag that lags.
+  (the error names the minimum version). Verify the exact Node patch in the built image and scan runtime and CI images independently. Record the scanner database date, image digest and remaining findings.
 
 Deploy with one call, then watch it:
 
@@ -68,7 +70,13 @@ curl -s -X POST https://ainize.ai/api/projects/$PROJECT/github-sync -H "Authoriz
   -H 'content-type: application/json' -d '{}'
 ```
 
-From then on every merge on the GitHub branch deploys. There is nothing else to set up, and no GitHub Actions.
+For an ordinary push-deployed project, a synchronized merge triggers a deployment. On a Run-managed project a sync records the new source revision.
+
+## Production Runs
+
+For a status request, use GET only. From the directory containing the organization key, run `python3 <skill-directory>/production_run.py <org> <project> <run-id-or-full-sha>`. The helper verifies the project, selects its host-release runs and reads the masked stage logs. If the helper is unavailable, use `GET /api/projects/{id}/runs`, select `executionBackend: host-release` and read `GET /api/deployments/{runId}/log` with `Accept: text/plain`. For a commit with multiple attempts, identify each attempt by its Run ID. Report the first failed stage, its exit code and recorded diagnostics, the previous failure ID and serving commit when available. State which fields are missing. Inspect the UI at https://ainize.ai/runs.
+
+When explicitly asked to deploy and `productionRelease.canDeploy` is true, POST to `/api/projects/{id}/runs` with `{"target":"commit","sha":"<reviewed 40-character main SHA>","entry":"deploy/production"}`. Record the returned Run ID. On an error, inspect that Run before starting a new attempt. A change to secrets takes effect through the project's release procedure.
 
 ## Inspect a specific deployment or script run
 
@@ -93,7 +101,7 @@ curl -s https://ainize.ai/api/projects/$PROJECT/secrets -H "Authorization: Beare
 ```
 
 Ask the user for a secret's value; never invent one and never echo it back. After setting secrets the app needs at
-start, push a commit or request a sync so a deployment picks them up.
+start, follow the production Run procedure if the project has `productionRelease`. For a push-deployed project, sync the intended commit.
 
 ## What this skill does not do
 
