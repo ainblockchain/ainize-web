@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: 4807638f46afa01500e92717d7af9d644ff0175d8f75b7073da0ea6f123454a7
+source_sha256: ee535906b029a8d49dc982cee1254ad381b3dee0f5781caa73b801be9997d523
 ---
 
 # ainize.json으로 리포 배포하기
@@ -236,3 +236,5 @@ Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 �
 ### Claude Code에서 상태와 로그 조회하기
 
 [Claude Code용 Ainize 스킬 설치 가이드](./claude-code-skill.md)에 따라 스킬을 설치하고 조직 API 키를 설정하면, 작업 디렉터리에서 프로젝트 이름과 커밋을 지정해 조회할 수 있습니다. 예를 들어 “우리 조직의 example-web 프로젝트에서 이 커밋 SHA의 배포 ID, 상태, 빌드 로그의 오류 줄을 보여줘. 상태와 로그만 조회해줘”라고 요청합니다. 스크립트 CI라면 실행 ID를 요청하세요. 결과의 SHA를 Runs 또는 Deployments 화면의 SHA와 대조할 수 있습니다.
+
+운영 배포를 조사할 때는 이렇게 요청할 수 있습니다. “comcom/ainize-node에서 이 SHA로 시작한 운영 Run을 찾아 줘. Run ID와 이전 실패 Run, 처음 실패한 단계, 종료 코드, 로그에 기록된 원인, 현재 서빙 커밋을 알려 줘. 기록이 없는 항목은 미확인으로 표시해 줘.”

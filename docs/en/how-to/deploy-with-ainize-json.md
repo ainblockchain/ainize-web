@@ -243,3 +243,5 @@ These screenshots show the production Ainize UI with example project data and lo
 ### Check status from Claude Code
 
 Install the [Ainize skill for Claude Code](./claude-code-skill.md) and configure your organization key to query the same project from your working directory. For example: “For the example-web project in my organization, show the deployment for this commit SHA, its deployment ID, and the error lines from the build log. Only read status and logs.” For script CI, ask for the run ID instead. Compare the result with the matching SHA in Runs or Deployments.
+
+For a production Run, ask “Find the release Run for this SHA on comcom/ainize-node. Show its ID, previous failed Run, first failed stage, exit code, recorded diagnostics, and serving commit. Mark any missing field as unverified.”
