@@ -67,7 +67,7 @@ domain role, and the AIN SSO organization ids linked to this organization. Delet
 **Members** — change a role from the dropdown in the list, remove someone, add an account you already know by
 principal (`0x…` or `sso:<sub>`). Below it, **pending join requests** to approve (with a role) or reject, and
 **invite links**: pick a role, optionally pin the invite to one email, choose how long it lives, and copy the link
-— it is shown once, the list only ever shows a prefix, and each link is used once. The node sends no email.
+— it is shown once, the list only ever shows a prefix, and the default limit is one person. Set **Maximum people** or select **Unlimited** for a reusable link. A repeated acceptance by the same account does not consume another place. Revoking the link or reaching its expiry closes it. The node sends no email.
 
 **Resource groups** — "these agents are for these members": a label on the organization's page. A group does not
 hide an agent from the other members.
