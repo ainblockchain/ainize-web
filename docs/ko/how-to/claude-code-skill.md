@@ -2,7 +2,7 @@
 title: Claude Code에서 Ainize 쓰기
 summary: 조직 API 키를 .ainize_key에 두고 ainize 스킬을 넣으면, Claude Code에게 저장소 배포나 QA 에이전트 생성을 말로 시킬 수 있습니다. 스킬이 하는 일, 사용자에게 묻는 것, 하지 않는 일을 정리했습니다.
 source: en/how-to/claude-code-skill.md
-source_sha256: 6f19770aa89958c43ba4cc5fac6db81ece2c825033eb35182aca98a055753a49
+source_sha256: d2a83aaa20d687ab33cb7e267d0e7f66df009ad9940a385644a1b9a349abf5fb
 aincode: false
 ---
 
