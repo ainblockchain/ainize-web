@@ -16,7 +16,9 @@ exec >>"$LOG" 2>&1
 chmod 600 "$LOG"
 TMP=$(mktemp -d)
 export AINIZE_HOME="$TMP/home" CI=1
+source "$(dirname "${BASH_SOURCE[0]}")/release-stages.sh"
 STAGE=prepare
+begin_release_stage "$STAGE"
 report() {
   python3 - "$STATE/status.json" "$SHA" "$STAGE" "$1" "$2" "$LOG" "$DIRTY" <<'PYREPORT'
 import datetime,json,sys
@@ -28,12 +30,13 @@ PYREPORT
 }
 finish() {
   code=$?; trap - EXIT
+  end_release_stage "$code"
   if [[ "$code" -ne 0 ]]; then report failed "$code"; fi
   rm -rf "$TMP"
   exit "$code"
 }
 trap finish EXIT
-stage() { STAGE=$1; report running 0; printf '\n=== %s ===\n' "$STAGE"; }
+stage() { STAGE=$1; begin_release_stage "$STAGE"; report running 0; printf '\n=== %s ===\n' "$STAGE"; }
 cd "$WORK"
 stage install
 npm ci --include=dev --ignore-scripts --no-audit --no-fund
@@ -48,4 +51,6 @@ npm run test
 stage build
 npm run build
 STAGE=complete
+begin_release_stage "$STAGE"
+end_release_stage 0
 report success 0

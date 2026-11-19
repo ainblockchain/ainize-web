@@ -94,21 +94,34 @@ wait_ready() {
   curl -fsS --max-time 2 "http://127.0.0.1:$PORT/" >/dev/null || true
   return 1
 }
+source "$HERE/deploy/release-stages.sh"
 PREVIOUS="$(readlink -f "$SERVE" 2>/dev/null || true)"
 rollback() {
+  local failure=$?
   trap - ERR
+  end_release_stage "$failure" || true
+  begin_release_stage rollback || true
   echo "Deployment failed; restoring $PREVIOUS" >&2
   if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ]; then
     ln -sfn "$PREVIOUS" "$SERVE.new"
     mv -Tf "$SERVE.new" "$SERVE"
-    restart_app && wait_ready || echo 'Rollback needs attention; inspect the process log.' >&2
+    if restart_app && wait_ready; then
+      end_release_stage 0
+    else
+      end_release_stage 1
+      echo 'Rollback needs attention; inspect the process log.' >&2
+    fi
+  else
+    end_release_stage 1
   fi
-  exit 1
+  exit "$failure"
 }
 trap rollback ERR
+begin_release_stage activation
 ln -sfn "$DEST" "$SERVE.new"
 mv -Tf "$SERVE.new" "$SERVE"
 restart_app
+begin_release_stage readiness
 wait_ready
 if [ -n "$VERIFY_URL" ]; then
   # 도메인까지 확인한다 — :3900 이 답한다고 nginx 가 그것을 내보내고 있다는 뜻은 아니다.
@@ -117,6 +130,7 @@ if [ -n "$VERIFY_URL" ]; then
   [ "$VERIFY_CODE" = 200 ]
   curl -fsS --max-time 15 "${VERIFY_URL%/}/web-build.json?release=$SHA" | node "$WORK/src/deploy/verify-release.mjs" "$SHA"
 fi
+end_release_stage 0
 trap - ERR
 
 mapfile -t OLD_RELEASES < <(ls -1dt "$RELEASES"/*/ 2>/dev/null | tail -n +6)
