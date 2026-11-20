@@ -96,7 +96,15 @@ curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/ainmem -H "Author
 They are write-only. The agent uses them to answer in the thread and update the card; the node keeps its own copy
 to re-read the request, the membership and the approval itself, so nothing rests on what the agent says.
 
-### Reading an attachment from a QA report
+### Deciding when reports share a fix
+
+Deliveries with the same verified message ID refer to the same request. For different messages, have the harness check the channel, author, requested access and attached file IDs before offering candidate jobs to the model. Let the model read each report and compare the target, symptom and expected result. To join an open job, require a quote from each source that supports the same fix. If the model times out or the sources leave the answer unclear, keep the new report open independently. Test two similar URLs whose paths differ only in case and two requests that change different behaviors of the same control.
+
+## Distinguishing review approval from resolution
+
+A reviewer can approve a code change while the old version still serves traffic. Give the model separate tools for reading the approval, checking the Run and reading the original production replay. An approval such as “LGTM” belongs to the review for its candidate commit. Keep polling the deployment until the serving commit and original acceptance test are verified. If a reporter explicitly confirms that their symptom is gone, record the reporter’s exact words and identity. Keep that confirmation distinct from the agent’s independently verified fix. To recover an incident closed on approval alone, re-read the original thread, preserve the existing candidate and prior notifications, and resume verification.
+
+## Reading an attachment from a QA report
 
 Open the original message with `read_thread`. Each entry in `files` identifies an attachment on that message. A filename and MIME type can help the model choose an inspection tool. Reproducing a gesture shown in a screen recording requires inspecting the recording itself.
 
