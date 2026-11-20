@@ -220,6 +220,10 @@ A host stage showing `drain / running` means activation is waiting for existing 
 
 ![Retry Run linked to the previous failure using example data](/static/docs/cicd/host-release-retry-example.png)
 
+Expand the Run and read **Serving commit at Run completion**. This is the full revision that handled traffic when that Run ended. In this example the target failed readiness. Rollback restored the previous revision, its health check passed, and the deployment exited with code 1.
+
+![Example of a failed Run showing the restored revision, healthy service and exit code 1](/static/docs/cicd/host-release-serving-example-en.png)
+
 Sanitized output must retain the context leading up to a failure. If masking fails, preserve safe stage information and the exit code. The **Deployments** tab also shows build records for connected service deployments. If the project has no production deployment button, check its migration status with its operator.
 
 ## Start a run and inspect a failure

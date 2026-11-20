@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: efa1dd8e352f795e82ef5fa20f0dd9ff700b882b29cfb41d9542fbd3eb8044ac
+source_sha256: e3654460653a784d4955e22a178b6dfb5118ec557e4a58a701417d58fb9da53e
 ---
 
 # ainize.json으로 리포 배포하기
@@ -212,6 +212,10 @@ Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 �
 4. 원인을 수정하고 새 SHA로 배포를 시작합니다. 새 Run에서 이전 실패 Run 링크를 열어 두 시도의 기록을 비교합니다. 운영 도메인의 헬스 확인이 통과하고 실제 트래픽을 처리하는 커밋이 목표 SHA와 일치해야 성공입니다. 롤백이 발생하면 복구 결과와 현재 서빙 커밋을 확인합니다.
 
 ![재배포 Run과 이전 실패 Run의 연결을 보여주는 화면. 예시 데이터.](/static/docs/cicd/host-release-retry-example.png)
+
+실행 기록에서 해당 Run을 펼쳐 **Run 종료 시 운영 커밋**을 확인하세요. 이 값은 그 Run이 끝났을 때 트래픽을 처리하던 전체 커밋입니다. 아래 예시는 대상 버전 준비 검사에서 실패해 이전 커밋으로 롤백했습니다. 복구된 버전의 헬스체크는 통과했고 배포 종료 코드는 1입니다.
+
+![실패한 Run에서 이전 운영 커밋 복구와 종료 코드 1을 확인하는 화면. 예시 데이터.](/static/docs/cicd/host-release-serving-example-ko.png)
 
 민감정보를 제거한 출력에는 배포 담당자가 원인을 찾을 수 있는 실패 직전 문맥이 있어야 합니다. 마스킹에 실패하면 안전한 단계 정보와 종료 코드를 보존합니다. **Deployments** 탭에는 연결된 서비스 배포의 빌드 기록이 표시됩니다. 운영 배포 버튼이 없는 서비스는 프로젝트의 전환 상태와 담당자를 확인하세요.
 

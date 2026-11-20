@@ -409,3 +409,17 @@ test('dataset preview and settings show loading or retryable errors without clai
     assert.doesNotMatch(failed, /That dataset is no longer on this node/i);
   }
 });
+
+test('an open production Run identifies the revision serving after rollback', () => {
+  const sha = 'a'.repeat(40);
+  const prior = 'b'.repeat(40);
+  const run = {id:'failed-release',projectId:'job',ref:'refs/heads/main',sha,status:'error',trigger:'run',target:'commit',
+    entry:'deploy/production',pusher:null,createdAt:1000,startedAt:1000,finishedAt:2000,ms:1000,
+    exitCode:1,logUrl:'/log/failed-release',managedRelease:{code:1,health:true,servingSha:prior,
+      previousSha:prior,rollbackAttempted:true,rolledBack:true}};
+  const html=render(Console,consoleFixtures([{name:'projectRuns',arg:'job',value:{runs:[run]}}]),'/studio/check?tab=runs&open=failed-release');
+  assert.match(html,/Serving commit at Run completion/);
+  assert.ok(html.includes(prior));
+  assert.match(html,/Rollback completed/);
+  assert.match(html,/Health check passed/);
+});

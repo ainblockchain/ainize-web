@@ -83,6 +83,7 @@ const Crumbs = styled.nav`font-size: 22px; font-weight: 700; display: flex; alig
   span.sep { color: ${(p) => p.theme.color.GREY}; font-weight: 400; }
 `;
 const HeaderRow = styled.div`display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 14px;`;
+const RunReceipt = styled.div`display: grid; gap: 4px;`;
 const Meta = styled.span`min-width: 0; overflow-wrap: anywhere; color: #666; font-size: 13px;`;
 const Spacer = styled.span`flex: 1;`;
 const Actions = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap;`;
@@ -218,6 +219,13 @@ function DeploymentRow({ d, project, open, onToggle, onRunAgain }: { d: Deployme
       </Head>
       {open && (
         <>
+          {d.managedRelease && (
+            <RunReceipt>
+              <Meta>{t('projects.runs.verified_serving')} <Mono>{d.managedRelease.servingSha ?? t('projects.runs.unknown_serving')}</Mono></Meta>
+              <Meta>{t('projects.runs.previous_serving')} <Mono>{d.managedRelease.previousSha ?? t('projects.runs.unknown_serving')}</Mono></Meta>
+              <Meta>{t(d.managedRelease.health ? 'projects.runs.health_ok' : 'projects.runs.health_failed')} · {t('projects.page.exit', { code: d.managedRelease.code })} · {t(d.managedRelease.rolledBack ? 'projects.runs.rollback_restored' : d.managedRelease.rollbackAttempted ? 'projects.runs.rollback_failed' : 'projects.runs.rollback_unused')}</Meta>
+            </RunReceipt>
+          )}
           {d.placement && <Meta>Node: <ExternalLink href={d.placement.endpoint} target="_blank" rel="noreferrer">{d.placement.local ? 'Local' : new URL(d.placement.endpoint).hostname} ↗</ExternalLink> · {d.placement.reason}</Meta>}
           {d.status === 'queued' && <Meta>{t('projects.page.pending_hint')}</Meta>}
           {d.error && <Alert $tone="error" style={{ padding: '8px 12px' }}>{d.error}</Alert>}
