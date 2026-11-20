@@ -10,6 +10,7 @@
     "build": "npm run gen && next build",
     "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run gen:check",
     "test": "node --test --import tsx test/*.test.ts"
   },
   "dependencies": {
