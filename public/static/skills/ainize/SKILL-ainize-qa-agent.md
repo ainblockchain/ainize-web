@@ -1,6 +1,6 @@
 ---
 name: ainize-qa-agent
-description: Create a QA agent for a GitHub repository on Ainize — an agent that sits in an AIN Teams channel, turns a posted request into a code fix, runs the repository's checks and opens a pull request for a named approver. Use when the user says "<repo>에 대한 qa agent를 만들어줘", "QA 채널 세팅해줘", or asks to connect a repository to a qa channel. Needs `.ainize_key` and one AIN SSO device-login approval by the user.
+description: Create a QA agent for a GitHub repository on Ainize — an agent that sits in an AIN Teams channel, turns a posted request into a code fix, runs the repository's checks and opens a pull request for a named approver. Use when the user says "이 저장소의 QA agent를 만들어줘", "QA 채널 세팅해줘", or asks to connect a repository to a qa channel. Needs `.ainize_key` and one AIN SSO device-login approval by the user.
 ---
 
 # Ainize: a QA agent for a repository
@@ -9,14 +9,14 @@ A QA agent is an Ainize hosted agent (`https://ainize.ai/agents/<id>`) imported 
 post in its channel; it fixes the repository, validates the fix, opens a pull request, and waits for an approver.
 You register it with the API. You never edit ainize-node or files on the node host.
 
-Read `SKILL-ainize.md` first for the key and the organization. Work in a scratch directory (the steps leave
+Read the installed [Ainize skill](./SKILL.md) first for the key and the organization. Work in a scratch directory (the steps leave
 `sso.cookie`, `*.session.json` and `last.json` there, all private); download the helper next to them:
 
 ```bash
 curl -fsSLO https://ainize.ai/static/skills/ainize/ain_session.py
 ```
 
-Apply the [QA agent standard](https://ainize.ai/docs/how-to/qa-agent) when registering and testing the agent. Have the model read the original report, call scoped tools and compose its own reply. Verify one receipt and one completion in the QA thread. Require the serving commit and a replay of the original symptom before completion. Route intermediate errors to `#monitoring-agents`. Replay previously failed reports after recovery.
+Apply the [QA agent standard](https://ainize.ai/docs/how-to/qa-agent) when registering and testing the agent. Have the model read the original report, call scoped tools and compose its own reply. The QA thread has exactly two permitted reply events: receipt and verified completion. A job waiting for approval, project binding or deployment produces no thread update. Show its pending state on the board. Require the serving commit and a replay of the original symptom before completion. Route intermediate errors to `#monitoring-agents`. Replay previously failed reports after recovery.
 
 ## 0. Check the preconditions, and stop if one is missing
 
@@ -24,7 +24,7 @@ Apply the [QA agent standard](https://ainize.ai/docs/how-to/qa-agent) when regis
 |---|---|---|
 | The organization is admitted to QA | `curl -s https://ainize.ai/api/orgs/$ORG/qa/access -H "Authorization: Bearer $KEY"` → `allowed: true`, `available: true` | Stop. Ask the user to have the node operator admit it (`PUT /api/orgs/<org>/qa/access`). QA runs the repository's code on the node and opens pull requests with the node's GitHub account, so this is the operator's call. |
 | The node's QA GitHub account can write to the repository | registration answers `repository_unreadable` when it cannot | Ask the user to add that account to the repository with write access. |
-| The repository is deployed from GitHub | `SKILL-ainize.md` step 4 | Deploy it first if the user wants fixes to ship; the QA agent only merges, the deployment is the project's own. A repository that is not on Ainize can still have a QA agent: its pull requests are then merged and deployed by whoever does that today. |
+| The production domain is bound to the intended Ainize project | Open [Runs](https://ainize.ai/runs), select the project and verify the production domain and designated deployer. | QA registration and PR review can proceed. Keep production deployment pending until the operator connects the project that serves the domain. |
 | A push to the branch does something irreversible (publishes to a store, runs a migration) | read the repository's CI files | Register with `"autoMerge": false` and tell the user: an approved fix stays an open pull request. |
 
 ## 1. Declare the agent in the repository
@@ -149,7 +149,9 @@ are set — the next release, usually within the day. Do not ask anyone to resta
 curl -s https://ainize.ai/api/qa-agents/myapp-qa -H "Authorization: Bearer $KEY"     # state: active
 ```
 
-When it is `active`, use a small human-authored report in a test channel and verify its receipt. Follow the job on the board through checks and the named approver's decision. After approval, open https://ainize.ai/runs and find the production Run for the target commit. Confirm the stage results, actual serving commit and the replay of the original symptom. Verify one completion reply only after all three checks pass. Report pending approval on the board. Preserve failed Runs and send diagnostics to the monitoring channel.
+When it is `active`, use a small human-authored report in a test channel and verify its receipt. Follow the job on the board through checks and the named approver's decision. After merge, the designated deployer opens [Runs](https://ainize.ai/runs), selects the project serving the production domain, enters the reviewed 40-character main commit SHA and starts the production deployment. If a Run already exists for this release, open it and record its ID. If the deployment control is missing, check the project binding and deployer access. See the [illustrated Run guide](https://ainize.ai/docs/how-to/deploy-with-ainize-json) for the controls and error log.
+
+Verify the Run succeeded, the production health endpoint reports a healthy service, the serving commit matches the target, and the originally reported action passes there. Then verify the completion reply. Keep failed Runs linked to their retries and send intermediate errors to `#monitoring-agents`.
 
 
 ## What to tell the user at the end

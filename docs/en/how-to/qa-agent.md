@@ -104,7 +104,7 @@ to re-read the request, the membership and the approval itself, so nothing rests
 | `pending_restart` | Complete. The node reads QA settings when it starts, so the agent serves the channel from the next release. |
 | `active` | Serving the channel. |
 
-Post a small request in a test channel and trace its job from receipt through approval. Once the change is approved, open [Runs](/runs) and select the production Run for the merge commit. Check the stage results, the serving revision and the replay of the reported action before enabling completion replies. An approval still pending belongs on the board.
+Post a small request in a test channel and trace its job from receipt through approval. After merge, the designated deployer opens [Runs](/runs) and selects the project serving the production domain. Start the production deployment for the reviewed 40-character main commit SHA, or open the existing Run for that release. Record its ID. If the deployment control is missing, check the project binding and deployer access. Follow the [illustrated Run guide](./deploy-with-ainize-json.md) to inspect the stages and failure logs. Send the completion reply once the Run succeeds, the production health check passes, the serving commit matches the target, and the originally reported action passes on that domain.
 
 ## If something is off
 
