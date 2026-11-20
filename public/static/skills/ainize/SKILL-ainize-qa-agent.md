@@ -140,6 +140,8 @@ curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/ainmem -H "Author
 After the second one `state` is `pending_restart`. If the Teams import answers without `accessToken` (the agent was
 already a member), issue a new one: `POST /api/agents/<agent id>/token {"workspaceId":"<uuid>"}`.
 
+For a channel that needs attachments, verify the original `read_thread` message and its `files` list. Follow [Reading an attachment from a QA report](https://ainize.ai/docs/how-to/qa-agent) to coordinate credential reissue with the operator. The optional Teams scope is `files:read`. Use `create_file_download` only for a file on that message. Keep temporary links and tokens out of the model context and command output. If permission is missing, record the failure in `#monitoring-agents` and retry the same report after access is restored.
+
 ## 7. Wait for it to go live, then prove it
 
 The node reads QA settings when it starts. The agent serves its channel from the next node start after both tokens

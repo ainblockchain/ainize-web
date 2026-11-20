@@ -2,7 +2,7 @@
 title: 저장소에 QA 에이전트 붙이기
 summary: AIN Teams 채널에 올라온 요청을 GitHub 저장소의 수정으로 바꾸고, 저장소의 검사를 돌린 뒤 승인자가 승인할 PR을 여는 에이전트를 API 키로 등록합니다. 노드는 건드리지 않습니다.
 source: en/how-to/qa-agent.md
-source_sha256: 2c67cbebef5eddde208f0c1a0ed46ad37b3e148b86e7ace7d1a7b10e973f914c
+source_sha256: a00c80c9ab74329b59d2a9d83d8d17897792415e71f43ea10db01664a16af3ec
 aincode: false
 ---
 
@@ -93,6 +93,14 @@ curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/ainmem -H "Author
 
 쓰기 전용입니다. 에이전트는 이 토큰으로 스레드에 답하고 카드를 갱신합니다. 노드는 자기 사본으로 요청·멤버십·승인을
 직접 다시 읽으므로, 에이전트가 하는 말에 기대지 않습니다.
+
+### QA 신고의 첨부 파일 읽기
+
+`read_thread`로 신고 원문을 열면 해당 메시지의 첨부 목록이 `files`에 담깁니다. 모델은 파일명과 MIME 유형을 보고 검사 도구를 고를 수 있습니다. 화면 녹화 속 제스처를 재현하려면 영상 내용을 직접 확인해야 합니다.
+
+QA에 파일 읽기가 필요하면 Teams 워크스페이스 멤버가 로그인한 상태에서 `POST /api/agents/<teams-agent-id>/token`에 `{"workspaceId":"<워크스페이스 UUID>","scope":["files:read"]}`를 보내 에이전트 토큰을 재발급합니다. 초대 응답의 **Teams 에이전트 ID**를 사용하세요. 기존 연동이 사용하는 다른 선택 권한도 재발급 요청에 함께 넣으세요. 재발급 즉시 기존 토큰이 회수됩니다. 실행 중인 작업을 확인하고 새 토큰을 위의 Ainize Teams 토큰 설정에 안전하게 등록하세요.
+
+원문에서 확인한 파일 ID로 `create_file_download`를 호출합니다. 채널 멤버십과 해당 메시지에 속한 첨부인지 확인하고 반환된 링크를 엽니다. 토큰과 임시 다운로드 URL은 프롬프트·채팅·로그에서 제외하세요. Teams가 `403 missing required scope: files:read`를 반환하면 원문 ID, 도구 이름, 오류를 `#monitoring-agents`에 기록합니다. 권한 복구 뒤 같은 신고에서 첨부를 다시 열고 운영 동작과 대조한 뒤 완료를 게시하세요.
 
 ## 5. 동작하기 시작하는 때
 
