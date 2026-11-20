@@ -2,7 +2,7 @@
 title: 저장소에 QA 에이전트 붙이기
 summary: AIN Teams 채널에 올라온 요청을 GitHub 저장소의 수정으로 바꾸고, 저장소의 검사를 돌린 뒤 승인자가 승인할 PR을 여는 에이전트를 API 키로 등록합니다. 노드는 건드리지 않습니다.
 source: en/how-to/qa-agent.md
-source_sha256: 7b7c8658eb7227b1676796a1468d4bf0cf506145ea690c9427a35c96a85ef2b3
+source_sha256: 2c67cbebef5eddde208f0c1a0ed46ad37b3e148b86e7ace7d1a7b10e973f914c
 aincode: false
 ---
 
@@ -102,7 +102,7 @@ curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/ainmem -H "Author
 | `pending_restart` | 준비 완료. 노드는 시작할 때 QA 설정을 읽으므로, 다음 릴리스부터 채널을 맡습니다. |
 | `active` | 채널을 맡고 있습니다. |
 
-테스트 채널에 작은 요청을 올려 접수부터 승인까지 보드에서 추적하세요. 승인이 끝나면 [Runs](/runs)에서 머지 커밋의 운영 Run을 열고 단계별 결과와 실제 운영 커밋을 확인하세요. 신고한 동작을 다시 실행해 통과한 뒤 완료 답변을 게시합니다. 승인 대기는 보드에서 확인합니다.
+테스트 채널에 작은 요청을 올려 접수부터 승인까지 보드에서 추적하세요. 머지 후 지정 배포 담당자는 [Runs](/runs)에서 운영 도메인을 서빙하는 프로젝트를 선택합니다. 검토한 main 커밋의 40자리 SHA를 입력해 운영 배포를 시작합니다. 해당 릴리스의 Run이 이미 있으면 열어서 Run ID를 기록합니다. 배포 버튼이 보이지 않으면 프로젝트의 운영 배포 연결과 담당자 권한을 확인하세요. [화면으로 보는 Run 사용법](./deploy-with-ainize-json.md)에서 단계와 실패 로그를 확인할 수 있습니다. Run 성공, 운영 헬스체크 통과, 서빙 커밋과 대상 SHA 일치를 확인하고 최초 신고 동작을 그 도메인에서 재검증한 뒤 완료 답변을 게시합니다.
 
 ## 문제가 있을 때
 
