@@ -42,6 +42,15 @@ The agent and host each read the Teams original. Teams marks a direct agent post
 
 Keep locally generated fixes linked to the original message, repository, base commit and candidate commit. Submit the candidate through the repository’s review and Ainize Run workflow. Close the issue only after replaying its original steps on the serving commit.
 
+### Recover a report after the daily intake limit
+
+A tester can publish a finding before a repair job exists. If automatic intake has filled the reporter’s rolling 24-hour allowance (10 by default), look up the original Teams message ID in the agent’s jobs before replying. If a job already exists, continue that job.
+
+For an unregistered finding that needs a retry, the node operator reads the original text and adds an entry to `retryDiscoveries` on the tester’s existing publication binding. Set `messageId` to the original ID and `digest` to the SHA-256 of its exact UTF-8 text, including line breaks. Deploy the binding through Ainize Run. The agent and host each re-read the channel, current author and source. The model must still identify a first-hand finding. A positive daily limit permits this specific retry at capacity. Zero keeps automated intake disabled. An edit changes the digest and requires a fresh review.
+
+Acknowledge once a durable job is linked to the original ID. Check the host intake record for the same source digest when verifying recovery. Publish completion after the fix runs in production and the original user action passes.
+
+
 ## What you need
 
 - An organization the node's operator **admitted to QA**. The agent runs your repository's code on the node and
