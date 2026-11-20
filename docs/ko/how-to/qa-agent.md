@@ -2,7 +2,7 @@
 title: 저장소에 QA 에이전트 붙이기
 summary: AIN Teams 채널에 올라온 요청을 GitHub 저장소의 수정으로 바꾸고, 저장소의 검사를 돌린 뒤 승인자가 승인할 PR을 여는 에이전트를 API 키로 등록합니다. 노드는 건드리지 않습니다.
 source: en/how-to/qa-agent.md
-source_sha256: 8de9337847ee4acefe2a7aedbd79b1afedd4ccfa8e5d069bf3beeb60a1f44bde
+source_sha256: 7b7c8658eb7227b1676796a1468d4bf0cf506145ea690c9427a35c96a85ef2b3
 aincode: false
 ---
 
@@ -102,9 +102,7 @@ curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/ainmem -H "Author
 | `pending_restart` | 준비 완료. 노드는 시작할 때 QA 설정을 읽으므로, 다음 릴리스부터 채널을 맡습니다. |
 | `active` | 채널을 맡고 있습니다. |
 
-그다음 채널에 작은 요청을 최상위 글로 올립니다. 에이전트가 스레드에 답하고, 카드가 보드를 따라 움직이고, 저장소에
-PR이 열리면 끝입니다. 배포는 머지가 합니다. 저장소가 [GitHub를 따라가는](./deploy-from-github.md) Ainize 프로젝트라면
-머지되면 저절로 배포됩니다.
+테스트 채널에 작은 요청을 올려 접수부터 승인까지 보드에서 추적하세요. 승인이 끝나면 [Runs](/runs)에서 머지 커밋의 운영 Run을 열고 단계별 결과와 실제 운영 커밋을 확인하세요. 신고한 동작을 다시 실행해 통과한 뒤 완료 답변을 게시합니다. 승인 대기는 보드에서 확인합니다.
 
 ## 문제가 있을 때
 
