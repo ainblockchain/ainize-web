@@ -104,9 +104,7 @@ to re-read the request, the membership and the approval itself, so nothing rests
 | `pending_restart` | Complete. The node reads QA settings when it starts, so the agent serves the channel from the next release. |
 | `active` | Serving the channel. |
 
-Then post a small request in the channel as a top-level message. The agent answers in the thread, the card moves
-across the board, and it ends with a pull request on your repository. Merging it is what deploys: if the repository
-is an Ainize project that [follows GitHub](./deploy-from-github.md), the merge ships by itself.
+Post a small request in a test channel and trace its job from receipt through approval. Once the change is approved, open [Runs](/runs) and select the production Run for the merge commit. Check the stage results, the serving revision and the replay of the reported action before enabling completion replies. An approval still pending belongs on the board.
 
 ## If something is off
 

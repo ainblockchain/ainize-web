@@ -149,10 +149,8 @@ are set — the next release, usually within the day. Do not ask anyone to resta
 curl -s https://ainize.ai/api/qa-agents/myapp-qa -H "Authorization: Bearer $KEY"     # state: active
 ```
 
-When it is `active`, ask the user to post one small, harmless request in the channel as a top-level message (the
-agent takes requests from people, not from agents): a wording fix, a README line. Then follow it on the board. It is
-done when a pull request is open on the repository and the thread shows the checks' results. Report that pull
-request to the user; approving it is theirs.
+When it is `active`, use a small human-authored report in a test channel and verify its receipt. Follow the job on the board through checks and the named approver's decision. After approval, open https://ainize.ai/runs and find the production Run for the target commit. Confirm the stage results, actual serving commit and the replay of the original symptom. Verify one completion reply only after all three checks pass. Report pending approval on the board. Preserve failed Runs and send diagnostics to the monitoring channel.
+
 
 ## What to tell the user at the end
 
