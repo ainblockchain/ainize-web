@@ -2,7 +2,7 @@
 title: 저장소에 QA 에이전트 붙이기
 summary: AIN Teams 채널에 올라온 요청을 GitHub 저장소의 수정으로 바꾸고, 저장소의 검사를 돌린 뒤 승인자가 승인할 PR을 여는 에이전트를 API 키로 등록합니다. 노드는 건드리지 않습니다.
 source: en/how-to/qa-agent.md
-source_sha256: fd372621692d92a0a43a48df06d8654acabd5c0d17c99a4e47ca4c7f7497e71e
+source_sha256: 20febad5478c26ac3a3518725f7c4c3a6e6a375b8e7de545faf4b85a73d46901
 aincode: false
 ---
 
