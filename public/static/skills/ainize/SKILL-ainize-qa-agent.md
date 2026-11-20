@@ -18,6 +18,8 @@ curl -fsSLO https://ainize.ai/static/skills/ainize/ain_session.py
 
 Apply the [QA agent standard](https://ainize.ai/docs/how-to/qa-agent) when registering and testing the agent. Have the model read the original report, call scoped tools and compose its own reply. The QA thread has exactly two permitted reply events: receipt and verified completion. A job waiting for approval, project binding or deployment produces no thread update. Show its pending state on the board. Require the serving commit and a replay of the original symptom before completion. Route intermediate errors to `#monitoring-agents`. Replay previously failed reports after recovery.
 
+When inspecting coding progress, check each tool result and count writes that changed workspace bytes. A failed replacement and a byte-identical write contribute zero applied edits. Keep the job open until the original production replay passes.
+
 For reports with different message IDs, compare original sources through tools and require evidence that the same fix satisfies both. Preserve independent work on ambiguity. Treat review approval as a decision on a candidate commit. Check the serving commit and replay the original symptom before reporting a verified fix. To recover a job closed on review approval, re-read its thread and resume verification with the existing candidate and notification history.
 
 ## 0. Check the preconditions, and stop if one is missing
@@ -28,6 +30,8 @@ For reports with different message IDs, compare original sources through tools a
 | The node's QA GitHub account can write to the repository | registration answers `repository_unreadable` when it cannot | Ask the user to add that account to the repository with write access. |
 | The production domain is bound to the intended Ainize project | Open [Runs](https://ainize.ai/runs), select the project and verify the production domain and designated deployer. | QA registration and PR review can proceed. Keep production deployment pending until the operator connects the project that serves the domain. |
 | A push to the branch does something irreversible (publishes to a store, runs a migration) | read the repository's CI files | Register with `"autoMerge": false` and tell the user: an approved fix stays an open pull request. |
+
+When the tester publishes a first-hand finding, also check repair intake. Have the operator scope `discoveryRepositories` on the existing Teams publication binding to the repository or shared pair. Verify the serving Run, the original Teams ID and the job's matching source digest. Teams marks an agent's own post with `automated: true` and `automation: "agent"`. These fields identify the publishing account. Determine whether the writer observed a new product problem by reading the whole text and verifying a source excerpt. An acknowledgment from the same account can have identical metadata and belongs in the original thread. Preserve the retry time and the same job after HTTP 429. Verify the reported behavior in production before posting completion.
 
 ## 1. Declare the agent in the repository
 

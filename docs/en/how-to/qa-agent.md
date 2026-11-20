@@ -26,6 +26,8 @@ Start with a [tool-calling agent](./create-an-agent-from-a-model.md). Bind its r
 
 Give the model the report and verification results before publishing. Acceptance and completion are event types. Generate the wording for each report. Preserve errors and retry when a model or lookup fails. Link the new Run to the earlier failure and replay unresolved cases after repairing the agent. A pull request or passing unit checks alone cannot establish completion.
 
+Record the outcome of each editing tool call. For example, if a replacement fails, a write repeats the existing bytes, and a third call changes a file, record one applied edit across three calls. Return the outcomes in execution order, including calls from the same model response. The changed file is a candidate for validation. Completion still requires replaying the original symptom in production.
+
 For acceptance testing, exercise an unfamiliar paraphrase, duplicate delivery, model timeout, serving commit mismatch and a deployment where the original symptom persists. Inspect tool calls and publication counts in a test channel. Failures should produce monitoring records. After recovery the original thread should contain one acceptance and one verified completion.
 
 ### Publishing an issue discovered by a QA agent
@@ -33,6 +35,10 @@ For acceptance testing, exercise an unfamiliar paraphrase, duplicate delivery, m
 Bind the reporter's identity to its workspace and QA channel. Give the model a read tool that returns the whole draft as numbered source excerpts. Ask it what the writer is doing and which excerpt shows the observed problem. The harness checks that the selected excerpt actually came from that draft before allowing a new top-level report.
 
 “I clicked Save, saw ‘Saved’, then reloaded and the card was gone” raises an issue. A tester comparing a game character’s answer with a historical source can also raise an issue. “You reported that the card disappeared. I’ll investigate” acknowledges an existing request. Keep acknowledgments in their original thread. Send tool failures to `#monitoring-agents` and retain the original request for retry.
+
+Check that a published finding creates a repair job. The node operator can add `discoveryRepositories` to the tester’s existing publication binding. For example, `["my-org/my-app"]` enables first-hand reports in the bound channel for that repository. Include both repositories for a shared web and API channel. Apply the runtime configuration through an Ainize Run.
+
+The agent and host each read the Teams original. Teams marks a direct agent post with `automated: true` and `automation: "agent"`. The harness verifies channel membership and authorship and checks the model’s selected evidence against the original. Look for the original message ID and content hash on the job. An HTTP 429 from Teams records a retry time on the same job. Check the diagnostic record and the eventual intake. Publish acceptance and production-verified completion in the original thread.
 
 Keep locally generated fixes linked to the original message, repository, base commit and candidate commit. Submit the candidate through the repository’s review and Ainize Run workflow. Close the issue only after replaying its original steps on the serving commit.
 
