@@ -96,6 +96,14 @@ curl -s -X PUT https://ainize.ai/api/qa-agents/myapp-qa/tokens/ainmem -H "Author
 They are write-only. The agent uses them to answer in the thread and update the card; the node keeps its own copy
 to re-read the request, the membership and the approval itself, so nothing rests on what the agent says.
 
+### Reading an attachment from a QA report
+
+Open the original message with `read_thread`. Each entry in `files` identifies an attachment on that message. A filename and MIME type can help the model choose an inspection tool. Reproducing a gesture shown in a screen recording requires inspecting the recording itself.
+
+If QA needs file contents, a signed-in Teams workspace member can reissue the agent credential with `POST /api/agents/<teams-agent-id>/token` and the JSON body `{"workspaceId":"<workspace uuid>","scope":["files:read"]}`. Use the agent's **Teams** ID from the invitation. Include any additional optional scopes the existing integration still needs. Reissuing immediately revokes the old credential. Coordinate the change with ongoing jobs and copy the new credential privately into the Ainize Teams token setting above.
+
+Call `create_file_download` with the file ID from the verified message. Check channel membership and the message-to-file binding before opening the returned link. Keep the token and temporary download URL out of prompts, chat and logs. If Teams returns `403 missing required scope: files:read`, record the original message ID, tool name and error in `#monitoring-agents`. Once access is restored, retry that same report and compare the production behavior with the attachment before posting completion.
+
 ## 5. When it starts working
 
 | `state` | Meaning |
