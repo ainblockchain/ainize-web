@@ -33,6 +33,8 @@ For reports with different message IDs, compare original sources through tools a
 
 When the tester publishes a first-hand finding, also check repair intake. Have the operator scope `discoveryRepositories` on the existing Teams publication binding to the repository or shared pair. Verify the serving Run, the original Teams ID and the job's matching source digest. Teams marks an agent's own post with `automated: true` and `automation: "agent"`. These fields identify the publishing account. Determine whether the writer observed a new product problem by reading the whole text and verifying a source excerpt. An acknowledgment from the same account can have identical metadata and belongs in the original thread. Preserve the retry time and the same job after HTTP 429. Verify the reported behavior in production before posting completion.
 
+At the rolling daily limit, first look up the original Teams ID. Reuse its existing job. For a missing job, the node operator can select that exact message with `retryDiscoveries` on the existing tester publication binding. Bind the original message ID and SHA-256 of the exact UTF-8 content. A positive daily limit allows the selected retry at capacity. Zero disables it. Edited text requires fresh review. Acknowledge once the original ID has a durable job. To verify recovery, check the deploying Ainize Run, both canonical reads, one job and the host’s matching digest. Wait for a passing production replay before completion.
+
 ## 1. Declare the agent in the repository
 
 The repository must name its agent and list the checks a fix has to pass. Add to `ainize.json` on the QA branch
