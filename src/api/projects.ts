@@ -189,6 +189,10 @@ export function sortTriggers(rows: readonly ProjectTrigger[]): ProjectTrigger[] 
 
 export interface Deployment {
   previousFailedRunId?: string;
+  managedRelease?: {
+    code: number; health: boolean; servingSha: string | null; previousSha: string | null;
+    rollbackAttempted: boolean; rolledBack: boolean;
+  };
   placement?: { address: string; endpoint: string; local: boolean; score: number; gpuUuids: string[]; reason: string } | null;
   id: string;
   projectId: string;
