@@ -2,7 +2,7 @@
 title: ainize.json으로 리포 배포하기
 summary: git 리포 루트의 파일 하나가 push마다 Ainize가 무엇을 실행할지 — Next.js 앱, 단순 스크립트, Dockerfile 서비스, A2A 에이전트 — 와 결과가 어디서 열리는지를 정합니다.
 source: en/how-to/deploy-with-ainize-json.md
-source_sha256: e3654460653a784d4955e22a178b6dfb5118ec557e4a58a701417d58fb9da53e
+source_sha256: 088893bf4878529426740a6a4450fedc569edca0525c9425e611f694f799c758
 ---
 
 # ainize.json으로 리포 배포하기
@@ -206,6 +206,10 @@ Clef 결정 모델로 묘사에 맞는 작품을 랭킹하는 파이썬 파일 �
 3. **실행 기록(Run history)**에서 방금 생성된 Run ID를 펼칩니다. 목표 SHA를 확인하고 로그의 `[host CI]` 행에서 실패 단계, 시작·종료 시각, 종료 코드와 제공된 진단 코드를 확인합니다. 예를 들어 체크아웃의 `MAIN_REVISION_CHANGED`는 실제 main이 요청한 SHA에서 이동했다는 뜻입니다. 현재 main을 다시 확인한 뒤 배포할 커밋을 선택합니다.
 
 호스트 로그가 `drain / running`이면 기존 작업을 마칠 때까지 활성화를 기다리는 중입니다. `DOCS_DRIFT_SCHEMAS` 또는 `DOCS_DRIFT_ERRORS`로 테스트가 실패하면 로그에 표시된 저장소에서 참조 문서를 다시 생성하고 변경 사항을 함께 커밋하세요. 외부 호스트의 백업에서 `archive_read_denied`가 나오면 백업 프로세스가 해당 파일을 읽을 수 있는지 확인하고 복원 검사를 거친 뒤 다시 배포하세요.
+
+아래 운영 Run에서 실행 행을 펼치고 마지막 `[host CI] drain` 줄을 확인하세요. 빌드는 종료 코드 0으로 끝났고, 진행 중인 작업은 5건에서 1건으로 줄었습니다. `coding=1`은 코딩 작업 한 건이 남았다는 뜻입니다. 배포가 기다리는 동안 같은 Run의 `last observed`에서 가장 최근 관측 시각을 확인할 수 있습니다.
+
+![실제 운영 Run에서 빌드 단계의 종료 코드와 배포 전 대기 중인 코딩 작업 한 건을 확인하는 화면](/static/docs/cicd/host-release-drain-production.png)
 
 ![운영 Run의 실패 행을 펼쳐 단계와 종료 코드를 확인하는 화면. 예시 데이터.](/static/docs/cicd/host-release-error-example.png)
 

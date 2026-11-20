@@ -214,6 +214,10 @@ Start each production deployment with an Ainize Run for a specific commit. Sign 
 
 A host stage showing `drain / running` means activation is waiting for existing work to finish. If tests report `DOCS_DRIFT_SCHEMAS` or `DOCS_DRIFT_ERRORS`, regenerate the reference documents in the repository named in the log and commit the changes. If an external host reports `archive_read_denied` during backup, check the backup process’s read access, verify a restore, and retry.
 
+In this production Run, expand the row and read the last `[host CI] drain` entry. The build has exited with code 0. The active count fell from five to one, and `coding=1` identifies the remaining work. Check the `last observed` timestamp on the same Run for a fresh observation while activation waits.
+
+![Expanded production Run with successful build stages and one active coding task in the drain log](/static/docs/cicd/host-release-drain-production.png)
+
 ![Expanded production Run showing a failed stage and exit code using example data](/static/docs/cicd/host-release-error-example.png)
 
 4. Fix the cause and submit the reviewed SHA in a new Run. Follow its previous-failure link to compare attempts. Success requires a passing health check on the production domain and a serving commit equal to the target SHA. After rollback, inspect the rollback outcome and the commit serving traffic.
