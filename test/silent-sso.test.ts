@@ -465,3 +465,7 @@ test('a session cookie the node no longer knows is cleared, so automatic sign-in
     assert.equal(cookieOf(await GET(page('/api/auth/me', withCookie('ainize_session=x'))), 'ainize_session'), undefined, 'never on an error');
   } finally { globalThis.fetch = realFetch; }
 });
+
+test('public node probe URLs return their response on direct browser navigation', () => {
+  for (const path of ['/healthz','/readyz']) assert.equal(silentSsoStart(page(path)), null);
+});
