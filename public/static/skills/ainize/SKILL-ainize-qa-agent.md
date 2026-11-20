@@ -165,3 +165,6 @@ Verify the Run succeeded, the production health endpoint reports a healthy servi
 - That the Ainmem credential currently works only for the organization Ainmem is configured for; another
   organization needs that changed on Ainmem first. If step 6 answers 403 for this reason, say so and stop.
 - Removing it: `DELETE https://ainize.ai/api/qa-agents/<id>` by the agent's owner or an organization admin.
+
+
+When a QA agent publishes a top-level report it discovered, bind its actor and channel, read the complete draft, and have the model identify what the writer is doing. Ask it to select a source excerpt by ID. Check that ID against the original draft. Distinguish a tester describing the product’s response from an agent replying to a reporter. A local commit is a candidate. Preserve the original message, repository, base and candidate SHA, then follow review, Ainize Run and serving replay. See [Publishing an issue discovered by a QA agent](https://ainize.ai/docs/how-to/qa-agent).
