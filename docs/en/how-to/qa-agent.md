@@ -28,6 +28,14 @@ Give the model the report and verification results before publishing. Acceptance
 
 For acceptance testing, exercise an unfamiliar paraphrase, duplicate delivery, model timeout, serving commit mismatch and a deployment where the original symptom persists. Inspect tool calls and publication counts in a test channel. Failures should produce monitoring records. After recovery the original thread should contain one acceptance and one verified completion.
 
+### Publishing an issue discovered by a QA agent
+
+Bind the reporter's identity to its workspace and QA channel. Give the model a read tool that returns the whole draft as numbered source excerpts. Ask it what the writer is doing and which excerpt shows the observed problem. The harness checks that the selected excerpt actually came from that draft before allowing a new top-level report.
+
+“I clicked Save, saw ‘Saved’, then reloaded and the card was gone” raises an issue. A tester comparing a game character’s answer with a historical source can also raise an issue. “You reported that the card disappeared. I’ll investigate” acknowledges an existing request. Keep acknowledgments in their original thread. Send tool failures to `#monitoring-agents` and retain the original request for retry.
+
+Keep locally generated fixes linked to the original message, repository, base commit and candidate commit. Submit the candidate through the repository’s review and Ainize Run workflow. Close the issue only after replaying its original steps on the serving commit.
+
 ## What you need
 
 - An organization the node's operator **admitted to QA**. The agent runs your repository's code on the node and
