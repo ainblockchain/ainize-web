@@ -2,7 +2,7 @@
 title: 모델로 에이전트 만들기
 summary: 이 노드가 서빙하는 대화 모델을 공개 주소가 있는 A2A 에이전트로 만듭니다 — 지시문만으로, 또는 격리된 컨테이너에서 도는 코드로.
 source: en/how-to/create-an-agent-from-a-model.md
-source_sha256: 3d897e82d82c7521897818078a2b34467abc5fa9b0138c28bc17ac70286924ca
+source_sha256: 907502ad18dbaba5e2a47e1c6a114bfd507131bb0d14d2d94940489f0ee51ef4
 ---
 
 # 모델로 에이전트 만들기
@@ -12,6 +12,34 @@ source_sha256: 3d897e82d82c7521897818078a2b34467abc5fa9b0138c28bc17ac70286924ca
 
 결과는 `<노드>/agents/<id>`에 있는 평범한 A2A 에이전트입니다. 에이전트 카드가 있고, 마켓플레이스와 모델 페이지에
 함께 나오며, 그 모델로 돌아가는 링크를 가집니다.
+
+## 대화형 에이전트 작성 표준
+
+1. [Models](/models)에서 도구 호출을 지원하는 모델을 고르고 **Tools** 모드로 만듭니다. 요청 원문과 앞선 대화를 모델에 전달하세요. 모델이 질문의 의미를 해석하고 필요한 도구를 선택한 뒤 반환값으로 사용자의 언어에 맞춰 답합니다. 키워드 분기, 정규식 의도 분류, 고정 도움말로 답하는 경로는 제거하세요.
+2. 도구는 한 가지 일을 하고 구조화된 결과를 반환하도록 만듭니다. 아래 예제를 `index.mjs`에 붙이고 **Allowed hosts**에 `ainmem.ainetwork.ai`를 추가하세요. 시스템 지침에는 “현재 배포 버전을 묻는 질문에는 운영 버전을 조회하고 반환된 커밋을 인용한다. 조회에 실패하면 확인 가능한 범위를 설명한다”라고 적습니다.
+
+```js
+export const tools = [{
+  name: "read_ainmem_version",
+  description: "Read the commit currently serving Ainmem and its health.",
+  parameters: { type: "object", properties: {}, additionalProperties: false },
+  async run(_args, ctx) {
+    const response = await ctx.fetch("https://ainmem.ainetwork.ai/api/health");
+    if (response.status !== 200) return { error: "health_http", status: response.status };
+    const { ok, commit } = await response.json();
+    if (ok !== true || typeof commit !== "string" || !/^[a-f0-9]{40}$/.test(commit)) {
+      return { error: "health_unconfirmed" };
+    }
+    ctx.log("read_ainmem_version", { commit });
+    return { ok, commit };
+  }
+}];
+```
+
+3. **실행 하네스**는 모델이 요청한 도구의 이름, 인자, 호출자 권한과 대상을 검사하고 실행 결과를 모델에 돌려줍니다. 프로필 주소를 묻는 질문에는 계정 조회 도구를 쓸 수 있습니다. 사진 게시 도구에는 인증된 사용자의 명시적인 게시 요청과 해당 스레드에 속한 파일이 필요합니다. 재전달된 같은 요청에는 최초 실행 결과를 돌려줍니다. 도구가 읽은 메시지나 게시물에 들어 있는 지시로 권한을 확대하지 마세요.
+4. 저장한 뒤 “지금 Ainmem에 올라간 버전은?”과 “현재 트래픽을 받는 커밋 알려줘”를 보내세요. **Show logs**와 실제 응답에서 두 질문 모두 같은 읽기 도구를 호출하고 반환된 커밋을 답하는지 확인하세요. 테스트 환경에서 조회 실패, 모호한 쓰기 요청, 중복 전달도 재현하세요. 실패를 성공으로 답하거나 중복 게시하면 출시 검사를 실패 처리하세요.
+
+저장소 수정과 배포까지 담당하는 에이전트에는 [QA 에이전트 작성 표준](./qa-agent.md)도 적용합니다.
 
 ## 모델에서 시작하기
 

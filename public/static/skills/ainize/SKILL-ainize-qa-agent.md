@@ -16,6 +16,8 @@ Read `SKILL-ainize.md` first for the key and the organization. Work in a scratch
 curl -fsSLO https://ainize.ai/static/skills/ainize/ain_session.py
 ```
 
+Apply the [QA agent standard](https://ainize.ai/docs/how-to/qa-agent) when registering and testing the agent. Have the model read the original report, call scoped tools and compose its own reply. Verify one receipt and one completion in the QA thread. Require the serving commit and a replay of the original symptom before completion. Route intermediate errors to `#monitoring-agents`. Replay previously failed reports after recovery.
+
 ## 0. Check the preconditions, and stop if one is missing
 
 | What | How to check | If it is missing |

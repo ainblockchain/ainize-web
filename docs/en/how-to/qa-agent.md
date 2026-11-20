@@ -14,6 +14,20 @@ pipeline the node runs for it.
 The quickest way to set one up is to ask Claude Code ([Use Ainize from Claude Code](./claude-code-skill.md)). This
 page is what happens, so you can do it by hand or check what was done.
 
+## QA agent standard
+
+Start with a [tool-calling agent](./create-an-agent-from-a-model.md). Bind its repository and channel using the registration steps below. Give it scoped tools to read the source thread, inspect the repository, validate changes, read the deployment Run and retrieve the production replay result. The model uses the report, attachments and earlier attempts to choose its next tool and compose its reply. The harness enforces repository and channel scope, approval, call limits, deduplication and posting permissions.
+
+| Event | Evidence the harness must check | Destination and content |
+|---|---|---|
+| Accepted | A durable job linked to the source message ID | Reply once in the original QA thread, identifying the reported symptom. |
+| Tool, model, check or deployment failed | Job ID, failed stage, Run link and exit code when available, redacted final output | Record the error in `#monitoring-agents`. Suppress intermediate replies in the QA thread. |
+| Fix verified | Successful Run for the target commit, healthy service, matching serving commit and passing replay of the original user action | Reply once in the original QA thread with what changed and how it was verified. |
+
+Give the model the report and verification results before publishing. Acceptance and completion are event types. Generate the wording for each report. Preserve errors and retry when a model or lookup fails. Link the new Run to the earlier failure and replay unresolved cases after repairing the agent. A pull request or passing unit checks alone cannot establish completion.
+
+For acceptance testing, exercise an unfamiliar paraphrase, duplicate delivery, model timeout, serving commit mismatch and a deployment where the original symptom persists. Inspect tool calls and publication counts in a test channel. Failures should produce monitoring records. After recovery the original thread should contain one acceptance and one verified completion.
+
 ## What you need
 
 - An organization the node's operator **admitted to QA**. The agent runs your repository's code on the node and
