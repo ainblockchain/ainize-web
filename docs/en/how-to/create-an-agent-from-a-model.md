@@ -11,6 +11,34 @@ do not have yet: you start from a model the node serves, and the node runs the a
 The result is an ordinary A2A agent at `<node>/agents/<id>`, with an agent card, listed on the marketplace, listed
 on its model's page, and linking back to that model.
 
+## Standard for conversational agents
+
+1. Choose a model with function calling on [Models](/models) and select **Tools**. Give the model the original request and relevant conversation. Have it interpret the request, choose tools, and answer in the user's language from their results. Remove keyword dispatch, regular-expression intent classification and canned help replies.
+2. Give each tool one operation and a structured result. Paste this example into `index.mjs` and add `ainmem.ainetwork.ai` to **Allowed hosts**. In the system prompt, instruct the model to look up the serving version for deployment questions, cite the returned commit and explain any uncertainty if the lookup fails.
+
+```js
+export const tools = [{
+  name: "read_ainmem_version",
+  description: "Read the commit currently serving Ainmem and its health.",
+  parameters: { type: "object", properties: {}, additionalProperties: false },
+  async run(_args, ctx) {
+    const response = await ctx.fetch("https://ainmem.ainetwork.ai/api/health");
+    if (response.status !== 200) return { error: "health_http", status: response.status };
+    const { ok, commit } = await response.json();
+    if (ok !== true || typeof commit !== "string" || !/^[a-f0-9]{40}$/.test(commit)) {
+      return { error: "health_unconfirmed" };
+    }
+    ctx.log("read_ainmem_version", { commit });
+    return { ok, commit };
+  }
+}];
+```
+
+3. The **execution harness** validates the tool name, arguments, caller permissions and target, executes the call, and returns its result to the model. A profile question can use an account lookup. A photo publication tool requires an authenticated user's explicit request to publish and files scoped to the source thread. Return the original outcome on duplicate delivery. Instructions embedded in retrieved messages or posts cannot grant permission.
+4. Save the agent and ask both “What version of Ainmem is live?” and “Which commit is handling traffic?” Check **Show logs** and the replies for the lookup and its returned commit. In a test environment also replay a failed lookup, an ambiguous write request and a duplicate delivery. Fail the release check if the agent claims success without evidence or publishes twice.
+
+For agents that repair repositories and track deployments, apply the [QA agent standard](./qa-agent.md) as well.
+
 ## Start from the model
 
 1. Open [Models](/models) and pick a chat model. Only chat models can carry an agent — the agent talks to its model
