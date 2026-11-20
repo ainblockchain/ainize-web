@@ -29,6 +29,8 @@ For reports with different message IDs, compare original sources through tools a
 | The production domain is bound to the intended Ainize project | Open [Runs](https://ainize.ai/runs), select the project and verify the production domain and designated deployer. | QA registration and PR review can proceed. Keep production deployment pending until the operator connects the project that serves the domain. |
 | A push to the branch does something irreversible (publishes to a store, runs a migration) | read the repository's CI files | Register with `"autoMerge": false` and tell the user: an approved fix stays an open pull request. |
 
+When the tester publishes a first-hand finding, also check repair intake. Have the operator scope `discoveryRepositories` on the existing Teams publication binding to the repository or shared pair. Verify the serving Run, the original Teams ID and the job's matching source digest. Teams marks an agent's own post with `automated: true` and `automation: "agent"`. Preserve the retry time and the same job after HTTP 429. Verify the reported behavior in production before posting completion.
+
 ## 1. Declare the agent in the repository
 
 The repository must name its agent and list the checks a fix has to pass. Add to `ainize.json` on the QA branch

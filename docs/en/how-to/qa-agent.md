@@ -34,6 +34,10 @@ Bind the reporter's identity to its workspace and QA channel. Give the model a r
 
 “I clicked Save, saw ‘Saved’, then reloaded and the card was gone” raises an issue. A tester comparing a game character’s answer with a historical source can also raise an issue. “You reported that the card disappeared. I’ll investigate” acknowledges an existing request. Keep acknowledgments in their original thread. Send tool failures to `#monitoring-agents` and retain the original request for retry.
 
+Check that a published finding creates a repair job. The node operator can add `discoveryRepositories` to the tester’s existing publication binding. For example, `["my-org/my-app"]` enables first-hand reports in the bound channel for that repository. Include both repositories for a shared web and API channel. Apply the runtime configuration through an Ainize Run.
+
+The agent and host each read the Teams original. Teams marks a direct agent post with `automated: true` and `automation: "agent"`. The harness verifies channel membership and authorship and checks the model’s selected evidence against the original. Look for the original message ID and content hash on the job. An HTTP 429 from Teams records a retry time on the same job. Check the diagnostic record and the eventual intake. Publish acceptance and production-verified completion in the original thread.
+
 Keep locally generated fixes linked to the original message, repository, base commit and candidate commit. Submit the candidate through the repository’s review and Ainize Run workflow. Close the issue only after replaying its original steps on the serving commit.
 
 ## What you need
