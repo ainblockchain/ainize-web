@@ -214,6 +214,8 @@ Start each production deployment with an Ainize Run for a specific commit. Sign 
 
 A host stage showing `drain / running` means activation is waiting for existing work to finish. If tests report `DOCS_DRIFT_SCHEMAS` or `DOCS_DRIFT_ERRORS`, regenerate the reference documents in the repository named in the log and commit the changes. If an external host reports `archive_read_denied` during backup, check the backup process’s read access, verify a restore, and retry.
 
+If Ainmem stops at `configuration` with `COMPOSE_REVIEW_REQUIRED`, compare `docker-compose.prod.yml` at the Run’s target commit with the serving template. Ask the host receiver maintainer to review volume, mount, port and privilege changes and approve the exact template digest. Once the updated receiver is deployed, retry the failed Run and confirm the new Run links back to it.
+
 In this production Run, expand the row and read the last `[host CI] drain` entry. The build has exited with code 0. The active count fell from five to one, and `coding=1` identifies the remaining work. Check the `last observed` timestamp on the same Run for a fresh observation while activation waits.
 
 ![Expanded production Run with successful build stages and one active coding task in the drain log](/static/docs/cicd/host-release-drain-production.png)
