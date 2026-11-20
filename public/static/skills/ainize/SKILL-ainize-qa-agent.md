@@ -18,6 +18,8 @@ curl -fsSLO https://ainize.ai/static/skills/ainize/ain_session.py
 
 Apply the [QA agent standard](https://ainize.ai/docs/how-to/qa-agent) when registering and testing the agent. Have the model read the original report, call scoped tools and compose its own reply. The QA thread has exactly two permitted reply events: receipt and verified completion. A job waiting for approval, project binding or deployment produces no thread update. Show its pending state on the board. Require the serving commit and a replay of the original symptom before completion. Route intermediate errors to `#monitoring-agents`. Replay previously failed reports after recovery.
 
+When inspecting coding progress, check each tool result and count writes that changed workspace bytes. A failed replacement and a byte-identical write contribute zero applied edits. Keep the job open until the original production replay passes.
+
 For reports with different message IDs, compare original sources through tools and require evidence that the same fix satisfies both. Preserve independent work on ambiguity. Treat review approval as a decision on a candidate commit. Check the serving commit and replay the original symptom before reporting a verified fix. To recover a job closed on review approval, re-read its thread and resume verification with the existing candidate and notification history.
 
 ## 0. Check the preconditions, and stop if one is missing

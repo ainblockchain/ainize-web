@@ -26,6 +26,8 @@ Start with a [tool-calling agent](./create-an-agent-from-a-model.md). Bind its r
 
 Give the model the report and verification results before publishing. Acceptance and completion are event types. Generate the wording for each report. Preserve errors and retry when a model or lookup fails. Link the new Run to the earlier failure and replay unresolved cases after repairing the agent. A pull request or passing unit checks alone cannot establish completion.
 
+Record the outcome of each editing tool call. For example, if a replacement fails, a write repeats the existing bytes, and a third call changes a file, record one applied edit across three calls. Return the outcomes in execution order, including calls from the same model response. The changed file is a candidate for validation. Completion still requires replaying the original symptom in production.
+
 For acceptance testing, exercise an unfamiliar paraphrase, duplicate delivery, model timeout, serving commit mismatch and a deployment where the original symptom persists. Inspect tool calls and publication counts in a test channel. Failures should produce monitoring records. After recovery the original thread should contain one acceptance and one verified completion.
 
 ### Publishing an issue discovered by a QA agent
