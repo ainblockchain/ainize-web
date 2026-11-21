@@ -16,6 +16,8 @@ Read the installed [Ainize skill](./SKILL.md) first for the key and the organiza
 curl -fsSLO https://ainize.ai/static/skills/ainize/ain_session.py
 ```
 
+Only the hosted QA harness publishes agent replies in the original thread. Release and replay tools record evidence in the job and Run and use read-only thread access. Verify every reply by the bound actor against the ordered acceptance and verified completion for that root. Record any additional reply as a delivery failure in #monitoring-agents even if the product replay passed.
+
 Apply the [QA agent standard](https://ainize.ai/docs/how-to/qa-agent) when registering and testing the agent. Have the model read the original report, call scoped tools and compose its own reply. The QA thread has exactly two permitted reply events: receipt and verified completion. A job waiting for approval, project binding or deployment produces no thread update. Show its pending state on the board. Require the serving commit and a replay of the original symptom before completion. Route intermediate errors to `#monitoring-agents`. Replay previously failed reports after recovery.
 
 When inspecting coding progress, check each tool result and count writes that changed workspace bytes. A failed replacement and a byte-identical write contribute zero applied edits. Keep the job open until the original production replay passes.

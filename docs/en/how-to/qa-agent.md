@@ -28,6 +28,8 @@ Give the model the report and verification results before publishing. Acceptance
 
 Record the outcome of each editing tool call. For example, if a replacement fails, a write repeats the existing bytes, and a third call changes a file, record one applied edit across three calls. Return the outcomes in execution order, including calls from the same model response. The changed file is a candidate for validation. Completion still requires replaying the original symptom in production.
 
+Make the hosted QA harness the sole writer of agent replies in the original thread. Build scripts, replay tools and release checks attach evidence to the job and Run. Give those tools read-only access to the thread. To verify delivery, read the entire thread and compare the agent’s replies in order with its recorded acceptance and verified completion. Match the workspace, channel, root, author and exact message content. An extra reply fails the delivery check even when the product fix passes.
+
 For acceptance testing, exercise an unfamiliar paraphrase, duplicate delivery, model timeout, serving commit mismatch and a deployment where the original symptom persists. Inspect tool calls and publication counts in a test channel. Failures should produce monitoring records. After recovery the original thread should contain one acceptance and one verified completion.
 
 ### Publishing an issue discovered by a QA agent
